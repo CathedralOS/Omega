@@ -165,12 +165,7 @@ impl Operand {
             }
             TypeParameterKind::Const { type_reference }
             | TypeParameterKind::Value { type_reference }
-                if program.primitive_type_reference(*type_reference).is_none()
-                    && argument.symbol.is_valid()
-                    && (program
-                        .const_declaration_by_symbol(argument.symbol)
-                        .is_some()
-                        || program.variant_owner(argument.symbol).is_some()) =>
+                if program.is_closed_aggregate_operand(*type_reference, argument) =>
             {
                 let value = program
                     .canonical_aggregate_argument(*type_reference, argument)

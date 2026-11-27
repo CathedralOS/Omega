@@ -281,6 +281,18 @@ impl crate::source_state::TypedTrees {
         )
     }
 
+    pub(crate) fn is_closed_aggregate_operand(
+        &self,
+        carrier: crate::source_state::types::TypeReferenceHandle,
+        argument: &crate::source_state::expression::StaticMachineArgument,
+    ) -> bool {
+        self.contains_type_reference(carrier)
+            && self.primitive_type_reference(carrier).is_none()
+            && argument.symbol.is_valid()
+            && (self.const_declaration_by_symbol(argument.symbol).is_some()
+                || self.variant_owner(argument.symbol).is_some())
+    }
+
     /// Retain every field of an already evaluated aggregate value. The source
     /// constant's declared carrier, rather than its display name, owns typing.
     pub fn canonical_aggregate_argument(
@@ -317,7 +329,8 @@ impl crate::source_state::TypedTrees {
             }
             let name = owner.name.as_str();
             let case_name = case.name.as_str();
-            return CanonicalConstValue::from_decoded(
+            return CanonicalConstValue::from_decoded_in_type(
+                self.normalized_type_identity_text(declared_type),
                 &DecodedCanonicalConstValue::Variant {
                     type_name: name.to_owned(),
                     case_name: case_name.to_owned(),
@@ -4273,6 +4286,26 @@ pub(crate) mod requirement_instances {
             lexical_owner: SymbolHandle,
             ordinal: usize,
         ) -> Option<type_identity::NormalizedTypeIdentity> {
+            if let (
+                data::TypeParameterKind::Const { type_reference }
+                | data::TypeParameterKind::Value { type_reference },
+                static_applications::StaticMachineBindingValue::Const(_),
+            ) = (kind, binding)
+            {
+                let argument = program
+                    .static_operand_from_type_reference(self.type_reference())
+                    .ok()?;
+                if program.is_closed_aggregate_operand(*type_reference, &argument) {
+                    let value = program
+                        .canonical_aggregate_argument(*type_reference, &argument)
+                        .ok()?;
+                    return Some(
+                        program
+                            .type_identities
+                            .intern(&value.application_identity()?),
+                    );
+                }
+            }
             // A selected machine and its entry state invoke the same callable.
             // Keep its complete checked application rather than its type spelling.
             if matches!(
@@ -4464,7 +4497,8 @@ pub(crate) mod requirement_instances {
                     .static_machine_application_bindings(left_application)
                     .iter()
                     .zip(bindings)
-                    .all(|(left, right)| {
+                    .enumerate()
+                    .all(|(ordinal, (left, right))| {
                         let left_parameter = left.parameter;
                         let left_value = &left.value;
                         left.parameter == right.parameter
@@ -4472,10 +4506,6 @@ pub(crate) mod requirement_instances {
                                 (
                                     static_applications::StaticMachineBindingValue::Type(left),
                                     static_applications::StaticMachineBindingValue::Type(right),
-                                )
-                                | (
-                                    static_applications::StaticMachineBindingValue::Const(left),
-                                    static_applications::StaticMachineBindingValue::Const(right),
                                 ) => {
                                     let existing_owner = self
                                         .static_machine_application(left_application)
@@ -4489,6 +4519,39 @@ pub(crate) mod requirement_instances {
                                         ))
                                         .is_some_and(|(left, right)| left == right)
                                 }
+                                (
+                                    static_applications::StaticMachineBindingValue::Const(
+                                        left_reference,
+                                    ),
+                                    static_applications::StaticMachineBindingValue::Const(
+                                        right_reference,
+                                    ),
+                                ) => self
+                                    .data_type_parameter_by_symbol(left_parameter)
+                                    .is_some_and(|parameter| {
+                                        let identity = |reference, bound: &_, owner| {
+                                            RequirementLocalArgument::Static(reference)
+                                                .portable_identity(
+                                                    self,
+                                                    &parameter.kind,
+                                                    bound,
+                                                    owner,
+                                                    ordinal,
+                                                )
+                                        };
+                                        identity(
+                                            *left_reference,
+                                            &left.value,
+                                            self.static_machine_application(left_application)
+                                                .lexical_owner,
+                                        )
+                                        .zip(identity(
+                                            *right_reference,
+                                            &right.value,
+                                            lexical_owner,
+                                        ))
+                                        .is_some_and(|(left, right)| left == right)
+                                    }),
                                 (
                                     static_applications::StaticMachineBindingValue::RuntimeValue {
                                         type_reference: left,

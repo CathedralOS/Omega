@@ -39,8 +39,7 @@ fn try_typed_in_package(
     let tokens = crate::frontend_fixture::Lexer::new(text)
         .tokenize()
         .unwrap();
-    let syntax =
-        crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
+    let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
     let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
         syntax,
         sources: Some(Arc::new(sources)),
@@ -108,6 +107,74 @@ machine entry() -> u32 crashes none {{ Probe::read({actual}) }}
 fn boundary(reach: &str, actual: u32) -> Checked<crate::lowering::Elaboration> {
     let typed = typed(&boundary_source(reach, actual));
     invocation(typed)
+}
+
+#[test]
+fn a_boundary_call_selects_its_structural_const_by_value() {
+    let source = r#"
+        data Storage [copy] { case Fixed; case Split; }
+        const fixed_plan: Storage = Storage::Fixed;
+        boundary trait Runtime {
+            machine register<T, machine Worker, const Plan: Storage>(value: T) -> T
+            requires machine Worker(value: T) -> T reaches none crashes none;
+            ensures true reaches none crashes none;
+        }
+        machine worker(value: u32) -> u32 reaches none crashes none { value }
+        machine entry() -> u32 reaches Runtime invokes Runtime crashes none {
+            let first: u32 = Runtime::register::<u32, worker, Storage::Fixed>(3u32);
+            let second: u32 = Runtime::register::<u32, worker, fixed_plan>(first);
+            Runtime::register::<u32, worker, Storage::Split>(second)
+        }
+    "#;
+    let prepared = crate::preparation::prepare_typed_trees(typed(source), &[], &[])
+        .unwrap()
+        .into_inner();
+    let verdict = judge(lower_boundary(
+        prepared,
+        terminal_codec::TerminalPublication::Portable,
+    ))
+    .unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("{verdict:?}")
+    };
+    let publication = accepted.publish().unwrap();
+    let reopened =
+        terminal_codec::CanonicalTerminalArtifact::from_bytes(&publication.artifact.to_bytes())
+            .unwrap();
+    let module = reopened.semantic_module();
+    let [first, second] = module.interfaces.boundary_machines.as_slice() else {
+        panic!("two distinct storage values must publish exactly two requirements");
+    };
+    let arguments = |requirement: &terminal_psi::BoundaryMachineDeclaration| {
+        let declaration = requirement.declaration.as_ref().unwrap();
+        let [
+            terminal_psi::ClosedReachArgument::Type(_),
+            worker @ terminal_psi::ClosedReachArgument::Machine { .. },
+            terminal_psi::ClosedReachArgument::Const(plan),
+        ] = declaration.method_arguments.as_slice()
+        else {
+            panic!("incomplete requirement application")
+        };
+        (worker.clone(), *plan)
+    };
+    let (first_worker, first_plan) = arguments(first);
+    let (second_worker, second_plan) = arguments(second);
+    assert_eq!(first_worker, second_worker);
+    assert_ne!(first_plan, second_plan);
+    let calls: Vec<_> = module
+        .machines
+        .iter()
+        .flat_map(|machine| machine.operations())
+        .filter_map(|operation| match operation.kind {
+            terminal_psi::OperationKind::BoundaryCall { boundary, .. } => Some(boundary),
+            _ => None,
+        })
+        .collect();
+    let [direct, alias, alternate] = calls.as_slice() else {
+        panic!("expected all three calls");
+    };
+    assert_eq!(direct, alias);
+    assert_ne!(direct, alternate);
 }
 
 #[test]
@@ -249,11 +316,10 @@ fn a_source_boundary_requires_an_explicit_reach_ceiling() {
     let tokens = crate::frontend_fixture::Lexer::new(&text)
         .tokenize()
         .unwrap();
-    let refusal =
-        match crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens) {
-            Ok(_) => panic!("an open boundary reach contract must refuse"),
-            Err(refusal) => refusal,
-        };
+    let refusal = match crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens) {
+        Ok(_) => panic!("an open boundary reach contract must refuse"),
+        Err(refusal) => refusal,
+    };
     assert_eq!(
         refusal.message,
         "boundary-trait machine requirement `Probe::read` must declare an explicit `reaches` ceiling; write `reaches none` for empty reach"
@@ -304,7 +370,12 @@ fn structural_boundary() -> crate::lowering::Elaboration {
 fn boundary_formal_domains_reuse_the_exact_input_type() {
     for projected in [false, true] {
         let mut elaboration = structural_boundary();
-        let [boundary] = elaboration.module.interfaces.boundary_machines.as_mut_slice() else {
+        let [boundary] = elaboration
+            .module
+            .interfaces
+            .boundary_machines
+            .as_mut_slice()
+        else {
             panic!("the source calls one boundary");
         };
         let [formal] = boundary.structural_parameters.as_slice() else {
@@ -439,10 +510,7 @@ fn source_service_signature(typed: &crate::source_state::TypedTrees, owner: &str
         .find(|declaration| declaration.name.as_str() == owner)
         .unwrap();
     let surface = from_typed(
-        ProviderPlanningContext::new(
-            typed,
-            source_provenance::DependencyScope::Product,
-        ),
+        ProviderPlanningContext::new(typed, source_provenance::DependencyScope::Product),
         declaration,
     )
     .unwrap();
@@ -741,9 +809,7 @@ machine entry() {}
     let (parameters, result) = trees.machine_definition_types(requirement).unwrap();
     assert!(parameters[0].contains("region(owner(schema),ordinal(0))"));
     assert!(parameters[1].contains("region(owner(schema),ordinal(1))"));
-    let expected =
-        service_surface::declared_type_signature(parameters.iter(), &result)
-            .unwrap();
+    let expected = service_surface::declared_type_signature(parameters.iter(), &result).unwrap();
     assert_eq!(
         surface.declaration.methods[0].declared_type_signature,
         expected
@@ -1233,13 +1299,14 @@ machine entry() -> u32 crashes none { 3 }
             source_span: program.symbols.symbol_source_span(requirement).unwrap(),
             application: Some(Arc::new(graph)),
         };
-        let application = typed_trees::product_operand::formation::prepare_retained_product_application(
-            &mut program,
-            &operand,
-            ProductOperandRole::Requirement,
-            requirement,
-        )
-        .unwrap();
+        let application =
+            typed_trees::product_operand::formation::prepare_retained_product_application(
+                &mut program,
+                &operand,
+                ProductOperandRole::Requirement,
+                requirement,
+            )
+            .unwrap();
         let closed = program
             .product_requirement_application(application)
             .unwrap();
@@ -1561,7 +1628,8 @@ machine entry() -> u32 crashes none {
     assert_eq!(module.interfaces.service_schemas.len(), 1);
     for boundary in &module.interfaces.boundary_machines {
         let service = module
-            .interfaces.services
+            .interfaces
+            .services
             .iter()
             .find(|service| Some(service.id) == boundary.owning_service)
             .unwrap();
@@ -1592,21 +1660,26 @@ machine entry() -> u32 crashes none {
     }
     let first = module.interfaces.calling_signatures[0].clone();
     let mut duplicate = module.clone();
-    duplicate.interfaces.calling_signatures.insert(0, first.clone());
+    duplicate
+        .interfaces
+        .calling_signatures
+        .insert(0, first.clone());
     assert_eq!(
         duplicate.boundary_calling_abi(first.boundary).unwrap_err(),
         "boundary has no unique Terminal calling declaration"
     );
     let mut missing = module.clone();
     missing
-        .interfaces.calling_signatures
+        .interfaces
+        .calling_signatures
         .retain(|row| row.boundary != first.boundary);
     assert_eq!(
         missing.boundary_calling_abi(first.boundary).unwrap_err(),
         "boundary has no unique Terminal calling declaration"
     );
     let abis = module
-        .interfaces.boundary_machines
+        .interfaces
+        .boundary_machines
         .iter()
         .map(|boundary| module.calling_abi_identity(boundary.id).unwrap())
         .collect::<Vec<_>>();
@@ -1935,11 +2008,8 @@ fn changed_boundary_effects_must_match_the_published_call_envelope() {
             .source;
         declaration.published_may_block = blocks;
         declaration.published_may_suspend = !blocks;
-        let refusal = discharge(
-            &mut elaboration,
-            &mut crate::ProofSearchActivity::default(),
-        )
-        .unwrap_err();
+        let refusal =
+            discharge(&mut elaboration, &mut crate::ProofSearchActivity::default()).unwrap_err();
         assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
         assert_eq!(
             refusal.detail,
@@ -1963,11 +2033,8 @@ fn source_boundary_effects_still_require_their_invocation_proof() {
             .source;
         assert_eq!(published.published_may_suspend, effect == "suspends");
         assert_eq!(published.published_may_block, effect == "blocks");
-        let refusal = discharge(
-            &mut elaboration,
-            &mut crate::ProofSearchActivity::default(),
-        )
-        .unwrap_err();
+        let refusal =
+            discharge(&mut elaboration, &mut crate::ProofSearchActivity::default()).unwrap_err();
         assert_eq!(refusal.reason, RefusalReason::Violation);
         let site = refusal
             .source_span
@@ -1996,7 +2063,10 @@ fn source_boundary_effects_still_require_their_invocation_proof() {
             source_text::Span::new(operand, operand + 1),
         );
         assert!(
-            origins.operations.iter().any(|(_, origin)| origin.authored_span() == Some(operand)),
+            origins
+                .operations
+                .iter()
+                .any(|(_, origin)| origin.authored_span() == Some(operand)),
             "argument evaluation retains its own source span"
         );
         assert_eq!(
@@ -2083,11 +2153,7 @@ crashes none
 #[test]
 fn borrowed_generic_requirements_preserve_input_proofs_and_exclusive_loans() {
     let mut valid = borrowed_requirement("right", "< 10");
-    let discharged = discharge(
-        &mut valid,
-        &mut crate::ProofSearchActivity::default(),
-    )
-    .unwrap();
+    let discharged = discharge(&mut valid, &mut crate::ProofSearchActivity::default()).unwrap();
     let entry = discharged.machines.get(id(1)).unwrap();
     assert!(entry.conflicts.is_empty());
     assert!(entry.unestablished().next().is_none());
@@ -2114,11 +2180,7 @@ fn borrowed_generic_requirements_preserve_input_proofs_and_exclusive_loans() {
     );
 
     let mut alias = borrowed_requirement("left", "< 10");
-    let discharged = discharge(
-        &mut alias,
-        &mut crate::ProofSearchActivity::default(),
-    )
-    .unwrap();
+    let discharged = discharge(&mut alias, &mut crate::ProofSearchActivity::default()).unwrap();
     assert!(!discharged.machines.get(id(1)).unwrap().conflicts.is_empty());
 }
 
@@ -2414,11 +2476,7 @@ fn recursive_named_calls_in_a_body_witness_keep_the_requirement_inputs() {
         member.symbol,
     )
     .unwrap();
-    let discharged = discharge(
-        &mut witness,
-        &mut crate::ProofSearchActivity::default(),
-    )
-    .unwrap();
+    let discharged = discharge(&mut witness, &mut crate::ProofSearchActivity::default()).unwrap();
     let body = id(2);
     let tables = witness.tables.machines.get(body).unwrap();
     let judgments = discharged.machines.get(body).unwrap();
@@ -2799,11 +2857,8 @@ fn an_owned_inline_parameter_dispatch_owes_the_requirement_inputs() {
     for (actual, accepted) in [("7", true), ("0", false)] {
         let mut elaboration = inline_parameter_dispatch(actual, "");
         let caller = elaboration.selections[0].caller;
-        let found = discharge(
-            &mut elaboration,
-            &mut crate::ProofSearchActivity::default(),
-        )
-        .unwrap();
+        let found =
+            discharge(&mut elaboration, &mut crate::ProofSearchActivity::default()).unwrap();
         let tables = elaboration.tables.machines.get(caller).unwrap();
         let judgments = found.machines.get(caller).unwrap();
         let calls: Vec<_> = tables
@@ -2827,11 +2882,7 @@ fn an_owned_inline_parameter_dispatch_owes_the_requirement_inputs() {
 fn an_owned_inline_parameter_dispatch_exposes_only_the_requirement_guarantee() {
     let mut elaboration = inline_parameter_dispatch("7", "ensures result == 0");
     let caller = elaboration.selections[0].caller;
-    let found = discharge(
-        &mut elaboration,
-        &mut crate::ProofSearchActivity::default(),
-    )
-    .unwrap();
+    let found = discharge(&mut elaboration, &mut crate::ProofSearchActivity::default()).unwrap();
     let tables = elaboration.tables.machines.get(caller).unwrap();
     let judgments = found.machines.get(caller).unwrap();
     assert!(
@@ -3330,9 +3381,8 @@ fn named_two_packages(public_map: bool) -> crate::source_state::TypedTrees {
         if let Some(syntax) = &mut syntax {
             crate::frontend_fixture::parse(syntax, id, &tokens).unwrap();
         } else {
-            syntax = Some(
-                crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap(),
-            );
+            syntax =
+                Some(crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap());
         }
     }
     let mut request = crate::resolution::ResolutionRequest::new(syntax.unwrap());
@@ -3744,7 +3794,8 @@ fn generic_named_map_source_refuses_missing_foreign_or_rebound_applications() {
 #[test]
 fn generic_named_map_invokes_its_closed_own_telescope() {
     let prepared =
-        crate::preparation::prepare_typed_trees(typed(generic_named_map_source()), &[], &[]).unwrap();
+        crate::preparation::prepare_typed_trees(typed(generic_named_map_source()), &[], &[])
+            .unwrap();
     let verdicts = compilation_verdicts_of(&prepared);
     assert_named_invocation_value(verdicts, semantic_vocabulary::IntegerValue::Unsigned(7));
 }
@@ -3758,11 +3809,7 @@ fn generic_named_map_body_uses_its_own_rigid_telescope() {
         .unwrap()
         .unwrap();
     let mut form = crate::lowering::elaborate_generic(&program, row.realization_machine).unwrap();
-    let discharged = discharge(
-        &mut form,
-        &mut crate::ProofSearchActivity::default(),
-    )
-    .unwrap();
+    let discharged = discharge(&mut form, &mut crate::ProofSearchActivity::default()).unwrap();
     let root = discharged
         .machines
         .get(id(1))
@@ -4066,7 +4113,11 @@ fn generic_named_map_source_rejects_a_foreign_unused_argument() {
             "Selected<Value, Unused> satisfies",
             1,
         )
-        .replacen("Selected::<u32>::apply(7)", "Selected::<u32, u64>::apply(7)", 1);
+        .replacen(
+            "Selected::<u32>::apply(7)",
+            "Selected::<u32, u64>::apply(7)",
+            1,
+        );
     let mut program = typed(&text);
     let mut call = generic_named_map_call(&program).clone();
     let crate::source_state::types::TypeReferenceNode::Generic {
@@ -4101,7 +4152,10 @@ fn generic_named_map_source_rejects_a_foreign_unused_argument() {
         },
     );
     let failure = program.named_conformance_call_member(&call).unwrap_err();
-    assert!(failure.contains("map argument in its supplying scope"), "{failure}");
+    assert!(
+        failure.contains("map argument in its supplying scope"),
+        "{failure}"
+    );
     assert!(program.named_conformance_capture_key(&call).is_err());
     assert!(
         program
