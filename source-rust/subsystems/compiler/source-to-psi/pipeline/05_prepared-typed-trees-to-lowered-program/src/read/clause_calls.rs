@@ -195,6 +195,46 @@ impl Program<'_> {
         let mut has_record_param = false;
         for (parameter, &argument) in parameters.iter().zip(arguments) {
             let (value_type, erased, borrowed) = self.formal(id, parameter)?;
+            // A shared borrowed formal is read through `$formal` or its
+            // fields. The caller must lend one of its own borrowed formals,
+            // so each callee read is the caller's read of the same place at
+            // the same point (borrowed_proof_inputs.md).
+            if let Some(borrowed) = &borrowed
+                && !erased
+                && !parameter.is_mutable
+                && borrowed.access == language_core::ReferenceAccess::Shared
+                && matches!(
+                    value_type,
+                    ValueType::Scalar(_, Qualification::NONE)
+                        | ValueType::Record(_, Qualification::NONE, crate::body::Regions::NONE)
+                )
+            {
+                let crate::source_state::expression::ExpressionNode::Name(path) =
+                    typed.expression_table.expression(argument)
+                else {
+                    return unserved(
+                        "borrowed argument in a clause call must name a borrowed formal",
+                    );
+                };
+                let Some(slot_index) = scope
+                    .slots
+                    .iter()
+                    .position(|slot| slot.symbol == path.symbol)
+                else {
+                    return unserved(
+                        "borrowed argument in a clause call is not a formal slot in scope",
+                    );
+                };
+                let slot = &scope.slots[slot_index];
+                if slot.borrowed.is_none() || slot.erased || slot.value_type != value_type {
+                    return unserved(
+                        "borrowed argument in a clause call differs from its parameter type",
+                    );
+                }
+                callee_slots[slot_index].symbol = parameter.symbol;
+                has_record_param = true;
+                continue;
+            }
             if erased || borrowed.is_some() || parameter.is_mutable {
                 return unserved("called machine in a clause takes a non-value parameter");
             }
