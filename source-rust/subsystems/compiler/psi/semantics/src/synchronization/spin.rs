@@ -602,6 +602,15 @@ fn trace(
 }
 
 pub fn spin_wait(module: &TerminalModule, machine: &TerminalMachine) -> Option<SpinWait> {
+    spin_observation(module, machine).map(|(_, wait)| wait)
+}
+
+/// The operation belongs to this defining body; only the resource predicate
+/// is substituted into another machine or published provider.
+pub(super) fn spin_observation(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+) -> Option<(OperationId, SpinWait)> {
     if !machine
         .operations()
         .any(|op| matches!(op.kind, OperationKind::AtomicAccess { .. }))
@@ -609,12 +618,17 @@ pub fn spin_wait(module: &TerminalModule, machine: &TerminalMachine) -> Option<S
         return None;
     }
     single_cell_wait(module, machine)
-        .map(WaitRule::Cell)
-        .or_else(|| observations::derive(module, machine).map(WaitRule::Observations))
-        .map(SpinWait)
+        .map(|(site, cell)| (site, SpinWait(WaitRule::Cell(cell))))
+        .or_else(|| {
+            observations::derive(module, machine)
+                .map(|(site, predicate)| (site, SpinWait(WaitRule::Observations(predicate))))
+        })
 }
 
-fn single_cell_wait(module: &TerminalModule, machine: &TerminalMachine) -> Option<CellWait> {
+fn single_cell_wait(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+) -> Option<(OperationId, CellWait)> {
     let (equal_trace, equal) = trace(module, machine, true)?;
     let (different_trace, different) = trace(module, machine, false)?;
     if equal_trace.forwarded.is_some()
@@ -627,14 +641,17 @@ fn single_cell_wait(module: &TerminalModule, machine: &TerminalMachine) -> Optio
     }
     let read = equal_trace.read?;
     let comparison = equal_trace.tested?;
-    Some(CellWait {
-        subject: read.cell,
-        update: read.update,
-        while_value: SpinCondition {
-            comparison,
-            positive: equal == Completion::Retries,
+    Some((
+        read.site,
+        CellWait {
+            subject: read.cell,
+            update: read.update,
+            while_value: SpinCondition {
+                comparison,
+                positive: equal == Completion::Retries,
+            },
         },
-    })
+    ))
 }
 
 /// A transparent unit wrapper lends its own arguments to one named machine and

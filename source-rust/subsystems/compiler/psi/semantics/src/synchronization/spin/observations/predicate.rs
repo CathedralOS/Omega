@@ -160,10 +160,10 @@ impl Predicate {
                         Observation::Known(true) => yes,
                         Observation::Known(false) => no,
                         _ if yes == no => yes,
-                        Observation::Untracked
+                        Observation::Supplied
                             if yes != Observation::Unproved && no != Observation::Unproved =>
                         {
-                            Observation::Untracked
+                            Observation::Supplied
                         }
                         _ => Observation::Unproved,
                     }
@@ -175,12 +175,12 @@ impl Predicate {
     }
 }
 
-/// Missing storage cannot hide a decisive comparison on another cell.
+/// Keep caller-supplied progress separate from a locally unresolved word.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in super::super::super) enum Observation {
     Known(bool),
     Unproved,
-    Untracked,
+    Supplied,
 }
 
 impl Observation {
@@ -189,7 +189,7 @@ impl Observation {
             (Self::Known(false), _) | (_, Self::Known(false)) => Self::Known(false),
             (Self::Known(true), value) | (value, Self::Known(true)) => value,
             (Self::Unproved, _) | (_, Self::Unproved) => Self::Unproved,
-            (Self::Untracked, Self::Untracked) => Self::Untracked,
+            (Self::Supplied, Self::Supplied) => Self::Supplied,
         }
     }
 }

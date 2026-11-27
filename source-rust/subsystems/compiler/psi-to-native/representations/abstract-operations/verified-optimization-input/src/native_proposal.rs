@@ -239,13 +239,6 @@ mod proposal {
                     }
                 }
             };
-            if let Some(stuck) = psi_provider_selections::component_wait_deadlock(
-                artifact.view(),
-                root.semantic_entry(),
-                request.imports.iter().flat_map(|import| import.calls()),
-            ) {
-                return Err(vec![Diagnostic::error(stuck.to_string())]);
-            }
             let scope_source = target_bound_program::NativeScopeSource::admit(
                 &authorization,
                 root,
@@ -534,7 +527,8 @@ mod proposal {
                 continue;
             };
             if let build_providers::plans::ProviderBinding::CheckedAdapter {
-                machine_identity, ..
+                machine_identity,
+                ..
             } = &row.binding
             {
                 let machine = selected

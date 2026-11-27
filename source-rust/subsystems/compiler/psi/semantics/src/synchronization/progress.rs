@@ -10,6 +10,14 @@ use semantic_vocabulary::{
 };
 use terminal_psi::ValueDeclaration;
 
+/// An independent export can leave facts about storage received from its
+/// caller open. An executable must establish them before entry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProgressScope {
+    OpenInterface,
+    Executable,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProgressFailure {
     /// Every retry observes a value that keeps the wait blocked.
@@ -17,6 +25,29 @@ pub enum ProgressFailure {
     /// A private cell has no other writer and its first observation could
     /// block. No available fact excludes the retry.
     Unproved,
+    /// The activation borrows this resource and has no admitted enabler.
+    UnprovedExternal,
+    /// This receiving call did not establish the selected supplier's progress condition.
+    UnprovedImport,
+}
+
+impl ProgressFailure {
+    pub fn detail(self) -> &'static str {
+        match self {
+            Self::Deadlock => {
+                "the wait keeps retrying on unchanged private atomic storage and no other participant can release it"
+            }
+            Self::Unproved => {
+                "the observed values may keep the wait blocked and no other participant can change the deciding private storage"
+            }
+            Self::UnprovedImport => {
+                "the receiving call has no checked discharge of the selected supplier's progress condition"
+            }
+            Self::UnprovedExternal => {
+                "the wait depends on supplied storage and no checked or admitted action establishes progress"
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -24,6 +55,24 @@ pub struct PrivateWaitFailure {
     pub machine: MachineId,
     pub operation: OperationId,
     pub cause: ProgressFailure,
+}
+
+impl std::fmt::Display for PrivateWaitFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let header = match self.cause {
+            ProgressFailure::Deadlock => "synchronization deadlock",
+            ProgressFailure::Unproved
+            | ProgressFailure::UnprovedExternal
+            | ProgressFailure::UnprovedImport => "cannot prove synchronization progress",
+        };
+        write!(
+            f,
+            "{header} in machine {} at operation {}: {}",
+            self.machine.get(),
+            self.operation.get(),
+            self.cause.detail()
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

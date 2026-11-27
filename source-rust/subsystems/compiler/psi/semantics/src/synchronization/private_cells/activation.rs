@@ -179,6 +179,9 @@ impl<'m> Frame<'m> {
             return Some(());
         }
         match &op.kind {
+            // Selecting code alone cannot touch any of this activation's cells.
+            // The callable flow supplies the selected body at its invocation.
+            OperationKind::SelectMachine { .. } => {}
             OperationKind::EstablishZeroedStructural {}
             | OperationKind::EstablishStructuralLocal {} => {
                 let value = if matches!(op.kind, OperationKind::EstablishZeroedStructural {}) {
