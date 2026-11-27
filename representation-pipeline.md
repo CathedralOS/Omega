@@ -444,7 +444,7 @@ This handoff is earned only if the stage that produces the measured program has 
 
 ## What can stay shared
 
-For each shared public type or function, record its definition, its real writer, every production reader and the exact fact they must agree on. Follow trait implementations, conversions, constructors, re-exports and methods on data records. Record why ownership by the producing stage plus a narrow published definition is not enough. Default to stage ownership until the evidence names real readers in more than one stage. [Existing contract inventory][ledger]
+For each shared public type or function, record its definition, its real writer, every production reader and the exact fact they must agree on. Follow trait implementations, conversions, constructors, re-exports and methods on data records. Record why ownership by the producing stage plus a narrow published definition is not enough. Default to stage ownership until the evidence names real readers in more than one stage. [Retired contract inventory at `aa8030676ef2`][ledger]
 
 A candidate worth defending is the layout record with a machine identity, offset and length. Layout computes the values, objects carry them, and the image reader checks concrete bytes and relocations independently. Record encoding and bounds checks belong with the data definition. Searching for a provider, choosing a new deployment or synthesizing instructions changes a program and needs a numbered stage. The same rule applies to pure functions. [Layout record][layout-data] · [Producer][layout-writer] · [Image reader][layout-reader]
 
@@ -1001,7 +1001,6 @@ The single implementation PR updates the following records where the merged beha
 - Record any divergence between the final stage map and the existing root instructions in this plan for owner review. Keep the migration laws in this Markdown.
 - `omega-rust/pipeline.md` and `omega-rust/psi/compilation/pipeline/README.md`: every "stage 01" and `01_source-compilation` reference.
 - `TASKS.md`: **PIPELINE-ARCHITECTURE-ENFORCEMENT**, which names "the connected 00–10 route".
-- [`pipeline-contracts.json`][ledger], the ledger `check-boundary` reads.
 
 ## Next session
 
