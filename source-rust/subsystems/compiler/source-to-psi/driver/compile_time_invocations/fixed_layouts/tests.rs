@@ -112,19 +112,20 @@ fn an_entryless_recast_demands_its_own_storage_only_on_checked_targets() {
         r#"{policy}
 public data Unused {{ lo: u64; hi: u64; }}
 {other}
-public machine inspect(value: @|layout|::LayoutStorage<Pair, PairLayout>,
+public machine inspect_pair_storage(value: @|layout|::LayoutStorage<Pair, PairLayout>,
     unused: @|layout|::LayoutStorage<Unused, UnusedLayout>) -> u8 {{
     let bytes: @[u8; 16] = value as @[u8; 16];
     bytes[8]
 }}
-public machine inspect_with<Policy satisfies |layout|::FixedLayout<Pair>>(
+public machine inspect_policy_storage<Policy satisfies |layout|::FixedLayout<Pair>>(
     value: @|layout|::LayoutStorage<Pair, Policy>) -> u8 {{
     let bytes: @[u8; 16] = value as @[u8; 16];
     bytes[8]
 }}"#
     );
     let mut source = with_reflection(&source).unwrap();
-    let consumers = ["inspect", "inspect_with"].map(|name| query_machine(&source, name));
+    let consumers =
+        ["inspect_pair_storage", "inspect_policy_storage"].map(|name| query_machine(&source, name));
     let scopes = ["linux_x86_64", "windows_x86_64"].map(|target| FixedLayoutTargetScope {
         target: target.into(),
         facts: Some(layout_plans::LayoutTargetFacts {
