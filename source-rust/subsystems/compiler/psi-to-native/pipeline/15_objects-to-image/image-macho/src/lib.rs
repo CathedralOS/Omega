@@ -648,22 +648,25 @@ pub fn emit_macho_executable_signed(
 ) -> Result<ExecutableImageOutput, Diagnostic> {
     let isa = isa::macho_isa_for(image.target)?;
     let MachoContainerContents {
-        image,
+        mut image,
         bytes,
         layout,
         executable_regions,
         data_regions,
     } = emit_macho_container_contents(image, code_signature_identifier, isa, None, &[])?;
+    // The writer owns the image, so the output takes its final section bytes.
+    let text_bytes = image.memory.text.len();
+    let data_bytes = image.memory.data.len();
     Ok(ExecutableImageOutput {
         final_image_layout: layout,
-        final_text_bytes: image.memory.text.clone(),
-        final_data_bytes: image.memory.data.clone(),
+        final_text_bytes: std::mem::take(&mut image.memory.text),
+        final_data_bytes: std::mem::take(&mut image.memory.data),
         final_import_data_bytes: Vec::new(),
         bytes,
         file_name: OMEGA_EXECUTABLE_LEAF.to_owned(),
         format: isa.format_name().to_owned(),
-        text_bytes: image.memory.text.len(),
-        data_bytes: image.memory.data.len(),
+        text_bytes,
+        data_bytes,
         bss_bytes: image.memory.bss_size,
         symbols: image.symbol_table.symbols.len(),
         imports: image.symbol_table.imports.len(),

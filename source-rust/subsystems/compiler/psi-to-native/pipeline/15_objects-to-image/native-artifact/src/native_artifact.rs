@@ -44,8 +44,7 @@ pub use dynamic_elf::{
     DynamicElfNativeArtifact, DynamicElfNativeArtifactIdentity, RetainedDynamicElfArtifact,
 };
 use identity::{
-    NativeArtifactIdentityFields, compiler_identity_evidence, derive_native_artifact_identity,
-    foreign_call_custody_digest,
+    NativeArtifactIdentityFields, derive_native_artifact_identity, foreign_call_custody_digest,
 };
 
 const CUSTODY_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.d29-custody.sha256.v3\0";
@@ -501,8 +500,6 @@ impl<Image> NativeArtifactParts<Image> {
         foreign_calls: &[image_emission::ObjectForeignCall],
         image_subsystem: Option<u16>,
     ) -> NativeArtifactIdentityFields<'a> {
-        let (compiler_entry_region_binding, compiler_entry_footprint_binding) =
-            compiler_identity_evidence(output);
         NativeArtifactIdentityFields {
             installation_assumptions: self.object.installation_environment_assumptions(),
             physical_entry_requirements: self
@@ -537,8 +534,6 @@ impl<Image> NativeArtifactParts<Image> {
             executable_region_inventory_report_fingerprint: output
                 .executable_regions
                 .inventory_report_fingerprint,
-            compiler_entry_region_binding,
-            compiler_entry_footprint_binding,
             selected_provider_closure_digest: *self.selected_provider_closure_digest.as_bytes(),
             foreign_call_custody_digest: foreign_call_custody_digest(foreign_calls),
             selected_provider_plans: &self.selected_provider_plans,

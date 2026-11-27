@@ -922,13 +922,11 @@ name = "image-elf"
 version = "0.1.0"
 dependencies = [
  "arena",
- "calling-conventions",
  "diagnostics",
  "image",
  "machine-code",
  "object-file",
  "target",
- "wire",
 ]
 
 [[package]]
@@ -949,15 +947,11 @@ dependencies = [
  "installation-admission",
  "installation-conditions",
  "isa-x86_64",
- "language-core",
- "layout-plans",
  "legalized-operations",
  "machine-code",
  "native-encoding",
  "native-execution-reach",
  "object-file",
- "optimization-core",
- "optimization-unit",
  "optimization-unit-semantics",
  "physical-program",
  "physical-recipes",
@@ -967,13 +961,11 @@ dependencies = [
  "provider-admission",
  "psi-entry-memory",
  "psi-publication-records",
- "register-homes",
  "register-model",
  "runtime-abi",
  "selected-instructions",
  "semantic-vocabulary",
  "sha2",
- "structural-storage-queries",
  "target",
  "target-aarch64",
  "target-operations",
@@ -993,7 +985,6 @@ dependencies = [
  "calling-conventions",
  "diagnostics",
  "image",
- "machine-code",
  "object-file",
  "sha2",
  "target",
@@ -1016,8 +1007,6 @@ dependencies = [
  "object-file",
  "runtime-abi",
  "target",
- "target-aarch64",
- "target-x86_64",
 ]
 
 [[package]]
@@ -1382,7 +1371,6 @@ dependencies = [
  "native-execution-reach",
  "native-intrinsics",
  "object-file",
- "operation-evidence",
  "operation-operands",
  "optimization-core",
  "platform-custody",
@@ -1723,7 +1711,6 @@ dependencies = [
  "function-identity",
  "function-layout",
  "installation-admission",
- "layout-plans",
  "machine-code",
  "optimization-core",
  "physical-program",

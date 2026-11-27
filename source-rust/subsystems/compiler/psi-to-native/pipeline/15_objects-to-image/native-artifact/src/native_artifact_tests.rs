@@ -448,7 +448,6 @@ struct IdentityFixture<'a> {
     permission_policy_present: bool,
     boundary_application_marker: Option<u8>,
     physical_evidence_scope: NativePhysicalEvidenceScope,
-    with_entry_evidence: bool,
 }
 
 impl Default for IdentityFixture<'static> {
@@ -471,7 +470,6 @@ impl Default for IdentityFixture<'static> {
             boundary_application_marker: Some(73),
             physical_evidence_scope:
                 NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence,
-            with_entry_evidence: true,
         }
     }
 }
@@ -490,7 +488,6 @@ fn fixture_identity(fixture: IdentityFixture<'_>) -> NativeArtifactIdentity {
         normalized_root_report_identity: 17,
         boundary_contract_report_fingerprint: 19,
     }];
-    let evidence = fixture.with_entry_evidence.then_some(([5; 32], 43));
     derive_native_artifact_identity(NativeArtifactIdentityFields {
         installation_assumptions: Vec::new(),
         physical_entry_requirements: None,
@@ -507,8 +504,6 @@ fn fixture_identity(fixture: IdentityFixture<'_>) -> NativeArtifactIdentity {
         final_image_symbol_digest: [47; 32],
         executable_region_inventory_digest: [fixture.inventory_marker; 32],
         executable_region_inventory_report_fingerprint: 53,
-        compiler_entry_region_binding: evidence,
-        compiler_entry_footprint_binding: evidence,
         selected_provider_closure_digest: [fixture.provider_closure_marker; 32],
         foreign_call_custody_digest: [fixture.foreign_stack_marker; 32],
         selected_provider_plans: &plans,
@@ -617,7 +612,6 @@ fn native_artifact_identity_binds_evidence_and_provider_realization() {
         mutated_identity(|fixture| fixture.terminal_policy_marker = 71),
         mutated_identity(|fixture| fixture.permission_policy_present = false),
         mutated_identity(|fixture| fixture.boundary_application_marker = None),
-        mutated_identity(|fixture| fixture.with_entry_evidence = false),
         mutated_identity(|fixture| {
             fixture.physical_evidence_scope = NativePhysicalEvidenceScope::Unavailable
         }),

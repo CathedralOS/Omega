@@ -14,8 +14,6 @@ diagnostics = { path = "../../../../../../foundation/diagnostics" }
 image = { path = "../image" }
 object-file = { path = "../../14_placed-functions-to-objects" }
 target = { path = "../../../targets/target" }
-target-aarch64 = { path = "../../../targets/target-aarch64" }
-target-x86_64 = { path = "../../../targets/target-x86_64" }
 
 machine-code = { path = "../../../representations/machine-code" }
 

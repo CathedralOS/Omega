@@ -22,7 +22,7 @@ use terminal_authority_receipts::{
     TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity,
 };
 
-const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v19\0";
+const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v20\0";
 
 pub(super) struct NativeArtifactIdentityFields<'a> {
     pub(super) physical_entry_requirements: Option<&'a image_emission::PhysicalEntryRequirements>,
@@ -41,8 +41,6 @@ pub(super) struct NativeArtifactIdentityFields<'a> {
     pub(super) final_image_symbol_digest: [u8; 32],
     pub(super) executable_region_inventory_digest: [u8; 32],
     pub(super) executable_region_inventory_report_fingerprint: u64,
-    pub(super) compiler_entry_region_binding: Option<([u8; 32], u64)>,
-    pub(super) compiler_entry_footprint_binding: Option<([u8; 32], u64)>,
     pub(super) selected_provider_closure_digest: [u8; 32],
     pub(super) foreign_call_custody_digest: [u8; 32],
     pub(super) selected_provider_plans: &'a [NativeSelectedProviderPlan],
@@ -54,28 +52,6 @@ pub(super) struct NativeArtifactIdentityFields<'a> {
     pub(super) terminal_authority_closure_review_identity: [u8; 32],
     pub(super) boundary_application_coverage_identity: Option<[u8; 32]>,
     pub(super) physical_evidence_scope: &'a NativePhysicalEvidenceScope,
-}
-
-pub(super) fn compiler_identity_evidence(
-    output: &image::EmittedImageOutput,
-) -> (Option<([u8; 32], u64)>, Option<([u8; 32], u64)>) {
-    (
-        output
-            .compiler_entry_region_binding
-            .as_ref()
-            .map(|evidence| {
-                (
-                    *evidence.evidence_digest.as_bytes(),
-                    evidence.evidence_report_fingerprint,
-                )
-            }),
-        output.compiler_entry_footprint_binding.map(|evidence| {
-            (
-                *evidence.evidence_digest.as_bytes(),
-                evidence.evidence_report_fingerprint,
-            )
-        }),
-    )
 }
 
 pub(super) fn derive_native_artifact_identity(
@@ -146,8 +122,6 @@ pub(super) fn derive_native_artifact_identity(
             .executable_region_inventory_report_fingerprint
             .to_le_bytes(),
     );
-    hash_optional_digest_and_report(&mut digest, fields.compiler_entry_region_binding);
-    hash_optional_digest_and_report(&mut digest, fields.compiler_entry_footprint_binding);
     digest.raw(&fields.selected_provider_closure_digest);
     digest.raw(&fields.native_supply_digest);
     digest.raw(&fields.foreign_call_custody_digest);
@@ -294,20 +268,6 @@ fn hash_optional_digest(digest: &mut DomainDigestEncoder, value: Option<[u8; 32]
         Some(value) => {
             digest.raw(&[1]);
             digest.raw(&value);
-        }
-    }
-}
-
-fn hash_optional_digest_and_report(
-    digest: &mut DomainDigestEncoder,
-    value: Option<([u8; 32], u64)>,
-) {
-    match value {
-        None => digest.raw(&[0]),
-        Some((strong_digest, report_fingerprint)) => {
-            digest.raw(&[1]);
-            digest.raw(&strong_digest);
-            digest.raw(&report_fingerprint.to_le_bytes());
         }
     }
 }
