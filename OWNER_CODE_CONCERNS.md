@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Most of the interpreter's layout materializer is called only by its own tests
+- Category: 8
+- Where: `source-rust/subsystems/interpreter/memory/materialization/materialization.rs:716` (`materialize_resolved_into`), `:575` (`apply_write`), `symbolic_materialization.rs:31` (`derive_symbolic_materialization`) and the helpers under them
+- Saw: The interpreter calls only `stage_scalar_field`, `decode_aggregate_field_into` and `stage_aggregate_layout`. The other public functions in `storage_materialization` have no production caller. Folding the former `storage-materialization` crate in as `pub(crate)` exposes 22 dead-code errors, and the 2.4k-line `contract_tests.rs` is their only caller. The module stays `pub` until someone removes them.
+- Cost: About 1.5k production lines and their tests get maintained, reviewed and compiled as if the interpreter used them.
+- Reported: 2026-11-27, Claude Code, while folding the interpreter's small crates into `terminal-interpreter`
+
 <a id="packed-simd-spill-has-no-home"></a>
 ### Native register allocation fails on a large machine full of packed results
 - Category: 10. Verifying costs more than writing

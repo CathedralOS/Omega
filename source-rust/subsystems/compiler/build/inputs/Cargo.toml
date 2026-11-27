@@ -8,6 +8,7 @@ version.workspace = true
 path = "inputs.rs"
 
 [dependencies]
+build-model = { path = "../model" }
 retained-product-selections = { path = "../../source-to-psi/representations/retained-product-selections" }
 source-declarations = { path = "../../source-to-psi/representations/symbol-resolved-trees/declarations" }
 source-symbol-table = { path = "../../source-to-psi/representations/symbol-resolved-trees/symbol-table" }
@@ -15,23 +16,17 @@ build-program-launch = { path = "../evaluation/authority/program" }
 build-consent = { path = "../evaluation/authority/consent" }
 normalized-build-settings = { path = "../settings/normalized" }
 provider-acceptance = { path = "../providers/acceptance" }
-build-time-values = { path = "../evaluation/values" }
-source-selection = { path = "../../../package-manager/source-acquisition/capture/selection" }
 language-core = { path = "../../foundation/language-core" }
 declaration-scope = { path = "../../foundation/declaration-scope" }
 source-provenance = { path = "../../foundation/source-provenance" }
 optimization-requests = { path = "../settings/optimizations" }
-evaluation-contracts = { path = "../evaluation/accounting/contracts" }
-source-capture = { path = "../../../package-manager/source-acquisition/capture" }
 source-admission = { path = "../../source-to-psi/representations/source-files/custody" }
 source-text = { path = "../../../../foundation/source-text" }
-evaluation-receipts = { path = "../evaluation/receipts" }
 wire = { path = "../../../../foundation/wire" }
 record-storage = { path = "../../../../foundation/record-storage" }
 cap-fs-ext = "4.0.3"
 cap-std = "4.0.3"
 source-acquisition = { path = "../../../package-manager/source-acquisition" }
-evaluation-accounting = { path = "../evaluation/accounting" }
 artifacts = { path = "../../foundation/measurements" }
 optimization-selections = { path = "../../foundation/optimization-selections" }
 arena = { path = "../../../../foundation/arena" }

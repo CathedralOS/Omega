@@ -10,7 +10,7 @@
 mod frontend;
 
 use application_identity::const_value::{DecodedCanonicalConstValue, decode_declaration_value};
-use build_time_values::BuildTimeValue;
+use build_model::values::BuildTimeValue;
 use semantic_vocabulary::PackageKeyIdentity;
 use source_compiler::representations::source_inputs::SourceMap;
 use source_compiler::representations::source_state::TypedTrees;

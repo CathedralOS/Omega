@@ -1149,6 +1149,7 @@ fn check_prepared_machine(
                             lowered,
                             tables,
                             graph,
+                            storage,
                             row.created_at,
                             obligation,
                             clause,
@@ -1162,6 +1163,7 @@ fn check_prepared_machine(
                         lowered,
                         tables,
                         graph,
+                        storage,
                         row.created_at,
                         obligation,
                         clause,
@@ -1237,7 +1239,6 @@ fn check_prepared_machine(
                 terminal_psi::Terminator::PendingNormalCompletion { .. }
             )
         });
-    let mut knowledge = KnowledgeIndex::new(graph, tables, id)?;
     for (index, (obligation, row)) in tables.obligations.iter().enumerate() {
         if decided[index].is_none()
             && let ObligationKind::PublishedGuarantee { clause } = row.kind

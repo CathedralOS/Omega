@@ -82,18 +82,24 @@ fn a_wholly_anonymous_initializer_is_refused_where_it_is_written() {
 }
 
 #[test]
-fn an_initializer_whose_type_only_typing_finds_is_refused_as_not_supported() {
-    for (source, written) in [
-        ("const LIMIT = measure();", "measure()"),
-        ("const LIMIT = OTHER;", "OTHER"),
-        ("const LIMIT = 2u8 + 3;", "2u8 + 3"),
-        ("const LIMIT = 5 as +Metres;", "5 as +Metres"),
+fn an_initializer_whose_type_only_typing_finds_leaves_its_type_for_typing() {
+    for source in [
+        "const LIMIT = measure();",
+        "const LIMIT = OTHER;",
+        "const LIMIT = 2u8 + 3;",
+        "const LIMIT = 5 as +Metres;",
     ] {
-        let (message, at) = refusal(source);
+        let syntax = crate::tests::parse_source(source);
+        let constant = syntax
+            .root_items()
+            .find_map(|item| match item {
+                Item::Const(definition) => Some(definition.clone()),
+                _ => None,
+            })
+            .expect("one constant");
         assert!(
-            message.starts_with("not supported yet:"),
-            "{source}: {message}"
+            !constant.type_reference.is_valid(),
+            "{source}: expected unannotated type reference to be deferred to typing"
         );
-        assert_eq!(at, written, "{source}");
     }
 }

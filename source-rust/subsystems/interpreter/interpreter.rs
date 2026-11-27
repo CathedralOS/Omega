@@ -56,8 +56,14 @@ mod engine_execution;
 mod engine_structural;
 #[path = "instructions/terminators.rs"]
 mod engine_terminators;
+#[path = "memory/extents/mod.rs"]
+pub mod extents;
+#[path = "memory/storage-access/mod.rs"]
+pub mod storage_access;
 #[path = "memory/bytes_and_views.rs"]
 mod storage_bytes_and_views;
+#[path = "memory/materialization/mod.rs"]
+pub mod storage_materialization;
 #[path = "memory/primitives.rs"]
 mod storage_primitives;
 #[path = "memory/providers.rs"]

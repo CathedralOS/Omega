@@ -170,7 +170,7 @@ fn projected_instance(
 fn projected_accounted_instance(
     program: &TerminalProgram<'static>,
     atoms: &[crate::TerminalProjectedHostAtom],
-    account: Option<evaluation_accounting::EvaluationInvocationAccount>,
+    account: Option<build_model::accounting::EvaluationInvocationAccount>,
 ) -> Result<TerminalInstance<'static, 'static>, TerminalInterpretError> {
     let entry = program
         .program

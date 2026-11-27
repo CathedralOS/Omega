@@ -117,19 +117,11 @@ machine unit_filename(input: @|input_packet|::ConstructionInput, row: u64, name:
 requires row <= 3771
 reaches |process_exit|::ProcessExit crashes Trap
 {
-    transition input.unit_row_words {
-        5 -> path(input, row, name),
-        _ -> root(name)
-    }
-    machine path(input: @|input_packet|::ConstructionInput, row: u64, name: @mutable |source_files|::ModulePath)
-    requires row <= 3771
-    {
-        let start: u32 = |input_packet|::row_word(input, row + 3);
-        let end: u32 = |input_packet|::row_word(input, row + 4);
-        transition start < end && end <= input.buffer_length && end <= 8388608 {
-            true -> filename(input, name, start, end),
-            _ -> |input_packet|::malformed()
-        }
+    let start: u32 = |input_packet|::row_word(input, row + 3);
+    let end: u32 = |input_packet|::row_word(input, row + 4);
+    transition start < end && end <= input.buffer_length && end <= 8388608 {
+        true -> filename(input, name, start, end),
+        _ -> |input_packet|::malformed()
     }
     machine filename(input: @|input_packet|::ConstructionInput, name: @mutable |source_files|::ModulePath, start: u32, end: u32)
     requires start < end, end <= 8388608
@@ -140,7 +132,6 @@ reaches |process_exit|::ProcessExit crashes Trap
             false -> |input_packet|::malformed()
         }
     }
-    machine root(name: @mutable |source_files|::ModulePath) { |source_files|::module_path_clear(name); }
 }
 
 machine load_unit_source(input: @|input_packet|::ConstructionInput, lexer: @mutable |lexer|::Lexer, unit: u32, start: u32, end: u32)
@@ -178,9 +169,9 @@ reaches |process_exit|::ProcessExit crashes Trap
     }
     machine remaining(input: @|input_packet|::ConstructionInput, compilation: @mutable |driver|::Compilation, lexer: @mutable |lexer|::Lexer, index: u64) {
         transition input.package_count <= 64 && input.edge_count <= 256
-            && input.unit_count <= 512 && index < input.unit_count as u64 && input.unit_row_words <= 5 {
+            && input.unit_count <= 512 && index < input.unit_count as u64 {
             true -> unit(input, compilation, lexer, index,
-                input.package_count as u64 * 3 + input.edge_count as u64 * 4 + index * input.unit_row_words as u64),
+                input.package_count as u64 * 3 + input.edge_count as u64 * 4 + index * 5),
             _ -> done()
         }
     }

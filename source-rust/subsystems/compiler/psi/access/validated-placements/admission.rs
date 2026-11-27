@@ -1,6 +1,6 @@
 //! Admit complete access decisions against explicit layout and resource inputs.
 //! Geometry, provenance and commitment checks retain private issuance. Runtime
-//! operation authorization belongs to storage-access; raw policy is vocabulary.
+//! operation authorization belongs to the interpreter's `storage_access` module; raw policy is vocabulary.
 #![forbid(unsafe_code)]
 pub(crate) use ::wire::digest_encoder;
 use access_vocabulary::*;

@@ -14,7 +14,6 @@ use super::ValidatedOptimizedNativePhysicalEvidenceScope;
 #[derive(Debug, Clone)]
 pub(super) struct FragmentPublicationBinding {
     publication: object_file::ObjectPublication,
-    identity: [u8; 32],
     call_origins: Arc<machine_code::call_origins::PhysicalCallOrigins>,
     foreign_call_plans: Arc<machine_code::foreign_call_plans::PhysicalForeignCallPlans>,
 }
@@ -40,10 +39,6 @@ impl FragmentPublicationBinding {
 
     pub(super) fn call_origins(&self) -> &machine_code::call_origins::PhysicalCallOrigins {
         &self.call_origins
-    }
-
-    pub(super) const fn identity(&self) -> &[u8; 32] {
-        &self.identity
     }
 
     pub(super) fn replay_foreign_call_custody(
@@ -74,8 +69,7 @@ impl FragmentPublicationBinding {
 
 impl PartialEq for FragmentPublicationBinding {
     fn eq(&self, other: &Self) -> bool {
-        self.identity == other.identity
-            && self.publication.custody() == other.publication.custody()
+        self.publication.custody() == other.publication.custody()
             && self.call_origins == other.call_origins
             && self.foreign_call_plans == other.foreign_call_plans
     }
@@ -111,16 +105,8 @@ pub(crate) fn derive_scope(
         coverage,
         coverage_identity,
     )?;
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.native-artifact.fragment-publication-binding.sha256.v1\0",
-    );
-    digest.raw(&publication.custody().manifest().bytes());
-    digest.raw(&publication.custody().source_text_section_manifest().bytes());
-    digest.raw(&publication.custody().object().bytes());
-    digest.raw(&publication.custody().object_container().bytes());
     let publication = FragmentPublicationBinding {
         publication: publication.clone(),
-        identity: digest.finish(),
         call_origins: Arc::clone(object.call_origins()),
         foreign_call_plans: Arc::clone(object.foreign_call_plans()),
     };
@@ -128,7 +114,6 @@ pub(crate) fn derive_scope(
         b"omega.native-artifact.validated-fragment-physical-scope.sha256.v1\0",
     );
     digest.raw(scope.identity());
-    digest.raw(publication.identity());
     Ok(super::validated_fragment_native_physical_evidence_scope(
         scope,
         publication,

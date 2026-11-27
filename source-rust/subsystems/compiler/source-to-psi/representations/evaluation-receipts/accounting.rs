@@ -3,7 +3,7 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use build_time_values::BuildTimeValue;
+use build_model::values::BuildTimeValue;
 use checked_program_to_psi::{CheckedSourceCall, ProducedTerminalProgram, SourceInvocationSite};
 use typed_trees::source_state;
 
@@ -85,9 +85,9 @@ pub struct PureTerminalEvaluationReceipt {
     requested_by_constant: bool,
     arguments: Arc<[BuildTimeValue]>,
     inputs: Arc<[BuildTimeValue]>,
-    admission: evaluation_admission::AdmittedCompilerEvaluation,
+    admission: build_model::admission::AdmittedCompilerEvaluation,
     execution: Option<build_invocation::InvocationReceipt>,
-    account: evaluation_accounting::EvaluationInvocationAccount,
+    account: build_model::accounting::EvaluationInvocationAccount,
     outcome: PureTerminalEvaluationOutcome,
     usage: terminal_work::WorkUsage,
 }
@@ -110,8 +110,8 @@ impl RecordedSourceInvocation {
     pub fn record(
         call: SourceInvocationInputs<'_>,
         program: &ProducedTerminalProgram,
-        admission: evaluation_admission::AdmittedCompilerEvaluation,
-        meter: &evaluation_work::EvaluationWorkMeter,
+        admission: build_model::admission::AdmittedCompilerEvaluation,
+        meter: &build_model::work::EvaluationWorkMeter,
         run: Result<build_invocation::InvocationOutcome, String>,
     ) -> Result<Self, String> {
         let checked = call.site.check(program)?;
@@ -235,7 +235,7 @@ impl PureTerminalEvaluationReceipt {
     pub fn arguments(&self) -> &[BuildTimeValue] {
         &self.arguments
     }
-    pub fn admission(&self) -> &evaluation_admission::AdmittedCompilerEvaluation {
+    pub fn admission(&self) -> &build_model::admission::AdmittedCompilerEvaluation {
         &self.admission
     }
     pub fn outcome(&self) -> &PureTerminalEvaluationOutcome {

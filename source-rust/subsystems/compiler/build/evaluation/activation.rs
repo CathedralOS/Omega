@@ -38,8 +38,8 @@ mod source_result;
 pub use source_join::{BuildDependencySelection, DependencyBacking};
 pub use source_result::BuildSourceResult;
 
-use evaluation_accounting::EvaluationInvocationAccount;
-use evaluation_work::EvaluationWorkMeter;
+use build_model::accounting::EvaluationInvocationAccount;
+use build_model::work::EvaluationWorkMeter;
 use normalized_build_settings::EvaluatedBuildSettings;
 use source_compiler::publication::ProducedTerminalProgram;
 use source_compiler::representations::declaration_selection::ExecutedBuildSelection;
@@ -58,10 +58,10 @@ use terminal_interpreter::{
 use crate::host::bindings::TerminalBuildBindingHost;
 use crate::host::requests::{BuildValidationRequest, IssuedBuildRequest, TerminalBuildRequestHost};
 
-pub(crate) fn measurement() -> evaluation_contracts::EvaluationMeasurementIdentity {
-    evaluation_contracts::EvaluationMeasurementIdentity::TerminalPsi {
+pub(crate) fn measurement() -> build_model::contracts::EvaluationMeasurementIdentity {
+    build_model::contracts::EvaluationMeasurementIdentity::TerminalPsi {
         work_schedule: terminal_work::WorkSchedule::CURRENT.identity(),
-        storage_schedule: evaluation_contracts::TerminalStorageScheduleIdentity::CURRENT,
+        storage_schedule: build_model::contracts::TerminalStorageScheduleIdentity::CURRENT,
     }
 }
 
@@ -85,7 +85,7 @@ pub(crate) struct OriginalBuildSources {
 }
 
 pub struct ReturnedBuild {
-    pub(crate) preparations: evaluation_receipts::DependencyPreparations,
+    pub(crate) preparations: build_model::receipts::DependencyPreparations,
     pub(crate) helper_accounting:
         source_compiler::compile_time_invocations::SourceCompletionAccounting,
     account: EvaluationInvocationAccount,
@@ -413,7 +413,7 @@ impl TerminalBuildHost {
         let ready_providers =
             provider_installation::check_backings(&self.accepted, &self.produced, provide)?;
         let instance = self.instantiate().map_err(refuse)?;
-        let work = evaluation_work::sponsored_meter(self.account.clone(), Some(0))
+        let work = build_model::work::sponsored_meter(self.account.clone(), Some(0))
             .map_err(|error| refuse(describe(error)))?;
         artifacts::compile_timings::counters::record_build_execution(self.execution_purpose);
         Ok(TerminalBuildActivation {
@@ -530,7 +530,7 @@ enum ActivationState {
 }
 
 pub struct TerminalBuildActivation {
-    preparations: evaluation_receipts::DependencyPreparations,
+    preparations: build_model::receipts::DependencyPreparations,
     instance: TerminalInstance<'static, 'static>,
     host: Arc<TerminalBuildHost>,
     ready_providers: Vec<(

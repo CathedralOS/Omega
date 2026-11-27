@@ -17,7 +17,7 @@ use std::sync::Arc;
 pub struct CapturedLocalSource {
     pub(crate) requested_root: PathBuf,
     pub(crate) normalized: ResolvedSourceTree,
-    pub(crate) tree: Arc<source_capture::CapturedSourceTree>,
+    pub(crate) tree: Arc<crate::capture::CapturedSourceTree>,
     pub(crate) selection_identity: [u8; 32], // Caller inventory commitment, independent of physical root lineage.
 }
 
@@ -35,7 +35,7 @@ impl CapturedLocalSource {
     pub fn normalized(&self) -> &ResolvedSourceTree {
         &self.normalized
     }
-    pub fn tree(&self) -> &Arc<source_capture::CapturedSourceTree> {
+    pub fn tree(&self) -> &Arc<crate::capture::CapturedSourceTree> {
         &self.tree
     }
 }

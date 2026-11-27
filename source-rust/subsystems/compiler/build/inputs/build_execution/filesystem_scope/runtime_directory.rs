@@ -2,7 +2,7 @@
 //! of the package bytes admitted to the parent Build.
 use super::BuildMachineFilesystemScope;
 use build_output::{CapturedBuildSourceInput, SourceSnapshotEntry, SourceSnapshotError};
-use evaluation_accounting::EvaluationInvocationAccount;
+use build_model::accounting::EvaluationInvocationAccount;
 use filesystem_authority::FilesystemObservationProvider;
 use platform_custody::{bound_directory::BoundDirectory, directory_mappings::DirectoryMappings};
 use std::io::{self, Read, Write};

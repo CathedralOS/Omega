@@ -6,8 +6,8 @@
 
 use super::{CanonicalCallingSignature, TerminalCallingPolicyInvocation};
 use calling_conventions::BoundaryCallingApplication;
-use evaluation_accounting::BuildEvaluationSponsor;
-use evaluation_contracts::{
+use build_model::accounting::BuildEvaluationSponsor;
+use build_model::contracts::{
     BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity, TerminalStorageScheduleIdentity,
 };
 use semantic_vocabulary::MachineId;
@@ -18,7 +18,7 @@ const CALLING_EVALUATION_WORK: u64 = 100_000;
 enum CallingStorageScope<'account> {
     Policy {
         entry: MachineId,
-        account: &'account evaluation_accounting::EvaluationInvocationAccount,
+        account: &'account build_model::accounting::EvaluationInvocationAccount,
         admission: &'account super::TerminalCallingPolicyAdmission,
     },
     Description,
@@ -211,13 +211,13 @@ impl CallingProgram {
                             declaration,
                             applications: demand.applications(),
                         },
-                        evaluation_work::sponsored_meter(account.clone(), None)
+                        build_model::work::sponsored_meter(account.clone(), None)
                             .map_err(|error| format!("calling ABI scalar work: {error:?}"))?,
                     )
                 }
                 CallingStorageScope::Description => (
                     super::scalar_completion::CallingScalarScope::AbiStorage(demand),
-                    evaluation_work::unsponsored_meter(Some(CALLING_EVALUATION_WORK)),
+                    build_model::work::unsponsored_meter(Some(CALLING_EVALUATION_WORK)),
                 ),
             };
             let completed = super::scalar_completion::complete_calling_scalar_inputs(

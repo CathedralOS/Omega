@@ -92,11 +92,7 @@ mod stages;
 
 pub use artifacts::{
     FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
-    FunctionFragmentObjectContainerManifestIdentity, FunctionFragmentTextSectionManifestIdentity,
-    OptimizedObjectArtifactIdentity, OptimizedObjectArtifactManifestIdentity,
-    OptimizedOrdinaryCallableEntryManifestIdentity, OptimizedTerminalOrdinaryCallableEntryIdentity,
-    RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity,
-    TerminalRelocationFreeTextSectionIdentity,
+    FunctionFragmentTextSectionManifestIdentity, TerminalRelocationFreeTextSectionIdentity,
 };
 pub use bundle::{OptimizationIdentityBundle, OptimizationIdentityBundleIdentity};
 pub use decisions::{

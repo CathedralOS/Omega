@@ -118,7 +118,7 @@ impl ConstInitializerSelection {
             } else {
                 declaration.initializer
             },
-            &declaration.declared_type,
+            declaration.declared_type.as_ref(),
             purpose,
             self.frontier.selection.retained_base(),
             selected_calls,

@@ -16,7 +16,7 @@ lock.
 
 mod file_result;
 
-use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
+use build_model::accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 use filesystem_authority::FilesystemGrantRootIdentity;
 use package_compilation::build_execution::{
     BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildDirectoryMappings,

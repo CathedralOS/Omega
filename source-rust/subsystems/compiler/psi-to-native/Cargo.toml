@@ -11,13 +11,13 @@ path = "psi_to_native.rs"
 test-support = ["artifact-lowering/test-support"]
 
 [dependencies]
+build-model = { path = "../build/model" }
 wire = { path = "../../../foundation/wire" }
 provider-stack-contribution = { path = "verification/provider-admission/same-stack" }
 component-description = { path = "verification/component-description" }
 bound-framed-machine = { path = "representations/bound-framed-machine" }
 native-behavior-exclusions = { path = "verification/behavior-exclusions" }
 provider-acceptance = { path = "../build/providers/acceptance" }
-behavior-exclusion-requests = { path = "../build/settings/behavior-exclusions" }
 provider-plans = { path = "../build/providers/plans" }
 selected-provider-plans = { path = "../build/providers/selections" }
 provider-correspondence = { path = "verification/provider-correspondence" }

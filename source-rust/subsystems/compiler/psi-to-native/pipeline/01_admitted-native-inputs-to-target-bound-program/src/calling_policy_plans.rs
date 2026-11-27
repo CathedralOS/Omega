@@ -34,11 +34,11 @@ pub(crate) use selected_application::{
 };
 pub use terminal_signature::{CanonicalCallingSignature, CanonicalOpaqueUse};
 
-use evaluation_accounting::EvaluationInvocationAccount;
+use build_model::accounting::EvaluationInvocationAccount;
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_psi::TargetMachineCallable;
 
-pub type TerminalCallingPolicyAdmission = evaluation_admission::AdmittedCompilerEvaluation;
+pub type TerminalCallingPolicyAdmission = build_model::admission::AdmittedCompilerEvaluation;
 
 pub struct TerminalCallingPolicyInvocation<'input> {
     pub artifact: &'input CanonicalTerminalArtifact,
@@ -53,15 +53,15 @@ pub struct TerminalCallingPolicyInvocation<'input> {
 }
 
 pub(super) mod scalar_completion {
+    use build_model::work::EvaluationWorkMeter;
     use psi_provider_selections::AdmittedProviderSelections;
     use psi_scalar_applications::CallingAbiStorageDemand;
-    use semantic_vocabulary::ScalarAddressModel;
-    use semantic_vocabulary::ScalarApplicationId;
-    use terminal_codec::CanonicalTerminalArtifact;
     use psi_scalar_applications::{
         AdmittedScalarApplications, ScalarApplicationClosure, ScalarApplicationObservations,
     };
-    use evaluation_work::EvaluationWorkMeter;
+    use semantic_vocabulary::ScalarAddressModel;
+    use semantic_vocabulary::ScalarApplicationId;
+    use terminal_codec::CanonicalTerminalArtifact;
 
     pub enum CallingScalarScope<'request> {
         Invocation {

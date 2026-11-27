@@ -50,7 +50,7 @@ use terminal_psi::OperationResult;
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn derive_normalized_foreign_child(
     pass: crate::physical::PhysicalEvidencePass,
-    result_geometry: &calling_conventions::terminal_layout::NativeGeometry<'_>,
+    result_geometry: &calling_conventions::terminal_layout::StructuralLayoutResolver<'_>,
     occurrence: &OptimizedBoundaryOccurrence,
     projection: NativeOptimizationProjectionIdentity,
     requirement_identity: &str,
@@ -340,13 +340,9 @@ pub(crate) fn derive_normalized_foreign_child(
                 || !retained_types
                     .iter()
                     .any(|item| item.id == result.structural_type)
-                || retained_types.iter().any(|item| {
-                    !module
-                        .types
-                        .structural_types
-                        .iter()
-                        .any(|source| source == item)
-                })
+                || retained_types
+                    .iter()
+                    .any(|item| result_geometry.declaration(item.id).ok() != Some(item))
                 || !layout_matches
             {
                 return Err("normalized foreign D41 child changed its structural result custody");

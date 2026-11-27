@@ -1556,7 +1556,7 @@ fn boundary_declaration_facts_do_not_admit_pure_execution() {
             .unwrap();
         let providers =
             psi_provider_selections::admit_provider_execution_installation(view, &[]).unwrap();
-        let refusal = evaluation_admission::admit_compiler_evaluation(
+        let refusal = build_model::admission::admit_compiler_evaluation(
             view,
             None,
             root,

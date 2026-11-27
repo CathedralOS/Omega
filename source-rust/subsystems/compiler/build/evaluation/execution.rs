@@ -13,7 +13,6 @@ pub use activation::{
 };
 pub use admission::checking::settle_rejoined_build_slice;
 use admission::program::{AdmittedBuildProgram, admit_build_program};
-pub use behavior_exclusion_requests::AuthoredBehaviorExclusion;
 pub use build_evaluation::{
     BuildEvaluationRequest, EvaluatedBuild, PreparedBuildEvaluation, RestrictedBuildGrants,
     SourceBuildDeclaration, prepare_build_evaluation,
@@ -22,6 +21,7 @@ pub use build_evaluation_result::{
     BuildConfig, BuildConstants, BuildSubjectValidation, CompileFailure, ComputedBuildConfig,
     DependencyValidationSubject,
 };
+pub use build_model::behavior_exclusions::AuthoredBehaviorExclusion;
 pub use build_output::BuildStagedOutputEntryKind;
 pub use package_compilation::build_execution::{
     BUILD_OBSERVATION_SCHEMA_VERSION, BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY,

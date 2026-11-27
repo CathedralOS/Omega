@@ -92,6 +92,9 @@ pub(crate) fn const_destination_requires_proof(
     definition: &ConstDefinition,
     selection: Option<&ConstantSelection>,
 ) -> bool {
+    if !definition.type_reference.is_valid() {
+        return false;
+    }
     const_evaluation::const_type_requires_declaration_proof(
         syntax,
         definition.type_reference,
@@ -105,14 +108,15 @@ pub(crate) fn const_destination_requires_proof(
     and initializer: the qualification the definition itself already satisfies.
 */
 pub(super) fn qualification_names_itself(definition: &ConstDefinition) -> bool {
-    definition
-        .preparation()
-        .qualification
-        .as_ref()
-        .is_some_and(|qualification| {
-            qualification.destination == definition.type_reference
-                && qualification.initializer == definition.value()
-        })
+    definition.type_reference.is_valid()
+        && definition
+            .preparation()
+            .qualification
+            .as_ref()
+            .is_some_and(|qualification| {
+                qualification.destination == definition.type_reference
+                    && qualification.initializer == definition.value()
+            })
 }
 
 /*
@@ -130,6 +134,9 @@ pub(crate) fn canonicalize_selected_declared_const_definition(
     definition: &ConstDefinition,
     selection: Option<&ConstantSelection>,
 ) -> Result<CanonicalConstValue, String> {
+    if !definition.type_reference.is_valid() {
+        return Err("unannotated constant type is inferred during typing".to_owned());
+    }
     if definition.preparation().pending_qualification.is_some() {
         return Err("constant destination qualification remains pending".to_owned());
     }

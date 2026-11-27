@@ -293,7 +293,7 @@ mod argument_types {
                 }
                 Self::Constant(index) => {
                     let constant = &trees.roots.const_declarations[index];
-                    Some((constant.symbol, &constant.declared_type))
+                    Some((constant.symbol, constant.declared_type.as_ref()?))
                 }
             }
         }

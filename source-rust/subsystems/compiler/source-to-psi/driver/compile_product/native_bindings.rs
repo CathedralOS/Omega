@@ -1,9 +1,9 @@
 //! Resolve Build's native supplies in the same source arena that will judge the Product.
 
 use crate::declaration_selection::CapturedNativeIntent;
+use build_model::receipts::NativeBuildEvaluation;
 use checked_program_to_psi::provider_choice_inputs::{NativeBindingSelection, NativeBuildSupply};
 use diagnostics::Diagnostic;
-use evaluation_receipts::NativeBuildEvaluation;
 use retained_product_selections::CapturedNativeDeclaration;
 use std::sync::Arc;
 use typed_trees::TypedTrees;
@@ -31,8 +31,11 @@ impl NativeBindingInputs<'_> {
         let mut supplies = Vec::new();
         attach(&mut supplies, local, self.evaluation)?;
         for package in self.packages {
-            let selections =
-                super::native_binding_declarations::collect_captured(typed, &package.declarations, package.intents)?;
+            let selections = super::native_binding_declarations::collect_captured(
+                typed,
+                &package.declarations,
+                package.intents,
+            )?;
             attach(&mut supplies, selections, package.evaluation)?;
         }
         Ok(supplies)

@@ -135,7 +135,7 @@ pub use references::reference_storage_geometry::{
     ReferenceStorageRegion, StorageGeometryError, UnselectedRecordStorage,
     authored_field_storage_extent, reference_field_representation_width, reference_scalar_storage,
     reference_storage_dependencies, reference_storage_layout, reference_storage_projection,
-    reference_storage_region, reference_storage_size, schema_field_layout_source,
+    reference_storage_region, reference_storage_size, scalar_field_storage_geometry, schema_field_layout_source,
     validate_storage_destination_intervals,
 };
 pub use references::{

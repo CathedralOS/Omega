@@ -2465,7 +2465,7 @@ pub(crate) mod execution {
     use crate::storage::scalar_storage::ScalarStorageRows;
     use crate::storage::structural_identities::LocalStructuralIdentities;
     use crate::storage::structural_storage::HostStructuralPayload;
-    use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
+    use build_model::accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
     use semantic_vocabulary::{
         BlockId, BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, PlaceId,
         StructuralTypeId, ValueId,

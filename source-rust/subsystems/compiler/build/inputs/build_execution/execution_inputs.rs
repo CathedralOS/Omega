@@ -29,7 +29,7 @@ pub struct BuildExecutionInputs {
     pub profile: Option<TargetProfile>, // Compilation requests default to the host, independently of Product target.
     pub directory: Option<PathBuf>, // Writable staging, separate from immutable source snapshots.
     pub filesystem_sponsor: Option<filesystem_authority::FilesystemSponsor>,
-    pub evaluation_sponsor: Option<evaluation_accounting::BuildEvaluationSponsor>,
+    pub evaluation_sponsor: Option<build_model::accounting::BuildEvaluationSponsor>,
     pub snapshot: Option<BuildSnapshotRequest>,
     pub restricted_grants: Option<Box<dyn RestrictedBuildGrants>>, // Absence reports restricted requests without executing them.
     // A dependency's Build executed while resolving its consumer's sources.

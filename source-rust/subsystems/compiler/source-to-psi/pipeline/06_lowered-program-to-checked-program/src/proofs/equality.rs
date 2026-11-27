@@ -2889,6 +2889,7 @@ pub(crate) fn discharge(
     machine: &TerminalMachine,
     tables: &MachineTables,
     graph: &Graph,
+    storage: &crate::places::Storage<'_>,
     point: ProgramPoint,
     obligation: ObligationId,
     goal: &ClauseIdentity,
@@ -2962,7 +2963,22 @@ pub(crate) fn discharge(
         }
         // A cited theorem or helper whose requirements were already proved at
         // the call site supplies the same field or value identity premise as
-        // an entry requirement (`contracts.md#record-identity-from-field-identities`).
+        // an entry requirement (`contracts.md#record-identity-from-field-identities`),
+        // provided every local place it names is unmodified since the call.
+        let fresh = actual.values.iter().all(|value| match &value.operand {
+            ClauseOperand::Input(subject) => {
+                machine.structural_parameter(subject.root()).is_some()
+                    || matches!(
+                        call.site,
+                        terminal_check_tables::InvocationSite::Operation(operation)
+                            if storage.unmodified_since(subject.root(), operation)
+                    )
+            }
+            _ => true,
+        });
+        if !fresh {
+            continue;
+        }
         premises.push(declarations.identity(actual, &[]).map_err(unavailable)?);
         citations.push(row);
     }

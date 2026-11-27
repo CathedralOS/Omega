@@ -1,7 +1,7 @@
 //! The normalized target and runtime choices produced by a returned Build value.
 #![forbid(unsafe_code)]
 
-use build_time_values::BuildTimeValue;
+use build_model::values::BuildTimeValue;
 use optimization_selections::OptimizationSelections;
 use target::{ApplicationIdentifier, HostedApplicationIntent};
 

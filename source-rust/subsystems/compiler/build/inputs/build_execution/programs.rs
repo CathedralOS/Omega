@@ -52,7 +52,7 @@ impl ProgramOutputBacking {
 pub struct ForwardedProgramFiles {
     pub initial: BTreeMap<Vec<u8>, Arc<[u8]>>,
     pub output: Option<ProgramOutputBacking>,
-    pub storage: evaluation_accounting::EvaluationStorageLease,
+    pub storage: build_model::accounting::EvaluationStorageLease,
 }
 
 impl std::fmt::Debug for ForwardedProgramFiles {

@@ -12,7 +12,7 @@ pub struct ComponentSourcePublication {
     pub package: semantic_vocabulary::PackageKeyIdentity,
     pub authorization: psi_authorization::AuthorizedTerminalArtifact,
     pub providers: provider_demand::PublishedTargetProviders,
-    pub exclusions: Vec<behavior_exclusion_requests::AuthoredBehaviorExclusion>,
+    pub exclusions: Vec<build_model::behavior_exclusions::AuthoredBehaviorExclusion>,
     pub package_permissions: Option<declaration_scope::ProductDeclarationScope>,
     pub optimizations: optimization_core::OptimizationSelections,
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
@@ -27,7 +27,7 @@ pub(crate) struct Supplier {
         terminal_codec::TerminalArtifactIdentity,
         provider_realization::SelectedExecution,
     >,
-    pub exclusions: Vec<behavior_exclusion_requests::AuthoredBehaviorExclusion>,
+    pub exclusions: Vec<build_model::behavior_exclusions::AuthoredBehaviorExclusion>,
     pub optimizations: optimization_core::OptimizationSelections,
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
 }

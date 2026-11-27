@@ -13,7 +13,7 @@ use crate::source_state::references::{DeclarationSelection, TypedReferences};
 use application_identity::const_value::DecodedCanonicalConstValue;
 use symbols::SymbolHandle;
 
-use build_time_values::BuildTimeValue;
+use build_model::values::BuildTimeValue;
 use source_completion_accounting::{
     PureEvaluationRecord, PureTerminalEvaluationReceipt, SourceCompletionAccounting,
 };

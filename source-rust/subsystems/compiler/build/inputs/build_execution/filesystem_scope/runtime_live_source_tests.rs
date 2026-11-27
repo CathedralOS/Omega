@@ -3,11 +3,11 @@
 use super::*;
 
 fn account() -> EvaluationInvocationAccount {
-    let limits = evaluation_contracts::BuildEvaluationSponsorLimits::new(
+    let limits = build_model::contracts::BuildEvaluationSponsorLimits::new(
         1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000,
     )
     .unwrap();
-    let sponsor = evaluation_accounting::BuildEvaluationSponsor::new(limits);
+    let sponsor = build_model::accounting::BuildEvaluationSponsor::new(limits);
     sponsor
         .begin_invocation(sponsor.measurement(), 1_000_000)
         .unwrap()

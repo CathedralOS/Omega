@@ -10,7 +10,7 @@ pub struct PublishedTargetProgram {
     pub(crate) subject: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub(crate) artifact: PublishedPsi,
     pub(crate) providers: provider_supply::PublishedTargetProviders,
-    pub(crate) exclusions: Vec<behavior_exclusion_requests::AuthoredBehaviorExclusion>,
+    pub(crate) exclusions: Vec<build_model::behavior_exclusions::AuthoredBehaviorExclusion>,
     pub(crate) runtime_declarations: RuntimePermissionDeclarations,
 }
 
@@ -95,7 +95,7 @@ impl PublishedTargetProgram {
     ) -> (
         PublishedPsi,
         provider_supply::PublishedTargetProviders,
-        Vec<behavior_exclusion_requests::AuthoredBehaviorExclusion>,
+        Vec<build_model::behavior_exclusions::AuthoredBehaviorExclusion>,
     ) {
         (self.artifact, self.providers, self.exclusions)
     }

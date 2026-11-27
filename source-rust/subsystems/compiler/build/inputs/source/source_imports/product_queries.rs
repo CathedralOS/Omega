@@ -37,7 +37,7 @@ mod tests {
     use super::*;
     use crate::{BuildDeclarationKind, PackageDependencyBinding, PackageSourceBinding};
     use semantic_vocabulary::PackageKeyIdentity;
-    use source_capture::{CapturedSourceNode, CapturedSourceTree};
+    use source_acquisition::capture::{CapturedSourceNode, CapturedSourceTree};
     use std::sync::Arc;
 
     fn package(number: u8, name: &str, text: &str) -> PackageSourceBinding {
@@ -530,7 +530,11 @@ impl ProductQueryInputs {
                     self.graphs()
                         .find(|inputs| inputs.package_for_source(&authored.path) == Some(owner))
                 });
-            for import in authored.imports.iter().filter(|import| import.used_in(authored.scope)) {
+            for import in authored
+                .imports
+                .iter()
+                .filter(|import| import.used_in(authored.scope))
+            {
                 let contract = storage.installed_roots.root_for(&authored.path);
                 let mounted_owner = owner.is_some_and(|inputs| {
                     !self
@@ -620,13 +624,15 @@ impl ProductQueryInputs {
                     "Product query source escapes its admitted source frontier",
                 )]);
             }
-            if self.graphs().any(|inputs| inputs.package_for_source(&canonical).is_some_and(|owner| {
-                inputs.package_root(owner) != Some(storage.default_package_root())
-                    && inputs.dependency_build_file(owner, &canonical)
-            }))
-            {
+            if self.graphs().any(|inputs| {
+                inputs.package_for_source(&canonical).is_some_and(|owner| {
+                    inputs.package_root(owner) != Some(storage.default_package_root())
+                        && inputs.dependency_build_file(owner, &canonical)
+                })
+            }) {
                 return Err(vec![Diagnostic::error(format!(
-                    "Product query cannot import dependency Build entry {}", canonical.display()
+                    "Product query cannot import dependency Build entry {}",
+                    canonical.display()
                 ))]);
             }
             validated.push((canonical, scope));

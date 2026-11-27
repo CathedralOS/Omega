@@ -3,7 +3,7 @@
 
 use psi_provider_selections::logical_reach::ClosedLogicalProviderReach;
 use diagnostics::Diagnostic;
-use evaluation_receipts::NativeBindingMaterialization;
+use build_model::receipts::NativeBindingMaterialization;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use terminal_codec::{CanonicalTerminalArtifact, TerminalArtifactIdentity};
 

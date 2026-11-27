@@ -330,7 +330,7 @@ pub(crate) mod byte_arrays {
         use crate::storage::byte_sequences::storage::ByteSequenceStorage;
         use crate::storage::scalar_array::PackedScalarArrayValue;
         use crate::storage::scalar_storage::{ScalarCell, TerminalScalarBacking};
-        use evaluation_accounting::EvaluationInvocationAccount;
+        use build_model::accounting::EvaluationInvocationAccount;
         use semantic_vocabulary::{
             IntegerSign, IntegerType, IntegerValue, PlaceId, StructuralTypeId,
         };

@@ -1,8 +1,0 @@
-[package]
-name = "source-selection"
-edition.workspace = true
-license.workspace = true
-version.workspace = true
-
-[lib]
-path = "selection.rs"

@@ -257,7 +257,7 @@ pub(crate) mod adapters {
 }
 pub(crate) mod instance {
     pub(crate) mod component_binding {
-        use evaluation_accounting::EvaluationInvocationAccount;
+        use build_model::accounting::EvaluationInvocationAccount;
         use std::collections::BTreeMap;
 
         use semantic_vocabulary::{BoundaryMachineId, OperationId};
@@ -1619,7 +1619,7 @@ pub(crate) mod program {
     use crate::boundary::errors::{
         TerminalArtifactInterpretError, TerminalInterpretError, malformed,
     };
-    use evaluation_accounting::EvaluationInvocationAccount;
+    use build_model::accounting::EvaluationInvocationAccount;
     pub(crate) mod declarations {
         use crate::boundary::errors::{TerminalInterpretError, malformed};
         use terminal_psi::{
@@ -2482,7 +2482,7 @@ pub(crate) mod program {
         pub fn instantiate_compiler_evaluation<'host>(
             &self,
             mut request: TerminalInstantiation<'_>,
-            admitted: &evaluation_admission::AdmittedCompilerEvaluation,
+            admitted: &build_model::admission::AdmittedCompilerEvaluation,
             issued_layout: Option<(&layout_plans::LayoutTargetFacts, &[usize])>,
             calls: &[crate::TerminalCallObservation],
         ) -> Result<TerminalInstance<'host, 'artifact>, TerminalArtifactInterpretError> {
@@ -2663,11 +2663,11 @@ pub(crate) mod program {
             if let Some(account) = account
                 && !matches!(
                     account.measurement(),
-                    evaluation_contracts::EvaluationMeasurementIdentity::TerminalPsi { .. }
+                    build_model::contracts::EvaluationMeasurementIdentity::TerminalPsi { .. }
                 )
             {
                 return Err(TerminalArtifactInterpretError::Execution(TerminalInterpretError::Storage(
-                evaluation_contracts::EvaluationAccountingError::UnsupportedMeasurementIdentity,
+                build_model::contracts::EvaluationAccountingError::UnsupportedMeasurementIdentity,
             )));
             }
             self.program

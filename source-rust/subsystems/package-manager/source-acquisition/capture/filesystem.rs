@@ -1,6 +1,6 @@
 //! Route source lookups through the immutable trees mounted for this acquisition.
 
-use crate::{CapturedSourceNode, CapturedSourceTree};
+use super::{CapturedSourceNode, CapturedSourceTree};
 use std::collections::BTreeMap;
 use std::io;
 use std::path::{Component, Path, PathBuf};
@@ -152,7 +152,7 @@ impl SourceFileSystem {
             SourcePath::Captured { tree, relative, .. } => tree.read_to_string(&relative),
             SourcePath::Physical(path) => {
                 let bytes = std::fs::read(&path)?;
-                crate::read_accounting::record_source_file_read(
+                super::read_accounting::record_source_file_read(
                     "frontend_load",
                     &path,
                     bytes.len() as u64,

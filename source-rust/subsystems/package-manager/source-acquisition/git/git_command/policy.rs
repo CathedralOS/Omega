@@ -12,16 +12,17 @@
 
 use crate::SourceResolveError;
 use crate::git::executable::GitExecutor;
+use crate::git::execution::ResolverExecutionPhase;
 use crate::git::request::GitExecutionTransport;
 use crate::tree::filesystem::IoResultAt;
-use resolver_execution::{ResolverExecutionPhase, ResolverPreparedExecution};
+use bounded_process::BoundedProcessPrepared;
 use std::path::Path;
 
 pub(crate) fn sealed_git_command(
     executor: &GitExecutor,
     working_directory: &Path,
     phase: ResolverExecutionPhase,
-) -> Result<ResolverPreparedExecution, SourceResolveError> {
+) -> Result<BoundedProcessPrepared, SourceResolveError> {
     if !working_directory.is_absolute() {
         return Err(SourceResolveError::Git {
             operation: "command configuration".to_owned(),

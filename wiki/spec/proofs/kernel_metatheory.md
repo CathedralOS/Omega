@@ -510,6 +510,7 @@ such law is declared once per carrier.
 | Order | the four transitivity laws | `x ≤ y → y ≤ z → x ≤ z`, and the same with `<` in either or both premises (a strict premise gives a strict conclusion) |
 | Order | the four substitution laws | an equality replaces either side of a `<` or `≤` |
 | Order | `LessOrEqualAntisymmetry` | `a ≤ b → b ≤ a → a = b` |
+| Order | `LessThanIrreflexive` | `x < x → ⊥` |
 | Numerals | `DoubleZero`, `NegateZero` | `double(0) = 0`; `negate(0) = 0` |
 | Numerals | `EvenBeforeOdd`, `OddBeforeNextEven`, `NegateOrder` | `double(x) < odd(x)`; `x < y → odd(x) < double(y)`; `x < y → negate(y) < negate(x)` |
 | Addition | `Monotone`, `MonotoneBoth` | `a ≤ b → a + c ≤ b + c`; `a ≤ b → c ≤ d → a + c ≤ b + d` |
@@ -527,18 +528,39 @@ such law is declared once per carrier.
 | Division | `QuotientUpperPositive`, `QuotientLowerPositive` | `1 ≤ k → a · k ≤ m → a ≤ m / k`; `1 ≤ k → m ≤ a · k → m / k ≤ a` |
 | Division | `QuotientUpperNegative`, `QuotientLowerNegative` | `k ≤ −1 → m ≤ a · k → a ≤ m / k`; `k ≤ −1 → a · k ≤ m → m / k ≤ a` |
 | Division | `DivisorCaseSplit` | every `d` satisfies one of `d ≤ −2`, `d = −1`, `d = 0`, `1 ≤ d` |
+| Casts | `CastIdentity` | `cast(x) = x`, declared once per widening or exact cast between two named fixed carriers |
 
 Three of these were added for data indexed by values: `DistributeAdd` in
 pull request #5554, and `ZeroRight` and `ZeroLeft` in pull request #5587.
 Each names the program that needs it (`vector_bound`'s induction step
 rewrites `10 * (previous + 1)` to `10 * previous + 10`, and a tree's rank
-check bounds `left + right + 1` below by `left + 1`). Each has a test that
-evaluates its statement against computed arithmetic
-(`distribute_add_statement_agrees_with_computed_arithmetic` for every triple
-in −4..=4, `add_zero_statements_agree_with_computed_arithmetic` for every `a`
-in −8..=8), and a wrong statement beside it that must fail. They landed with
-the change that needed them, not one per pull request as the admission rule
-asks. The other laws have no such test yet.
+check bounds `left + right + 1` below by `left + 1`). They landed with the
+change that needed them, not one per pull request as the admission rule
+asks.
+
+Every law in this table is tested against computed arithmetic by
+`bounded_denotation/law_arithmetic.rs`. The test declares each law through
+the same builder the proofs use and evaluates the declared kernel statement,
+not the formula text, in a model that gives every integer declaration its
+computed meaning: the integers with their own order, `+`, `−` and `·`,
+`double(x) = 2x`, `odd(x) = 2x + 1`, `negate(x) = −x`, the truncating
+quotient for `/` and the identity for a cast. Every law holds at every
+assignment of its variables in −8..=8. Each division law also holds at every
+value of the 4-bit carriers, and the two-variable ones at every value of the
+8-bit carriers, with the quotient computed by the carrier's own exact
+division; each cast law holds at every value of its source carrier, with the
+cast computed by the carrier. A `CoreLaw` variant the test does not list
+does not compile.
+
+Each law also has a wrong twin the model must refute. For a law with
+premises, each premise in turn is replaced by one that always holds; the
+weakened statement then fails, or reaches a division by zero, at some
+assignment, so every stated side condition is needed. For a law without
+premises, a near miss of the same shape (for example `a + 1 = a` beside
+`ZeroRight`, or `DivisorCaseSplit` without its `d = 0` case) fails. This
+evidence shows that one ordinary model, the integers, satisfies every law at
+every tested value. It is not a derivation: each row stays provisional until
+the core checks a proof of it.
 
 What the kernel does *not* discharge: faithfulness of the encoding to a
 *source* declaration — positivity, nominal identity and statement fidelity

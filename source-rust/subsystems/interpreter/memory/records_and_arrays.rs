@@ -1340,7 +1340,7 @@ pub(crate) mod record {
             }
 
             pub(crate) fn new(
-                account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+                account: Option<&build_model::accounting::EvaluationInvocationAccount>,
             ) -> Self {
                 Self {
                     original_roots: RuntimeRows::new(account),
@@ -1621,7 +1621,7 @@ pub(crate) mod record {
                 &mut self,
                 destination: &crate::storage::primitive_storage::PrimitiveStorageEndpoint,
                 resident: crate::storage::scalar_storage::ScalarCell,
-                account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+                account: Option<&build_model::accounting::EvaluationInvocationAccount>,
             ) -> Result<(), TerminalInterpretError> {
                 use crate::storage::primitive_storage::PrimitiveStorageEndpoint;
                 match destination {
@@ -2704,7 +2704,7 @@ pub(crate) mod scalar_array {
         use super::{PackedScalarArrayValue, TerminalScalarArrayValue};
         use crate::boundary::errors::{TerminalInterpretError, malformed};
         use crate::storage::runtime_rows::RuntimeRows;
-        use evaluation_accounting::EvaluationInvocationAccount;
+        use build_model::accounting::EvaluationInvocationAccount;
         use semantic_vocabulary::PlaceId;
 
         struct PackedBinding {
@@ -2866,8 +2866,8 @@ pub(crate) mod scalar_array {
 
             #[test]
             fn exact_capacity_retirement_keeps_funding_until_the_last_home_is_released() {
-                use evaluation_accounting::BuildEvaluationSponsor;
-                use evaluation_contracts::{
+                use build_model::accounting::BuildEvaluationSponsor;
+                use build_model::contracts::{
                     BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
                     TerminalStorageScheduleIdentity,
                 };
@@ -2947,7 +2947,7 @@ pub(crate) mod scalar_array {
         use crate::embedding::program::ProgramDeclarations;
         use crate::engine::custody::fixed_index_step;
         use crate::storage::runtime_rows::RuntimeRows;
-        use evaluation_accounting::EvaluationInvocationAccount;
+        use build_model::accounting::EvaluationInvocationAccount;
         use semantic_vocabulary::StructuralTypeId;
         use terminal_psi::{StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape};
 
@@ -3695,7 +3695,7 @@ pub(crate) mod scalar_array {
         use crate::boundary::errors::{TerminalInterpretError, malformed};
         use crate::boundary::values::TerminalScalarValue;
         use crate::storage::scalar_storage::ScalarCell;
-        use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
+        use build_model::accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 
         #[derive(record_storage::Record)]
         pub(crate) struct ScalarArrayStorage<Element> {
@@ -3853,7 +3853,7 @@ pub(crate) mod scalar_array {
             qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
             count: u64,
             values: impl IntoIterator<Item = Result<TerminalScalarValue, TerminalInterpretError>>,
-            account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+            account: Option<&build_model::accounting::EvaluationInvocationAccount>,
         ) -> Result<Self, TerminalInterpretError> {
             Ok(Self {
                 storage_identity: None,
@@ -3889,7 +3889,7 @@ pub(crate) mod scalar_array {
         pub(crate) fn from_bytes(
             structural_type: StructuralTypeId,
             bytes: &[u8],
-            account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+            account: Option<&build_model::accounting::EvaluationInvocationAccount>,
         ) -> Result<Self, TerminalInterpretError> {
             let scalar_type = semantic_vocabulary::IntegerType::new(
                 semantic_vocabulary::IntegerSign::Unsigned,
@@ -3984,7 +3984,7 @@ pub(crate) mod scalar_array {
             qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
             count: u64,
             values: impl IntoIterator<Item = Result<TerminalScalarValue, TerminalInterpretError>>,
-            account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+            account: Option<&build_model::accounting::EvaluationInvocationAccount>,
         ) -> Result<Self, TerminalInterpretError> {
             Ok(Self {
                 storage_identity: None,
@@ -4475,8 +4475,8 @@ pub(crate) mod scalar_array {
     pub(crate) mod tests {
         use super::*;
         use crate::boundary::effects::TerminalEffectRejection;
-        use evaluation_accounting::BuildEvaluationSponsor;
-        use evaluation_contracts::{
+        use build_model::accounting::BuildEvaluationSponsor;
+        use build_model::contracts::{
             BuildEvaluationSponsorLimits, EvaluationAccountingError, EvaluationMeasurementIdentity,
             EvaluationResource, TerminalStorageScheduleIdentity,
         };
@@ -4554,7 +4554,7 @@ pub(crate) mod scalar_array {
             cells: u64,
         ) -> (
             BuildEvaluationSponsor,
-            evaluation_accounting::EvaluationInvocationAccount,
+            build_model::accounting::EvaluationInvocationAccount,
         ) {
             let sponsor = sponsor(cells);
             let account = sponsor
@@ -4564,7 +4564,7 @@ pub(crate) mod scalar_array {
         }
 
         fn packed_bools(
-            account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+            account: Option<&build_model::accounting::EvaluationInvocationAccount>,
         ) -> PackedScalarArrayValue {
             PackedScalarArrayValue::collect(
                 StructuralTypeId::new(1).unwrap(),
@@ -4708,7 +4708,7 @@ pub(crate) mod scalar_array {
         }
 
         fn array_with(
-            account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+            account: Option<&build_model::accounting::EvaluationInvocationAccount>,
         ) -> PackedScalarArrayValue {
             PackedScalarArrayValue::collect(
                 StructuralTypeId::new(1).unwrap(),

@@ -1,6 +1,7 @@
 //! Execute admitted scalar observations from immutable Psi and target inputs.
 //! Source completion owns preparation and charging records; this engine has no
 //! source, declaration-selection or compilation callback.
+use build_model::work::EvaluationWorkMeter;
 use psi_scalar_applications::{ScalarApplicationObservations, ScalarConditionSelection};
 use semantic_vocabulary::ScalarApplicationId;
 use terminal_interpreter::{
@@ -8,7 +9,6 @@ use terminal_interpreter::{
     TerminalInstantiation, TerminalProgram, TerminalScalarApplicationRequest,
 };
 use terminal_semantics::entry_values::TerminalScalarValue;
-use evaluation_work::EvaluationWorkMeter;
 
 mod demand;
 
@@ -206,7 +206,7 @@ pub(crate) fn evaluate_accounted_scope<'artifact>(
     requested: &[ScalarApplicationId],
     address_model: Option<&semantic_vocabulary::ScalarAddressModel>,
     import_realizations: Option<&dyn TargetImportRealizations>,
-    sponsor: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+    sponsor: Option<&build_model::accounting::EvaluationInvocationAccount>,
     ceiling: u64,
 ) -> (
     Result<ScalarConditionSelection<'artifact>, String>,
@@ -221,9 +221,9 @@ pub(crate) fn evaluate_accounted_scope<'artifact>(
         import_realizations,
         |job, admission| {
             let mut meter = match sponsor {
-                Some(account) => evaluation_work::sponsored_meter(account.clone(), Some(ceiling))
+                Some(account) => build_model::work::sponsored_meter(account.clone(), Some(ceiling))
                     .map_err(|error| format!("scalar evaluation sponsorship: {error:?}"))?,
-                None => evaluation_work::unsponsored_meter(Some(ceiling)),
+                None => build_model::work::unsponsored_meter(Some(ceiling)),
             };
             let values = admission.observations().values().observed().collect();
             let result = execute_entry(job, admission, &mut meter);

@@ -1091,6 +1091,7 @@ pub(crate) fn check<'a>(
                         machine.lowered,
                         tables,
                         machine.graph,
+                        machine.storage,
                         point,
                         obligation,
                         clause,
