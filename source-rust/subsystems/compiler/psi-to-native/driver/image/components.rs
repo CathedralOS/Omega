@@ -16,7 +16,7 @@ use verified_optimization_input::{
 pub(crate) struct Export<'a> {
     import: &'a ComponentImport,
     index: usize,
-    plan: &'a provider_plans::ProviderPlan,
+    plan: &'a build_providers::plans::ProviderPlan,
     retained: RetainedTerminalArtifact,
     permissions: provider_admission::TerminalAuthorityPermissionPolicy,
 }

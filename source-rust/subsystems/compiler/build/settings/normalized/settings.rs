@@ -1,9 +1,13 @@
 //! The normalized target and runtime choices produced by a returned Build value.
 #![forbid(unsafe_code)]
 
-use build_time_values::BuildTimeValue;
+use build_model::values::BuildTimeValue;
 use optimization_selections::OptimizationSelections;
 use target::{ApplicationIdentifier, HostedApplicationIntent};
+
+/// Default summand limit for automatic compatibility-proof product expansion
+/// (`wiki/spec/build/configuration.md#proof-work-policy`).
+pub const DEFAULT_PROOF_INDEX_EXPANSION_TERMS: u64 = 64;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EvaluatedBuildSettings {
@@ -14,6 +18,7 @@ pub struct EvaluatedBuildSettings {
     pub x86_deployment_claim: X86DeploymentClaim, // Authored x86 deployment-feature claim admitted per realized x86 profile.
     pub elf_interpreters: ElfInterpreterSelections, // Authored per-target ELF loader selections (`PT_INTERP`).
     pub tests_disabled: bool, // Authored `builder.tests.disabled`: registered groups stay checked but are reported disabled, never run or passed.
+    pub proof_index_expansion_terms: u64, // Authored `builder.proof.index_expansion_terms` (positive, default 64).
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -72,6 +77,7 @@ impl Default for EvaluatedBuildSettings {
             x86_deployment_claim: X86DeploymentClaim::Baseline,
             elf_interpreters: ElfInterpreterSelections::default(),
             tests_disabled: false,
+            proof_index_expansion_terms: DEFAULT_PROOF_INDEX_EXPANSION_TERMS,
         }
     }
 }

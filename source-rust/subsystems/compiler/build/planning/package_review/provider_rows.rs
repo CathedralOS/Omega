@@ -2,7 +2,7 @@
 
 use super::declarations::unavailable;
 use diagnostics::Diagnostic;
-use provider_plans::{ProviderBinding, ServiceSchema};
+use build_providers::plans::{ProviderBinding, ServiceSchema};
 use semantic_vocabulary::{BoundaryMachineId, MachineId, PackageKeyIdentity};
 
 #[derive(Clone, PartialEq, Eq)]

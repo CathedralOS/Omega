@@ -7,17 +7,54 @@ use proof_admission::{
 };
 use terminal_check_tables::mathematics::{FunctionCases, SignatureEntry, SignatureEntryKind};
 
+/// Which proof-work limit stopped an equality proof search.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BudgetLimit {
+    SearchSteps,
+    KernelSteps,
+    IndexExpansionTerms {
+        limit: usize,
+        summands: Option<usize>,
+    },
+}
+
+impl BudgetLimit {
+    pub(crate) fn describe(self) -> String {
+        match self {
+            Self::SearchSteps => {
+                "mathematical equality proof budget exhausted (search step limit)".to_owned()
+            }
+            Self::KernelSteps => {
+                "mathematical equality proof budget exhausted (kernel conversion step limit)"
+                    .to_owned()
+            }
+            Self::IndexExpansionTerms {
+                limit,
+                summands: Some(count),
+            } => format!(
+                "mathematical equality proof budget exhausted: product expansion requires {count} summands, exceeding `index_expansion_terms` limit {limit}"
+            ),
+            Self::IndexExpansionTerms {
+                limit,
+                summands: None,
+            } => format!(
+                "mathematical equality proof budget exhausted: product expansion summand count overflows, exceeding `index_expansion_terms` limit {limit}"
+            ),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum SearchError {
     NoProof,
-    Budget,
+    Budget(BudgetLimit),
     Kernel(CoreError),
 }
 
 impl From<CoreError> for SearchError {
     fn from(error: CoreError) -> Self {
         match error {
-            CoreError::StepCeiling => Self::Budget,
+            CoreError::StepCeiling => Self::Budget(BudgetLimit::KernelSteps),
             error => Self::Kernel(error),
         }
     }
@@ -166,7 +203,9 @@ fn size(arena: &TermArena, term: TermHandle) -> usize {
 }
 
 fn charge(remaining: &mut usize) -> Result<(), SearchError> {
-    *remaining = remaining.checked_sub(1).ok_or(SearchError::Budget)?;
+    *remaining = remaining
+        .checked_sub(1)
+        .ok_or(SearchError::Budget(BudgetLimit::SearchSteps))?;
     Ok(())
 }
 
@@ -188,9 +227,13 @@ enum Definition {
     },
     /// Any other body: an abbreviation, unfolded where it is met.
     Abbreviation,
+    /// The recursor of a member of a mutual block of data. A definition by
+    /// mutual recursion is an abbreviation of it, so it is left to the
+    /// kernel, which computes it on a case.
+    MutualRecursor,
 }
 
-fn spine(arena: &TermArena, term: TermHandle) -> (TermHandle, Vec<TermHandle>) {
+pub(crate) fn spine(arena: &TermArena, term: TermHandle) -> (TermHandle, Vec<TermHandle>) {
     let mut head = term;
     let mut arguments = Vec::new();
     while let Term::Apply { function, argument } = arena.get(head) {
@@ -240,11 +283,17 @@ impl Definitions {
             entries
                 .iter()
                 .map(|entry| match &entry.kind {
+                    SignatureEntryKind::Encoding { data }
+                        if shape(*data).is_some_and(|shape| shape.is_mutual()) =>
+                    {
+                        Definition::MutualRecursor
+                    }
                     SignatureEntryKind::Data { .. }
                     | SignatureEntryKind::Record { .. }
                     | SignatureEntryKind::Boolean
                     | SignatureEntryKind::Encoding { .. }
                     | SignatureEntryKind::Scheme
+                    | SignatureEntryKind::GenericData { .. }
                     | SignatureEntryKind::Quotient { .. }
                     | SignatureEntryKind::Statement { .. } => Definition::Opaque,
                     SignatureEntryKind::Constructor { data, case } => match shape(*data) {
@@ -555,7 +604,12 @@ pub(crate) fn normal(
         signature,
         term,
         conversion,
-        &|declaration| !matches!(definitions.get(declaration), Definition::Abbreviation),
+        &|declaration| {
+            !matches!(
+                definitions.get(declaration),
+                Definition::Abbreviation | Definition::MutualRecursor
+            )
+        },
     )?;
     let (function, arguments) = spine(arena, head);
     // An induction applied to the motive, branches and subject of a
@@ -616,11 +670,42 @@ pub(crate) fn normal(
             });
         }
         let mut applied = arena.apply_arguments(cases.branches[case], &fields);
-        for &field in &fields {
-            let at_field = arena.insert(Term::Apply {
-                function: recursor,
-                argument: field,
-            });
+        // The branch takes the recursion at each field that holds the data
+        // itself, after all of the case's fields: at a field holding a
+        // function to the data, the recursion at every child, `λx. rec (f x)`.
+        let Some((_, shape)) = definitions.1.iter().find(|(entry, _)| *entry == cases.data) else {
+            return Ok(arena.apply_arguments(function, &operands));
+        };
+        let recursive: Vec<(TermHandle, proof_admission::PlainField)> = fields
+            .iter()
+            .zip(shape.fields(case))
+            .filter(|(_, kind)| kind.is_recursive())
+            .map(|(&field, &kind)| (field, kind))
+            .collect();
+        for &(field, kind) in &recursive {
+            let at_field = match kind {
+                proof_admission::PlainField::Function { argument, .. } => {
+                    let function = shift(arena, field, 0, 1);
+                    let bound = arena.insert(Term::Variable(0));
+                    let child = arena.insert(Term::Apply {
+                        function,
+                        argument: bound,
+                    });
+                    let recursor = shift(arena, recursor, 0, 1);
+                    let body = arena.insert(Term::Apply {
+                        function: recursor,
+                        argument: child,
+                    });
+                    arena.insert(Term::Lambda {
+                        domain: argument,
+                        body,
+                    })
+                }
+                _ => arena.insert(Term::Apply {
+                    function: recursor,
+                    argument: field,
+                }),
+            };
             applied = arena.insert(Term::Apply {
                 function: applied,
                 argument: at_field,
@@ -665,6 +750,23 @@ fn normal_children(
         let normal = normal(arena, context, definitions, child, conversion)?;
         changed |= normal != child;
         children.push(normal);
+    }
+    // A projection of a pair is that component. The pair is often what a
+    // definition with a record result computes to once its subject is a
+    // case, such as `divide_step(Zero, k, q, c).quotient`, and the head was
+    // normalized before its child unfolded.
+    match (&node, children.as_slice()) {
+        (Term::Fst { .. }, [pair]) => {
+            if let Term::Pair { first, .. } = arena.get(*pair) {
+                return Ok(first);
+            }
+        }
+        (Term::Snd { .. }, [pair]) => {
+            if let Term::Pair { second, .. } = arena.get(*pair) {
+                return Ok(second);
+            }
+        }
+        _ => {}
     }
     // A pair of both projections of one value is that value: the kernel
     // converts the two, and the search compares terms by their spelling.
@@ -716,10 +818,21 @@ pub(crate) struct Distribution {
 /// The laws a proof may rearrange under without citing them: each licensed
 /// operation's associativity and commutativity, and distributivity of one
 /// licensed operation over another.
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 pub(crate) struct Licenses<'l> {
     pub operations: &'l [License],
     pub distributions: &'l [Distribution],
+    pub index_expansion_terms: usize,
+}
+
+impl Default for Licenses<'_> {
+    fn default() -> Self {
+        Self {
+            operations: &[],
+            distributions: &[],
+            index_expansion_terms: MAX_SUMMANDS,
+        }
+    }
 }
 
 /// The most summands one product may expand to, counted before the
@@ -862,6 +975,7 @@ fn next_expansion(
     arena: &mut TermArena,
     licenses: &[License],
     distributions: &[Distribution],
+    index_expansion_terms: usize,
     term: TermHandle,
     slots: &[usize],
 ) -> Result<Option<Vec<Step>>, SearchError> {
@@ -901,8 +1015,12 @@ fn next_expansion(
             (false, true) => Expands::Right,
             (false, false) => Expands::Left,
         };
-        if summands(arena, law, expands, term).is_none_or(|count| count > MAX_SUMMANDS) {
-            return Err(SearchError::Budget);
+        let count = summands(arena, law, expands, term);
+        if count.is_none_or(|count| count > index_expansion_terms) {
+            return Err(SearchError::Budget(BudgetLimit::IndexExpansionTerms {
+                limit: index_expansion_terms,
+                summands: count,
+            }));
         }
         let (first, second) = if swap.is_some() {
             (second, first)
@@ -1045,11 +1163,19 @@ fn next_rearrangement(
     arena: &mut TermArena,
     licenses: &[License],
     distributions: &[Distribution],
+    index_expansion_terms: usize,
     term: TermHandle,
     slots: &mut Vec<usize>,
 ) -> Result<Option<Vec<Step>>, SearchError> {
     use std::cmp::Ordering::Greater;
-    if let Some(steps) = next_expansion(arena, licenses, distributions, term, slots)? {
+    if let Some(steps) = next_expansion(
+        arena,
+        licenses,
+        distributions,
+        index_expansion_terms,
+        term,
+        slots,
+    )? {
         return Ok(Some(steps));
     }
     if let Some((license, first, second)) = licensed(arena, licenses, term) {
@@ -1118,7 +1244,14 @@ fn next_rearrangement(
     ) {
         for (slot, child) in node.children().enumerate() {
             slots.push(slot);
-            let found = next_rearrangement(arena, licenses, distributions, child, slots);
+            let found = next_rearrangement(
+                arena,
+                licenses,
+                distributions,
+                index_expansion_terms,
+                child,
+                slots,
+            );
             slots.pop();
             if !matches!(found, Ok(None)) {
                 return found;
@@ -1151,6 +1284,7 @@ fn rearrange(
     arena: &mut TermArena,
     licenses: &[License],
     distributions: &[Distribution],
+    index_expansion_terms: usize,
     mut term: TermHandle,
     search_steps: &mut usize,
 ) -> Result<(TermHandle, Vec<Step>), SearchError> {
@@ -1158,9 +1292,14 @@ fn rearrange(
     if licenses.is_empty() && distributions.is_empty() {
         return Ok((term, taken));
     }
-    while let Some(steps) =
-        next_rearrangement(arena, licenses, distributions, term, &mut Vec::new())?
-    {
+    while let Some(steps) = next_rearrangement(
+        arena,
+        licenses,
+        distributions,
+        index_expansion_terms,
+        term,
+        &mut Vec::new(),
+    )? {
         for step in steps {
             charge(search_steps)?;
             let path = path_to(arena, term, &step.slots).ok_or(SearchError::NoProof)?;
@@ -1434,13 +1573,20 @@ fn exchange(
     definitions: &Definitions,
     licenses: &[License],
     distributions: &[Distribution],
+    index_expansion_terms: usize,
     current: Rewriting,
     rules: &[(Equality, TermHandle)],
     search_steps: &mut usize,
     conversion: &mut Budget,
 ) -> Result<Vec<(TermHandle, TermHandle)>, SearchError> {
-    let (canonical, forward) =
-        rearrange(arena, licenses, distributions, current.term, search_steps)?;
+    let (canonical, forward) = rearrange(
+        arena,
+        licenses,
+        distributions,
+        index_expansion_terms,
+        current.term,
+        search_steps,
+    )?;
     let mut found = Vec::new();
     chains(
         arena,
@@ -1471,8 +1617,14 @@ fn exchange(
                 let path =
                     path_to(arena, canonical, &chain_found.slots).ok_or(SearchError::NoProof)?;
                 let arranged = plug(arena, &path, arrangement, 0);
-                let (same, backward) =
-                    rearrange(arena, licenses, distributions, arranged, search_steps)?;
+                let (same, backward) = rearrange(
+                    arena,
+                    licenses,
+                    distributions,
+                    index_expansion_terms,
+                    arranged,
+                    search_steps,
+                )?;
                 if !arena.structurally_equal(same, canonical) {
                     continue;
                 }
@@ -1489,8 +1641,14 @@ fn exchange(
                 rewriting.step(arena, &place, rule)?;
                 // As after any rewrite, the kernel converts the computed form.
                 rewriting.term = normal(arena, context, definitions, rewriting.term, conversion)?;
-                let (_, settle) =
-                    rearrange(arena, licenses, distributions, rewriting.term, search_steps)?;
+                let (_, settle) = rearrange(
+                    arena,
+                    licenses,
+                    distributions,
+                    index_expansion_terms,
+                    rewriting.term,
+                    search_steps,
+                )?;
                 for step in &settle {
                     rewriting.step(arena, &step.slots, step.rule)?;
                 }
@@ -1545,6 +1703,7 @@ pub(crate) fn prove_under(
         Licenses {
             operations: licenses,
             distributions: &[],
+            index_expansion_terms: MAX_SUMMANDS,
         },
         search_steps,
         conversion,
@@ -1644,7 +1803,7 @@ pub(crate) fn prove_licensed(
         );
         definitions.2.set(false);
         match as_written {
-            Err(SearchError::NoProof | SearchError::Budget) => {}
+            Err(SearchError::NoProof | SearchError::Budget(_)) => {}
             found => return found,
         }
     }
@@ -1693,7 +1852,7 @@ fn prove_as(
     // What the search may spend, kept for the rewriting that takes over when
     // the search has spent it.
     let allowance = search_steps;
-    let mut exhausted = false;
+    let mut exhausted: Option<BudgetLimit> = None;
     for distributions in expansion_attempts(arena, licenses.distributions) {
         if !distributions.is_empty() {
             let expands = |arena: &TermArena, term| {
@@ -1709,7 +1868,7 @@ fn prove_as(
                 continue;
             }
         }
-        if !exhausted {
+        if exhausted.is_none() {
             match search(
                 arena,
                 context,
@@ -1719,11 +1878,12 @@ fn prove_as(
                 &mut rules,
                 licenses.operations,
                 &distributions,
+                licenses.index_expansion_terms,
                 &mut search_steps,
                 conversion,
             ) {
                 Err(SearchError::NoProof) => continue,
-                Err(SearchError::Budget) => exhausted = true,
+                Err(SearchError::Budget(limit)) => exhausted = Some(limit),
                 found => return found,
             }
         }
@@ -1731,7 +1891,9 @@ fn prove_as(
         // argument over large terms outgrows. Rewriting both sides to one
         // normal form tries one order.
         let Some(rules) = rules.as_deref() else {
-            return Err(SearchError::Budget);
+            return Err(SearchError::Budget(
+                exhausted.unwrap_or(BudgetLimit::SearchSteps),
+            ));
         };
         let stated: Vec<Equality> = rules.iter().copied().step_by(2).collect();
         let mut steps = allowance;
@@ -1743,6 +1905,7 @@ fn prove_as(
             &stated,
             licenses.operations,
             &distributions,
+            licenses.index_expansion_terms,
             &mut steps,
             conversion,
         ) {
@@ -1751,10 +1914,9 @@ fn prove_as(
             Err(error) => return Err(error),
         }
     }
-    Err(if exhausted {
-        SearchError::Budget
-    } else {
-        SearchError::NoProof
+    Err(match exhausted {
+        Some(limit) => SearchError::Budget(limit),
+        None => SearchError::NoProof,
     })
 }
 
@@ -1804,6 +1966,7 @@ fn settled(
     definitions: &Definitions,
     licenses: &[License],
     distributions: &[Distribution],
+    index_expansion_terms: usize,
     rules: &[Equality],
     mut at: Rewriting,
     steps: &mut usize,
@@ -1812,7 +1975,14 @@ fn settled(
     loop {
         // As after any rewrite, the kernel converts the computed form.
         at.term = normal(arena, context, definitions, at.term, conversion)?;
-        let (_, arrange) = rearrange(arena, licenses, distributions, at.term, steps)?;
+        let (_, arrange) = rearrange(
+            arena,
+            licenses,
+            distributions,
+            index_expansion_terms,
+            at.term,
+            steps,
+        )?;
         for step in &arrange {
             at.step(arena, &step.slots, step.rule)?;
         }
@@ -1844,6 +2014,7 @@ fn completed(
     stated: &[Equality],
     licenses: &[License],
     distributions: &[Distribution],
+    index_expansion_terms: usize,
     steps: &mut usize,
     conversion: &mut Budget,
 ) -> Result<Option<TermHandle>, SearchError> {
@@ -1860,6 +2031,7 @@ fn completed(
             definitions,
             licenses,
             distributions,
+            index_expansion_terms,
             rules,
             at,
             steps,
@@ -1994,6 +2166,7 @@ fn search(
     rules: &mut Option<Vec<Equality>>,
     licenses: &[License],
     distributions: &[Distribution],
+    index_expansion_terms: usize,
     search_steps: &mut usize,
     conversion: &mut Budget,
 ) -> Result<TermHandle, SearchError> {
@@ -2004,7 +2177,14 @@ fn search(
         right,
         reflexivity,
     } = goal;
-    let (canonical, from_right) = rearrange(arena, licenses, distributions, right, search_steps)?;
+    let (canonical, from_right) = rearrange(
+        arena,
+        licenses,
+        distributions,
+        index_expansion_terms,
+        right,
+        search_steps,
+    )?;
     // Whether the reached term closes the goal: rearrange it, then undo the
     // right side's rearrangement from the shared canonical form.
     let close = |arena: &mut TermArena,
@@ -2018,7 +2198,14 @@ fn search(
         if licenses.is_empty() && distributions.is_empty() {
             return Ok(None);
         }
-        let (reached, forward) = rearrange(arena, licenses, distributions, term, search_steps)?;
+        let (reached, forward) = rearrange(
+            arena,
+            licenses,
+            distributions,
+            index_expansion_terms,
+            term,
+            search_steps,
+        )?;
         if !arena.structurally_equal(reached, canonical) {
             return Ok(None);
         }
@@ -2094,7 +2281,14 @@ fn search(
         .any(|license| license.commutes.is_some() && license.associates.is_some())
     {
         for &rule in &usable {
-            let (stated, _) = rearrange(arena, licenses, distributions, rule.from, search_steps)?;
+            let (stated, _) = rearrange(
+                arena,
+                licenses,
+                distributions,
+                index_expansion_terms,
+                rule.from,
+                search_steps,
+            )?;
             arranged.push((rule, stated));
         }
     }
@@ -2163,6 +2357,7 @@ fn search(
                 definitions,
                 licenses,
                 distributions,
+                index_expansion_terms,
                 rewriting,
                 &arranged,
                 search_steps,
@@ -2229,14 +2424,15 @@ fn search(
 
 use crate::{call_contracts, graph::Graph, hypotheses};
 use proof_admission::{
-    Declaration, Level, MathematicalCertificate, MathematicalCoreDecision,
-    MathematicalJudgmentReceipt, Sort, check_signature,
+    Declaration, DeclarationKind, Level, MathematicalCertificate, MathematicalCoreDecision,
+    MathematicalJudgmentReceipt, Signature, Sort, check_signature, extend_signature,
 };
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, ClauseCarrier, ClauseDeclaration, ClauseIdentity,
     ClauseOperand, MachineId, ObligationId, PlaceId, Proposition, ScalarTerm, StructuralFieldId,
     StructuralTypeId, TargetMachineCallable,
 };
+use terminal_check_tables::mathematics::IdentityTable;
 use terminal_check_tables::{
     Checked, Construct, KnowledgeId, MachineTables, ProgramPoint, RefusalReason, UnprovedCause,
 };
@@ -2252,7 +2448,7 @@ pub struct Judgment {
 }
 
 /// What one declaration of an obligation's kernel signature stands for.
-#[derive(PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 enum Named {
     Carrier(FieldCarrier),
     Input(PlaceId),
@@ -2279,6 +2475,9 @@ enum FieldCarrier {
 enum LawInput {
     Structural(PlaceId),
     Scalar(semantic_vocabulary::ValueId),
+    /// Formal `k` of a law in a machine's Identity table, written
+    /// `ClauseOperand::Formal(k)`.
+    Formal(u32),
 }
 
 /// One field of a record denoted as the product of its fields.
@@ -2290,6 +2489,7 @@ struct Field {
 }
 
 /// A record whose value is the tuple of its fields, in declaration order.
+#[derive(Clone)]
 struct Product {
     record: StructuralTypeId,
     fields: Vec<Field>,
@@ -2314,8 +2514,9 @@ impl From<SearchError> for Unproved {
 struct Declarations<'a> {
     module: &'a TerminalModule,
     machine: &'a TerminalMachine,
-    /// What each field of an input held at the goal point.
-    entry: &'a mut dyn crate::Bindings<Error = crate::Unbound>,
+    /// What each field of an input held at the goal point. A machine's
+    /// Identity table names no input, so it is read without one.
+    entry: Option<&'a mut dyn crate::Bindings<Error = crate::Unbound>>,
     /// The values the inputs' fields held at the goal point, as their terms
     /// state them. An equality of one of them can rebuild an input.
     contents: Vec<ScalarTerm>,
@@ -2326,13 +2527,109 @@ struct Declarations<'a> {
     /// Records whose carrier is being declared, so a record that contained
     /// itself would be refused rather than declared forever.
     declaring: Vec<StructuralTypeId>,
+    /// The const record parameters of the generic check form whose Identity
+    /// table the obligation starts from. The table holds every operation of
+    /// theirs and every law, so an obligation that names another is refused.
+    suppliers: Option<Vec<(u32, u32)>>,
+}
+
+/// A generic check form's Identity table, declared and checked by the kernel
+/// once (`check_identity_table`). Each Identity obligation of the form starts
+/// from a copy and adds only what it names of its own inputs.
+pub(crate) struct CheckedIdentityTable {
+    suppliers: Vec<(u32, u32)>,
+    arena: TermArena,
+    /// The table's declarations, every one ordinary and checked by the
+    /// kernel together.
+    declarations: Vec<Declaration>,
+    entries: Vec<(Named, TermHandle)>,
+    products: Vec<Product>,
+}
+
+/// A generic check form's Identity table, checked, or the reason it could
+/// not be.
+pub(crate) type IdentityTables = Result<CheckedIdentityTable, String>;
+
+/// The law instances of a module and, for a generic check form, its
+/// machines' Identity tables: what an Identity obligation may cite and start
+/// from.
+#[derive(Clone, Copy)]
+pub(crate) struct LawScope<'t> {
+    pub(crate) instances: &'t [MachineId],
+    pub(crate) identities: Option<&'t IdentityTables>,
+}
+
+/// Declares and checks `table` in `module`, the module of its check form,
+/// once.
+pub(crate) fn check_identity_table(
+    module: &TerminalModule,
+    table: &IdentityTable,
+) -> IdentityTables {
+    let machine = module
+        .machines
+        .first()
+        .ok_or("an Identity table for a module with no machine")?;
+    let mut declarations = Declarations::new(module, machine, None);
+    let read = (|| {
+        for &carrier in &table.carriers {
+            declarations.carrier(carrier)?;
+        }
+        for operation in &table.operations {
+            let result = declarations.carrier(operation.result)?;
+            declarations.operation(operation.declaration, result, &operation.domains)?;
+        }
+        for law in &table.laws {
+            let count = u32::try_from(law.formals.len()).map_err(|_| "too many law formals")?;
+            let binders: Vec<_> = (0..count).map(LawInput::Formal).collect();
+            let mut statement = declarations.identity(&law.statement, &binders)?;
+            for &carrier in law.formals.iter().rev() {
+                let domain = declarations.carrier(carrier)?;
+                statement = declarations.arena.insert(Term::Pi {
+                    domain,
+                    codomain: statement,
+                });
+            }
+            declarations.entry(Named::Law(law.instance, law.clause), statement)?;
+        }
+        Ok::<_, &'static str>(())
+    })();
+    read.map_err(|why| format!("the machine's Identity table cannot be declared: {why}"))?;
+    // A checked table is extended without being checked again, from its
+    // declarations alone, which holds only for ordinary declarations: an
+    // inductive one is checked with tables of its own.
+    if declarations
+        .signature
+        .iter()
+        .any(|declaration| !matches!(declaration.kind, DeclarationKind::Ordinary))
+    {
+        return Err("the machine's Identity table declares an inductive type".to_owned());
+    }
+    check_signature(
+        &mut declarations.arena,
+        &declarations.signature,
+        &mut Budget::default(),
+    )
+    .map_err(|error| {
+        format!("mathematical kernel refused the machine's Identity table: {error:?}")
+    })?;
+    Ok(CheckedIdentityTable {
+        suppliers: table
+            .suppliers
+            .iter()
+            .map(|supplier| (supplier.arena_index(), supplier.generation()))
+            .collect(),
+        arena: declarations.arena,
+        declarations: declarations.signature,
+        entries: declarations.entries,
+        products: declarations.products,
+    })
 }
 
 impl<'a> Declarations<'a> {
     fn new(
         module: &'a TerminalModule,
         machine: &'a TerminalMachine,
-        entry: &'a mut dyn crate::Bindings<Error = crate::Unbound>,
+        entry: Option<&'a mut dyn crate::Bindings<Error = crate::Unbound>>,
     ) -> Self {
         Self {
             module,
@@ -2344,6 +2641,32 @@ impl<'a> Declarations<'a> {
             signature: Vec::new(),
             products: Vec::new(),
             declaring: Vec::new(),
+            suppliers: None,
+        }
+    }
+
+    /// An obligation of `machine` starting from its checked Identity table.
+    fn from_table(
+        module: &'a TerminalModule,
+        machine: &'a TerminalMachine,
+        table: &CheckedIdentityTable,
+        entry: &'a mut dyn crate::Bindings<Error = crate::Unbound>,
+    ) -> Self {
+        Self {
+            module,
+            machine,
+            entry: Some(entry),
+            contents: Vec::new(),
+            arena: table.arena.clone(),
+            entries: table
+                .entries
+                .iter()
+                .map(|(key, term)| (key.clone(), *term))
+                .collect(),
+            signature: table.declarations.clone(),
+            products: table.products.clone(),
+            declaring: Vec::new(),
+            suppliers: Some(table.suppliers.clone()),
         }
     }
 
@@ -2366,6 +2689,24 @@ impl<'a> Declarations<'a> {
         key: Named,
         declaration: Declaration,
     ) -> Result<TermHandle, &'static str> {
+        // What the table holds is the same in every obligation, so an
+        // obligation that names another is refused, never given a
+        // declaration of its own.
+        if let Some(suppliers) = &self.suppliers {
+            match &key {
+                Named::Operation(declaration)
+                    if declaration
+                        .supplier
+                        .is_some_and(|supplier| suppliers.contains(&supplier)) =>
+                {
+                    return Err("a trait operation that is not in the form's Identity table");
+                }
+                Named::Law(..) => {
+                    return Err("a cited law that is not in the form's Identity table");
+                }
+                _ => {}
+            }
+        }
         let index =
             u32::try_from(self.signature.len()).map_err(|_| "signature exceeds its index width")?;
         let term = self.arena.insert(Term::Constant {
@@ -2574,7 +2915,11 @@ impl<'a> Declarations<'a> {
         carrier: FieldCarrier,
     ) -> Result<Option<TermHandle>, &'static str> {
         if let FieldCarrier::Clause(ClauseCarrier::Scalar(scalar)) = carrier {
-            let Ok(held) = self.entry.field(
+            let entry = self
+                .entry
+                .as_deref_mut()
+                .ok_or("an Identity table names no input")?;
+            let Ok(held) = entry.field(
                 semantic_vocabulary::ContentPlaceVersion::Current,
                 root,
                 path,
@@ -2604,12 +2949,13 @@ impl<'a> Declarations<'a> {
         Ok(self.arena.tuple(&components))
     }
 
-    fn application(
+    /// The entry of an applied declaration, a function from `domains` to
+    /// `result`.
+    fn operation(
         &mut self,
         declaration: ClauseDeclaration,
         result: TermHandle,
         domains: &[ClauseCarrier],
-        arguments: &[TermHandle],
     ) -> Result<TermHandle, &'static str> {
         let mut function_type = result;
         for &carrier in domains.iter().rev() {
@@ -2619,7 +2965,17 @@ impl<'a> Declarations<'a> {
                 codomain: function_type,
             });
         }
-        let operation = self.entry(Named::Operation(declaration), function_type)?;
+        self.entry(Named::Operation(declaration), function_type)
+    }
+
+    fn application(
+        &mut self,
+        declaration: ClauseDeclaration,
+        result: TermHandle,
+        domains: &[ClauseCarrier],
+        arguments: &[TermHandle],
+    ) -> Result<TermHandle, &'static str> {
+        let operation = self.operation(declaration, result, domains)?;
         Ok(self.arena.apply_arguments(operation, arguments))
     }
 
@@ -2708,6 +3064,16 @@ impl<'a> Declarations<'a> {
                         .map(|&arg| terms[arg as usize])
                         .collect::<Vec<_>>();
                     self.application(*declaration, ty, &domains, &operands)?
+                }
+                ClauseOperand::Formal(formal)
+                    if let Some(position) = binders
+                        .iter()
+                        .position(|binder| *binder == LawInput::Formal(*formal)) =>
+                {
+                    self.arena.insert(Term::Variable(
+                        u32::try_from(binders.len() - position - 1)
+                            .map_err(|_| "too many law formals")?,
+                    ))
                 }
                 ClauseOperand::Formal(_) | ClauseOperand::FloatMeaning(_) => {
                     return Err("no whole-value mathematical input for this clause operand");
@@ -2889,10 +3255,12 @@ pub(crate) fn discharge(
     machine: &TerminalMachine,
     tables: &MachineTables,
     graph: &Graph,
+    storage: &crate::places::Storage<'_>,
     point: ProgramPoint,
     obligation: ObligationId,
     goal: &ClauseIdentity,
     law_instances: &[MachineId],
+    identities: Option<&IdentityTables>,
     entry: &mut dyn crate::Bindings<Error = crate::Unbound>,
 ) -> Checked<Judgment> {
     let known = hypotheses(graph, tables, machine.id, obligation, point)?;
@@ -2904,7 +3272,17 @@ pub(crate) fn discharge(
             why,
         )
     };
-    let mut declarations = Declarations::new(module, machine, entry);
+    // A machine of a generic check form with const record parameters
+    // starts from the form's Identity table, which the kernel checked once.
+    // Any other machine has no trait operation or law to share and declares
+    // what each obligation names.
+    let table = identities
+        .map(|table| table.as_ref().map_err(|why| unavailable(why)))
+        .transpose()?;
+    let mut declarations = match table {
+        Some(table) => Declarations::from_table(module, machine, table, entry),
+        None => Declarations::new(module, machine, Some(entry)),
+    };
     let expected = declarations.identity(goal, &[]).map_err(unavailable)?;
     let mut proofs = Vec::new();
     let mut citations = Vec::new();
@@ -2962,7 +3340,22 @@ pub(crate) fn discharge(
         }
         // A cited theorem or helper whose requirements were already proved at
         // the call site supplies the same field or value identity premise as
-        // an entry requirement (`contracts.md#record-identity-from-field-identities`).
+        // an entry requirement (`contracts.md#record-identity-from-field-identities`),
+        // provided every local place it names is unmodified since the call.
+        let fresh = actual.values.iter().all(|value| match &value.operand {
+            ClauseOperand::Input(subject) => {
+                machine.structural_parameter(subject.root()).is_some()
+                    || matches!(
+                        call.site,
+                        terminal_check_tables::InvocationSite::Operation(operation)
+                            if storage.unmodified_since(subject.root(), operation)
+                    )
+            }
+            _ => true,
+        });
+        if !fresh {
+            continue;
+        }
         premises.push(declarations.identity(actual, &[]).map_err(unavailable)?);
         citations.push(row);
     }
@@ -2997,11 +3390,11 @@ pub(crate) fn discharge(
             .to_owned()
     };
     let kernel_error = |error| match error {
-        SearchError::Budget => crate::unproved(
+        SearchError::Budget(limit) => crate::unproved(
             machine.id,
             obligation,
             UnprovedCause::BudgetExhausted,
-            "mathematical equality proof budget exhausted".into(),
+            limit.describe(),
         ),
         SearchError::NoProof => crate::unproved(
             machine.id,
@@ -3034,11 +3427,21 @@ pub(crate) fn discharge(
             ),
         )
     };
-    let signature = check_signature(
-        &mut declarations.arena,
-        &declarations.signature,
-        &mut budget,
-    )
+    // Only what this obligation added after the table is checked here.
+    let signature = match table {
+        Some(table) => extend_signature(
+            &mut declarations.arena,
+            &Signature::from_declarations(table.declarations.clone()),
+            &declarations.signature[table.declarations.len()..],
+            &mut budget,
+        )
+        .map_err(|refused| refused.error),
+        None => check_signature(
+            &mut declarations.arena,
+            &declarations.signature,
+            &mut budget,
+        ),
+    }
     .map_err(|error| kernel_error(error.into()))?;
     let mut context = Context::empty().with_signature(signature);
     for index in 0..premises.len() {

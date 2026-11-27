@@ -164,15 +164,24 @@ impl FieldDomains<'_> {
                 continue;
             };
             let coordinate = owner.fields.iter().find(|row| row.field == field.id)?;
-            let authored = source
-                .data_member_fields(source.data_members(data))
-                .find(|row| row.symbol == coordinate.declaration)?;
+            // A quotient of copyable data is stored as its representative,
+            // in one field the declaration has no member for: its type is
+            // the carrier the declaration names.
+            let authored = match &data.quotient {
+                Some(quotient) if coordinate.declaration == data.symbol => quotient.carrier,
+                _ => {
+                    source
+                        .data_member_fields(source.data_members(data))
+                        .find(|row| row.symbol == coordinate.declaration)?
+                        .type_reference
+                }
+            };
             let depth = self.path.len();
             if let Some(case) = case {
                 self.path.push(StructuralPathSegment::Case(case.id));
             }
             self.path.push(StructuralPathSegment::Field(field.identity));
-            self.check_field(child, authored.type_reference)?;
+            self.check_field(child, authored)?;
             self.path.truncate(depth);
         }
         self.active.remove(record);

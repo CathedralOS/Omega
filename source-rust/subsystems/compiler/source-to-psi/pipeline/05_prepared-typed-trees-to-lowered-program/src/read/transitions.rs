@@ -1,3 +1,4 @@
+use crate::read::refuse_at;
 /*
 The transition family of the reader: an arm's guard and value pattern, its
 target (a value, a terminal call or Unit) and the crash exit; and dispatch
@@ -11,15 +12,13 @@ use crate::source_state::statement::{
     TransitionPattern, TransitionTargetNode,
 };
 use semantic_vocabulary::{MachineId, ScalarType};
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::Checked;
 
 use super::authority::Access;
 use super::expressions::{case_test_of, same_computation};
 use super::{Program, Slot, crash_cause};
-use crate::body::{
-    CaseSelector, Expression, ExpressionKind, Statement, Target, ValueType,
-};
-use crate::{SourceOrigin, Unserved, refuse};
+use crate::body::{CaseSelector, Expression, ExpressionKind, Statement, Target, ValueType};
+use crate::{SourceOrigin, Unserved};
 
 impl Program<'_> {
     /// One transition arm: its guard, read once, and its target. A guard of
@@ -33,25 +32,16 @@ impl Program<'_> {
     ) -> Checked<(Option<Expression>, Target)> {
         let StatementNode::Transition(transition) = self.typed.statement_table.statement(statement)
         else {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Transition("occurrence does not name a transition statement"),
             ));
         };
         if transition.continuation.is_valid() {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Transition("continuation"),
-            ));
+            return Err(refuse_at(id, Unserved::Transition("continuation")));
         }
         if !transition.proof_selectors.is_empty() {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Transition("proof selectors"),
-            ));
+            return Err(refuse_at(id, Unserved::Transition("proof selectors")));
         }
         let patterns = self
             .typed
@@ -128,11 +118,7 @@ impl Program<'_> {
                         record
                     }
                     _ => {
-                        return Err(refuse(
-                            id,
-                            Construct::Machine,
-                            Unserved::Transition("destructuring pattern"),
-                        ));
+                        return Err(refuse_at(id, Unserved::Transition("destructuring pattern")));
                     }
                 };
                 self.record_arm(
@@ -171,30 +157,21 @@ impl Program<'_> {
                     Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
                 )?;
                 if !same_computation(&read_guard, &read_condition) {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Transition("guard and pattern condition differ"),
                     ));
                 }
                 Some(read_guard)
             }
             (_, [_, _, ..]) => {
-                return Err(refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Transition("tuple pattern"),
-                ));
+                return Err(refuse_at(id, Unserved::Transition("tuple pattern")));
             }
         };
         if condition.as_ref().is_some_and(|guard| {
             guard.result != Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE))
         }) {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Typing("guard is not bool"),
-            ));
+            return Err(refuse_at(id, Unserved::Typing("guard is not bool")));
         }
         Ok(condition)
     }
@@ -279,7 +256,7 @@ impl Program<'_> {
         statements: impl Iterator<Item = StatementHandle>,
         result: Option<ValueType>,
     ) -> Checked<(Statement, usize)> {
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Transition(what));
+        let unserved = |what| refuse_at(id, Unserved::Transition(what));
         let mut subject: Option<Expression> = None;
         let mut arms: Vec<(CaseSelector, Target, SourceOrigin)> = Vec::new();
         let mut default = None;
@@ -452,7 +429,7 @@ impl Program<'_> {
         id: MachineId,
         pattern: &crate::source_state::statement::TransitionPattern,
     ) -> Checked<ExpressionHandle> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Transition(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Transition(what)));
         let destructure = &pattern.pattern;
         if pattern.is_structural
             || destructure.head.is_valid()
@@ -486,26 +463,20 @@ impl Program<'_> {
         let typed = self.typed;
         let StatementNode::Transition(transition) = typed.statement_table.statement(statement)
         else {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Transition("target has no exact transition statement"),
             ));
         };
         let handle = transition.target;
         if !typed.statement_table.transition_target_is_valid(handle) {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Transition("missing target"),
-            ));
+            return Err(refuse_at(id, Unserved::Transition("missing target")));
         }
         let mut target = match typed.statement_table.transition_target(handle) {
             TransitionTargetNode::Terminal => {
                 if result.is_some() {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Typing("Unit arm in a value machine"),
                     ));
                 }
@@ -524,11 +495,7 @@ impl Program<'_> {
                 authored_call_selection,
             } => {
                 if !evidence_arguments.is_empty() {
-                    return Err(refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Call("static or evidence call"),
-                    ));
+                    return Err(refuse_at(id, Unserved::Call("static or evidence call")));
                 }
                 // A boundary trait qualifier completes a requirement name;
                 // it is never a value supplying an implicit argument.
@@ -540,11 +507,7 @@ impl Program<'_> {
                             .record_requirement_signature(id, path.receiver_symbol, path.symbol)?
                             .is_some());
                 if !qualified && (members != 1 || path.receiver_symbol.is_valid()) {
-                    return Err(refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Call("qualified or receiver call"),
-                    ));
+                    return Err(refuse_at(id, Unserved::Call("qualified or receiver call")));
                 }
                 let arguments = typed.statement_table.expression_handles(*arguments);
                 let source = self.authored_node(
@@ -584,7 +547,10 @@ impl Program<'_> {
             }
         };
         crate::lower::operational::boundary(&mut target);
-        if !self.agrees(target.result, result) {
+        if !target.diverges() && !self.agrees(target.result, result) {
+            if let Some(rejection) = self.unit_result_mismatch(id, result, &target) {
+                return Err(rejection);
+            }
             return Err(self.mistyped(
                 id,
                 target.source,
@@ -604,7 +570,7 @@ impl Program<'_> {
         id: MachineId,
         handle: crate::source_state::statement::TransitionTargetHandle,
     ) -> Checked<()> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Transition(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Transition(what)));
         if !handle.is_valid() {
             return unserved("crash without a target");
         }

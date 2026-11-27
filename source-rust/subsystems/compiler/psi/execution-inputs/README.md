@@ -9,6 +9,6 @@ An interpreter run and a native compilation can start from the same published Ps
 | Borrowed entry memory | [Check entry memory](entry-memory/entry_memory.rs) against the selected row and its admitted target layout. |
 | Scalar applications | [Check scalar observations](scalar-applications/scalar_applications.rs), prerequisites and entry or ABI scope against the same provider and layout selections. |
 
-The [Build scalar evaluator](../../build/evaluation/scalars/execution.rs) runs a program’s requested scalar calculations and records the results. The scalar checks above bind each result to the application it serves.
+The [Build scalar evaluator](../../build/build-time/scalars/execution.rs) runs a program’s requested scalar calculations and records the results. The scalar checks above bind each result to the application it serves.
 
 The host supplies these inputs when it requests [native code or an interpreter runtime](../../compiler.rs). Their portable declarations are recorded in the [Psi program](../psi.rs).

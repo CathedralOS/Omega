@@ -84,15 +84,13 @@ impl<'a> TargetLayoutGeometry<'a> {
             layouts: None,
         }
     }
+    fn resolved_record(&self, id: StructuralTypeId) -> Option<&'a StructuralTypeDeclaration> {
+        let records = &self.layouts?.records;
+        let position = records.binary_search_by_key(&id, |row| row.id).ok()?;
+        Some(&records[position])
+    }
     pub fn declaration(&self, id: StructuralTypeId) -> Option<&'a StructuralTypeDeclaration> {
-        self.layouts
-            .and_then(|layouts| {
-                layouts
-                    .records
-                    .binary_search_by_key(&id, |row| row.id)
-                    .ok()
-                    .map(|position| &layouts.records[position])
-            })
+        self.resolved_record(id)
             .or_else(|| self.artifact.module().structural_type(id))
     }
     pub fn declarations(&self) -> impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone + '_ {
@@ -100,10 +98,7 @@ impl<'a> TargetLayoutGeometry<'a> {
             .module()
             .types.structural_types
             .iter()
-            .map(move |row| {
-                self.declaration(row.id)
-                    .expect("canonical declaration is retained")
-            })
+            .map(move |row| self.resolved_record(row.id).unwrap_or(row))
     }
 }
 

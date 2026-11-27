@@ -410,7 +410,7 @@ fn admit_checked_provider_installation(
 fn require_reached_providers(
     input: &crate::AdmissionSource<'_>,
     target_profile: target::TargetProfile,
-    selected: &selected_provider_plans::SelectedProviderPlanFacts,
+    selected: &build_providers::selections::SelectedProviderPlanFacts,
     installed_interrupts: &crate::AdmittedInstalledInterruptCohort,
     interrupt_mechanisms: &[AdmittedTerminalMechanism],
     native_settlements: &[AdmittedBoundarySettlement<'_>],

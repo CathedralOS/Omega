@@ -82,7 +82,7 @@ impl super::FixedLayoutTargetScope {
 
 /// A supplied member needs its provider's type arguments and its chosen body.
 /// An independent request for the entire provider still reaches every member.
-fn from_supplied_roots(
+pub(crate) fn from_supplied_roots(
     program: &TypedTrees,
     dependencies: &ComputationDependencyRows,
     mut roots: Vec<SymbolHandle>,

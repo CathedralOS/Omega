@@ -189,7 +189,8 @@ const ALTERNATIVE_BAD: &str =
 
 /// What the prover says of a Boolean equality, such as a named case test,
 /// that no hypothesis states.
-const UNPROVED_BOOLEAN: &str = "equality of non-integers is proved only by a hypothesis";
+const UNPROVED_BOOLEAN: &str =
+    "integer order antisymmetry requires one non-address integer carrier";
 
 /// One edit of the alternative program.
 fn alternative(old: &str, new: &str) -> String {

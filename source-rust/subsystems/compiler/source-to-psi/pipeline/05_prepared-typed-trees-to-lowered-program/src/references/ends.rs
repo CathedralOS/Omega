@@ -30,6 +30,10 @@ fn planning_refusal(machine: MachineId, error: Error, sources: Option<&MachineSo
         Error::Unconsumed { at_join, .. } => {
             (RefusalReason::Violation, Error::unconsumed_message(at_join))
         }
+        Error::MissingActiveCase { .. } => (
+            RefusalReason::Unsupported,
+            Error::missing_active_case_message(),
+        ),
         Error::Unsupported { detail, .. } => (RefusalReason::Unsupported, detail),
         Error::Malformed { detail, .. } => (RefusalReason::ForeignIdentity, detail),
     };

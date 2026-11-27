@@ -324,7 +324,13 @@ pub fn contract_refinement_goals(
     required: CallableContractView<'_>,
     selected: CallableContractView<'_>,
 ) -> Result<Vec<CallableRefinementGoal>, &'static str> {
-    if selected.crash_policy != CallableCrashPolicy::Closed {
+    // A closed requirement bounds the supplied routes, so they must be
+    // published. An open one retains whatever the selection publishes
+    // (effects.md, "A contract that omits `reaches` or `crashes` is open"),
+    // which lets a wrapper forward its own open callback.
+    if required.crash_policy == CallableCrashPolicy::Closed
+        && selected.crash_policy != CallableCrashPolicy::Closed
+    {
         return Err("supplied implementation has no closed published crash contract");
     }
     let required_result = required.result;

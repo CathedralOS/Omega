@@ -12,12 +12,12 @@
 //! bindings are still decided by admission.
 
 use super::frontier::RegisteredPackageRoot;
-use source_provenance::DependencyScope;
 use diagnostics::Diagnostic;
+use source_acquisition::capture::SourceFileSystem;
 use source_admission::LoadedSource;
-use source_capture::SourceFileSystem;
 use source_compiler::RetainedSourceParse;
-use source_compiler::{SourceInput, CompileTimings};
+use source_compiler::{CompileTimings, SourceInput};
+use source_provenance::DependencyScope;
 use source_text::SourceId;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -126,8 +126,8 @@ impl LogicalSourceInventory {
                     path.extension().and_then(|extension| extension.to_str()),
                     Some("omg")
                 ) && !excluded_paths
-                        .iter()
-                        .any(|package| path.starts_with(package))
+                    .iter()
+                    .any(|package| path.starts_with(package))
             })
             .cloned()
             .collect::<Vec<_>>();
@@ -217,7 +217,7 @@ pub(crate) fn retained_unit<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use source_capture::{CapturedSourceNode, CapturedSourceTree};
+    use source_acquisition::capture::{CapturedSourceNode, CapturedSourceTree};
     use std::collections::BTreeMap;
     use std::sync::Arc;
 

@@ -54,12 +54,12 @@ pub struct NativeBindingSelection {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeBuildSupply {
     pub selection: NativeBindingSelection,
-    pub evaluation: std::sync::Arc<evaluation_receipts::NativeBuildEvaluation>,
+    pub evaluation: std::sync::Arc<build_model::receipts::NativeBuildEvaluation>,
 }
 
 impl NativeBuildSupply {
-    pub fn materialization(&self) -> evaluation_receipts::NativeBindingMaterialization {
-        evaluation_receipts::NativeBindingMaterialization {
+    pub fn materialization(&self) -> build_model::receipts::NativeBindingMaterialization {
+        build_model::receipts::NativeBindingMaterialization {
             requirement_identity: self.selection.requirement_identity.clone(),
             service_declaration: self.selection.service_declaration,
             target: self.selection.target.canonical_name().to_owned(),
@@ -75,7 +75,7 @@ impl NativeBuildSupply {
         &self,
         typed: &crate::source_state::TypedTrees,
         requirement: SymbolHandle,
-    ) -> Result<Option<evaluation_receipts::NativeBindingMaterialization>, String> {
+    ) -> Result<Option<build_model::receipts::NativeBindingMaterialization>, String> {
         let Some(identity) = self
             .selection
             .requirement_identity_for(typed, requirement)?

@@ -1,10 +1,11 @@
 //! Bind a supplied static callback to its declared requirement and source occurrence.
 //! A generic checking frame may inspect a selection authored by a different machine.
+use crate::read::refuse_at;
 
 use super::{
-    AuthoredDeclarationSelectionOccurrenceId, CallTarget, Checked, Construct, Expression,
-    ExpressionKind, MachineId, Program, Signature, StaticMachineArgument, StaticMachineTarget,
-    SymbolHandle, SymbolKind, Unserved, refuse,
+    AuthoredDeclarationSelectionOccurrenceId, CallTarget, Checked, Expression, ExpressionKind,
+    MachineId, Program, Signature, StaticMachineArgument, StaticMachineTarget, SymbolHandle,
+    SymbolKind, Unserved,
 };
 
 struct RequiredCallback<'a> {
@@ -31,7 +32,7 @@ impl Program<'_> {
         if !binder.is_valid() {
             return Ok((target, None));
         }
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Call(what));
+        let unserved = |what| refuse_at(id, Unserved::Call(what));
         let owner = self
             .symbols
             .get(id)
@@ -80,9 +81,8 @@ impl Program<'_> {
                     .expression_table
                     .static_member(application.member)
                     .ok_or_else(|| {
-                        refuse(
+                        refuse_at(
                             id,
-                            Construct::Machine,
                             Unserved::Call("static argument lost its selected member"),
                         )
                     })?;
@@ -97,7 +97,7 @@ impl Program<'_> {
         id: MachineId,
         argument: &StaticMachineArgument,
     ) -> Checked<AuthoredDeclarationSelectionOccurrenceId> {
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Call(what));
+        let unserved = |what| refuse_at(id, Unserved::Call(what));
         let selection = argument
             .authored_selection
             .and_then(|occurrence| self.typed.authored_declaration_selections().get(occurrence))
@@ -159,9 +159,8 @@ impl Program<'_> {
                 ..
             } = &mut call.kind
             else {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Call("static callback did not retain its exact machine invocation"),
                 ));
             };
@@ -183,24 +182,21 @@ impl Program<'_> {
                 .typed
                 .retained_static_machine_contract(parameter)
                 .ok_or_else(|| {
-                    refuse(
+                    refuse_at(
                         caller,
-                        Construct::Machine,
                         Unserved::Call("callable argument lost its originating contract"),
                     )
                 })?
                 .signature();
             let scope = self.scopes.get(callee).cloned().ok_or_else(|| {
-                refuse(
+                refuse_at(
                     caller,
-                    Construct::Machine,
                     Unserved::Call("callable argument lost its receiving type scope"),
                 )
             })?;
             let source_scope = self.source_scopes.get(callee).cloned().ok_or_else(|| {
-                refuse(
+                refuse_at(
                     caller,
-                    Construct::Machine,
                     Unserved::Call("callable argument lost its receiving source scope"),
                 )
             })?;
@@ -211,9 +207,8 @@ impl Program<'_> {
             self.scope = outer;
             let requirement = read?;
             let signature = self.signatures.get(requirement).cloned().ok_or_else(|| {
-                refuse(
+                refuse_at(
                     caller,
-                    Construct::Machine,
                     Unserved::Call("callable argument lost its required header"),
                 )
             })?;
@@ -246,7 +241,7 @@ impl Program<'_> {
         caller: MachineId,
         symbol: SymbolHandle,
     ) -> Checked<()> {
-        let unavailable = |what| refuse(caller, Construct::Machine, Unserved::Call(what));
+        let unavailable = |what| refuse_at(caller, Unserved::Call(what));
         let Some(crate::source_state::MachineInstantiation::Specialization(receipt)) = self
             .typed
             .machine_instantiation(symbol)
@@ -295,7 +290,7 @@ impl Program<'_> {
             source: required,
             signature,
         } = required;
-        let unavailable = |reason| refuse(caller, Construct::Machine, Unserved::Call(reason));
+        let unavailable = |reason| refuse_at(caller, Unserved::Call(reason));
         let supplier = self
             .typed
             .static_operand_region_supplier(argument, lexical_owner)
@@ -360,18 +355,16 @@ impl Program<'_> {
             .and_then(|identity| self.typed.type_identity_text(identity))
             .filter(|identity| !identity.is_empty())
             .ok_or_else(|| {
-                refuse(
+                refuse_at(
                     caller,
-                    Construct::Machine,
                     Unserved::Call("callable argument lost its exact application identity"),
                 )
             })?;
         let envelope = self.static_envelope(caller, required, false)?;
         let conformance =
             u32::try_from(self.static_contracts.conformances.len()).map_err(|_| {
-                refuse(
+                refuse_at(
                     caller,
-                    Construct::Machine,
                     Unserved::Call("too many callback conformance questions"),
                 )
             })?;
@@ -403,17 +396,15 @@ impl Program<'_> {
         Vec<terminal_psi::static_reach::StaticReachArgument>,
     )> {
         let target = self.entered_machine(argument.symbol).ok_or_else(|| {
-            refuse(
+            refuse_at(
                 caller,
-                Construct::Machine,
                 Unserved::Call("supplied callable has no declared machine body"),
             )
         })?;
         let actual = if let Some(applied) = &argument.application {
             if applied.member.is_valid() || !applied.lifetime_arguments.is_empty() {
-                return Err(refuse(
+                return Err(refuse_at(
                     caller,
-                    Construct::Machine,
                     Unserved::Call(
                         "supplied callable has an unsupported member or lifetime application",
                     ),
@@ -444,9 +435,8 @@ impl Program<'_> {
             // A selected callable with scalar consts needs a fully applied
             // required header; it cannot discard those values as metadata.
             if !actual.values.is_empty() {
-                return Err(refuse(
+                return Err(refuse_at(
                     caller,
-                    Construct::Machine,
                     Unserved::Call("supplied callable retains scalar const inputs"),
                 ));
             }
@@ -468,7 +458,7 @@ impl Program<'_> {
         parameter: SymbolHandle,
         requirement: MachineId,
     ) -> Checked<u32> {
-        let unavailable = |what| refuse(owner, Construct::Machine, Unserved::Call(what));
+        let unavailable = |what| refuse_at(owner, Unserved::Call(what));
         let source = self
             .symbols
             .get(owner)

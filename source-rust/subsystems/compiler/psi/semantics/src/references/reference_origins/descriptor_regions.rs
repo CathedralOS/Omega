@@ -384,6 +384,7 @@ fn reference_sources_for_leaves(
                                 | StructuralPathSegment::Case(_)
                                 | StructuralPathSegment::FixedIndex(_)
                                 | StructuralPathSegment::Referent
+                                | StructuralPathSegment::RepresentationView { .. }
                         )
                 )
             }) {
@@ -533,7 +534,8 @@ fn append_projection(
             StructuralPathSegment::Field(_)
             | StructuralPathSegment::Case(_)
             | StructuralPathSegment::FixedIndex(_)
-            | StructuralPathSegment::Referent => {
+            | StructuralPathSegment::Referent
+            | StructuralPathSegment::RepresentationView { .. } => {
                 path.push(ReferenceOriginProjection::Exact(segment.clone()))
             }
             _ => return Err("dynamic returned view has an unsupported backing projection"),

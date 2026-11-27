@@ -21,7 +21,7 @@ It was published from commit `c5c47a53b080` with the change that introduced sema
 ## Historical wire specimen
 
 `linux_x86_64.pre_namespace.psi` records the saved program from
-`43499fe37809c7318739414a97c86697028e4786` under semantic format marker 289. Format 290 retired that marker, and the encoding rejects older markers before reading their payload ([encoding](../../../../../wiki/spec/terminal-psi/encoding.md#machine-rows)). The codec and native regressions check that the specimen is refused that way, so its unqualified physical arrival never reaches native admission.
+`43499fe37809c7318739414a97c86697028e4786` under semantic format marker 289. Format 290 retired that marker, and the encoding rejects older markers before reading their payload ([encoding](../../../../../source-rust/subsystems/compiler/psi/artifact/wire/encoding.md#machine-rows)). The codec and native regressions check that the specimen is refused that way, so its unqualified physical arrival never reaches native admission.
 
 The program was issued through source stages 00–07 using this directory's
 `main.omg`, the sorted top-level Omega sources in `source/library/core`, and

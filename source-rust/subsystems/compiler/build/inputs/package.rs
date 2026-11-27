@@ -43,7 +43,7 @@ mod native_output_identity;
 mod provider_defaults;
 mod provider_identity;
 mod provider_selections;
-use evaluation_receipts::NativeBuildEvaluation;
+use build_model::receipts::NativeBuildEvaluation;
 pub use native_bindings::NativeBindingProducer;
 
 pub use bindings::{
@@ -91,7 +91,7 @@ impl Default for PackageCompilationTargetInputs {
 
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
 pub struct PackageCompilationSourceInputs {
-    filesystem: source_capture::SourceFileSystem,
+    filesystem: source_acquisition::capture::SourceFileSystem,
     root: PackageKeyIdentity,
     root_role: BuildDeclarationKind,
     packages: BTreeMap<PackageKeyIdentity, PackageCompilationSourceRecord>,
@@ -124,7 +124,7 @@ struct PackageCompilationSourceRecord {
     preparing_source: Option<crate::CapturedLocalSource>,
     canonical_name: String,
     canonical_source_metadata: Option<CanonicalFilesystemMetadataIndex>,
-    captured_source: Option<Arc<source_capture::CapturedSourceTree>>,
+    captured_source: Option<Arc<source_acquisition::capture::CapturedSourceTree>>,
     captured_build_source: Option<build_output::CapturedBuildSourceInput>,
     dependencies: BTreeMap<String, PackageUse>,
     build_dependencies: BTreeMap<String, PackageUse>, // Only the compilation root may hold build-scope edges.
@@ -364,7 +364,7 @@ impl PackageCompilationInputs {
     pub(crate) fn validate_unbound_source_join(
         &self,
         root: &Path,
-        capture: &source_capture::CapturedSourceTree,
+        capture: &source_acquisition::capture::CapturedSourceTree,
     ) -> Result<(), String> {
         let record = self
             .source
@@ -377,7 +377,7 @@ impl PackageCompilationInputs {
         Ok(())
     }
 
-    pub(crate) fn source_filesystem(&self) -> &source_capture::SourceFileSystem {
+    pub(crate) fn source_filesystem(&self) -> &source_acquisition::capture::SourceFileSystem {
         &self.source.filesystem
     }
 

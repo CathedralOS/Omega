@@ -1,0 +1,46 @@
+// Nested states pass a copyable record on unchanged; native code keeps it in
+// the first state's parameter instead of copying it on every transition. A
+// state that changes its record still sees its own copy.
+data Span [copy] { s: u64; n: u64; step: u64; }
+
+machine sum_row(raw: @[u8], r: Span) -> u64 {
+    transition { _ -> walk(raw, r, 0u64, 0u64) }
+
+    machine walk(raw: @[u8], r: Span, i: u64, acc: u64) -> u64 requires true {
+        let at: u64 in Wrapping = (r.s as +Wrapping) + (i as +Wrapping);
+        transition i < r.n && (at as -Wrapping) < raw.length && acc < 100000 {
+            true -> add(raw, r, i, at as -Wrapping, acc),
+            false -> acc,
+        }
+    }
+
+    machine add(raw: @[u8], r: Span, i: u64, at: u64, acc: u64) -> u64
+    requires at < raw.length && acc < 100000 {
+        let next: u64 in Wrapping = (i as +Wrapping) + (r.step as +Wrapping);
+        let total: u64 in Wrapping = (acc as +Wrapping) + ((raw[at] as u64) as +Wrapping);
+        transition { _ -> walk(raw, r, next as -Wrapping, total as -Wrapping) }
+    }
+}
+
+// Shrinks its record before passing it on, so its copy is written.
+machine shrink(raw: @[u8], r: Span, k: u64) -> u64 {
+    transition k > 0 && r.n > 0 {
+        true -> again(raw, r, k),
+        false -> sum_row(raw, r),
+    }
+    machine again(raw: @[u8], r: Span, k: u64) -> u64 requires k > 0 && r.n > 0 {
+        let mutable t: Span = r;
+        t.n = r.n - 1;
+        transition { _ -> shrink(raw, t, k - 1) }
+    }
+}
+
+machine main() crashes Trap {
+    let raw: [u8; 6] = [1, 2, 3, 4, 5, 6];
+    let all: u64 = sum_row(@raw[..], Span { s: 0, n: 6, step: 1 });
+    let odd: u64 = sum_row(@raw[..], Span { s: 1, n: 5, step: 2 });
+    let cut: u64 = shrink(@raw[..], Span { s: 0, n: 6, step: 1 }, 2);
+    transition all == 21 && odd == 12 && cut == 10 { true -> done(), _ -> fail() }
+}
+machine done() {}
+machine fail() crashes Trap { crash Trap; }

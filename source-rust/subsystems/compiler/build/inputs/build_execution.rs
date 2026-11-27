@@ -26,7 +26,7 @@ pub use filesystem_scope::runtime::{BuildFilesystemEffects, BuildFilesystemRunti
 pub use filesystem_scope::runtime_directory::{BuildDirectory, BuildDirectoryMappings};
 pub use filesystem_scope::successor_directory::SuccessorDirectory;
 pub use filesystem_scope::{
-    BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineCapturedFilesystemRoot,
+    BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY,
     BuildMachineExecutionMode, BuildMachineFilesystemAccess, BuildMachineFilesystemScope,
 };
 pub use observation_identity::BuildObservationIdentity;
@@ -54,7 +54,7 @@ pub struct CapturedBuildObservations<'scope> {
     output_obligations: Vec<BuildOutputObligation>,
     output_receipts: Vec<BuildOutputReceipt>,
     build_log: Vec<u8>,
-    filesystem_storage: Vec<evaluation_accounting::EvaluationStorageLease>,
+    filesystem_storage: Vec<build_model::accounting::EvaluationStorageLease>,
     filesystem_effects_retained: bool,
 }
 
@@ -149,7 +149,6 @@ impl<'scope> CapturedBuildObservations<'scope> {
             canonical_source_metadata_identity: scope.canonical_source_metadata_identity(),
             activation: scope.activation(),
             captured_source_inventory: scope.captured_source_inventory(),
-            named_input_inventories: scope.named_input_inventories(),
             product_source_tree,
             generated_sources,
             required_output_settlements,

@@ -4,7 +4,7 @@ use crate::declaration_selection::{
     BuildOperation, ExclusionVocabulary, ExecutedEnumExclusion, ExecutedProductSelection,
     ProductDeclarationRequest,
 };
-use behavior_exclusion_requests::{AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind};
+use build_model::behavior_exclusions::{AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind};
 use diagnostics::Diagnostic;
 use semantic_vocabulary::{CrashCause, TerminalAuthorityClass};
 use source_provenance::DependencyScope;

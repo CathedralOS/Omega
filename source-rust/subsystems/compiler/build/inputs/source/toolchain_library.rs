@@ -132,11 +132,12 @@ fn capture(root: &Path, expected: Option<&str>) -> Result<CapturedLocalSource, S
         LocalSourceLimits::default(),
     )
     .map_err(|error| error.to_string())?;
-    if let Some((path, _)) = capture
-        .tree()
-        .entries()
-        .find(|(_, node)| matches!(node, source_capture::CapturedSourceNode::Symlink { .. }))
-    {
+    if let Some((path, _)) = capture.tree().entries().find(|(_, node)| {
+        matches!(
+            node,
+            source_acquisition::capture::CapturedSourceNode::Symlink { .. }
+        )
+    }) {
         return Err(format!(
             "toolchain library contains a symbolic link: {}",
             path.display()

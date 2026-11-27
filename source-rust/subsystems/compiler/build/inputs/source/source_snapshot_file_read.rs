@@ -101,7 +101,7 @@ pub(super) fn read_canonical_file_chunks(
         )
     })?;
     require_unchanged_file(path, &completed_metadata, &final_metadata)?;
-    source_capture::read_accounting::record_source_file_read(
+    source_acquisition::capture::read_accounting::record_source_file_read(
         "canonical_source_capture",
         path,
         observed,

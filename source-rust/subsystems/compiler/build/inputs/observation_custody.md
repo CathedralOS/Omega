@@ -88,7 +88,7 @@ and unlinked objects until their last handle closes. Reserve before a host
 operation, commit successes, release failed reservations. An operation cannot
 pay for its own required reservation. Teardown must reconcile the whole tree.
 
-The [build sponsor](../evaluation/accounting/accounting.rs)
+The [build sponsor](../model/accounting.rs)
 shares closure budgets and settles invocation charges and peaks. Owned
 resources reserve before the provider runs; borrowed views take no second
 slot. Cell/Text aliases share a lease the last alias releases. Completion

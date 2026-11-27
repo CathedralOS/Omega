@@ -13,7 +13,8 @@ use syntax_trees::statement::{
     TableTransition, TransitionGuardNode, TransitionPattern,
 };
 
-/// Evaluate transition subjects once before their ordered arms, including in staged Builds.
+/// Evaluate transition subjects once before their ordered arms, including in
+/// staged Builds and block-valued arms.
 pub fn prepare(syntax: &mut SyntaxTrees) {
     if !syntax.statements.has_dispatches() {
         return;
@@ -32,24 +33,69 @@ pub fn prepare(syntax: &mut SyntaxTrees) {
         .collect::<Vec<_>>();
     for (owner, body) in bodies {
         let statements = syntax.items.statements(body).to_vec();
-        let mut prepared = HandleSpan::empty();
+        let mut expanded = Vec::with_capacity(statements.len());
         for statement in statements {
             if let StatementNode::Dispatch(handle) = syntax.statements.statement(statement) {
                 let dispatch = syntax.statements.dispatch(*handle).clone();
-                expand(syntax, dispatch, &mut prepared);
+                expand(syntax, dispatch, &mut expanded);
             } else {
-                prepared.push_contiguous(syntax.items.append_statement_handle(statement));
+                expanded.push(statement);
             }
+        }
+        let mut prepared = HandleSpan::empty();
+        for statement in expanded {
+            prepared.push_contiguous(syntax.items.append_statement_handle(statement));
         }
         syntax.items.set_statement_body(owner, prepared);
     }
+    let blocks = syntax
+        .expressions
+        .iter_expressions()
+        .filter_map(|(handle, node)| match node {
+            ExpressionNode::Block(block)
+                if syntax
+                    .statements
+                    .block_statements(block.statements)
+                    .iter()
+                    .any(|statement| {
+                        matches!(
+                            syntax.statements.statement(*statement),
+                            StatementNode::Dispatch(_)
+                        )
+                    }) =>
+            {
+                Some((handle, *block))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    for (handle, block) in blocks {
+        let statements = syntax
+            .statements
+            .block_statements(block.statements)
+            .to_vec();
+        let mut expanded = Vec::with_capacity(statements.len());
+        for statement in statements {
+            if let StatementNode::Dispatch(dispatch_handle) = syntax.statements.statement(statement)
+            {
+                let dispatch = syntax.statements.dispatch(*dispatch_handle).clone();
+                expand(syntax, dispatch, &mut expanded);
+            } else {
+                expanded.push(statement);
+            }
+        }
+        let statements = syntax.statements.insert_block_statements(expanded);
+        syntax.expressions.replace_expression(
+            handle,
+            ExpressionNode::Block(syntax_trees::expression::TableBlockExpression {
+                statements,
+                tail: block.tail,
+            }),
+        );
+    }
 }
 
-fn expand(
-    syntax: &mut SyntaxTrees,
-    dispatch: TableDispatch,
-    body: &mut HandleSpan<StatementHandle>,
-) {
+fn expand(syntax: &mut SyntaxTrees, dispatch: TableDispatch, body: &mut Vec<StatementHandle>) {
     let subjects = capture_subjects(syntax, &dispatch, body);
     let exhausts_booleans = covers_boolean_subjects(syntax, subjects.len(), &dispatch.arms);
     let arm_count = dispatch.arms.len();
@@ -80,14 +126,14 @@ fn expand(
                 ends_dispatch: last,
                 ..Default::default()
             }));
-        body.push_contiguous(syntax.items.append_statement_handle(transition));
+        body.push(transition);
     }
 }
 
 fn capture_subjects(
     syntax: &mut SyntaxTrees,
     dispatch: &TableDispatch,
-    body: &mut HandleSpan<StatementHandle>,
+    body: &mut Vec<StatementHandle>,
 ) -> Vec<ExpressionHandle> {
     let mut subjects = syntax
         .statements
@@ -114,7 +160,7 @@ fn capture_subjects(
                 initial_value: *subject,
                 ..Default::default()
             }));
-        body.push_contiguous(syntax.items.append_statement_handle(capture));
+        body.push(capture);
         let member = syntax.expressions.append_identifier_path_member(name);
         *subject = syntax.expressions.insert(ExpressionNode::Name {
             members: HandleSpan::from_parts(member, 1),

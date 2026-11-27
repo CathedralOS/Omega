@@ -1,47 +1,18 @@
 //! Lex loaded sources into ordered token streams, preserving source spans and errors.
-//! `lex` owns the batch; the private scanner handles one source and publishes
-//! tokens. Token dispatch leads into `literals` for numeric and quoted-byte rules.
+//! `lex_file` and `lex_unit_reusing` scan one source into reusable buffers; token
+//! dispatch leads into `literals` for numeric and quoted-byte rules.
 
 #![forbid(unsafe_code)]
 
 mod literals {
     mod numbers;
-    pub(super) mod quoted_bytes;
+    mod quoted_bytes;
 }
 
-use arena::Arena;
 use diagnostics::Diagnostic;
-use literals::quoted_bytes::decode_string_literal;
-use rayon::prelude::*;
-use source_files::{LoadedSource, LoadedSources};
+use source_files::LoadedSource;
 use source_text::{SourcePosition, Span};
-use tokens::{
-    CommentKind, KeywordKind, LexedSource, LexedSources, PunctuationKind, TokenKind, TokenStream,
-};
-
-/// Lexes a complete source batch, preserving source order and reporting its first error.
-pub fn lex(mut sources: LoadedSources) -> Result<LexedSources, LexError> {
-    let loaded_sources = sources.sources.span_mut_or_empty(sources.batch);
-    let source_count = loaded_sources.len();
-    let mut lexed_sources = Arena::with_capacity(source_count);
-    let results: Vec<Result<LexedSource, LexError>> = if source_count <= 1 {
-        loaded_sources.iter_mut().map(lex_source).collect()
-    } else {
-        worker_budget::within_budget(|| loaded_sources.par_iter_mut().map(lex_source).collect())
-    };
-    let lexed = results.into_iter().collect::<Result<Vec<_>, _>>()?;
-
-    let batch = lexed_sources.insert_many(lexed);
-
-    Ok(LexedSources {
-        sources: lexed_sources,
-        batch,
-    })
-}
-
-fn lex_source(loaded_source: &mut LoadedSource) -> Result<LexedSource, LexError> {
-    lex_file(loaded_source, &mut tokens::TokenScratch::default())
-}
+use tokens::{CommentKind, KeywordKind, LexedSource, PunctuationKind, TokenKind, TokenStream};
 
 /// Move this file's identity and path into its tokens. A streaming caller
 /// recycles the buffers after the parser has consumed the file.
@@ -87,11 +58,6 @@ struct ByteScanner<'source> {
     offset: usize,
 }
 
-struct LexedToken {
-    kind: TokenKind,
-    span: Span,
-}
-
 impl<'source> ByteScanner<'source> {
     fn new(source: &'source str) -> Self {
         Self { source, offset: 0 }
@@ -113,18 +79,17 @@ impl<'source> ByteScanner<'source> {
         while let Some(first) = self.peek() {
             let start = self.offset;
             self.offset += 1;
-            let token = self.scan_token(start, first)?;
-            if token.kind == TokenKind::StringLiteral {
-                let spelling = &self.source[start..self.offset];
-                tokens.push_decoded(token.span, |bytes| decode_string_literal(spelling, bytes));
+            if first == b'"' {
+                tokens.try_push_decoded(|out| self.scan_quoted(start, out))?;
             } else {
-                tokens.push_source(token.kind, token.span);
+                let kind = self.scan_token(start, first)?;
+                tokens.push_source(kind, Span::new(start, self.offset));
             }
         }
         Ok(())
     }
 
-    fn scan_token(&mut self, start: usize, first: u8) -> Result<LexedToken, LexError> {
+    fn scan_token(&mut self, start: usize, first: u8) -> Result<TokenKind, LexError> {
         let kind = match first {
             b' ' | b'\t' | b'\r' | b'\n' => {
                 while matches!(self.peek(), Some(b' ' | b'\t' | b'\r' | b'\n')) {
@@ -157,11 +122,10 @@ impl<'source> ByteScanner<'source> {
                     .map(TokenKind::Keyword)
                     .unwrap_or(TokenKind::Identifier)
             }
-            b'0'..=b'9' => return Ok(self.scan_number(start, first)),
+            b'0'..=b'9' => self.scan_number(first),
             b'.' if self.peek().is_some_and(|next| next.is_ascii_digit()) => {
-                return Ok(self.scan_number(start, first));
+                self.scan_number(first)
             }
-            b'"' => return self.scan_quoted(start),
             _ => {
                 let Some((lexeme, kind)) = PunctuationKind::matching_prefix(&self.bytes()[start..])
                 else {
@@ -175,10 +139,7 @@ impl<'source> ByteScanner<'source> {
                 TokenKind::Punctuation(kind)
             }
         };
-        Ok(LexedToken {
-            kind,
-            span: Span::new(start, self.offset),
-        })
+        Ok(kind)
     }
 
     fn scan_block_comment(&mut self, start: usize) -> Result<(), LexError> {

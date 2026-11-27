@@ -6,7 +6,7 @@ use crate::compile_product::provider_declarations::ProviderSelection;
 use crate::declaration_selection::CapturedNativeIntent;
 use crate::declaration_selection::ExecutedNativeBinding;
 use crate::source_state::opaque_representations::OpaqueRepresentationSelection;
-use behavior_exclusion_requests::AuthoredBehaviorExclusion;
+use build_model::behavior_exclusions::AuthoredBehaviorExclusion;
 use diagnostics::Diagnostic;
 use retained_product_selections::CapturedNativeDeclaration;
 use symbols::SymbolHandle;

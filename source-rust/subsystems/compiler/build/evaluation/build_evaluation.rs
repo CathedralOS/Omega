@@ -79,6 +79,7 @@ pub struct PreparedBuildEvaluation {
         source_compiler::compile_time_invocations::SourceCompletionAccounting,
     restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
     subject_validation: BuildSubjectValidation,
+    declaration_usage: source_compiler::DeclarationUsageAdvisories,
 }
 
 #[path = "catalog_declaration.rs"]
@@ -96,6 +97,10 @@ impl PreparedBuildEvaluation {
         &self,
     ) -> &source_compiler::compile_time_invocations::SourceCompletionAccounting {
         &self.source_completion_accounting
+    }
+
+    pub fn declaration_usage(&self) -> &source_compiler::DeclarationUsageAdvisories {
+        &self.declaration_usage
     }
 
     /// Retain provider helper work charged to this returned activation with its source work.
@@ -184,6 +189,7 @@ impl PreparedBuildEvaluation {
             source_completion_accounting,
             restricted_build_grants,
             subject_validation,
+            declaration_usage: _,
         } = self;
         let failure = |diagnostics| {
             CompileFailure::source_completion(diagnostics, source_completion_accounting.clone())
@@ -305,7 +311,7 @@ pub fn prepare_build_evaluation(
             })?,
         None => Arc::default(),
     };
-    let (prepared, mut providers, entry_constants, source_completion_accounting) =
+    let (prepared, mut providers, entry_constants, source_completion_accounting, mut declaration_usage) =
         crate::admission::checking::prepare_admitted_build(
             typed,
             selected_machine,
@@ -318,18 +324,24 @@ pub fn prepare_build_evaluation(
         )?;
     providers.admit_prepared_unsafe_atoms(prepared_unsafe_atoms);
     let constants = match check_only {
-        Some((subject, capture)) => crate::admission::checking::check_subject_before_execution(
-            subject,
-            typed,
-            build_source,
-            capture,
-            &libraries,
-            &interpreter_providers,
-            timings,
-        )
-        .map_err(|failure| {
-            failure.with_source_completion_accounting(source_completion_accounting.clone())
-        })?,
+        Some((subject, capture)) => {
+            let (checked_constants, checked_usage) =
+                crate::admission::checking::check_subject_before_execution(
+                    subject,
+                    typed,
+                    build_source,
+                    capture,
+                    &libraries,
+                    &interpreter_providers,
+                    timings,
+                )
+                .map_err(|failure| {
+                    failure
+                        .with_source_completion_accounting(source_completion_accounting.clone())
+                })?;
+            declaration_usage.extend(&checked_usage);
+            checked_constants
+        }
         None => entry_constants,
     };
     let result = (|| {
@@ -420,6 +432,7 @@ pub fn prepare_build_evaluation(
             source_completion_accounting: source_completion_accounting.clone(),
             restricted_build_grants,
             subject_validation,
+            declaration_usage,
         })
     })();
     result.map_err(|failure: CompileFailure| {

@@ -1,15 +1,16 @@
 //! Read byte properties through checked Core declarations. Runtime calls form
 //! shared loans. Contract calls retain the exact storage being observed and
 //! the declaration's complete contract.
+use crate::read::refuse_at;
 
 use crate::source_state::expression::{ExpressionHandle, TableCallExpression};
 use semantic_vocabulary::{ByteSequencePredicate, MachineId, ScalarType};
 use symbols::SymbolHandle;
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::Checked;
 
 use super::{Program, Slot};
 use crate::body::{Expression, ExpressionKind, ValueType};
-use crate::{SourceOrigin, Unserved, refuse};
+use crate::{SourceOrigin, Unserved};
 
 impl Program<'_> {
     fn byte_observation_declaration(
@@ -31,7 +32,7 @@ impl Program<'_> {
             return Ok(None);
         };
         let signature = self.byte_observation_signature(id, target)?;
-        let unavailable = |detail| refuse(id, Construct::Machine, Unserved::Call(detail));
+        let unavailable = |detail| refuse_at(id, Unserved::Call(detail));
         let [argument] = arguments else {
             return Err(unavailable(
                 "byte observation needs exactly one shared byte view",
@@ -79,7 +80,7 @@ impl Program<'_> {
         else {
             return Ok(None);
         };
-        let unavailable = |detail| refuse(id, Construct::Machine, Unserved::Contract(detail));
+        let unavailable = |detail| refuse_at(id, Unserved::Contract(detail));
         self.visible_to(id, target)?;
         self.direct_selection(
             id,

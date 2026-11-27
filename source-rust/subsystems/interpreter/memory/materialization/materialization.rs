@@ -1,0 +1,1120 @@
+pub(crate) mod field_codec {
+    use super::{MaterializationDiagnostic, decode_scalar_layout, fixed_layout_byte_len};
+    use layout_plans::field_identities::materialization_field_key;
+    use layout_plans::field_values::{
+        AggregateFieldSchema, AggregateFieldShape, ScalarFieldSchema,
+    };
+    use layout_plans::{ByteOrder, LayoutPlacementReport, LayoutPlanReport};
+
+    pub fn stage_scalar_field(
+        layout: &LayoutPlanReport,
+        value: &layout_plans::field_values::ScalarFieldValue,
+        byte_order: ByteOrder,
+        destination: &mut [u8],
+    ) -> Result<(), MaterializationDiagnostic> {
+        let extent = fixed_layout_byte_len(layout, "scalar field replacement")?;
+        let staged = destination.get_mut(..extent).ok_or_else(|| {
+            MaterializationDiagnostic("scalar field replacement exceeds supplied storage".into())
+        })?;
+        let key = materialization_field_key(&value.field, value.member_identity);
+        let mut entries = layout
+            .entries
+            .iter()
+            .filter(|entry| materialization_field_key(&entry.field, entry.member_identity) == key)
+            .peekable();
+        if entries.peek().is_none() {
+            return Err(MaterializationDiagnostic(
+                "scalar field is absent from its retained plan".into(),
+            ));
+        }
+        for entry in entries {
+            super::apply_scalar_entry(staged, byte_order, entry, value)?;
+        }
+        Ok(())
+    }
+
+    pub fn decode_aggregate_field_into(
+        layout: &LayoutPlanReport,
+        field: &AggregateFieldSchema,
+        byte_order: ByteOrder,
+        source: &[u8],
+        destination: &mut [u8],
+    ) -> Result<(), MaterializationDiagnostic> {
+        prepare_aggregate_field(layout, field, byte_order, source)?.copy_into(destination)
+    }
+
+    enum DecodedAggregateField<'source> {
+        Scalar {
+            value: u64,
+            byte_order: ByteOrder,
+            width: usize,
+        },
+        Chunks {
+            width: usize,
+            parts: Vec<&'source [u8]>,
+        },
+    }
+
+    impl DecodedAggregateField<'_> {
+        fn width(&self) -> usize {
+            match self {
+                Self::Scalar { width, .. } | Self::Chunks { width, .. } => *width,
+            }
+        }
+
+        fn copy_into(self, destination: &mut [u8]) -> Result<(), MaterializationDiagnostic> {
+            if destination.len() != self.width() {
+                return Err(MaterializationDiagnostic(
+                    "aggregate field destination differs from the complete field extent".into(),
+                ));
+            }
+            match self {
+                Self::Scalar {
+                    value,
+                    byte_order,
+                    width,
+                } => match byte_order {
+                    ByteOrder::LittleEndian => {
+                        destination.copy_from_slice(&value.to_le_bytes()[..width])
+                    }
+                    ByteOrder::BigEndian => {
+                        destination.copy_from_slice(&value.to_be_bytes()[8 - width..])
+                    }
+                },
+                Self::Chunks { parts, .. } => {
+                    let mut remaining = destination;
+                    for part in parts {
+                        let Some((receiving, tail)) = remaining.split_at_mut_checked(part.len())
+                        else {
+                            return Err(MaterializationDiagnostic(
+                                "aggregate field source ranges exceed its complete extent".into(),
+                            ));
+                        };
+                        receiving.copy_from_slice(part);
+                        remaining = tail;
+                    }
+                }
+            }
+            Ok(())
+        }
+    }
+
+    fn prepare_aggregate_field<'source>(
+        layout: &LayoutPlanReport,
+        field: &AggregateFieldSchema,
+        byte_order: ByteOrder,
+        source: &'source [u8],
+    ) -> Result<DecodedAggregateField<'source>, MaterializationDiagnostic> {
+        let failure = |reason: &str| {
+            MaterializationDiagnostic(format!(
+                "aggregate field `{}` cannot decode: {reason}",
+                field.field,
+            ))
+        };
+        let extent = fixed_layout_byte_len(layout, "aggregate field decoding")?;
+        let source = source
+            .get(..extent)
+            .ok_or_else(|| failure("source is shorter than the layout"))?;
+        let key = materialization_field_key(&field.field, field.member_identity);
+        let entries = layout
+            .entries
+            .iter()
+            .filter(|entry| materialization_field_key(&entry.field, entry.member_identity) == key)
+            .collect::<Vec<_>>();
+        if entries.is_empty() {
+            return Err(failure("field is absent from the retained plan"));
+        }
+        let width = usize::try_from(field.byte_size)
+            .map_err(|_| failure("field extent exceeds host coordinates"))?;
+        if entries
+            .iter()
+            .any(|entry| !matches!(entry.placement, LayoutPlacementReport::At { .. }))
+        {
+            if !matches!(field.shape, AggregateFieldShape::Whole) || width == 0 || width > 8 {
+                return Err(failure(
+                    "scalar placements require one field of at most eight bytes",
+                ));
+            }
+            if entries
+                .iter()
+                .any(|entry| matches!(entry.placement, LayoutPlacementReport::At { .. }))
+            {
+                return Err(failure("whole-field and scalar placements cannot mix"));
+            }
+            let integer = entries
+                .iter()
+                .any(|entry| matches!(entry.placement, LayoutPlacementReport::IntegerAt { .. }));
+            let representation_bits = if integer {
+                field
+                    .byte_size
+                    .checked_mul(8)
+                    .ok_or_else(|| failure("carrier width overflows"))?
+            } else {
+                entries.iter().try_fold(0_u64, |maximum, entry| {
+                    let LayoutPlacementReport::Bits {
+                        source_lsb, width, ..
+                    } = entry.placement
+                    else {
+                        return Err(failure("unsupported scalar placement"));
+                    };
+                    source_lsb
+                        .checked_add(width)
+                        .map(|end| maximum.max(end))
+                        .ok_or_else(|| failure("fragment source width overflows"))
+                })?
+            };
+            if representation_bits > field.byte_size * 8 {
+                return Err(failure("fragment exceeds its semantic carrier"));
+            }
+            let representation_bits = u16::try_from(representation_bits)
+                .map_err(|_| failure("scalar width exceeds the decoder carrier"))?;
+            let schema = match field.member_identity {
+                Some(identity) => {
+                    ScalarFieldSchema::new_numbered(&field.field, identity, representation_bits)
+                }
+                None => ScalarFieldSchema::new(&field.field, representation_bits),
+            }?;
+            let selected = LayoutPlanReport {
+                entries: entries.into_iter().cloned().collect(),
+                offsets: None,
+                ..layout.clone()
+            };
+            let decoded = decode_scalar_layout(&selected, &[schema], byte_order, source)?;
+            let [value] = decoded.as_slice() else {
+                return Err(failure("scalar decoder lost its field"));
+            };
+            return Ok(DecodedAggregateField::Scalar {
+                value: value.value,
+                byte_order,
+                width,
+            });
+        }
+        let mut offsets = entries
+            .iter()
+            .map(|entry| match entry.placement {
+                LayoutPlacementReport::At { offset } => Ok(offset),
+                _ => Err(failure("non-byte placement reached aggregate gathering")),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        offsets.sort_unstable();
+        let chunk_size = if offsets.len() == 1 {
+            width
+        } else {
+            let AggregateFieldShape::Repeated {
+                element_byte_size,
+                element_align,
+                element_count,
+            } = field.shape
+            else {
+                return Err(failure("multiple placements require an outer fixed array"));
+            };
+            if u64::try_from(offsets.len()).ok() != Some(element_count) {
+                return Err(failure(
+                    "element placement count differs from the array length",
+                ));
+            }
+            let stride = offsets[1]
+                .checked_sub(offsets[0])
+                .ok_or_else(|| failure("unordered element offsets"))?;
+            if stride < element_byte_size
+                || offsets.windows(2).any(|pair| pair[1] - pair[0] != stride)
+                || element_align == 0
+                || offsets
+                    .iter()
+                    .any(|offset| !offset.is_multiple_of(element_align))
+            {
+                return Err(failure(
+                    "element placements need an aligned nonoverlapping constant stride",
+                ));
+            }
+            usize::try_from(element_byte_size)
+                .map_err(|_| failure("element extent exceeds host coordinates"))?
+        };
+        if chunk_size.checked_mul(offsets.len()) != Some(width) {
+            return Err(failure("placements do not cover the complete field"));
+        }
+        let mut parts = Vec::with_capacity(offsets.len());
+        for offset in offsets {
+            let start =
+                usize::try_from(offset).map_err(|_| failure("offset exceeds host coordinates"))?;
+            let end = start
+                .checked_add(chunk_size)
+                .ok_or_else(|| failure("field byte range overflows"))?;
+            let bytes = source
+                .get(start..end)
+                .ok_or_else(|| failure("field exceeds the retained layout extent"))?;
+            parts.push(bytes);
+        }
+        Ok(DecodedAggregateField::Chunks { width, parts })
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::storage_materialization::stage_aggregate_layout;
+        use crate::storage_materialization::test_support::{
+            layout_field_entry, numbered_layout_field_entry,
+        };
+        use layout_plans::{AggregateFieldValue, IntegerInterpretation};
+
+        fn decode_aggregate_field(
+            layout: &LayoutPlanReport,
+            field: &AggregateFieldSchema,
+            byte_order: ByteOrder,
+            source: &[u8],
+        ) -> Result<Vec<u8>, MaterializationDiagnostic> {
+            let width = prepare_aggregate_field(layout, field, byte_order, source)?.width();
+            let mut decoded = vec![0; width];
+            decode_aggregate_field_into(layout, field, byte_order, source, &mut decoded)?;
+            Ok(decoded)
+        }
+
+        #[test]
+        fn scalar_staging_preserves_neighbours_and_padding() {
+            let layout = LayoutPlanReport {
+                schema_report_fingerprint: 0,
+                offsets: None,
+                size: Some(8),
+                align: 1,
+                entries: vec![
+                    layout_field_entry(
+                        "small",
+                        LayoutPlacementReport::Bits {
+                            container: 0,
+                            container_width: 16,
+                            destination_lsb: 3,
+                            source_lsb: 0,
+                            width: 3,
+                        },
+                    ),
+                    layout_field_entry(
+                        "signed",
+                        LayoutPlacementReport::IntegerAt {
+                            offset: 4,
+                            stored_width: 8,
+                            interpretation: IntegerInterpretation::Signed,
+                        },
+                    ),
+                ],
+            };
+            for order in [ByteOrder::LittleEndian, ByteOrder::BigEndian] {
+                let mut image = [0xa5; 12];
+                let value = layout_plans::ScalarFieldValue::new("small", 8, 2).unwrap();
+                stage_scalar_field(&layout, &value, order, &mut image).unwrap();
+                let changed = if order == ByteOrder::LittleEndian {
+                    0
+                } else {
+                    1
+                };
+                let mut expected = [0xa5; 12];
+                expected[changed] = (0xa5 & !0x38) | (2 << 3);
+                assert_eq!(image, expected);
+                assert_eq!(
+                    decode_aggregate_field(
+                        &layout,
+                        &AggregateFieldSchema::new("small", 1).unwrap(),
+                        order,
+                        &image
+                    )
+                    .unwrap(),
+                    [2]
+                );
+                let signed =
+                    layout_plans::ScalarFieldValue::new("signed", 64, (-2_i64) as u64).unwrap();
+                stage_scalar_field(&layout, &signed, order, &mut image).unwrap();
+                expected[4] = 0xfe;
+                assert_eq!(image, expected);
+                let too_large = layout_plans::ScalarFieldValue::new("signed", 64, 128).unwrap();
+                assert!(stage_scalar_field(&layout, &too_large, order, &mut image).is_err());
+                assert_eq!(image, expected);
+                let missing = layout_plans::ScalarFieldValue::new("absent", 8, 0).unwrap();
+                assert!(stage_scalar_field(&layout, &missing, order, &mut image).is_err());
+                assert_eq!(image, expected);
+
+                let mut invalid = layout.clone();
+                invalid.entries.push(layout_field_entry(
+                    "small",
+                    LayoutPlacementReport::At { offset: 8 },
+                ));
+                let atomic = [0xa5; 12];
+                let mut private = atomic;
+                assert!(stage_scalar_field(&invalid, &value, order, &mut private).is_err());
+                assert_ne!(private[..8], atomic[..8]);
+                assert_eq!(private[8..], atomic[8..]);
+            }
+        }
+
+        #[test]
+        fn decode_aggregate_field_inverts_narrow_fragments_integers_and_whole_bytes() {
+            let layout = LayoutPlanReport {
+                schema_report_fingerprint: 0,
+                offsets: None,
+                size: Some(12),
+                align: 1,
+                entries: vec![
+                    layout_field_entry(
+                        "enabled",
+                        LayoutPlacementReport::Bits {
+                            container: 0,
+                            container_width: 8,
+                            destination_lsb: 0,
+                            source_lsb: 0,
+                            width: 1,
+                        },
+                    ),
+                    layout_field_entry(
+                        "small",
+                        LayoutPlacementReport::Bits {
+                            container: 0,
+                            container_width: 8,
+                            destination_lsb: 1,
+                            source_lsb: 0,
+                            width: 3,
+                        },
+                    ),
+                    layout_field_entry(
+                        "signed",
+                        LayoutPlacementReport::IntegerAt {
+                            offset: 1,
+                            stored_width: 8,
+                            interpretation: IntegerInterpretation::Signed,
+                        },
+                    ),
+                    layout_field_entry("bytes", LayoutPlacementReport::At { offset: 4 }),
+                ],
+            };
+            let schemas = [
+                AggregateFieldSchema::new("enabled", 1).unwrap(),
+                AggregateFieldSchema::new("small", 4).unwrap(),
+                AggregateFieldSchema::new("signed", 8).unwrap(),
+                AggregateFieldSchema::new("bytes", 8).unwrap(),
+            ];
+            for order in [ByteOrder::LittleEndian, ByteOrder::BigEndian] {
+                let (small, signed) = match order {
+                    ByteOrder::LittleEndian => (5_u32.to_le_bytes(), (-2_i64).to_le_bytes()),
+                    ByteOrder::BigEndian => (5_u32.to_be_bytes(), (-2_i64).to_be_bytes()),
+                };
+                let values = [
+                    AggregateFieldValue::new("enabled", vec![1]).unwrap(),
+                    AggregateFieldValue::new("small", small.to_vec()).unwrap(),
+                    AggregateFieldValue::new("signed", signed.to_vec()).unwrap(),
+                    AggregateFieldValue::new("bytes", vec![1, 9, 2, 8, 3, 7, 4, 6]).unwrap(),
+                ];
+                let mut image = vec![0xa5; 16];
+                stage_aggregate_layout(&layout, &schemas, &values, order, &mut image).unwrap();
+                let borrowed = values
+                    .iter()
+                    .map(|value| {
+                        AggregateFieldValue::from_storage(&value.field, value.bytes.as_slice())
+                            .unwrap()
+                    })
+                    .collect::<Vec<_>>();
+                let mut scratch = [0xa5; 16];
+                stage_aggregate_layout(&layout, &schemas, &borrowed, order, &mut scratch).unwrap();
+                assert_eq!(scratch.as_slice(), image);
+                for (schema, original) in schemas.iter().zip(&values) {
+                    assert_eq!(
+                        decode_aggregate_field(&layout, schema, order, &image).unwrap(),
+                        original.bytes
+                    );
+                    let mut receiving = vec![0xa5; schema.byte_size as usize];
+                    decode_aggregate_field_into(&layout, schema, order, &image, &mut receiving)
+                        .unwrap();
+                    assert_eq!(receiving, original.bytes);
+                    receiving.push(0);
+                    assert!(
+                        decode_aggregate_field_into(&layout, schema, order, &image, &mut receiving)
+                            .is_err()
+                    );
+                }
+                assert_eq!(&image[12..], &[0xa5; 4]);
+            }
+        }
+
+        #[test]
+        fn decode_aggregate_field_gathers_numbered_array_elements_by_retained_offsets() {
+            let layout = LayoutPlanReport {
+                schema_report_fingerprint: 0,
+                offsets: None,
+                size: Some(10),
+                align: 2,
+                entries: [8, 0, 4]
+                    .into_iter()
+                    .map(|offset| {
+                        numbered_layout_field_entry(
+                            "old_name",
+                            91,
+                            LayoutPlacementReport::At { offset },
+                        )
+                    })
+                    .collect(),
+            };
+            let schema =
+                AggregateFieldSchema::new_repeated_numbered("new_name", 91, 2, 2, 3).unwrap();
+            let original = AggregateFieldValue::new("new_name", vec![1, 2, 3, 4, 5, 6]).unwrap();
+            let mut image = vec![0; 10];
+            stage_aggregate_layout(
+                &layout,
+                std::slice::from_ref(&schema),
+                std::slice::from_ref(&original),
+                ByteOrder::LittleEndian,
+                &mut image,
+            )
+            .unwrap();
+            assert_eq!(image, [1, 2, 0, 0, 3, 4, 0, 0, 5, 6]);
+            let mut receiving = [0; 6];
+            decode_aggregate_field_into(
+                &layout,
+                &schema,
+                ByteOrder::LittleEndian,
+                &image,
+                &mut receiving,
+            )
+            .unwrap();
+            assert_eq!(receiving.as_slice(), original.bytes);
+            assert_eq!(
+                decode_aggregate_field(&layout, &schema, ByteOrder::LittleEndian, &image).unwrap(),
+                original.bytes
+            );
+            let wrong =
+                AggregateFieldSchema::new_repeated_numbered("old_name", 92, 2, 2, 3).unwrap();
+            assert!(
+                decode_aggregate_field(&layout, &wrong, ByteOrder::LittleEndian, &image).is_err()
+            );
+        }
+
+        #[test]
+        fn decode_aggregate_field_refuses_fragment_gaps_and_layout_tail_reads() {
+            let mut layout = LayoutPlanReport {
+                schema_report_fingerprint: 0,
+                offsets: None,
+                size: Some(1),
+                align: 1,
+                entries: vec![layout_field_entry(
+                    "value",
+                    LayoutPlacementReport::Bits {
+                        container: 0,
+                        container_width: 8,
+                        destination_lsb: 0,
+                        source_lsb: 1,
+                        width: 3,
+                    },
+                )],
+            };
+            let schema = AggregateFieldSchema::new("value", 1).unwrap();
+            assert!(
+                decode_aggregate_field(&layout, &schema, ByteOrder::LittleEndian, &[7]).is_err()
+            );
+            layout.entries[0].placement = LayoutPlacementReport::At { offset: 1 };
+            assert!(
+                decode_aggregate_field(&layout, &schema, ByteOrder::LittleEndian, &[7, 8]).is_err()
+            );
+        }
+
+        #[test]
+        fn decode_rejects_invalid_geometry_before_allocating_declared_payload() {
+            let mut layout = LayoutPlanReport {
+                schema_report_fingerprint: 0,
+                offsets: None,
+                size: Some(1),
+                align: 1,
+                entries: vec![layout_field_entry(
+                    "value",
+                    LayoutPlacementReport::At { offset: 0 },
+                )],
+            };
+            let absent = AggregateFieldSchema::new("absent", u64::MAX).unwrap();
+            let error = decode_aggregate_field(&layout, &absent, ByteOrder::LittleEndian, &[7])
+                .unwrap_err();
+            assert!(error.0.contains("field is absent"), "{error:?}");
+            let present = AggregateFieldSchema::new("value", u64::MAX).unwrap();
+            let error = decode_aggregate_field(&layout, &present, ByteOrder::LittleEndian, &[])
+                .unwrap_err();
+            assert!(error.0.contains("source is shorter"), "{error:?}");
+            layout.size = None;
+            let error = decode_aggregate_field(&layout, &present, ByteOrder::LittleEndian, &[7])
+                .unwrap_err();
+            assert!(
+                error.0.contains("requires a fixed-size layout plan"),
+                "{error:?}"
+            );
+        }
+    }
+}
+
+pub(crate) mod stored_integer_writes {
+    pub(crate) use layout_plans::stored_integer_checks::*;
+    use layout_plans::{ByteOrder, MaterializationDiagnostic};
+
+    pub(crate) fn container_range(
+        container_byte_offset: u64,
+        container_width_bits: u16,
+        label: &str,
+    ) -> Result<std::ops::Range<usize>, MaterializationDiagnostic> {
+        let container_bytes = usize::from(container_width_bits / 8);
+        let start = usize::try_from(container_byte_offset).map_err(|_| {
+            MaterializationDiagnostic(format!("{label} offset cannot be represented on this host"))
+        })?;
+        let end = start
+            .checked_add(container_bytes)
+            .ok_or_else(|| MaterializationDiagnostic(format!("{label} byte range overflows")))?;
+        Ok(start..end)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn apply_fragment(
+        bytes: &mut [u8],
+        byte_order: ByteOrder,
+        field: &str,
+        container_byte_offset: u64,
+        container_width_bits: u16,
+        destination_lsb: u16,
+        source_lsb: u16,
+        width: u16,
+        source_value: u64,
+    ) -> Result<(), MaterializationDiagnostic> {
+        let range = container_range(container_byte_offset, container_width_bits, "container")?;
+        let materialization_len = bytes.len();
+        let container_slice = bytes.get_mut(range).ok_or_else(|| {
+            MaterializationDiagnostic(format!(
+                "symbolic field `{field}` writes outside the {materialization_len}-byte materialization"
+            ))
+        })?;
+        let mut container_value = read_container(container_slice, byte_order);
+        let fragment_mask = low_mask(width);
+        let fragment = (source_value >> source_lsb) & fragment_mask;
+        let destination_mask = fragment_mask << destination_lsb;
+        container_value = (container_value & !destination_mask)
+            | ((fragment << destination_lsb) & destination_mask);
+        write_container(container_slice, byte_order, container_value);
+        Ok(())
+    }
+
+    pub(crate) fn read_container(bytes: &[u8], byte_order: ByteOrder) -> u64 {
+        bytes
+            .iter()
+            .enumerate()
+            .fold(0_u64, |value, (index, byte)| {
+                let shift = match byte_order {
+                    ByteOrder::LittleEndian => index * 8,
+                    ByteOrder::BigEndian => (bytes.len() - 1 - index) * 8,
+                };
+                value | (u64::from(*byte) << shift)
+            })
+    }
+
+    fn write_container(bytes: &mut [u8], byte_order: ByteOrder, value: u64) {
+        let byte_len = bytes.len();
+        for (index, byte) in bytes.iter_mut().enumerate() {
+            let shift = match byte_order {
+                ByteOrder::LittleEndian => index * 8,
+                ByteOrder::BigEndian => (byte_len - 1 - index) * 8,
+            };
+            *byte = ((value >> shift) & 0xff) as u8;
+        }
+    }
+}
+
+use layout_plans::MaterializationDiagnostic;
+
+use crate::storage_materialization::materialization::stored_integer_writes::{
+    apply_fragment, byte_sized_width, container_range, low_mask, read_container, scalar_fragment,
+    validate_fragment, validate_stored_integer_value,
+};
+use layout_plans::field_identities::{
+    index_supplied_fields, materialization_field_key, planned_entries_by_key,
+    validate_materialization_field_identities, validate_supplied_field_coverage,
+};
+use layout_plans::field_values::{
+    AggregateFieldSchema, AggregateFieldShape, AggregateFieldValue, ScalarFieldSchema,
+    ScalarFieldValue,
+};
+use layout_plans::{ByteOrder, LayoutFieldEntryReport};
+use layout_plans::{IntegerInterpretation, LayoutPlacementReport, LayoutPlanReport};
+
+fn checked_buffer_len(
+    layout: &LayoutPlanReport,
+    actual: usize,
+    materialization: &str,
+    buffer_role: &str,
+) -> Result<usize, MaterializationDiagnostic> {
+    let byte_len = fixed_layout_byte_len(layout, materialization)?;
+    if actual < byte_len {
+        return Err(MaterializationDiagnostic(format!(
+            "{materialization} needs {byte_len} bytes, {buffer_role} has {actual}"
+        )));
+    }
+    Ok(byte_len)
+}
+
+fn checked_aggregate_bytes<'a, Bytes: AsRef<[u8]>>(
+    field_name: &str,
+    schema: &AggregateFieldSchema,
+    value: &'a AggregateFieldValue<Bytes>,
+) -> Result<(&'a [u8], usize), MaterializationDiagnostic> {
+    let expected_size = usize::try_from(schema.byte_size).map_err(|_| {
+        MaterializationDiagnostic(format!(
+            "aggregate field `{field_name}` extent cannot be represented on this compiler host"
+        ))
+    })?;
+    let bytes = value.bytes.as_ref();
+    if bytes.len() != expected_size {
+        return Err(MaterializationDiagnostic(format!(
+            "aggregate field `{field_name}` supplies {} bytes, but its compiler-derived extent is {expected_size}",
+            bytes.len()
+        )));
+    }
+    Ok((bytes, expected_size))
+}
+
+pub(crate) fn fixed_layout_byte_len(
+    layout: &LayoutPlanReport,
+    materialization: &str,
+) -> Result<usize, MaterializationDiagnostic> {
+    layout
+        .size
+        .ok_or_else(|| {
+            MaterializationDiagnostic(format!(
+                "{materialization} requires a fixed-size layout plan"
+            ))
+        })
+        .and_then(|size| {
+            usize::try_from(size).map_err(|_| {
+                MaterializationDiagnostic(format!(
+                    "fixed layout size {size} cannot be represented on this compiler host"
+                ))
+            })
+        })
+}
+
+pub fn stage_aggregate_layout<Bytes: AsRef<[u8]>>(
+    layout: &LayoutPlanReport,
+    fields: &[AggregateFieldSchema],
+    values: &[AggregateFieldValue<Bytes>],
+    byte_order: ByteOrder,
+    destination: &mut [u8],
+) -> Result<(), MaterializationDiagnostic> {
+    let byte_len = checked_buffer_len(
+        layout,
+        destination.len(),
+        "aggregate materialization",
+        "destination",
+    )?;
+    validate_materialization_field_identities(layout)?;
+    let schemas = index_supplied_fields(
+        fields,
+        "aggregate",
+        "declared",
+        |field: &AggregateFieldSchema| (field.field.as_str(), field.member_identity),
+    )?;
+    let supplied = index_supplied_fields(
+        values,
+        "aggregate",
+        "supplied",
+        |value: &AggregateFieldValue<Bytes>| (value.field.as_str(), None),
+    )?;
+    validate_supplied_field_coverage(
+        layout,
+        &schemas,
+        "aggregate schema extent",
+        "aggregate schema field",
+    )?;
+    if let Some(field) = fields
+        .iter()
+        .find(|field| supplied.named(field.field.as_str()).is_none())
+    {
+        return Err(MaterializationDiagnostic(format!(
+            "layout field `{}` has no supplied aggregate value",
+            field.field
+        )));
+    }
+    if let Some(field) = supplied
+        .names()
+        .find(|field| schemas.named(field).is_none())
+    {
+        return Err(MaterializationDiagnostic(format!(
+            "supplied aggregate field `{field}` has no compiler-derived aggregate schema"
+        )));
+    }
+    let mut planned = planned_entries_by_key(layout);
+
+    let staged = &mut destination[..byte_len];
+    staged.fill(0);
+    let mut occupied = vec![false; byte_len];
+    let mut deferred_fragments = Vec::new();
+    for (field_key, schema) in schemas.fields_by_key() {
+        let field_name = schema.field.as_str();
+        let entries = planned
+            .get_mut(field_key)
+            .expect("complete aggregate plan set validated above");
+        let has_scalar_placement = entries.iter().any(|entry| {
+            matches!(
+                entry.placement,
+                LayoutPlacementReport::IntegerAt { .. } | LayoutPlacementReport::Bits { .. }
+            )
+        });
+        if has_scalar_placement
+            && entries
+                .iter()
+                .any(|entry| matches!(entry.placement, LayoutPlacementReport::At { .. }))
+        {
+            return Err(MaterializationDiagnostic(format!(
+                "aggregate field `{field_name}` mixes `At` with scalar placements"
+            )));
+        }
+        let value = supplied
+            .named(field_name)
+            .expect("complete aggregate field set validated above");
+        if has_scalar_placement {
+            if !matches!(schema.shape, AggregateFieldShape::Whole) {
+                return Err(MaterializationDiagnostic(format!(
+                    "aggregate field `{field_name}` carries scalar placements but is an outer fixed array"
+                )));
+            }
+            if schema.byte_size > 8 {
+                return Err(MaterializationDiagnostic(format!(
+                    "aggregate field `{field_name}` extent is {} bytes, past the 64-bit scalar placement carrier",
+                    schema.byte_size
+                )));
+            }
+            let (bytes, expected_size) = checked_aggregate_bytes(field_name, schema, value)?;
+            let scalar = ScalarFieldValue {
+                field: value.field.clone(),
+                member_identity: schema.member_identity,
+                width_bits: u16::try_from(expected_size * 8)
+                    .expect("the eight-byte carrier bound keeps the extent inside u16"),
+                value: read_container(bytes, byte_order),
+            };
+            for entry in entries.iter() {
+                match entry.placement {
+                    LayoutPlacementReport::IntegerAt { .. } => {
+                        let fragment = scalar_fragment(entry, scalar.width_bits)?;
+                        let start =
+                            usize::try_from(fragment.container_byte_offset).map_err(|_| {
+                                MaterializationDiagnostic(format!(
+                                    "aggregate field `{field_name}` stored-integer offset cannot be represented on this compiler host"
+                                ))
+                            })?;
+                        let end = start
+                            .checked_add(usize::from(fragment.container_width_bits / 8))
+                            .ok_or_else(|| {
+                                MaterializationDiagnostic(format!(
+                                    "aggregate field `{field_name}` stored-integer range overflows"
+                                ))
+                            })?;
+                        if end > byte_len {
+                            return Err(MaterializationDiagnostic(format!(
+                                "aggregate field `{field_name}` writes through byte {end}, past the {byte_len}-byte layout"
+                            )));
+                        }
+                        if occupied[start..end].iter().any(|claimed| *claimed) {
+                            return Err(MaterializationDiagnostic(format!(
+                                "aggregate field `{field_name}` stored-integer placement overlaps an earlier placement"
+                            )));
+                        }
+                        apply_scalar_entry(staged, byte_order, entry, &scalar)?;
+                        occupied[start..end].fill(true);
+                    }
+                    LayoutPlacementReport::Bits { .. } => {
+                        deferred_fragments.push((*entry, scalar.clone()));
+                    }
+                    LayoutPlacementReport::At { .. } => {
+                        unreachable!("mixed `At` and scalar placements rejected above")
+                    }
+                }
+            }
+            continue;
+        }
+        let (bytes, expected_size) = checked_aggregate_bytes(field_name, schema, value)?;
+
+        entries.sort_unstable_by_key(|entry| match entry.placement {
+            LayoutPlacementReport::At { offset } => offset,
+            _ => unreachable!("non-At aggregate entries rejected above"),
+        });
+        let (source_chunk_size, required_align) = if entries.len() == 1 {
+            (expected_size, None)
+        } else {
+            let AggregateFieldShape::Repeated {
+                element_byte_size,
+                element_align,
+                element_count,
+            } = schema.shape
+            else {
+                return Err(MaterializationDiagnostic(format!(
+                    "aggregate field `{field_name}` has more than one `At` placement but is not an outer fixed array"
+                )));
+            };
+            let actual_count = u64::try_from(entries.len()).map_err(|_| {
+                MaterializationDiagnostic(format!(
+                    "aggregate field `{field_name}` placement count cannot be represented as u64"
+                ))
+            })?;
+            if actual_count != element_count {
+                return Err(MaterializationDiagnostic(format!(
+                    "repeated aggregate field `{field_name}` has {actual_count} element placements, expected {element_count}"
+                )));
+            }
+            let element_byte_size = usize::try_from(element_byte_size).map_err(|_| {
+                MaterializationDiagnostic(format!(
+                    "aggregate field `{field_name}` element extent cannot be represented on this compiler host"
+                ))
+            })?;
+            let offsets = entries
+                .iter()
+                .map(|entry| match entry.placement {
+                    LayoutPlacementReport::At { offset } => offset,
+                    _ => unreachable!("non-At aggregate entries rejected above"),
+                })
+                .collect::<Vec<_>>();
+            let stride = offsets[1].checked_sub(offsets[0]).ok_or_else(|| {
+                MaterializationDiagnostic(format!(
+                    "repeated aggregate field `{field_name}` element offsets are not ordered"
+                ))
+            })?;
+            if stride < element_byte_size as u64
+                || offsets.windows(2).any(|pair| pair[1] - pair[0] != stride)
+            {
+                return Err(MaterializationDiagnostic(format!(
+                    "repeated aggregate field `{field_name}` element placements do not have one nonoverlapping constant stride"
+                )));
+            }
+            (element_byte_size, Some(element_align))
+        };
+
+        let chunks = bytes.chunks_exact(source_chunk_size);
+        if !chunks.remainder().is_empty() || chunks.len() != entries.len() {
+            return Err(MaterializationDiagnostic(format!(
+                "aggregate field `{field_name}` bytes do not tile its compiler-derived source elements exactly"
+            )));
+        }
+        for (entry, source) in entries.iter().zip(chunks) {
+            let LayoutPlacementReport::At { offset } = entry.placement else {
+                unreachable!("non-At aggregate entries rejected above")
+            };
+            if required_align.is_some_and(|align| !offset.is_multiple_of(align)) {
+                return Err(MaterializationDiagnostic(format!(
+                    "repeated aggregate field `{field_name}` element offset {offset} violates its compiler-derived alignment {}",
+                    required_align.expect("checked as present")
+                )));
+            }
+            let start = usize::try_from(offset).map_err(|_| {
+                MaterializationDiagnostic(format!(
+                    "aggregate field `{field_name}` offset cannot be represented on this compiler host"
+                ))
+            })?;
+            let end = start.checked_add(source.len()).ok_or_else(|| {
+                MaterializationDiagnostic(format!(
+                    "aggregate field `{field_name}` destination range overflows"
+                ))
+            })?;
+            if end > byte_len {
+                return Err(MaterializationDiagnostic(format!(
+                    "aggregate field `{field_name}` writes through byte {end}, past the {byte_len}-byte layout"
+                )));
+            }
+            if occupied[start..end].iter().any(|occupied| *occupied) {
+                return Err(MaterializationDiagnostic(format!(
+                    "aggregate field `{field_name}` overlaps an earlier aggregate placement"
+                )));
+            }
+            staged[start..end].copy_from_slice(source);
+            occupied[start..end].fill(true);
+        }
+    }
+    let mut fragment_destinations = std::collections::BTreeMap::<usize, u8>::new();
+    for (entry, scalar) in deferred_fragments {
+        let fragment = scalar_fragment(entry, scalar.width_bits)?;
+        for bit in fragment.destination_lsb..fragment.destination_lsb + fragment.width {
+            let relative_byte = match byte_order {
+                ByteOrder::LittleEndian => bit / 8,
+                ByteOrder::BigEndian => fragment.container_width_bits / 8 - 1 - bit / 8,
+            };
+            let physical_byte = fragment
+                .container_byte_offset
+                .checked_add(u64::from(relative_byte))
+                .ok_or_else(|| {
+                    MaterializationDiagnostic(format!(
+                        "aggregate field `{}` fragment destination range overflows",
+                        entry.field
+                    ))
+                })?;
+            let byte = usize::try_from(physical_byte)
+                .map_err(|_| {
+                    MaterializationDiagnostic(format!(
+                        "aggregate field `{}` fragment destination cannot be represented on this compiler host",
+                        entry.field
+                    ))
+                })?;
+            let Some(whole_byte_claimed) = occupied.get(byte) else {
+                return Err(MaterializationDiagnostic(format!(
+                    "aggregate field `{}` fragment writes byte {byte}, past the {byte_len}-byte layout",
+                    entry.field
+                )));
+            };
+            if *whole_byte_claimed {
+                return Err(MaterializationDiagnostic(format!(
+                    "aggregate field `{}` fragment destination overlaps a whole-extent placement",
+                    entry.field
+                )));
+            }
+            let mask = 1_u8 << (bit % 8);
+            let applied = fragment_destinations.entry(byte).or_default();
+            if *applied & mask != 0 {
+                return Err(MaterializationDiagnostic(format!(
+                    "aggregate field `{}` fragment destination overlaps an earlier fragment",
+                    entry.field
+                )));
+            }
+            *applied |= mask;
+        }
+        apply_scalar_entry(staged, byte_order, entry, &scalar)?;
+    }
+    Ok(())
+}
+
+pub fn decode_scalar_layout(
+    layout: &LayoutPlanReport,
+    fields: &[ScalarFieldSchema],
+    byte_order: ByteOrder,
+    source: &[u8],
+) -> Result<Vec<ScalarFieldValue>, MaterializationDiagnostic> {
+    let byte_len = checked_buffer_len(layout, source.len(), "scalar decoding", "source")?;
+    validate_materialization_field_identities(layout)?;
+    let supplied =
+        index_supplied_fields(fields, "scalar", "declared", |field: &ScalarFieldSchema| {
+            (field.field.as_str(), field.member_identity)
+        })?;
+    validate_supplied_field_coverage(
+        layout,
+        &supplied,
+        "scalar decode schema",
+        "scalar decode field",
+    )?;
+    let mut decoded = supplied
+        .fields_by_key()
+        .map(|(key, field)| (key.clone(), (field, 0_u64, 0_u64)))
+        .collect::<std::collections::BTreeMap<_, _>>();
+
+    for entry in &layout.entries {
+        let key = materialization_field_key(&entry.field, entry.member_identity);
+        let (field, value, covered) = decoded
+            .get_mut(&key)
+            .expect("complete field set validated above");
+        let width_bits = field.width_bits;
+        let fragment = scalar_fragment(entry, width_bits)?;
+        validate_fragment(
+            byte_len,
+            &entry.field,
+            fragment.container_byte_offset,
+            fragment.container_width_bits,
+            fragment.destination_lsb,
+            fragment.source_lsb,
+            fragment.width,
+        )?;
+        if let LayoutPlacementReport::IntegerAt {
+            stored_width,
+            interpretation,
+            ..
+        } = entry.placement
+        {
+            let stored_width = u16::try_from(stored_width).map_err(|_| {
+                MaterializationDiagnostic(format!(
+                    "scalar field `{}` has an invalid stored-integer width",
+                    entry.field
+                ))
+            })?;
+            if !byte_sized_width(stored_width) || width_bits < stored_width {
+                return Err(MaterializationDiagnostic(format!(
+                    "scalar field `{}` cannot decode {stored_width}-bit stored-integer storage into its {}-bit semantic carrier",
+                    entry.field, width_bits
+                )));
+            }
+            if *covered != 0 {
+                return Err(MaterializationDiagnostic(format!(
+                    "scalar field `{}` has more than one stored-integer decode entry",
+                    entry.field
+                )));
+            }
+            let range = container_range(
+                fragment.container_byte_offset,
+                fragment.container_width_bits,
+                "stored-integer",
+            )?;
+            let stored = read_container(&source[range], byte_order) & low_mask(stored_width);
+            *value = match interpretation {
+                IntegerInterpretation::Unsigned => stored,
+                IntegerInterpretation::Signed if stored & (1_u64 << (stored_width - 1)) != 0 => {
+                    stored | (low_mask(width_bits) & !low_mask(stored_width))
+                }
+                IntegerInterpretation::Signed => stored,
+            };
+            *covered = low_mask(width_bits);
+            continue;
+        }
+        let source_mask = low_mask(fragment.width) << fragment.source_lsb;
+        if *covered & source_mask != 0 {
+            return Err(MaterializationDiagnostic(format!(
+                "scalar field `{}` decode fragments overlap in the logical source",
+                entry.field
+            )));
+        }
+        let range = container_range(
+            fragment.container_byte_offset,
+            fragment.container_width_bits,
+            "container",
+        )?;
+        let container = read_container(&source[range], byte_order);
+        let value_fragment = (container >> fragment.destination_lsb) & low_mask(fragment.width);
+        *value |= value_fragment << fragment.source_lsb;
+        *covered |= source_mask;
+    }
+
+    decoded
+        .into_iter()
+        .map(|(_, (field, value, covered))| {
+            let width_bits = field.width_bits;
+            if covered != low_mask(width_bits) {
+                return Err(MaterializationDiagnostic(format!(
+                    "scalar field `{}` decode fragments do not tile its complete {width_bits}-bit source",
+                    field.field
+                )));
+            }
+            Ok(ScalarFieldValue {
+                field: field.field.clone(),
+                member_identity: field.member_identity,
+                width_bits,
+                value,
+            })
+        })
+        .collect()
+}
+
+pub(crate) fn apply_scalar_entry(
+    bytes: &mut [u8],
+    byte_order: ByteOrder,
+    entry: &LayoutFieldEntryReport,
+    value: &ScalarFieldValue,
+) -> Result<(), MaterializationDiagnostic> {
+    validate_stored_integer_value(entry, value)?;
+    let fragment = scalar_fragment(entry, value.width_bits)?;
+    validate_fragment(
+        bytes.len(),
+        &value.field,
+        fragment.container_byte_offset,
+        fragment.container_width_bits,
+        fragment.destination_lsb,
+        fragment.source_lsb,
+        fragment.width,
+    )?;
+    apply_fragment(
+        bytes,
+        byte_order,
+        &value.field,
+        fragment.container_byte_offset,
+        fragment.container_width_bits,
+        fragment.destination_lsb,
+        fragment.source_lsb,
+        fragment.width,
+        value.value,
+    )
+}

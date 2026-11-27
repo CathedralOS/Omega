@@ -1,5 +1,6 @@
 //! Read declaration ABIs and their selected policy bodies with the product.
 //! Targets evaluate those checked bodies later with their own ABI geometry.
+use crate::read::unavailable;
 
 use std::sync::Arc;
 
@@ -9,7 +10,7 @@ use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 use application_identity::callback_declarations::BoundaryTelescope;
 use semantic_vocabulary::{CallingAbiIdentity, CallingSignatureId, MachineId, StructuralTypeId};
 use symbols::SymbolHandle;
-use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
+use terminal_check_tables::Checked;
 use terminal_psi::calling_policies::*;
 use terminal_psi::{StructuralAccess, TerminalIdentityTableBuilder, TerminalModule};
 
@@ -36,16 +37,15 @@ struct PreparedStorage {
     telescope: BoundaryTelescope,
 }
 
-fn unavailable(entry: MachineId, detail: impl Into<String>) -> Refusal {
-    Refusal {
-        reason: RefusalReason::Unsupported,
-        site: terminal_check_tables::RefusalSite::Machine(entry, Construct::Machine),
-        source_span: None,
-        detail: detail.into(),
-    }
-}
-
 impl Program<'_> {
+    /// Keep the body of a selected calling policy. Publication evaluates its
+    /// plan, so `stub_witness_callee` must not replace it with a summary.
+    pub(crate) fn retain_calling_policy_body(&mut self, body: MachineId) {
+        if !self.calling_policy_bodies.contains(&body) {
+            self.calling_policy_bodies.push(body);
+        }
+    }
+
     /// A calling policy is checked with the product's other executable roots.
     /// Target evaluation later supplies ABI geometry to this same retained body.
     pub(crate) fn prepare_calling_policy_roots(&mut self, entry: MachineId) -> Checked<()> {
@@ -122,7 +122,8 @@ impl Program<'_> {
                         "calling policy has no declared ABI application",
                     ));
                 }
-                self.subject_machine(realization.symbol)?;
+                let body = self.subject_machine(realization.symbol)?;
+                self.retain_calling_policy_body(body);
             }
             self.calling_policy_boundaries.push(request.boundary);
         }
@@ -564,7 +565,8 @@ impl PreparedCallingAbis {
                 ));
             }
             if let Some(existing) = module
-                .interfaces.calling_signatures
+                .interfaces
+                .calling_signatures
                 .iter()
                 .find(|row| row.boundary == application.boundary)
             {
@@ -578,7 +580,10 @@ impl PreparedCallingAbis {
                 module.interfaces.calling_signatures.push(application);
             }
         }
-        module.interfaces.calling_signatures.sort_by_key(|row| row.boundary);
+        module
+            .interfaces
+            .calling_signatures
+            .sort_by_key(|row| row.boundary);
         Ok(())
     }
 }
@@ -825,11 +830,7 @@ mod descriptor_storage_tests {
         let checked = written.map(|(reference, access)| {
             let ordinary = program.value_type(entry, reference).unwrap();
             let formal = program
-                .formal_value_type(
-                    entry,
-                    reference,
-                    crate::body::BorrowedReferent::Slice,
-                )
+                .formal_value_type(entry, reference, crate::body::BorrowedReferent::Slice)
                 .unwrap();
             let crate::ValueType::Record(carrier, _, _) = formal else {
                 panic!("a borrowed slice has structural descriptor storage");
@@ -1272,5 +1273,33 @@ mod tests {
             refusals[0],
             "metadata declaration has no exact boundary schema"
         );
+    }
+
+    /// A conformance witness may replace a callee read after its own
+    /// implementation with that callee's summary. A selected calling
+    /// policy's `plan` must keep its body, because publication evaluates
+    /// it; the same read row without that selection may be summarized.
+    #[test]
+    fn a_witness_keeps_the_body_of_a_selected_calling_policy() {
+        let (typed, _, _) = fixture();
+        let symbol = typed
+            .machines()
+            .first()
+            .map_or(SymbolHandle::invalid(), |machine| machine.symbol);
+        let mut program = Program::with_captures(
+            &typed,
+            false,
+            DependencyScope::Product,
+            crate::shared_reading(&typed),
+        );
+        let ordinary = program.reserve_row(symbol).unwrap();
+        let policy = program.reserve_row(symbol).unwrap();
+        // Both rows are read: only the calling selection distinguishes them.
+        program.unread_rows.clear();
+
+        program.retain_calling_policy_body(policy);
+
+        assert!(program.keeps_witness_body(policy));
+        assert!(!program.keeps_witness_body(ordinary));
     }
 }

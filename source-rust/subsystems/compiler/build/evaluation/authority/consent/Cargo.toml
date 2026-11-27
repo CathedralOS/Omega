@@ -8,7 +8,7 @@ version.workspace = true
 path = "requests.rs"
 
 [dependencies]
+build-model = { path = "../../../model" }
 build-output = { path = "../../../inputs/trees" }
-evaluation-contracts = { path = "../../accounting/contracts" }
 filesystem-authority = { path = "../filesystem" }
 target = { path = "../../../../psi-to-native/targets/target" }

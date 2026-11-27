@@ -115,13 +115,12 @@ machine Main::main(&mut self) {
     }
 
     state package_lineage(index: i32, count: i32) {
-        let kind: i32 = self.structure.take_u32(self.request.as_slice[0..self.length]);
         let lineage: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
         let revision: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
         let tree: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
         let content: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
         let member: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
-        transition (kind >= 0) && (lineage >= 0) && (revision >= 0) && (tree >= 0) && (content >= 0) && (member >= 0) {
+        transition (lineage >= 0) && (revision >= 0) && (tree >= 0) && (content >= 0) && (member >= 0) {
             true -> package_role(index, count)
             _ -> internal()
         }
@@ -237,13 +236,12 @@ machine Main::main(&mut self) {
     }
 
     state source_lineage(root: i32) {
-        let kind: i32 = self.structure.take_u32(self.request.as_slice[0..self.length]);
         let lineage: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
         let revision: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
         let tree: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
         let content: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
         let member: i32 = self.structure.take_bytes(self.request.as_slice[0..self.length]);
-        transition (kind >= 0) && (lineage >= 0) && (revision >= 0) && (tree >= 0) && (content >= 0) && (member >= 0) {
+        transition (lineage >= 0) && (revision >= 0) && (tree >= 0) && (content >= 0) && (member >= 0) {
             true -> source_rows(root)
             _ -> internal()
         }

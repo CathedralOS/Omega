@@ -1025,7 +1025,7 @@ pub(crate) struct Machine<'view, 'analysis> {
     /// The machine's values the integer rules do not reach
     /// (`crate::Unreached`).
     pub(crate) unreached: &'view [ValueId],
-    pub(crate) law_instances: &'view [MachineId],
+    pub(crate) law_instances: crate::equality::LawScope<'view>,
 }
 
 /// Admits the declared join predicates and infers the others (`prepare`),
@@ -1091,10 +1091,12 @@ pub(crate) fn check<'a>(
                         machine.lowered,
                         tables,
                         machine.graph,
+                        machine.storage,
                         point,
                         obligation,
                         clause,
-                        machine.law_instances,
+                        machine.law_instances.instances,
+                        machine.law_instances.identities,
                         &mut machine.storage.at_entry(references, tables),
                     )
                     .map(Discharged::Identity);

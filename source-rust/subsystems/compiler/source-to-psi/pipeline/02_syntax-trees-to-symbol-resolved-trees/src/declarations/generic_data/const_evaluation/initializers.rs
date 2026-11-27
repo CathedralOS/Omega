@@ -422,7 +422,8 @@ fn closed_shape(
     selection: &ConstantSelection,
     definition: &ConstDefinition,
 ) -> Option<Shape> {
-    if definition.preparation().qualification.is_some()
+    if !definition.type_reference.is_valid()
+        || definition.preparation().qualification.is_some()
         || definition.preparation().pending_qualification.is_some()
     {
         return None;

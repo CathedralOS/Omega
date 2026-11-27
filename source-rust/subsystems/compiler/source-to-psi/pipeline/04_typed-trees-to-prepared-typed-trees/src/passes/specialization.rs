@@ -674,9 +674,21 @@ fn specialize_application(
 ) -> Served<Option<(SymbolHandle, SymbolHandle)>> {
     let mut open_callback = false;
     for (parameter, argument) in parameters.iter().zip(arguments.iter_mut()) {
-        if matches!(parameter.kind, TypeParameterKind::Machine { .. })
+        // An instantiated theorem citation, such as `above::<0u8>`, names the
+        // machine generated for those arguments, exactly as a callback does.
+        // Its contract is then the one checked against the alias; a citation
+        // left open here is still refused when stage 05 reads it.
+        let closes = match parameter.kind {
+            TypeParameterKind::Machine { .. } => true,
+            TypeParameterKind::Proof { .. } => {
+                argument.const_literal.is_none() && argument.evidence_projection.is_none()
+            }
+            _ => false,
+        };
+        if closes
             && argument.application.is_some()
             && !close_machine_argument(program, application, argument, generated)?
+            && matches!(parameter.kind, TypeParameterKind::Machine { .. })
         {
             open_callback = true;
         }
@@ -2565,12 +2577,16 @@ fn substitute_arguments(
         .map(|(handle, _)| handle)
         .collect::<Vec<_>>();
     for handle in calls {
-        let mut machine_arguments = match program.expression_table.expression(handle) {
-            ExpressionNode::Call(call) if !call.build_selection.is_valid() => {
-                Some(call.machine_arguments.clone())
-            }
-            _ => None,
-        };
+        let (mut machine_arguments, closed_template) =
+            match program.expression_table.expression(handle) {
+                ExpressionNode::Call(call) if !call.build_selection.is_valid() => (
+                    Some(call.machine_arguments.clone()),
+                    program
+                        .closed_requirement_application(call.target_symbol)
+                        .map(|closed| closed.template),
+                ),
+                _ => (None, None),
+            };
         if let Some(arguments) = machine_arguments.as_mut() {
             replace(program, arguments);
         }
@@ -2580,6 +2596,9 @@ fn substitute_arguments(
             if let Some(arguments) = machine_arguments {
                 call.machine_arguments = arguments;
             }
+            if let Some(template) = closed_template {
+                call.target_symbol = template;
+            }
             if let Some(target) = selected_callable(call.target_symbol) {
                 call.static_machine_parameter = call.target_symbol;
                 call.target_symbol = target;
@@ -2588,10 +2607,16 @@ fn substitute_arguments(
         }
     }
     for &handle in &body.statements {
-        let mut machine_arguments = match program.statement_table.statement(handle) {
-            StatementNode::Call(call) => Some(call.machine_arguments.clone()),
-            _ => None,
-        };
+        let (mut machine_arguments, closed_template) =
+            match program.statement_table.statement(handle) {
+                StatementNode::Call(call) => (
+                    Some(call.machine_arguments.clone()),
+                    program
+                        .closed_requirement_application(call.target_symbol)
+                        .map(|closed| closed.template),
+                ),
+                _ => (None, None),
+            };
         if let Some(arguments) = machine_arguments.as_mut() {
             replace(program, arguments);
         }
@@ -2600,6 +2625,9 @@ fn substitute_arguments(
             StatementNode::Call(call) => {
                 if let Some(arguments) = machine_arguments {
                     call.machine_arguments = arguments;
+                }
+                if let Some(template) = closed_template {
+                    call.target_symbol = template;
                 }
                 if let Some(target) = selected_callable(call.target_symbol) {
                     call.static_machine_parameter = call.target_symbol;

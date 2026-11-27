@@ -17,14 +17,15 @@ use self::policy::sealed_git_command;
 use self::reconciliation::reconcile_git_command_result;
 use crate::SourceResolveError;
 use crate::git::executable::{GitCapturedOutputBudget, GitExecutor};
+use crate::git::execution::ResolverExecutionPhase;
 use crate::limits::{
     GIT_COMMAND_CLEANUP_TIMEOUT, GIT_STDERR_LIMIT, GIT_STDOUT_LIMIT, PROCESS_POLL_INTERVAL,
 };
+use bounded_process::BoundedProcessPrepared;
 use bounded_process::{
     BoundedCaptureLimits, BoundedProcessInput, BoundedProcessOutput, BoundedProcessRunError,
     run_bounded_process,
 };
-use resolver_execution::{ResolverExecutionPhase, ResolverPreparedExecution};
 use std::ffi::OsStr;
 use std::path::Path;
 use std::time::Duration;
@@ -132,7 +133,7 @@ where
 
 #[cfg(all(test, unix))]
 pub(crate) fn run_command_bounded(
-    command: ResolverPreparedExecution,
+    command: BoundedProcessPrepared,
     operation: &str,
     stdout_limit: usize,
     stderr_limit: usize,
@@ -150,7 +151,7 @@ pub(crate) fn run_command_bounded(
 
 #[cfg(all(test, unix))]
 pub(crate) fn run_command_bounded_with_budget(
-    command: ResolverPreparedExecution,
+    command: BoundedProcessPrepared,
     operation: &str,
     stdout_limit: usize,
     stderr_limit: usize,
@@ -169,7 +170,7 @@ pub(crate) fn run_command_bounded_with_budget(
 }
 
 fn run_command_capture(
-    command: ResolverPreparedExecution,
+    command: BoundedProcessPrepared,
     input: BoundedProcessInput,
     operation: &str,
     stdout_limit: usize,

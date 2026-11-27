@@ -1,36 +1,31 @@
-use source_files::{DependencyScope, LoadedSource, LoadedSources, SourceOrigin};
-use source_lexer::lex as lex_sources;
+use source_files::{DependencyScope, LoadedSource, SourceOrigin};
+use source_lexer::lex_file;
 use source_text::SourceId;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokens::TokenKind;
+use tokens::{TokenKind, TokenScratch};
 
 #[test]
 fn lexing_retains_source_backing_decoded_bytes_and_exact_instance_metadata() {
     let text: Arc<str> = Arc::from(r#"alpha "\xff""#);
-    let mut loaded = LoadedSources::default();
-    loaded.batch = loaded.sources.insert_many(
-        [DependencyScope::Build, DependencyScope::Product]
-            .into_iter()
-            .enumerate()
-            .map(|(position, scope)| LoadedSource {
-                source_id: SourceId(11 + position),
-                path: PathBuf::from("shared.omg"),
-                source: text.clone(),
-                origin: Some(SourceOrigin::Toolchain),
-                scope,
-            }),
-    );
-    let path_buffers = loaded
-        .sources
-        .span_or_empty(loaded.batch)
-        .iter()
-        .map(|source| source.path.as_os_str().as_encoded_bytes().as_ptr() as usize)
-        .collect::<Vec<_>>();
-    let lexed = lex_sources(loaded).unwrap();
-    let batch = lexed.sources.span_or_empty(lexed.batch);
-    assert_eq!(batch.len(), 2);
-    for (position, source) in batch.iter().enumerate() {
+    let mut scratch = TokenScratch::default();
+    let mut results = Vec::new();
+    let mut path_buffers = Vec::new();
+    for (position, scope) in [DependencyScope::Build, DependencyScope::Product]
+        .into_iter()
+        .enumerate()
+    {
+        let mut source = LoadedSource {
+            source_id: SourceId(11 + position),
+            path: PathBuf::from("shared.omg"),
+            source: text.clone(),
+            origin: Some(SourceOrigin::Toolchain),
+            scope,
+        };
+        path_buffers.push(source.path.as_os_str().as_encoded_bytes().as_ptr() as usize);
+        results.push(lex_file(&mut source, &mut scratch).unwrap());
+    }
+    for (position, source) in results.iter().enumerate() {
         assert_eq!(source.source_id, SourceId(11 + position));
         assert_eq!(source.path, PathBuf::from("shared.omg"));
         assert_eq!(
@@ -41,10 +36,10 @@ fn lexing_retains_source_backing_decoded_bytes_and_exact_instance_metadata() {
         let backing = source.tokens.source_owner().unwrap();
         assert!(Arc::ptr_eq(backing, &text));
     }
-    assert_eq!(batch[0].scope, DependencyScope::Build);
-    assert_eq!(batch[1].scope, DependencyScope::Product);
-    let retained_tokens = batch[0].tokens.clone();
-    drop(lexed);
+    assert_eq!(results[0].scope, DependencyScope::Build);
+    assert_eq!(results[1].scope, DependencyScope::Product);
+    let retained_tokens = results[0].tokens.clone();
+    drop(results);
     drop(text);
     assert_eq!(retained_tokens.spelling(&retained_tokens[0]), "alpha");
     let literal = retained_tokens
@@ -58,39 +53,23 @@ fn lexing_retains_source_backing_decoded_bytes_and_exact_instance_metadata() {
 }
 
 #[test]
-fn lexing_stops_at_the_first_failure_with_its_exact_source_location() {
-    let mut loaded = LoadedSources::default();
-    loaded.batch = loaded
-        .sources
-        .insert_many(
-            ["first.omg", "second.omg"]
-                .into_iter()
-                .map(|path| LoadedSource {
-                    path: PathBuf::from(path),
-                    source: Arc::from("\n  /*"),
-                    ..LoadedSource::default()
-                }),
-        );
-    let error = lex_sources(loaded).unwrap_err().into_diagnostic();
+fn lexing_reports_exact_source_location_on_failure_and_recycles_scratch() {
+    let mut scratch = TokenScratch::default();
+    let mut source = LoadedSource {
+        path: PathBuf::from("first.omg"),
+        source: Arc::from("\n  /*"),
+        ..LoadedSource::default()
+    };
+    let error = lex_file(&mut source, &mut scratch)
+        .unwrap_err()
+        .into_diagnostic();
     assert_eq!(error.message, "first.omg:2:3: unterminated block comment");
-}
 
-#[test]
-fn lexing_preserves_source_order_when_a_later_failure_finishes_first() {
-    let mut loaded = LoadedSources::default();
-    loaded.batch = loaded.sources.insert_many([
-        LoadedSource {
-            path: PathBuf::from("first.omg"),
-            source: Arc::from(format!("{}\n/*", "identifier ".repeat(50_000))),
-            ..LoadedSource::default()
-        },
-        LoadedSource {
-            path: PathBuf::from("second.omg"),
-            source: Arc::from("/*"),
-            ..LoadedSource::default()
-        },
-    ]);
-
-    let error = lex_sources(loaded).unwrap_err().into_diagnostic();
-    assert_eq!(error.message, "first.omg:2:1: unterminated block comment");
+    let mut next = LoadedSource {
+        path: PathBuf::from("second.omg"),
+        source: Arc::from("alpha"),
+        ..LoadedSource::default()
+    };
+    let lexed = lex_file(&mut next, &mut scratch).unwrap();
+    assert_eq!(lexed.tokens.spelling(&lexed.tokens[0]), "alpha");
 }

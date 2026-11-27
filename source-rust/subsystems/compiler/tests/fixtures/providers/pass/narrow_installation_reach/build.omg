@@ -1,7 +1,7 @@
 use main.omg as app;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "installation_reach_baseline");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "installation_reach_baseline" };
     Build::select_provider::<|app|::A, |app|::AProvider>(builder, linux_x86_64);
     Build::select_provider::<|app|::B, |app|::BProvider>(builder, linux_x86_64);
     Build::select_provider::<|app|::C, |app|::CProvider>(builder, linux_x86_64);

@@ -7,7 +7,7 @@ reconcile portable numeric meanings with selected compiler intrinsics.
 */
 
 use native_intrinsics::CompilerIntrinsicExecutionIdentity;
-use provider_plans::{ProviderBinding, ProviderPlan, ProviderPlanRow};
+use build_providers::plans::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use terminal_psi::{ExternalProviderConformance, TerminalIdentityTable};
 
 struct RequirementPlanIdentity<'a> {
@@ -22,7 +22,7 @@ impl RequirementPlanIdentity<'_> {
     fn matches(
         &self,
         plan: &ProviderPlan,
-        method: &provider_plans::ServiceMethod,
+        method: &build_providers::plans::ServiceMethod,
         row: &ProviderPlanRow,
     ) -> bool {
         plan.schema.declaration.trait_package_identity == self.package

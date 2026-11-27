@@ -21,7 +21,6 @@ use crate::source_symbols::{
     builtin_type_symbols,
 };
 use diagnostics::Diagnostic;
-use std::path::Path;
 use symbols::{SymbolKind, SymbolNameRef};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
@@ -84,16 +83,8 @@ pub(crate) fn is_core_layout_storage_source(
 ) -> bool {
     name == language_core::layout_storage::CONSTRUCTOR_NAME
         && supply_mode == language_core::DataSupplyMode::BoundaryOpaque
-        && symbols.source_file(reference).is_some_and(|file| {
-            file.origin == source_admission::SourceOrigin::Toolchain
-                && file.package_identity.is_none()
-                && file.path.strip_prefix(&file.package_root).ok()
-                    == Some(Path::new(language_core::layout_storage::SOURCE_FILE_NAME))
-                && file.source.as_bytes()
-                    == bundled_declarations::bytes(
-                        language_core::bundled_files::BundledFile::CoreLayout,
-                    )
-        })
+        && symbols.bundled_core_file(reference)
+            == Some(language_core::bundled_files::BundledFile::CoreLayout)
 }
 
 impl<'base> ConstantSelection<'base> {

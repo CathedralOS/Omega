@@ -130,7 +130,7 @@ impl TerminalRuntimeHostProvisions<AdmittedRuntimeForeignCall> {
         installation: Option<&psi_provider_selections::AdmittedProviderSelections>,
         mut host: Vec<TerminalRuntimeHostProvision>,
         input: AdmittedRuntimeInput<'_>,
-        selected: &selected_provider_plans::SelectedProviderPlanFacts,
+        selected: &build_providers::selections::SelectedProviderPlanFacts,
         external_bindings: &[calling_conventions::ExternalBindingRow],
         native: NativeBindingRuntimeInputs<'_>,
     ) -> Result<Self, String> {
@@ -213,7 +213,7 @@ impl TerminalRuntimeHostProvisions<AdmittedRuntimeForeignCall> {
                     .ok_or("runtime native binding lost its unique calling application")?;
                 let execution = native_binding_admission::validate_native_binding_execution(
                     row,
-                    &native.bindings,
+                    native.bindings,
                     module,
                     profile,
                     application,

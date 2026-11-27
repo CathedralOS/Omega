@@ -25,8 +25,8 @@ fn run(name: &str, main: &str) -> [(Option<i32>, String); 2] {
         "use main.omg as app;
 use {{omega}}/build/dependency.omg;
 use {{omega}}/language/core/process_exit.omg;
-machine build(builder: @mutable Build) {{
-    Build::application(builder, \"{application}\");
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Application {{ name: \"{application}\" }};
     let adapter: DependencyDescription = |dependency|::from_source(Source::Path {{ location: \"{library}\" }});
     let allowed: [BoundaryServiceReference; 1] = [Build::service::<|process_exit|::ProcessExit>(builder)];
     _ = |dependency|::add(builder, adapter, @allowed[..]);
@@ -126,8 +126,8 @@ machine main() reaches ProcessExit { let ignored: i32 = stop(6); }
 fn a_provider_of_the_exit_passes_on_the_status_it_received() {
     let build = "use main.omg as app;
 use {omega}/language/core/process_exit.omg;
-machine build(builder: @mutable Build) {
-    Build::application(builder, \"exit_provider\");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: \"exit_provider\" };
     Build::select_provider::<|process_exit|::ProcessExit, |app|::LocalExit>(builder, windows_x86_64);
     Build::select_provider::<|process_exit|::ProcessExit, |app|::LocalExit>(builder, linux_x86_64);
     Build::select_provider::<|process_exit|::ProcessExit, |app|::LocalExit>(builder, linux_arm64);

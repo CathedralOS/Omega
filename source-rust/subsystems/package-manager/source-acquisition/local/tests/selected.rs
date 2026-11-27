@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use source_selection::{SourceCaptureObligation as Obligation, SourceCaptureRequest};
+use crate::selection::{SourceCaptureObligation as Obligation, SourceCaptureRequest};
 
 use super::{
     LocalSourceLimits, capture_local_source_input, capture_selected_local_source_input, temp_root,
@@ -53,7 +53,7 @@ fn narrow_and_wide_captures_retain_their_own_namespace_and_real_origin() {
     .unwrap();
     assert_eq!(narrow.canonical_live_root(), root.canonicalize().unwrap());
     assert!(!narrow.tree().exists(Path::new("invalid/main.omg")));
-    let mut view = source_capture::SourceFileSystem::new();
+    let mut view = crate::capture::SourceFileSystem::new();
     view.add_capture(
         narrow.canonical_live_root().to_path_buf(),
         narrow.tree().clone(),

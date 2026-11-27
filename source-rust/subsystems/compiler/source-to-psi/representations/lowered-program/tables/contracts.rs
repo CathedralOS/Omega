@@ -354,6 +354,11 @@ pub struct StaticRecordBinding {
     pub owner: SymbolHandle,
     pub application: String,
     pub members: Vec<StaticRecordMember>,
+    /// Each requirement of this record that a clause applies, as the clause
+    /// reader read it: the carriers of its operands and of its result. A
+    /// generic check form's Identity table declares each once
+    /// (`crate::mathematics::IdentityTable`).
+    pub applied: Vec<crate::mathematics::IdentityOperation>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -396,6 +401,7 @@ impl StaticRecordBinding {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StaticRecordRequirementInstance {
     pub machine: MachineId,
+    pub signature: SymbolHandle,
     pub arguments: Vec<semantic_vocabulary::ScalarTerm>,
 }
 
@@ -475,9 +481,11 @@ mod static_record_instance_tests {
                 application: "Ops<u32>".into(),
                 instances: vec![StaticRecordRequirementInstance {
                     machine: machine(instance),
+                    signature: symbol(3),
                     arguments: Vec::new(),
                 }],
             }],
+            applied: Vec::new(),
         };
         let first = binding(4, 11);
         let mut second = binding(5, 12);

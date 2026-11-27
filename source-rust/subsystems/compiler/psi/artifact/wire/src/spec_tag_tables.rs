@@ -1,6 +1,6 @@
 /*
-The tag tables in `wiki/spec/terminal-psi/encoding.md` are closed: a tag the
-table omits must reject, and a tag it lists must decode. These tests read every
+The tag tables in this crate's `encoding.md` are closed: a tag the table omits
+must reject, and a tag it lists must decode. These tests read every
 marked table straight from the page and feed every `u8` to the codec's decoder
 for that space, so a codec tag the page does not list, or a page row the codec
 no longer accepts, fails here instead of surviving as silent drift.
@@ -17,10 +17,7 @@ use crate::sections::debug_map;
 use crate::wire_fields::Field;
 use crate::wire_fields::wire::Reader;
 
-const ENCODING_PAGE: &str = include_str!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../../../../../wiki/spec/terminal-psi/encoding.md"
-));
+const ENCODING_PAGE: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/encoding.md"));
 
 /// Marked tables this test cannot drive, each with the reason.
 const UNCHECKED_TABLES: &[(&str, &str)] = &[(

@@ -23,8 +23,8 @@ fn check(name: &str, build_body: &str) -> (bool, String) {
     let build = format!(
         "use main.omg as app;
 machine observe(target: BuildTarget) {{ }}
-machine build(builder: @mutable Build) {{
-    Build::application(builder, \"settled\");
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Application {{ name: \"settled\" }};
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 {build_body}}}
 "

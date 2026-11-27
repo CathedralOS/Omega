@@ -18,8 +18,8 @@ filesystem observations and build logs, and assembles `ComputedBuildConfig`.
 use crate::{AdmittedBuildProgram, BuildConfig, ComputedBuildConfig, ReturnedBuild};
 use build_declarations::BuildRequest;
 use diagnostics::Diagnostic;
-use evaluation_accounting::BuildEvaluationSponsor;
-use evaluation_contracts::BuildEvaluationSponsorLimits;
+use build_model::accounting::BuildEvaluationSponsor;
+use build_model::contracts::BuildEvaluationSponsorLimits;
 use std::sync::Arc;
 
 pub struct PreparedBuildExecution {
@@ -29,7 +29,7 @@ pub struct PreparedBuildExecution {
     produced: Arc<source_compiler::publication::ProducedTerminalProgram>,
     accepted: Arc<source_compiler::publication::AcceptedTerminalSource>,
     providers: Arc<crate::admission::provider_execution::BuildProviderInstallation>,
-    account: evaluation_accounting::EvaluationInvocationAccount,
+    account: build_model::accounting::EvaluationInvocationAccount,
     machine: Arc<package_compilation::build_execution::SelectedBuildMachine>,
     filesystem_scope: package_compilation::BuildMachineFilesystemScope,
     host_issued: bool,
@@ -222,7 +222,7 @@ impl PreparedBuildExecution {
             None
         } else {
             Some(Arc::new(
-                evaluation_receipts::NativeBuildEvaluation::from_execution(
+                build_model::receipts::NativeBuildEvaluation::from_execution(
                     completed.identity.semantic(),
                     Arc::clone(&preparations),
                     usage,

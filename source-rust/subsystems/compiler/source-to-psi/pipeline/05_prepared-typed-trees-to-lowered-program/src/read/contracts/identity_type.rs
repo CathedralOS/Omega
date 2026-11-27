@@ -2,6 +2,7 @@
 //! name resolution attached to the call. Its arguments select the carrier
 //! of both subjects, even when two record applications share their head.
 use super::*;
+use crate::read::refuse_at;
 use crate::source_state::data::TypeParameterKind;
 use source_text::SourceSpan;
 use symbols::SymbolKind;
@@ -15,7 +16,7 @@ impl Program<'_> {
         head: SourceSpan,
         mut selections: Vec<(SourceSpan, SymbolHandle)>,
     ) -> Checked<()> {
-        let unavailable = |reason| refuse(id, Construct::Machine, Unserved::Contract(reason));
+        let unavailable = |reason| refuse_at(id, Unserved::Contract(reason));
         let typed = self.typed;
         selections.sort_unstable_by_key(|(source, _)| source.span.start);
         let mut selections = selections.into_iter();

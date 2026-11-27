@@ -9,7 +9,7 @@ use super::input::PolicySource;
 use super::provider_rows::{ChoiceKey, ProviderChoice};
 use super::services::{ReviewedService, reviewed_services};
 use diagnostics::Diagnostic;
-use provider_plans::{
+use build_providers::plans::{
     ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
 };
 use review_evidence::record::{
@@ -472,7 +472,7 @@ impl PreparedProviders<'_> {
 impl PreparedRow {
     fn finish(
         &self,
-        selected: &selected_provider_plans::SelectedProviderPlanFacts,
+        selected: &build_providers::selections::SelectedProviderPlanFacts,
         plan: &ProviderPlan,
         row: &ProviderPlanRow,
         service_ids: &[(String, ServiceId)],
@@ -512,7 +512,7 @@ impl PreparedRow {
     }
     fn installation_reach(
         &self,
-        selected: &selected_provider_plans::SelectedProviderPlanFacts,
+        selected: &build_providers::selections::SelectedProviderPlanFacts,
         plan: &ProviderPlan,
         row: &ProviderPlanRow,
         service_ids: &[(String, ServiceId)],
@@ -1179,14 +1179,10 @@ impl PolicySource<'_> {
             });
         let ceiling = &boundary.declaration.as_ref()
             .ok_or_else(|| unavailable("the selected provider's checked boundary declaration"))?.source;
-        // Conditional boundary guards still need their complete review representation.
-        // An unconditional route covers only the matching cause, including narrower body guards.
-        let outside_crash = body.contract.crash_routes.iter()
-            .chain(body.contract.declared_crash_routes.iter().flatten())
-            .any(|route| !boundary.crash_routes.iter().any(|allowed| {
-                route.cause == allowed.cause
-                    && allowed.alternatives.as_slice() == [terminal_psi::CrashRouteGuard::Truth]
-            }));
+        // An unconditional route covers its whole cause, including narrower body
+        // guards. A guarded route covers a body guard only when it states the
+        // same predicate over the same formal positions.
+        let outside_crash = !crash_routes_within(body, boundary);
         if outside_reach || outside_invocations || outside_crash
             || ((may_suspend || body.contract.published_may_suspend) && !ceiling.published_may_suspend)
             || ((may_block || body.contract.published_may_block) && !ceiling.published_may_block)
@@ -1337,7 +1333,7 @@ impl PolicySource<'_> {
             check_requirement_result_lifetimes(
                 module,
                 boundary,
-                &groups,
+                groups,
                 count,
                 &types,
                 signature.return_type.is_valid().then_some(result.as_str()),
@@ -1580,7 +1576,7 @@ impl PolicySource<'_> {
             check_requirement_result_lifetimes(
                 declarations.accepted.module(),
                 boundary,
-                &groups,
+                groups,
                 metadata.lifetime_parameter_count,
                 &metadata.parameter_types,
                 metadata.result_type.as_deref(),
@@ -1658,7 +1654,19 @@ impl PolicySource<'_> {
                 .boundary_envelope(boundary.id)
                 .ok_or_else(|| unavailable("the boundary requirement's invocation contract"))?,
         )?;
-        let published_crash = super::callables::published_crash_routes(&boundary.crash_routes)?;
+        let published_crash =
+            super::callables::published_source_crash_routes(&boundary.crash_routes, || {
+                self.signature_crash_routes(
+                    source.state_signature_contracts(signature).iter(),
+                    super::declarations::ContractScope {
+                        owner: signature.symbol,
+                        subject: None,
+                        statics: source.state_signature_type_parameters(signature),
+                        parameters: source.state_signature_parameters(signature),
+                        result: None,
+                    },
+                )
+            })?;
         Ok(boundary_callable(BoundaryCallable {
             identity: requirement,
             spelling: signature.spelling,
@@ -1677,6 +1685,144 @@ impl PolicySource<'_> {
             published_crash,
         }))
     }
+}
+
+/// Whether every crash guard the provider publishes is one its requirement
+/// publishes for the same cause. Proving that a different guard implies the
+/// requirement's is left to the checker's refinement goals; the review accepts
+/// only a guard it can match exactly.
+fn crash_routes_within(body: &TerminalMachine, boundary: &BoundaryMachineDeclaration) -> bool {
+    let Some(formals) = boundary.scalar_contract_parameters() else {
+        return false;
+    };
+    routes_within(
+        CrashNamespace {
+            parameter_order: &body.parameter_order,
+            scalars: &body.parameters,
+            structural: &body.structural_parameters,
+            routes: body
+                .contract
+                .crash_routes
+                .iter()
+                .chain(body.contract.declared_crash_routes.iter().flatten())
+                .collect(),
+        },
+        CrashNamespace {
+            parameter_order: &boundary.parameter_order,
+            scalars: &formals,
+            structural: &boundary.structural_parameters,
+            routes: boundary.crash_routes.iter().collect(),
+        },
+    )
+}
+
+/// One callable's published crash routes and the formals their guards name.
+struct CrashNamespace<'a> {
+    parameter_order: &'a [terminal_psi::BoundaryParameterKind],
+    scalars: &'a [terminal_psi::ValueDeclaration],
+    structural: &'a [terminal_psi::StructuralParameterDeclaration],
+    routes: Vec<&'a terminal_psi::CrashRouteBucket>,
+}
+
+/// Each supplied guard is restated in the required positional namespace first:
+/// the supplied scalar and structural formals become the required formals at
+/// the same positions. A guard that names anything else is outside the ceiling.
+fn routes_within(supplied: CrashNamespace<'_>, required: CrashNamespace<'_>) -> bool {
+    use semantic_vocabulary::{Proposition, ScalarTerm};
+    use terminal_psi::CrashRouteGuard;
+    let unconditional = |cause| {
+        required.routes.iter().any(|bucket| {
+            bucket.cause == cause && bucket.alternatives.contains(&CrashRouteGuard::Truth)
+        })
+    };
+    let allowed = |cause, guard: &Proposition| {
+        unconditional(cause)
+            || required
+                .routes
+                .iter()
+                .filter(|bucket| bucket.cause == cause)
+                .any(|bucket| {
+                    bucket.alternatives.iter().any(|allowed| {
+                        matches!(allowed, CrashRouteGuard::Predicate(predicate)
+                        if predicate.proposition() == guard)
+                    })
+                })
+    };
+    if supplied.parameter_order != required.parameter_order
+        || supplied.scalars.len() != required.scalars.len()
+        || supplied.structural.len() != required.structural.len()
+    {
+        return false;
+    }
+    let mut values = Vec::with_capacity(supplied.scalars.len());
+    for (source, target) in supplied.scalars.iter().zip(required.scalars) {
+        if source.scalar_type != target.scalar_type {
+            return false;
+        }
+        values.push((
+            source.id,
+            ScalarTerm::Value {
+                id: target.id,
+                scalar_type: target.scalar_type,
+            },
+        ));
+    }
+    values.sort_unstable_by_key(|(id, _)| *id);
+    let mut places = Vec::with_capacity(supplied.structural.len());
+    for (source, target) in supplied.structural.iter().zip(required.structural) {
+        if source.position != target.position || source.structural_type != target.structural_type {
+            return false;
+        }
+        places.push((source.place, (target.place, Vec::new())));
+    }
+    places.sort_unstable_by_key(|(place, _)| *place);
+    if values.windows(2).any(|pair| pair[0].0 == pair[1].0)
+        || places.windows(2).any(|pair| pair[0].0 == pair[1].0)
+    {
+        return false;
+    }
+    let Ok(context) = semantic_vocabulary::PropositionContext::from_value_types_and_places(
+        supplied
+            .scalars
+            .iter()
+            .map(|value| (value.id, value.scalar_type)),
+        supplied.structural.iter().map(|parameter| {
+            (
+                parameter.place,
+                semantic_vocabulary::StructuralPlaceKind::Parameter {
+                    position: parameter.position,
+                },
+            )
+        }),
+    ) else {
+        return false;
+    };
+    let restate = |guard: &Proposition| -> Option<Proposition> {
+        context.validate(guard).ok()?;
+        terminal_semantics::substitution::substitute_proposition_structural_places_with(
+            &terminal_semantics::substitution::substitute_proposition_values_with(guard, &|id| {
+                values
+                    .binary_search_by_key(&id, |(source, _)| *source)
+                    .ok()
+                    .map(|position| &values[position].1)
+            }),
+            &|place| {
+                places
+                    .binary_search_by_key(&place, |(source, _)| *source)
+                    .ok()
+                    .map(|position| &places[position].1)
+            },
+        )
+        .ok()
+    };
+    supplied.routes.iter().all(|route| {
+        route.alternatives.iter().all(|guard| match guard {
+            CrashRouteGuard::Truth => unconditional(route.cause),
+            CrashRouteGuard::Predicate(predicate) => {
+                restate(predicate.proposition()).is_some_and(|guard| allowed(route.cause, &guard))
+            }
+        })
+    })
 }
 
 /// The declared parts of a boundary requirement's callable. A boundary has no
@@ -1823,5 +1969,75 @@ pub(super) fn service_method_policy(
         termination_premises: method.termination_premises.clone(),
         identities: schema.declaration.identities.clone(),
         calling: Vec::new(),
+    }
+}
+
+#[cfg(test)]
+mod crash_route_tests {
+    use super::{CrashNamespace, routes_within};
+    use semantic_vocabulary::{CrashCause, Proposition, ScalarTerm, ScalarType, ValueId};
+    use terminal_psi::{
+        BoundaryParameterKind, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard,
+        ValueDeclaration,
+    };
+
+    fn formal(id: u64) -> ValueDeclaration {
+        ValueDeclaration {
+            id: ValueId::new(id).unwrap(),
+            scalar_type: ScalarType::Boolean,
+            qualifications: Default::default(),
+        }
+    }
+
+    /// Trap when the two named Boolean values are equal.
+    fn equal(left: u64, right: u64) -> CrashRouteBucket {
+        let value = |id| ScalarTerm::Value {
+            id: ValueId::new(id).unwrap(),
+            scalar_type: ScalarType::Boolean,
+        };
+        CrashRouteBucket {
+            cause: CrashCause::Trap,
+            alternatives: vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+                Proposition::Equal(value(left), value(right)),
+            ))],
+        }
+    }
+
+    #[test]
+    fn a_supplied_guard_is_within_only_the_same_guard_at_the_same_positions() {
+        let order = [BoundaryParameterKind::Scalar; 3];
+        let supplied_formals = [formal(5), formal(6), formal(7)];
+        let required_formals = [formal(1), formal(2), formal(3)];
+        let within = |supplied: &CrashRouteBucket, required: &CrashRouteBucket| {
+            routes_within(
+                CrashNamespace {
+                    parameter_order: &order,
+                    scalars: &supplied_formals,
+                    structural: &[],
+                    routes: vec![supplied],
+                },
+                CrashNamespace {
+                    parameter_order: &order,
+                    scalars: &required_formals,
+                    structural: &[],
+                    routes: vec![required],
+                },
+            )
+        };
+        let unconditional = CrashRouteBucket {
+            cause: CrashCause::Trap,
+            alternatives: vec![CrashRouteGuard::Truth],
+        };
+        assert!(within(&equal(5, 6), &equal(1, 2)));
+        assert!(within(&equal(5, 6), &unconditional));
+        assert!(
+            !within(&equal(5, 6), &equal(1, 3)),
+            "a guard over other formals"
+        );
+        assert!(
+            !within(&equal(9, 6), &equal(1, 2)),
+            "a guard over a name that is no formal"
+        );
+        assert!(!within(&unconditional, &equal(1, 2)));
     }
 }

@@ -65,4 +65,3 @@ optimization-unit = { path = "../../../representations/abstract-operations/optim
 image-emission = { path = ".", features = ["test-support"] }
 layout-plans = { path = "../../../../psi/layouts/geometry" }
 optimization-core = { path = "../../../representations/optimization-records" }
-extents = { path = "../../../../../interpreter/memory/extents" }

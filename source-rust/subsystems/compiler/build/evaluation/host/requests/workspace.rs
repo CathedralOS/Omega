@@ -1,6 +1,6 @@
 //! Immutable workspace member lists held by the original Build invocation.
 use build_declarations::WorkspaceMemberPath;
-use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
+use build_model::accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::BTreeSet;
 use std::sync::Mutex;

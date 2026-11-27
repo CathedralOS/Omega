@@ -388,8 +388,9 @@ substitutes its evaluated actual arguments".
 
 [result_summaries.rs](src/calls/result_summaries.rs) runs before anything is
 decided. For each machine elaboration lists in `Elaboration::local_results`
-(a private machine of the subject package: no other verification unit can
-call it), callees first, it describes every normal return in the machine's
+(a private machine of the subject package or of a dependency whose body the
+compilation reads: only its own package can call it, so no other verification
+unit can), callees first, it describes every normal return in the machine's
 formals and `result`: each comparison known on that return that names
 `result` (what the returned value equals when that is a formal or a literal,
 what a callee's guarantee or a guard says of it), and the literal bounds the
@@ -470,15 +471,13 @@ does not make would be a premise nothing established. An edge row must have
 the source and destination of its terminator's edge, because dominance is
 computed from the edge table.
 
-The data `requires` clauses arrive in a table beside the module
-(`Elaboration::domains`). They are the goal of every `DataDomain` row and the
-premise a read of an arrived value learns from its type. The module's own
-type declarations state them (`StructuralTypeDeclaration::requires`, part of
-the encoded module and so of its identity), so `domains_are_declared`
-([minted.rs](src/obligations/minted.rs)) refuses a table that is not exactly those
-clauses, type by type and in authored order. Otherwise a clause weakened,
-strengthened, dropped or moved to another type in the table would change
-what is proved for every construction, store and read of the type.
+The data `requires` clauses are the goal of every `DataDomain` row and the
+premise a read of an arrived value learns from its type. The checker reads
+them from the module's own type declarations
+(`StructuralTypeDeclaration::requires`, part of the encoded module and so of
+its identity), type by type and in authored order. No table beside the
+module restates them, so there is no second copy that could weaken,
+strengthen, drop or move a clause.
 
 A disagreement is a defect of the compiler, not of the program: the refusal
 has reason `ForeignIdentity`, which `judge` returns as `Err`, so nothing is
@@ -488,12 +487,13 @@ accepted on it.
 
 A goal over a field is stated over the value its leaf holds, so a table that
 names another value, another place or another kind of value changes what is
-proved without touching an obligation row. Three tables say what storage
-holds, and none is taken on elaboration's word.
+proved without touching an obligation row. None of what storage holds is
+taken on elaboration's word.
 
-**The write log is derived, then compared.** The walk below does not read
-`MachineTables::writes`. [places/log.rs](src/storage/places/log.rs) derives every
-store from the operation that makes it (`Storage::stores`):
+**The write log is derived.** The walk reads only the log
+[places/log.rs](src/storage/places/log.rs) derives from the operation that makes
+each store (`Storage::stores`), and, for cleanup actions, the writes
+`owned_cleanup::writes` derives from each action's effect:
 
 | Operation | What it stores |
 | --- | --- |
@@ -508,11 +508,9 @@ store from the operation that makes it (`Storage::stores`):
 | a read, a case test, an operation over scalar values alone | nothing |
 
 Any other operation is refused as `Unsupported`: it may store somewhere, and
-an operation left out of the derivation would be a store nothing reaches. The
-log elaboration wrote must then list exactly these stores, per operation and
-in order (`Storage::log_is_stated`). A row with another value or place, a
-missing row, a row at another point and a row no operation makes are each
-refused.
+an operation left out of the derivation would be a store nothing reaches.
+Elaboration's own write log (`MachineTables::writes`) is its lowering
+scratch; the checker never reads it.
 
 Reads of a zeroed aggregate derive the selected leaf’s typed zero from the
 root write. Subsequent writes take precedence at the affected places. Each
@@ -807,8 +805,8 @@ break.
 
 A window is a structural judgment plus a proof question, not a conserved
 obligation row. `ObligationKind::DomainDebt` names its domain by a
-`DomainSemanticId`, and a data `requires` clause has none: it lives in
-`Elaboration::domains` by type and position. Minting `DomainDebt` would also
+`DomainSemanticId`, and a data `requires` clause has none: it lives in its
+type's declaration, by position. Minting `DomainDebt` would also
 need a disposition on every edge, which elaboration does not write yet (it
 refuses any conserved obligation at a no-successor edge) and this crate does
 not check. The opening write's `DataDomain` row already names the type, the
@@ -1199,7 +1197,16 @@ subject, and any disjunction may close it. An arm's own search splits the
 remaining candidates, so the first candidate is the only one tried: an arm
 that fails fails in a full combination. One obligation's case trees cover at
 most 64 arm combinations; a split that fails gives back what it took, and
-running out is reported as exhausted search. An implication, the goal at a call that
+running out is reported as exhausted search. One goal's whole search, its
+branches and the side conditions of its bounds included, has 100,000 steps
+(`PROOF_STEP_BUDGET`): a step for each goal started and one for each known
+fact a case branch prepares again. The largest proof in the compiler's tests
+takes under 27,000. Running out refuses the obligation as an exhausted
+mathematical proof budget, never as a proof, so a goal out of reach fails
+within seconds however many path facts surround it
+(`out_of_reach_bound_search`). Once one machine's checking has spent a full
+budget on such goals, each later goal there gets 8,192 steps, so a body of
+out-of-reach goals does not pay the full budget once per goal. An implication, the goal at a call that
 may crash, is proved by assuming its premise and proving its conclusion
 (`ImplicationIntroduction`): under a callee's route `d == 0`, the caller's
 `requires d != 0` (`d < 0 or 0 < d`) splits into two contradictions, and

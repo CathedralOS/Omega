@@ -9,22 +9,19 @@ version.workspace = true
 path = "package_manager.rs"
 
 [dependencies]
+build-providers = { path = "../compiler/build/providers" }
+build-model = { path = "../compiler/build/model" }
 project-build = { path = "../compiler/build" }
 build-evaluation-result = { path = "../compiler/build/evaluation/result" }
 source-completion-accounting = { path = "../compiler/source-to-psi/representations/evaluation-receipts" }
 installation-conditions = { path = "../compiler/psi-to-native/verification/installation-admission/conditions" }
-provider-acceptance = { path = "../compiler/build/providers/acceptance" }
 host-provider-inputs = { path = "../compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers" }
 declaration-scope = { path = "../compiler/foundation/declaration-scope" }
 record-storage = { path = "../../foundation/record-storage" }
-evaluation-receipts = { path = "../compiler/build/evaluation/receipts" }
-evaluation-contracts = { path = "../compiler/build/evaluation/accounting/contracts" }
-source-capture = { path = "source-acquisition/capture" }
 source-admission = { path = "../compiler/source-to-psi/representations/source-files/custody" }
 source-text = { path = "../../foundation/source-text" }
 wire = { path = "../../foundation/wire" }
 terminal-codec = { path = "../compiler/psi/artifact/codec" }
-evaluation-accounting = { path = "../compiler/build/evaluation/accounting" }
 terminal-work = { path = "../compiler/psi/semantics/work" }
 artifacts = { path = "../compiler/foundation/measurements" }
 build-declarations = { path = "../compiler/build/inputs/declarations" }

@@ -68,8 +68,12 @@ pub(super) fn prepare_program_image(
 
 pub(crate) fn selected_physical_pipeline_failed(
     selections: &optimization_core::OptimizationSelections,
-    error: impl std::fmt::Display,
+    architecture: target::Architecture,
+    error: crate::driver::compile_body::OptimizedVerifiedPhysicalPipelineError,
 ) -> Vec<Diagnostic> {
+    if let Some(optimization) = error.unimplemented_optimization() {
+        return crate::driver::compile_body::unimplemented_optimization(optimization, architecture);
+    }
     if selections.is_empty() {
         return realization_error("identity physical pipeline", error);
     }

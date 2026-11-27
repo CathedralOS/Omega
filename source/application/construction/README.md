@@ -83,7 +83,7 @@ By default the producer writes the little-endian u32 words `0, 1` followed by
 package count, dependency count, unit count, entry unit, entry-name start,
 entry-name end and byte-buffer length. The following rows also use u32 words.
 
-- Package rows: name start, name end, role (`0` ordinary, `1` core, `2` std).
+- Package rows: name start, name end, role (`0` ordinary, `1` core, `2` system).
 - Direct dependency rows: requester package, target package, alias start, alias end.
 - Source-unit rows: owning package, source start, source end, path start, path end.
 - Exactly the declared byte buffer, then EOF.
@@ -92,9 +92,8 @@ All intervals are half-open within that one buffer. Unit bytes are exact
 source, not concatenated text with rewritten imports. The given unit and entry
 name select a parsed declaration; ordinary semantic and safety checks still
 apply. Each path spans its complete package-relative filename, with `/` between
-components. Both constructors receive the full filename for exact file imports. A packet
-beginning with a nonzero package count uses the original three-word unit rows
-and places each unit in the package root. [File identity](../../../wiki/spec/language/modules.md#file-identity)
+components. Both constructors require a filename for every Product unit and reject a packet
+with an unversioned header. [File identity](../../../wiki/spec/language/modules.md#file-identity)
 
 ### Including authored Build sources
 

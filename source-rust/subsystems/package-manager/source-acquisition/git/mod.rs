@@ -36,6 +36,7 @@ and project only the selected member subtree into an isolated snapshot root.
 
 pub(crate) mod cache;
 pub(crate) mod executable;
+pub mod execution;
 pub(crate) mod git_command;
 pub(crate) mod objects;
 pub mod request;

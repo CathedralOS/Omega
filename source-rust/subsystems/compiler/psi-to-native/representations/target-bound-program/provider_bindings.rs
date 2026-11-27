@@ -22,13 +22,13 @@ pub struct SelectedProviderAdapter {
 /// Adapter rows derived from one selected provider closure.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProviderAdapters {
-    selection: selected_provider_plans::SelectedProviderClosureDigest,
+    selection: build_providers::selections::SelectedProviderClosureDigest,
     rows: std::sync::Arc<[SelectedProviderAdapter]>,
 }
 
 impl SelectedProviderAdapters {
     pub fn from_selected_plans(
-        selected: &selected_provider_plans::SelectedProviderPlanFacts,
+        selected: &build_providers::selections::SelectedProviderPlanFacts,
     ) -> Result<Self, String> {
         Ok(Self {
             rows: retain_selected_provider_adapters(selected)?.into(),
@@ -55,7 +55,7 @@ impl SelectedProviderAdapters {
 
     pub fn require_selection(
         &self,
-        selected: &selected_provider_plans::SelectedProviderPlanFacts,
+        selected: &build_providers::selections::SelectedProviderPlanFacts,
     ) -> Result<(), &'static str> {
         if self.selection != selected.identity_digest() {
             return Err("physical adapter rows belong to another provider selection");
@@ -65,7 +65,7 @@ impl SelectedProviderAdapters {
 
     pub(crate) const fn selection_digest(
         &self,
-    ) -> selected_provider_plans::SelectedProviderClosureDigest {
+    ) -> build_providers::selections::SelectedProviderClosureDigest {
         self.selection
     }
 
@@ -75,13 +75,13 @@ impl SelectedProviderAdapters {
 }
 
 pub fn retain_selected_provider_adapters(
-    selected: &selected_provider_plans::SelectedProviderPlanFacts,
+    selected: &build_providers::selections::SelectedProviderPlanFacts,
 ) -> Result<Vec<SelectedProviderAdapter>, String> {
     let mut adapters = Vec::new();
     for plan in selected.plans() {
         let mut owner = None;
         for row in &plan.rows {
-            let provider_plans::ProviderBinding::CheckedAdapter {
+            let build_providers::plans::ProviderBinding::CheckedAdapter {
                 machine_identity,
                 machine_package_identity,
             } = &row.binding

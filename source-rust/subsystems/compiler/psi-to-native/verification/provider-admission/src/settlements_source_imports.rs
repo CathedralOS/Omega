@@ -16,7 +16,7 @@ use crate::NativeCallbackArgumentProposal;
 use crate::AdmittedTerminalMechanism;
 use crate::terminal_authority_policy::TerminalAuthorityPolicyRow;
 use diagnostics::Diagnostic;
-use provider_plans::{ProviderBinding, ProviderPlan, ProviderPlanRow};
+use build_providers::plans::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use semantic_vocabulary::BoundaryMachineId;
 
 // The saved native choice must still name the declaration used to form this
@@ -49,7 +49,7 @@ struct ImportCoverageRows<'input> {
 
 pub(super) fn derive_source_evaluated_mechanisms(
     input: &crate::AdmissionSource<'_>,
-    selected_plans: &selected_provider_plans::SelectedProviderPlanFacts,
+    selected_plans: &build_providers::selections::SelectedProviderPlanFacts,
     external_binding_rows: &[calling_conventions::ExternalBindingRow],
     native_callbacks: &[crate::NativeCallbackArgumentProposal],
 ) -> Result<
@@ -130,7 +130,7 @@ pub(super) fn derive_source_evaluated_mechanisms(
                     )
                     .map_err(|error| vec![error])?,
                     authority: terminal_authority_receipts::TableBindingAuthority::Provider(provider_plan.identity_digest()),
-                    calling: provider_plans::BoundaryCallingPlanCommitment::from_digest(
+                    calling: build_providers::plans::BoundaryCallingPlanCommitment::from_digest(
                         validated.contract_commitment_digest(),
                     ),
                     byte_offset,
@@ -245,7 +245,7 @@ fn selected_darwin_clock_row(
 
 fn join_import_coverage_rows<'input>(
     plan: &'input abstract_operations::AbstractOperationPlan,
-    selected_plans: &'input selected_provider_plans::SelectedProviderPlanFacts,
+    selected_plans: &'input build_providers::selections::SelectedProviderPlanFacts,
     external_binding_rows: &'input [calling_conventions::ExternalBindingRow],
     native_callbacks: &'input [NativeCallbackArgumentProposal],
 ) -> Result<BTreeMap<BoundaryMachineId, ImportCoverageRows<'input>>, Vec<Diagnostic>> {
@@ -414,7 +414,7 @@ fn authenticate_callback_application(
     requirement: &str,
     rows: &ImportCoverageRows<'_>,
     callback: &NativeCallbackArgumentProposal,
-    selected: &selected_provider_plans::SelectedProviderPlanFacts,
+    selected: &build_providers::selections::SelectedProviderPlanFacts,
 ) -> Result<(), String> {
     let (plan, row) = rows
         .selected_external
@@ -484,7 +484,7 @@ fn authenticate_callback_application(
 #[cfg(test)]
 mod exact_native_declaration_tests {
     use super::*;
-    use provider_plans::{ProviderBinding, ServiceMethod};
+    use build_providers::plans::{ProviderBinding, ServiceMethod};
 
     #[test]
     fn exact_native_rows_cannot_replace_the_declared_method_under_the_same_abi() {

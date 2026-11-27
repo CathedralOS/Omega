@@ -59,7 +59,7 @@ impl PreparedNativeExecution {
         self.authorization().artifact().published_evidence()
     }
 
-    pub fn selection(&self) -> &selected_provider_plans::SelectedProviderPlanFacts {
+    pub fn selection(&self) -> &build_providers::selections::SelectedProviderPlanFacts {
         self.checked.selection()
     }
 

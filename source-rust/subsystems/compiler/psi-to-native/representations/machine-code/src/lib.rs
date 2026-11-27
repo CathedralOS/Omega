@@ -25,8 +25,7 @@ machine code progresses through three distinct resolution levels owned by this c
 /*
 Why this crate separates representation data from stage admission:
 Every struct and canonical SHA-256 identity digest (`SelectedFormEncodingIdentity`,
-`ResolvedSelectedFormLayoutIdentity`, `WholeFunctionExitContractIdentity`,
-`FunctionFragmentEmissionIdentity`, `TerminalRelocationFreeTextSectionIdentity`) describes
+`ResolvedSelectedFormLayoutIdentity`, `WholeFunctionExitContractIdentity`) describes
 the current machine-code artifact and its retained roots so downstream stages and independent
 object/artifact verifiers can audit exact byte, fixup, and provenance correspondence without
 importing producer transformation passes. Constructing or decoding a record checks wire and
@@ -39,14 +38,11 @@ use register_model::RegisterViewId;
 use selected_instructions::{MachineIdentityBytes, SelectedBlockId, SelectedInstructionId};
 use semantic_vocabulary::{BlockId, EdgeId, InvocationSite, MachineId, OperationId, PlaceId};
 use target::NativeTarget;
-use target_vocabulary::CallSiteOwner;
 use terminal_psi::{
     StructuralPlaceDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
 };
 
 pub(crate) mod codec_bytes {
-    #[cfg(test)]
-    pub(crate) use ::wire::codec_bytes::patch_encoded;
     pub(crate) use ::wire::codec_bytes::push_encoded;
 }
 
@@ -108,39 +104,6 @@ pub(crate) mod identity_encoding {
         hasher.raw(&jump.target_block.0.to_le_bytes());
         hasher.raw(&jump.target_offset.to_le_bytes());
         hasher.raw(&jump.byte_displacement.to_le_bytes());
-    }
-
-    pub(crate) fn encode_call_owner(bytes: &mut impl MachineIdentityBytes, owner: CallSiteOwner) {
-        match owner {
-            CallSiteOwner::Operation(operation) => {
-                bytes.identity_bytes(&[0]);
-                bytes.identity_bytes(&operation.get().to_le_bytes());
-            }
-            CallSiteOwner::InvokeNoNormal(edge) => {
-                bytes.identity_bytes(&[3]);
-                bytes.identity_bytes(&edge.get().to_le_bytes());
-            }
-            CallSiteOwner::ExternalCompletion(edge) => {
-                bytes.identity_bytes(&[2]);
-                bytes.identity_bytes(&edge.get().to_le_bytes());
-            }
-            CallSiteOwner::Installation { operation, role } => {
-                bytes.identity_bytes(&[4]);
-                bytes.identity_bytes(&operation.get().to_le_bytes());
-                bytes.identity_bytes(&[match role {
-                    target_vocabulary::InstallationCallRole::Validate => 0,
-                    target_vocabulary::InstallationCallRole::Work => 1,
-                }]);
-            }
-            CallSiteOwner::CleanupAction {
-                edge,
-                action_ordinal,
-            } => {
-                bytes.identity_bytes(&[1]);
-                bytes.identity_bytes(&edge.get().to_le_bytes());
-                bytes.identity_bytes(&action_ordinal.to_le_bytes());
-            }
-        }
     }
 
     pub(crate) fn encode_invocation_site(
@@ -445,14 +408,11 @@ pub use fragments::{
     FunctionFragment, FunctionFragmentBlockSpan, FunctionFragmentBranchEvidence,
     FunctionFragmentCallbackMaterialization, FunctionFragmentCallbackMaterializationEncoding,
     FunctionFragmentConditionalBranchEvidence, FunctionFragmentConditionalBranchPredicate,
-    FunctionFragmentControlProvenance, FunctionFragmentEmissionManifest,
-    FunctionFragmentEmissionPlan, FunctionFragmentEmissionStage,
-    FunctionFragmentEmissionStatistics, FunctionFragmentEmissionUnavailableData,
+    FunctionFragmentControlProvenance, FunctionFragmentEmissionPlan,
     FunctionFragmentInstructionSpan, FunctionFragmentInternalMachineFixup,
     FunctionFragmentInternalMachineFixupKind, FunctionFragmentInternalMachineFixupState,
     FunctionFragmentNormalizedForeignCallFixup, FunctionFragmentNormalizedForeignCallFixupKind,
     FunctionFragmentNormalizedForeignCallFixupState, FunctionFragmentSuccessorProvenance, fixups,
-    identity, publication,
 };
 pub use functions::{
     WholeFunctionCrashEvidence, WholeFunctionEntryAssumption, WholeFunctionExitContract,
@@ -468,15 +428,12 @@ pub use image_addresses::{
 };
 pub use instructions::*;
 pub use layout::text_section::{
-    FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionStage,
-    FunctionFragmentTextSectionStatistics, FunctionFragmentTextSectionUnavailableData,
     InternalMachineCallResolutionKind, InternalMachineCallResolutionState,
     NormalizedForeignCallResolutionKind, NormalizedForeignCallResolutionState, PlacedBlockSpan,
     PlacedCallbackAddressEncoding, PlacedCallbackAddressMaterialization, PlacedFunctionFragment,
     PlacedInstructionSpan, PlacedInternalMachineCallResolution,
     PlacedNormalizedForeignCallResolution, RelocationFreeTextSectionPlacement,
     TextSectionPlacementPolicy, TextSectionRelocationRequirements,
-    relocation_free_text_section_identity,
 };
 pub use layout::{
     EncodedMachineProgram, FramedMachineProgram, OptimizedMachineLayout, ResolvedBranchEvidence,

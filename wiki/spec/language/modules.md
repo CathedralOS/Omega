@@ -73,6 +73,15 @@ Count a use by a successor compiling the same declaration. Reporting the
 warning requires no final lookup of the unused target.
 [Checked Build stages](../build/scoped_execution.md#checked-build-stages)
 
+At the end of the build, warn once for each package-private top-level
+declaration (`machine`, `const`, `data`, `domain`) in a
+[validation subject](../build/validation_subjects.md) that is unreachable from
+all roots declared by the Build—including entries for any declared target,
+selected providers, registered tests, Build helpers, contracts, proofs and
+lemmas—including authored generic declarations with zero uses. Never warn on
+`public` declarations or unselected provider candidates. This warning is
+advisory only and never narrows checking or changes a verdict.
+
 Dependency authority is context-specific. Build entry/local-helper imports use
 build dependencies; product and generated-product imports use ordinary product
 dependencies. The same alias can have distinct meanings in those scopes, with

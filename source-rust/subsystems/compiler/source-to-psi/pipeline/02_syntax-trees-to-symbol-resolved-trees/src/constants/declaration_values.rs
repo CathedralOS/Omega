@@ -37,7 +37,12 @@ pub(super) fn prepare_initializer_destinations(
     let mut pending = program
         .const_declarations
         .iter()
-        .map(|declaration| (&declaration.declared_type, declaration.initializer))
+        .filter_map(|declaration| {
+            declaration
+                .declared_type
+                .as_ref()
+                .map(|declared_type| (declared_type, declaration.initializer))
+        })
         .collect::<Vec<_>>();
     let mut numeric_leaves = Vec::new();
     while let Some((destination, expression)) = pending.pop() {
@@ -140,6 +145,9 @@ pub(crate) fn evaluated_declaration_value(
     // A literal payload does not establish the selected declaration's
     // predicates. Keep it pending until its ordinary initializer is
     // checked and admitted for evaluation.
+    if !definition.type_reference.is_valid() {
+        return Err("unannotated constant type is inferred during typing".into());
+    }
     if const_destination_requires_proof(syntax, definition, selection) {
         return Err("constant requires its checked initializer computation".into());
     }
@@ -255,7 +263,8 @@ pub(crate) fn validate_const_definition(
     definition: &ConstDefinition,
     selection: Option<&crate::resolution::declarations::declaration_selection::ConstantSelection>,
 ) -> Result<(), Diagnostic> {
-    if definition.preparation().normalization.is_some()
+    if !definition.type_reference.is_valid()
+        || definition.preparation().normalization.is_some()
         || crate::resolution::constants::requires_const_initializer_evaluation(syntax, definition)
         || const_destination_requires_proof(syntax, definition, selection)
     {
@@ -322,6 +331,7 @@ pub(crate) fn retain_const_initializer(
     let pending = lowerer.const_resolution_mode
         != crate::resolution::lowering::lowerer::ConstResolutionMode::Complete;
     if !pending
+        && definition.type_reference.is_valid()
         && definition.preparation().normalization.is_none()
         && !has_scalar_initializer(syntax, definition)
         && !crate::resolution::constants::requires_const_initializer_evaluation(syntax, definition)

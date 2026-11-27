@@ -532,6 +532,18 @@ impl<'a> DescriptorAnalysis<'a> {
         position: DescriptorPosition,
         location: &DescriptorLocation,
     ) -> Result<Vec<DescriptorCallOrigin>, &'static str> {
+        self.captured_storage_family_if_active(identity, position, location)?
+            .ok_or("captured storage family is empty")
+    }
+
+    /// Like `captured_storage_family`, returning `Ok(None)` when every arrival
+    /// of this reference slot comes from an inactive sum case (`Empty`).
+    pub fn captured_storage_family_if_active(
+        &mut self,
+        identity: MachineId,
+        position: DescriptorPosition,
+        location: &DescriptorLocation,
+    ) -> Result<Option<Vec<DescriptorCallOrigin>>, &'static str> {
         let machine = self
             .replay
             .machine(identity)
@@ -553,7 +565,7 @@ impl<'a> DescriptorAnalysis<'a> {
         let resolution = Self::resolved_storage(&self.replay, machine, state, location)
             .ok_or("captured storage family has a missing, cyclic or unknown arrival")?;
         self.replay
-            .checked_storage_family(machine, state, resolution)
+            .checked_storage_family_if_active(machine, state, resolution)
     }
 
     /// Capture an actual source before it is transported. This keeps

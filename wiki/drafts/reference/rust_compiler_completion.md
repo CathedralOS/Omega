@@ -72,8 +72,8 @@ publication and diagnostic controls too. Nextest does not run doctests. Package
 and Build checks, including the separate doctest run, are:
 
 ```text
-mbx nextest run -p build-declarations -p source-acquisition -p resolver-execution --no-fail-fast
-mbx test --doc -p build-declarations -p source-acquisition -p resolver-execution
+mbx nextest run -p build-declarations -p source-acquisition --no-fail-fast
+mbx test --doc -p build-declarations -p source-acquisition
 ```
 
 On each matching hosted runner:

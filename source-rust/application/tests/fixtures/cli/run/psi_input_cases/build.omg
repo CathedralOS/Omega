@@ -1,8 +1,8 @@
 use {omega}/language/core/external_binding.omg as native;
 use main.omg as app;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "psi_input_cases");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "psi_input_cases" };
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
     Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
     Build::bind_native::<|app|::Streams::read>(builder, linux_x86_64, |native|::ForeignBinding::Syscall { number: 0 });

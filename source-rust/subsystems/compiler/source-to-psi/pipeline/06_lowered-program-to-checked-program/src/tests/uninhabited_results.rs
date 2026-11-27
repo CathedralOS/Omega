@@ -162,12 +162,20 @@ machine main(fatal: bool) crashes Trap {
     // Change only the declared type's empty-domain fact. The same private
     // crash body cannot make an inhabited result compatible with Unit.
     let verdicts = program(&source.replacen("requires false", "requires true", 1));
-    let detail = match &verdicts[0] {
-        Ok(RouteVerdict::FallBack(refusal)) => &refusal.detail,
-        Err(crate::CompilationRefusal::Elaboration(refusal)) => &refusal.detail,
-        other => panic!("an inhabited transition result cannot become Unit: {other:?}"),
+    let [Ok(RouteVerdict::Rejected { violations, .. })] = verdicts.as_slice() else {
+        panic!("an inhabited transition result cannot become Unit: {verdicts:?}");
     };
-    assert!(detail.contains("arm value type"), "{detail}");
+    let [violation] = violations.as_slice() else {
+        panic!("the arm must identify its language rule: {violations:?}");
+    };
+    assert!(
+        violation.statement.starts_with(
+            "machine `main` declares no result type, so it completes with Unit, but this value \
+             has type `Empty`"
+        ),
+        "{}",
+        violation.statement
+    );
 }
 
 #[test]

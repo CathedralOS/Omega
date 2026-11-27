@@ -174,7 +174,7 @@ impl BehaviorExclusions {
         module: &TerminalModule,
         entry: MachineId,
         selected_machines: Option<&[MachineId]>,
-        providers: &selected_provider_plans::SelectedProviderPlanFacts,
+        providers: &build_providers::selections::SelectedProviderPlanFacts,
         deployment_target: &str,
     ) -> Result<(), Vec<Diagnostic>> {
         if !self.has_semantic_exclusions() {
@@ -249,7 +249,7 @@ pub fn establish_behavior_exclusions(
     module: &TerminalModule,
     entries: &[MachineId],
     exclusions: &BehaviorExclusions,
-    selected_provider_plans: &selected_provider_plans::SelectedProviderPlanFacts,
+    selected_provider_plans: &build_providers::selections::SelectedProviderPlanFacts,
     deployment_target: &str,
 ) -> BehaviorExclusionReport {
     let mut report = BehaviorExclusionReport::default();
@@ -305,7 +305,7 @@ fn boundary_realization_coverage(
     module: &TerminalModule,
     boundary: &terminal_psi::BoundaryMachineDeclaration,
     candidates: &[&ProviderCandidateConformance],
-    selected_provider_plans: &selected_provider_plans::SelectedProviderPlanFacts,
+    selected_provider_plans: &build_providers::selections::SelectedProviderPlanFacts,
     deployment_target: &str,
 ) -> Result<(Vec<MachineId>, bool), String> {
     let mut bodies = Vec::new();
@@ -351,7 +351,7 @@ fn boundary_realization_coverage(
                 }
                 constrained = true;
                 match &row.binding {
-                    provider_plans::ProviderBinding::CheckedAdapter {
+                    build_providers::plans::ProviderBinding::CheckedAdapter {
                         machine_identity,
                         machine_package_identity,
                     } => {
@@ -417,7 +417,7 @@ fn inspect_machine<'module>(
     entry: MachineId,
     machine: &'module UnoptimizedMachineBehavior,
     exclusions: &BehaviorExclusions,
-    selected_provider_plans: &selected_provider_plans::SelectedProviderPlanFacts,
+    selected_provider_plans: &build_providers::selections::SelectedProviderPlanFacts,
     deployment_target: &str,
     report: &mut BehaviorExclusionReport,
     pending: &mut VecDeque<&'module UnoptimizedMachineBehavior>,
@@ -556,7 +556,7 @@ fn inspect_boundary<'module>(
     invocation: InvocationSite,
     called_boundary: BoundaryMachineId,
     exclusions: &BehaviorExclusions,
-    selected_provider_plans: &selected_provider_plans::SelectedProviderPlanFacts,
+    selected_provider_plans: &build_providers::selections::SelectedProviderPlanFacts,
     deployment_target: &str,
     report: &mut BehaviorExclusionReport,
     pending: &mut VecDeque<&'module UnoptimizedMachineBehavior>,
@@ -828,7 +828,7 @@ mod boundary_reach_tests {
         };
         let exclusions =
             BehaviorExclusions::from_selections([BehaviorExclusion::CrashCause(CrashCause::Trap)]);
-        let providers = selected_provider_plans::SelectedProviderPlanFacts::default();
+        let providers = build_providers::selections::SelectedProviderPlanFacts::default();
         let check = |module: &TerminalModule, scope: Option<&[MachineId]>| {
             exclusions.validate_semantic_scope(module, entry, scope, &providers, "linux_x86_64")
         };
@@ -875,7 +875,7 @@ mod boundary_reach_tests {
     fn inspect_with_providers(
         module: &TerminalModule,
         excluded: ServiceId,
-        providers: &selected_provider_plans::SelectedProviderPlanFacts,
+        providers: &build_providers::selections::SelectedProviderPlanFacts,
     ) -> BehaviorExclusionReport {
         let mut report = BehaviorExclusionReport::default();
         inspect_boundary(
@@ -896,7 +896,9 @@ mod boundary_reach_tests {
 
     #[test]
     fn checked_provider_coverage_follows_only_the_selected_package_and_requires_its_body() {
-        use provider_plans::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod};
+        use build_providers::plans::{
+            ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod,
+        };
         use semantic_vocabulary::PackageKeyIdentity;
         use terminal_psi::{ProviderRefinement, ProviderSignature};
 
@@ -937,9 +939,9 @@ mod boundary_reach_tests {
                 machine_package_identity: selected_package,
             },
         });
-        let providers = selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(
-            vec![plan],
-        ).unwrap();
+        let providers =
+            build_providers::selections::SelectedProviderPlanFacts::from_selected_plans(vec![plan])
+                .unwrap();
         let mut identities = std::mem::take(&mut module.identities).into_builder();
         let machine = identities.intern(machine_name);
         let candidate = ProviderCandidateConformance {

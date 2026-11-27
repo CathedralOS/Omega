@@ -330,7 +330,7 @@ pub(crate) mod byte_arrays {
         use crate::storage::byte_sequences::storage::ByteSequenceStorage;
         use crate::storage::scalar_array::PackedScalarArrayValue;
         use crate::storage::scalar_storage::{ScalarCell, TerminalScalarBacking};
-        use evaluation_accounting::EvaluationInvocationAccount;
+        use build_model::accounting::EvaluationInvocationAccount;
         use semantic_vocabulary::{
             IntegerSign, IntegerType, IntegerValue, PlaceId, StructuralTypeId,
         };
@@ -366,17 +366,6 @@ pub(crate) mod byte_arrays {
         }
 
         impl StructuralByteArrayStorage {
-            pub(crate) fn relocate_checked_entry(
-                &mut self,
-                map: &crate::continuation::Coordinates<'_, '_>,
-            ) -> Result<(), String> {
-                map.ty(&mut self.structural_type)?;
-                match &mut self.backing {
-                    StructuralByteArrayBacking::Local(bytes) => bytes.relocate_checked_entry(map),
-                    StructuralByteArrayBacking::Cells(cells) => map.packed(cells),
-                }
-            }
-
             pub(crate) fn new(
                 structural_type: StructuralTypeId,
                 bytes: ByteSequenceView,
@@ -3444,6 +3433,60 @@ pub(crate) mod scalar_fields {
         }
         Ok(values)
     }
+
+    pub(crate) fn apply_zero_initialized_overrides(
+        machine: &TerminalMachine,
+        structural_types: &crate::embedding::program::ProgramDeclarations<
+            '_,
+            StructuralTypeDeclaration,
+        >,
+        structural_values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
+        overrides: &[TerminalStructuralScalarFieldValue],
+        values: &mut crate::storage::scalar_storage::ScalarStorageRows<
+            StructuralScalarRuntimeField,
+        >,
+        zero_initialized_arguments: &[u32],
+    ) -> Result<(), TerminalInterpretError> {
+        for argument in overrides {
+            let invalid = || TerminalInterpretError::StructuralScalarFieldArgumentInvalid {
+                argument_index: argument.argument_index,
+                field: argument.field,
+            };
+            if !zero_initialized_arguments.contains(&argument.argument_index) {
+                return Err(invalid());
+            }
+            let parameter = machine
+                .structural_parameters
+                .get(argument.argument_index as usize)
+                .ok_or_else(invalid)?;
+            let root = crate::engine::custody::verified_structural_place(
+                structural_values,
+                parameter.place,
+            )?;
+            let parent_type = resolve_structural_path_type(
+                structural_types,
+                root.structural_type,
+                &argument.path,
+            )
+            .map_err(|_| invalid())?;
+            if direct_scalar_field_type(structural_types, parent_type, argument.field)
+                != Some(argument.value.scalar_type())
+                || matches!(argument.value, TerminalScalarValue::Integer { scalar_type, value } if !scalar_type.admits(value))
+            {
+                return Err(invalid());
+            }
+            let mut parent = StructuralRuntimePlace::from(root);
+            parent.path.extend_from_slice(&argument.path);
+            let replaced = values.insert(
+                StructuralScalarRuntimeField::member(parent, argument.field),
+                argument.value,
+            )?;
+            if replaced.is_none() {
+                return Err(invalid());
+            }
+        }
+        Ok(())
+    }
 }
 
 use crate::boundary::structural_inputs::access_views::TerminalAccessViewEstablishment;
@@ -3477,6 +3520,7 @@ pub struct TerminalStructuralInputs<'input> {
     pub projected_host_atoms: &'input [TerminalProjectedHostAtom],
     pub contents: &'input [contents::TerminalStructuralContents],
     pub zero_initialized_arguments: &'input [u32],
+    pub zero_initialized_scalar_overrides: &'input [TerminalStructuralScalarFieldValue],
     pub established_erased_fields: &'input [TerminalEstablishedErasedField],
     pub scalar_fields: &'input [TerminalStructuralScalarFieldValue],
     pub boolean_fields: &'input [TerminalStructuralBooleanFieldValue],

@@ -61,7 +61,7 @@ def validate_build_sources(packages, sources, entries):
             raise ValueError('Build entry is neither its package root nor the selected core default')
 
 
-def encode(packages, edges, units, entry_unit, entry_name, *, paths=None,
+def encode(packages, edges, units, entry_unit, entry_name, *, paths,
            build_sources=None, build_entries=None):
     """Return the wire and the three original Product metadata tables."""
     return _encode(packages, edges, units, entry_unit, entry_name, paths,
@@ -72,8 +72,6 @@ def _encode(packages, edges, units, entry_unit, entry_name, paths, build_sources
     if (build_sources is None) != (build_entries is None):
         raise ValueError('Build files and entry selections must be supplied together')
     if build_sources is not None:
-        if paths is None:
-            raise ValueError('the scoped Build frame requires Product unit paths')
         validate_build_sources(packages, build_sources, build_entries)
     buffer = bytearray()
 
@@ -87,10 +85,9 @@ def _encode(packages, edges, units, entry_unit, entry_name, paths, build_sources
                  for requester, target, alias in edges]
     entry_start, entry_end = retain(entry_name)
     unit_rows = [(package, *retain(data)) for package, data in units]
-    if paths is not None:
-        # Keep source coordinates independent of the lengths of the filenames.
-        unit_rows = [(*row, *retain(path.encode('utf-8')))
-                     for row, path in zip(unit_rows, paths, strict=True)]
+    # Keep source coordinates independent of the lengths of the filenames.
+    unit_rows = [(*row, *retain(path.encode('utf-8')))
+                 for row, path in zip(unit_rows, paths, strict=True)]
     build_rows = []
     if build_sources is not None:
         build_rows = [(supplier, *retain(data), *retain(path.encode('utf-8')))
@@ -99,10 +96,10 @@ def _encode(packages, edges, units, entry_unit, entry_name, paths, build_sources
         raise ValueError('constructor row capacity exceeded')
     if len(buffer) > 8 * 1024 * 1024:
         raise ValueError('constructor byte capacity exceeded')
-    words = ([] if paths is None else [0, 1]) + [len(package_rows), len(edge_rows), len(unit_rows), entry_unit,
+    version = 1 if build_sources is None else 2
+    words = [0, version, len(package_rows), len(edge_rows), len(unit_rows), entry_unit,
              entry_start, entry_end, len(buffer)]
     if build_sources is not None:
-        words[1] = 2
         words.append(len(build_rows))
     for rows in (package_rows, edge_rows, unit_rows, build_entries or (), build_rows):
         for row in rows:

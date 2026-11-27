@@ -83,21 +83,12 @@ macro_rules! s {
     };
 }
 
-mod artifacts;
 mod bundle;
 mod decisions;
 mod error;
 mod rules_and_facts;
 mod stages;
 
-pub use artifacts::{
-    FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
-    FunctionFragmentObjectContainerManifestIdentity, FunctionFragmentTextSectionManifestIdentity,
-    OptimizedObjectArtifactIdentity, OptimizedObjectArtifactManifestIdentity,
-    OptimizedOrdinaryCallableEntryManifestIdentity, OptimizedTerminalOrdinaryCallableEntryIdentity,
-    RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity,
-    TerminalRelocationFreeTextSectionIdentity,
-};
 pub use bundle::{OptimizationIdentityBundle, OptimizationIdentityBundleIdentity};
 pub use decisions::{
     OptimizationDecisionIdentity, OptimizationDecisionLogIdentity,
@@ -112,11 +103,10 @@ pub use rules_and_facts::{
     ScalarConstantFactIdentity, ValueRangeFactIdentity,
 };
 pub use stages::{
-    FunctionRelativeOptimizationRealizationManifestIdentity, NativeOptimizationProjectionIdentity,
-    OptimizedAbstractPlanProjectionIdentity, OptimizedBoundaryOccurrenceIdentity,
-    OptimizedOperatorOccurrenceIdentity, PostAllocationOptimizationManifestIdentity,
-    PreAllocationOptimizationCompletionIdentity, PrePhysicalOptimizationManifestIdentity,
-    SelectedLoweringOptimizationCompletionIdentity,
+    NativeOptimizationProjectionIdentity, OptimizedAbstractPlanProjectionIdentity,
+    OptimizedBoundaryOccurrenceIdentity, OptimizedOperatorOccurrenceIdentity,
+    PostAllocationOptimizationManifestIdentity, PreAllocationOptimizationCompletionIdentity,
+    PrePhysicalOptimizationManifestIdentity, SelectedLoweringOptimizationCompletionIdentity,
 };
 
 #[cfg(test)]

@@ -32,6 +32,7 @@ pub struct ProductStage<'a> {
     scope: Option<Arc<PackageDeclarationScope>>,
     defaults: Vec<RetainedProviderSelection>,
     native: Vec<PackageNativeBindings<'a>>,
+    proof_index_expansion_terms: u64,
 }
 
 impl PlannedProduct {
@@ -133,6 +134,12 @@ impl PlannedProduct {
                 .map(|inputs| Arc::new(inputs.dependency_closure().declaration_permissions())),
             defaults,
             native,
+            proof_index_expansion_terms: self
+                .evaluated()
+                .configuration
+                .config
+                .settings
+                .proof_index_expansion_terms,
         })
     }
 }
@@ -177,12 +184,25 @@ impl ProductStage<'_> {
         profile: TargetProfile,
         timings: &mut source_compiler::CompileTimings,
     ) -> Result<Vec<Diagnostic>, Vec<Diagnostic>> {
+        self.check_with_declaration_usage(profile, None, timings)
+    }
+
+    pub fn check_with_declaration_usage(
+        &self,
+        profile: TargetProfile,
+        declaration_usage: Option<&mut source_compiler::DeclarationUsageAdvisories>,
+        timings: &mut source_compiler::CompileTimings,
+    ) -> Result<Vec<Diagnostic>, Vec<Diagnostic>> {
         let application = matches!(
             self.product.evaluated().configuration.project_declaration,
             Some(BuildDeclaration::Application(_))
         );
         if !application && !self.binds_entry(profile) {
-            return compiler::check(self.source(), timings);
+            return compiler::check_with_declaration_usage(
+                self.source(),
+                declaration_usage,
+                timings,
+            );
         }
         // "An explicit `--target` selection narrows realization only and
         // never narrows checking" (build/configuration.md, "Multi-target
@@ -198,7 +218,9 @@ impl ProductStage<'_> {
                 && target::TargetSemantics::close_address_model(other).is_some()
         }));
         if checked.len() == 1 {
-            return self.program(profile, Vec::new())?.check_target(timings);
+            return self
+                .program(profile, Vec::new())?
+                .check_target_with_declaration_usage(declaration_usage, timings);
         }
         let stage = ProductStage {
             rollback: self.rollback.clone(),
@@ -209,10 +231,11 @@ impl ProductStage<'_> {
             .map(|target| target.target_name())
             .collect::<Vec<_>>();
         let mut advisories = Vec::new();
-        let publications = source_compiler::compile_for_targets_with_timings(
+        let publications = source_compiler::compile_for_targets_with_advisories(
             stage.source(),
             &names,
             Some(&mut advisories),
+            declaration_usage,
             timings,
         )?;
         // Each target's native preparation reads only its own publication and
@@ -331,6 +354,7 @@ impl ProductStage<'_> {
                     .project_psi()
                     .selections()
                     .clone(),
+                proof_index_expansion_terms: self.proof_index_expansion_terms,
             },
         }
     }
@@ -429,7 +453,16 @@ impl compiler::ComponentSuppliers for PlannedProduct {
                 "independent provider is outside the receiving Product's captured package graph",
             )]
         })?;
-        let stage = supplier.product_stage(&[profile])?;
+        let mut stage = supplier.product_stage(&[profile])?;
+        // Dependencies cannot increase the root Build's proof-work grant
+        // (wiki/spec/build/configuration.md#proof-work-policy).
+        let root_limit = self
+            .evaluated()
+            .configuration
+            .config
+            .settings
+            .proof_index_expansion_terms;
+        stage.proof_index_expansion_terms = stage.proof_index_expansion_terms.min(root_limit);
         let published =
             source_compiler::compile_for_target(stage.source(), profile.target_name(), None)?;
         if published.subject() != Some(package) {

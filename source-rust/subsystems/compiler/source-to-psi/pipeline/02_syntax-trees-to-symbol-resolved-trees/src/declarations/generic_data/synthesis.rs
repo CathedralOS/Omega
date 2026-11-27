@@ -161,12 +161,11 @@ fn desugar_generic_data_instances_in(
         if matches!(
             definition.name.as_str(syntax),
             "IntervalSet" | "CountedQuantity"
-        ) && selection
-            .and_then(|selection| {
-                selection.header_symbols().source_file(definition.name.source_span())
-            })
-            .and_then(crate::source_symbols::core_source_at)
-            == Some(language_core::core_vocabulary::CoreSource::Content)
+        ) && selection.and_then(|selection| {
+            selection
+                .header_symbols()
+                .bundled_core_file(definition.name.source_span())
+        }) == Some(language_core::bundled_files::BundledFile::CoreContent)
         {
             continue;
         }

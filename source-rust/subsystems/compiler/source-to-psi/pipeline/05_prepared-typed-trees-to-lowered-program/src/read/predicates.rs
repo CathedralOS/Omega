@@ -1,3 +1,4 @@
+use crate::read::refuse_at;
 /*
 A named domain's `requires` predicates, stated as ordinary contracts on the
 place whose declared type carries the domain. The generic declaration is
@@ -48,14 +49,14 @@ use semantic_vocabulary::{
     ValueId,
 };
 use symbols::SymbolHandle;
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::Checked;
 
 use super::authority::has_predicates;
 use super::clause_terms::ClauseUse;
 use super::contracts::{ClauseScope, DataSubject, ResultTerm};
 use super::{Program, Slot};
 use crate::body::{Qualification, ValueType};
-use crate::{ClauseText, Unserved, refuse};
+use crate::{ClauseText, Unserved};
 
 /// One predicate of a declared domain: the symbol its `self` resolved to
 /// and the clause's expression.
@@ -75,9 +76,8 @@ impl<'t> Program<'t> {
     ) -> Checked<Option<(Proposition, ClauseText)>> {
         let (fact, clause) = self.runtime_membership(id, scope, membership)?;
         if fact.is_some() {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Contract(
                     "runtime membership needs its published nominal evidence obligation",
                 ),
@@ -125,7 +125,7 @@ impl<'t> Program<'t> {
         Option<crate::body::RuntimeMembership>,
         Option<(Proposition, ClauseText)>,
     )> {
-        let unavailable = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let unavailable = |what| refuse_at(id, Unserved::Contract(what));
         let typed = self.typed;
         let domain = crate::body::DomainInstance {
             declaration: membership.domain_symbol,
@@ -217,10 +217,7 @@ impl<'t> Program<'t> {
         if nominal {
             let result_subject = match (&subject, scope.result) {
                 (
-                    crate::body::RuntimeMembershipSubject::Scalar(ScalarTerm::Value {
-                        id,
-                        ..
-                    }),
+                    crate::body::RuntimeMembershipSubject::Scalar(ScalarTerm::Value { id, .. }),
                     ResultTerm::Named(result, ..),
                 ) => *id == result,
                 (
@@ -328,9 +325,8 @@ impl<'t> Program<'t> {
         let mut clauses = Vec::new();
         for predicate in self.predicates(id, qualification)? {
             if !predicate.domain.subject_symbol.is_valid() {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Spelling("domain predicate without a subject symbol"),
                 ));
             }
@@ -368,7 +364,7 @@ impl<'t> Program<'t> {
         exit: &ClauseScope<'_>,
         result: Option<(ValueType, ValueId)>,
     ) -> Checked<SignaturePredicates> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Contract(what)));
         let mut added = SignaturePredicates::default();
         for (position, slot) in entry.slots.iter().enumerate() {
             let qualification = slot.value_type.qualification();
@@ -543,13 +539,7 @@ impl<'t> Program<'t> {
         }
         let domains = crate::DomainSet::EMPTY
             .with(instance)
-            .ok_or_else(|| {
-                refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Type("domain predicate subject"),
-                )
-            })?;
+            .ok_or_else(|| refuse_at(id, Unserved::Type("domain predicate subject")))?;
         let qualification = Qualification {
             policy: None,
             domains,
@@ -582,9 +572,8 @@ impl<'t> Program<'t> {
                 }
             }
             ValueType::Rigid(_) => {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Type("domain retains an unresolved carrier"),
                 ));
             }
@@ -599,11 +588,7 @@ impl<'t> Program<'t> {
         carrier: ScalarType,
     ) -> Checked<(Vec<Proposition>, String)> {
         let Some(subject) = ValueId::new(1) else {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Contract("cast subject identity"),
-            ));
+            return Err(refuse_at(id, Unserved::Contract("cast subject identity")));
         };
         let scope = ClauseScope {
             slots: &[],
@@ -642,7 +627,7 @@ impl<'t> Program<'t> {
         added: Qualification,
         result: ValueType,
     ) -> Checked<(Vec<Proposition>, String)> {
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let unserved = |what| refuse_at(id, Unserved::Contract(what));
         // A shared view can establish a predicate over bytes that stay
         // unchanged for the duration of its loan.
         if let ValueType::Record(row, _, _) = result
@@ -720,9 +705,8 @@ impl<'t> Program<'t> {
             return self.declared_predicates(id, definition);
         };
         let identity = *schema.application.as_ref().map_err(|reason| {
-            let mut refusal = refuse(
+            let mut refusal = refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Declaration("domain family with an unsupported declaration application"),
             );
             refusal.detail.push_str(": ");
@@ -739,9 +723,8 @@ impl<'t> Program<'t> {
                 .is_valid(parameter.symbol)
                 || self.typed.symbols.get(parameter.symbol).parent != definition.symbol
         }) {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Declaration("domain schema with a foreign or stale parameter"),
             ));
         }
@@ -780,9 +763,7 @@ impl<'t> Program<'t> {
                     declaration: definition.symbol,
                     identity: definition.semantic_id,
                 };
-                let at = crate::SourceOrigin::Unpositioned(
-                    crate::Unpositioned::SpanAbsent,
-                );
+                let at = crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
                 self.declared_domain(id, domain, carrier, at)?;
             }
             return Ok(());
@@ -799,9 +780,8 @@ impl<'t> Program<'t> {
             let (_, argument) =
                 crate::source_state::byte_predicates::byte_predicate_call(self.typed, expression)
                     .ok_or_else(|| {
-                    refuse(
+                    refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Contract("primitive byte domain lost its observer call"),
                     )
                 })?;
@@ -820,20 +800,13 @@ impl<'t> Program<'t> {
             declaration: definition.symbol,
             identity: definition.semantic_id,
         };
-        let at =
-            crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
+        let at = crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
         self.declared_domain(id, domain, carrier, at)?;
         match carrier {
             ValueType::Scalar(scalar_type, _) => {
                 let domains = crate::body::DomainSet::EMPTY
                     .with(domain)
-                    .ok_or_else(|| {
-                        refuse(
-                            id,
-                            Construct::Machine,
-                            Unserved::Declaration("domain identity"),
-                        )
-                    })?;
+                    .ok_or_else(|| refuse_at(id, Unserved::Declaration("domain identity")))?;
                 self.cast_predicates(
                     id,
                     Qualification {
@@ -847,9 +820,8 @@ impl<'t> Program<'t> {
             // Registration requires Qualifications to read the generic
             // predicate before the module can reach the lowered checker.
             ValueType::Record(..) => Ok(()),
-            ValueType::Rigid(_) => Err(refuse(
+            ValueType::Rigid(_) => Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Declaration("domain with predicates on a type parameter"),
             )),
         }
@@ -873,9 +845,8 @@ impl<'t> Program<'t> {
         let Some(plain @ (ValueType::Scalar(..) | ValueType::Record(..))) =
             value_type.qualified(Qualification::NONE)
         else {
-            return Err(refuse(
+            return Err(refuse_at(
                 id,
-                Construct::Machine,
                 Unserved::Declaration("storage of a rigid type in a domain with predicates"),
             ));
         };
@@ -889,27 +860,21 @@ impl<'t> Program<'t> {
                 && expression == predicate.expression
             {
                 let ValueType::Record(carrier, _, _) = plain else {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Type("primitive byte domain on non-byte storage"),
                     ));
                 };
                 if !self.is_readable_byte_view(id, carrier)? {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Type("primitive byte domain without its readable descriptor"),
                     ));
                 }
                 let domains = crate::body::DomainSet::EMPTY
                     .with(predicate.instance)
                     .ok_or_else(|| {
-                        refuse(
-                            id,
-                            Construct::Machine,
-                            Unserved::Type("primitive byte domain identity"),
-                        )
+                        refuse_at(id, Unserved::Type("primitive byte domain identity"))
                     })?;
                 // Retain the exact descriptor membership and its theory.
                 // The ordinary clause reader below also states the canonical
@@ -925,9 +890,8 @@ impl<'t> Program<'t> {
                 )?;
             }
             if !predicate.domain.subject_symbol.is_valid() {
-                return Err(refuse(
+                return Err(refuse_at(
                     id,
-                    Construct::Machine,
                     Unserved::Spelling("domain predicate without a subject symbol"),
                 ));
             }
@@ -991,11 +955,7 @@ impl<'t> Program<'t> {
             }
         }
         let Some(root) = crate::body::self_place() else {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Declaration("self place identity"),
-            ));
+            return Err(refuse_at(id, Unserved::Declaration("self place identity")));
         };
         let scope = ClauseScope {
             slots: &[],

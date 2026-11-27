@@ -1,0 +1,39 @@
+// Modulo by repeated subtraction, as `core/nat.omg` wrote it before core
+// switched to one structural division helper. `mod` calls itself at the
+// computed `saturating_sub(a, b)`, which is no field of a case of `a`, so the
+// compiler checks that call's strict descent under natural order: citing
+// `sub_lt(a, b)` gives `saturating_sub(Succ(next), a) = Zero` for
+// `next = saturating_sub(a, b)`. Its negative twin keeps that citation and
+// recurses at `a` itself. Outside core, `pred` is private, so the done arm
+// names the case's field `w` where core wrote `pred(saturating_sub(b, a))`.
+use {omega}/language/core/foundation.omg as proof;
+use {omega}/language/core/nat.omg;
+
+machine mod(a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat
+terminates by a
+requires
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, b), |nat|::Nat::Zero)
+ensures
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: result }, b), |nat|::Nat::Zero)
+{
+    transition (|nat|::saturating_sub(b, a)) {
+        |nat|::Nat::Zero -> mod_rec(a, b),
+        |nat|::Nat::Succ { prev as w } -> mod_done(a, b, w)
+    }
+
+    machine mod_rec(a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat {
+        _ = |nat|::sub_lt(a, b);
+        let next: |nat|::Nat = |nat|::saturating_sub(a, b);
+        transition { _ -> (mod(next, b)) }
+    }
+
+    machine mod_done(a: |nat|::Nat, b: |nat|::Nat, w: |nat|::Nat) -> |nat|::Nat {
+        _ = |nat|::lt_of_sub_pos(a, b, w);
+        transition { _ -> (a) }
+    }
+}
+
+data Main { }
+
+// The entry does nothing: the program is here for its proofs.
+machine entry_start() { }

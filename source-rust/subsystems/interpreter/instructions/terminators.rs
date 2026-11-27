@@ -1802,8 +1802,8 @@ pub(crate) mod completion {
         use crate::storage::byte_sequences::{
             ByteSequenceView, binding::ByteSequenceBinding, storage::ByteSequenceStorage,
         };
-        use evaluation_accounting::BuildEvaluationSponsor;
-        use evaluation_contracts::{
+        use build_model::accounting::BuildEvaluationSponsor;
+        use build_model::contracts::{
             BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
             TerminalStorageScheduleIdentity,
         };

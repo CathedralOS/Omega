@@ -3,7 +3,7 @@ use crate::{ContractClause, DeclarationId, Site, TypeId};
 /// Who may introduce a domain's qualification on a value that lacks it. A
 /// value that already carries the qualification moves and forwards either way.
 ///
-/// `wiki/spec/terminal-psi/encoding.md` saves this as the domain row's optional
+/// `source-rust/subsystems/compiler/psi/artifact/wire/encoding.md` saves this as the domain row's optional
 /// establishment routes: `Unrestricted` is an absent list and `Nobody` is a
 /// present list with no route. A list that names routes has no value here
 /// because no validated access plan can supply one yet.

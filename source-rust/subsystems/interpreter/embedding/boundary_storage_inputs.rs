@@ -949,15 +949,15 @@ pub(crate) mod original_residence {
             for (endpoint, resident) in &prepared {
                 match endpoint {
                     PrimitiveStorageEndpoint::Scalar(home) => {
-                        execution.structural_primitive_storage.prepare_resident_install(
-                            home, resident, &mut primitive_cells,
-                        )?;
+                        execution
+                            .structural_primitive_storage
+                            .prepare_resident_install(home, resident, &mut primitive_cells)?;
                         continue;
                     }
                     PrimitiveStorageEndpoint::ScalarField(field) => {
-                        execution.structural_scalar_fields.prepare_resident_install(
-                            field, resident, &mut field_cells,
-                        )?;
+                        execution
+                            .structural_scalar_fields
+                            .prepare_resident_install(field, resident, &mut field_cells)?;
                         continue;
                     }
                     _ => {}
@@ -1467,9 +1467,7 @@ pub(crate) mod original_residence {
             let parent = endpoint_parent(&storage.endpoint)?;
             let (selected, mut path) = self.actual_storage_projection(original, parent)?;
             let cell = match &storage.endpoint {
-                PrimitiveStorageEndpoint::Scalar(home) => {
-                    self.primitive_cell(home)?
-                }
+                PrimitiveStorageEndpoint::Scalar(home) => self.primitive_cell(home)?,
                 PrimitiveStorageEndpoint::ScalarField(field) => {
                     if field.namespace == StructuralFieldNamespace::CasePayload {
                         let active = self.require_case(parent)?;
@@ -2377,7 +2375,7 @@ impl TerminalBoundaryStorageBuffer {
 
 pub(crate) struct StructuralLoanBinding {
     direct_original: bool,
-    _view_lease: Option<evaluation_accounting::EvaluationStorageLease>,
+    _view_lease: Option<build_model::accounting::EvaluationStorageLease>,
     identity: Arc<()>,
     argument_index: usize,
     source: semantic_vocabulary::PlaceId,
@@ -2401,7 +2399,7 @@ pub(crate) struct StructuralLoanBinding {
 }
 
 struct OwnedPayloadSnapshot {
-    _byte_lease: Option<evaluation_accounting::EvaluationStorageLease>,
+    _byte_lease: Option<build_model::accounting::EvaluationStorageLease>,
     identity: Arc<()>,
     argument_index: usize,
     structural_type: semantic_vocabulary::StructuralTypeId,
@@ -2434,7 +2432,7 @@ fn capture_byte_view_elements(
 ) -> Result<
     (
         crate::TerminalStorageContents,
-        Option<evaluation_accounting::EvaluationStorageLease>,
+        Option<build_model::accounting::EvaluationStorageLease>,
     ),
     TerminalInterpretError,
 > {
@@ -2505,7 +2503,7 @@ fn capture_owned_byte_views(
     execution: &TerminalExecution,
     leaves: &[contents::StorageLeaf],
     values: &mut Vec<TerminalBoundaryStorageValue>,
-) -> Result<Option<evaluation_accounting::EvaluationStorageLease>, TerminalInterpretError> {
+) -> Result<Option<build_model::accounting::EvaluationStorageLease>, TerminalInterpretError> {
     use contents::StorageLeafKind;
     let mut lease = None;
     for leaf in leaves {
@@ -2526,7 +2524,9 @@ fn capture_owned_byte_views(
         if let Some(account) = &execution.account {
             let size = u64::try_from(view.len()).map_err(|_| malformed())?;
             match &mut lease {
-                Some(lease) => evaluation_accounting::EvaluationStorageLease::grow(lease, 0, size),
+                Some(lease) => {
+                    build_model::accounting::EvaluationStorageLease::grow(lease, 0, size)
+                }
                 None => account
                     .reserve_storage(0, size)
                     .map(|reserved| lease = Some(reserved)),

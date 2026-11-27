@@ -8,13 +8,13 @@ version.workspace = true
 name = "native_artifact"
 
 [dependencies]
+build-providers = { path = "../../../../build/providers" }
 native-execution-reach = { path = "../../../representations/target-bound-program/execution-reach" }
 terminal-authority-receipts = { path = "../../../verification/provider-admission/authority" }
 native-binding-admission = { path = "../../../verification/native-bindings" }
 native-intrinsics = { path = "../../../targets/intrinsics" }
 target-provider-admission = { path = "../../../verification/target-providers" }
-selected-provider-plans = { path = "../../../../build/providers/selections" }
-provider-plans = { path = "../../../../build/providers/plans" }
+psi-target-layouts = { path = "../../../../psi/execution-inputs/target-layouts" }
 psi-scalar-applications = { path = "../../../../psi/execution-inputs/scalar-applications" }
 psi-provider-selections = { path = "../../../../psi/execution-inputs/providers" }
 psi-entry-memory = { path = "../../../../psi/execution-inputs/entry-memory" }

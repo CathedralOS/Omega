@@ -325,6 +325,84 @@ impl Operand {
                 &bindings,
             )?;
         }
+        Self::require_static_records(program, parameters, operands, supplying_owner)
+    }
+
+    /// Judge every static record operand against its declared schema after all
+    /// operands of the application are read, so a schema that mentions another
+    /// parameter (`use_map<T, const E: Render<T>>`) is instantiated with the
+    /// call's arguments before comparing against the supplied conformance.
+    pub fn require_static_records(
+        program: &TypedTrees,
+        parameters: &[crate::source_state::data::TypeParameter],
+        operands: &[Operand],
+        supplying_owner: SymbolHandle,
+    ) -> Served<()> {
+        let bindings = operands
+            .iter()
+            .filter_map(|operand| match &operand.value {
+                StaticMachineBindingValue::Type(reference)
+                | StaticMachineBindingValue::Const(reference) => reference
+                    .is_valid()
+                    .then_some((operand.parameter, *reference)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        for operand in operands {
+            let Some(binder) = parameters
+                .iter()
+                .find(|binder| binder.symbol == operand.parameter)
+            else {
+                return Err(Stop::Defect("an operand lost its declared parameter"));
+            };
+            let TypeParameterKind::Const { type_reference } = binder.kind else {
+                continue;
+            };
+            let owner = program.symbols.get(operand.parameter).parent;
+            let Some(required) = program.static_record_schema(type_reference, owner) else {
+                continue;
+            };
+            let required = required
+                .under_invocation(program, owner, supplying_owner, &bindings, &[])
+                .ok_or(unserved(
+                    "a static record binder needs its call's static arguments",
+                ))?;
+            let symbol = operand.argument.symbol;
+            if program.symbols.get(symbol).kind == SymbolKind::TypeParameter {
+                let declaration = program
+                    .data_type_parameter_by_symbol(symbol)
+                    .ok_or(unserved("a forwarded static record has no declared binder"))?;
+                let TypeParameterKind::Const { type_reference } = declaration.kind else {
+                    return Err(unserved("a forwarded static record is not a const value"));
+                };
+                let actual = program
+                    .static_record_schema(type_reference, program.symbols.get(symbol).parent)
+                    .ok_or(unserved(
+                        "a forwarded static record lost its declared schema",
+                    ))?;
+                if !required.same_application(program, &actual) {
+                    return Err(Stop::Rejected(
+                        "a forwarded static record has another declared schema".into(),
+                    ));
+                }
+            } else {
+                let selected = program.conformance_by_symbol(symbol).ok_or(unserved(
+                    "a static record operand has no named record declaration",
+                ))?;
+                let actual =
+                    crate::source_state::trait_definition::AppliedTraitScope::from_conformance(
+                        program, selected,
+                    )
+                    .ok_or(unserved(
+                        "a static record operand lost its complete schema application",
+                    ))?;
+                if !required.same_application(program, &actual) {
+                    return Err(Stop::Rejected(
+                        "a static record operand has another declared schema".into(),
+                    ));
+                }
+            }
+        }
         Ok(())
     }
 
@@ -573,6 +651,15 @@ fn named_static_record(
         .ok_or(unserved(
             "a static record parameter lost its exact declared schema",
         ))?;
+    // When the declared schema mentions another parameter of the same
+    // declaration (such as `use_map<T, const E: Render<T>>`), check the trait
+    // family here and defer exact application matching to
+    // `Operand::require_static_records` once the full tuple is read.
+    let closed_schema = crate::source_state::domain::index_argument_is_closed_with_substitutions(
+        program,
+        declared_type,
+        &[],
+    );
     let symbol = argument.symbol;
     if program.symbols.get(symbol).kind == SymbolKind::TypeParameter {
         let declaration = program
@@ -588,7 +675,12 @@ fn named_static_record(
             .ok_or(unserved(
                 "a forwarded static record lost its declared schema",
             ))?;
-        if !required.same_application(program, &actual) {
+        let matches = if closed_schema {
+            required.same_application(program, &actual)
+        } else {
+            required.declaration.symbol == actual.declaration.symbol
+        };
+        if !matches {
             return Err(Stop::Rejected(
                 "a forwarded static record has another declared schema".into(),
             ));
@@ -611,7 +703,12 @@ fn named_static_record(
     .ok_or(unserved(
         "a static record operand lost its complete schema application",
     ))?;
-    if !required.same_application(program, &actual) {
+    let matches = if closed_schema {
+        required.same_application(program, &actual)
+    } else {
+        required.declaration.symbol == actual.declaration.symbol
+    };
+    if !matches {
         return Err(Stop::Rejected(
             "a static record operand has another declared schema".into(),
         ));

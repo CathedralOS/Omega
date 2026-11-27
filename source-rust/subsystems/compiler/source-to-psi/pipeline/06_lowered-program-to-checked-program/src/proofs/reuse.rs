@@ -54,7 +54,7 @@ pub fn reverify(
     _activity: &mut crate::ProofSearchActivity,
 ) -> Checked<Evidence> {
     crate::minted::width_questions_are_minted(scope.source())?;
-    let (formed, domains, checking, _, _) = scope.checking();
+    let (formed, checking, _, _) = scope.checking();
     let module = formed.source();
     let tables = checking.machines.get_mut(machine).ok_or_else(|| {
         refusal(
@@ -64,7 +64,7 @@ pub fn reverify(
             "no such machine",
         )
     })?;
-    let prepared = crate::prepare(formed, domains, machine, tables)?;
+    let prepared = crate::prepare(formed, machine, tables)?;
     let row = *terminal_check_tables::row(
         &tables.obligations,
         obligation,
@@ -77,7 +77,6 @@ pub fn reverify(
         machine,
         lowered,
         module,
-        domains,
         &prepared.graph,
         tables,
         &prepared.types,
@@ -829,7 +828,7 @@ pub fn reverify_specialization(
     let generic = generic_scope.source();
     crate::minted::width_questions_are_minted(generic)?;
     crate::minted::width_questions_are_minted(consumer_scope.source())?;
-    let (formed, domains, checking, _, _) = consumer_scope.checking();
+    let (formed, checking, _, _) = consumer_scope.checking();
     let module = formed.source();
     let tables = checking.machines.get_mut(specialization).ok_or_else(|| {
         refusal(
@@ -839,7 +838,7 @@ pub fn reverify_specialization(
             "no such machine",
         )
     })?;
-    let prepared = crate::prepare(formed, domains, specialization, tables)?;
+    let prepared = crate::prepare(formed, specialization, tables)?;
     let tables = &*tables;
     let lowered = crate::terminal_machine(&module.machines, specialization, specialization)?;
     let mut references = prepared.references(&module.types.structural_types);
@@ -847,7 +846,6 @@ pub fn reverify_specialization(
         specialization,
         lowered,
         module,
-        domains,
         &prepared.graph,
         tables,
         &prepared.types,
@@ -2739,14 +2737,14 @@ mod meaning_unification_tests {
             ),
         )
         .unwrap();
-        let graph = Proposition::FloatIntegerConversion(
+        let graph = Proposition::FloatIntegerConversion(Box::new(
             semantic_vocabulary::FloatIntegerConversion::new(
                 source,
                 ScalarTerm::value(ValueId::new(2).unwrap(), ScalarType::Integer(target)),
                 operation.contract_identity(),
             )
             .unwrap(),
-        );
+        ));
         let mapped = transport.proposition(&graph).unwrap();
         let Proposition::FloatIntegerConversion(mapped) = mapped else {
             unreachable!()

@@ -59,7 +59,7 @@ machine Main::req_bytes(&mut self, text: &[u8]) {
     return;
 }
 
-// The smallest canonical OCREQ V1 request: one external-local package row
+// A structural OCREQ V1 fixture: one GitLab package row
 // with an empty snapshot table, no edges, the package root role, and an
 // alpha_bootstrap_tape invocation with an empty admission table and a 32-byte
 // commitment.
@@ -71,8 +71,9 @@ machine Main::build_request(&mut self) {
     self.subject_at = self.req_cursor;
     self.req_u32(1);
     self.req_bytes("a");
-    self.req_u32(1);
-    self.req_bytes("l");
+    self.req_u32(8);
+    self.req_raw("\x01");
+    self.req_bytes("g/p");
     self.req_bytes("r");
     self.req_bytes("t");
     self.req_bytes("c");

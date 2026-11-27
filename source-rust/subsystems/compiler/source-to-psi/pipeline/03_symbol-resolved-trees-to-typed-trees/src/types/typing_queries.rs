@@ -194,7 +194,7 @@ pub(crate) fn collection_field_type(
 // A selected builtin length has a plain count type; it is not a data field.
 // Read only the retained member role and existing canonical type. This supplies
 // no bounds, access or storage authority, and never resolves diagnostic spelling.
-fn selected_member_value_type(
+pub(crate) fn selected_member_value_type(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
     selection: MemberSelection,
@@ -378,9 +378,27 @@ pub(crate) fn declared_callable_value_type(
         .machine_by_symbol(owner)
         .map(|machine| program.machine_states(machine));
     let state = program.state_by_symbol(owner);
+    // A structural callable alias's own clauses, and the copy a proof binder
+    // retains, name the formals of that signature, as a trait machine's
+    // clauses name its own. Only an owner that is no machine, state or trait
+    // machine reads them, so a declaration keeps its own formals.
     let signature = program
         .trait_machine_signature(owner)
-        .map(|(_, signature)| signature);
+        .map(|(_, signature)| signature)
+        .or_else(|| {
+            if states.is_some() || state.is_some() {
+                return None;
+            }
+            match program.symbols.get(owner).kind {
+                symbols::SymbolKind::CallableContract => program
+                    .runtime_callable_contracts
+                    .iter()
+                    .map(|(_, contract)| &contract.signature)
+                    .find(|signature| signature.symbol == owner),
+                symbols::SymbolKind::TypeParameter => program.proof_parameter_contract(owner),
+                _ => None,
+            }
+        });
     if states.is_none() && state.is_none() && signature.is_none() {
         // A data declaration's own `requires` names its fields bare
         // (`requires (root as -Handle) != 0`), each a value of the type the

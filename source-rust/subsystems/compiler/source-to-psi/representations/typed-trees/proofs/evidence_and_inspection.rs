@@ -1296,16 +1296,6 @@ pub mod evidence {
         }
 
         impl crate::source_state::TypedTrees {
-            pub fn normalize_nominal_proposition_application(
-                &self,
-                application: &PropositionApplication,
-                labels: Option<PropositionLabels<'_>>,
-            ) -> Option<NormalizedPropositionApplicationIdentity> {
-                self.try_normalize_nominal_proposition_application(application, labels)
-                    .ok()
-                    .flatten()
-            }
-
             pub fn try_normalize_nominal_proposition_application(
                 &self,
                 application: &PropositionApplication,
@@ -1435,32 +1425,6 @@ pub mod evidence {
                 }
             }
 
-            pub fn render_proof_constructor_value(
-                &self,
-                literal: &crate::source_state::expression::TableStructLiteral,
-                render_value: impl Fn(ExpressionHandle) -> String,
-            ) -> String {
-                constructor_values::render(
-                    self,
-                    literal.type_symbol,
-                    literal.case_symbol,
-                    self.expression_table.struct_fields(literal.fields),
-                    render_value,
-                )
-                .unwrap_or_else(|| format!("invalid-constructor:{}", literal.type_name))
-            }
-
-            /// Display a proof expression in diagnostics. Semantic consumers
-            /// use `try_render_proof_expression` and retain its failure.
-            pub fn render_proof_expression(
-                &self,
-                expression: ExpressionHandle,
-                substitutions: ProofSubstitutions<'_>,
-            ) -> String {
-                self.try_render_proof_expression(expression, substitutions)
-                    .unwrap_or_else(|error| format!("<cannot render proof expression: {error}>"))
-            }
-
             pub fn try_render_proof_expression(
                 &self,
                 expression: ExpressionHandle,
@@ -1543,22 +1507,6 @@ pub mod evidence {
                     &binder_identities,
                     &mut visiting,
                 )
-            }
-
-            pub fn normalized_identity_label(
-                &self,
-                application: &PropositionApplication,
-                binder_labels: &[String],
-                argument_labels: &[String],
-            ) -> Option<String> {
-                self.normalize_proposition_application(
-                    application,
-                    Some(PropositionLabels {
-                        binder_labels,
-                        argument_labels,
-                    }),
-                )
-                .map(|formula| formula.identity_label())
             }
 
             fn normalize_proposition_application_inner(
@@ -3947,7 +3895,7 @@ pub mod inspection {
                         .service_reach_is_installation_bound,
                     suspends: signature.suspends,
                     blocks: signature.blocks,
-                        admitted_same_stack_bytes: signature.admitted_same_stack_bytes,
+                    admitted_same_stack_bytes: signature.admitted_same_stack_bytes,
                     contracts: program
                         .state_signature_contracts(signature)
                         .iter()

@@ -45,14 +45,10 @@ pub const PERMITTED_OWNERS: &[&str] = &[
     PSI_RECORDS,
     "source-rust/subsystems/compiler/foundation",
     "source-rust/foundation",
-    "source-rust/subsystems/compiler/build/evaluation/accounting",
+    "source-rust/subsystems/compiler/build/model",
+    "source-rust/subsystems/compiler/build/build-time",
     "source-rust/subsystems/compiler/build/evaluation/authority",
-    "source-rust/subsystems/compiler/build/evaluation/invocations",
-    "source-rust/subsystems/compiler/build/evaluation/receipts",
-    "source-rust/subsystems/compiler/build/evaluation/scalars",
-    "source-rust/subsystems/compiler/build/evaluation/values",
     "source-rust/subsystems/compiler/build/providers",
-    "source-rust/subsystems/compiler/build/settings/behavior-exclusions",
     INTERPRETER,
 ];
 
@@ -1140,10 +1136,6 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             return Ok(violations);
         }
         violations.extend(representation_spelling_violations(&root));
-        violations.extend(crate::boundary_contracts::violations(
-            &root,
-            &root.join(crate::boundary_contracts::MANIFEST),
-        )?);
         violations.extend(call_violations(
             &root,
             &["bind_target_reach"],
@@ -2029,7 +2021,7 @@ mod tests {
     fn native_consumers_can_read_build_accounting_but_cannot_run_the_project_build() {
         let evaluation = "source-rust/subsystems/compiler/build/evaluation";
         assert!(under(
-            &format!("{evaluation}/accounting/contracts"),
+            "source-rust/subsystems/compiler/build/model",
             PERMITTED_OWNERS
         ));
         assert!(!under(evaluation, PERMITTED_OWNERS));
@@ -2148,7 +2140,7 @@ mod tests {
 
     #[test]
     fn psi_record_readers_do_not_reach_project_build_or_the_compiler_facade() {
-        let build = "source-rust/subsystems/compiler/build/evaluation/receipts";
+        let build = "source-rust/subsystems/compiler/build/model";
         let native = native_stages::DRIVER;
         let codec = format!("{PSI_ARTIFACT}/codec");
         let providers = format!("{PSI_EXECUTION_INPUTS}/providers");

@@ -9,5 +9,5 @@ path = "filesystem_authority.rs"
 
 [dependencies]
 record-storage = { path = "../../../../../../foundation/record-storage" }
-source-selection = { path = "../../../../../package-manager/source-acquisition/capture/selection" }
+source-acquisition = { path = "../../../../../package-manager/source-acquisition" }
 wire = { path = "../../../../../../foundation/wire" }

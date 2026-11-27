@@ -1,3 +1,51 @@
+mod extended_signatures {
+    use super::{default_budget, type_sort};
+    use crate::{CoreError, Declaration, Term, TermArena, check_signature, extend_signature};
+
+    /// A table checked once and extended by a user is the signature a whole
+    /// check gives, and the extension alone is judged: an ill-formed added
+    /// declaration is refused at its position in the whole signature.
+    #[test]
+    fn an_extension_checks_only_what_it_adds() {
+        let mut arena = TermArena::new();
+        let universe = type_sort(&mut arena, 0);
+        let carrier = arena.insert(Term::Constant {
+            declaration: 0,
+            levels: vec![],
+        });
+        let table = [Declaration::assumption(0, universe)];
+        let checked = check_signature(&mut arena, &table, &mut default_budget()).unwrap();
+        let added = [Declaration::assumption(0, carrier)];
+        let extended =
+            extend_signature(&mut arena, &checked, &added, &mut default_budget()).unwrap();
+        let whole = check_signature(
+            &mut arena,
+            &[table[0].clone(), added[0].clone()],
+            &mut default_budget(),
+        )
+        .unwrap();
+        assert_eq!(extended.declarations(), whole.declarations());
+        // A value of the carrier is no type: declaring something of it is
+        // refused at position 2, after the table and the first addition.
+        let value = arena.insert(Term::Constant {
+            declaration: 1,
+            levels: vec![],
+        });
+        let refused = extend_signature(
+            &mut arena,
+            &checked,
+            &[added[0].clone(), Declaration::assumption(0, value)],
+            &mut default_budget(),
+        )
+        .unwrap_err();
+        assert_eq!(refused.declaration, 2);
+        assert!(
+            matches!(refused.error, CoreError::NotASort { .. }),
+            "{refused:?}"
+        );
+    }
+}
+
 mod conversion_judgments {
     use super::{
         apply, default_budget, empty, lambda, pi, squash, squash_intro, two, two_one, two_zero,
@@ -2015,8 +2063,8 @@ mod schemes_and_quotients {
         };
         use crate::{
             Context, CoreError, Declaration, Level, QUOTIENT, QUOTIENT_BETA, QUOTIENT_EFFECTIVE,
-            QUOTIENT_ELIM, QUOTIENT_IS_SET, QUOTIENT_LIFT, QUOTIENT_PROJECT, QUOTIENT_SET,
-            QUOTIENT_SOUND, QUOTIENT_TRANSPORT, QUOTIENT_UNIQUE, TermArena, check_signature,
+            QUOTIENT_ELIM, QUOTIENT_IS_SET, QUOTIENT_LIFT, QUOTIENT_LIFT_BETA, QUOTIENT_PROJECT,
+            QUOTIENT_SET, QUOTIENT_SOUND, QUOTIENT_TRANSPORT, TermArena, check_signature,
             check_type, infer_type, quotient_scheme,
         };
         use std::collections::BTreeSet;
@@ -2228,7 +2276,48 @@ mod schemes_and_quotients {
             .into_iter()
             .collect();
             assert_eq!(assumed, admitted);
-            assert_eq!(declarations.len(), QUOTIENT_UNIQUE as usize + 1);
+            assert_eq!(declarations.len(), QUOTIENT_LIFT_BETA as usize + 1);
+        }
+
+        #[test]
+        fn lift_computes_at_a_class_only_by_beta() {
+            // The derived point computation of `lift` checks: its body cites
+            // `beta` at the section `lift` unfolds to. The same statement
+            // proved by reflexivity is refused, because `elim` is an
+            // assumption and does not compute at a class.
+            let mut arena = TermArena::new();
+            let mut budget = default_budget();
+            let declarations = quotient_scheme(&mut arena);
+            check_signature(&mut arena, &declarations, &mut budget).unwrap();
+
+            let mut forged = declarations.clone();
+            let beta = &declarations[QUOTIENT_LIFT_BETA as usize];
+            let (arity, ty) = (beta.level_arity, beta.ty);
+            // Under `A R B setB f respect a`, `refl B (f a)`.
+            let mut body = {
+                let b = variable(&mut arena, 4);
+                let f = variable(&mut arena, 2);
+                let a = variable(&mut arena, 0);
+                let applied = apply(&mut arena, f, a);
+                arena.insert(crate::Term::Refl {
+                    ty: b,
+                    value: applied,
+                })
+            };
+            let mut binder_types = Vec::new();
+            let mut cursor = ty;
+            while let crate::Term::Pi { domain, codomain } = arena.get(cursor) {
+                binder_types.push(domain);
+                cursor = codomain;
+            }
+            for domain in binder_types.into_iter().rev() {
+                body = lambda(&mut arena, domain, body);
+            }
+            forged[QUOTIENT_LIFT_BETA as usize] = Declaration::definition(arity, ty, body);
+            assert!(
+                check_signature(&mut arena, &forged, &mut budget).is_err(),
+                "lift has no definitional computation at a class"
+            );
         }
 
         #[test]

@@ -10,7 +10,7 @@ neither chooses a default layout nor writes storage.
 field geometry. The [integer defaults](../../semantics/default-integer-layouts/integer_defaults.rs)
 choose the default geometry for a standalone integer or a record field.
 
-The interpreter's [materializer](../../../../interpreter/memory/materialization/src/lib.rs)
+The interpreter's [materializer](../../../../interpreter/memory/materialization/mod.rs)
 reads and writes bytes using a chosen layout. Its tests use the same layout records.
 
 The field identity and stored-integer modules expose exact record indexes and

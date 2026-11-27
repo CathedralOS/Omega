@@ -243,8 +243,13 @@ mod declarations {
         theorem(arena, 2, binders, id(v("B"), inner, v("b")), body)
     }
 
-    fn lift_declaration(arena: &mut TermArena) -> Declaration {
-        let constant_family = || lam("_", quotient_of(), v("B"));
+    /// The section `lift` takes to `elim` at the constant family `λ_. B`:
+    /// its case `f`, its fibers' setness `setB`, and the coherence the
+    /// congruence `respect` gives once transport along a constant family is
+    /// cancelled. [`lift_beta_declaration`] cites the same three, so its
+    /// point computation is about exactly the section `lift` defines.
+    fn lift_section() -> [Syntax; 3] {
+        let constant_family = lam("_", quotient_of(), v("B"));
         let soundness = sound_of(v("a"), v("b"), v("r"));
         let transported_case = apps(
             scheme_at(
@@ -265,7 +270,7 @@ mod declarations {
             [
                 v("A"),
                 v("R"),
-                constant_family(),
+                constant_family.clone(),
                 v("a"),
                 v("b"),
                 v("r"),
@@ -283,7 +288,17 @@ mod declarations {
                 apps(v("respect"), [v("a"), v("b"), v("r")]),
             ],
         ));
-        let binders = described(vec![
+        [
+            constant_family,
+            lam("_", quotient_of(), v("setB")),
+            coherence,
+        ]
+    }
+
+    /// What `lift` and its point computation bind after `A` and `R`: the
+    /// result set `B`, the operation on representatives and its congruence.
+    fn lift_binders() -> Vec<(&'static str, Syntax)> {
+        described(vec![
             ("B", ty(2)),
             ("setB", is_set(Level::Parameter(2), v("B"))),
             ("f", pi("_", v("A"), v("B"))),
@@ -291,27 +306,51 @@ mod declarations {
                 "respect",
                 related_pis("_", id(v("B"), app(v("f"), v("a")), app(v("f"), v("b")))),
             ),
-        ]);
+        ])
+    }
+
+    fn lift_declaration(arena: &mut TermArena) -> Declaration {
+        let [family, sets, coherence] = lift_section();
         let section = apps(
             motive_scheme(QUOTIENT_ELIM),
-            [
-                v("A"),
-                v("R"),
-                constant_family(),
-                lam("_", quotient_of(), v("setB")),
-                v("f"),
-                coherence,
-                v("z"),
-            ],
+            [v("A"), v("R"), family, sets, v("f"), coherence, v("z")],
         );
         let statement = pi("_", quotient_of(), v("B"));
         theorem(
             arena,
             3,
-            binders,
+            lift_binders(),
             statement,
             lam("z", quotient_of(), section),
         )
+    }
+
+    /// The point computation of `lift`: at the class of `a` it is `f a`.
+    /// Derived from `beta` at the section `lift` defines, so it adds no
+    /// assumption and no conversion rule; only the kernel's unfolding of the
+    /// derived `lift` relates the two.
+    fn lift_beta_declaration(arena: &mut TermArena) -> Declaration {
+        let [family, sets, coherence] = lift_section();
+        let lifted = apps(
+            motive_scheme(QUOTIENT_LIFT),
+            [
+                v("A"),
+                v("R"),
+                v("B"),
+                v("setB"),
+                v("f"),
+                v("respect"),
+                project_of(v("a")),
+            ],
+        );
+        let statement = id(v("B"), lifted, app(v("f"), v("a")));
+        let body = apps(
+            motive_scheme(QUOTIENT_BETA),
+            [v("A"), v("R"), family, sets, v("f"), coherence, v("a")],
+        );
+        let mut binders = lift_binders();
+        binders.push(("a", v("A")));
+        theorem(arena, 3, binders, statement, body)
     }
 
     fn identity_binders() -> Vec<(&'static str, Syntax)> {
@@ -665,6 +704,7 @@ mod declarations {
             ind_prop_declaration(arena),
             coverage_declaration(arena),
             unique_declaration(arena),
+            lift_beta_declaration(arena),
         ]
     }
 }
@@ -689,6 +729,7 @@ pub const QUOTIENT_BOX_PROP: u32 = 15;
 pub const QUOTIENT_IND_PROP: u32 = 16;
 pub const QUOTIENT_COVERAGE: u32 = 17;
 pub const QUOTIENT_UNIQUE: u32 = 18;
+pub const QUOTIENT_LIFT_BETA: u32 = 19;
 
 fn carrier_level() -> Level {
     Level::Maximum(Box::new(Level::Parameter(0)), Box::new(Level::Parameter(1)))

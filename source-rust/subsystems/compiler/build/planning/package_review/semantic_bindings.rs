@@ -2,13 +2,13 @@
 
 use super::input::PolicySource;
 use diagnostics::Diagnostic;
-use provider_acceptance::AcceptedSemanticBinding;
-use provider_plans::ServiceSchema;
+use build_providers::acceptance::AcceptedSemanticBinding;
+use build_providers::plans::ServiceSchema;
 use review_evidence::record::SemanticBindingReviewCandidate;
 use source_compiler::representations::source_state::trait_definition::TraitDefinition;
 
 use super::declarations::unavailable;
-use provider_acceptance::AcceptedSemanticBindingRole as Role;
+use build_providers::acceptance::AcceptedSemanticBindingRole as Role;
 use review_evidence::record::{PackagePolicyBaseline, PackagePolicyCallableRole};
 use std::collections::BTreeSet;
 

@@ -29,6 +29,7 @@ consume a fixed byte-for-byte source tree.
 #![forbid(unsafe_code)]
 #![cfg_attr(windows, feature(windows_by_handle))]
 
+pub mod capture;
 mod custody;
 pub(crate) use ::wire::digest_encoder;
 mod error;
@@ -37,13 +38,13 @@ pub(crate) mod identity;
 mod limits;
 pub mod local;
 mod observations;
+pub mod selection;
 mod snapshot;
 pub(crate) mod source_resolver;
 pub mod storage;
 pub mod tree;
 
 pub use error::SourceResolveError;
-pub use source_selection::{SourceCaptureObligation, SourceCaptureRequest};
 pub use git::request::{GitSourceRequest, GitSourceRequestError, GitTransportProfile};
 pub use git::workspace::{
     GitWorkspaceDeclaration, GitWorkspaceDeclarationLimits, GitWorkspaceProjectionError,
@@ -58,6 +59,7 @@ pub use limits::LocalSourceLimits;
 pub use local::operations::resolve_local_source;
 pub use local::resolution_observations::{ResolvedLocalSnapshot, ResolvedLocalSource};
 pub use observations::resolved::{GitAcquisitionPin, ResolvedGitSource};
+pub use selection::{SourceCaptureObligation, SourceCaptureRequest};
 pub use source_resolver::{PrimaryGitChoices, SourceResolver};
 
 #[cfg(test)]

@@ -162,6 +162,48 @@ fn an_entryless_subject_checks_its_unimported_module_in_any_filename() {
     );
 }
 
+/// A local root's subject is its captured inventory. A sample family keeps
+/// separate projects, each with its own `build.omg`, in subdirectories of the
+/// root application; the caller names the root's own files with
+/// `--build-input` (scoped_execution.md, "Snapshot and staging protocol"), so
+/// a nested project's invalid twin is not one of the root's modules. Without
+/// that list the whole directory is the package and the twin is checked.
+#[test]
+fn an_explicit_inventory_leaves_a_nested_project_out_of_the_subject() {
+    let root = Project::valid().write("inventory_nested_project");
+    project::write(
+        &root,
+        &[
+            ("invalid_place/build.omg", APP_BUILD),
+            (
+                "invalid_place/main.omg",
+                "public machine main() { let value: u64 = bump(3u64); }\n\
+                 machine bump(count: u64) -> u64 { count + 1u64 }\n",
+            ),
+        ],
+    );
+    let inventory = project::omega(
+        &root,
+        &[
+            "--check",
+            "--offline",
+            "--target",
+            "linux_x86_64",
+            "--build-input",
+            "build.omg",
+            "--build-input",
+            "main.omg",
+            "build.omg",
+        ],
+    );
+    let (accepted, stderr) = project::status(&inventory);
+    assert!(accepted, "the root's own inventory checks: {stderr}");
+
+    let whole = check(&root);
+    assert!(!whole.success, "the whole directory includes the twin");
+    assert!(whole.stderr.contains("invalid_place/"), "{}", whole.stderr);
+}
+
 #[test]
 fn an_unreached_invalid_dependency_body_fails_only_when_the_dependency_is_the_subject() {
     let project = Project {
@@ -187,6 +229,41 @@ fn an_unused_subject_helper_that_reaches_the_invalid_dependency_body_fails() {
         ..Project::valid()
     };
     assert_refused_in(&project.write("subject_helper_reaches_invalid"), "bump");
+}
+
+/// The package's own caller may use what its private helper's body returns
+/// (state_contracts.md, "Local call summaries"): `read` masks its result to
+/// 32 bits, so `read(value) + 4u64` cannot overflow. Importing the package
+/// does not change its verification unit, so the application that reaches
+/// `codes` accepts the same body that `omega --check` on the package root
+/// accepts. Its twin makes `read` public: a public machine publishes only its
+/// written contract, so both checks refuse the addition.
+#[test]
+fn a_dependency_private_helper_summary_is_the_same_for_its_root_and_a_consumer() {
+    let helper = |visibility: &str| {
+        format!(
+            "{VENDOR_MAIN}{visibility}machine read(value: u32) -> u64 reaches none crashes none {{ ((value as u64) & 4294967295u64) }}\n\
+             public machine codes(value: u32) -> u64 reaches none crashes none {{ let count: u64 = read(value) + 4u64; count }}\n"
+        )
+    };
+    let app_main = format!("{APP_MAIN}public machine coded() -> u64 {{ |vendor|::codes(7u32) }}\n");
+    let private = Project {
+        app_main: app_main.clone(),
+        vendor_main: helper(""),
+        ..Project::valid()
+    };
+    let root = private.write("dependency_private_helper_summary");
+    assert_accepted(&root.join("../vendor"));
+    assert_accepted(&root);
+
+    let public = Project {
+        app_main,
+        vendor_main: helper("public "),
+        ..Project::valid()
+    };
+    let root = public.write("dependency_public_helper_contract");
+    assert_refused_in(&root.join("../vendor"), "codes");
+    assert_refused_in(&root, "codes");
 }
 
 #[test]

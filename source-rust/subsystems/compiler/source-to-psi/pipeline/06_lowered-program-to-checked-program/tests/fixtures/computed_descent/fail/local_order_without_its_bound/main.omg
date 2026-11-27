@@ -1,0 +1,93 @@
+// A machine on the program's own naturals that recurses at a computed value.
+// `Peano` has core's truncated subtraction, spelled exactly as core spells
+// it, so the descent of `drain(before(a))` is checked under natural order and
+// holds: `succ_sub_succ` and `sub_self` give `saturating_sub(Succ(p), Succ(p))
+// = Zero`. Proving that any sufficient fuel gives `drain` the same result
+// also needs the order's fuel bound, core's `succ_of_sub_between`, which this
+// copy leaves out. The compiler refuses `drain` for that lemma. Over core
+// `Nat` the same kind of recursion compiles (`computed_descent/pass`).
+use {omega}/language/core/foundation.omg as proof;
+
+data Peano {
+    case Zero;
+    case Succ(prev: Peano);
+}
+
+machine pred(a: Peano) -> Peano {
+    transition a {
+        Peano::Zero -> Peano::Zero,
+        Peano::Succ { prev } -> (prev)
+    }
+}
+
+machine saturating_sub(a: Peano, b: Peano) -> Peano
+terminates by b
+{
+    transition b {
+        Peano::Zero -> (a),
+        Peano::Succ { prev } -> (pred(saturating_sub(a, prev)))
+    }
+}
+
+machine succ_sub_succ(a: Peano, b: Peano) -> Peano
+terminates by b
+ensures
+    |proof|::Identity::<Peano>(
+        saturating_sub(Peano::Succ { prev: a }, Peano::Succ { prev: b }),
+        saturating_sub(a, b)
+    )
+{
+    transition b {
+        Peano::Zero -> Peano::Zero,
+        Peano::Succ { prev } -> sss_step(a, prev)
+    }
+
+    machine sss_step(a: Peano, prev: Peano) -> Peano {
+        transition { _ -> (succ_sub_succ(a, prev)) }
+    }
+}
+
+machine sub_self(a: Peano) -> Peano
+terminates by a
+ensures
+    |proof|::Identity::<Peano>(saturating_sub(a, a), Peano::Zero)
+{
+    transition a {
+        Peano::Zero -> Peano::Zero,
+        Peano::Succ { prev } -> ss_step(prev)
+    }
+
+    machine ss_step(prev: Peano) -> Peano {
+        _ = succ_sub_succ(prev, prev);
+        transition { _ -> (sub_self(prev)) }
+    }
+}
+
+machine before(a: Peano) -> Peano {
+    transition a {
+        Peano::Zero -> Peano::Zero,
+        Peano::Succ { prev } -> (prev)
+    }
+}
+
+machine drain(a: Peano) -> Peano
+terminates by a
+ensures
+    |proof|::Identity::<Peano>(result, Peano::Zero)
+{
+    transition a {
+        Peano::Zero -> Peano::Zero,
+        Peano::Succ { prev as p } -> again(a, p)
+    }
+
+    machine again(a: Peano, p: Peano) -> Peano {
+        _ = succ_sub_succ(p, p);
+        _ = sub_self(p);
+        transition { _ -> (drain(before(a))) }
+    }
+}
+
+data Main { }
+
+// The entry does nothing: the program is here for its proofs.
+machine entry_start() { }

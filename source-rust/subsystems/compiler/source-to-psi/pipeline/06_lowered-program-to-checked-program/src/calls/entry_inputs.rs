@@ -147,7 +147,6 @@ fn describe_calls(
     let mut tables = original.clone();
     with_prepared_machine(
         scope.formed(),
-        &elaboration.domains,
         id,
         &mut tables,
         inhabitation,

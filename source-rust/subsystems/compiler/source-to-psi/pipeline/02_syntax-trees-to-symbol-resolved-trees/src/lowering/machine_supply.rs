@@ -44,8 +44,12 @@ pub(crate) fn require_catalog_signature(
     let custody = lowerer
         .sources
         .as_ref()
-        .and_then(|sources| sources.get(machine.name.source_span().source_id))
-        .and_then(|file| crate::source_symbols::sealed_intrinsic_at(file, name));
+        .and_then(|sources| sources.bundled_core_file(machine.name.source_span().source_id))
+        .and_then(|bundled| {
+            language_core::sealed_intrinsics::SealedIntrinsicCatalog::classify_bundled(
+                bundled, name,
+            )
+        });
     let family = match custody {
         Some(SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::Collection(operation))) => {
             Some(CatalogFamily::Collection(operation))

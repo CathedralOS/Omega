@@ -238,6 +238,107 @@ machine OmegaRequestStructure::take_fixed(&mut self, width: i32) -> i32 {
     }
 }
 
+// The framed lineage uses the same one-byte discriminants as package acquisition.
+machine OmegaRequestStructure::take_octet(&mut self, request: &[u8], high: i32) -> i32 {
+    let at: i32 = self.take_fixed(1);
+    transition at >= 0 {
+        true -> member(at)
+        _ -> return -1
+    }
+
+    state member(at: i32) {
+        let tag: i32 = request[at];
+        transition tag <= high {
+            true -> return tag
+            _ -> return self.fail(at)
+        }
+    }
+}
+
+machine OmegaRequestStructure::take_lineage(&mut self, request: &[u8]) -> i32 {
+    let outer_end: i32 = self.section_end;
+    let start: i32 = self.take_bytes(request);
+    transition start >= 0 {
+        true -> bounded(start, outer_end)
+        _ -> return -1
+    }
+
+    state bounded(start: i32, parent_end: i32) {
+        self.section_end = self.cursor;
+        self.cursor = start;
+        let family: i32 = self.take_octet(request, 5);
+        transition family >= 0 { true -> fields(family, parent_end) _ -> finish(parent_end) }
+    }
+
+    state fields(family: i32, parent_end: i32) {
+        transition family {
+            0 -> owner(parent_end)
+            1 -> path(parent_end)
+            2 -> git(parent_end)
+            _ -> digest(parent_end)
+        }
+    }
+
+    state owner(parent_end: i32) {
+        let field: i32 = self.take_bytes(request);
+        transition field >= 0 { true -> path(parent_end) _ -> finish(parent_end) }
+    }
+
+    state digest(parent_end: i32) {
+        let field: i32 = self.take_fixed(32);
+        transition field >= 0 { true -> path(parent_end) _ -> finish(parent_end) }
+    }
+
+    state git(parent_end: i32) {
+        let transport: i32 = self.take_octet(request, 2);
+        transition transport >= 0 { true -> user(parent_end) _ -> finish(parent_end) }
+    }
+
+    state user(parent_end: i32) {
+        let present: i32 = self.take_octet(request, 1);
+        transition present { 0 -> host(parent_end) 1 -> username(parent_end) _ -> finish(parent_end) }
+    }
+
+    state username(parent_end: i32) {
+        let field: i32 = self.take_bytes(request);
+        transition field >= 0 { true -> host(parent_end) _ -> finish(parent_end) }
+    }
+
+    state host(parent_end: i32) {
+        let field: i32 = self.take_bytes(request);
+        transition field >= 0 { true -> port(parent_end) _ -> finish(parent_end) }
+    }
+
+    state port(parent_end: i32) {
+        let present: i32 = self.take_octet(request, 1);
+        transition present { 0 -> path(parent_end) 1 -> port_number(parent_end) _ -> finish(parent_end) }
+    }
+
+    state port_number(parent_end: i32) {
+        let field: i32 = self.take_fixed(2);
+        transition field >= 0 { true -> path(parent_end) _ -> finish(parent_end) }
+    }
+
+    state path(parent_end: i32) {
+        let field: i32 = self.take_bytes(request);
+        transition (field >= 0) && (self.cursor < self.section_end) {
+            true -> trailing(parent_end)
+            _ -> finish(parent_end)
+        }
+    }
+
+    state trailing(parent_end: i32) {
+        self.fail(self.cursor);
+        transition true { true -> finish(parent_end) }
+    }
+
+    state finish(parent_end: i32) {
+        self.cursor = self.section_end;
+        self.section_end = parent_end;
+        transition self.malformed_offset < 0 { true -> return 0 _ -> return -1 }
+    }
+}
+
 machine OmegaRequestStructure::check(&mut self, request: &[u8]) {
     self.complete = 0;
     self.malformed_offset = -1;
@@ -270,9 +371,8 @@ machine OmegaRequestStructure::check(&mut self, request: &[u8]) {
     }
 
     state subject_package_count() {
-        // A package row needs at least its eight framing words plus a
-        // snapshot count, so its minimum extent is 36 bytes.
-        let count: i32 = self.take_count(request, 36);
+        // Eight outer words and the smallest lineage (GitLab tag and path length).
+        let count: i32 = self.take_count(request, 37);
         transition count >= 0 {
             true -> have_package_count(count)
             _ -> refuse()
@@ -294,22 +394,14 @@ machine OmegaRequestStructure::check(&mut self, request: &[u8]) {
     state package_name(index: i32) {
         let start: i32 = self.take_bytes(request);
         transition start >= 0 {
-            true -> package_lineage_kind(index)
-            _ -> refuse()
-        }
-    }
-
-    state package_lineage_kind(index: i32) {
-        let kind: i32 = self.take_tag(request, 1, 2);
-        transition kind >= 0 {
             true -> package_lineage(index)
             _ -> refuse()
         }
     }
 
     state package_lineage(index: i32) {
-        let start: i32 = self.take_bytes(request);
-        transition start >= 0 {
+        let result: i32 = self.take_lineage(request);
+        transition result >= 0 {
             true -> package_revision(index)
             _ -> refuse()
         }

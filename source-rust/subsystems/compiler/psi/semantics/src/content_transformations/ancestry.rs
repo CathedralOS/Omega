@@ -1,5 +1,7 @@
 
-use semantic_vocabulary::{ClaimId, ContentProjectionIdentity, MachineId, OperationId};
+use semantic_vocabulary::{
+    ClaimId, ContentProjectionIdentity, ContentTerm, MachineId, OperationId,
+};
 use terminal_psi::{
     ContentLineageStep, ContentTransformationDerivation, Operation, OperationKind,
     TerminalMachine, TerminalModule,
@@ -256,6 +258,80 @@ fn call_input_origins(
     origin.ok_or("content ancestry callee has no grounded normal result")
 }
 
+/// A boundary call's result claim descends from the claim it consumed only
+/// where the boundary declares that this projection is unchanged: an
+/// equation `P(old(@input)) == P(@result)` instantiated at this call
+/// (`boundary_calls::compositions`). The equation is the boundary's
+/// published contract; its provider is checked against it separately. A
+/// call with no such equation for this projection and result claim relates
+/// nothing, so the caller cannot restate the content as conserved.
+fn boundary_input_origins(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+    output: ClaimId,
+    projection: ContentProjectionIdentity,
+) -> Result<Vec<ClaimId>, &'static str> {
+    let result = operation
+        .result
+        .as_structural()
+        .ok_or("content ancestry call has no structural result")?;
+    let binding = result
+        .claims
+        .iter()
+        .find(|binding| binding.claim == output)
+        .ok_or("content ancestry output is absent from its call result")?;
+    let mut origin = None;
+    for row in super::boundary_calls::compositions(module, machine, operation)? {
+        let (
+            ContentTerm::Projection {
+                projection: left,
+                subject: left_subject,
+            },
+            ContentTerm::Projection {
+                projection: right,
+                subject: right_subject,
+            },
+        ) = (row.derived.left(), row.derived.right())
+        else {
+            continue;
+        };
+        if *left != projection || *right != projection {
+            continue;
+        }
+        let returned = match (
+            left_subject.root == result.place,
+            right_subject.root == result.place,
+        ) {
+            (true, false) => left_subject,
+            (false, true) => right_subject,
+            _ => continue,
+        };
+        let path = super::structural_path(
+            module.types.structural_types.iter(),
+            &module.identities,
+            result.structural_type,
+            &returned.segments,
+        )
+        .ok_or("content ancestry boundary output path is not a declared projection")?;
+        if path != binding.path {
+            continue;
+        }
+        let [input] = row.input_claims.as_slice() else {
+            return Err("content ancestry boundary equation consumes more than one claim");
+        };
+        if origin
+            .replace(*input)
+            .is_some_and(|previous| previous != *input)
+        {
+            return Err("content ancestry boundary call has conflicting input claims");
+        }
+    }
+    origin
+        .map(|input| vec![input])
+        .ok_or("content ancestry boundary call declares no unchanged projection for its result")
+}
+
 fn transferred_input(
     callee: &TerminalMachine,
     operation: &Operation,
@@ -346,6 +422,15 @@ pub(super) fn local_roots(
             {
                 candidates.push(call_input_origins(
                     module, operation, claim, projection, traversal,
+                )?);
+            } else if matches!(operation.kind, OperationKind::BoundaryCall { .. })
+                && operation
+                    .result
+                    .as_structural()
+                    .is_some_and(|result| result.claims.iter().any(|output| output.claim == claim))
+            {
+                candidates.push(boundary_input_origins(
+                    module, machine, operation, claim, projection,
                 )?);
             }
             for parents in candidates {

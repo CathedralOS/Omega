@@ -911,4 +911,37 @@ impl SealedIntrinsicCatalog {
             })
             .map(|row| row.intrinsic)
     }
+
+    /// Returns the operation for a file already authenticated against its
+    /// exact bundled core path and bytes at source admission.
+    pub fn classify_bundled(file: BundledFile, declaration: &str) -> Option<SealedIntrinsic> {
+        ROWS.iter()
+            .find(|row| row.source == file && row.declaration.matches(declaration))
+            .map(|row| row.intrinsic)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bundled_classification_matches_row_paths() {
+        for row in ROWS {
+            assert_eq!(
+                Path::new(row.file),
+                Path::new(row.source.core_relative_path()),
+                "sealed row `{:?}` path must match its BundledFile path",
+                row.intrinsic
+            );
+            let sample = match row.declaration {
+                SealedDeclaration::Exact(path) => path.to_owned(),
+                SealedDeclaration::MemberOf(owner) => format!("{owner}::member"),
+            };
+            assert_eq!(
+                SealedIntrinsicCatalog::classify_bundled(row.source, &sample),
+                Some(row.intrinsic)
+            );
+        }
+    }
 }

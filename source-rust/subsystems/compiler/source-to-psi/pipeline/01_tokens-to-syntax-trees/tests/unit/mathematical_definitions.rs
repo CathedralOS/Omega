@@ -235,12 +235,19 @@ fn dependent_binder_requires_an_arrow() {
 }
 
 #[test]
-fn mathematical_roots_and_their_bodies_are_visible_in_syntax_snapshots() {
-    let empty = parse("").snapshot();
-    let definition = parse("let pi(): core::Real = term;").snapshot();
-    let other_body = parse("let pi(): core::Real = zero;").snapshot();
-    assert!(empty.mathematical_definitions.is_empty());
-    assert!(definition.root_items.is_empty());
-    assert_eq!(definition.mathematical_definitions[0].name.text, "pi");
+fn mathematical_roots_and_their_bodies_are_retained_on_syntax_trees() {
+    let empty = parse("");
+    let definition = parse("let pi(): core::Real = term;");
+    let other_body = parse("let pi(): core::Real = zero;");
+    assert!(empty.root_mathematical_definition_handles().is_empty());
+    assert!(definition.root_item_handles().is_empty());
+    let handle = definition.root_mathematical_definition_handles()[0];
+    assert_eq!(
+        definition
+            .root_mathematical_definition(handle)
+            .name
+            .as_str(&definition),
+        "pi"
+    );
     assert_ne!(definition, other_body);
 }

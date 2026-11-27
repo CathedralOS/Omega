@@ -1,8 +1,7 @@
 use {omega}/language/core/process_exit.omg;
 
 // The construction stream supplies package, dependency and source rows.
-// Version 1 unit rows carry a package-relative file path in the byte arena.
-// Legacy rows place every source in its package root.
+// Each source row carries its package-relative filename in the byte arena.
 data ConstructionInput {
     package_count: u32;
     edge_count: u32;
@@ -11,7 +10,6 @@ data ConstructionInput {
     entry_name_start: u32;
     entry_name_end: u32;
     buffer_length: u32;
-    unit_row_words: u32;
     has_build_sources: bool;
     build_unit_count: u32;
     // Three Product tables (3776), up to 64 two-word Build entry selections,

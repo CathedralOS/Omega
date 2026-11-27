@@ -1,3 +1,4 @@
+use crate::read::refuse_at;
 /*
 What a declared domain on a value lets the machine being read do with that
 value's contents. Every site of the reader that looks inside a data value or
@@ -32,12 +33,12 @@ adds no restriction on that axis").
 */
 
 use semantic_vocabulary::{MachineId, StructuralTypeId};
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::Checked;
 
 use super::Program;
-use crate::qualifications::explain_policy_refusal;
+use crate::Unserved;
 use crate::body::{Expression, StorageShape, ValueType};
-use crate::{Unserved, refuse};
+use crate::qualifications::explain_policy_refusal;
 
 /// What a site does to the contents of a value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -88,16 +89,19 @@ impl Program<'_> {
             // Only a complete selected plan can reach operation checking.
             // Its canonical field/caller rules remain attached to the value
             // and are checked against actual storage before execution.
-            if let crate::source_state::domain::DomainIssuance::Planned(policy) = definition.issuance()
+            if let crate::source_state::domain::DomainIssuance::Planned(policy) =
+                definition.issuance()
             {
                 let operation = match access {
-                    Access::Read | Access::Borrow => "read inside a value governed by an access policy",
+                    Access::Read | Access::Borrow => {
+                        "read inside a value governed by an access policy"
+                    }
                     Access::Replace => "replacement of a value governed by an access policy",
                     Access::Write => "write inside a value governed by an access policy",
                 };
                 return Err(explain_policy_refusal(
                     policy,
-                    refuse(id, Construct::Machine, Unserved::Expression(operation)),
+                    refuse_at(id, Unserved::Expression(operation)),
                 ));
             }
             // Pure predicates restrict validity, independently of access.
@@ -198,9 +202,8 @@ impl Program<'_> {
                 })
                 | StorageShape::PrimitiveScalar { .. } => {}
                 _ => {
-                    return Err(refuse(
+                    return Err(refuse_at(
                         id,
-                        Construct::Machine,
                         Unserved::Expression("representation read without ordinary closed storage"),
                     ));
                 }
@@ -242,13 +245,9 @@ impl Program<'_> {
                      zeroed storage supplies no borrowed reference; write the field's value"
                 ),
             )),
-            None => Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Statement(unserved),
-            )),
+            None => Err(refuse_at(id, Unserved::Statement(unserved))),
         };
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Statement(what)));
+        let unserved = |what| Err(refuse_at(id, Unserved::Statement(what)));
         // Each type with whether it is a field of a record in the value.
         let mut pending = vec![(value_type, false)];
         while let Some((value_type, contained)) = pending.pop() {

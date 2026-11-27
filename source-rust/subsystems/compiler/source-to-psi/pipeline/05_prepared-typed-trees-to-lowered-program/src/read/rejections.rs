@@ -1,3 +1,4 @@
+use crate::read::refuse_at;
 /*
 The reader's rejections: where it meets a program the specification says is
 wrong, as opposed to one it does not read yet.
@@ -49,12 +50,12 @@ naming nothing in `services`), through the same `crate::reject`.
 */
 
 use semantic_vocabulary::{IeeeFloatFormat, IntegerSign, IntegerWidth, MachineId, ScalarType};
-use terminal_check_tables::{Construct, Refusal};
+use terminal_check_tables::Refusal;
 
 use super::Program;
 use super::regions::Region;
 use crate::body::{Policy, Qualification, ValueType};
-use crate::{SourceOrigin, Unserved, refuse, reject};
+use crate::{SourceOrigin, Unserved, reject};
 
 /// What a value is supplied to, for the rules above.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -100,7 +101,7 @@ impl Program<'_> {
         found: Option<ValueType>,
         unserved: &'static str,
     ) -> Refusal {
-        let refused = refuse(id, Construct::Machine, Unserved::Typing(unserved));
+        let refused = refuse_at(id, Unserved::Typing(unserved));
         let (Some(expected), Some(found)) = (expected, found) else {
             return refused;
         };
@@ -444,6 +445,96 @@ impl Program<'_> {
             })
     }
 
+    /// The rejection when exactly one side of a machine's result is Unit.
+    /// A machine that declares no result type completes with Unit, so a
+    /// value it supplies as an arm or final value has nowhere to go, and a
+    /// call of such a machine supplies no value to a machine that declares
+    /// one. Result compatibility is the ordinary call rule
+    /// (`wiki/spec/language/state_contracts.md`, "Terminal calls in
+    /// transition arms"). The diagnostic names the machine whose header
+    /// lacks the result type, because that header is what the author must
+    /// change, even when the mismatch is found in its caller.
+    pub(super) fn unit_result_mismatch(
+        &self,
+        id: MachineId,
+        expected: Option<ValueType>,
+        supplied: &crate::body::Expression,
+    ) -> Option<Refusal> {
+        let machine = self.machine_named(id);
+        match (expected, supplied.result) {
+            (None, Some(found)) => {
+                let (found, hint) = match self.value_type_named(found) {
+                    Some(name) => (format!("`{name}`"), format!(" (`-> {name}`)")),
+                    None => (String::from("other than Unit"), String::new()),
+                };
+                Some(reject(
+                    id,
+                    supplied.source,
+                    format!(
+                        "machine `{machine}` declares no result type, so it completes with \
+                         Unit, but this value has type {found}: declare the result in its \
+                         header{hint}"
+                    ),
+                ))
+            }
+            (Some(expected), None) => {
+                let declared = self
+                    .value_type_named(expected)
+                    .map_or_else(String::new, |name| format!(" `{name}`"));
+                let callee = match &supplied.kind {
+                    crate::body::ExpressionKind::Call {
+                        callee: crate::body::CallTarget::Machine(callee),
+                        ..
+                    } => Some(self.machine_named(*callee)),
+                    _ => None,
+                };
+                Some(reject(
+                    id,
+                    supplied.source,
+                    match callee {
+                        Some(callee) => format!(
+                            "machine `{machine}` declares the result type{declared}, but this \
+                             value is the result of `{callee}`, which declares no result type \
+                             and so completes with Unit: declare the result in `{callee}`'s \
+                             header"
+                        ),
+                        None => format!(
+                            "machine `{machine}` declares the result type{declared}, but this \
+                             value is Unit"
+                        ),
+                    },
+                ))
+            }
+            _ => None,
+        }
+    }
+
+    /// The machine `id` as a diagnostic names it.
+    fn machine_named(&self, id: MachineId) -> String {
+        self.symbols
+            .get(id)
+            .copied()
+            .filter(|symbol| symbol.is_valid())
+            .map_or_else(
+                || String::from("<unnamed>"),
+                |symbol| self.typed.symbols.display_path(symbol, "::"),
+            )
+    }
+
+    /// A value type as a diagnostic names it, when its name is known.
+    fn value_type_named(&self, value_type: ValueType) -> Option<String> {
+        match value_type {
+            ValueType::Scalar(scalar, _) => Some(scalar_named(scalar)),
+            ValueType::Record(row, _, _) => match self.record_sources.get(row) {
+                Some(source) if source.declaration.is_valid() => {
+                    Some(self.typed.symbols.display_path(source.declaration, "::"))
+                }
+                _ => self.records.get(row).map(|record| record.identity.clone()),
+            },
+            ValueType::Rigid(_) => None,
+        }
+    }
+
     /// The domains of `qualification` as a diagnostic names them.
     pub(super) fn domains_named(&self, qualification: Qualification) -> String {
         let mut names = Vec::new();
@@ -480,7 +571,9 @@ impl Program<'_> {
                         definition.name.as_str(),
                         arguments
                             .iter()
-                            .map(|argument| self.typed.display_type_reference_with_constraints(*argument))
+                            .map(|argument| self
+                                .typed
+                                .display_type_reference_with_constraints(*argument))
                             .collect::<Vec<_>>()
                             .join(", ")
                     ),
@@ -492,6 +585,26 @@ impl Program<'_> {
             }
             None => "a domain with no declaration".to_owned(),
         }
+    }
+}
+
+/// The rejection for a call that names a point inside a machine's body other
+/// than its entry. `wiki/spec/language/machines.md`, "Nested machines and
+/// identity": a call "invokes its entry, not a saved activation or a private
+/// point inside its body", and the source `state` declaration is retired, so
+/// no source name denotes such a point. The rule holds for a runtime call and
+/// for a call a clause unfolds alike. Resolution gives a call only a machine
+/// or its entry state, so reaching this means the typed trees named another
+/// state: it is refused as the rule, never read as the machine's entry.
+pub(super) fn call_inside_a_machine_body(id: MachineId) -> Refusal {
+    Refusal {
+        reason: terminal_check_tables::RefusalReason::Violation,
+        site: terminal_check_tables::RefusalSite::Machine(id, crate::Construct::Machine),
+        source_span: None,
+        detail: String::from(
+            "a call runs a machine from its entry; this call names a point inside a \
+             machine's body other than its entry",
+        ),
     }
 }
 

@@ -15,7 +15,7 @@ normal-return settlement charges result custody and publishes the log bytes.
 */
 
 use build_declarations::{BuildDependencySource, BuildRequest, DependencyPurpose, ProjectName};
-use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
+use build_model::accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 mod dependency_options;
 mod input_bindings;
 mod output;

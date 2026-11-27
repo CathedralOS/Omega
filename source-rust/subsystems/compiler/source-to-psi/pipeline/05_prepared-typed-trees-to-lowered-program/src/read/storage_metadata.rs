@@ -7,7 +7,7 @@ use semantic_vocabulary::MachineId;
 use terminal_check_tables::Checked;
 use terminal_psi::{CallingAbiStorage, CallingRuntimeFormal, CallingSignatureTelescope};
 
-use super::{Program, services};
+use super::Program;
 use crate::publication::calling::PreparedCallingStorage;
 use crate::read::calling::SourceCallingPolicies;
 
@@ -40,7 +40,7 @@ impl Program<'_> {
             .iter()
             .map(|(parameter, actual)| {
                 if !bound.insert(*parameter) {
-                    return Err(services::unavailable(
+                    return Err(crate::read::unavailable(
                         context,
                         "calling storage needs its complete repeated-binder application scopes",
                     ));
@@ -55,7 +55,7 @@ impl Program<'_> {
                         .data_type_parameter_by_symbol(*parameter)
                         .is_none()
                 {
-                    return Err(services::unavailable(
+                    return Err(crate::read::unavailable(
                         context,
                         "calling storage has a stale source application binding",
                     ));
@@ -94,7 +94,7 @@ impl Program<'_> {
         source: &SourceCallingPolicies,
     ) -> Checked<PreparedCallingDescriptions> {
         if self.type_purpose != TypePurpose::StorageDescription {
-            return Err(services::unavailable(
+            return Err(crate::read::unavailable(
                 context,
                 "calling storage before the complete body closure",
             ));
@@ -115,7 +115,7 @@ impl Program<'_> {
                     .projections_in_context(typed, self.purpose)
                     .next()
                     .ok_or_else(|| {
-                        services::unavailable(
+                        crate::read::unavailable(
                             context,
                             "calling ABI has no declaration in the selected checked context",
                         )
@@ -123,14 +123,14 @@ impl Program<'_> {
                 let physical_owner = selected
                     .physical_owner
                     .as_ref()
-                    .map_err(|reason| services::unavailable(context, reason.clone()))?;
+                    .map_err(|reason| crate::read::unavailable(context, reason.clone()))?;
                 let mut agreed = None;
                 for original in signature.projections_in_context(typed, self.purpose) {
                     if original.formals != selected.formals
                         || original.default_eligible != selected.default_eligible
                         || original.physical_owner != selected.physical_owner
                     {
-                        return Err(services::unavailable(
+                        return Err(crate::read::unavailable(
                             context,
                             "equal declaration ABI keys have different declarations in the selected checked context",
                         ));
@@ -138,9 +138,9 @@ impl Program<'_> {
                     let telescope = original
                         .telescope
                         .as_ref()
-                        .map_err(|reason| services::unavailable(context, reason.clone()))?;
+                        .map_err(|reason| crate::read::unavailable(context, reason.clone()))?;
                     if !telescope.binders.is_empty() || !telescope.direct_callbacks.is_empty() {
-                        return Err(services::unavailable(
+                        return Err(crate::read::unavailable(
                             context,
                             "calling metadata needs its exact published callback catalog",
                         ));
@@ -148,9 +148,9 @@ impl Program<'_> {
                     let projection = original
                         .storage
                         .as_ref()
-                        .map_err(|reason| services::unavailable(context, reason.clone()))?;
+                        .map_err(|reason| crate::read::unavailable(context, reason.clone()))?;
                     if projection.parameters.len() != telescope.parameters.len() {
-                        return Err(services::unavailable(
+                        return Err(crate::read::unavailable(
                             context,
                             "calling storage differs from its exact native formal telescope",
                         ));
@@ -172,7 +172,7 @@ impl Program<'_> {
                         // slice descriptors and their callback backing.
                         parameters.push(
                             self.calling_abi_parameter(context, reference)
-                                .map_err(|reason| services::unavailable(context, reason))?,
+                                .map_err(|reason| crate::read::unavailable(context, reason))?,
                         );
                     }
                     let omitted_unit = !projection.result.is_valid()
@@ -192,7 +192,7 @@ impl Program<'_> {
                             .type_reference_table
                             .contains_type_reference(projection.result)
                     {
-                        return Err(services::unavailable(
+                        return Err(crate::read::unavailable(
                             context,
                             "calling storage lost its explicit result type",
                         ));
@@ -212,7 +212,7 @@ impl Program<'_> {
                             );
                         Some(
                             self.calling_abi_storage(context, reference)
-                                .map_err(|reason| services::unavailable(context, reason))?,
+                                .map_err(|reason| crate::read::unavailable(context, reason))?,
                         )
                     };
                     let storage = CallingAbiStorage {
@@ -232,7 +232,7 @@ impl Program<'_> {
                         },
                     };
                     if agreed.as_ref().is_some_and(|prior| prior != &storage) {
-                        return Err(services::unavailable(
+                        return Err(crate::read::unavailable(
                             context,
                             "equal declaration ABI keys have different complete storage projections",
                         ));
@@ -240,7 +240,7 @@ impl Program<'_> {
                     agreed = Some(storage);
                 }
                 let storage = agreed.ok_or_else(|| {
-                    services::unavailable(
+                    crate::read::unavailable(
                         context,
                         "calling ABI has no exact source storage projection",
                     )

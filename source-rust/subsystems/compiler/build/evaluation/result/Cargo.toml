@@ -8,15 +8,13 @@ version.workspace = true
 path = "result.rs"
 
 [dependencies]
+build-model = { path = "../../model" }
 language-core = { path = "../../../foundation/language-core" }
-behavior-exclusion-requests = { path = "../../settings/behavior-exclusions" }
 build-consent = { path = "../authority/consent" }
 build-declarations = { path = "../../inputs/declarations" }
 build-output = { path = "../../inputs/trees" }
 checked-program-to-psi = { path = "../../../source-to-psi/pipeline/07_checked-program-to-psi" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
-evaluation-contracts = { path = "../accounting/contracts" }
-evaluation-receipts = { path = "../receipts" }
 normalized-build-settings = { path = "../../settings/normalized" }
 optimization-requests = { path = "../../settings/optimizations" }
 package-compilation = { path = "../../inputs" }

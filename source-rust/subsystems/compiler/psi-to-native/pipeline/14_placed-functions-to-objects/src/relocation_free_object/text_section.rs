@@ -19,7 +19,7 @@ use crate::{
     canonical_private_machine_symbol_name, object_target_policy, validate_relocation_free_object,
 };
 use machine_code::{RelocationFreeTextSectionPlacement, TextSectionRelocationRequirements};
-use optimization_core::{OptimizationSelectionIdentity, RelocationFreeObjectPlanIdentity};
+use optimization_core::OptimizationSelectionIdentity;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum RelocationFreeObjectFromTextError {
@@ -127,9 +127,7 @@ fn assemble_object(
             RelocationFreeObjectRelocationRequirements::UnresolvedObjectSymbolFieldsV1
         }
     };
-    let mut object = RelocationFreeObjectPlan {
-        identity: RelocationFreeObjectPlanIdentity::from_canonical_bytes(b"pending"),
-        source_text_section: text.identity,
+    let object = RelocationFreeObjectPlan {
         psi: text.psi,
         work_schedule: text.work_schedule,
         selected: text.selected,
@@ -154,9 +152,6 @@ fn assemble_object(
         unresolved_image_addresses: text.unresolved_image_addresses.clone(),
         relocation_requirements,
     };
-    object.identity = object
-        .recomputed_identity()
-        .map_err(RelocationFreeObjectFromTextError::InvalidObject)?;
     validate_relocation_free_object(&object)
         .map_err(RelocationFreeObjectFromTextError::InvalidObject)?;
     Ok(object)
@@ -169,10 +164,7 @@ mod tests {
         ObjectLocalSymbolId, PlacedFunctionFragment, RelocationFreeTextSectionPlacement,
         TextSectionPlacementPolicy, TextSectionRelocationRequirements,
     };
-    use optimization_core::{
-        FunctionFragmentEmissionIdentity, OptimizationSelectionIdentity,
-        TerminalRelocationFreeTextSectionIdentity,
-    };
+    use optimization_core::OptimizationSelectionIdentity;
     use selected_instructions::SelectedInstructionPlanIdentity;
     use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
     use target::NativeTarget;
@@ -181,8 +173,6 @@ mod tests {
     fn text_with_target(target: NativeTarget) -> RelocationFreeTextSectionPlacement {
         let machine = MachineId::new(7).unwrap();
         RelocationFreeTextSectionPlacement {
-            identity: TerminalRelocationFreeTextSectionIdentity::from_canonical_bytes(b"text"),
-            source_fragments: FunctionFragmentEmissionIdentity::from_canonical_bytes(b"fragments"),
             psi: TerminalPsiIdentity {
                 vocabulary_marker: VocabularyMarker::CURRENT,
                 program_fingerprint: SemanticFingerprint::from_bytes([4; 32]),
@@ -309,11 +299,6 @@ mod tests {
                 &object,
             ),
             Ok(())
-        );
-        let container = crate::encode_relocation_free_object(&object).unwrap();
-        assert_eq!(
-            crate::decode_relocation_free_object(&container.bytes),
-            Ok(object)
         );
     }
 }
