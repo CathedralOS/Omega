@@ -253,6 +253,43 @@ fn scalar_value(
     })
 }
 
+/// A returned callable is the exact declaration its descriptor selected.
+/// A selection of a conformance member or of a static application has no
+/// plain declaration identity, so it is refused rather than renamed.
+fn static_callable(
+    program: &TerminalProgram<'_>,
+    contract: semantic_vocabulary::CallableContractId,
+    descriptor: semantic_vocabulary::MachineDescriptorId,
+) -> Result<BuildTimeValue, String> {
+    let module = program.module();
+    let descriptor = module
+        .execution
+        .callables
+        .descriptor(descriptor)
+        .filter(|selected| selected.contract == contract)
+        .ok_or("Terminal callable result has no descriptor for its contract")?;
+    if descriptor.origin.conformance.is_some() || descriptor.origin.requirement.is_some() {
+        return Err(
+            "Terminal callable result selects a conformance member; a result keeps only a named machine selection"
+                .into(),
+        );
+    }
+    let declaration = module
+        .machine(descriptor.machine)
+        .and_then(|machine| machine.declaration.as_ref())
+        .ok_or("Terminal callable result selects a machine without its declaration")?;
+    if declaration.specialization.is_some() {
+        return Err(
+            "Terminal callable result selects a static application; a result keeps only a named machine selection"
+                .into(),
+        );
+    }
+    Ok(BuildTimeValue::StaticCallable {
+        owner: label(program, declaration.machine.identity())?.to_owned(),
+        callable: label(program, declaration.callable)?.to_owned(),
+    })
+}
+
 /// Convert a returned scalar to the compiler's value vocabulary.
 pub fn scalar_result(
     program: &TerminalProgram<'_>,
@@ -274,6 +311,10 @@ pub fn scalar_result(
             }
             integer_value(value)
         }
+        TerminalScalarValue::Callable {
+            contract,
+            descriptor,
+        } => static_callable(program, contract, descriptor),
         _ => Err("Terminal result scalar is outside the compiler-owned vocabulary".into()),
     }
 }

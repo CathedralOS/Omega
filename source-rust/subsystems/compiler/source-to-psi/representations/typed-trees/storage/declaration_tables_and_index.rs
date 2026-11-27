@@ -5916,6 +5916,7 @@ pub(crate) mod type_reference_queries {
                 evidence_projection: Some(EvidenceProjection {
                     term: Identifier::from("proof"),
                     member: Identifier::from("value"),
+                    term_symbol: SymbolHandle::invalid(),
                 }),
                 ..original
             };

@@ -2380,6 +2380,9 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
     pub struct EvidenceProjection {
         pub term: DiagnosticName,
         pub member: DiagnosticName,
+        /// The constant the term names, or invalid when it names none.
+        /// A proof argument reads a constant's stored selection through it.
+        pub term_symbol: symbols::SymbolHandle,
     }
 
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]

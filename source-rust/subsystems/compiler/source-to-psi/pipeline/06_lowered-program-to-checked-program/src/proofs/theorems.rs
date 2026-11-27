@@ -248,7 +248,7 @@ pub(crate) fn finalize_citations(
             let goals = terminal_semantics::theorems::citation_goals(
                 module,
                 &context.parameter.contract,
-                &supplied.contract,
+                supplied,
                 &formals,
                 citation.instantiation.len(),
             )
@@ -466,14 +466,9 @@ fn derive_supply(
         .ok_or_else(|| invalid("instantiating theorem has no source machine"))?;
     let formals =
         terminal_semantics::theorems::proof_formal_contracts(module, inner).map_err(invalid)?;
-    let goals = terminal_semantics::theorems::citation_goals(
-        module,
-        expected,
-        &machine.contract,
-        &formals,
-        0,
-    )
-    .map_err(invalid)?;
+    let goals =
+        terminal_semantics::theorems::citation_goals(module, expected, machine, &formals, 0)
+            .map_err(invalid)?;
     derive_citation(owner, expected, &goals, failure, activity)
 }
 

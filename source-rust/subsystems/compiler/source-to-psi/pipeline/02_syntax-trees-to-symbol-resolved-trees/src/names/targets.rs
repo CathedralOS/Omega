@@ -298,7 +298,9 @@ mod calls {
             }
             SymbolLookup::Ambiguous { .. } => SymbolHandle::invalid(),
             SymbolLookup::NotFound => {
-                let requirement = machine.lexical_requirements.select(symbols, target.as_str());
+                let requirement = machine
+                    .lexical_requirements
+                    .select(symbols, target.as_str());
                 if requirement.is_valid() {
                     requirement
                 } else {
@@ -491,6 +493,32 @@ mod calls {
     /// Bind one static operand in its exact lexical telescope. Context owners
     /// that also resolve structural type references walk their own typed operand
     /// graph; the ordinary recursive walker uses the same binding operation.
+    /// A projection `TERM.member` names the constant `TERM` when one is in
+    /// scope. The receiving reader decides what the projection may cite.
+    fn projected_constant(
+        symbols: &SymbolTable,
+        scope_symbol: SymbolHandle,
+        argument: &mut StaticMachineArgument,
+    ) {
+        if argument.type_reference.is_valid() || argument.const_literal.is_some() {
+            return;
+        }
+        let Some(projection) = &mut argument.evidence_projection else {
+            return;
+        };
+        let term = resolve_static_machine_argument_symbol(
+            symbols,
+            scope_symbol,
+            std::slice::from_ref(&projection.term),
+            BinderRole::Value,
+        );
+        projection.term_symbol = if term.is_valid() && symbols.get(term).kind == SymbolKind::Const {
+            term
+        } else {
+            SymbolHandle::invalid()
+        };
+    }
+
     pub(in crate::resolution::names) fn assign_static_argument_symbol(
         symbols: &SymbolTable,
         scope_symbol: SymbolHandle,
@@ -503,6 +531,7 @@ mod calls {
             || argument.const_literal.is_some()
         {
             argument.symbol = SymbolHandle::invalid();
+            projected_constant(symbols, scope_symbol, argument);
         } else if let [name] = argument.path.as_ref()
             && let Some(parameter) = lexical_parameters
                 .iter()
@@ -544,6 +573,7 @@ mod calls {
             || argument.const_literal.is_some()
         {
             argument.symbol = SymbolHandle::invalid();
+            projected_constant(symbols, machine.symbol, argument);
         } else {
             let name = match argument.path.as_ref() {
                 [name] => Some(name),
@@ -2061,7 +2091,9 @@ mod tests {
         let mut sources = crate::source_inputs::SourceMap::default();
         let source_id = sources
             .add_with_metadata(
-                std::path::Path::new("root").join(directory).join("main.omg"),
+                std::path::Path::new("root")
+                    .join(directory)
+                    .join("main.omg"),
                 text.to_owned(),
                 "root".into(),
                 None,
@@ -2282,10 +2314,7 @@ mod tests {
                     )
                 })
             };
-            (
-                operand("select_provider"),
-                operand("group"),
-            )
+            (operand("select_provider"), operand("group"))
         };
 
         assert_eq!(

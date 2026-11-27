@@ -304,8 +304,17 @@ impl Program<'_> {
         };
         let materialized =
             self.expression(id, &[], constant.materialized_initializer, Some(carrier))?;
+        // A callable leaf lowers to a descriptor, which no longer names its
+        // source declaration. The typed materialization is compared with
+        // the evaluated selection identity instead, leaf by leaf.
         if materialized.result != Some(carrier)
             || !self.constant_agrees(id, &value, &materialized, initializer)?
+            || (selects_callable(&value)
+                && !self.typed.canonical_const_materialization_matches(
+                    constant.declared_type,
+                    constant.materialized_initializer,
+                    &value,
+                ))
         {
             return Err(unserved(
                 "constant encoding and materialized carrier differ",
@@ -376,6 +385,14 @@ impl Program<'_> {
                         IntegerValue::Unsigned(current) => *value == bignum::BigInt::from(*current),
                     }
             }
+            // Its exact selection is compared by `subject_constant`.
+            (
+                DecodedCanonicalConstValue::StaticCallable { .. },
+                ExpressionKind::MachineValue { .. },
+            ) => matches!(
+                materialized.result,
+                Some(ValueType::Scalar(ScalarType::Callable(_), _))
+            ),
             (DecodedCanonicalConstValue::Boolean(value), ExpressionKind::Boolean(current)) => {
                 *value == *current
             }
@@ -523,5 +540,20 @@ impl Program<'_> {
             }
         }
         Ok(true)
+    }
+}
+
+/// Whether a constant value holds a machine selection at any leaf.
+fn selects_callable(value: &DecodedCanonicalConstValue) -> bool {
+    match value {
+        DecodedCanonicalConstValue::StaticCallable { .. } => true,
+        DecodedCanonicalConstValue::Array { values, .. } => values.iter().any(selects_callable),
+        DecodedCanonicalConstValue::Record { fields, .. }
+        | DecodedCanonicalConstValue::Variant { fields, .. } => {
+            fields.iter().any(|(_, value)| selects_callable(value))
+        }
+        DecodedCanonicalConstValue::Integer { .. }
+        | DecodedCanonicalConstValue::Boolean(_)
+        | DecodedCanonicalConstValue::Float { .. } => false,
     }
 }
