@@ -88,7 +88,7 @@ The runtime host's bindings, reviewed one by one:
 ## Remaining
 
 1. **A command-line route.** `omega run` names only the trusted route.
-   [Owner question 2](../../../OWNER_QUESTIONS.md#untrusted-psi-run-flag) asks
+   [Owner question 3](../../../OWNER_QUESTIONS.md#untrusted-psi-run-flag) asks
    whether to add one.
 2. **Wider bindings.** Allocation emulation needs a ceiling charged to the
    invocation account, and live time needs a granted wait ceiling, before they
