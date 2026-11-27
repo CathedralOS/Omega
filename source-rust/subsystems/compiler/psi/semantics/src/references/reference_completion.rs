@@ -796,7 +796,9 @@ pub fn borrowed_loan_sources<'a>(
         }
         return Ok(BorrowedLoanSources::Single(BorrowedLoanSource::Provider));
     }
-    if view {
+    // A fixed-array reference to an incoming view's whole window borrows
+    // that view's own payload, as the view does.
+    if view || incoming_view_occurrence(module, machine, &origins).is_ok() {
         incoming_view_occurrence(module, machine, &origins)?;
         return Ok(BorrowedLoanSources::Single(BorrowedLoanSource::Incoming));
     }

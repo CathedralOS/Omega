@@ -151,6 +151,7 @@ fn scalar_definition(operation: &AbstractOperation) -> Option<(ValueId, ScalarTy
         | O::EstablishElementView { .. }
         | O::ElementViewWrite { .. }
         | O::ElementViewSubslice { .. }
+        | O::ElementViewFixedArray { .. }
         | O::WriteOnlyPrimitiveStore { .. }
         | O::StructuralScalarFieldStore { .. }
         | O::MoveStructuralField { .. }
@@ -273,6 +274,7 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         O::ElementViewSubslice {
             start, end, length, ..
         } => vec![*start, *end, *length],
+        O::ElementViewFixedArray { length, .. } => vec![*length],
         O::EstablishElementView {
             region: terminal_psi::ElementViewRegion::WholeRepresentation { source_length, .. },
             ..
@@ -480,6 +482,7 @@ pub(crate) fn expected_ownership(operation: &AbstractOperation) -> Vec<Ownership
         | O::ElementViewRead { .. }
         | O::ElementViewWrite { .. }
         | O::ElementViewSubslice { .. }
+        | O::ElementViewFixedArray { .. }
         | O::WriteOnlyPrimitiveStore { .. }
         | O::StructuralScalarFieldStore { .. }
         | O::MoveStructuralField { .. }

@@ -218,6 +218,18 @@ mod activation_storage {
                 length: *length,
                 obligation: *obligation,
             },
+            A::ElementViewFixedArray {
+                source,
+                length,
+                extent,
+                obligation,
+                ..
+            } => T::ElementViewFixedArray {
+                source: source.clone(),
+                length: *length,
+                extent: *extent,
+                obligation: *obligation,
+            },
             A::EstablishReference {
                 source, storage, ..
             } => T::EstablishReference {
@@ -3099,7 +3111,8 @@ pub(crate) mod derived_metadata {
                 O::ByteSequenceLength { source, .. }
                 | O::ElementViewLength { source, .. }
                 | O::ByteSequenceSubslice { source, .. }
-                | O::ElementViewSubslice { source, .. } => require(source.place, known)?,
+                | O::ElementViewSubslice { source, .. }
+                | O::ElementViewFixedArray { source, .. } => require(source.place, known)?,
                 O::ReturnStructural { source, .. } | O::EliminateEmpty { source, .. } => {
                     require(*source, known)?
                 }
@@ -5501,6 +5514,82 @@ pub(crate) mod function_structure {
             types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
             domains: &BTreeMap<StructuralDomainId, &StructuralDomainDeclaration>,
         ) -> bool {
+            // A shared `[T; extent]` reference to the whole window of a
+            // measured element or byte view.
+            if let Operation::ElementViewFixedArray {
+                source,
+                result,
+                length,
+                extent,
+                ..
+            } = operation
+            {
+                if source.access != StructuralAccess::SharedBorrow
+                    || result.place == source.place
+                    || result.multiplicity != StructuralMultiplicity::Affine
+                    || !result.qualifications.is_empty()
+                    || !result.projected_qualifications.is_empty()
+                    || !result.qualification_establishments.is_empty()
+                    || !result.claims.is_empty()
+                {
+                    return false;
+                }
+                let Some(shape) = source_shape(
+                    function,
+                    types,
+                    domains,
+                    source,
+                    StructuralAccess::SharedBorrow,
+                ) else {
+                    return false;
+                };
+                let (element, bytes) = match &shape {
+                    StructuralTypeShape::ElementView { element, .. } => (Some(*element), false),
+                    StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                        ..
+                    }) => (None, true),
+                    _ => return false,
+                };
+                let Some(StructuralTypeShape::Reference {
+                    referent,
+                    access: StructuralAccess::SharedBorrow,
+                }) = types.get(&result.structural_type).map(|row| &row.shape)
+                else {
+                    return false;
+                };
+                let Some(StructuralTypeShape::FixedArray {
+                    element: array_element,
+                    length: terminal_psi::ArrayExtent::Literal(array_extent),
+                }) = types.get(referent).map(|row| &row.shape)
+                else {
+                    return false;
+                };
+                if array_extent != extent
+                    || match element {
+                        Some(element) => element != *array_element,
+                        None => !fixed_bytes(&types[referent].shape, types),
+                    }
+                {
+                    return false;
+                }
+                return function.block_nodes().any(|node| match &node.operation {
+                    Operation::ByteSequenceLength {
+                        result: measured,
+                        source: observed,
+                        ..
+                    } if bytes => {
+                        measured.value == *length && same_descriptor_coordinate(observed, source)
+                    }
+                    Operation::ElementViewLength {
+                        result: measured,
+                        source: observed,
+                        ..
+                    } if !bytes => {
+                        measured.value == *length && same_descriptor_coordinate(observed, source)
+                    }
+                    _ => false,
+                });
+            }
             let (source, bytes, cut) = match operation {
                 Operation::ByteSequenceLength { source, .. } => (source, true, None),
                 Operation::ElementViewLength { source, .. } => (source, false, None),
@@ -7289,7 +7378,8 @@ pub(crate) mod function_structure {
                     | O::EstablishElementView { source, .. }
                     | O::ElementViewLength { source, .. }
                     | O::ElementViewRead { source, .. }
-                    | O::ElementViewSubslice { source, .. } => {
+                    | O::ElementViewSubslice { source, .. }
+                    | O::ElementViewFixedArray { source, .. } => {
                         vec![source.place]
                     }
                     O::ElementViewWrite { destination, .. } => vec![destination.place],
@@ -7950,6 +8040,16 @@ pub(crate) mod function_structure {
                         | O::ByteSequenceLength { .. }
                         | O::ElementViewSubslice { .. }
                         | O::ElementViewLength { .. } => {
+                            if !super::descriptor_sources::valid(
+                                function,
+                                &node.operation,
+                                structural_types,
+                                structural_domains,
+                            ) {
+                                return Err(catalog_mismatch(function));
+                            }
+                        }
+                        O::ElementViewFixedArray { .. } => {
                             if !super::descriptor_sources::valid(
                                 function,
                                 &node.operation,
@@ -12254,6 +12354,7 @@ pub(crate) mod operation_contracts {
                     O::ElementViewSubslice {
                         start, end, length, ..
                     } => u64_scalar(start) && u64_scalar(end) && u64_scalar(length),
+                    O::ElementViewFixedArray { length, .. } => u64_scalar(length),
                     O::ElementViewRead {
                         result,
                         index,
@@ -12480,7 +12581,8 @@ pub(crate) mod operation_contracts {
                 O::EstablishElementView { .. }
                 | O::ElementViewLength { .. }
                 | abstract_operations::element_view_read_write_pair_pattern!(..)
-                | O::ElementViewSubslice { .. } => {
+                | O::ElementViewSubslice { .. }
+                | O::ElementViewFixedArray { .. } => {
                     element_views::types_match(function, operation, definitions)
                 }
                 abstract_operations::primitive_local_triple_pattern!(value, ..)

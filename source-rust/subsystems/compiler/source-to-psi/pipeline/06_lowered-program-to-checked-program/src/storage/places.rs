@@ -2927,6 +2927,16 @@ impl<'a> Storage<'a> {
                     }
                     return self.subslice_goal(operation, types);
                 }
+                if let OperationKind::ElementViewFixedArray {
+                    obligation: owned, ..
+                } = &operation.kind
+                {
+                    if *owned != obligation {
+                        return Err(self
+                            .foreign(concerns, "a fixed-array reference owns another obligation"));
+                    }
+                    return self.fixed_array_goal(operation, types);
+                }
                 if let OperationKind::ByteSequenceRead {
                     obligation: owned, ..
                 }
@@ -4196,6 +4206,39 @@ impl<'a> Storage<'a> {
                 }
             }
         };
+        // A borrowed view's payload is established by whoever lent it. A
+        // fixed-array reference to an incoming view's window reads that
+        // payload, so its contents are established here too.
+        if matches!(asked, Asked::Contents(_))
+            && resolved.place == *original
+            && let Some(crossing) = original
+                .segments
+                .iter()
+                .position(|segment| *segment == Segment::Referent)
+            && let Some(sources) = resolved.captured_argument_sources()
+        {
+            let mut incoming_views = true;
+            for source in sources {
+                incoming_views &= matches!(
+                    self.root_kind(source, concerns)?,
+                    StructuralPlaceKind::Parameter { .. }
+                ) && matches!(
+                    self.byte_shape(source, &[], concerns)?,
+                    StructuralTypeShape::ElementView { .. }
+                        | StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                        )
+                );
+            }
+            if incoming_views {
+                let address = budget.add_equation();
+                budget.add_supply(
+                    address,
+                    Supply::Direct(Reached::Established(original.segments.len() - crossing)),
+                );
+                return Ok(Supply::transfer(address));
+            }
+        }
         self.reaching_backing_supply(
             references,
             tables,

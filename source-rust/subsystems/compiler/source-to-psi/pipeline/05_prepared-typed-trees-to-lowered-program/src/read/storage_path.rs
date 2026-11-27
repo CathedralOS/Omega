@@ -51,6 +51,7 @@ pub(super) fn walk<'a, E>(
             | ExpressionKind::PackedInteger { .. }
             | ExpressionKind::ByteSequencePredicate { .. }
             | ExpressionKind::CollectionView { .. }
+            | ExpressionKind::CollectionFixedArray { .. }
             | ExpressionKind::CollectionSubslice { .. }
             | ExpressionKind::Zero
             | ExpressionKind::Boolean(_)

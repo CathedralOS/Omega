@@ -375,6 +375,7 @@ pub(crate) mod effect_summaries {
             | abstract_operations::byte_view_length_triple_pattern!(..)
             | abstract_operations::element_view_read_write_pair_pattern!(..)
             | O::ElementViewSubslice { .. }
+            | O::ElementViewFixedArray { .. }
             | abstract_operations::byte_len_or_field_read_pattern!(..)
             | O::StructuralScalarFieldRead { .. }
             | O::ReturnStructural { .. } => (EffectClass::StructuralState, No, Yes, No, No),
@@ -1016,7 +1017,8 @@ pub(crate) mod place_access_summaries {
             O::ElementViewLength { source, .. }
             | O::ByteSequenceLength { source, .. }
             | O::ByteSequenceSubslice { source, .. }
-            | O::ElementViewSubslice { source, .. } => {
+            | O::ElementViewSubslice { source, .. }
+            | O::ElementViewFixedArray { source, .. } => {
                 pending.attribute(
                     context,
                     source.place,

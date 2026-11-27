@@ -370,6 +370,7 @@ fn operation_observations(
         | abstract_operations::byte_view_length_triple_pattern!(..)
         | abstract_operations::element_view_read_write_pair_pattern!(..)
         | O::ElementViewSubslice { .. }
+        | O::ElementViewFixedArray { .. }
         | abstract_operations::byte_len_or_field_read_pattern!(..)
         | O::StructuralScalarFieldRead { .. } => (vec![event(C::StructuralState)], No, No),
         abstract_operations::call_or_call_structural_pattern!(..) => {

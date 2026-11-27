@@ -84,6 +84,25 @@ pub fn operation_safety_goal(
                 ]),
             )
         }
+        OperationKind::ElementViewFixedArray {
+            length,
+            extent,
+            obligation,
+            ..
+        } => {
+            let tag = OperationSemanticTag::for_operation(&operation.kind);
+            (
+                *obligation,
+                Proposition::Equal(
+                    value(*length, tag)?,
+                    ScalarTerm::integer(
+                        IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"),
+                        semantic_vocabulary::IntegerValue::Unsigned(u128::from(*extent)),
+                    )
+                    .map_err(OperationSemanticError::InvalidProposition)?,
+                ),
+            )
+        }
         _ => return Ok(None),
     };
     Ok(Some((obligation, goal)))

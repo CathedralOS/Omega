@@ -530,6 +530,10 @@ impl<'a> Storage<'a> {
                 self.subslice(references, operation)?;
                 rows.push((fresh()?, Stored::Established));
             }
+            OperationKind::ElementViewFixedArray { .. } => {
+                self.fixed_array_view(references, operation)?;
+                rows.push((fresh()?, Stored::Established));
+            }
             OperationKind::EstablishReference { .. }
             | OperationKind::EstablishElementView { .. }
             | OperationKind::EstablishMutableElementView { .. } => {

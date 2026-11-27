@@ -1037,6 +1037,7 @@ pub(crate) fn follow_the_lowered_form(
             | terminal_psi::OperationKind::ElementViewRead { obligation, .. }
             | terminal_psi::OperationKind::ByteSequenceSubslice { obligation, .. }
             | terminal_psi::OperationKind::ElementViewSubslice { obligation, .. }
+            | terminal_psi::OperationKind::ElementViewFixedArray { obligation, .. }
             | terminal_psi::OperationKind::EstablishElementView {
                 region: terminal_psi::ElementViewRegion::WholeRepresentation { obligation, .. },
                 ..

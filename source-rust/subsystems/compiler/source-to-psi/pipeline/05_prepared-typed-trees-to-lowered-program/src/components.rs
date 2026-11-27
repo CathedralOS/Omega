@@ -772,6 +772,7 @@ fn expression<'body>(value: &'body Expression, terminal: bool, sites: &mut BodyW
         | ExpressionKind::Referent(operand)
         | ExpressionKind::Establish { operand, .. }
         | ExpressionKind::CollectionView { base: operand, .. }
+        | ExpressionKind::CollectionFixedArray { base: operand, .. }
         | ExpressionKind::StorageLocation { place: operand, .. }
         | ExpressionKind::CollectionMeasure { base: operand, .. }
         | ExpressionKind::ByteSequencePredicate { base: operand, .. }

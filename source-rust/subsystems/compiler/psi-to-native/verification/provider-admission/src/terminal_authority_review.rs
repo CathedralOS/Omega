@@ -225,6 +225,7 @@ pub(super) fn physical_authority_use(operation: &AbstractOperation) -> PhysicalA
         | abstract_operations::establish_byte_literal_triple_pattern!(..)
         | abstract_operations::structural_establish_triple_pattern!(..)
         | AbstractOperation::EstablishReference { .. }
+        | AbstractOperation::ElementViewFixedArray { .. }
         | AbstractOperation::EstablishAccessReference { .. }
         | AbstractOperation::ReleaseReference { .. }
         | abstract_operations::move_or_store_structural_field_pattern!()
