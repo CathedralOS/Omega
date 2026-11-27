@@ -3,7 +3,7 @@
 This crate is the lowered-form checker: it decides whether a program's
 proof obligations hold, and its verdict is the compiler's only verdict.
 [Structure-only elaboration](../05_prepared-typed-trees-to-lowered-program/README.md)
-(stage 05) writes the obligations into the lowered form (Terminal Psi), and
+(stage 05) writes each machine’s local obligations into the lowered form (Terminal Psi), and
 this crate accepts one only when the proof kernel accepted a certificate for
 it. It is the third piece of
 [check on the lowered form](../../../../../../wiki/drafts/designs/check_on_lowered_form.md):
@@ -14,6 +14,13 @@ rule 2 lets remove a runtime check. The product driver passes the complete
 Terminal checking input to `judge_compilation`; this stage never elaborates
 typed source or calls stage 05. [The route's verdict](#the-routes-verdict) is
 the compilation verdict, including every demanded generic and conformance form.
+
+A selected entry also has obligations that depend on which machines it calls
+and which storage they receive. For an atomic wait on a private cell, the
+checker follows the initial value and the callee’s retry condition. An entry
+requirement can prove that the wait returns. When progress remains unproved,
+the diagnostic points to the call. A known permanently blocked call receives
+a deadlock diagnostic. [Synchronization checking](../../../psi/semantics/src/synchronization.rs)
 
 ## Find the code
 

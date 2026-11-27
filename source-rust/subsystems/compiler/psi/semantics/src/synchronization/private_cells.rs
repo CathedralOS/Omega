@@ -2,11 +2,12 @@
 //! arguments identify the same allocation across checked calls and jumps.
 
 use super::facts::Facts;
+use super::progress::{PrivateWaitFailure, ProgressFailure, ScalarFact, entry_scalars};
 use super::selected::Summaries;
 use super::spin::{SpinWait, constant};
 use crate::entry_values::TerminalScalarValue as Scalar;
 use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, IntegerValue, MachineId, OperationId, PlaceId, ScalarType, ValueId,
+    BlockId, BoundaryMachineId, MachineId, OperationId, PlaceId, ScalarType, ValueId,
 };
 use std::cell::OnceCell;
 use terminal_psi::{
@@ -18,7 +19,7 @@ use terminal_psi::{
 /// Independent source fields and fixed indices retain their last proven bits.
 struct Contents {
     zeroed: bool,
-    writes: Vec<(Vec<StructuralPathSegment>, Option<Scalar>)>,
+    writes: Vec<(Vec<StructuralPathSegment>, Option<ScalarFact>)>,
 }
 
 #[derive(Clone)]
@@ -28,20 +29,24 @@ struct Location {
 }
 
 impl Location {
-    fn read(&self, allocations: &[Contents], ty: ScalarType) -> Option<Scalar> {
+    fn read(&self, allocations: &[Contents], ty: ScalarType) -> Option<ScalarFact> {
         let memory = &allocations[self.allocation];
         for (path, value) in memory.writes.iter().rev() {
             if path == &self.path {
-                return value.filter(|bits| bits.scalar_type() == ty);
+                return value.filter(|bits| bits.ty() == ty);
             }
             if crate::structural_paths_may_overlap(path, &self.path) {
                 return None;
             }
         }
-        memory.zeroed.then(|| Scalar::zero(ty)).flatten()
+        memory
+            .zeroed
+            .then(|| Scalar::zero(ty))
+            .flatten()
+            .map(ScalarFact::Literal)
     }
 
-    fn write(self, allocations: &mut [Contents], value: Option<Scalar>) {
+    fn write(self, allocations: &mut [Contents], value: Option<ScalarFact>) {
         let writes = &mut allocations[self.allocation].writes;
         writes.retain(|(path, _)| path != &self.path);
         writes.push((self.path, value));
@@ -52,7 +57,7 @@ impl Location {
 struct Bindings {
     places: Facts<PlaceId, Location>,
     references: Facts<PlaceId, Location>,
-    values: Facts<ValueId, Scalar>,
+    values: Facts<ValueId, ScalarFact>,
 }
 
 impl Bindings {
@@ -132,7 +137,9 @@ impl<'m> Frame<'m> {
     fn step(&mut self, op: &Operation, allocations: &mut Vec<Contents>) -> Option<()> {
         let bindings = &mut self.bindings;
         if let Some(value) = constant(op) {
-            bindings.values.insert(op.result.scalar()?.id, value);
+            bindings
+                .values
+                .insert(op.result.scalar()?.id, ScalarFact::Literal(value));
             return Some(());
         }
         match &op.kind {
@@ -196,31 +203,17 @@ impl<'m> Frame<'m> {
                 let crate::ScalarConstantOrigin::Computed(term) = origin else {
                     return None;
                 };
-                let known =
-                    crate::inhabitation::known_scalar_value_with(&term, |id| {
-                        match bindings.values.get(&id)? {
-                            Scalar::Boolean(v) => {
-                                Some((ScalarType::Boolean, IntegerValue::Unsigned(u128::from(*v))))
-                            }
-                            Scalar::Integer { scalar_type, value } => {
-                                Some((ScalarType::Integer(*scalar_type), *value))
-                            }
-                            _ => None,
-                        }
-                    });
-                match known {
-                    Some((ScalarType::Boolean, IntegerValue::Unsigned(v))) => {
-                        bindings.values.insert(result.id, Scalar::Boolean(v == 1));
-                    }
-                    Some((ScalarType::Integer(scalar_type), value)) => {
-                        bindings
-                            .values
-                            .insert(result.id, Scalar::Integer { scalar_type, value });
-                    }
-                    _ if crate::goal_free_scalar_leaf_semantics(op, types)
-                        .ok()?
-                        .is_some() => {}
-                    _ => return None,
+                let known = crate::inhabitation::known_scalar_value_with(&term, |id| {
+                    bindings.values.get(&id)?.known_integer()
+                });
+                if let Some(fact) = known.and_then(|(ty, bits)| ScalarFact::from_integer(ty, bits))
+                {
+                    bindings.values.insert(result.id, fact);
+                } else if crate::goal_free_scalar_leaf_semantics(op, types)
+                    .ok()?
+                    .is_none()
+                {
+                    return None;
                 }
             }
         }
@@ -259,15 +252,15 @@ impl<'m> Frame<'m> {
     }
 }
 
-/// Find a call which can only retry on a permanently unchanged private cell.
+/// Find the first wait on private storage whose progress is violated or unproved.
 /// The caller supplies summaries only for its exact admitted boundary bodies.
 /// Stop upon unknown effects, control or aliasing; repeat visits to ordinary
 /// blocks also stop, so expanding acyclic helper calls stays bounded by the IR.
-pub fn stuck_private_wait(
+pub fn private_wait_failure(
     module: &TerminalModule,
     entry: MachineId,
     boundary: impl Fn(BoundaryMachineId) -> Option<SpinWait>,
-) -> Option<(MachineId, OperationId)> {
+) -> Option<PrivateWaitFailure> {
     if !module.types.structural_types.iter().any(|ty| {
         matches!(ty.shape, terminal_psi::StructuralTypeShape::AtomicCell(_))
             || ty
@@ -277,11 +270,17 @@ pub fn stuck_private_wait(
     }) {
         return None;
     }
-    let mut stack = vec![Frame::enter(
-        module.machine(entry)?,
-        Bindings::default(),
-        None,
-    )?];
+    let root = module.machine(entry)?;
+    let parameters = Bindings {
+        values: entry_scalars(root),
+        ..Default::default()
+    };
+    if crate::inhabitation::predicates_are_false_with(&root.requires, |id| {
+        parameters.values.get(&id)?.known_integer()
+    }) {
+        return None;
+    }
+    let mut stack = vec![Frame::enter(root, parameters, None)?];
     let mut allocations = Vec::new();
     let mut seen = Facts::default();
     let mut summaries = Summaries::default();
@@ -332,16 +331,19 @@ pub fn stuck_private_wait(
             }
             let mut location = frame.bindings.locate(actual.place, &actual.path)?;
             location.path.extend(spin.path);
-            let value = location.read(&allocations, spin.while_value.value.scalar_type())?;
-            if spin.while_value.matches(value)
-                && spin
-                    .writes
-                    .is_none_or(|next| spin.while_value.matches(next))
+            let initial = location.read(&allocations, spin.while_value.value.scalar_type());
+            if let Some(cause) = spin
+                .while_value
+                .failure(initial, spin.writes, &root.requires)
             {
-                return Some((frame.machine.id, op.id));
+                return Some(PrivateWaitFailure {
+                    machine: frame.machine.id,
+                    operation: op.id,
+                    cause,
+                });
             }
             if let Some(value) = spin.writes {
-                location.write(&mut allocations, Some(value));
+                location.write(&mut allocations, Some(ScalarFact::Literal(value)));
             }
             continue;
         }
@@ -358,7 +360,9 @@ pub fn stuck_private_wait(
                 when_true,
                 when_false,
             } => {
-                let Scalar::Boolean(test) = frame.bindings.values.get(condition)? else {
+                let ScalarFact::Literal(Scalar::Boolean(test)) =
+                    frame.bindings.values.get(condition)?
+                else {
                     return None;
                 };
                 let edge = if *test { when_true } else { when_false };
@@ -394,4 +398,14 @@ pub fn stuck_private_wait(
         }
     }
     None
+}
+
+/// Only positively established violations, for callers consuming that judgment.
+pub fn stuck_private_wait(
+    module: &TerminalModule,
+    entry: MachineId,
+    boundary: impl Fn(BoundaryMachineId) -> Option<SpinWait>,
+) -> Option<(MachineId, OperationId)> {
+    let failure = private_wait_failure(module, entry, boundary)?;
+    (failure.cause == ProgressFailure::Deadlock).then_some((failure.machine, failure.operation))
 }
