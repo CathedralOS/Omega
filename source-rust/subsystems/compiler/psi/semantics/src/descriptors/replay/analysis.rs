@@ -358,7 +358,7 @@ impl<'a> DescriptorAnalysis<'a> {
         shares
     }
 
-    pub fn with_access_origins(
+    pub(crate) fn with_access_origins(
         types: &'a [StructuralTypeDeclaration],
         machines: impl Into<crate::module_analyses::DescriptorRowView<'a>>,
     ) -> Self {
@@ -368,64 +368,9 @@ impl<'a> DescriptorAnalysis<'a> {
             flows: Vec::new(),
         }
     }
+    #[cfg(test)]
     pub(crate) fn compatibility_machines(&self) -> impl Iterator<Item = &DescriptorMachine> {
         self.replay.machines.iter()
-    }
-    pub(crate) fn compatibility_ingress(
-        &self,
-        identity: MachineId,
-        requirement: &DescriptorCompatibilityRequirement,
-    ) -> Option<()> {
-        let machine = self.replay.machine(identity)?;
-        machine.flow.get(&requirement.position)?;
-        let DescriptorSourceOrigin::IncomingSlot(location) = &requirement.loan else {
-            return None;
-        };
-        let (_, access, ty) = self.replay.parameter(machine, location.root)?;
-        if location.path.is_empty()
-            || access == StructuralAccess::WriteOnlyBorrow
-            || !self
-                .replay
-                .slot_kind
-                .slots(self.replay.types, location.root, ty)?
-                .contains(location)
-        {
-            return None;
-        }
-        let DescriptorCallOrigin::Argument { source, projection } = &requirement.demand else {
-            return None;
-        };
-        let (_, access, ty) = self.replay.parameter(machine, *source)?;
-        if !matches!(
-            access,
-            StructuralAccess::MutableBorrow
-                | StructuralAccess::WriteOnlyBorrow
-                | StructuralAccess::Owned
-        ) || !projection.exact
-            || projection.indirect
-            || projection.window.is_some()
-            || projection.captured_at.is_some()
-        {
-            return None;
-        }
-        self.replay
-            .slot_kind
-            .slots(self.replay.types, *source, ty)?;
-        if *projection != Projection::new(&projection.path) {
-            return None;
-        }
-        self.replay
-            .type_index
-            .descriptor_location(*source, ty, &projection.path, None)?;
-        Some(())
-    }
-    pub fn flatten_source_origin(
-        &self,
-        identity: MachineId,
-        origin: &DescriptorSourceOrigin,
-    ) -> Option<DescriptorCallOrigin> {
-        self.replay
-            .flatten(self.replay.machine(identity)?, origin.clone())
     }
     pub fn location(
         &mut self,
@@ -657,7 +602,7 @@ impl<'a> DescriptorAnalysis<'a> {
     /// pre-operation cut, rather than comparing final descriptor values.
     /// `None` means the storage effect could not be placed; it must use
     /// the caller's conservative ceiling, never an empty frame.
-    pub fn storage_writes(
+    pub(crate) fn storage_writes(
         &mut self,
         identity: MachineId,
         position: DescriptorPosition,
@@ -676,7 +621,7 @@ impl<'a> DescriptorAnalysis<'a> {
     /// delegated writes. It says nothing about the final values or about
     /// permission to invoke the body. Unknown calls and unresolved origins
     /// keep the conservative ceiling (`None`).
-    pub fn write_frame(
+    pub(crate) fn write_frame(
         &mut self,
         identity: MachineId,
     ) -> Result<Option<Vec<DescriptorLocation>>, &'static str> {
@@ -727,7 +672,7 @@ impl<'a> DescriptorAnalysis<'a> {
     /// reached through the existing invocation graph. Callers traverse
     /// that shared graph with their own argument context; the summary
     /// never expands all possible call paths.
-    pub fn storage_access_frame(
+    pub(crate) fn storage_access_frame(
         &mut self,
         identity: MachineId,
     ) -> Result<Option<&[(DescriptorPosition, usize)]>, &'static str> {
@@ -768,7 +713,7 @@ impl<'a> DescriptorAnalysis<'a> {
             .map(|targets| targets.into_iter().collect())
     }
 
-    pub fn arrival_payload_targets(
+    pub(crate) fn arrival_payload_targets(
         &mut self,
         identity: MachineId,
         position: DescriptorPosition,
@@ -814,7 +759,7 @@ impl<'a> DescriptorAnalysis<'a> {
     /// Recover incoming contents only when their entry version still
     /// reaches this exact observation on every path. Descriptor custody
     /// alone does not establish that the borrowed bytes are unchanged.
-    pub fn unchanged_incoming_source_origins(
+    pub(crate) fn unchanged_incoming_source_origins(
         &mut self,
         types: &[StructuralTypeDeclaration],
         identity: MachineId,
@@ -935,7 +880,8 @@ impl<'a> DescriptorAnalysis<'a> {
         Err(format!("{}: {detail}", context()))
     }
 
-    pub fn substitute_call_source(
+    #[cfg(test)]
+    pub(crate) fn substitute_call_source(
         &mut self,
         identity: MachineId,
         position: DescriptorPosition,
@@ -952,15 +898,6 @@ impl<'a> DescriptorAnalysis<'a> {
         origin: &DescriptorSourceOrigin,
     ) -> Option<Vec<DescriptorSourceOrigin>> {
         self.substitute_call_source_with_target(identity, position, owner, origin, false)
-    }
-    pub fn substitute_stored_effect_source_at(
-        &mut self,
-        identity: MachineId,
-        position: DescriptorPosition,
-        owner: DescriptorInvocationOwner,
-        origin: &DescriptorSourceOrigin,
-    ) -> Option<Vec<DescriptorSourceOrigin>> {
-        self.substitute_call_source_with_target(identity, position, owner, origin, true)
     }
     fn substitute_call_source_with_target(
         &mut self,
@@ -1097,62 +1034,6 @@ impl<'a> DescriptorAnalysis<'a> {
         })
     }
 
-    pub fn substitute_call_storage_at(
-        &mut self,
-        identity: MachineId,
-        position: DescriptorPosition,
-        owner: DescriptorInvocationOwner,
-        origin: &DescriptorCallOrigin,
-    ) -> Option<DescriptorCallOrigin> {
-        let DescriptorCallOrigin::Argument { source, projection } = origin else {
-            return None;
-        };
-        if !projection.exact
-            || projection.indirect
-            || projection.window.is_some()
-            || projection.captured_at.is_some()
-        {
-            return None;
-        }
-        self.replay.prepare_states(identity)?;
-        let machine = self.replay.machine(identity)?;
-        let call = machine.invocation(position, owner)?;
-        let callee = self.replay.machine(call.stored_effects_callee()?)?;
-        let (parameter, _, ty) = self.replay.parameter(callee, *source)?;
-        let relative =
-            self.replay
-                .type_index
-                .descriptor_location(*source, ty, &projection.path, None)?;
-        let actual = self.replay.actual_slot(call, parameter, &relative.path)?;
-        let before = self.replay.invocation_state(identity, position, owner)?;
-        let storage = before
-            .slots
-            .get(&DescriptorLocation::whole(actual.root))?
-            .as_ref()?;
-        if storage.is_empty()
-            || storage
-                .iter()
-                .any(|origin| !matches!(origin, Origin::Storage(_)))
-        {
-            return None;
-        }
-        let mut actual = self
-            .replay
-            .canonical_storage(machine, before, &actual, None)?;
-        if actual.path.is_empty() {
-            let values = before.slots.get(&actual)?.as_ref()?;
-            let mut values = values.iter();
-            if let Origin::Storage(location) = values.next()? {
-                if values.next().is_some() {
-                    return None;
-                }
-                actual = location.clone();
-            } else {
-                return None;
-            }
-        }
-        self.replay.storage_projection(machine, &actual)
-    }
     pub fn result_slots(&mut self, identity: MachineId) -> Option<Vec<DescriptorResultSlot>> {
         self.replay
             .summary(identity, 0)?
@@ -1228,7 +1109,7 @@ impl<'a> DescriptorAnalysis<'a> {
         self.preserves_descriptor_storage(callee, parameter, path)
     }
 
-    pub fn preserves_descriptor_storage(
+    pub(crate) fn preserves_descriptor_storage(
         &mut self,
         callee: MachineId,
         parameter: usize,
@@ -1302,106 +1183,12 @@ impl<'a> DescriptorAnalysis<'a> {
         Ok(returns)
     }
 
-    pub fn stored_effects(
-        &mut self,
-        identity: MachineId,
-    ) -> Option<Vec<DescriptorStoredEffect>> {
+    pub fn stored_effects(&mut self, identity: MachineId) -> Option<Vec<DescriptorStoredEffect>> {
         let summary = self.replay.summary(identity, 0)?;
         if summary.invalidates_contents {
             return None;
         }
         summary.effects.observed().cloned()
-    }
-    pub fn call_stored_effects(
-        &mut self,
-        identity: MachineId,
-        position: DescriptorPosition,
-    ) -> Option<Vec<DescriptorStoredCallEffect>> {
-        let owner = self.replay.machine(identity)?.direct_call(position)?.owner;
-        self.call_stored_effects_at(identity, position, owner)
-    }
-    pub fn call_stored_effects_at(
-        &mut self,
-        identity: MachineId,
-        position: DescriptorPosition,
-        owner: DescriptorInvocationOwner,
-    ) -> Option<Vec<DescriptorStoredCallEffect>> {
-        let effects = self.symbolic_call_stored_effects_at(identity, position, owner)?;
-        let machine = self.replay.machine(identity)?;
-        effects
-            .into_iter()
-            .map(|effect| {
-                Some(DescriptorStoredCallEffect {
-                    destination: effect.destination,
-                    origins: effect
-                        .origins
-                        .into_iter()
-                        .map(|origin| self.replay.flatten(machine, origin))
-                        .collect::<Option<_>>()?,
-                    preserves_incoming: effect.preserves_incoming,
-                })
-            })
-            .collect()
-    }
-    pub fn symbolic_call_stored_effects_at(
-        &mut self,
-        identity: MachineId,
-        position: DescriptorPosition,
-        owner: DescriptorInvocationOwner,
-    ) -> Option<Vec<DescriptorStoredCallEffect<DescriptorSourceOrigin>>> {
-        self.replay.prepare_states(identity)?;
-        let machine = self.replay.machine(identity)?;
-        let before = self.replay.invocation_state(identity, position, owner)?;
-        let call = machine.invocation(position, owner)?;
-        if call.argument_contents.iter().any(Option::is_none) {
-            return None;
-        }
-        let summary = self.replay.cached_invocation_summary(call)?;
-        if summary.invalidates_contents {
-            return None;
-        }
-        let mut replacements = BTreeMap::new();
-        for effect in summary.effects.observed()? {
-            let destination =
-                self.replay
-                    .actual_contents(machine, call, effect.parameter, &effect.steps)?;
-            let mut origins = BTreeSet::new();
-            for origin in &effect.origins {
-                origins.extend(self.replay.substitute(machine, before, call, origin)?);
-            }
-            self.replay.contents_replacements(
-                machine,
-                before,
-                &destination,
-                Some(origins),
-                &mut replacements,
-            )?;
-        }
-        replacements
-            .into_iter()
-            .map(|(target, value)| {
-                let destination = match target {
-                    DescriptorPayloadTarget::Storage {
-                        location,
-                        completed: None,
-                    } => DescriptorContentsQuery::from_location(&location),
-                    DescriptorPayloadTarget::Storage {
-                        completed: Some(_), ..
-                    } => return None,
-                    DescriptorPayloadTarget::Incoming(query) => query,
-                };
-                let origins = value?;
-                let preserves_incoming = self
-                    .replay
-                    .read_contents(machine, before, &destination)
-                    .is_some_and(|previous| previous.is_subset(&origins));
-                Some(DescriptorStoredCallEffect {
-                    destination,
-                    origins: self.replay.symbolic(machine, origins)?,
-                    preserves_incoming,
-                })
-            })
-            .collect()
     }
     pub fn invocation_flow_at(
         &mut self,
@@ -1461,7 +1248,7 @@ impl<'a> DescriptorAnalysis<'a> {
         self.flow_arc(identity).map(|arc| (*arc).clone())
     }
 
-    pub fn residence_flow(
+    pub(crate) fn residence_flow(
         &mut self,
         identity: MachineId,
         rules: &mut crate::descriptors::descriptor_lifetimes::DescriptorResidenceRules,

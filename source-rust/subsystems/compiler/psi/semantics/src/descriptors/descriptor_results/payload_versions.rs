@@ -22,21 +22,16 @@ struct ScalarCaptureStep {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ScalarCaptureFailure {
-    NotCompleted,
+pub(crate) enum ScalarCaptureFailure {
     UnknownPosition(DescriptorPosition),
-    MissingOrRenewed,
-    QueryBudget,
     InvalidFlow,
 }
 
-pub struct ScalarCaptureAnalysis {
-    identity: MachineId,
+pub(crate) struct ScalarCaptureAnalysis {
     positions: BTreeMap<DescriptorPosition, usize>,
     coordinates: Vec<DescriptorPosition>,
     entry: usize,
     steps: Vec<ScalarCaptureStep>,
-    answers: BTreeMap<(usize, usize, Vec<ValueId>), bool>,
     versions: Vec<Option<bool>>,
     queued: Vec<bool>,
     pending: VecDeque<usize>,
@@ -82,7 +77,6 @@ impl ScalarCaptureAnalysis {
             });
         }
         Ok(Self {
-            identity: machine.id,
             entry,
             versions: vec![None; steps.len()],
             queued: vec![false; steps.len()],
@@ -90,52 +84,7 @@ impl ScalarCaptureAnalysis {
             coordinates: positions.keys().copied().collect(),
             positions,
             steps,
-            answers: BTreeMap::new(),
         })
-    }
-
-    pub fn identity(&self) -> MachineId {
-        self.identity
-    }
-
-    pub fn require(
-        &mut self,
-        source: DescriptorPosition,
-        observation: DescriptorPosition,
-        values: &[ValueId],
-    ) -> Result<(), ScalarCaptureFailure> {
-        if source == observation {
-            return Err(ScalarCaptureFailure::NotCompleted);
-        }
-        let source = *self
-            .positions
-            .get(&source)
-            .ok_or(ScalarCaptureFailure::UnknownPosition(source))?;
-        let observation = *self
-            .positions
-            .get(&observation)
-            .ok_or(ScalarCaptureFailure::UnknownPosition(observation))?;
-        let mut values = values.to_vec();
-        values.sort();
-        values.dedup();
-        let key = (source, observation, values);
-        if let Some(valid) = self.answers.get(&key) {
-            return if *valid {
-                Ok(())
-            } else {
-                Err(ScalarCaptureFailure::MissingOrRenewed)
-            };
-        }
-        if self.answers.len() >= 65_536 {
-            return Err(ScalarCaptureFailure::QueryBudget);
-        }
-        let valid = self.solve(source, observation, &key.2, |_, _| true)?;
-        self.answers.insert(key, valid);
-        if valid {
-            Ok(())
-        } else {
-            Err(ScalarCaptureFailure::MissingOrRenewed)
-        }
     }
 
     fn require_on_edges(
@@ -256,7 +205,7 @@ pub fn unchanged_payload_producer(
     })
 }
 
-pub fn require_unchanged_produced_payload(
+pub(crate) fn require_unchanged_produced_payload(
     types: &[StructuralTypeDeclaration],
     graph: &[DescriptorMachine],
     identity: MachineId,
@@ -278,7 +227,7 @@ pub fn require_unchanged_produced_payload(
 
 /// Reuse the caller's prepared storage history. A missing or changed
 /// version is an error, including an unresolved write on any arrival.
-pub fn require_unchanged_produced_payload_in<'rows>(
+pub(crate) fn require_unchanged_produced_payload_in<'rows>(
     types: &[StructuralTypeDeclaration],
     graph: impl Into<crate::module_analyses::DescriptorRowView<'rows>>,
     analysis: &mut DescriptorAnalysis<'_>,
@@ -511,7 +460,7 @@ fn require_unchanged_from(
     }
 }
 
-pub fn require_completed_scalar_capture(
+pub(crate) fn require_completed_scalar_capture(
     graph: &[DescriptorMachine],
     identity: MachineId,
     source: DescriptorPosition,
@@ -536,13 +485,6 @@ pub fn require_completed_scalar_capture(
                 "payload version flow names an absent position"
             }
             ScalarCaptureFailure::InvalidFlow => "payload version arrival is absent",
-            ScalarCaptureFailure::NotCompleted => {
-                "evidence capture has not completed before use"
-            }
-            ScalarCaptureFailure::MissingOrRenewed => {
-                "evidence capture is absent or its SSA instance was renewed before use"
-            }
-            ScalarCaptureFailure::QueryBudget => "scalar capture query budget exceeded",
         })?;
     if valid {
         Ok(())
@@ -630,7 +572,7 @@ pub fn unchanged_stored_scalar_sources(
     unchanged_stored_sources(types, graph, identity, value, actual_writes)
 }
 
-pub fn unchanged_stored_sources<Source: Ord>(
+pub(crate) fn unchanged_stored_sources<Source: Ord>(
     types: &[StructuralTypeDeclaration],
     graph: &[DescriptorMachine],
     identity: MachineId,
@@ -663,7 +605,7 @@ pub fn unchanged_stored_sources<Source: Ord>(
     )
 }
 
-pub fn unchanged_stored_projection_sources_in<Source: Ord>(
+pub(crate) fn unchanged_stored_projection_sources_in<Source: Ord>(
     types: &[StructuralTypeDeclaration],
     graph: &[DescriptorMachine],
     analysis: &mut DescriptorAnalysis<'_>,

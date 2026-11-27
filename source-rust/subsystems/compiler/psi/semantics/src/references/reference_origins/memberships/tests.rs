@@ -1,5 +1,5 @@
 use super::*;
-use semantic_vocabulary::{BlockId, ScalarType};
+use semantic_vocabulary::{BlockId, ScalarType, StructuralTypeId};
 use std::cell::Cell;
 use terminal_psi::{StructuralArgument, StructuralMultiplicity, TerminalIdentityIndex};
 

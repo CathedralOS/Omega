@@ -1711,26 +1711,10 @@ pub struct MembershipTest {
 
 /// Answer the body's tests together using the same dataflow that checks
 /// cast provenance and normal-result membership. Answers retain source order.
-pub fn test_memberships(
-    module: &TerminalModule,
-    machine: MachineId,
-    tests: &[MembershipTest],
-) -> Result<Vec<bool>, &'static str> {
-    test_memberships_from(&DescriptorRowSource::new(module), machine, tests)
-}
-
-/// `test_memberships`, reading the reference rows from the module's shared
-/// analyses, so testing several bodies adapts each reached body once.
+/// The reference rows come from the module's shared analyses, so testing
+/// several bodies adapts each reached body once.
 pub fn test_memberships_in(
     analyses: &crate::ModuleAnalyses<'_>,
-    machine: MachineId,
-    tests: &[MembershipTest],
-) -> Result<Vec<bool>, &'static str> {
-    test_memberships_from(&DescriptorRowSource::of(analyses), machine, tests)
-}
-
-fn test_memberships_from(
-    rows: &DescriptorRowSource<'_, '_>,
     machine: MachineId,
     tests: &[MembershipTest],
 ) -> Result<Vec<bool>, &'static str> {
@@ -1738,7 +1722,13 @@ fn test_memberships_from(
         return Ok(Vec::new());
     }
     let mut answers = vec![false; tests.len()];
-    analyze_observations(rows, &[machine], tests, &mut answers).map_err(|error| error.detail)?;
+    analyze_observations(
+        &DescriptorRowSource::of(analyses),
+        &[machine],
+        tests,
+        &mut answers,
+    )
+    .map_err(|error| error.detail)?;
     Ok(answers)
 }
 

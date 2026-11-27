@@ -110,17 +110,6 @@ pub enum ElementViewRegionGeometry {
         element: RepresentationElementLayout,
     },
 }
-pub fn element_view_region_geometry<'a>(
-    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
-    collection: StructuralTypeId,
-    element: StructuralTypeId,
-    region: ElementViewRegion,
-    access: terminal_psi::StructuralAccess,
-) -> Option<ElementViewRegionGeometry> {
-    let declaration = exactly_one(types.clone(), |row| row.id == collection)?;
-    element_view_shape_region_geometry(types, &declaration.shape, element, region, access)
-}
-
 pub fn element_view_shape_region_geometry<'a>(
     types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     shape: &StructuralTypeShape,
@@ -217,38 +206,4 @@ pub fn whole_representation_region_goal<'a>(
         return None;
     };
     whole_representation_count_goal(source_length, source.size.checked_div(target.size)?)
-}
-pub fn representation_region_goal(
-    start: ValueId,
-    end: ValueId,
-    extent: u64,
-    stride: u64,
-) -> Option<Proposition> {
-    if stride == 0 {
-        return None;
-    }
-    let difference =
-        ScalarTerm::exact_integer_subtract(word(), value(end), value(start)).ok()?;
-    let remainder =
-        ScalarTerm::exact_integer_remainder(word(), difference, literal(stride)).ok()?;
-    Some(Proposition::Conjunction(vec![
-        Proposition::LessOrEqual(value(start), value(end)),
-        Proposition::LessOrEqual(value(end), literal(extent)),
-        Proposition::Equal(remainder, literal(0)),
-    ]))
-}
-pub fn representation_region_length(
-    start: ValueId,
-    end: ValueId,
-    stride: u64,
-) -> Option<ScalarTerm> {
-    if stride == 0 {
-        return None;
-    }
-    ScalarTerm::exact_integer_divide(
-        word(),
-        ScalarTerm::exact_integer_subtract(word(), value(end), value(start)).ok()?,
-        literal(stride),
-    )
-    .ok()
 }

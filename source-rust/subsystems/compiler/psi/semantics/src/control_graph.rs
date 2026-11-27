@@ -37,13 +37,13 @@ pub fn successors(machine: &TerminalMachine) -> BTreeMap<BlockId, Vec<(EdgeId, B
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct ForwardedBinding<'block> {
+pub(crate) struct ForwardedBinding<'block> {
     pub target: BlockId,
     pub arguments: Option<&'block [ValueId]>,
     pub structural_arguments: &'block [StructuralArgument],
 }
 
-pub fn forwarded_bindings(block: &Block) -> impl Iterator<Item = ForwardedBinding<'_>> {
+pub(crate) fn forwarded_bindings(block: &Block) -> impl Iterator<Item = ForwardedBinding<'_>> {
     let (forwarded, cases) = match &block.terminator {
         Terminator::Jump {
             target,
@@ -88,7 +88,7 @@ pub fn forwarded_bindings(block: &Block) -> impl Iterator<Item = ForwardedBindin
         }))
 }
 
-pub fn reaches_by_case(block: &Block, target: BlockId) -> bool {
+pub(crate) fn reaches_by_case(block: &Block, target: BlockId) -> bool {
     matches!(&block.terminator, Terminator::StructuralCase { cases, .. }
         if cases.iter().any(|successor| successor.target == target))
 }
@@ -103,7 +103,7 @@ pub enum CompletionGraphError {
     },
 }
 
-pub trait NormalCompletionGraph {
+pub(crate) trait NormalCompletionGraph {
     type Error;
     fn entry(&mut self, machine: MachineId) -> Result<BlockId, Self::Error>;
     fn disposition(
@@ -113,14 +113,14 @@ pub trait NormalCompletionGraph {
     ) -> Result<NormalCompletionDisposition, Self::Error>;
 }
 
-pub enum NormalCompletionDisposition {
+pub(crate) enum NormalCompletionDisposition {
     Return,
     Stop,
     Invoke(MachineId),
     Successors(Vec<BlockId>),
 }
 
-pub fn normal_completion_possible_in<Graph: NormalCompletionGraph>(
+pub(crate) fn normal_completion_possible_in<Graph: NormalCompletionGraph>(
     graph: &mut Graph,
     initial: MachineId,
 ) -> Result<bool, Graph::Error> {
@@ -228,7 +228,7 @@ pub fn normal_completion_possible(
     )
 }
 
-pub fn finished_order<Node: Ord + Copy>(
+pub(crate) fn finished_order<Node: Ord + Copy>(
     entry: Node,
     successor: impl Fn(Node, usize) -> Option<Node>,
 ) -> Vec<Node> {
@@ -249,7 +249,7 @@ pub fn finished_order<Node: Ord + Copy>(
     finished
 }
 
-pub fn cyclic_components(machine: &TerminalMachine) -> Vec<Vec<BlockId>> {
+pub(crate) fn cyclic_components(machine: &TerminalMachine) -> Vec<Vec<BlockId>> {
     let outgoing = successors(machine);
     let finished = finished_order(machine.entry, |block, position| {
         outgoing[&block].get(position).map(|(_, target)| *target)
@@ -298,7 +298,7 @@ pub fn control_cycle_members(
     Ok(cyclic_components(machine))
 }
 
-pub fn validate_control_graph(machine: &TerminalMachine) -> Result<(), ControlGraphError> {
+pub(crate) fn validate_control_graph(machine: &TerminalMachine) -> Result<(), ControlGraphError> {
     let mut blocks = BTreeSet::new();
     for block in &machine.blocks {
         if !blocks.insert(block.id) {

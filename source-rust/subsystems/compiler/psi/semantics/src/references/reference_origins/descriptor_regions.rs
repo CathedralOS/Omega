@@ -130,20 +130,6 @@ pub fn validate_descriptor_result_regions(
     Ok(())
 }
 
-/// Derive the declared input origins from actual returned descriptor
-/// slots. A signature alone cannot authorize unrelated backing; callers
-/// must reconstruct the slots from the body before using this mapping.
-pub fn reference_result_sources(
-    types: &[StructuralTypeDeclaration],
-    parameters: &[StructuralParameterDeclaration],
-    result: &StructuralResultDeclaration,
-    slots: &[DescriptorResultSlot],
-) -> Result<Vec<terminal_psi::StructuralReferenceResultSource>, &'static str> {
-    let leaves = super::reference_leaves(types.iter(), result.structural_type, slots.len())
-        .ok_or("reference result has no complete finite leaf roster")?;
-    reference_sources_for_leaves(types, parameters, result, slots, leaves)
-}
-
 pub fn reference_result_contents(
     types: &[StructuralTypeDeclaration],
     parameters: &[StructuralParameterDeclaration],
@@ -468,7 +454,7 @@ fn reference_sources_for_leaves(
     Ok(mappings)
 }
 
-pub fn descriptor_input_origin_path(
+pub(crate) fn descriptor_input_origin_path(
     types: &[StructuralTypeDeclaration],
     parameters: &[StructuralParameterDeclaration],
     origin: &DescriptorStoredOrigin,

@@ -4,7 +4,7 @@ use terminal_psi::{OperationKind as O, TerminalModule, Terminator};
 /// Follow selected providers through the same actuals and returned code values
 /// as ordinary calls. Making their bodies independent entry roots would lose
 /// that substitution and could activate code the caller never invokes.
-pub fn terminal_callable_values_with_boundary_implementations<'a>(
+pub(crate) fn terminal_callable_values_with_boundary_implementations<'a>(
     module: &'a TerminalModule,
     implementations: &[CallableBoundaryImplementation],
 ) -> Result<CallableValueProgram<'a>, String> {
@@ -190,7 +190,7 @@ pub fn terminal_callable_values(
 }
 
 /// The same projection with its structured preparation failure retained.
-pub fn terminal_callable_values_with_error_context(
+fn terminal_callable_values_with_error_context(
     module: &TerminalModule,
 ) -> Result<CallableValueProgram<'_>, CallableValuePreparationError> {
     let graph = crate::descriptor_results::terminal_reference_graph_from(

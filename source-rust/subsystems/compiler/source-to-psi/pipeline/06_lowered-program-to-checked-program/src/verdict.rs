@@ -1006,23 +1006,18 @@ fn examine(
         Err(refused) => {
             let analyses = terminal_semantics::ModuleAnalyses::new(&elaboration.module)
                 .map_err(|error| no_shared_analyses(&elaboration, error))?;
-            let summaries =
-                terminal_semantics::plain_affine::AffineSummaries::new(&elaboration.module);
-            let _ = check_affine(&elaboration, &analyses, &summaries, further)?;
+            let _ = check_affine(&elaboration, &analyses, further)?;
             return Err(fall_back_or_defect(
                 Roster::of(&elaboration).locate(refused),
             ));
         }
     };
     // `prepare_discharge` made the last edit to the module before the
-    // rankings are published. Build the shared analyses and the affine
-    // summary table once here, and let the affine check and every machine
-    // check read them.
+    // rankings are published. Build the shared analyses once here, and let
+    // the affine check and every machine check read them.
     let analyses = terminal_semantics::ModuleAnalyses::new(&elaboration.module)
         .map_err(|error| no_shared_analyses(&elaboration, error))?;
-    let summaries = terminal_semantics::plain_affine::AffineSummaries::new(&elaboration.module);
-    let (affine_unestablished, verified) =
-        check_affine(&elaboration, &analyses, &summaries, further)?;
+    let (affine_unestablished, verified) = check_affine(&elaboration, &analyses, further)?;
     let finished = crate::finish_discharge(
         crate::ElaborationView {
             module: &elaboration.module,
@@ -1037,10 +1032,8 @@ fn examine(
         carried,
         Some(&verified),
         &analyses,
-        &summaries,
         activity,
     );
-    drop(summaries);
     drop(analyses);
     match finished.and_then(|discharged| {
         crate::publish_rankings(&mut elaboration.module, &discharged.machines)?;
@@ -1083,7 +1076,6 @@ fn no_shared_analyses(
 fn check_affine(
     elaboration: &Elaboration,
     analyses: &terminal_semantics::ModuleAnalyses<'_>,
-    summaries: &terminal_semantics::plain_affine::AffineSummaries<'_>,
     further: &mut Vec<Refusal>,
 ) -> Result<(Vec<UnestablishedUse>, crate::VerifiedAffine), Checked<RouteVerdict>> {
     let mut affine_unestablished = Vec::new();
@@ -1093,10 +1085,8 @@ fn check_affine(
     // goes on with the next machine, and the first such refusal becomes the
     // verdict with the rest beside it.
     let mut unsupported = Unsupported::default();
-    let reference_ends = terminal_semantics::reference_ends::candidates_sharing_in(
-        analyses, summaries,
-    )
-    .map_err(|error| {
+    let reference_ends =
+        terminal_semantics::reference_ends::candidates_in(analyses).map_err(|error| {
         fall_back_or_defect(
             Roster::of(elaboration).locate(refusal(
                 RefusalReason::Unsupported,
@@ -1111,7 +1101,7 @@ fn check_affine(
     })?;
     // Plans are computed on the workers, then read in machine order: the
     // first deciding refusal and the noted machines are those one pass meets.
-    let plans = plan_affine_machines(analyses, summaries, &reference_ends);
+    let plans = plan_affine_machines(analyses, &reference_ends);
     for (machine, planned) in plans {
         let plan = match planned {
             Some(Ok((plan, received))) => {
@@ -1216,7 +1206,6 @@ impl AffineRefusal {
 /// it reaches a skipped machine.
 fn plan_affine_machines(
     analyses: &terminal_semantics::ModuleAnalyses<'_>,
-    summaries: &terminal_semantics::plain_affine::AffineSummaries<'_>,
     reference_ends: &arena::IdTable<MachineId, terminal_semantics::reference_ends::Candidates>,
 ) -> Vec<(
     MachineId,
@@ -1230,8 +1219,7 @@ fn plan_affine_machines(
         >,
     >,
 )> {
-    let plan =
-        |machine: MachineId| affine_plan(analyses, summaries, machine, reference_ends.get(machine));
+    let plan = |machine: MachineId| affine_plan(analyses, machine, reference_ends.get(machine));
     let machines = &analyses.module().machines;
     if worker_budget::current_workers() == 1 || machines.len() < 2 {
         let mut plans = Vec::with_capacity(machines.len());
@@ -1272,7 +1260,6 @@ fn plan_affine_machines(
 /// walks read `machine`'s borrowed-storage closure from the shared analyses.
 fn affine_plan(
     analyses: &terminal_semantics::ModuleAnalyses<'_>,
-    summaries: &terminal_semantics::plain_affine::AffineSummaries<'_>,
     machine: MachineId,
     candidates: Option<&terminal_semantics::reference_ends::Candidates>,
 ) -> Result<
@@ -1290,12 +1277,9 @@ fn affine_plan(
             "reference disposition lost its machine",
         )))
     })?;
-    let walks = terminal_semantics::plain_affine::MachineAffine::from_analyses(
-        analyses,
-        machine,
-        Some(summaries),
-    )
-    .map_err(|error| AffineRefusal::of(crate::minted::affine_refusal(machine, error)))?;
+    let walks = analyses
+        .affine(machine)
+        .map_err(|error| AffineRefusal::of(crate::minted::affine_refusal(machine, error)))?;
     let ends = walks
         .plan_reference_ends(candidates)
         .map_err(|error| AffineRefusal::of(crate::minted::affine_refusal(machine, error)))?;

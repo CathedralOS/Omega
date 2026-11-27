@@ -45,7 +45,7 @@ pub struct ExternalRealizationError {
 /// A provider candidate row is the published statement that its machine
 /// stands for its boundary requirement; settlement and native admission
 /// choose a checked provider only from these rows.
-pub fn realized_external_completion(
+pub(crate) fn realized_external_completion(
     module: &TerminalModule,
     machine: &TerminalMachine,
 ) -> Option<ExternalCompletionKind> {

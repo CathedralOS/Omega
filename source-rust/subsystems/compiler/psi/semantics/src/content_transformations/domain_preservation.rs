@@ -342,7 +342,7 @@ pub fn content_scalar_path<'a>(
     None
 }
 
-pub fn domain_write_is_disjoint<'a>(
+pub(crate) fn domain_write_is_disjoint<'a>(
     types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     identities: &TerminalIdentityTable,
     domain: &StructuralDomainDeclaration,
@@ -418,7 +418,7 @@ fn domain_content_write_is_disjoint<'a>(
         })
 }
 
-pub fn store_preserves_qualifications<'a>(
+pub(crate) fn store_preserves_qualifications<'a>(
     types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     domains: impl Iterator<Item = &'a StructuralDomainDeclaration> + Clone,
     identities: &TerminalIdentityTable,
@@ -444,7 +444,7 @@ pub fn store_preserves_qualifications<'a>(
         })
 }
 
-pub fn store_preserves_domain_content<'a>(
+pub(crate) fn store_preserves_domain_content<'a>(
     types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     domains: impl Iterator<Item = &'a StructuralDomainDeclaration> + Clone,
     identities: &TerminalIdentityTable,

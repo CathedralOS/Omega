@@ -62,7 +62,8 @@ impl<'types> StorageTypeGraph<'types> {
     }
 
     /// Returns the roots and every declaration that owns their storage.
-    pub fn storage_dependents(
+    #[cfg(test)]
+    pub(crate) fn storage_dependents(
         &self,
         roots: impl IntoIterator<Item = StructuralTypeId>,
     ) -> Result<Vec<StructuralTypeId>, StorageGraphError> {

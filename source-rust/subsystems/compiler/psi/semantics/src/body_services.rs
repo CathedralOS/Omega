@@ -2,9 +2,7 @@
 //! ceiling. Known bodies compose through their actual invocation edges; an
 //! unresolved code value contributes its complete retained callable contract.
 
-use crate::callable_values::{
-    CallableInvocationTarget, CallableValueProgram, CallableValueView, terminal_callable_values,
-};
+use crate::callable_values::{CallableInvocationTarget, CallableValueProgram, CallableValueView};
 use semantic_vocabulary::{MachineId, ServiceId};
 use terminal_psi::{TerminalModule, UnoptimizedBehaviorOperation, UnoptimizedMachineBehavior};
 
@@ -25,15 +23,19 @@ impl BodyServiceReaches {
     }
 }
 
-pub fn body_service_reaches(
+#[cfg(test)]
+pub(crate) fn body_service_reaches(
     module: &TerminalModule,
     implementations: &[crate::callable_values::CallableBoundaryImplementation],
 ) -> std::result::Result<BodyServiceReaches, String> {
-    body_service_reaches_with(module, implementations, || terminal_callable_values(module))
+    body_service_reaches_with(module, implementations, || {
+        crate::callable_values::terminal_callable_values(module)
+    })
 }
 
-/// `body_service_reaches` over the shared analyses' callable values, so a
-/// caller that already asked for them does not build them again.
+/// The service reach of each body over the shared analyses' callable
+/// values, so a caller that already asked for them does not build them
+/// again.
 pub fn body_service_reaches_in(
     analyses: &crate::module_analyses::ModuleAnalyses<'_>,
     implementations: &[crate::callable_values::CallableBoundaryImplementation],

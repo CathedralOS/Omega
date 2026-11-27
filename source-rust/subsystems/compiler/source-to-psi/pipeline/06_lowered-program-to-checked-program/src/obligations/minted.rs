@@ -886,19 +886,9 @@ pub(crate) fn follow_the_lowered_form(
         None => {
             // A machine check of this module walks the closure the module's
             // analyses share; any other caller's walk builds its own.
-            let walks = match replays.and_then(|replays| {
-                replays
-                    .analyses(module)
-                    .map(|analyses| (analyses, replays.affine))
-            }) {
-                Some((analyses, affine)) => {
-                    terminal_semantics::plain_affine::MachineAffine::from_analyses(
-                        analyses,
-                        id,
-                        Some(affine),
-                    )
-                }
-                None => terminal_semantics::plain_affine::MachineAffine::new(module, id, None),
+            let walks = match replays.and_then(|replays| replays.analyses(module)) {
+                Some(analyses) => analyses.affine(id),
+                None => terminal_semantics::plain_affine::MachineAffine::new(module, id),
             };
             own_claims = walks
                 .and_then(|walks| walks.verify_claims())

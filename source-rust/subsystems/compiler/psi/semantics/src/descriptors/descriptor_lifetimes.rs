@@ -15,14 +15,14 @@ pub use locations::{
     descriptor_location_type, descriptor_path, fixed_runtime_index_alternatives,
     view_element_descriptor_prefix,
 };
-pub use residences::{DescriptorResidenceRules, descriptor_residence_live_positions};
+pub(crate) use residences::{DescriptorResidenceRules, descriptor_residence_live_positions};
 
 /// The operand order also identifies captured constructor elements. A
 /// memory operation belongs to its original typed source, not to aliases
 /// later added solely to keep a loan alive. Its observation is absent when
 /// a replacement does not read the old value. An unavailable source cannot
 /// establish permission even when its whole root is observed for liveness.
-pub type DescriptorFlowInput = (
+pub(crate) type DescriptorFlowInput = (
     Option<DescriptorLocation>,
     Option<(access_vocabulary::AccessOperation, DescriptorFlowSource)>,
 );
@@ -86,16 +86,6 @@ impl DescriptorFlowStep {
         self.inputs.iter().filter_map(|(input, _)| input.as_ref())
     }
 
-    /// Dropping a value observation does not erase an actual memory
-    /// operation. This matters when cleanup discards an old descriptor.
-    pub fn forget_observation(&mut self, index: usize) {
-        if self.inputs[index].1.is_some() {
-            self.inputs[index].0 = None;
-        } else {
-            self.inputs.remove(index);
-        }
-    }
-
     /// A value-transfer rewrite can refine the loan observations without
     /// replacing the instruction's actual memory operations. Constructor
     /// operands are never rewritten here: their order and duplicates are
@@ -137,7 +127,7 @@ impl DescriptorFlowEdge {
     /// A borrowed header keeps the permission of the actual it names.
     /// When the actual crosses a reference, its immediate descriptor is
     /// the authorizing name; an inline projection keeps its root's loan.
-    pub fn borrowed_authority(&self, name: &DescriptorLocation) -> Vec<DescriptorLocation> {
+    pub(crate) fn borrowed_authority(&self, name: &DescriptorLocation) -> Vec<DescriptorLocation> {
         self.bindings
             .iter()
             .filter(|binding| {
@@ -324,7 +314,7 @@ impl DescriptorFlowEdge {
     }
 }
 
-pub fn descriptor_location_live_positions(
+pub(crate) fn descriptor_location_live_positions(
     steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
     birth: DescriptorPosition,
     descriptor: &DescriptorLocation,
@@ -564,7 +554,7 @@ impl DescriptorLifetime {
     }
 }
 
-pub fn descriptor_entry_lifetime(
+pub(crate) fn descriptor_entry_lifetime(
     steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
     entry: DescriptorPosition,
     descriptor: &DescriptorLocation,
@@ -612,7 +602,8 @@ pub(crate) fn descriptor_location_lifetime_with_contents(
 
 /// A new edge borrow starts under the selected successor name. Its
 /// lifetime follows the same copies and captures as an explicit reference.
-pub fn descriptor_successor_lifetime(
+#[cfg(test)]
+pub(crate) fn descriptor_successor_lifetime(
     steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
     birth: DescriptorPosition,
     target: DescriptorPosition,
@@ -1005,7 +996,7 @@ pub(crate) fn value_locations(
     transported_locations(steps, establishment, value, start, true, None)
 }
 
-pub type LoanChoiceLocation = (DescriptorPosition, DescriptorLocation);
+pub(crate) type LoanChoiceLocation = (DescriptorPosition, DescriptorLocation);
 
 /// The descriptor carries exactly one loan on each predecessor. A node
 /// keeps the edge that selected its parent even after later moves.

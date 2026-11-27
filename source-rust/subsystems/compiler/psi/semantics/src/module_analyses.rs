@@ -27,6 +27,9 @@
 //! machines (`ModuleSummaries`). An analysis the bundle builds over rows its
 //! borrowed-storage family shares takes callee summaries other analyses of
 //! the bundle completed, under the adoption rules of `Replay::adopted_summary`.
+//! The affine walks from `ModuleAnalyses::affine` and the reference-end
+//! candidates from `reference_ends::candidates_in` build their analyses here,
+//! so every walk over one bundle shares that one table.
 
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -217,9 +220,6 @@ impl RowFamilyIdentity {
 pub struct DescriptorRowFamily {
     identity: RowFamilyIdentity,
     by_slot: Box<[OnceLock<RowResult>]>,
-    /// Every machine's row adapted against the whole module's rows. Filled
-    /// only for a module whose rows include a body with a dynamic call.
-    module_rows: OnceLock<Box<[RowResult]>>,
 }
 
 impl DescriptorRowFamily {
@@ -227,7 +227,6 @@ impl DescriptorRowFamily {
         Self {
             identity: RowFamilyIdentity::next(),
             by_slot: (0..machines).map(|_| OnceLock::new()).collect(),
-            module_rows: OnceLock::new(),
         }
     }
 
@@ -249,8 +248,6 @@ pub enum DescriptorRows<'a> {
     /// Rows built for this closure alone, such as a closure with a dynamic
     /// call.
     Owned(Vec<DescriptorMachine>),
-    /// Rows a caller built without a bundle.
-    Borrowed(&'a [DescriptorMachine]),
 }
 
 impl<'a> DescriptorRows<'a> {
@@ -279,18 +276,6 @@ impl<'a> DescriptorRows<'a> {
 impl From<Vec<DescriptorMachine>> for DescriptorRows<'_> {
     fn from(rows: Vec<DescriptorMachine>) -> Self {
         Self::Owned(rows)
-    }
-}
-
-impl<'a> From<&'a [DescriptorMachine]> for DescriptorRows<'a> {
-    fn from(rows: &'a [DescriptorMachine]) -> Self {
-        Self::Borrowed(rows)
-    }
-}
-
-impl<'a> From<&'a Vec<DescriptorMachine>> for DescriptorRows<'a> {
-    fn from(rows: &'a Vec<DescriptorMachine>) -> Self {
-        Self::Borrowed(rows)
     }
 }
 
@@ -375,7 +360,7 @@ impl<'a> DescriptorRowView<'a> {
     }
 
     /// Whether both views read the very same rows.
-    pub fn same_rows(self, other: Self) -> bool {
+    pub(crate) fn same_rows(self, other: Self) -> bool {
         match (self.rows, other.rows) {
             (ViewRows::Slice(left), ViewRows::Slice(right)) => std::ptr::eq(left, right),
             (
@@ -446,7 +431,6 @@ impl<'a> From<&'a DescriptorRows<'_>> for DescriptorRowView<'a> {
                 },
             },
             DescriptorRows::Owned(rows) => rows.into(),
-            DescriptorRows::Borrowed(rows) => (*rows).into(),
         }
     }
 }
@@ -529,16 +513,26 @@ impl<'m> ModuleAnalyses<'m> {
 
     /// The affine walks of `machine`. They take the machine's borrowed-storage
     /// closure from this bundle's shared rows, unless the closure reaches a
-    /// dynamic call, and share the bundle's call fences and type permissions.
+    /// dynamic call, and share the bundle's call fences, type permissions and
+    /// callee summaries.
     pub fn affine(
         &self,
         machine: MachineId,
     ) -> Result<crate::plain_affine::MachineAffine<'_>, crate::plain_affine::Error> {
-        crate::plain_affine::MachineAffine::from_analyses(self, machine, None)
+        crate::plain_affine::MachineAffine::from_analyses(self, machine)
     }
 
-    /// The module's callable values, built on first use. They equal
-    /// `terminal_callable_values_with_error_context(module)`.
+    /// Whether an analysis of this bundle has completed and published
+    /// `machine`'s borrowed-storage summary. Tests read it to show which
+    /// callees later walks take from the bundle instead of replaying.
+    pub fn holds_summary(&self, machine: MachineId) -> bool {
+        self.replays
+            .get()
+            .is_some_and(|replays| replays.get(machine).is_some())
+    }
+
+    /// The module's callable values, built on first use, with a failure's
+    /// structured context kept.
     pub fn callable_values(&self) -> Result<CallableValueView<'_>, &CallableValuePreparationError> {
         self.callable_values
             .get_or_init(|| {
@@ -581,7 +575,8 @@ impl<'m> ModuleAnalyses<'m> {
     }
 
     /// Whether the machine's body contains a dynamic call.
-    pub fn calls_dynamically(&self, machine: MachineId) -> bool {
+    #[cfg(test)]
+    pub(crate) fn calls_dynamically(&self, machine: MachineId) -> bool {
         self.machine_slots
             .slot(machine)
             .is_some_and(|slot| self.dynamic_slots().binary_search(&slot).is_ok())
@@ -630,48 +625,6 @@ impl<'m> ModuleAnalyses<'m> {
             machine_slots: &self.machine_slots,
             members: reached.slots,
         })
-    }
-
-    /// Every machine's row, each with its own failure.
-    ///
-    /// Rows come in module order. When a successful row's body calls
-    /// dynamically, every successful row is adapted against the whole
-    /// module's rows and the failed rows follow them, as
-    /// `terminal_graph_rows` orders them.
-    pub fn descriptor_rows(
-        &self,
-        kind: DescriptorSlotKind,
-    ) -> impl Iterator<Item = Result<&DescriptorMachine, DescriptorGraphError>> + '_ {
-        let family = self.family(kind);
-        let machines = self.module.machines.len();
-        let dynamic_slots = self.dynamic_slots();
-        let dynamic = (0..machines).any(|slot| {
-            self.shared_row(kind, family, slot).is_ok()
-                && dynamic_slots.binary_search(&slot).is_ok()
-        });
-        let adapted = dynamic.then(|| {
-            family.module_rows.get_or_init(|| {
-                let rows = (0..machines)
-                    .map(|slot| self.adapt(kind, slot, &[], GenericCallInputs::default(), None))
-                    .collect();
-                self.readapt_dynamic(kind, rows, &[], GenericCallInputs::default())
-                    .into_boxed_slice()
-            })
-        });
-        let shared = (!dynamic).then_some(0..machines);
-        shared
-            .into_iter()
-            .flatten()
-            .map(move |slot| {
-                self.shared_row(kind, family, slot)
-                    .as_ref()
-                    .map_err(|error| *error)
-            })
-            .chain(
-                adapted
-                    .into_iter()
-                    .flat_map(|rows| rows.iter().map(|row| row.as_ref().map_err(|error| *error))),
-            )
     }
 
     /// A descriptor analysis of one closure's rows that reads this bundle's

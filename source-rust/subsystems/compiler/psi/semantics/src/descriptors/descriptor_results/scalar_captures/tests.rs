@@ -2,23 +2,20 @@ use super::*;
 use crate::descriptor_results::{
     DescriptorCallOrigin, DescriptorInvocation, DescriptorInvocationOwner,
     DescriptorInvocationTarget, DescriptorPayloadTarget,
-    terminal_borrowed_storage_graph,
 };
 use crate::descriptors::descriptor_lifetimes::DescriptorPathSegment;
-use crate::descriptors::descriptor_lifetimes::{
-    DescriptorContentsQuery, DescriptorContentsStep,
-};
+use crate::descriptors::descriptor_lifetimes::{DescriptorContentsQuery, DescriptorContentsStep};
 use crate::storage::borrowed_storage::Projection;
 use semantic_vocabulary::{
-    BlockId, ContractId, EdgeId, MachineId, OperationId, PlaceId,
-    ScalarQualificationSetId, StructuralTypeId,
+    BlockId, ContractId, EdgeId, MachineId, OperationId, PlaceId, ScalarQualificationSetId,
+    StructuralTypeId,
 };
 use std::collections::BTreeSet;
 use terminal_psi::{
-    Block, ByteSequenceCarrier, OperationResult, StructuralAccess,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
-    TerminalIdentityIndex, TerminalMachineResult, ValueDeclaration,
+    Block, ByteSequenceCarrier, OperationResult, StructuralAccess, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape, SuccessorEdge, TerminalIdentityIndex, TerminalMachineResult,
+    ValueDeclaration,
 };
 fn machine(id: u64) -> TerminalMachine {
     let block = BlockId::new(1).unwrap();
@@ -1367,8 +1364,7 @@ fn stored_sequence_call_inputs_keep_the_callers_capture() {
     elements.push(elements[0].clone());
     let expected: Vec<_> = elements.iter().map(|element| element.place).collect();
     let constructor_position = (duplicate_block.id, u32::try_from(ordinal).unwrap());
-    let duplicates =
-        crate::descriptor_results::terminal_borrowed_storage_graph(&duplicate_module);
+    let duplicates = terminal_borrowed_storage_graph(&duplicate_module);
     let duplicate = duplicates.iter().find(|row| row.id == caller).unwrap();
     assert_eq!(
         duplicate.flow[&constructor_position]
@@ -2704,4 +2700,17 @@ fn stored_and_forwarded_scalars_keep_evaluated_binders_and_both_edge_cuts() {
         TerminalScalarCaptures::new(&module, &machine),
         Err("scalar capture parameter changes its declared storage kind")
     ));
+}
+
+/// Every machine's borrowed-storage rows, or none when the module has no
+/// complete set.
+fn terminal_borrowed_storage_graph(
+    module: &terminal_psi::TerminalModule,
+) -> Vec<crate::descriptor_results::DescriptorMachine> {
+    crate::descriptor_results::terminal_graph_for(
+        module,
+        crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
+        &[],
+    )
+    .unwrap_or_default()
 }

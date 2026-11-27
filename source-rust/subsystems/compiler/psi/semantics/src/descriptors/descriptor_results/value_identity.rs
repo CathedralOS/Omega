@@ -324,18 +324,3 @@ impl<'a> ValueIdentityAnalysis<'a> {
         self.cuts.insert(observation, cut);
     }
 }
-
-pub fn require_unchanged_value(
-    module: &TerminalModule,
-    reference_graph: &[DescriptorMachine],
-    identity: MachineId,
-    seed: ValueIdentitySeed,
-    observation: OperationId,
-    actual: &StructuralArgument,
-) -> Result<(), &'static str> {
-    ValueIdentityAnalysis::new(module, reference_graph, identity)?.require(
-        seed,
-        observation,
-        actual,
-    )
-}

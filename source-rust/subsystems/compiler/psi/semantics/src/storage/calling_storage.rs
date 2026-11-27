@@ -1,11 +1,9 @@
 use semantic_vocabulary::{CallingSignatureId, ScalarApplicationId, StructuralTypeId};
 use terminal_psi::{StructuralAccess, StructuralTypeShape, TerminalModule};
 
-pub use terminal_psi::layouts::record_storage::{
-    ForeignRecordStorage, foreign_opaque_carrier, foreign_record_storage,
-};
+pub use terminal_psi::layouts::record_storage::{foreign_opaque_carrier, foreign_record_storage};
 
-pub fn foreign_storage_extent_dependencies(
+pub(crate) fn foreign_storage_extent_dependencies(
     module: &TerminalModule,
     roots: impl IntoIterator<Item = StructuralTypeId>,
     target: &str,

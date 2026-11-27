@@ -25,7 +25,7 @@ fn is_partial_affine_path(
 /// Tests typed coverage of a receiving region, not allocation or access
 /// authority. A live sibling or missing ancestor cannot be erased by a
 /// store into this region. Callers retain their own home and loan checks.
-pub fn structural_region_is_vacant(
+pub(crate) fn structural_region_is_vacant(
     types: &[StructuralTypeDeclaration],
     root: StructuralTypeId,
     missing: &BTreeSet<Vec<StructuralPathSegment>>,
@@ -57,7 +57,7 @@ pub fn structural_region_is_vacant(
     .is_some_and(|residuals| residuals.is_empty())
 }
 
-pub fn partial_affine_residuals(
+pub(crate) fn partial_affine_residuals(
     types: &[StructuralTypeDeclaration],
     root_type: StructuralTypeId,
     moved_paths: &BTreeSet<Vec<StructuralPathSegment>>,
@@ -77,7 +77,7 @@ pub fn partial_affine_residuals(
 /// arrivals use the successor's vacancies as regions and their own moves
 /// as exclusions. The existing typed walk retains declaration order and
 /// proves the output bound before enumerating array elements.
-pub fn partial_affine_residuals_in_regions(
+pub(crate) fn partial_affine_residuals_in_regions(
     types: &[StructuralTypeDeclaration],
     root_type: StructuralTypeId,
     moved_paths: &BTreeSet<Vec<StructuralPathSegment>>,

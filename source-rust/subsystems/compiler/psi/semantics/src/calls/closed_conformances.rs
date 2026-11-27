@@ -661,7 +661,7 @@ pub fn declaration_package(
 /// Read the same canonical declaration coordinate after a consumer has
 /// retained the identity table without the source module. This lookup
 /// alone does not authorize an operation on a foreign declaration.
-pub fn identity_package(
+pub(crate) fn identity_package(
     identities: &terminal_psi::TerminalIdentityTable,
     identity: TerminalIdentityIndex,
 ) -> Result<Option<semantic_vocabulary::PackageKeyIdentity>, &'static str> {

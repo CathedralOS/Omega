@@ -1237,6 +1237,7 @@ impl Replay<'_> {
         Self::install_contents(after, replacements);
     }
 
+    #[cfg(test)]
     pub(crate) fn contents_replacements(
         &self,
         machine: &DescriptorMachine,

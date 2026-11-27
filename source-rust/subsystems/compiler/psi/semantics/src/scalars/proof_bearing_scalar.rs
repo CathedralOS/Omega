@@ -22,29 +22,21 @@ use crate::scalars::scalar_leaf_semantics::value_term;
 use crate::operations::OperationSemanticTag;
 pub use canonical_goal::CanonicalScalarGoal;
 
-pub type ProofBearingScalarLeafSchema = ScalarLeafSchema;
+pub(crate) type ProofBearingScalarLeafSchema = ScalarLeafSchema;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ProofBearingIntegerPolicyBinding {
+pub(crate) struct ProofBearingIntegerPolicyBinding {
     primitive: IntegerPolicyPrimitive,
     policy: ArithmeticDomain,
 }
 
 impl ProofBearingIntegerPolicyBinding {
-    pub const fn primitive(self) -> IntegerPolicyPrimitive {
-        self.primitive
-    }
-
-    pub const fn policy(self) -> ArithmeticDomain {
-        self.policy
-    }
-
     pub const fn bridge(self) -> IntegerPolicyBridge {
         integer_policy_bridge(self.primitive, self.policy)
     }
 }
 
-pub const fn proof_bearing_integer_policy_binding(
+pub(crate) const fn proof_bearing_integer_policy_binding(
     tag: OperationSemanticTag,
 ) -> Option<ProofBearingIntegerPolicyBinding> {
     let (primitive, policy) = match tag {
@@ -143,7 +135,7 @@ const fn proof_bearing_scalar_leaf(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ProofBearingScalarSemanticRow {
+pub(crate) struct ProofBearingScalarSemanticRow {
     tag: OperationSemanticTag,
     schema: ProofBearingScalarLeafSchema,
 }
@@ -151,10 +143,6 @@ pub struct ProofBearingScalarSemanticRow {
 impl ProofBearingScalarSemanticRow {
     pub const fn tag(self) -> OperationSemanticTag {
         self.tag
-    }
-
-    pub const fn schema(self) -> ProofBearingScalarLeafSchema {
-        self.schema
     }
 }
 
@@ -213,7 +201,7 @@ fn canonical_schema(tag: OperationSemanticTag) -> Option<ProofBearingScalarLeafS
         .map(|row| row.schema)
 }
 
-pub fn validate_proof_bearing_scalar_semantic_rows(
+pub(crate) fn validate_proof_bearing_scalar_semantic_rows(
     rows: &[ProofBearingScalarSemanticRow],
 ) -> Result<(), OperationSemanticError> {
     reject_unexpected_proof_bearing_scalar_rows(rows)?;
@@ -241,7 +229,7 @@ pub fn validate_proof_bearing_scalar_semantic_rows(
     Ok(())
 }
 
-pub fn proof_bearing_scalar_semantic_row(
+pub(crate) fn proof_bearing_scalar_semantic_row(
     operation: &OperationKind,
 ) -> Result<Option<&'static ProofBearingScalarSemanticRow>, OperationSemanticError> {
     validate_proof_bearing_scalar_semantic_rows(&ProofBearingScalarSemanticRow::ALL)?;

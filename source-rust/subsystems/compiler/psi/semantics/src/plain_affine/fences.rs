@@ -130,10 +130,6 @@ impl<'m> CallFences<'m> {
         }
     }
 
-    pub(super) const fn module(&self) -> &'m TerminalModule {
-        self.module
-    }
-
     fn tables(&self) -> &Tables {
         self.tables.get_or_init(|| {
             let boundaries = boundary_fences(self.module);

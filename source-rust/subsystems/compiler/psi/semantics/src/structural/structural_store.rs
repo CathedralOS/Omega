@@ -163,7 +163,7 @@ pub enum StructuralStoreValueError {
     },
 }
 
-pub fn discardable_store_value<'types>(
+pub(crate) fn discardable_store_value<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     identity: StructuralTypeId,
     multiplicity: StructuralMultiplicity,

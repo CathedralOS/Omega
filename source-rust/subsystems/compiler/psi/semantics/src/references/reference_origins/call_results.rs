@@ -179,7 +179,7 @@ pub fn bind_reference_call_results<'types>(
     Ok(results)
 }
 
-pub fn bind_public_reference_call_results<'types>(
+pub(crate) fn bind_public_reference_call_results<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     slot: &impl terminal_psi::ReferenceResultShape,
     arguments: &[StructuralArgument],

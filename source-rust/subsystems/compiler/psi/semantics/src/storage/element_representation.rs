@@ -58,7 +58,7 @@ fn scalar_layout(
         }],
     })
 }
-pub fn element_representation_layout<'a>(
+pub(crate) fn element_representation_layout<'a>(
     types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     element: StructuralTypeId,
 ) -> Option<ElementRepresentationLayout> {

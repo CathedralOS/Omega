@@ -27,7 +27,6 @@ pub(crate) use semantic_vocabulary::Proposition;
 pub(crate) use semantic_vocabulary::PropositionContext;
 pub(crate) use semantic_vocabulary::ScalarTerm;
 pub(crate) use semantic_vocabulary::ValueId;
-pub(crate) mod compatibility;
 pub(crate) mod contents;
 pub(crate) mod payload_entry;
 pub(crate) use payload_entry::prove as prove_payload_predicate;
@@ -38,36 +37,36 @@ pub(crate) mod payload_reachability;
 pub(crate) mod payload_versions;
 pub(crate) mod scalar_captures;
 pub(crate) mod value_identity;
-pub use value_identity::{ValueIdentityAnalysis, ValueIdentitySeed, require_unchanged_value};
+pub use value_identity::{ValueIdentityAnalysis, ValueIdentitySeed};
 pub(crate) mod scalar_contracts;
+pub(crate) use contents::payload_memberships;
 pub use contents::{
     DescriptorContentsOperand, DescriptorContentsQuery, DescriptorContentsStep,
     DescriptorContentsTransfer, DescriptorPayloadTarget, DescriptorStoreFlow,
     ElementPayloadMemberships, PayloadMembershipContract, descriptor_contents_query,
     descriptor_contents_query_with, descriptor_contents_transfers, descriptor_leaf_store,
-    descriptor_scalar_arguments, element_payload_memberships, element_payload_memberships_in,
-    entry_selector, payload_memberships, reference_backing_memberships,
+    descriptor_scalar_arguments, element_payload_memberships, entry_selector,
     terminal_payload_contract,
 };
 
 pub(crate) use contents::{
     contents_membership_path, descriptor_storage_use_source, inline_selected_index,
 };
-pub use payload_history::{
-    PayloadMembershipHistory, current_payload_contract, current_selected_payload_contract,
-};
+pub use payload_history::PayloadMembershipHistory;
+pub(crate) use payload_history::current_selected_payload_contract;
 pub(crate) use payload_predicates::terminal_scalar_snapshots;
 pub use payload_predicates::{
     PayloadEntryScalarIdentity, PayloadScalarObservation, TerminalScalarExpressions,
     scalar_payload_expression,
 };
 pub use payload_versions::{
-    ProducedPayloadVersion, ScalarCaptureAnalysis, ScalarCaptureFailure,
-    projected_stored_sources_in, require_completed_scalar_capture,
-    require_unchanged_entry_storage, require_unchanged_observed_storage,
-    require_unchanged_produced_payload, require_unchanged_produced_payload_in,
-    unchanged_payload_producer, unchanged_stored_projection_sources_in,
-    unchanged_stored_scalar_sources, unchanged_stored_sources,
+    ProducedPayloadVersion, projected_stored_sources_in, require_unchanged_entry_storage,
+    require_unchanged_observed_storage, unchanged_payload_producer,
+    unchanged_stored_scalar_sources,
+};
+pub(crate) use payload_versions::{
+    require_completed_scalar_capture, require_unchanged_produced_payload,
+    require_unchanged_produced_payload_in, unchanged_stored_projection_sources_in,
 };
 pub(crate) use scalar_captures::scalar_storage_writes;
 pub use scalar_captures::{
@@ -76,43 +75,25 @@ pub use scalar_captures::{
 };
 pub use scalar_contracts::{case_payload_scalar_types, instantiate_payload_scalar_guarantees};
 pub(crate) mod owned_shape;
-pub use compatibility::{DescriptorCompatibilityFailure, DescriptorCompatibilityRequirement};
-pub use owned_shape::{owned_shared_byte_descriptor_shape, plain_owned_shape};
+pub(crate) use owned_shape::{owned_shared_byte_descriptor_shape, plain_owned_shape};
 pub(crate) mod invocation;
 pub use invocation::selected_stored_effects_row;
 mod private_parameters;
 pub use private_parameters::PrivateObservationInputs;
 pub(crate) mod provider_invocation;
-pub use provider_invocation::{provider_invocation, provider_outputs_cover_writable_slots};
+pub use provider_invocation::provider_invocation;
+pub(crate) use provider_invocation::provider_outputs_cover_writable_slots;
 pub(crate) mod terminal_flow;
 pub use invocation::{
-    DescriptorMachineSignature, machine_invocation, machine_invocation_for_signature,
-    public_invocation, public_realizations, public_result_slots, writable_descriptor_slots,
+    DescriptorMachineSignature, machine_invocation_for_signature, public_invocation,
+    public_realizations, writable_descriptor_slots,
 };
+pub(crate) use invocation::{machine_invocation, public_result_slots};
 pub use replay::{
     DescriptorAnalysis, DescriptorResultContents, DescriptorSlotInventory, DescriptorSlotKind,
-    DescriptorSourceObservation, DescriptorSourceObservations, DescriptorStoredCallEffect,
-    DescriptorStoredEffect, DescriptorStoredOrigin, ModuleSummaries, UnknownContentsKind,
-    UnknownDescriptorContents, descriptor_slot_inventory, descriptor_slots,
-    reconstruct_source_origins, reconstruct_stored_effects,
+    DescriptorSourceObservation, DescriptorSourceObservations, DescriptorStoredEffect,
+    DescriptorStoredOrigin, ModuleSummaries, UnknownContentsKind, UnknownDescriptorContents,
 };
-
-#[derive(Clone)]
-pub enum DescriptorResultOrigin {
-    Invocation {
-        carrier_type: StructuralTypeId,
-        projection: Projection,
-    },
-    Empty,
-    Parameter {
-        position: usize,
-        projection: Projection,
-    },
-    Literal {
-        machine: MachineId,
-        place: PlaceId,
-    },
-}
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DescriptorCallOrigin {
@@ -276,7 +257,7 @@ pub fn descriptor_value_access<'a>(
     }
 }
 
-pub fn is_shared_descriptor<'a>(
+pub(crate) fn is_shared_descriptor<'a>(
     types: impl IntoIterator<Item = &'a StructuralTypeDeclaration>,
     structural_type: StructuralTypeId,
 ) -> bool {
@@ -303,50 +284,7 @@ pub fn result_access<'types>(
         .filter(|access| matches!(access, terminal_psi::reading_borrow_pair_pattern!()))
 }
 
-pub fn reconstruct_return_slots_external(
-    types: &[StructuralTypeDeclaration],
-    machines: &[DescriptorMachine],
-    identity: MachineId,
-    position: DescriptorPosition,
-    source: PlaceId,
-) -> bool {
-    let Some(machine) = descriptor_machine(machines, identity) else {
-        return false;
-    };
-    if !machine.returns.as_ref().is_some_and(|returns| {
-        returns.iter().any(|(returned_position, location)| {
-            *returned_position == position && *location == DescriptorLocation::whole(source)
-        })
-    }) {
-        return false;
-    }
-    replay::return_slots_have_external_backing(types, machines, identity, position, source)
-        .is_some()
-}
-
-pub fn call_origins_in(
-    analysis: &mut DescriptorAnalysis<'_>,
-    module: &TerminalModule,
-    caller: &TerminalMachine,
-    operation: &Operation,
-) -> Option<Vec<DescriptorCallOrigin>> {
-    if !matches!(
-        operation.kind,
-        terminal_psi::call_structural_pair_pattern!(..) | OperationKind::CallDynamic { .. }
-    ) {
-        return None;
-    }
-    let result = operation.result.structural()?;
-    if result.multiplicity != StructuralMultiplicity::Unrestricted
-        || !is_shared_descriptor(module.types.structural_types.iter(), result.structural_type)
-    {
-        return None;
-    }
-
-    analysis.call_origins(caller.id, result.place)
-}
-
-pub type DescriptorReadQueries =
+pub(crate) type DescriptorReadQueries =
     BTreeMap<(DescriptorPosition, DescriptorLocation, DescriptorLocation), DescriptorContentsQuery>;
 
 pub struct DescriptorMachine {
@@ -541,7 +479,7 @@ impl DescriptorMachine {
         Some(())
     }
 
-    pub fn known_invocation(
+    pub(crate) fn known_invocation(
         &self,
         position: &DescriptorPosition,
     ) -> Option<&DescriptorInvocation> {
@@ -934,7 +872,7 @@ impl DescriptorInvocation {
         }
     }
 
-    pub fn stored_effects_callee(&self) -> Option<MachineId> {
+    pub(crate) fn stored_effects_callee(&self) -> Option<MachineId> {
         match self.target {
             DescriptorInvocationTarget::Public {
                 effects_machine, ..
@@ -1110,14 +1048,6 @@ impl DescriptorDefinition {
     }
 }
 
-pub fn reconstruct_result_origins(
-    types: &[StructuralTypeDeclaration],
-    machines: &[DescriptorMachine],
-    machine: MachineId,
-) -> Option<Vec<DescriptorResultOrigin>> {
-    replay::result_origins(types, machines, machine)
-}
-
 pub fn reconstruct_call_origins(
     types: &[StructuralTypeDeclaration],
     machines: &[DescriptorMachine],
@@ -1177,35 +1107,8 @@ pub(crate) fn external_backing(
     })
 }
 
-pub fn aggregate_descriptor_slots(
-    types: &[StructuralTypeDeclaration],
-    root: PlaceId,
-    structural_type: StructuralTypeId,
-) -> Option<Vec<DescriptorLocation>> {
-    let declaration = exactly_one(types.iter(), |declaration| {
-        declaration.id == structural_type
-    })?;
-    if matches!(
-        declaration.shape,
-        StructuralTypeShape::Record { .. }
-            | terminal_psi::sum_or_mixed_shape_pattern!()
-            | StructuralTypeShape::FixedArray { .. }
-    ) {
-        DescriptorSlotKind::Views.owned_slots(types, root, structural_type)
-    } else {
-        Some(Vec::new())
-    }
-}
-
 pub fn terminal_graph(module: &TerminalModule) -> Vec<DescriptorMachine> {
     terminal_graph_for(module, DescriptorSlotKind::Views, &[]).unwrap_or_default()
-}
-
-pub fn terminal_graph_from(
-    module: &TerminalModule,
-    roots: impl IntoIterator<Item = MachineId>,
-) -> Vec<DescriptorMachine> {
-    terminal_graph_closure(module, roots, DescriptorSlotKind::Views, &[]).unwrap_or_default()
 }
 
 pub fn terminal_borrowed_storage_graph_from(
@@ -1256,7 +1159,7 @@ pub enum DescriptorGraphError {
     },
 }
 
-pub const INEXACT_REFERENCE_BACKING: &str =
+pub(crate) const INEXACT_REFERENCE_BACKING: &str =
     "reference use without exact live backing correspondence";
 
 impl DescriptorGraphError {
@@ -1555,11 +1458,7 @@ pub fn terminal_reference_graph(module: &TerminalModule) -> Vec<DescriptorMachin
     terminal_graph_for(module, DescriptorSlotKind::References, &[]).unwrap_or_default()
 }
 
-pub fn terminal_borrowed_storage_graph(module: &TerminalModule) -> Vec<DescriptorMachine> {
-    terminal_graph_for(module, DescriptorSlotKind::BorrowedStorage, &[]).unwrap_or_default()
-}
-
-pub fn terminal_residence_rules(
+pub(crate) fn terminal_residence_rules(
     module: &TerminalModule,
     machine: &terminal_psi::TerminalMachine,
 ) -> Option<descriptor_lifetimes::DescriptorResidenceRules> {
@@ -1643,30 +1542,4 @@ pub(crate) fn terminal_definition(
         }
         _ => Some(DescriptorDefinition::Local),
     }
-}
-
-pub fn call_stored_effects_in(
-    analysis: &mut DescriptorAnalysis<'_>,
-    machine: &TerminalMachine,
-    operation: &Operation,
-) -> Option<Vec<DescriptorStoredCallEffect>> {
-    analysis.call_stored_effects(machine.id, operation_position(machine, operation)?)
-}
-pub(crate) fn operation_position(
-    machine: &TerminalMachine,
-    operation: &Operation,
-) -> Option<DescriptorPosition> {
-    let mut positions = machine.blocks.iter().flat_map(|block| {
-        block
-            .operations
-            .iter()
-            .enumerate()
-            .filter_map(move |(index, candidate)| {
-                (candidate.id == operation.id && candidate == operation)
-                    .then(|| Some((block.id, u32::try_from(index).ok()?)))
-                    .flatten()
-            })
-    });
-    let position = positions.next()?;
-    positions.next().is_none().then_some(position)
 }

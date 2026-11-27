@@ -43,7 +43,7 @@ pub fn byte_predicate_requirement(
     }
 }
 
-pub fn byte_field_root(
+pub(crate) fn byte_field_root(
     module: &TerminalModule,
     machine: &TerminalMachine,
     source: PlaceId,
@@ -109,7 +109,7 @@ pub fn byte_parameter_predicates(
     byte_parameter_predicates_from_domains(&module.types.structural_domains, parameter)
 }
 
-pub fn byte_parameter_predicates_from_domains(
+pub(crate) fn byte_parameter_predicates_from_domains(
     domains: &[terminal_psi::StructuralDomainDeclaration],
     parameter: &StructuralParameterDeclaration,
 ) -> Option<ByteSequencePredicateSet> {
@@ -286,22 +286,6 @@ pub fn byte_owned_call_result<'machine>(
         .any(|declaration| {
             declaration.id == result.structural_type
                 && declaration.shape.is_bounded_owned_byte_sequence()
-        })
-        .then_some(result)
-}
-
-pub fn byte_view_call_result<'machine>(
-    module: &TerminalModule,
-    machine: &'machine TerminalMachine,
-    source: PlaceId,
-) -> Option<&'machine terminal_psi::StructuralOperationResult> {
-    let result = authenticated_call_result(module, machine, source)?;
-    module
-        .types.structural_types
-        .iter()
-        .any(|declaration| {
-            declaration.id == result.structural_type
-                && declaration.shape.is_shared_readable_byte_view()
         })
         .then_some(result)
 }
@@ -596,149 +580,6 @@ pub fn byte_transfer_qualifications_hold(
         }
     }
     Ok(checked.then_some(true))
-}
-
-pub fn byte_sequence_concatenation_predicates(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-    operation: &Operation,
-) -> Option<ByteSequencePredicateSet> {
-    let OperationKind::EstablishByteSequenceConcatenation { left, right, .. } = &operation.kind
-    else {
-        return None;
-    };
-    let mut resolve = |source| byte_sequence_source_predicates(module, machine, source);
-    Some(
-        concatenation_operand_predicates(module, machine, left, &mut resolve)?.concatenation(
-            concatenation_operand_predicates(module, machine, right, &mut resolve)?,
-        ),
-    )
-}
-
-pub fn byte_copied_field_predicates_at_transfer(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-    source: PlaceId,
-    consumer: semantic_vocabulary::OperationId,
-) -> Option<ByteSequencePredicateSet> {
-    let (operation, structural_type) = operation_producer(machine, source)?;
-    let result = operation.result.structural()?;
-    let OperationKind::StructuralLeafCopy {
-        source: backing,
-        path,
-    } = &operation.kind
-    else {
-        return None;
-    };
-    if result.place != source
-        || result.structural_type != structural_type
-        || result.multiplicity != StructuralMultiplicity::Unrestricted
-        || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
-        || !result.qualification_establishments.is_empty()
-        || !result.claims.is_empty()
-    {
-        return None;
-    }
-    let carrier =
-        module
-            .types.structural_types
-            .iter()
-            .find_map(|declaration| match declaration.shape {
-                StructuralTypeShape::ByteSequence(
-                    carrier @ terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-                ) if declaration.id == structural_type => Some(carrier),
-                _ => None,
-            })?;
-    let parameter = machine.structural_parameter(*backing)?;
-    if !matches!(
-        parameter.access,
-        StructuralAccess::Owned | terminal_psi::borrowed_access_pair_pattern!()
-    ) {
-        return None;
-    }
-    let (StructuralPathSegment::Field(identity), parent_path) = path.split_last()? else {
-        return None;
-    };
-    if parent_path.iter().any(|segment| {
-        !matches!(
-            segment,
-            StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
-        )
-    }) {
-        return None;
-    }
-    let parent = runtime_structural_path_tip(
-        module.types.structural_types.iter(),
-        parameter.structural_type,
-        parent_path,
-    )?;
-    let fields = parent.shape.record_fields()?;
-    let field = terminal_psi::live_field_by_identity(fields, *identity)?;
-    if field.field_type.byte_sequence_carrier()? != carrier {
-        return None;
-    }
-    let consuming = machine.operation(consumer)?;
-    let call_arguments = consuming.kind.structural_arguments();
-    let mut matching = call_arguments
-        .iter()
-        .chain(consuming.kind.constructor_arguments())
-        .filter(|argument| argument.place == source)
-        .peekable();
-    if matching.peek().is_none()
-        || matching.any(|argument| {
-            !argument.path.is_empty() || argument.access != StructuralAccess::Owned
-        })
-    {
-        return None;
-    }
-    if machine.operations()
-        .any(|candidate| {
-            candidate.id != consumer
-                && (may_change_owned_source(candidate, source)
-                    || matches!(&candidate.kind,
-                OperationKind::EstablishReference { source: argument, .. }
-                | OperationKind::EstablishAccessReference { source: argument, .. }
-                | terminal_psi::element_view_establish_pair_pattern!(source: argument, ..)
-                if argument.place == source)
-                    || matches!(&candidate.kind, OperationKind::ByteSequenceSubslice { source: viewed, .. }
-                        if viewed.place == source))
-        })
-    {
-        return None;
-    }
-    let carries = |arguments: &[terminal_psi::StructuralArgument]| {
-        arguments.iter().any(|argument| argument.place == source)
-    };
-    if machine.blocks.iter().any(|block| match &block.terminator {
-        terminal_psi::Terminator::Jump {
-            structural_arguments,
-            ..
-        }
-        | terminal_psi::Terminator::ExternalCompletion {
-            structural_arguments,
-            ..
-        }
-        | terminal_psi::Terminator::InvokeNoNormal {
-            structural_arguments,
-            ..
-        } => carries(structural_arguments),
-        terminal_psi::Terminator::Conditional {
-            when_true,
-            when_false,
-            ..
-        } => {
-            carries(&when_true.structural_arguments)
-                || carries(&when_false.structural_arguments)
-        }
-        terminal_psi::Terminator::ReturnStructural {
-            source: returned, ..
-        } => *returned == source,
-        _ => false,
-    }) {
-        return None;
-    }
-    Some(field.field_type.byte_predicates())
 }
 
 fn concatenation_operand_predicates(
@@ -1256,37 +1097,6 @@ fn shared_entry_byte_predicates(
     }
 }
 
-pub fn indexed_byte_store_goal(
-    bound: semantic_vocabulary::Proposition,
-    value: semantic_vocabulary::ValueId,
-    predicates: ByteSequencePredicateSet,
-) -> Result<semantic_vocabulary::Proposition, semantic_vocabulary::PropositionError> {
-    use semantic_vocabulary::{
-        IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType,
-    };
-    let byte_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 is valid");
-    let literal =
-        |byte: u8| ScalarTerm::integer(byte_type, IntegerValue::Unsigned(u128::from(byte)));
-    let stored = ScalarTerm::value(value, ScalarType::Integer(byte_type));
-    let declares = |predicate| {
-        predicates
-            .predicates()
-            .any(|declared| declared == predicate)
-    };
-    let mut legs = vec![bound];
-    if declares(ByteSequencePredicate::AsciiOnly) || declares(ByteSequencePredicate::ValidUtf8)
-    {
-        legs.push(Proposition::LessOrEqual(stored.clone(), literal(0x7f)?));
-    }
-    if declares(ByteSequencePredicate::NoNul) {
-        legs.push(Proposition::LessOrEqual(literal(1)?, stored));
-    }
-    Ok(match legs.len() {
-        1 => legs.pop().expect("one leg"),
-        _ => Proposition::Conjunction(legs),
-    })
-}
-
 pub fn byte_literal_qualifications_hold(
     domains: &[terminal_psi::StructuralDomainDeclaration],
     carrier: StructuralTypeId,
@@ -1709,7 +1519,7 @@ impl<'machine> MachineScalarIndex<'machine> {
             .map(|(block, position)| &block.operations[position])
     }
 
-    pub fn definition_sites(
+    pub(crate) fn definition_sites(
         &self,
         value: semantic_vocabulary::ValueId,
     ) -> impl Iterator<Item = (&'machine terminal_psi::Block, usize)> + '_ {

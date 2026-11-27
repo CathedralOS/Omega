@@ -512,7 +512,7 @@ impl<'module> ModuleActivation<'module> {
         )
     }
 }
-pub fn validate_flow(
+pub(crate) fn validate_flow(
     types: &[terminal_psi::StructuralTypeDeclaration],
     structural_parameters: &[terminal_psi::StructuralParameterDeclaration],
     block_entry_claims: &[terminal_psi::EntryClaim],

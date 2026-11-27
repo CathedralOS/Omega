@@ -90,15 +90,6 @@ pub fn fixed_byte_extent<'types>(
     }
 }
 
-pub fn fixed_byte_array_extent<'types>(
-    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
-    actual: &StructuralParameterDeclaration,
-    argument: &StructuralArgument,
-    expected: &StructuralParameterDeclaration,
-) -> Option<u64> {
-    fixed_byte_array_window(types, actual, argument, expected).map(|window| window.length)
-}
-
 pub fn fixed_byte_array_window<'types, 'path>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     actual: &StructuralParameterDeclaration,

@@ -212,7 +212,7 @@ fn validate_owned_target(
 
 /// Only the actual selected consumer or the original declaration's package
 /// may end the wrapper. Missing package identities never compare equal.
-pub fn decomposition_authorized(
+pub(crate) fn decomposition_authorized(
     identities: &terminal_psi::TerminalIdentityTable,
     selection: &terminal_psi::NominalCleanupSelection,
     current: semantic_vocabulary::MachineId,

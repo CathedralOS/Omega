@@ -217,7 +217,7 @@ pub enum StructuralEffectObservation {    NativeCodeLayoutEstablished {
 
 impl StructuralEffectObservation {}
 
-pub fn structural_effect_leaf_observation_in(
+pub(crate) fn structural_effect_leaf_observation_in(
     operation: &Operation,
     rows: &[StructuralEffectSemanticRow],
 ) -> Result<Option<StructuralEffectObservation>, OperationSemanticError> {

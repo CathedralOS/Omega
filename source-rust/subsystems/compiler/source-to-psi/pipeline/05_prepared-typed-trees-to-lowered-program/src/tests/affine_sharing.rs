@@ -145,11 +145,10 @@ fn walks_sharing_one_round_answer_as_they_do_alone() {
             .expect("sharing finds the same candidates");
         assert_eq!(sharing, candidates);
         // Finding the candidates replayed the callees once for the walks.
-        let summaries = round.summaries();
-        assert!(summaries.holds(id(MIDDLE)) && summaries.holds(id(LEAF)));
+        let analyses = round.analyses().expect("the chain repeats no machine");
+        assert!(analyses.holds_summary(id(MIDDLE)) && analyses.holds_summary(id(LEAF)));
         // No body calls dynamically, so every closure reads the bundle's
         // shared rows rather than rows adapted for that closure alone.
-        let analyses = round.analyses().expect("the chain repeats no machine");
         assert!(matches!(
             analyses.descriptor_closure(DescriptorSlotKind::BorrowedStorage, [id(LEFT)]),
             Ok(DescriptorRows::Shared { .. })
@@ -181,7 +180,9 @@ fn applied(
             crate::lower::machine_order::plan_then_apply(
                 &mut module,
                 |round, machine| {
-                    let held = round.summaries().holds(id(MIDDLE));
+                    let held = round
+                        .analyses()
+                        .is_some_and(|analyses| analyses.holds_summary(id(MIDDLE)));
                     let plan = round.affine(machine.id).and_then(|walks| walks.plan());
                     let expected = affine::plan_in(round.module(), machine.id);
                     walked

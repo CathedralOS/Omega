@@ -135,7 +135,7 @@ impl ScalarLeafSchema {
     }
 }
 
-pub type GoalFreeScalarLeafSchema = ScalarLeafSchema;
+pub(crate) type GoalFreeScalarLeafSchema = ScalarLeafSchema;
 
 pub(crate) const fn goal_free_scalar_leaf(
     result: ScalarLeafResultShape,

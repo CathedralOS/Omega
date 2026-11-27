@@ -37,7 +37,7 @@ pub trait TypeContracts {
 /// observe its containing sum; all earlier projections remain exact. The full
 /// semantic path still names the selected namespace for emptiness and case
 /// evidence. This projection alone grants neither case selection nor emptiness.
-pub fn observed_storage_path(path: &[StructuralPathSegment]) -> &[StructuralPathSegment] {
+pub(crate) fn observed_storage_path(path: &[StructuralPathSegment]) -> &[StructuralPathSegment] {
     match path.split_last() {
         Some((StructuralPathSegment::Case(_), carrier)) => carrier,
         _ => path,

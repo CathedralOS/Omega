@@ -10,13 +10,13 @@ use semantic_vocabulary::{IntegerType, PropositionError, ScalarType, ValueId};
 use terminal_psi::OperationKind;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum OperationSemanticCustody {
+pub(crate) enum OperationSemanticCustody {
     LeafDenotation,
     CallComposition,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct OperationSemanticRow {
+pub(crate) struct OperationSemanticRow {
     pub(crate) tag: OperationSemanticTag,
     pub(crate) identity: &'static str,
     pub(crate) custody: OperationSemanticCustody,
@@ -24,23 +24,11 @@ pub struct OperationSemanticRow {
 }
 
 impl OperationSemanticRow {
-    pub const fn tag(self) -> OperationSemanticTag {
-        self.tag
-    }
-
-    pub const fn name(self) -> &'static str {
-        self.tag.name()
-    }
-
-    pub const fn identity(self) -> &'static str {
-        self.identity
-    }
-
     pub const fn custody(self) -> OperationSemanticCustody {
         self.custody
     }
 
-    pub const fn goal_free_scalar_leaf(self) -> Option<GoalFreeScalarLeafSchema> {
+    pub(crate) const fn goal_free_scalar_leaf(self) -> Option<GoalFreeScalarLeafSchema> {
         self.goal_free_scalar_leaf
     }
 }
@@ -296,7 +284,7 @@ operation_semantic_rows! {
     GlobalDescriptorTable => ("schema:operation:global-descriptor-table", LeafDenotation, None),
 }
 
-pub fn exact_operation_semantic_row_in(
+pub(crate) fn exact_operation_semantic_row_in(
     tag: OperationSemanticTag,
     rows: &[OperationSemanticRow],
 ) -> Result<&OperationSemanticRow, OperationSemanticError> {
@@ -309,7 +297,7 @@ pub fn exact_operation_semantic_row_in(
     )
 }
 
-pub fn operation_semantic_row(
+pub(crate) fn operation_semantic_row(
     operation: &OperationKind,
 ) -> Result<&'static OperationSemanticRow, OperationSemanticError> {
     exact_operation_semantic_row_in(

@@ -199,8 +199,8 @@ fn bundle_analyses_share_nothing_with_rows_from_elsewhere_or_other_slot_kinds() 
         .into_iter()
         .collect::<Result<Vec<_>, _>>()
         .unwrap();
-    let borrowed = DescriptorRows::Borrowed(&built);
-    assert!(bundle.analysis(kind, &borrowed).replay.shared.is_none());
+    let owned = DescriptorRows::Owned(built);
+    assert!(bundle.analysis(kind, &owned).replay.shared.is_none());
 
     // Another slot kind.
     let views = bundle

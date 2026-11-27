@@ -424,7 +424,7 @@ impl DescriptorContentsQuery {
         Some(query)
     }
 
-    pub fn conservative_projection(
+    pub(crate) fn conservative_projection(
         &self,
         types: &[StructuralTypeDeclaration],
         root_type: StructuralTypeId,
@@ -890,7 +890,7 @@ pub(crate) fn select_payload_memberships(
     Some(selected)
 }
 
-pub fn payload_memberships(
+pub(crate) fn payload_memberships(
     types: &[StructuralTypeDeclaration],
     domains: &[terminal_psi::StructuralDomainDeclaration],
     targets: impl IntoIterator<Item = DescriptorPayloadTarget>,
@@ -941,149 +941,6 @@ pub fn payload_memberships(
         }
     }
     common
-}
-
-pub fn reference_backing_memberships(
-    types: &[StructuralTypeDeclaration],
-    domains: &[terminal_psi::StructuralDomainDeclaration],
-    identities: &terminal_psi::TerminalIdentityTable,
-    analysis: &mut DescriptorAnalysis<'_>,
-    machine: MachineId,
-    position: DescriptorPosition,
-    source: &StructuralArgument,
-    storage: Option<&terminal_psi::ReferenceStorageView>,
-    result: &terminal_psi::StructuralOperationResult,
-    mut source_contract: impl FnMut(PlaceId) -> Option<PayloadMembershipContract>,
-) -> Result<Vec<StructuralPathQualification>, &'static str> {
-    let StructuralTypeShape::Reference { referent, access } =
-        terminal_psi::find_structural_type(types, result.structural_type)
-            .ok_or("reference result has no declared carrier")?
-            .shape
-    else {
-        return Err("reference result has no reference carrier");
-    };
-    if storage.is_some() {
-        return Err("reference backing requires its explicit storage interpretation");
-    }
-    if access != source.access || source.place == result.place {
-        return Err("reference backing has no independent matching source");
-    }
-    let root = source_contract(source.place)
-        .ok_or("reference backing has no source declaration")?;
-    let path =
-        crate::reference_source_storage_path(types.iter(), root.carrier, &source.path);
-    let query = descriptor_contents_query(types, source.place, root.carrier, path, None)
-        .ok_or("reference backing has no typed contents query")?;
-    let targets = analysis
-        .payload_targets(machine, position, &query)
-        .ok_or("reference backing has an unresolved source alternative")?;
-    reference_payload_memberships(
-        types,
-        domains,
-        identities,
-        targets,
-        referent,
-        access,
-        |place| {
-            (place != result.place)
-                .then(|| source_contract(place))
-                .flatten()
-        },
-    )
-}
-
-fn reference_payload_memberships(
-    types: &[StructuralTypeDeclaration],
-    domains: &[terminal_psi::StructuralDomainDeclaration],
-    identities: &terminal_psi::TerminalIdentityTable,
-    targets: impl IntoIterator<Item = DescriptorPayloadTarget>,
-    referent: StructuralTypeId,
-    access: StructuralAccess,
-    mut source: impl FnMut(PlaceId) -> Option<PayloadMembershipContract>,
-) -> Result<Vec<StructuralPathQualification>, &'static str> {
-    let mut common: Option<Vec<StructuralPathQualification>> = None;
-    for target in targets {
-        let query = match target {
-            DescriptorPayloadTarget::Storage {
-                location,
-                completed: None,
-            } => DescriptorContentsQuery::from_location(&location),
-            DescriptorPayloadTarget::Storage {
-                completed: Some(_), ..
-            } => {
-                return Err(
-                    "captured constructor contents do not grant live reference memberships",
-                );
-            }
-            DescriptorPayloadTarget::Incoming(query) => query,
-        };
-        let contract =
-            source(query.root).ok_or("reference payload has no source declaration")?;
-        query
-            .validate(types, contract.carrier)
-            .ok_or("reference payload has no typed source query")?;
-        let path = contents_membership_path(types, contract.carrier, &query.steps)
-            .ok_or("reference payload has no declared membership path")?;
-        let selected =
-            crate::qualification_path_carrier(types.iter(), contract.carrier, &path)
-                .ok_or("reference payload has no declared selected carrier")?;
-        if crate::borrowed_referent_presentation(types.iter(), selected, referent)
-            != Some(crate::BorrowedReferentPresentation::Unchanged)
-        {
-            return Err("reference payload changes its selected source carrier");
-        }
-        if !crate::reference_preserves_ancestor_qualifications(
-            types.iter(),
-            domains.iter(),
-            identities,
-            &contract.qualifications,
-            &contract.projected_qualifications,
-            &path,
-            access,
-        ) {
-            return Err("reference payload loses an ancestor membership obligation");
-        }
-        let captured = crate::reference_source_memberships(
-            types.iter(),
-            contract.carrier,
-            &contract.qualifications,
-            &contract.projected_qualifications,
-            &path,
-            access,
-        )?;
-        let (mut whole, mut projected) = StructuralPathQualification::select(
-            &[],
-            &captured,
-            &[StructuralPathSegment::Referent],
-        );
-        crate::present_structural_memberships(
-            types.iter(),
-            domains.iter(),
-            referent,
-            &mut whole,
-            &mut projected,
-        )?;
-        let mut captured = Vec::new();
-        StructuralPathQualification::append_under(
-            &whole,
-            &projected,
-            &[StructuralPathSegment::Referent],
-            &mut captured,
-        );
-        captured.sort();
-        captured.dedup();
-        if let Some(common) = &mut common {
-            if access != StructuralAccess::SharedBorrow && *common != captured {
-                return Err(
-                    "reference payload cannot retain every source membership obligation",
-                );
-            }
-            common.retain(|row| captured.binary_search(row).is_ok());
-        } else {
-            common = Some(captured);
-        }
-    }
-    common.ok_or("reference payload has no source candidate")
 }
 
 pub(crate) fn contents_membership_path(
@@ -1487,7 +1344,7 @@ pub fn element_payload_memberships(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn element_payload_memberships_in(
+pub(crate) fn element_payload_memberships_in(
     types: &[StructuralTypeDeclaration],
     domains: &[terminal_psi::StructuralDomainDeclaration],
     machine: MachineId,

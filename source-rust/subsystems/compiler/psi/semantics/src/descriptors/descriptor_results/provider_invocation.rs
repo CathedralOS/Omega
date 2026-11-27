@@ -2,7 +2,7 @@ use super::*;
 use crate::descriptors::descriptor_lifetimes::descriptor_location;
 use terminal_psi::BoundaryReferenceDestination;
 
-pub fn provider_outputs_cover_writable_slots(
+pub(crate) fn provider_outputs_cover_writable_slots(
     types: &[StructuralTypeDeclaration],
     declaration: &terminal_psi::BoundaryMachineDeclaration,
 ) -> bool {

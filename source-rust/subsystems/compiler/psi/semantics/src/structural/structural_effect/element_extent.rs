@@ -1,75 +1,14 @@
-use semantic_vocabulary::{
-    IntegerSign, IntegerType, Proposition, ScalarTerm, ScalarType, StructuralTypeId,
-};
+use semantic_vocabulary::{ScalarType, StructuralTypeId};
 use terminal_psi::{StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape};
 
-use super::StructuralEffectObservation;
-use crate::OperationSemanticError;
 use terminal_psi::StructuralFieldType;
 
-pub fn element_subslice_length_equation(
-    observation: &StructuralEffectObservation,
-    producer: &StructuralEffectObservation,
-) -> Result<Option<Proposition>, OperationSemanticError> {
-    super::subslice_extent_equation(
-        observation,
-        producer,
-        |observation| match observation {
-            StructuralEffectObservation::ElementViewLengthRead { source, result } => {
-                Some((source, *result))
-            }
-            _ => None,
-        },
-        |producer| match producer {
-            StructuralEffectObservation::ElementViewSubslice {
-                destination,
-                start,
-                end,
-                ..
-            } => Some((*destination, *start, *end)),
-            _ => None,
-        },
-    )
-}
-
-pub fn element_establishment_length_equation(
-    observation: &StructuralEffectObservation,
-    producer: &StructuralEffectObservation,
-    collection_length: u64,
-) -> Result<Option<Proposition>, OperationSemanticError> {
-    let (source, result) = match observation {
-        StructuralEffectObservation::ElementViewLengthRead { source, result }
-            if source.path.is_empty() =>
-        {
-            (source.place, *result)
-        }
-        StructuralEffectObservation::ByteSequenceLengthRead { source, result }
-            if source.path.is_empty() =>
-        {
-            (source.place, *result)
-        }
-        _ => return Ok(None),
-    };
-    let StructuralEffectObservation::ElementViewEstablished {
-        destination,
-        region: terminal_psi::ElementViewRegion::WholeCollection,
-        ..
-    } = producer
-    else {
-        return Ok(None);
-    };
-    if source != *destination {
-        return Ok(None);
-    }
-    super::u64_extent_proposition(result, u128::from(collection_length))
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ElementViewLeaf {
+pub(crate) struct ElementViewLeaf {
     pub scalar_type: ScalarType,
     pub restriction: Option<StructuralFieldType>,
 }
-pub fn element_view_leaf(
+pub(crate) fn element_view_leaf(
     types: &[StructuralTypeDeclaration],
     element: StructuralTypeId,
     path: &[StructuralPathSegment],
@@ -187,29 +126,4 @@ pub fn element_view_read_scalar(
         return None;
     }
     element_view_leaf_scalar(types, element, path)
-}
-pub fn element_view_write_goal(
-    types: &[StructuralTypeDeclaration],
-    element: StructuralTypeId,
-    path: &[StructuralPathSegment],
-    index: semantic_vocabulary::ValueId,
-    length: semantic_vocabulary::ValueId,
-    value: semantic_vocabulary::ValueId,
-) -> Option<Proposition> {
-    if path.iter().any(|segment| segment.runtime_index().is_some()) {
-        return None;
-    }
-    let leaf = element_view_leaf(types, element, path)?;
-    let count = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).ok()?);
-    let index = Proposition::LessThan(
-        ScalarTerm::value(index, count),
-        ScalarTerm::value(length, count),
-    );
-    match leaf.restriction {
-        None => Some(index),
-        Some(restriction) => Some(Proposition::Conjunction(vec![
-            index,
-            crate::scalar_field_requirement(&restriction, value)?,
-        ])),
-    }
 }
