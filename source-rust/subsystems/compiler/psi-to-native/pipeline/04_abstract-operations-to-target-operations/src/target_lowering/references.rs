@@ -2086,6 +2086,80 @@ pub(crate) fn establish(
     Ok(())
 }
 
+/// `view as @[T; N]` forms a shared reference whose native value addresses
+/// the view's payload. The reference borrows the view, so the view stays the
+/// root of its custody.
+pub(crate) fn establish_fixed_array_view(
+    operation: &AbstractOperation,
+    site: &mut RowSite<'_>,
+) -> Result<(), LoweringError> {
+    let (function, types, live, operations, provenance) = site.parts();
+    let AbstractOperation::ElementViewFixedArray {
+        psi_operation,
+        result,
+        source,
+        length,
+        extent,
+        obligation,
+    } = operation
+    else {
+        return Err(LoweringError::unsupported_control_flow(function.machine));
+    };
+    let refuse = || LoweringError::UnsupportedFixedArrayViewReference {
+        machine: function.machine,
+        operation: *psi_operation,
+    };
+    let referent = referent(types, result.structural_type).ok_or_else(refuse)?;
+    let fixed = matches!(
+        types.get(referent).map(|declaration| &declaration.shape),
+        Some(StructuralTypeShape::FixedArray {
+            length: terminal_psi::ArrayExtent::Literal(length),
+            ..
+        }) if length == extent
+    );
+    let view = source_contract(function, live, source.place)
+        .and_then(|root| leaf_type(types, root, &source.path))
+        .and_then(|leaf| types.get(leaf))
+        .is_some_and(|leaf| leaf.shape.is_view_descriptor());
+    if !fixed
+        || !view
+        || source.access != StructuralAccess::SharedBorrow
+        || result.multiplicity != StructuralMultiplicity::Affine
+        || live.structural_homes.contains_key(&result.place)
+        || live
+            .references
+            .keys()
+            .any(|(carrier, _)| *carrier == result.place)
+    {
+        return Err(refuse());
+    }
+    let indices = formation_indices(function, live, types, source)?;
+    let root = normalized_source(function, live, types, source)?;
+    live.references.insert(
+        (result.place, Vec::new()),
+        ReferenceStorage {
+            root,
+            carrier_type: result.structural_type,
+            referent,
+            placed: None,
+        },
+    );
+    let result_home = super::aggregate_results::home(*psi_operation, result, types)?;
+    live.structural_homes
+        .insert(result.place, result_home.clone());
+    operations.push(TargetUnitOperation::ElementViewFixedArray {
+        psi_operation: *psi_operation,
+        result_home,
+        source: source.clone(),
+        indices,
+        length: *length,
+        extent: *extent,
+        obligation: *obligation,
+    });
+    provenance.operations.push(*psi_operation);
+    Ok(())
+}
+
 pub(crate) fn establish_access(
     operation: &AbstractOperation,
     site: &mut RowSite<'_>,

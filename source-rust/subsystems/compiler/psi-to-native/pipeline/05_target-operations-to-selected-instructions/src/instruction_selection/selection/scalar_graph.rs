@@ -7703,6 +7703,7 @@ pub(crate) fn select_function(
                     | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
                     | LegalizedScalarInstructionKind::EstablishReference { .. }
                     | LegalizedScalarInstructionKind::EstablishAccessReference { .. }
+                    | LegalizedScalarInstructionKind::ElementViewFixedArray { .. }
                     | LegalizedScalarInstructionKind::ReleaseReference { .. }
                     | LegalizedScalarInstructionKind::HostedWriteByteI32 { .. }
                     | LegalizedScalarInstructionKind::HostedReadByte { .. }

@@ -420,6 +420,17 @@ pub enum TargetUnitOperation {    InstallStaticInterrupt {
         storage: Option<terminal_psi::ReferenceStorageView>,
         indices: Vec<TargetStructuralRuntimeIndex>,
     },
+    /// A shared `[T; extent]` reference to the whole window of a measured
+    /// element or byte view; its native value addresses the view's payload.
+    ElementViewFixedArray {
+        psi_operation: OperationId,
+        result_home: crate::TargetStructuralHomeRequirement,
+        source: StructuralArgument,
+        indices: Vec<TargetStructuralRuntimeIndex>,
+        length: ValueId,
+        extent: u64,
+        obligation: semantic_vocabulary::ObligationId,
+    },
     ReleaseReference {
         psi_operation: OperationId,
         source: PlaceId,
@@ -681,6 +692,11 @@ impl TargetUnitOperation {
                 ..
             }
             | Self::EstablishAccessReference {
+                psi_operation,
+                result_home,
+                ..
+            }
+            | Self::ElementViewFixedArray {
                 psi_operation,
                 result_home,
                 ..
