@@ -2000,11 +2000,9 @@ pub(crate) mod machine_selections {
                 records.push((handle, record));
             }
             let bytes =
-                record_storage::encode(&program, record_storage::RecordLimits::default())
-                    .unwrap();
+                record_storage::encode(&program, record_storage::RecordLimits::default()).unwrap();
             let restored: TypedTrees =
-                record_storage::decode(&bytes, record_storage::RecordLimits::default())
-                    .unwrap();
+                record_storage::decode(&bytes, record_storage::RecordLimits::default()).unwrap();
             for (handle, original) in records {
                 assert_eq!(restored.applied_callable_signatures.get(handle), &original);
                 let AppliedCallableOwner::MachineSelection {
@@ -4296,15 +4294,6 @@ pub(crate) mod requirement_instances {
     }
 
     impl TypedTrees {
-        pub fn requirement_invocation_contract_parameters<'program>(
-            &'program self,
-            signature: &'program signature::StateSignature,
-        ) -> arena::RootRows<'program, data::TypeParameter> {
-            self.closed_requirement_application(signature.symbol)
-                .map(|application| application.invocation_contract_parameters)
-                .unwrap_or_else(|| self.state_signature_type_parameters(signature))
-        }
-
         pub fn closed_requirement_applications(
             &self,
         ) -> impl Iterator<Item = ClosedRequirementApplication<'_>> {
@@ -6069,69 +6058,7 @@ pub(crate) mod signatures {
     use crate::source_state::{TypedTrees, data, domain, signature};
     use arena::{Handle, HandleSpan};
 
-    impl TypedTrees {
-        pub fn applied_signature_authored_parameters<'program>(
-            &'program self,
-            declared: &signature::StateSignature,
-            applied: &'program signature::StateSignature,
-        ) -> Option<arena::RootRows<'program, signature::StateParameter>> {
-            let count = self.state_signature_parameters(declared).len();
-            let parameters = self.state_signature_parameters(applied);
-            if count == parameters.len() {
-                return Some(parameters);
-            }
-            let closed = self.closed_requirement_application(applied.symbol)?;
-            if closed.template != declared.symbol {
-                return None;
-            }
-            let runtime = closed
-                .local_arguments
-                .iter()
-                .zip(closed.invocation_contract_parameters)
-                .filter_map(|(argument, binder)| {
-                    matches!(
-                        argument,
-                        super::RequirementLocalArgument::RuntimeValue { .. }
-                    )
-                    .then_some(binder.symbol)
-                });
-            if count > parameters.len() {
-                return None;
-            }
-            if !parameters
-                .slice(count..parameters.len())
-                .iter()
-                .map(|parameter| parameter.symbol)
-                .eq(runtime)
-            {
-                return None;
-            }
-            Some(parameters.slice(0..count))
-        }
-
-        pub fn applied_signature_parameter(
-            &self,
-            declared: &signature::StateSignature,
-            applied: &signature::StateSignature,
-            parameter: symbols::SymbolHandle,
-        ) -> Option<symbols::SymbolHandle> {
-            let declared_types = self.requirement_invocation_contract_parameters(declared);
-            let applied_types = self.requirement_invocation_contract_parameters(applied);
-            if declared_types.len() == applied_types.len()
-                && let Some(position) = declared_types
-                    .iter()
-                    .position(|candidate| candidate.symbol == parameter)
-            {
-                return Some(applied_types[position].symbol);
-            }
-            let declared_values = self.state_signature_parameters(declared);
-            let applied_values = self.applied_signature_authored_parameters(declared, applied)?;
-            declared_values
-                .iter()
-                .position(|candidate| candidate.symbol == parameter)
-                .map(|position| applied_values[position].symbol)
-        }
-    }
+    impl TypedTrees {}
 
     impl CallableApplication {
         pub fn service_reach(
@@ -7287,8 +7214,7 @@ pub(crate) mod table {
                     .unwrap()
             );
             let restored: AppliedCallableTable =
-                record_storage::decode(&encoded, record_storage::RecordLimits::default())
-                    .unwrap();
+                record_storage::decode(&encoded, record_storage::RecordLimits::default()).unwrap();
             assert_eq!(restored, table);
             assert_eq!(rows(&restored, second), [replacement_one, replacement_two]);
             assert!(rows(&restored, first).is_empty());
@@ -7300,8 +7226,7 @@ pub(crate) mod table {
                 arena: record_storage::decode(&encoded, Default::default()).unwrap(),
             };
             assert_eq!(
-                record_storage::encode(&prior, record_storage::RecordLimits::default())
-                    .unwrap(),
+                record_storage::encode(&prior, record_storage::RecordLimits::default()).unwrap(),
                 encoded
             );
             let mut saw_write_success = false;
@@ -7439,8 +7364,8 @@ pub(crate) mod table {
                 u32::MAX,
                 1,
             )));
-            let bytes = record_storage::encode(&arena, record_storage::RecordLimits::default())
-                .unwrap();
+            let bytes =
+                record_storage::encode(&arena, record_storage::RecordLimits::default()).unwrap();
             let error = record_storage::decode::<AppliedCallableTable>(
                 &bytes,
                 record_storage::RecordLimits::default(),
@@ -7454,8 +7379,8 @@ pub(crate) mod table {
             let mut arena = Arena::default();
             arena.insert(selection(StaticMachineApplicationHandle::from_parts(1, 1)));
             let arena = RootedArena::from(arena);
-            let bytes = record_storage::encode(&arena, record_storage::RecordLimits::default())
-                .unwrap();
+            let bytes =
+                record_storage::encode(&arena, record_storage::RecordLimits::default()).unwrap();
             let mut low = 0;
             let mut high = record_storage::RecordLimits::default().allocation;
             while low < high {
@@ -7485,8 +7410,7 @@ pub(crate) mod table {
                 record_storage::decode::<RootedArena<AppliedCallableSignature>>(&bytes, tight)
                     .is_ok()
             );
-            let error =
-                record_storage::decode::<AppliedCallableTable>(&bytes, tight).unwrap_err();
+            let error = record_storage::decode::<AppliedCallableTable>(&bytes, tight).unwrap_err();
             assert!(error.reason.contains("allocation"));
             let exact = record_storage::RecordLimits {
                 allocation: low + association,
@@ -9347,7 +9271,8 @@ impl TypedTrees {
         }
         for (declaration, machine, state, body) in entries {
             application.region_scope = declaration;
-            machine.service_reach_row = application.applied_reach_row(self, machine.service_reach_row)?;
+            machine.service_reach_row =
+                application.applied_reach_row(self, machine.service_reach_row)?;
             application.copy_authored_reach(self, declaration, machine.symbol)?;
             machine.invokes = application.invocations(self, machine.invokes)?;
             // Definitions belong to the copied declaration just like its

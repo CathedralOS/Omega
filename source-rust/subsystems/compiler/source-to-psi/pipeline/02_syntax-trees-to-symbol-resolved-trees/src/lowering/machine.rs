@@ -619,33 +619,6 @@ pub(crate) fn complete_machine_body(
     Ok(())
 }
 
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) fn lower_pending_lexical_inputs(
-    lowerer: &mut Lowerer,
-    syntax: &SyntaxTrees,
-) -> Result<Vec<crate::resolution::lowering::state::StateLexicalInputs>, Diagnostic> {
-    let pending = lowerer.pending_machine_bodies.clone();
-    let mut inputs = Vec::new();
-    for body in &pending {
-        with_pending_machine_scope(lowerer, syntax, body, |lowerer| {
-            let machine = lowerer.symbol_resolved_trees.machines[body.machine_ordinal].symbol;
-            for &(state, syntax_state) in &body.states {
-                inputs.push(
-                    crate::resolution::lowering::state::lower_state_lexical_inputs(
-                        lowerer,
-                        syntax,
-                        machine,
-                        state,
-                        syntax.items.state(syntax_state).statements,
-                    )?,
-                );
-            }
-            Ok(())
-        })?;
-    }
-    Ok(inputs)
-}
-
 fn with_pending_machine_scope<T>(
     lowerer: &mut Lowerer,
     syntax: &SyntaxTrees,

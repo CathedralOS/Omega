@@ -169,7 +169,6 @@ pub(crate) struct Lowerer {
         they are never installed as executable statements in the resolved tree.
     */
     #[cfg_attr(not(any(test, feature = "test-support")), allow(dead_code))]
-    pub(crate) resolved_lexical_inputs: Vec<crate::resolution::lowering::state::StateLexicalInputs>,
     pub(crate) derived_const_argument_origins: Vec<syntax_trees::types::ConstArgumentOrigin>,
     pub(crate) derived_const_argument_expressions: Vec<syntax_trees::expression::ExpressionHandle>,
     pub(crate) pending_const_argument_expressions: Vec<ExpressionHandle>,
@@ -321,7 +320,6 @@ impl Lowerer {
             current_authored_expression_exposure: None,
             pending_const_argument_selections: Vec::new(),
             pending_const_argument_slots: Vec::new(),
-            resolved_lexical_inputs: Vec::new(),
             derived_const_argument_origins: Vec::new(),
             derived_const_argument_expressions: Vec::new(),
             pending_const_argument_expressions: Vec::new(),

@@ -734,43 +734,7 @@ pub(crate) mod access_views {
         Relocate,
     }
 
-    impl AccessLifecyclePlan {
-        pub fn storage_definitions<'program>(
-            &self,
-            program: &'program crate::source_state::TypedTrees,
-        ) -> Result<Vec<&'program crate::source_state::data::DataDefinition>, &'static str>
-        {
-            let Self::Evaluated {
-                operation,
-                policy,
-                schema,
-                ..
-            } = self
-            else {
-                return Ok(Vec::new());
-            };
-            let mut definitions = vec![
-                program
-                    .data_definition_by_symbol(*schema)
-                    .ok_or("placement operation lost its schema storage declaration")?,
-            ];
-            if *operation == AccessLifecycleOperation::View {
-                let mut views = program
-                    .access_view_plans
-                    .iter()
-                    .filter(|view| view.policy_symbol == *policy && view.schema_symbol == *schema);
-                let (Some(view), None) = (views.next(), views.next()) else {
-                    return Err("placement View lost its unique policy/schema interpretation");
-                };
-                definitions.push(
-                    program
-                        .data_definition_by_symbol(view.data_symbol)
-                        .ok_or("placement View lost its storage declaration")?,
-                );
-            }
-            Ok(definitions)
-        }
-    }
+    impl AccessLifecyclePlan {}
 
     impl crate::source_state::TypedTrees {
         pub fn access_borrow_factory(
@@ -862,9 +826,12 @@ pub(crate) mod access_views {
                             element_type: accessor_element,
                             ..
                         },
-                    ) if program.closed_fixed_array_length(value).is_some_and(|count| {
-                        count != 0 && program.closed_fixed_array_length(accessor) == Some(count)
-                    }) => {
+                    ) if program
+                        .closed_fixed_array_length(value)
+                        .is_some_and(|count| {
+                            count != 0 && program.closed_fixed_array_length(accessor) == Some(count)
+                        }) =>
+                    {
                         value = *value_element;
                         accessor = *accessor_element;
                     }
@@ -1563,7 +1530,7 @@ pub mod constant_recipes {
             }
         }
 
-/// Read a named extent from the selected constant's evaluated value.
+        /// Read a named extent from the selected constant's evaluated value.
         ///
         /// `None` when `symbol` is not a constant (a const parameter of a
         /// generic declaration is bound by its application instead), when the
