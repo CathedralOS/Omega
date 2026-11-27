@@ -125,6 +125,19 @@ mod value_parameters;
 mod width_parameters;
 mod window_handoffs;
 
+/// A module as a receiving host takes it for execution: canonical decoding,
+/// which inspection alone also runs, then the checker judgments execution
+/// relies on, which run once when the host authorizes the artifact
+/// (`terminal_codec::sealing::prepare_received_execution`). A forged
+/// judgment that decoding leaves to preparation is refused there, after
+/// inspection accepted the module's canonical bytes.
+fn refused_only_for_execution(module: &terminal_psi::TerminalModule) -> terminal_codec::CodecError {
+    let received = terminal_codec::decode_module(&terminal_codec::encode_module(module).unwrap())
+        .expect("inspection checks canonical structure, not execution judgments");
+    terminal_codec::sealing::prepare_received_execution(&received)
+        .expect_err("preparation for execution must refuse it")
+}
+
 fn integer_type(sign: IntegerSign) -> IntegerType {
     IntegerType::new(sign, 32).unwrap()
 }
