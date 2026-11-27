@@ -474,6 +474,15 @@ fn trace(
 }
 
 pub fn spin_wait(module: &TerminalModule, machine: &TerminalMachine) -> Option<SpinWait> {
+    spin_observation(module, machine).map(|(_, wait)| wait)
+}
+
+/// The operation belongs to this defining body; only the resource predicate
+/// is substituted into another machine or published provider.
+pub(super) fn spin_observation(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+) -> Option<(OperationId, SpinWait)> {
     if !machine
         .operations()
         .any(|op| matches!(op.kind, OperationKind::AtomicAccess { .. }))
@@ -492,15 +501,18 @@ pub fn spin_wait(module: &TerminalModule, machine: &TerminalMachine) -> Option<S
     }
     let read = equal_trace.read?;
     let value = equal_trace.tested?;
-    Some(SpinWait {
-        parameter: read.cell.parameter,
-        path: read.cell.path,
-        update: read.update,
-        while_value: SpinCondition {
-            value,
-            equal: equal == Completion::Retries,
+    Some((
+        read.site,
+        SpinWait {
+            parameter: read.cell.parameter,
+            path: read.cell.path,
+            update: read.update,
+            while_value: SpinCondition {
+                value,
+                equal: equal == Completion::Retries,
+            },
         },
-    })
+    ))
 }
 
 /// A transparent unit wrapper lends its own arguments to one named machine and

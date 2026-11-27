@@ -3,9 +3,9 @@
 
 use super::Location;
 use crate::entry_values::TerminalScalarValue as Scalar;
-use crate::synchronization::progress::ScalarFact;
-use crate::synchronization::spin::CellUpdate;
-use semantic_vocabulary::{ScalarType, StructuralCaseId};
+use crate::synchronization::progress::{ProgressFailure, ScalarFact};
+use crate::synchronization::spin::{CellUpdate, SpinWait};
+use semantic_vocabulary::{Proposition, ScalarType, StructuralCaseId};
 use std::sync::Arc;
 use terminal_psi::StructuralPathSegment as Segment;
 
@@ -260,6 +260,27 @@ impl Stored {
             }
         });
         mapped.and(result).unwrap_or_default()
+    }
+
+    pub(in super::super) fn wait_failure(
+        &self,
+        wait: &SpinWait,
+        requires: &[Proposition],
+    ) -> Option<ProgressFailure> {
+        let mut any_blocked = false;
+        let mut all_blocked = true;
+        let visited = self.visit_scalars(wait.while_value.value.scalar_type(), |value| {
+            let failure = wait.while_value.failure(Some(value), wait.update, requires);
+            any_blocked |= failure.is_some();
+            all_blocked &= failure == Some(ProgressFailure::Deadlock);
+        });
+        if visited.is_none() {
+            return wait.while_value.failure(None, wait.update, requires);
+        }
+        if all_blocked {
+            return Some(ProgressFailure::Deadlock);
+        }
+        any_blocked.then_some(ProgressFailure::Unproved)
     }
 
     pub(in super::super) fn visit_scalars(

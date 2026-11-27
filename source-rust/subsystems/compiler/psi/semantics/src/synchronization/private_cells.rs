@@ -7,13 +7,13 @@ mod control;
 mod storage;
 mod successor;
 
-use super::progress::{PrivateWaitFailure, ProgressFailure, entry_scalars};
+use super::progress::{PrivateWaitFailure, ProgressFailure, ProgressScope, entry_scalars};
 use super::selected::Summaries;
-use super::spin::{CellUpdate, SpinWait};
+use super::spin::{CellUpdate, SpinWait, spin_observation};
 use activation::{Bindings, Destination, Frame, ScalarArguments};
 use control::{Execution, Frontier};
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
-use storage::Storage;
+use storage::{Location, Storage};
 use terminal_psi::{
     StructuralAccess, TargetMachineCallable, TerminalAffineCleanupAction, TerminalModule,
     Terminator,
@@ -28,13 +28,14 @@ pub fn stuck_private_wait(
     entry: MachineId,
     boundary: impl Fn(BoundaryMachineId) -> Option<SpinWait>,
 ) -> Option<(MachineId, OperationId)> {
-    let failure = private_wait_failure(module, entry, boundary)?;
+    let failure = private_wait_failure(module, entry, ProgressScope::Executable, boundary)?;
     (failure.cause == ProgressFailure::Deadlock).then_some((failure.machine, failure.operation))
 }
 
 pub fn private_wait_failure(
     module: &TerminalModule,
     entry: MachineId,
+    scope: ProgressScope,
     boundary: impl Fn(BoundaryMachineId) -> Option<SpinWait>,
 ) -> Option<PrivateWaitFailure> {
     if !module.types.structural_types.iter().any(|ty| {
@@ -47,7 +48,7 @@ pub fn private_wait_failure(
         return None;
     }
     let selected_entry = module.machine(entry)?;
-    let root_bindings = Bindings {
+    let mut root_bindings = Bindings {
         values: entry_scalars(selected_entry),
         ..Default::default()
     };
@@ -56,11 +57,35 @@ pub fn private_wait_failure(
     }) {
         return None;
     }
+    if !selected_entry.structural_parameters.is_empty()
+        && let Some((operation, wait)) = spin_observation(module, selected_entry)
+    {
+        selected_entry.structural_parameters.get(wait.parameter)?;
+        if scope == ProgressScope::OpenInterface {
+            return None;
+        }
+        wait.while_value
+            .failure(None, wait.update, &selected_entry.requires)?;
+        return Some(PrivateWaitFailure {
+            machine: entry,
+            operation,
+            cause: ProgressFailure::UnprovedExternal,
+        });
+    }
+    let mut memory = Storage::default();
+    for parameter in &selected_entry.structural_parameters {
+        let home = if parameter.access == StructuralAccess::SharedBorrow {
+            Location::input(parameter.place)
+        } else {
+            memory.input()
+        };
+        root_bindings.places.insert(parameter.place, home);
+    }
     let entry = Frame::enter(selected_entry, root_bindings, Destination::Unit)?;
     let mut paths = Frontier::default();
     paths.queue(Execution {
         stack: vec![entry],
-        memory: Storage::default(),
+        memory,
         coverage: Default::default(),
     });
     let mut summaries = Summaries::default();
@@ -72,6 +97,7 @@ pub fn private_wait_failure(
             &mut summaries,
             &mut path,
             &selected_entry.requires,
+            scope,
         ) {
             Some(Advance::Continue) => paths.queue(path),
             Some(Advance::Fork(arms)) => path.fork(&arms, |arm| paths.queue(arm)),
@@ -99,6 +125,7 @@ fn advance<'m>(
     summaries: &mut Summaries,
     path: &mut Execution<'m>,
     requirements: &[semantic_vocabulary::Proposition],
+    scope: ProgressScope,
 ) -> Option<Advance> {
     let certain = path.certain();
     let memory = &mut path.memory;
@@ -139,33 +166,22 @@ fn advance<'m>(
             }
             let base = memory.locate(&frame.bindings.places, actual.place, &actual.path)?;
             let location = memory.project(base, &spin.path)?;
-            let mut all_block = true;
-            let mut can_block = false;
-            let mut observe = |initial| {
-                let failure = spin.while_value.failure(initial, spin.update, requirements);
-                all_block &= failure == Some(ProgressFailure::Deadlock);
-                can_block |= failure.is_some();
-            };
-            if memory
-                .get(&location)
-                .visit_scalars(spin.while_value.value.scalar_type(), |value| {
-                    observe(Some(value))
-                })
-                .is_none()
-            {
-                observe(None);
-            }
-            if can_block {
-                let cause = if all_block && certain {
-                    ProgressFailure::Deadlock
-                } else {
-                    ProgressFailure::Unproved
-                };
-                return Some(Advance::Blocked(PrivateWaitFailure {
-                    machine: frame.machine.id,
-                    operation: op.id,
-                    cause,
-                }));
+            let failure = |stored: &storage::Stored| stored.wait_failure(&spin, requirements);
+            if let Some(mut cause) = failure(&memory.get(&location)) {
+                let external =
+                    memory.only_caller_can_block(&location, |stored| failure(stored).is_some());
+                if !(external && scope == ProgressScope::OpenInterface) {
+                    if external {
+                        cause = ProgressFailure::UnprovedExternal;
+                    } else if !certain && cause == ProgressFailure::Deadlock {
+                        cause = ProgressFailure::Unproved;
+                    }
+                    return Some(Advance::Blocked(PrivateWaitFailure {
+                        machine: frame.machine.id,
+                        operation: op.id,
+                        cause,
+                    }));
+                }
             }
             if spin.update != CellUpdate::Observe {
                 let next = memory.get(&location).after_update(spin.update);
