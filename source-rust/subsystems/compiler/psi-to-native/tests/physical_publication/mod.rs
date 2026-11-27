@@ -84,10 +84,8 @@ fn emit_body_inspecting_physical<'execution>(
         true, // This fixture independently inspects the optimized input.
     )
     .unwrap_or_else(|error| match error {
-        crate::driver::compile_body::NativeBodyPlanningError::AbstractOptimization(
-            error,
-        ) => {
-            panic!("constant optimization: {error:?}")
+        crate::driver::compile_body::NativeBodyPlanningError::AbstractInput(error) => {
+            panic!("constant abstract input: {error:?}")
         }
         crate::driver::compile_body::NativeBodyPlanningError::Target(error) => {
             panic!("constant target lowering: {error:?}")

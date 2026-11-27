@@ -93,8 +93,8 @@ pub(super) fn plan_callable(
         retain_native_stage_inputs,
     )
     .map_err(|error| match error {
-        NativeBodyPlanningError::AbstractOptimization(error) => {
-            realization_error("callable abstract optimization", error)
+        NativeBodyPlanningError::AbstractInput(error) => {
+            realization_error("callable abstract input", error)
         }
         NativeBodyPlanningError::Target(error) => {
             target_lowering_failed("callable target lowering", error)
@@ -175,8 +175,8 @@ pub fn plan_program<'contract>(
         request.retain_native_stage_inputs,
     )
     .map_err(|error| match error {
-        NativeBodyPlanningError::AbstractOptimization(error) => {
-            realization_error("canonical abstract optimization", error)
+        NativeBodyPlanningError::AbstractInput(error) => {
+            realization_error("canonical abstract input", error)
         }
         NativeBodyPlanningError::Target(error) => target_lowering_failed("target lowering", error),
     })?;

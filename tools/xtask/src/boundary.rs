@@ -169,8 +169,14 @@ pub fn forbidden_rules() -> Vec<Rule> {
     rules.push(Rule {
         forbidden_packages: vec![BINDING_ISSUER],
         allowed: vec![
-            Allowance { owner: NATIVE_STAGES[10], dependency: BINDING_ISSUER },
-            Allowance { owner: BOUND_FRAMED_MACHINE, dependency: BINDING_ISSUER },
+            Allowance {
+                owner: NATIVE_STAGES[9],
+                dependency: BINDING_ISSUER,
+            },
+            Allowance {
+                owner: BOUND_FRAMED_MACHINE,
+                dependency: BINDING_ISSUER,
+            },
         ],
         ..rule(vec![""], vec![], "only installation binding may issue a bound framed machine")
     });
@@ -216,7 +222,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
     });
     rules.extend(native_stages::rules());
     rules.push(rule(
-        NATIVE_STAGES[5..=9].to_vec(),
+        NATIVE_STAGES[4..=8].to_vec(),
         vec![EARLIER_PROGRAM_FORMS, SEALED_TERMINAL_MODULE],
         "physical planning reads the retained target operations",
     ));
@@ -1314,9 +1320,13 @@ mod tests {
         let metadata = Metadata {
             workspace_root: "/repo".into(),
             packages: vec![
-                pkg("installation-binding", linear_pipeline::NATIVE_STAGES[10], &key),
+                pkg(
+                    "installation-binding",
+                    linear_pipeline::NATIVE_STAGES[9],
+                    &key,
+                ),
                 pkg("bound-framed-machine", BOUND_FRAMED_MACHINE, &key),
-                pkg("native-encoding", linear_pipeline::NATIVE_STAGES[11], &key),
+                pkg("native-encoding", linear_pipeline::NATIVE_STAGES[10], &key),
             ],
         };
         let violations = forbidden_dependency_violations(&metadata, &rules).unwrap();
@@ -1463,12 +1473,12 @@ mod tests {
 
     #[test]
     fn only_the_native_driver_runs_omega_stages() {
-        let library = linear_pipeline::NATIVE_STAGES[13];
+        let library = linear_pipeline::NATIVE_STAGES[12];
         let stages = linear_pipeline::NATIVE_STAGES;
         for (owner, dependency, kind, permitted) in [
-            (native_stages::DRIVER, stages[7], None, true),
-            (stages[14], stages[12], None, true),
-            (stages[15], stages[12], None, false),
+            (native_stages::DRIVER, stages[6], None, true),
+            (stages[13], stages[11], None, true),
+            (stages[14], stages[11], None, false),
             (linear_pipeline::PSI_STAGES[7], SOURCE_PROVIDER_PUBLICATION, None, true),
             (NATIVE_PROVIDER_DEMAND, SOURCE_PROVIDER_PUBLICATION, None, true),
             (PACKAGE_MANAGER, SOURCE_PROVIDER_PUBLICATION, None, false),
@@ -1485,7 +1495,7 @@ mod tests {
             (PACKAGE_MANAGER, linear_pipeline::SOURCE_DRIVER, None, false),
             (PACKAGE_MANAGER, linear_pipeline::TEXT_READER, None, true),
             (library, stages[1], None, false),
-            (library, stages[7], None, false),
+            (library, stages[6], None, false),
             (native_stages::IMAGE_EMISSION, stages[2], None, false),
             (
                 native_stages::PRODUCT_PUBLICATION,
@@ -1962,7 +1972,7 @@ mod tests {
                 workspace_root: "/repo".to_owned(),
                 packages: vec![pkg(
                     "selection",
-                    linear_pipeline::NATIVE_STAGES[5],
+                    linear_pipeline::NATIVE_STAGES[4],
                     &[("dependency", dependency, kind)],
                 )],
             };

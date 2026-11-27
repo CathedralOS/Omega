@@ -1,49 +1,29 @@
 #![forbid(unsafe_code)]
 
 /*
-We represent the target-neutral optimization unit (`PsiOptimizationUnit`) and the
-published abstract program (`OptimizedAbstractProgram`) that abstract optimization
-produces from verified Terminal Psi realization requirements.
+Target lowering (native stage 04) reads the abstract program through
+`PsiOptimizationUnit`: the plan's blocks and operations plus the scalar
+definitions and uses, control-flow edges, work settlements, effect links and
+ownership events derived from them once. `OptimizedAbstractProgram` pairs that
+unit with the unchanged `AbstractOperationPlan` and the identity records later
+stages bind to (`OptimizedAbstractProgram::unoptimized` in `unoptimized`).
 
-The abstract program already owns basic blocks and their executable operations.
-We derive scalar SSA definitions and uses, control-flow edges, semantic work
-settlements, effect links and ownership events once into `PsiOptimizationUnit`.
-Optimization rules and independent validators read those revision-specific facts
-beside the same operation vocabulary; publication preserves the resulting block
-ownership instead of rebuilding offsets into a second flat stream.
-
-Our unit carries two distinct kinds of data:
-1. Current-revision executable graph and derived dataflow (`functions`, `root_service_reach`,
-   `pruned_machines`), which rewrites transform and re-seal under a fresh
+The unit carries two kinds of data:
+1. The executable graph and its derived dataflow (`functions`,
+   `root_service_reach`, `pruned_machines`), sealed under an
    `OptimizationUnitIdentity`.
-2. Immutable verifier custody (`structural_types`, `structural_domains`, `services`,
-   `accepted_obligation_facts`, `ownership_frontier_facts`,
-   `runtime_evidence`), which optimizer admission attaches once from the verified
-   Terminal module and preserves across every rewrite.
-*/
+2. Custody attached once from the verified Terminal module (`structural_types`,
+   `structural_domains`, `services`, `accepted_obligation_facts`,
+   `ownership_frontier_facts`, `runtime_evidence`).
 
-/*
-We deliberately separate this representation crate from both rewrite execution and
-independent semantic validation. Earlier designs mixed graph reconstruction, pass
-state, and validation queries on a mutable instruction stream, which forced every
-pass to rediscover CFG edges and allowed unvalidated rewrites to masquerade as
-admitted units.
-
-By keeping `PsiOptimizationUnit` pure data and sealing every revision, candidate
-patch, transformation ledger, and pre-physical manifest with canonical byte-stream
-identities, we ensure that proposing passes and independent validators communicate
-solely through immutable, replayable records. A bare seed reconstructed without
-verifier custody leaves `runtime_evidence` and the frontier/proof tables empty, so
-downstream admission rejects unauthorized seeds immediately.
-*/
-
-/*
-`PsiOptimizationUnit` is seeded by `reconstruct_psi_optimization_unit_seed` in
-`construction`, enriched with verified Terminal custody through `proof` and
-`ownership`, and checked by the sibling `optimization-unit-semantics` crate. Once
-abstract optimization completes, we bundle the final unit, its `AbstractOperationPlan`,
-the `PsiTransformationLedger`, and the `PrePhysicalOptimizationManifest` into
-`OptimizedAbstractProgram` for target lowering in native stage 04.
+`reconstruct_psi_optimization_unit_seed` in `construction` seeds the unit and
+`proof` attaches the module context and accepted obligation facts.
+`ownership_frontier_facts` stays empty: only the archived optimizer
+reconstructed frontiers, before its passes ran. The sibling
+`optimization-unit-semantics` crate answers descriptor, reference and
+callable-value queries over it. The native abstract-operations optimizer that
+rewrote units, and the rewrite-candidate records it used, are archived under
+`_recycling/source-rust/subsystems/compiler/psi-to-native/pipeline/03_abstract-operations-to-abstract-operations/`.
 */
 
 use std::{collections::BTreeSet, sync::Arc};
@@ -55,12 +35,10 @@ use abstract_operations::{
 use optimization_core::{
     AcceptedObligationFactIdentity, OptimizationIdentityBundle, OptimizationSelections,
     OptimizationUnitIdentity, OptimizationWorkBudget, OptimizedAbstractPlanProjectionIdentity,
-    ScalarConstantFactIdentity, ValueRangeFactIdentity,
 };
 use semantic_vocabulary::{
-    BlockId, ClaimId, EdgeId, IntegerCarrier, IntegerType, IntegerValue, MachineId, ObligationId,
-    OperationId, PlaceId, ScalarType, ServiceId, StructuralPlaceKind, StructuralTypeId, ValueId,
-    WorkScheduleIdentity,
+    BlockId, ClaimId, EdgeId, IntegerValue, MachineId, ObligationId, OperationId, PlaceId,
+    ScalarType, ServiceId, StructuralPlaceKind, StructuralTypeId, ValueId, WorkScheduleIdentity,
 };
 use terminal_psi::{
     BoundaryMachineDeclaration, ContentEntryClaim, EntryClaim, EvidenceContractLane,
@@ -85,81 +63,46 @@ mod proof;
 mod range;
 mod rewrite;
 mod structural_places;
+mod unoptimized;
 
 pub use construction::{
-    OptimizationUnitBuildError, collect_fact, operation_definition, operation_ownership,
-    operation_uses, reconstruct_psi_optimization_function_seed,
-    reconstruct_psi_optimization_unit_seed,
+    OptimizationUnitBuildError, operation_definition, operation_uses,
+    reconstruct_psi_optimization_function_seed, reconstruct_psi_optimization_unit_seed,
 };
-pub use dominance::{DominatorSet, DominatorSets};
+pub(crate) use dominance::DominatorSets;
+pub(crate) use graph::ValueUse;
 pub use graph::{
-    CycleComponentEdge, CycleComponentId, EffectLink, OptimizationBlock, OptimizationEdge,
-    OptimizationFact, OptimizationNode, OptimizerCycleComponent, OptimizerCycleComponentSnapshot,
-    OptimizerRankingCertificateSnapshot, OptimizerUnsignedCountdownRankingCertificate,
-    OptimizerUnsignedMinusOneDescent, OptimizerUnsignedPositiveGuard, OwnershipEvent,
-    PsiOptimizationFunction, PsiProvenance, ValueDefinition, ValueDefinitionSite, ValueUse,
-    WorkSettlement, encode_value_definition_site_identity,
+    CycleComponentId, EffectLink, OptimizationBlock, OptimizationEdge, OptimizationFact,
+    OptimizationNode, OwnershipEvent, PsiOptimizationFunction, PsiProvenance, ValueDefinition,
+    ValueDefinitionSite, WorkSettlement, encode_value_definition_site_identity,
 };
-pub use identity::{
-    access_view_catalog_identity_bytes, recompute_psi_optimization_unit_identity,
-    scalar_refinement_identity_bytes,
+pub(crate) use identity::recompute_psi_optimization_unit_identity;
+pub(crate) use ledger::{
+    InvalidPsiTransformationLedger, OptimizationRunUsage, PrunedMachineCustody,
+    PsiTransformationLedger,
 };
-pub use ledger::{
-    AbstractOptimizationEvidence, InvalidPsiTransformationLedger, OptimizationRunUsage,
-    PrunedMachineCustody, PsiOptimizationCommit, PsiTransformationLedger, PsiTransformationRecord,
-    PsiValidatedCandidateDeclaration,
-};
-pub use manifest::{
+pub(crate) use manifest::{
     OptimizationManifestStage, OptimizationStructuralStatistics, PhysicalOptimizationDataStatus,
     PrePhysicalOptimizationManifest,
 };
-pub use observation::{
-    ObservationKnowledge, PsiNodeObservation, reconstruct_psi_closed_region_observation,
-    reconstruct_psi_observation_model,
-};
 pub use ownership::{
-    OwnershipFrontierFact, OwnershipFrontierFactIndexError, OwnershipFrontierLiveClaim,
-    OwnershipFrontierOwnedPlace, OwnershipFrontierPartialCustody, OwnershipFrontierSite,
-    OwnershipFrontierSnapshot, attach_ownership_frontier_facts,
-    canonical_ownership_frontier_snapshot,
+    OwnershipFrontierFact, OwnershipFrontierLiveClaim, OwnershipFrontierOwnedPlace,
+    OwnershipFrontierPartialCustody, OwnershipFrontierSite, OwnershipFrontierSnapshot,
 };
+pub(crate) use proof::RuntimeEvidenceCatalog;
 pub use proof::{
     AcceptedObligationFact, AcceptedObligationFactIndexError, AcceptedObligationOwner,
-    RuntimeEvidenceCatalog, SourceCheckedScalarReceiving, SourceOwnedCleanupInvocation,
-    attach_accepted_obligation_facts, attach_verified_module_context,
-    validate_owned_cleanup_evidence, validate_runtime_evidence_context,
+    SourceCheckedScalarReceiving, attach_accepted_obligation_facts, attach_verified_module_context,
+    validate_runtime_evidence_context,
 };
-pub use range::{ValueRangeFact, ValueRangeRegion, ValueRangeSupport, value_range_fact_identity};
-pub use rewrite::{
-    AdjacentBlockMergeRewrite, BlockParameterIncomingBinding, BooleanConstantRewrite,
-    CaseMembershipSpecializationRewrite, ConstantConditionalRewrite, DeadScalarNodeRewrite,
-    DominatingScalarCommonSubexpressionRewrite, FieldValueResolution, FieldValueRow,
-    FieldValueSpecializationRewrite, FoldedCaseMembershipRow, FoldedFieldValue,
-    ForwardedFieldValue, IntegerConstantRewrite, IntegerEvaluationWitness, LinearEmptyBlockRewrite,
-    LocalScalarCommonSubexpressionRewrite, LoopInvariantNodeResult,
-    LoopInvariantScalarMotionCandidate, LoopInvariantScalarNode, LoopInvariantScalarRelocation,
-    NodeLocation, NonAdjacentBlockMergeRewrite, OwnershipFrontierWitness,
-    OwnershipFrontierWitnessRow, PathQualifiedEmptyBlockRewrite, PhiTranslatedScalarGvnRewrite,
-    PhiTranslatedScalarIncoming, ProofCertifiedScalarIdentityKind,
-    ProofCertifiedScalarIdentityRewrite, ProvenanceDisposition, ProvenanceRewrite,
-    PsiCandidateDeclaration, PsiRealizationSite, PsiRewriteCandidate, PsiRewriteCandidateError,
-    PsiRewriteDecisionPoint, PsiRewritePatch, RedundantBlockParameterRewrite,
-    RedundantBlockParameterWitness, ScalarConstantValue, ScalarSubstitution, SccpBlockRow,
-    SccpEdgeRow, SccpEdgeState, SccpMachineSnapshot, SccpValueRow, SccpValueState,
-    SharedJumpFusionRewrite, SpecializedStateEdgeRow, StateArgumentSpecializationRewrite,
-    TotalScalarIdentityKind, TotalScalarIdentityRewrite, UnreachablePrivateMachinesRewrite,
-    derived_sccp_scalar_constant_fact_identity, encode_location,
-    literal_scalar_constant_fact_identity,
+pub(crate) use rewrite::{
+    NodeLocation, ProvenanceDisposition, ProvenanceRewrite, PsiRealizationSite,
 };
 pub use structural_places::{
-    DispatchCondition, Establishment, FieldEvidence, FunctionAnalysis, Position,
-    argument_rewrites_place, bound_place, bound_value, declared_structural_type, dominators,
-    established_case_at, field_evidence, field_value_accounting, field_value_reads,
-    function_analysis, integer_comparison_condition, observed_field_declaration,
-    operation_result_placement, proof_basis, reachable_blocks_after_conditional_fold,
-    receiver_custody_distinct, resolved_sole_case, retirable_scalar_node, root_producer,
-    scalar_value_definition, shape, sole_case_at_path, structural_child,
+    Establishment, Position, declared_structural_type, dominators, field_evidence,
+    observed_field_declaration, shape,
 };
+pub use unoptimized::UnoptimizedAbstractProgramError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PsiOptimizationUnit {

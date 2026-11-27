@@ -11,17 +11,15 @@ work matching its provenance sources before sealing `TransformationLedgerIdentit
 use std::collections::BTreeSet;
 
 use optimization_core::{
-    BaselineDecisionLog, ExternalDecisionLog, OptimizationCandidateIdentity,
-    OptimizationIdentityBundle, OptimizationPassIdentity, OptimizationPassManifestRecord,
-    OptimizationRuleIdentity, OptimizationSelections, OptimizationUnitIdentity,
-    OptimizationValidatorIdentity, OptimizationWorkBudget, TransformationLedgerIdentity,
+    OptimizationCandidateIdentity, OptimizationRuleIdentity, OptimizationUnitIdentity,
+    OptimizationValidatorIdentity, TransformationLedgerIdentity,
 };
 use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, WorkScheduleIdentity};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 use crate::{
-    Cursor, NodeLocation, ProvenanceDisposition, ProvenanceRewrite, PsiCandidateDeclaration,
-    PsiProvenance, PsiRealizationSite, WorkSettlement,
+    Cursor, NodeLocation, ProvenanceDisposition, ProvenanceRewrite, PsiProvenance,
+    PsiRealizationSite, WorkSettlement,
 };
 
 const LEDGER_MAGIC: &[u8] = b"omega.psi-transformation-ledger.v4\0";
@@ -398,52 +396,4 @@ fn semantic_id<T>(
     constructor(raw).ok_or(PsiTransformationLedgerDecodeError::InvalidSemanticIdentity)
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PsiOptimizationCommit {
-    pub rule: OptimizationRuleIdentity,
-    pub candidate: OptimizationCandidateIdentity,
-    pub validator: OptimizationValidatorIdentity,
-    pub input: OptimizationUnitIdentity,
-    pub output: OptimizationUnitIdentity,
-    pub predicted_cost_delta: i64,
-    pub pruned_machines: Vec<crate::PrunedMachineCustody>,
-    pub provenance: Vec<ProvenanceRewrite>,
-    pub declaration: PsiCandidateDeclaration,
-}
-impl PsiOptimizationCommit {
-    pub const fn declaration(&self) -> &PsiCandidateDeclaration {
-        &self.declaration
-    }
-}
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PsiValidatedCandidateDeclaration {
-    pub pass: OptimizationPassIdentity,
-    pub declaration: PsiCandidateDeclaration,
-    pub validator: OptimizationValidatorIdentity,
-}
-impl PsiValidatedCandidateDeclaration {
-    pub const fn pass(&self) -> OptimizationPassIdentity {
-        self.pass
-    }
-    pub const fn declaration(&self) -> &PsiCandidateDeclaration {
-        &self.declaration
-    }
-    pub const fn validator(&self) -> OptimizationValidatorIdentity {
-        self.validator
-    }
-}
 pub type OptimizationRunUsage = optimization_core::OptimizationWorkUsage;
-#[derive(Debug, Clone)]
-pub struct AbstractOptimizationEvidence {
-    pub selections: OptimizationSelections,
-    pub psi_selections: OptimizationSelections,
-    pub budget_per_pass: OptimizationWorkBudget,
-    pub commits: Vec<PsiOptimizationCommit>,
-    pub validated_candidates: Vec<PsiValidatedCandidateDeclaration>,
-    pub usage: OptimizationRunUsage,
-    pub decisions: BaselineDecisionLog,
-    pub external_decisions: ExternalDecisionLog,
-    pub pass_manifests: Vec<OptimizationPassManifestRecord>,
-    pub transformation_ledger: PsiTransformationLedger,
-    pub identity_bundle: OptimizationIdentityBundle,
-}
