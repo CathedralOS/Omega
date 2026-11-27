@@ -25,11 +25,10 @@
 //! closers after `Vec<Vec<u8>`.
 //!
 //! Every test lexes with the real lexer and parses through
-//! `source_parser::parse`.
+//! `source_parser::parse_into`.
 
 use crate::parsing_support::{parse, trees};
 use numerics::arithmetic::ArithmeticDomain::{self, Exact, Saturating, Trapping, Wrapping};
-use serde_json::json;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::BinaryOperator::{self, *};
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -321,30 +320,51 @@ fn touching_closers_are_one_shift_between_values_and_two_closers_after_arguments
         format!("(a ShiftRight/Wrapping@{wrapping}..{} b)", wrapping + 2)
     );
 
-    let tree = serde_json::to_value(parsed.snapshot()).expect("a syntax snapshot serializes");
-    let argument = &tree["root_items"][1]["states"][0]["parameters"][3]["type_reference"];
-    assert_eq!(
-        (
-            &argument["kind"],
-            &argument["base_name"]["text"],
-            &argument["arguments"][0]["kind"],
-            &argument["arguments"][0]["base_name"]["text"],
-            &argument["arguments"][0]["arguments"][0]["name"]["text"],
-            argument["arguments"].as_array().map(Vec::len),
-            argument["arguments"][0]["arguments"]
-                .as_array()
-                .map(Vec::len),
-        ),
-        (
-            &json!("generic"),
-            &json!("Vec"),
-            &json!("generic"),
-            &json!("Vec"),
-            &json!("u8"),
-            Some(1),
-            Some(1),
-        )
-    );
+    let syntax_trees::item::Item::Machine(shifts) = parsed.root_item(parsed.root_item_handles()[1])
+    else {
+        panic!("expected `shifts` machine");
+    };
+    let state = parsed
+        .items
+        .state(parsed.items.state_handles(shifts.states)[0]);
+    let argument = parsed
+        .items
+        .state_parameter(parsed.items.state_parameters(state.parameters)[3])
+        .type_reference;
+    let syntax_trees::types::TypeReferenceNode::Generic {
+        base_name: outer_name,
+        arguments: outer_arguments,
+        ..
+    } = parsed.type_references.type_reference(argument)
+    else {
+        panic!("expected outer `Vec<...>` generic type");
+    };
+    assert_eq!(outer_name.as_str(&parsed), "Vec");
+    let &[inner_handle] = parsed
+        .type_references
+        .type_reference_handles(*outer_arguments)
+    else {
+        panic!("expected one outer generic argument");
+    };
+    let syntax_trees::types::TypeReferenceNode::Generic {
+        base_name: inner_name,
+        arguments: inner_arguments,
+        ..
+    } = parsed.type_references.type_reference(inner_handle)
+    else {
+        panic!("expected inner `Vec<u8>` generic type");
+    };
+    assert_eq!(inner_name.as_str(&parsed), "Vec");
+    let &[leaf_handle] = parsed
+        .type_references
+        .type_reference_handles(*inner_arguments)
+    else {
+        panic!("expected one inner generic argument");
+    };
+    assert!(matches!(
+        parsed.type_references.type_reference(leaf_handle),
+        syntax_trees::types::TypeReferenceNode::Named(name) if name.as_str(&parsed) == "u8"
+    ));
 
     for (separated, refused_at) in [
         ("machine f(a: u32, b: u32) -> bool { a > > b }", "> b }"),

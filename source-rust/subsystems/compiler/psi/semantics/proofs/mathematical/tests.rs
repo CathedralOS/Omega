@@ -1,3 +1,51 @@
+mod extended_signatures {
+    use super::{default_budget, type_sort};
+    use crate::{CoreError, Declaration, Term, TermArena, check_signature, extend_signature};
+
+    /// A table checked once and extended by a user is the signature a whole
+    /// check gives, and the extension alone is judged: an ill-formed added
+    /// declaration is refused at its position in the whole signature.
+    #[test]
+    fn an_extension_checks_only_what_it_adds() {
+        let mut arena = TermArena::new();
+        let universe = type_sort(&mut arena, 0);
+        let carrier = arena.insert(Term::Constant {
+            declaration: 0,
+            levels: vec![],
+        });
+        let table = [Declaration::assumption(0, universe)];
+        let checked = check_signature(&mut arena, &table, &mut default_budget()).unwrap();
+        let added = [Declaration::assumption(0, carrier)];
+        let extended =
+            extend_signature(&mut arena, &checked, &added, &mut default_budget()).unwrap();
+        let whole = check_signature(
+            &mut arena,
+            &[table[0].clone(), added[0].clone()],
+            &mut default_budget(),
+        )
+        .unwrap();
+        assert_eq!(extended.declarations(), whole.declarations());
+        // A value of the carrier is no type: declaring something of it is
+        // refused at position 2, after the table and the first addition.
+        let value = arena.insert(Term::Constant {
+            declaration: 1,
+            levels: vec![],
+        });
+        let refused = extend_signature(
+            &mut arena,
+            &checked,
+            &[added[0].clone(), Declaration::assumption(0, value)],
+            &mut default_budget(),
+        )
+        .unwrap_err();
+        assert_eq!(refused.declaration, 2);
+        assert!(
+            matches!(refused.error, CoreError::NotASort { .. }),
+            "{refused:?}"
+        );
+    }
+}
+
 mod conversion_judgments {
     use super::{
         apply, default_budget, empty, lambda, pi, squash, squash_intro, two, two_one, two_zero,

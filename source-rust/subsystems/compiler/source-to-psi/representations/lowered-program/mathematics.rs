@@ -31,6 +31,55 @@ pub struct MathematicalSignature {
     /// Each data declaration indexed by values, as the kernel's builder
     /// declared it. A law over one names it by its position here.
     pub families: Vec<mathematical_kernel::DeclaredIndexedData>,
+    /// What the Identity goals of each generic check form with const
+    /// record parameters name that is the same in every one of its
+    /// obligations: the carriers its trait operations take and give, those
+    /// operations and the laws its machines may cite. Stage 06 declares and
+    /// checks each table once, and every Identity obligation of the form
+    /// starts from it.
+    pub identities: Vec<IdentityTable>,
+}
+
+/// The Identity table of one generic check form. Its carriers and law
+/// instances are identities of that form's module.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IdentityTable {
+    /// The check form: its generic declaration's position in
+    /// `PreparedCompilation::forms`, then its own among that declaration's
+    /// forms.
+    pub form: (u32, u32),
+    /// The form's const record parameters, the suppliers of its trait
+    /// operations. An Identity obligation that applies an operation of one of
+    /// them must find it here.
+    pub suppliers: Vec<symbols::SymbolHandle>,
+    /// Every carrier the operations and laws name: the form's type
+    /// parameters and whatever data or scalars the operations take and give.
+    pub carriers: Vec<semantic_vocabulary::ClauseCarrier>,
+    pub operations: Vec<IdentityOperation>,
+    pub laws: Vec<IdentityLaw>,
+}
+
+/// A trait operation, as a function from its domains to its result.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IdentityOperation {
+    pub declaration: semantic_vocabulary::ClauseDeclaration,
+    pub domains: Vec<semantic_vocabulary::ClauseCarrier>,
+    pub result: semantic_vocabulary::ClauseCarrier,
+}
+
+/// One `ensures` equality of a law requirement of one of the form's const
+/// record parameters.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IdentityLaw {
+    /// The machine that stands for the requirement in the form's module.
+    pub instance: semantic_vocabulary::MachineId,
+    /// Its position among that machine's `ensures` clauses.
+    pub clause: u32,
+    /// The carrier of each formal, structural formals first and then scalar
+    /// ones, as a citation supplies them.
+    pub formals: Vec<semantic_vocabulary::ClauseCarrier>,
+    /// The equality, with formal `k` written `ClauseOperand::Formal(k)`.
+    pub statement: semantic_vocabulary::ClauseIdentity,
 }
 
 /// The declarations of the integer vocabulary, by position.

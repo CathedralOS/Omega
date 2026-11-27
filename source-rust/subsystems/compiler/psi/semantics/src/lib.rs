@@ -38,7 +38,10 @@ pub mod reference_ends;
 pub mod references;
 pub mod scalar_qualifications;
 mod scalar_target_ranges;
-pub use scalar_target_ranges::{TargetScalarRange, layout_call_conditions, target_scalar_ranges};
+pub use scalar_target_ranges::{
+    TargetScalarRange, array_extent_literal_conditions, layout_call_conditions,
+    target_scalar_ranges,
+};
 pub mod scalars;
 pub mod static_reach;
 pub mod storage;
@@ -221,7 +224,8 @@ pub use scalars::proof_bearing_scalar::{
 };
 pub use scalars::scalar_array::{
     PackedArrayRole, packed_integer_array_type, packed_integer_unary_array_type,
-    scalar_array_leaf_declaration, scalar_array_leaf_path, scalar_array_leaf_shape,
+    scalar_array_application_leaf, scalar_array_leaf_declaration, scalar_array_leaf_path,
+    scalar_array_leaf_shape,
 };
 pub use scalars::scalar_field_requirements::{
     atomic_resident_requirement, scalar_field_accepts_literal, scalar_field_accepts_zero,

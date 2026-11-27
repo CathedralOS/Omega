@@ -2263,15 +2263,17 @@ pub(crate) mod namespaces {
                 _ => return Err("named application changed its complete map constructor"),
             };
             let source = self.static_machine_application(call.authored_machine_application);
-            let template = self
-                .closed_requirement_application(call.target_symbol)
+            let closed = self.closed_requirement_application(call.target_symbol);
+            let template = closed
+                .as_ref()
                 .map_or(call.target_symbol, |closed| closed.template);
             // A bodyless trait requirement is no machine declaration, so
-            // source retention leaves its local binding declaration absent.
+            // source retention leaves its local binding declaration absent
+            // unless stage 04 closed a generic requirement application.
             // Its registered operation and supplying owner remain exact.
             if source.registration_operation != template
                 || (source.binding_declaration.is_valid() && source.binding_declaration != template)
-                || !source.bindings.is_empty()
+                || (closed.is_none() && !source.bindings.is_empty())
                 || !source.lifetime_bindings.is_empty()
                 || !source.lexical_owner.is_valid()
                 || !self

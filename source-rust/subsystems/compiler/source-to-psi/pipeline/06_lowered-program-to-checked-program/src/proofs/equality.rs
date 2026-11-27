@@ -2424,14 +2424,15 @@ fn search(
 
 use crate::{call_contracts, graph::Graph, hypotheses};
 use proof_admission::{
-    Declaration, Level, MathematicalCertificate, MathematicalCoreDecision,
-    MathematicalJudgmentReceipt, Sort, check_signature,
+    Declaration, DeclarationKind, Level, MathematicalCertificate, MathematicalCoreDecision,
+    MathematicalJudgmentReceipt, Signature, Sort, check_signature, extend_signature,
 };
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, ClauseCarrier, ClauseDeclaration, ClauseIdentity,
     ClauseOperand, MachineId, ObligationId, PlaceId, Proposition, ScalarTerm, StructuralFieldId,
     StructuralTypeId, TargetMachineCallable,
 };
+use terminal_check_tables::mathematics::IdentityTable;
 use terminal_check_tables::{
     Checked, Construct, KnowledgeId, MachineTables, ProgramPoint, RefusalReason, UnprovedCause,
 };
@@ -2447,7 +2448,7 @@ pub struct Judgment {
 }
 
 /// What one declaration of an obligation's kernel signature stands for.
-#[derive(PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 enum Named {
     Carrier(FieldCarrier),
     Input(PlaceId),
@@ -2474,6 +2475,9 @@ enum FieldCarrier {
 enum LawInput {
     Structural(PlaceId),
     Scalar(semantic_vocabulary::ValueId),
+    /// Formal `k` of a law in a machine's Identity table, written
+    /// `ClauseOperand::Formal(k)`.
+    Formal(u32),
 }
 
 /// One field of a record denoted as the product of its fields.
@@ -2485,6 +2489,7 @@ struct Field {
 }
 
 /// A record whose value is the tuple of its fields, in declaration order.
+#[derive(Clone)]
 struct Product {
     record: StructuralTypeId,
     fields: Vec<Field>,
@@ -2509,8 +2514,9 @@ impl From<SearchError> for Unproved {
 struct Declarations<'a> {
     module: &'a TerminalModule,
     machine: &'a TerminalMachine,
-    /// What each field of an input held at the goal point.
-    entry: &'a mut dyn crate::Bindings<Error = crate::Unbound>,
+    /// What each field of an input held at the goal point. A machine's
+    /// Identity table names no input, so it is read without one.
+    entry: Option<&'a mut dyn crate::Bindings<Error = crate::Unbound>>,
     /// The values the inputs' fields held at the goal point, as their terms
     /// state them. An equality of one of them can rebuild an input.
     contents: Vec<ScalarTerm>,
@@ -2521,13 +2527,109 @@ struct Declarations<'a> {
     /// Records whose carrier is being declared, so a record that contained
     /// itself would be refused rather than declared forever.
     declaring: Vec<StructuralTypeId>,
+    /// The const record parameters of the generic check form whose Identity
+    /// table the obligation starts from. The table holds every operation of
+    /// theirs and every law, so an obligation that names another is refused.
+    suppliers: Option<Vec<(u32, u32)>>,
+}
+
+/// A generic check form's Identity table, declared and checked by the kernel
+/// once (`check_identity_table`). Each Identity obligation of the form starts
+/// from a copy and adds only what it names of its own inputs.
+pub(crate) struct CheckedIdentityTable {
+    suppliers: Vec<(u32, u32)>,
+    arena: TermArena,
+    /// The table's declarations, every one ordinary and checked by the
+    /// kernel together.
+    declarations: Vec<Declaration>,
+    entries: Vec<(Named, TermHandle)>,
+    products: Vec<Product>,
+}
+
+/// A generic check form's Identity table, checked, or the reason it could
+/// not be.
+pub(crate) type IdentityTables = Result<CheckedIdentityTable, String>;
+
+/// The law instances of a module and, for a generic check form, its
+/// machines' Identity tables: what an Identity obligation may cite and start
+/// from.
+#[derive(Clone, Copy)]
+pub(crate) struct LawScope<'t> {
+    pub(crate) instances: &'t [MachineId],
+    pub(crate) identities: Option<&'t IdentityTables>,
+}
+
+/// Declares and checks `table` in `module`, the module of its check form,
+/// once.
+pub(crate) fn check_identity_table(
+    module: &TerminalModule,
+    table: &IdentityTable,
+) -> IdentityTables {
+    let machine = module
+        .machines
+        .first()
+        .ok_or("an Identity table for a module with no machine")?;
+    let mut declarations = Declarations::new(module, machine, None);
+    let read = (|| {
+        for &carrier in &table.carriers {
+            declarations.carrier(carrier)?;
+        }
+        for operation in &table.operations {
+            let result = declarations.carrier(operation.result)?;
+            declarations.operation(operation.declaration, result, &operation.domains)?;
+        }
+        for law in &table.laws {
+            let count = u32::try_from(law.formals.len()).map_err(|_| "too many law formals")?;
+            let binders: Vec<_> = (0..count).map(LawInput::Formal).collect();
+            let mut statement = declarations.identity(&law.statement, &binders)?;
+            for &carrier in law.formals.iter().rev() {
+                let domain = declarations.carrier(carrier)?;
+                statement = declarations.arena.insert(Term::Pi {
+                    domain,
+                    codomain: statement,
+                });
+            }
+            declarations.entry(Named::Law(law.instance, law.clause), statement)?;
+        }
+        Ok::<_, &'static str>(())
+    })();
+    read.map_err(|why| format!("the machine's Identity table cannot be declared: {why}"))?;
+    // A checked table is extended without being checked again, from its
+    // declarations alone, which holds only for ordinary declarations: an
+    // inductive one is checked with tables of its own.
+    if declarations
+        .signature
+        .iter()
+        .any(|declaration| !matches!(declaration.kind, DeclarationKind::Ordinary))
+    {
+        return Err("the machine's Identity table declares an inductive type".to_owned());
+    }
+    check_signature(
+        &mut declarations.arena,
+        &declarations.signature,
+        &mut Budget::default(),
+    )
+    .map_err(|error| {
+        format!("mathematical kernel refused the machine's Identity table: {error:?}")
+    })?;
+    Ok(CheckedIdentityTable {
+        suppliers: table
+            .suppliers
+            .iter()
+            .map(|supplier| (supplier.arena_index(), supplier.generation()))
+            .collect(),
+        arena: declarations.arena,
+        declarations: declarations.signature,
+        entries: declarations.entries,
+        products: declarations.products,
+    })
 }
 
 impl<'a> Declarations<'a> {
     fn new(
         module: &'a TerminalModule,
         machine: &'a TerminalMachine,
-        entry: &'a mut dyn crate::Bindings<Error = crate::Unbound>,
+        entry: Option<&'a mut dyn crate::Bindings<Error = crate::Unbound>>,
     ) -> Self {
         Self {
             module,
@@ -2539,6 +2641,32 @@ impl<'a> Declarations<'a> {
             signature: Vec::new(),
             products: Vec::new(),
             declaring: Vec::new(),
+            suppliers: None,
+        }
+    }
+
+    /// An obligation of `machine` starting from its checked Identity table.
+    fn from_table(
+        module: &'a TerminalModule,
+        machine: &'a TerminalMachine,
+        table: &CheckedIdentityTable,
+        entry: &'a mut dyn crate::Bindings<Error = crate::Unbound>,
+    ) -> Self {
+        Self {
+            module,
+            machine,
+            entry: Some(entry),
+            contents: Vec::new(),
+            arena: table.arena.clone(),
+            entries: table
+                .entries
+                .iter()
+                .map(|(key, term)| (key.clone(), *term))
+                .collect(),
+            signature: table.declarations.clone(),
+            products: table.products.clone(),
+            declaring: Vec::new(),
+            suppliers: Some(table.suppliers.clone()),
         }
     }
 
@@ -2561,6 +2689,24 @@ impl<'a> Declarations<'a> {
         key: Named,
         declaration: Declaration,
     ) -> Result<TermHandle, &'static str> {
+        // What the table holds is the same in every obligation, so an
+        // obligation that names another is refused, never given a
+        // declaration of its own.
+        if let Some(suppliers) = &self.suppliers {
+            match &key {
+                Named::Operation(declaration)
+                    if declaration
+                        .supplier
+                        .is_some_and(|supplier| suppliers.contains(&supplier)) =>
+                {
+                    return Err("a trait operation that is not in the form's Identity table");
+                }
+                Named::Law(..) => {
+                    return Err("a cited law that is not in the form's Identity table");
+                }
+                _ => {}
+            }
+        }
         let index =
             u32::try_from(self.signature.len()).map_err(|_| "signature exceeds its index width")?;
         let term = self.arena.insert(Term::Constant {
@@ -2769,7 +2915,11 @@ impl<'a> Declarations<'a> {
         carrier: FieldCarrier,
     ) -> Result<Option<TermHandle>, &'static str> {
         if let FieldCarrier::Clause(ClauseCarrier::Scalar(scalar)) = carrier {
-            let Ok(held) = self.entry.field(
+            let entry = self
+                .entry
+                .as_deref_mut()
+                .ok_or("an Identity table names no input")?;
+            let Ok(held) = entry.field(
                 semantic_vocabulary::ContentPlaceVersion::Current,
                 root,
                 path,
@@ -2799,12 +2949,13 @@ impl<'a> Declarations<'a> {
         Ok(self.arena.tuple(&components))
     }
 
-    fn application(
+    /// The entry of an applied declaration, a function from `domains` to
+    /// `result`.
+    fn operation(
         &mut self,
         declaration: ClauseDeclaration,
         result: TermHandle,
         domains: &[ClauseCarrier],
-        arguments: &[TermHandle],
     ) -> Result<TermHandle, &'static str> {
         let mut function_type = result;
         for &carrier in domains.iter().rev() {
@@ -2814,7 +2965,17 @@ impl<'a> Declarations<'a> {
                 codomain: function_type,
             });
         }
-        let operation = self.entry(Named::Operation(declaration), function_type)?;
+        self.entry(Named::Operation(declaration), function_type)
+    }
+
+    fn application(
+        &mut self,
+        declaration: ClauseDeclaration,
+        result: TermHandle,
+        domains: &[ClauseCarrier],
+        arguments: &[TermHandle],
+    ) -> Result<TermHandle, &'static str> {
+        let operation = self.operation(declaration, result, domains)?;
         Ok(self.arena.apply_arguments(operation, arguments))
     }
 
@@ -2903,6 +3064,16 @@ impl<'a> Declarations<'a> {
                         .map(|&arg| terms[arg as usize])
                         .collect::<Vec<_>>();
                     self.application(*declaration, ty, &domains, &operands)?
+                }
+                ClauseOperand::Formal(formal)
+                    if let Some(position) = binders
+                        .iter()
+                        .position(|binder| *binder == LawInput::Formal(*formal)) =>
+                {
+                    self.arena.insert(Term::Variable(
+                        u32::try_from(binders.len() - position - 1)
+                            .map_err(|_| "too many law formals")?,
+                    ))
                 }
                 ClauseOperand::Formal(_) | ClauseOperand::FloatMeaning(_) => {
                     return Err("no whole-value mathematical input for this clause operand");
@@ -3089,6 +3260,7 @@ pub(crate) fn discharge(
     obligation: ObligationId,
     goal: &ClauseIdentity,
     law_instances: &[MachineId],
+    identities: Option<&IdentityTables>,
     entry: &mut dyn crate::Bindings<Error = crate::Unbound>,
 ) -> Checked<Judgment> {
     let known = hypotheses(graph, tables, machine.id, obligation, point)?;
@@ -3100,7 +3272,17 @@ pub(crate) fn discharge(
             why,
         )
     };
-    let mut declarations = Declarations::new(module, machine, entry);
+    // A machine of a generic check form with const record parameters
+    // starts from the form's Identity table, which the kernel checked once.
+    // Any other machine has no trait operation or law to share and declares
+    // what each obligation names.
+    let table = identities
+        .map(|table| table.as_ref().map_err(|why| unavailable(why)))
+        .transpose()?;
+    let mut declarations = match table {
+        Some(table) => Declarations::from_table(module, machine, table, entry),
+        None => Declarations::new(module, machine, Some(entry)),
+    };
     let expected = declarations.identity(goal, &[]).map_err(unavailable)?;
     let mut proofs = Vec::new();
     let mut citations = Vec::new();
@@ -3245,11 +3427,21 @@ pub(crate) fn discharge(
             ),
         )
     };
-    let signature = check_signature(
-        &mut declarations.arena,
-        &declarations.signature,
-        &mut budget,
-    )
+    // Only what this obligation added after the table is checked here.
+    let signature = match table {
+        Some(table) => extend_signature(
+            &mut declarations.arena,
+            &Signature::from_declarations(table.declarations.clone()),
+            &declarations.signature[table.declarations.len()..],
+            &mut budget,
+        )
+        .map_err(|refused| refused.error),
+        None => check_signature(
+            &mut declarations.arena,
+            &declarations.signature,
+            &mut budget,
+        ),
+    }
     .map_err(|error| kernel_error(error.into()))?;
     let mut context = Context::empty().with_signature(signature);
     for index in 0..premises.len() {

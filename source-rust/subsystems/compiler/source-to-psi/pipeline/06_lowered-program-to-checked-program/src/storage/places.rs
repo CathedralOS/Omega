@@ -2643,7 +2643,9 @@ impl<'a> Storage<'a> {
                         }
                         StructuralTypeShape::FixedArray {
                             element,
-                            length: terminal_psi::ArrayExtent::Parameter { .. },
+                            length:
+                                terminal_psi::ArrayExtent::Parameter { .. }
+                                | terminal_psi::ArrayExtent::Application(_),
                         } if matches!(segment, Segment::RuntimeIndex { .. }) => element,
                         StructuralTypeShape::ElementView { element, .. }
                             if matches!(segment, Segment::RuntimeIndex { .. }) =>
@@ -2950,6 +2952,13 @@ impl<'a> Storage<'a> {
                 root,
                 projection.path,
                 types,
+                |application| {
+                    self.module
+                        .scalars
+                        .scalar_applications
+                        .declaration(application)
+                        .and_then(|declaration| declaration.scalar_type())
+                },
                 |prefix| {
                     terminal_semantics::preceding_collection_length(
                         preceding,

@@ -50,8 +50,8 @@ fn psi_admission_retains_the_native_borrowed_storage_layouts() {
     let library = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../source/library");
     package_compilation::toolchain_library::configure(&library).unwrap();
     let build = r#"use main.omg as app;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "checked_read_geometry");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "checked_read_geometry" };
     Build::select_provider::<|app|::ReadCell, |app|::Reader>(builder, TARGET);
     Build::bind(builder, TARGET::ProgramEntry, |app|::main);
 }

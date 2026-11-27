@@ -1,6 +1,6 @@
 //! Lex loaded sources into ordered token streams, preserving source spans and errors.
-//! `lex` owns the batch; the private scanner handles one source and publishes
-//! tokens. Token dispatch leads into `literals` for numeric and quoted-byte rules.
+//! `lex_file` and `lex_unit_reusing` scan one source into reusable buffers; token
+//! dispatch leads into `literals` for numeric and quoted-byte rules.
 
 #![forbid(unsafe_code)]
 
@@ -9,38 +9,10 @@ mod literals {
     mod quoted_bytes;
 }
 
-use arena::Arena;
 use diagnostics::Diagnostic;
-use rayon::prelude::*;
-use source_files::{LoadedSource, LoadedSources};
+use source_files::LoadedSource;
 use source_text::{SourcePosition, Span};
-use tokens::{
-    CommentKind, KeywordKind, LexedSource, LexedSources, PunctuationKind, TokenKind, TokenStream,
-};
-
-/// Lexes a complete source batch, preserving source order and reporting its first error.
-pub fn lex(mut sources: LoadedSources) -> Result<LexedSources, LexError> {
-    let loaded_sources = sources.sources.span_mut_or_empty(sources.batch);
-    let source_count = loaded_sources.len();
-    let mut lexed_sources = Arena::with_capacity(source_count);
-    let results: Vec<Result<LexedSource, LexError>> = if source_count <= 1 {
-        loaded_sources.iter_mut().map(lex_source).collect()
-    } else {
-        worker_budget::within_budget(|| loaded_sources.par_iter_mut().map(lex_source).collect())
-    };
-    let lexed = results.into_iter().collect::<Result<Vec<_>, _>>()?;
-
-    let batch = lexed_sources.insert_many(lexed);
-
-    Ok(LexedSources {
-        sources: lexed_sources,
-        batch,
-    })
-}
-
-fn lex_source(loaded_source: &mut LoadedSource) -> Result<LexedSource, LexError> {
-    lex_file(loaded_source, &mut tokens::TokenScratch::default())
-}
+use tokens::{CommentKind, KeywordKind, LexedSource, PunctuationKind, TokenKind, TokenStream};
 
 /// Move this file's identity and path into its tokens. A streaming caller
 /// recycles the buffers after the parser has consumed the file.

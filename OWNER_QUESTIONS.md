@@ -158,3 +158,66 @@ move the build tests that decode bytes onto the typed policy they already
 hold. Alternatively, remove these sections from the package-review spec and
 the evidence schema now, and delete the decoders and the vocabulary together.
 Should package review report these sections?
+
+<a id="psi-receiving-rules-outside-spec"></a>
+### 4. Should the specification restate the Psi receiving rules that moved with the wire encoding?
+
+The Psi wire encoding moved out of `wiki/spec/` on Jarod's word that the
+compiler's file format is not language specification. It now sits beside the
+codec as [encoding.md](source-rust/subsystems/compiler/psi/artifact/wire/encoding.md),
+and agents keep it current with the code. The page is mostly tags and field
+layouts, but some paragraphs state what a reader must check or what a row
+grants, and no page in `wiki/spec/` restates them:
+
+- [Scalar completion prerequisites](source-rust/subsystems/compiler/psi/artifact/wire/encoding.md#scalar-completion-prerequisites)
+  and the return-origin paragraphs after the origin table. [Scalar qualifications](wiki/spec/terminal-psi/calls_and_outcomes.md#scalar-qualifications)
+  summarizes them and links to this page for the rest.
+- The prerequisite and completed-result roles under
+  [retained scalar conditions](source-rust/subsystems/compiler/psi/artifact/wire/encoding.md#retained-scalar-conditions-and-application-scope).
+- [Retained access custody](source-rust/subsystems/compiler/psi/artifact/wire/encoding.md#retained-access-custody),
+  [installation and semantic-code attribution](source-rust/subsystems/compiler/psi/artifact/wire/encoding.md#installation-and-semantic-code-attribution)
+  and [register event service authority](source-rust/subsystems/compiler/psi/artifact/wire/encoding.md#register-event-service-authority).
+
+The layout and the rules share sentences, so an agent could not leave the rules
+behind without writing new specification text. The same change repointed the
+links to this page in five specification pages
+(`build/optimizations.md` and `terminal-psi/` `product.md`,
+`calls_and_outcomes.md`, `fact_validity.md`, `dynamic_dispatch.md`) and changed
+no other specification text.
+
+**Recommend leaving them where they are.** They say how a reader validates
+rows of the compiler's own format, and [changes to Psi](source-rust/subsystems/compiler/psi/README.md#changes-to-psi)
+already requires a codec change to keep trust guarantees intact and to bring
+an unresolved trust decision here. Alternatively, an owner restates the ones
+that should bind every implementation in `wiki/spec/terminal-psi/`, and agents
+then cut the copies from the encoding page.
+Should the specification own any of these rules?
+
+<a id="bundle-evidence-field-type"></a>
+### 5. Which field type makes a record field mathematical evidence rather than a callable selection?
+
+A proof argument "may cite a named theorem, instantiate another theorem, or
+project checked evidence from a bundle", and "an explicitly typed
+mathematical-evidence field uses the general logical-evidence application rule,
+also in ordinary records"
+([logical hypotheses](wiki/spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use) ·
+[operation records](wiki/spec/language/conformances.md#implementations-are-operation-records)).
+The same section also says "an ordinary field whose declared type is a
+structural callable is different: it requires that callable contract". A
+logical contract is written as a structural callable alias, as in
+`data NonzeroIsPositive = machine(n: u8) requires n != 0u8 ensures n > 0u8;`.
+So `data Laws { step: NonzeroIsPositive; }` declares a callable field, and the
+spec names no other way to type a field as that contract's evidence.
+
+The compiler follows the callable reading today. `Laws { step: nonzero_is_positive }`
+asks for a service ceiling, and once given one it fails constant evaluation
+because the record holds a callable. So `use_step::<U8_LAWS.step>(7u8)` has no
+evidence to project.
+
+**Recommend that a field of a logical alias type marked `[erased]` holds that
+alias's evidence**, as in `step [erased]: NonzeroIsPositive;`. Erasure already
+means "without runtime storage" for record fields, and a logical contract has
+nothing to store. Its initializer is checked as a proof argument is, and
+projecting it supplies that checked citation. Alternatively, a distinct type
+former could name the evidence type of an alias.
+Which spelling declares an evidence field?

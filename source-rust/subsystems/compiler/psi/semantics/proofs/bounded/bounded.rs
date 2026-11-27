@@ -441,10 +441,11 @@ pub use mathematical_kernel::{
     SignatureCheckError, Sort, Term, TermArena, TermHandle, argument_error_pair_pattern,
     assumption_closure, certificate_assumption_closure, check_signature,
     check_signature_with_attribution, check_type, convertible, convertible_retaining,
-    declare_inductive_family, declare_mutual_inductive_family, identity_substitution, infer_sort,
-    infer_type, instantiate, instantiate_levels, judgment_assumption_closure, quotient_scheme,
-    shift, substitute, universe_parameter_arity, verify_mathematical_certificate,
-    verify_mathematical_certificates, weak_head_normalize, weak_head_normalize_retaining,
+    declare_inductive_family, declare_mutual_inductive_family, extend_signature,
+    identity_substitution, infer_sort, infer_type, instantiate, instantiate_levels,
+    judgment_assumption_closure, quotient_scheme, shift, substitute, universe_parameter_arity,
+    verify_mathematical_certificate, verify_mathematical_certificates, weak_head_normalize,
+    weak_head_normalize_retaining,
 };
 pub use predicate_denotation::{
     CheckedPredicateDenotations, CheckedValueEquations, PredicateDenotationError,

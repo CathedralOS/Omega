@@ -43,9 +43,9 @@ fn the_same_machine_without_the_citation_is_refused_at_its_ensures() {
     let (output, report) = check("semiring_identity/fail/uncited");
     assert_eq!(output.status.code(), Some(1), "{report}");
     assert!(
-        report.contains("core\\\\Identity::<T>(Ring::add(b, a), Ring::add(a, b))")
+        report.contains("|proof|::Identity::<T>(Ring::add(b, a), Ring::add(a, b))")
             && report.contains(UNPROVED)
-            && report.contains("main.omg:4:9"),
+            && report.contains("main.omg:5:9"),
         "{report}"
     );
 }
@@ -113,7 +113,7 @@ fn right_distributivity_without_its_recursive_call_is_refused_at_the_successor_a
              `Peano::Succ`: core\\\\Identity::<Peano>(times(plus(Peano::Succ(pred), b), c), \
              plus(times(Peano::Succ(pred), c), times(b, c)))"
         ) && report.contains(UNPROVED)
-            && report.contains("main.omg:51:30"),
+            && report.contains("main.omg:52:30"),
         "{report}"
     );
 }
@@ -342,6 +342,26 @@ fn core_division_by_zero_is_refused_for_its_premise() {
 }
 
 #[test]
+fn core_gcd_computes_and_takes_euclids_step() {
+    // A zero divisor, a zero dividend, coprime numbers and common factors,
+    // each checked by computation through `gcd` of `core/nat.omg`, and
+    // Euclid's step at any positive divisor by citing `gcd_step`.
+    let (output, report) = check("core_gcd/pass/euclid");
+    assert_eq!(output.status.code(), Some(0), "{report}");
+}
+
+#[test]
+fn euclids_step_without_its_law_is_refused() {
+    let (output, report) = check("core_gcd/fail/euclid_without_its_step");
+    assert_eq!(output.status.code(), Some(1), "{report}");
+    assert!(
+        report.contains("cannot prove ensures contract for `euclid_at`")
+            && report.contains(UNPROVED),
+        "{report}"
+    );
+}
+
+#[test]
 fn a_machine_that_recurses_on_a_computed_value_of_local_data_is_refused() {
     // `Peano` is the program's own data, so no natural order checks the
     // descent of `drain(before(a))`.
@@ -381,7 +401,7 @@ fn a_satisfier_that_proves_nothing_is_refused_for_the_law_it_inherits() {
             "cannot prove the law `lawless` inherits from the requirement it satisfies: \
              core\\\\Identity::<Peano>(plus(plus(a, b), c), plus(a, plus(b, c)))"
         ) && report.contains(UNPROVED)
-            && report.contains("main.omg:18:9"),
+            && report.contains("main.omg:19:9"),
         "{report}"
     );
 }

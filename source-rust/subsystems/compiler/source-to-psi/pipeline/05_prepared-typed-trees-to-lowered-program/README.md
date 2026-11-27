@@ -58,9 +58,19 @@ parameter: one with exactly the parameter's formals and result and no
 premise, which is then the definition the signature gives it
 (`machine_argument`). A generic machine may cite another generic machine,
 passing it its own machine parameters or concrete machines; the cited law's
-premises are then owed at those machines. A body that is not generic and
-calls a generic mathematical machine at concrete machines names the closed
-copy the typed trees made for that call, and is refused. A named proposition declared as
+premises are then owed at those machines. A generic machine whose body
+dispatches is lowered instead, with every machine declared inside it: a call
+of a machine parameter, or of a generic machine at some machines, is an
+`ExpressionKind::Applied` the signature reader applies to the parameter's
+variable or to the passed definitions (`read/templates.rs`,
+`mathematical_application`). So is a generic machine that states nothing,
+which a law reads in place, and any other generic body the clause reader
+cannot read as terms. A generic machine's machine parameters are arguments
+of every definition the signature makes for it: its definition by cases,
+its definition over fuel and each dispatch on a computed value, so a call
+of itself may pass other machines. A body that is not generic calls or cites
+a generic machine at concrete machines through the same form, and a call
+owes the callee's premises at the machines and arguments it passes. A named proposition declared as
 one formula is read where a clause of such a machine applies it: the formula,
 with each parameter standing for the argument written for it. Its declaration
 adds nothing to the signature. A quotient of mathematical data
@@ -824,7 +834,7 @@ the first slice of the
   clauses name it like any formal, and no runtime lane: Terminal Psi declares
   it in `MachineContract::erased_scalar_formals`, not in `parameters` or
   `parameter_order`
-  ([encoding](../../../../../../wiki/spec/terminal-psi/encoding.md): "Erased
+  ([encoding](../../../psi/artifact/wire/encoding.md): "Erased
   formals occupy no tag."). Its identity comes after the result
   pseudo-value; `Signature::formal_values` is the one numbering the reader
   and lowering share.

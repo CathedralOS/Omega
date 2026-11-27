@@ -140,7 +140,7 @@ public data OverloadLinks [copy] {
 }
 
 // The primitive byte predicates over a byte view
-// (wiki/spec/terminal-psi/byte_views.md, wiki/spec/terminal-psi/encoding.md):
+// (wiki/spec/terminal-psi/byte_views.md, source-rust/subsystems/compiler/psi/artifact/wire/encoding.md):
 // `valid_utf8`, `no_nul`, `ascii_only` and `non_empty`. A declaration of the
 // same spelling is found first.
 public data BytePredicate [copy] {

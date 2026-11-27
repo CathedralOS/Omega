@@ -250,7 +250,8 @@ mod static_operands {
                             .map(|selector| selector.binding.as_str(syntax).to_owned()),
                     );
                     for target in transition.targets() {
-                        if let Some(value) = syntax.statements.transition_target(target).expression()
+                        if let Some(value) =
+                            syntax.statements.transition_target(target).expression()
                         {
                             collect_expression_handles(syntax, value, &mut target_expressions);
                         }
@@ -755,6 +756,7 @@ impl Expansion<'_, '_> {
             TypeReferenceNode::Callable { signature } => {
                 let signature = syntax.items.state_signature(signature).clone();
                 self.signature(syntax, &signature, bound)?;
+                only_proof_binders(syntax, signature.type_parameters)?;
             }
             _ => {}
         }
@@ -1248,6 +1250,25 @@ fn mark_header_references(syntax: &mut SyntaxTrees, root: TypeReferenceHandle) {
     }
 }
 
+/// A structural callable signature's own `Name: Type` binder is a proof of a
+/// logical contract alias, as in `machine<Inner: NonzeroIsPositive>(n: u8)`.
+/// Any other type leaves a binder with no meaning there.
+fn only_proof_binders(
+    syntax: &SyntaxTrees,
+    parameters: HandleSpan<syntax_trees::item::TypeParameter>,
+) -> Result<(), Diagnostic> {
+    for parameter in syntax.items.type_parameters(parameters) {
+        if matches!(parameter.kind, TypeParameterKind::Value { .. }) {
+            return Err(Diagnostic::error(format!(
+                "a callable signature's own binder `{}` must name a logical contract alias; write `const {}: Type` for a static value",
+                parameter.name.as_str(syntax),
+                parameter.name.as_str(syntax),
+            )));
+        }
+    }
+    Ok(())
+}
+
 impl Expansion<'_, '_> {
     fn parameters(
         &mut self,
@@ -1312,7 +1333,10 @@ impl Expansion<'_, '_> {
                 }
                 | TypeParameterKind::Proof {
                     contract: signature,
-                } => self.signature(syntax, &signature, &bound)?,
+                } => {
+                    self.signature(syntax, &signature, &bound)?;
+                    only_proof_binders(syntax, signature.type_parameters)?;
+                }
                 _ => {}
             }
         }

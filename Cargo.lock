@@ -3111,14 +3111,11 @@ dependencies = [
 name = "source-lexer"
 version = "0.1.0"
 dependencies = [
- "arena",
  "diagnostics",
  "memchr",
- "rayon",
  "source-files",
  "source-text",
  "tokens",
- "worker-budget",
 ]
 
 [[package]]
@@ -3130,15 +3127,12 @@ dependencies = [
  "language-core",
  "numeric-literals",
  "numerics",
- "rayon",
- "serde_json",
  "source-files",
  "source-lexer",
  "source-text",
  "symbols",
  "syntax-trees",
  "tokens",
- "worker-budget",
 ]
 
 [[package]]
@@ -3292,14 +3286,11 @@ name = "syntax-trees"
 version = "0.1.0"
 dependencies = [
  "arena",
- "artifacts",
  "diagnostics",
  "language-core",
  "numeric-literals",
  "numerics",
  "record-storage",
- "serde",
- "serde_json",
  "source-files",
  "source-text",
  "syntax-trees-derive",

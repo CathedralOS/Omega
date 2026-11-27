@@ -617,13 +617,30 @@ impl Program<'_> {
                         ExpressionKind::Cast(Box::new(operand))
                     }
                 }
-                terminal_psi::ArrayExtent::Application(_) => {
-                    return Err(refuse_at(
-                        machine,
-                        Unserved::Expression(
-                            "fixed-array length with an unresolved scalar application",
-                        ),
-                    ));
+                terminal_psi::ArrayExtent::Application(application) => {
+                    let input_type = self
+                        .scalar_applications
+                        .scalar_type(application)
+                        .ok_or_else(|| {
+                            refuse_at(
+                                machine,
+                                Unserved::Expression(
+                                    "fixed-array length has no declared scalar application",
+                                ),
+                            )
+                        })?;
+                    let input_value = ValueType::plain(input_type);
+                    let operand = Expression {
+                        call_context: None,
+                        kind: ExpressionKind::ScalarApplication { application },
+                        result: Some(input_value),
+                        source,
+                    };
+                    if input_value == result {
+                        operand.kind
+                    } else {
+                        ExpressionKind::Cast(Box::new(operand))
+                    }
                 }
             };
             return Ok(Expression {

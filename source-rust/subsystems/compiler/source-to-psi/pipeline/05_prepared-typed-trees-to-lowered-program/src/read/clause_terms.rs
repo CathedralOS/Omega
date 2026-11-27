@@ -457,6 +457,26 @@ impl Program<'_> {
                     ExpressionNode::Name(path) if path.static_application.is_valid() => {
                         return Err(unavailable("applied name used as a plain scalar term"));
                     }
+                    ExpressionNode::Name(path)
+                        if self.typed.named_const_declaration(path).is_some_and(|constant| {
+                            constant.pending_target_observation
+                                && constant.evaluated_value.is_none()
+                        }) =>
+                    {
+                        let constant = self
+                            .typed
+                            .named_const_declaration(path)
+                            .expect("checked deferred constant");
+                        let (application, scalar_type) =
+                            self.deferred_scalar_constant(id, constant)?;
+                        (
+                            ScalarTerm::Application {
+                                application,
+                                scalar_type,
+                            },
+                            ValueType::plain(scalar_type),
+                        )
+                    }
                     // The reserved result, by the owner identity stage 02
                     // recorded, never by its spelling. calls_and_outcomes.md:
                     // "The reserved result occurrence belongs to its contract
@@ -572,10 +592,34 @@ impl Program<'_> {
                                             })?
                                     }
                                 }
-                                terminal_psi::ArrayExtent::Application(_) => {
-                                    return Err(unavailable(
-                                        "fixed-array length with an unresolved scalar application",
-                                    ));
+                                terminal_psi::ArrayExtent::Application(application) => {
+                                    let input_scalar = self
+                                        .scalar_applications
+                                        .scalar_type(application)
+                                        .ok_or_else(|| {
+                                            unavailable(
+                                                "fixed-array length has no declared scalar application",
+                                            )
+                                        })?;
+                                    let ScalarType::Integer(input_type) = input_scalar else {
+                                        return Err(unavailable(
+                                            "fixed-array length application is not an integer",
+                                        ));
+                                    };
+                                    let term = ScalarTerm::Application {
+                                        application,
+                                        scalar_type: input_scalar,
+                                    };
+                                    if input_type == scalar_type {
+                                        term
+                                    } else {
+                                        ScalarTerm::integer_widen(input_type, scalar_type, term)
+                                            .map_err(|_| {
+                                                unavailable(
+                                                    "fixed-array length has no count conversion",
+                                                )
+                                            })?
+                                    }
                                 }
                             }
                         } else if shape.length_operation().is_some() {
@@ -1921,6 +1965,31 @@ impl Program<'_> {
             };
             let position = u32::try_from(values.len())
                 .map_err(|_| unavailable("clause term table overflow"))?;
+            // An operation of a const record parameter is the same function
+            // wherever a clause applies it, so its record keeps it once for
+            // the Identity table of a generic check form.
+            if let ClauseOperand::Application {
+                declaration,
+                arguments,
+            } = &operand
+                && let Some((index, generation)) = declaration.supplier
+                && let Some(binding) = self
+                    .static_contracts
+                    .record_binding_mut(symbols::SymbolHandle::from_parts(index, generation))
+            {
+                let applied = terminal_check_tables::mathematics::IdentityOperation {
+                    declaration: *declaration,
+                    domains: arguments
+                        .iter()
+                        .filter_map(|&argument| values.get(argument as usize))
+                        .map(|argument| argument.carrier)
+                        .collect(),
+                    result: carrier,
+                };
+                if !binding.account.applied.contains(&applied) {
+                    binding.account.applied.push(applied);
+                }
+            }
             values.push(ClauseValue { carrier, operand });
             if reading_scalar {
                 let term = crate::body::scalar_clause_value(inferred).ok_or_else(|| {

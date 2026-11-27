@@ -629,7 +629,7 @@ checked against the code but not built.
 | --- | --- | --- | --- |
 | L1 | **One term reader in stage 05.** One function reads an expression into a term at every position. `ClauseScope` supplies only what each name denotes there (a formal, the entry snapshot for `old`, the result, a field of the value being built). | the position axis: a term form served once is served in every clause, domain predicate, definition body and erased argument | readers per term form: 1; refusals that name a position: 0 |
 | L2 | **Four general term forms.** Add an application of a published declaration to argument terms, `Id` at a type, a constructor of a `data` case applied to its fields, and a projection of a field from a term. These are the four forms the old judge's term type had and `Proposition` lacks. The existing scalar, integer and float forms stay as the cases the arithmetic rules work on. | the operand axis: Identity for every type (C5), a call to a machine with no body, a definition with binders (C1) and a quotient relation (C10) become the same four forms, with one reader, one prover route (reflexivity, symmetry, transitivity, congruence, constructor injectivity) and one translation to the kernel | equality forms a new type needs: 0 |
-| L3 | **One signature table in the lowered program**, written by stage 05 and checked once by stage 06 with `check_signature`. Publication fills the three tables the wire format already specifies (indexed theorem rows, mathematical carriers and the Id formation catalog with its shared certificate, [encoding](../../spec/terminal-psi/encoding.md)) from that one table. The wire format does not change: [Psi claim admission](psi_claim_admission.md) says "No codec retirement". An earlier version of this row replaced the three wire tables; a reviewer pointed out that they are ratified. | a table and a wire reader per construct | writers per declaration kind: 1 |
+| L3 | **One signature table in the lowered program**, written by stage 05 and checked once by stage 06 with `check_signature`. Publication fills the three tables the wire format already specifies (indexed theorem rows, mathematical carriers and the Id formation catalog with its shared certificate, [encoding](../../../source-rust/subsystems/compiler/psi/artifact/wire/encoding.md)) from that one table. The wire format does not change: [Psi claim admission](psi_claim_admission.md) says "No codec retirement". An earlier version of this row replaced the three wire tables; a reviewer pointed out that they are ratified. | a table and a wire reader per construct | writers per declaration kind: 1 |
 | L4 | Done in #5715: **a shape the kernel cannot translate is refused.** `MathematicalCoreDecision` has only `Judged`; every translation error refuses the certificate. | a second basis of trust that nobody measures | accepted without the kernel's judgment: 0 |
 | L5 | **Typed identities in `ProofTerm`** in place of `type_identity: String`. | decisions keyed on text | text keys in `ProofTerm`: 0 |
 
@@ -989,9 +989,13 @@ none`, which a clause application now requires. What step 2 did not build:
   a receiver trusts the producer and does not replay carried certificates,
   so nothing would check a published one. A row for laws waits for a
   consumer that reads it.
-- **One table for step 1's goals.** A generic machine's Identity goal still
-  gets its own table per obligation in `equality::discharge`. Only the
-  declarations over data that contains itself are in the shared signature.
+- **One table for step 1's goals.** Built. Each generic check form with
+  const record parameters has one Identity table in the mathematical
+  signature: its carriers, the trait operations its clauses apply and the
+  laws its record parameters' traits state. Stage 06 checks it once and
+  `equality::discharge` extends it with each obligation's own inputs.
+  Concrete modules (closure, witnesses, arrivals) still declare their names
+  per obligation, since they have no trait operations to share.
 - **Projection, and fields of another type.** A field of a case is read only
   through the dispatch that binds it. Data whose case has a field of another
   type is refused, because that type has no carrier in the signature yet.
@@ -1299,6 +1303,21 @@ starts with records.
   strict bound hold on every admitted input. The prover now reduces a
   projection of a pair, so a law can read a field of a computed record. Only
   `gcd` still recurses at a computed value, on fuel with its descent checked.
+- **Structural gcd (2026-11-27).** `gcd` is no longer defined on fuel
+  either. It is `gcd_within(b, a, b)`: Euclid's algorithm with an explicit
+  bound on its steps, recursing on the bound alone. The divisor bounds the
+  steps because each remainder is strictly below its divisor
+  (`divide_bounds`). `gcd_within_agrees` proves by induction on the bound
+  that every bound at least the divisor gives the same answer, the source
+  form of "the counter suffices" in the computed descent ruling, and
+  `gcd_step` turns it into Euclid's step, `gcd(a, b) = gcd(b, mod(a, b))`
+  for a positive `b`. `le_trans` joins the order lemmas. Core now has no
+  machine defined on fuel. The compiler's fuel definition remains for a
+  program's own machine with computed descent; for those, the order's
+  well-foundedness and the sufficiency of the fuel are still not proved, so
+  their recursive equations are not available to a law. The termination
+  spec's "core proves once that this order is well founded" is not yet
+  true of the implementation.
 - **A choice by a computed value** (`rat_eq`, `mod`) is a definition by
   cases of its own over its subject and the variables in scope, so the
   prover computes with it as with any other. In a law, a split on a computed
@@ -1346,6 +1365,44 @@ starts with records.
   specialization receipt and cites the generic law. Customers:
   `generic_machine/pass/twice_at_a_concrete_machine` and
   `generic_machine/pass/cited_at_its_own_machine`, each with its twin.
+- **Generic machines that dispatch (2026-11-27).** A generic mathematical
+  machine's body may dispatch once on a formal, and its laws may argue by
+  cases and induction like any other. Such a body is lowered and read by
+  the signature reader instead of the clause reader, and so is every
+  machine declared inside it. A call of a machine parameter is
+  `ExpressionKind::Applied` with that parameter as its head; a call of a
+  generic machine passes its machines first. In a definition by cases each
+  branch binds the machine parameters itself, ahead of the other formals,
+  so the branches stay closed and `FunctionCases` records the subject and
+  arity past them; the recursion passes the same machines on. A law's
+  `Cases` formal and a split's names count the machine parameters first.
+  A body that is not generic may call or cite a generic machine at
+  concrete machines through the same form: the call no longer names the
+  typed trees' closed copy. Customers: `generic_machine/pass/iterate_keeps_a_fixed_point`,
+  `pass/cited_by_an_ordinary_law` and `pass/called_by_an_ordinary_definition`,
+  each with its twin.
+- **Every generic mathematical body (2026-11-27).** A generic machine may
+  call itself at other machines: each branch of its definition by cases
+  binds the machine parameters, so the recursion passes whichever it
+  names, and a law's induction hypothesis is the law at those machines,
+  with its premises owed there. One that recurses on fuel takes its machine
+  parameters after the fuel in the definition over fuel, its laws over fuel
+  count them among the formals, and a dispatch on a computed value is a
+  definition over them and the formals alike. A call of a generic machine
+  that has a premise owes the premise, stated over its machine parameters
+  and formals, at the machines and arguments it passes. A law reads a
+  generic machine that states nothing in place, its machine parameters
+  standing for the machines the citation passes; such a machine is
+  lowered. Any other body the clause reader cannot read as terms is
+  lowered and read like any other body. A generic machine's own `result`
+  in its clauses is its definition at its machine parameters and formals.
+  Customers: `generic_machine/pass/alternate_keeps_two_fixed_points`,
+  `pass/pick_by_a_computed_value`, `pass/call_owes_its_premise` and
+  `pass/cited_through_a_generic_helper`, each with its twin, and
+  `gcd_then` and `mod_then` over `core/nat.omg` in stage 06's
+  `generic_machine` tests, a generic `gcd` and repeated-subtraction `mod`
+  on fuel with their twins. A concrete machine with a premise is still no
+  machine argument: it is no total function for the parameter to stand for.
 - **The order and subtraction operators (2026-11-25).** `nat.omg` declares
   `<=` and `-` as free public operator machines,
   `machine <= less_or_equal(left: Nat, right: Nat) -> bool` and
@@ -1362,10 +1419,6 @@ starts with records.
   program outside core imports both machines to select them by their
   tokens (`nat_order` fixtures).
 - **Not done:**
-  - A generic mathematical machine whose body dispatches, and a body that
-    is not generic citing or calling a generic machine at concrete
-    machines, which names the typed trees' closed copy and is refused.
-    Nothing in the library does either.
   - `extent.omg`'s contract over `IntervalSet<Nat>` (the plan's
     `extent.omg:219`) is a clause of a runtime boundary trait over generic
     data. It is read by the carrier clause reader when a program reaches

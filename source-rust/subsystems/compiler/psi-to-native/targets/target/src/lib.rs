@@ -62,10 +62,11 @@ pub use foreign_locator::{
     NormalizedForeignLocator, evaluated_syscall_identity_digest, normalize_foreign_locator,
 };
 pub use target_profile::{
-    Architecture, CASE_TAG_BYTE_ALIGNMENT, CASE_TAG_BYTE_SIZE, HostedIntrinsicBundle, NativeTarget,
-    ObjectFormat, ProgramEntryArgument, ProgramEntryCallingConvention,
-    ProgramEntryPhysicalContractPackage, ProgramEntrySchema, ProgramEntrySlotDeclaration,
-    ProgramEntrySlots, ProgramStorageEntryRootRole, TargetProfile, TargetWireIdentityError,
+    Architecture, CASE_TAG_BYTE_ALIGNMENT, CASE_TAG_BYTE_SIZE, HostedIntrinsicBundle,
+    LOADER_STACK_HEADROOM_BYTES, NativeTarget, ObjectFormat, ProgramEntryArgument,
+    ProgramEntryCallingConvention, ProgramEntryPhysicalContractPackage, ProgramEntrySchema,
+    ProgramEntrySlotDeclaration, ProgramEntrySlots, ProgramStorageEntryRootRole, TargetProfile,
+    TargetWireIdentityError, WINDOWS_LOADER_STACK_RESERVE_BYTES,
 };
 pub use target_semantics::{
     SymbolicTargetObservationApplication, TargetEntryStackGuarantee, TargetSemantics, UefiX86_64,

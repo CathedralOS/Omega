@@ -90,7 +90,7 @@ source-owned lowering orchestration. Its adjacent `layout.omg`, `storage.omg`,
 `expressions.omg` and `statements.omg` retain type layouts, owned places and
 transfers, expression evaluation and control. Stable machine/value/field identities
 use the existing memory, call, control and return meanings from the
-[operation vocabulary](../../../wiki/spec/terminal-psi/encoding.md#operation-rows)
+[operation vocabulary](../../../source-rust/subsystems/compiler/psi/artifact/wire/encoding.md#operation-rows)
 and [normal results](../../../wiki/spec/terminal-psi/calls_and_outcomes.md#normal-results).
 It is an internal lowering slice, not another portable artifact format. Full
 Psi publication must additionally retain canonical declaration, result, obligation

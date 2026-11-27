@@ -1293,6 +1293,16 @@ pub enum PackedIntegerOperation {
 pub enum ExpressionKind {
     /// Operand indices refer to the event's source evaluation order.
     Atomic(AtomicOperation),
+    /// In the body of a mathematical machine generic over machines, or of
+    /// one that calls such a machine: a machine parameter applied to its
+    /// arguments, or a generic mathematical machine applied to the machines
+    /// passed for its machine parameters and then its arguments. Only the
+    /// mathematical signature reads it; it has no operation.
+    Applied {
+        head: AppliedHead,
+        machines: Vec<PassedMachine>,
+        arguments: Vec<Expression>,
+    },
     /// Apply the supplied implication to fixed subjects without executing a call.
     /// `source` is one of the machine's proof formals, or a named machine
     /// that does no work, a theorem over indexed data, whose citation is a
@@ -1301,6 +1311,9 @@ pub enum ExpressionKind {
     TheoremApplication {
         source: terminal_psi::TheoremSource,
         arguments: Vec<Expression>,
+        /// One proof for each of the applied contract's own proof
+        /// parameters, such as `inner` in `Step::<inner>(n)`.
+        instantiation: Vec<terminal_psi::TheoremSource>,
     },
     /// The enclosing match's already captured place, never its selector again.
     SavedSubject(arena::Handle<crate::source_state::expression::CompletedValueCapture>),
@@ -1564,6 +1577,25 @@ impl ProofSupply {
             instantiation: Vec::new(),
         }
     }
+}
+
+/// What a mathematical application applies (`ExpressionKind::Applied`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AppliedHead {
+    /// A machine parameter of the machine whose body this is.
+    Parameter(symbols::SymbolHandle),
+    /// A generic mathematical machine.
+    Machine(MachineId),
+}
+
+/// A machine passed for a machine parameter of a generic mathematical
+/// machine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PassedMachine {
+    /// A machine parameter of the machine whose body this is.
+    Parameter(symbols::SymbolHandle),
+    /// A concrete mathematical machine: its definition.
+    Machine(MachineId),
 }
 
 /// The code operand remains separate from every explicit argument. A selected

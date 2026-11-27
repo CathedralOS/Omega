@@ -450,6 +450,7 @@ fn records_with_reference_view_atomic_or_erased_fields_refuse_at_the_unproved_fi
             obligation,
             &goal,
             &[],
+            None,
             &mut storage.at_entry(&mut references, tables),
         ) else {
             panic!("{kind}: missing opaque field identity must be refused");

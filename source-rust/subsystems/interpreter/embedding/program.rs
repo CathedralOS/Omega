@@ -2594,14 +2594,14 @@ pub(crate) mod program {
             installation: Option<&crate::boundary::effects::TerminalRuntimeSupplies>,
             scalars: Option<&psi_scalar_applications::AdmittedScalarApplications>,
         ) -> std::sync::Arc<AdmittedTerminalProgram<'artifact>> {
-            let Some(layouts) = installation.and_then(|supplies| supplies.target_layouts.as_ref())
-            else {
+            let layouts = installation.and_then(|supplies| supplies.target_layouts.as_ref());
+            if layouts.is_none() && scalars.is_none() {
                 return std::sync::Arc::clone(&self.program);
-            };
+            }
             std::sync::Arc::new(AdmittedTerminalProgram {
                 identity: self.program.identity.clone(),
                 catalogs: std::sync::Arc::clone(&self.program.catalogs),
-                target_layouts: Some(std::sync::Arc::clone(layouts)),
+                target_layouts: layouts.map(std::sync::Arc::clone),
                 scalar_geometry: scalars.map(|scalars| std::sync::Arc::clone(scalars.geometry())),
             })
         }
