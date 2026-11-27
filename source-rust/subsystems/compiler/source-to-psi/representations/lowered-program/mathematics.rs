@@ -513,6 +513,12 @@ pub enum SplitSubject {
 pub struct Citation {
     pub evidence: Evidence,
     pub arguments: Vec<TermHandle>,
+    /// Where the body wrote a recursive call whose descent this citation's
+    /// premise states, in a law's induction on fuel. A premise left unproved
+    /// is then reported there, as the descent of that call
+    /// (`wiki/spec/language/termination.md`, "Computed recursive arguments
+    /// in proofs").
+    pub descent: Option<SourceSpan>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

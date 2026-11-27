@@ -4701,6 +4701,7 @@ impl<'p> Converter<'p, '_> {
                 .filter(|&position| position != fuel)
                 .map(|position| at(self, position, total + 1))
                 .collect(),
+            descent: None,
         };
         let last = Citation {
             evidence: Evidence::Statement(lemma),
@@ -4709,6 +4710,7 @@ impl<'p> Converter<'p, '_> {
                 at(self, total, total + 2),
                 at(self, total + 1, total + 2),
             ],
+            descent: None,
         };
         let mut guarded = vec![LawCase::default(); shape.cases()];
         guarded[zero].citations.push(same);
@@ -4882,6 +4884,7 @@ impl<'p> Converter<'p, '_> {
         guarded[zero].citations.push(Citation {
             evidence: Evidence::Statement(guard),
             arguments: vec![rest],
+            descent: None,
         });
         guarded[successor] = at_successor;
         let mut cases = vec![LawCase::default(); shape.cases()];
@@ -5148,6 +5151,7 @@ impl<'p> Converter<'p, '_> {
             arguments: (0..all)
                 .map(|position| self.variable((all - position) as u32))
                 .collect(),
+            descent: None,
         };
         let mut guarded = vec![LawCase::default(); shape.cases()];
         guarded[zero].citations.push(same);
@@ -6899,6 +6903,7 @@ impl<'p> Converter<'p, '_> {
                                 .iter()
                                 .map(|&argument| terms[argument as usize])
                                 .collect(),
+                            descent: None,
                         });
                     }
                 }
@@ -6992,10 +6997,12 @@ impl<'p> Converter<'p, '_> {
                             Citation {
                                 evidence: Evidence::Statement(within.sub_self),
                                 arguments: vec![ranked],
+                                descent: None,
                             },
                             Citation {
                                 evidence: Evidence::Statement(induction),
                                 arguments,
+                                descent: None,
                             },
                         ],
                         ..LawCase::default()
@@ -8159,10 +8166,14 @@ impl<'p> Converter<'p, '_> {
                 // is the hypothesis's premise there.
                 let ranked =
                     self.variable((unfolding.formals - 1 - unfolding.measure) as u32 + scope.depth);
+                // Either lemma's premise `S e ∸ x_r = 0` is the citation's
+                // descent, so a refusal of it names the citation.
+                let descent = call.source.span();
                 if !unfolding.successor {
                     script.citations.push(Citation {
                         evidence: Evidence::Statement(unfolding.exhausted),
                         arguments: vec![next, ranked],
+                        descent,
                     });
                     return Ok(());
                 }
@@ -8171,12 +8182,14 @@ impl<'p> Converter<'p, '_> {
                 script.citations.push(Citation {
                     evidence: Evidence::Statement(unfolding.step),
                     arguments: vec![next, ranked, rest, above],
+                    descent,
                 });
                 let mut arguments = passing;
                 arguments.extend(operands.iter().map(|operand| operand.term));
                 script.citations.push(Citation {
                     evidence: Evidence::Hypothesis { field: 0, at: None },
                     arguments,
+                    descent: None,
                 });
                 return Ok(());
             };
@@ -8187,6 +8200,7 @@ impl<'p> Converter<'p, '_> {
                 script.citations.push(Citation {
                     evidence: Evidence::Statement(unfolding.exhausted),
                     arguments: vec![next],
+                    descent: None,
                 });
                 return Ok(());
             }
@@ -8194,6 +8208,7 @@ impl<'p> Converter<'p, '_> {
             script.citations.push(Citation {
                 evidence: Evidence::Statement(unfolding.step),
                 arguments: vec![next, rest],
+                descent: None,
             });
             let mut arguments = passing;
             arguments.push(rest);
@@ -8201,6 +8216,7 @@ impl<'p> Converter<'p, '_> {
             script.citations.push(Citation {
                 evidence: Evidence::Statement(bound),
                 arguments,
+                descent: None,
             });
             return Ok(());
         }
@@ -8213,6 +8229,7 @@ impl<'p> Converter<'p, '_> {
             script.citations.push(Citation {
                 evidence: Evidence::Fuel,
                 arguments,
+                descent: None,
             });
             return Ok(());
         }
@@ -8249,6 +8266,7 @@ impl<'p> Converter<'p, '_> {
             script.citations.push(Citation {
                 evidence: Evidence::Hypothesis { field, at },
                 arguments,
+                descent: None,
             });
             return Ok(());
         }
@@ -8285,6 +8303,7 @@ impl<'p> Converter<'p, '_> {
             script.citations.push(Citation {
                 evidence: Evidence::Hypothesis { field, at },
                 arguments,
+                descent: None,
             });
             return Ok(());
         }
@@ -8296,6 +8315,7 @@ impl<'p> Converter<'p, '_> {
                 script.citations.push(Citation {
                     evidence: Evidence::Statement(self.signature.laws[cited as usize].statement),
                     arguments: arguments.clone(),
+                    descent: None,
                 });
             }
             if *callee != law
@@ -8305,6 +8325,7 @@ impl<'p> Converter<'p, '_> {
                 script.citations.push(Citation {
                     evidence: Evidence::Statement(equation),
                     arguments,
+                    descent: None,
                 });
             }
             return Ok(());
@@ -8367,6 +8388,7 @@ impl<'p> Converter<'p, '_> {
         script.citations.push(Citation {
             evidence: Evidence::Statement(equation),
             arguments: actuals,
+            descent: None,
         });
     }
 
