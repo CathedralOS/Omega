@@ -6604,6 +6604,7 @@ mod generic_bodies {
         specializations.push(Some(template));
         specializations.push(None);
         TerminalCompilation::Prepared(PreparedCompilation {
+            root_purpose: terminal_check_tables::RootPurpose::Execution,
             arrivals: Vec::new(),
             closure: Ok(closure),
             further: Vec::new(),

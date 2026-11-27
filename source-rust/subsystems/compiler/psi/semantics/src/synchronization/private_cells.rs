@@ -9,15 +9,16 @@ mod storage;
 mod successor;
 mod wait;
 
-use super::progress::{PrivateWaitFailure, ProgressFailure, entry_scalars};
+use super::progress::{PrivateWaitFailure, ProgressFailure, ProgressScope, entry_scalars};
 use super::selected::Summaries;
-use super::spin::SpinWait;
+use super::spin::{SpinWait, spin_observation};
 use activation::{Bindings, Destination, Frame, ScalarArguments};
 use control::{Execution, Frontier};
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
-use storage::Storage;
+use storage::{Location, Storage};
 use terminal_psi::{
-    TargetMachineCallable, TerminalAffineCleanupAction, TerminalModule, Terminator,
+    StructuralAccess, TargetMachineCallable, TerminalAffineCleanupAction, TerminalModule,
+    Terminator,
 };
 
 /// Find a call which can only retry on a permanently unchanged private cell.
@@ -29,13 +30,14 @@ pub fn stuck_private_wait(
     entry: MachineId,
     boundary: impl Fn(BoundaryMachineId) -> Option<SpinWait>,
 ) -> Option<(MachineId, OperationId)> {
-    let failure = private_wait_failure(module, entry, boundary)?;
+    let failure = private_wait_failure(module, entry, ProgressScope::Executable, boundary)?;
     (failure.cause == ProgressFailure::Deadlock).then_some((failure.machine, failure.operation))
 }
 
 pub fn private_wait_failure(
     module: &TerminalModule,
     entry: MachineId,
+    scope: ProgressScope,
     boundary: impl Fn(BoundaryMachineId) -> Option<SpinWait>,
 ) -> Option<PrivateWaitFailure> {
     if !module.types.structural_types.iter().any(|ty| {
@@ -48,7 +50,7 @@ pub fn private_wait_failure(
         return None;
     }
     let selected_entry = module.machine(entry)?;
-    let root_bindings = Bindings {
+    let mut root_bindings = Bindings {
         values: entry_scalars(selected_entry),
         ..Default::default()
     };
@@ -57,11 +59,41 @@ pub fn private_wait_failure(
     }) {
         return None;
     }
+    let mut memory = Storage::default();
+    for parameter in &selected_entry.structural_parameters {
+        let home = if parameter.access == StructuralAccess::SharedBorrow {
+            Location::input(parameter.place)
+        } else {
+            memory.input()
+        };
+        root_bindings.places.insert(parameter.place, home);
+    }
+    if let Some((operation, wait)) = spin_observation(module, selected_entry) {
+        let arguments: Vec<_> = selected_entry
+            .structural_parameters
+            .iter()
+            .map(|formal| terminal_psi::StructuralArgument::whole(formal.place, formal.access))
+            .collect();
+        let cause = wait::apply(
+            &wait,
+            &root_bindings,
+            &mut memory,
+            &arguments,
+            &selected_entry.requires,
+            scope,
+        )
+        .err()?;
+        return Some(PrivateWaitFailure {
+            machine: entry,
+            operation,
+            cause,
+        });
+    }
     let entry = Frame::enter(selected_entry, root_bindings, Destination::Unit)?;
     let mut paths = Frontier::default();
     paths.queue(Execution {
         stack: vec![entry],
-        memory: Storage::default(),
+        memory,
         coverage: Default::default(),
     });
     let mut summaries = Summaries::default();
@@ -73,6 +105,7 @@ pub fn private_wait_failure(
             &mut summaries,
             &mut path,
             &selected_entry.requires,
+            scope,
         ) {
             Some(Advance::Continue) => paths.queue(path),
             Some(Advance::Fork(arms)) => path.fork(&arms, |arm| paths.queue(arm)),
@@ -100,6 +133,7 @@ fn advance<'m>(
     summaries: &mut Summaries,
     path: &mut Execution<'m>,
     requirements: &[semantic_vocabulary::Proposition],
+    scope: ProgressScope,
 ) -> Option<Advance> {
     let certain = path.certain();
     let memory = &mut path.memory;
@@ -135,7 +169,8 @@ fn advance<'m>(
                 TargetMachineCallable::Boundary(id) => match boundary(id) {
                     Some(summary) => summary,
                     None => {
-                        let always_returns = opaque_calls::returns_without_storage(module, id, op, &call)?;
+                        let always_returns =
+                            opaque_calls::returns_without_storage(module, id, op, &call)?;
                         if !always_returns {
                             path.coverage = control::Coverage::Partial;
                         }
@@ -149,7 +184,8 @@ fn advance<'m>(
                 memory,
                 call.structural_arguments,
                 requirements,
-            )?;
+                scope,
+            );
             if let Err(mut cause) = progress {
                 if !certain && cause == ProgressFailure::Deadlock {
                     cause = ProgressFailure::Unproved;

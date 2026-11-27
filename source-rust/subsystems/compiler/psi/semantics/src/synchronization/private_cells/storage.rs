@@ -5,6 +5,7 @@ mod contents;
 mod join;
 mod location;
 pub(super) use join::Arrivals;
+use location::Allocation;
 pub(super) use location::Location;
 
 use super::super::facts::Facts;
@@ -17,7 +18,7 @@ use terminal_psi::StructuralPathSegment as Segment;
 #[derive(Clone, Default)]
 pub(super) struct Storage {
     next_allocation: Rc<Cell<usize>>,
-    contents: Rc<Facts<usize, Stored>>,
+    contents: Rc<Facts<Allocation, Stored>>,
     /// A write through a selected reference establishes its value even
     /// when the individual candidate allocations only receive weak updates.
     selected: Rc<Vec<(Location, Stored)>>,
@@ -51,8 +52,17 @@ impl Storage {
     }
 
     pub(super) fn allocate(&mut self, contents: Stored) -> Location {
-        let allocation = self.next_allocation.get();
-        self.next_allocation.set(allocation + 1);
+        self.allocate_with(contents, Allocation::Private)
+    }
+
+    pub(super) fn input(&mut self) -> Location {
+        self.allocate_with(Stored::Incoming, Allocation::ExclusiveInput)
+    }
+
+    fn allocate_with(&mut self, contents: Stored, home: fn(usize) -> Allocation) -> Location {
+        let id = self.next_allocation.get();
+        let allocation = home(id);
+        self.next_allocation.set(id + 1);
         Rc::make_mut(&mut self.contents).insert(allocation, contents);
         Location::allocation(allocation)
     }
@@ -71,6 +81,9 @@ impl Storage {
             match segment {
                 Segment::Field(_) | Segment::FixedIndex(_) => location.path.push(segment.clone()),
                 Segment::Case(tag) if self.get(&location).tag() == Some(*tag) => {
+                    location.path.push(segment.clone());
+                }
+                Segment::Referent if !location.is_choice() && location.includes_shared() => {
                     location.path.push(segment.clone());
                 }
                 Segment::Referent => {
@@ -116,11 +129,36 @@ impl Storage {
         value
     }
 
+    /// A caller can account for an unknown incoming value. It cannot
+    /// establish progress for a private candidate that this activation left held.
+    pub(super) fn only_caller_can_block(
+        &self,
+        location: &Location,
+        mut can_block: impl FnMut(&Stored) -> bool,
+    ) -> bool {
+        let mut caller = false;
+        let mut local = false;
+        location.each_home(|home, path| {
+            let value = self
+                .contents
+                .get(&home)
+                .unwrap_or(&Stored::Unknown)
+                .project(path);
+            match home {
+                Allocation::SharedInput(_) => caller = true,
+                Allocation::ExclusiveInput(_) if matches!(value, Stored::Incoming) => caller = true,
+                _ => local |= can_block(value),
+            }
+        });
+        caller && !local
+    }
+
     pub(super) fn set(&mut self, location: &Location, new: Stored) {
         let choices = Rc::make_mut(&mut self.selected);
+        let shared = location.includes_shared();
         let mut contained = false;
         choices.retain_mut(|(home, stored)| {
-            if let Some(path) = home.suffix(location) {
+            if !shared && let Some(path) = home.suffix(location) {
                 *stored.project_mut(path) = new.clone();
                 contained = true;
                 return true;
@@ -128,11 +166,14 @@ impl Storage {
             !home.may_be_written_by(location)
         });
         let weak = location.is_choice();
-        if weak && !contained {
+        if weak && !contained && !shared {
             choices.push((location.clone(), new.clone()));
         }
         let contents = Rc::make_mut(&mut self.contents);
         location.each_home(|allocation, path| {
+            if matches!(allocation, Allocation::SharedInput(_)) {
+                return;
+            }
             let value = contents
                 .get_or_insert_with(allocation, Stored::default)
                 .project_mut(path);

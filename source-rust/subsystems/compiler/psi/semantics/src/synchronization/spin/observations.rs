@@ -6,7 +6,7 @@ mod predicate;
 use super::{Comparison, Facts, Scalar, SpinCondition, Subject, Subjects, bind, constant};
 use predicate::{ALWAYS, Guard, NEVER};
 pub(in super::super) use predicate::{Observation, Predicate};
-use semantic_vocabulary::{BlockId, ValueId};
+use semantic_vocabulary::{BlockId, OperationId, ValueId};
 use std::collections::{BTreeMap, VecDeque};
 use terminal_psi::{
     AtomicAccessEvent, Block, Operation, OperationKind, StructuralAccess, StructuralArgument,
@@ -29,7 +29,7 @@ struct Analysis<'a> {
     words: Facts<ValueId, Word>,
     reached: Facts<BlockId, Guard>,
     returned: bool,
-    observations: usize,
+    first_read: Option<OperationId>,
 }
 
 impl Analysis<'_> {
@@ -63,7 +63,7 @@ impl Analysis<'_> {
                     event: AtomicAccessEvent::Load { .. },
                     resident_obligation: None,
                 } => {
-                    self.observations += 1;
+                    self.first_read.get_or_insert(operation.id);
                     Word::Cell(self.resources.subject(*place, path)?)
                 }
                 OperationKind::BooleanNot { operand } => {
@@ -202,7 +202,7 @@ impl Analysis<'_> {
 pub(super) fn derive(
     module: &terminal_psi::TerminalModule,
     machine: &TerminalMachine,
-) -> Option<Predicate> {
+) -> Option<(OperationId, Predicate)> {
     let entry = machine.block(&machine.entry)?;
     let header = match &entry.terminator {
         Terminator::Jump {
@@ -220,7 +220,7 @@ pub(super) fn derive(
         resources: Subjects::at_entry(machine),
         words: Facts::default(),
         reached: Facts::default(),
-        observations: 0,
+        first_read: None,
         returned: false,
     };
     if header != machine.entry {
@@ -271,8 +271,7 @@ pub(super) fn derive(
     }
     (done == incoming.len()
         && analysis.returned
-        && analysis.observations > 0
         && analysis.predicate.retry != NEVER
         && analysis.predicate.retry != ALWAYS)
-        .then_some(analysis.predicate)
+        .then_some((analysis.first_read?, analysis.predicate))
 }

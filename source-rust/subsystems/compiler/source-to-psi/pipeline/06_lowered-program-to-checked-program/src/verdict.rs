@@ -69,6 +69,8 @@ the other two as a `ConflictingUse`.
 
 use diagnostics::Diagnostic;
 use semantic_vocabulary::{MachineId, ObligationId};
+use terminal_check_tables::RootPurpose;
+use terminal_semantics::synchronization::ProgressScope;
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::program::{Branch, Elaboration, SourceOrigin};
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason, UnprovedCause};
@@ -939,7 +941,7 @@ pub(super) fn judge_owing_with_activity(
         Ok(examined) => conclude(
             examined,
             applied,
-            JudgmentSubject::SelectedClosure,
+            JudgmentSubject::SelectedClosure(RootPurpose::Execution),
             &mut further,
         ),
         Err(decided) => decided,
@@ -1329,7 +1331,7 @@ fn affine_plan(
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum JudgmentSubject {
-    SelectedClosure,
+    SelectedClosure(RootPurpose),
     GenericFormOrWitness,
 }
 
@@ -1582,11 +1584,15 @@ fn conclude(
             exceeded,
         });
     }
-    if subject == JudgmentSubject::SelectedClosure
+    if let JudgmentSubject::SelectedClosure(purpose) = subject
         && let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = elaboration.module.entry
         && let Some(failure) = terminal_semantics::synchronization::private_wait_failure(
             &elaboration.module,
             entry,
+            match purpose {
+                RootPurpose::Execution => ProgressScope::Executable,
+                RootPurpose::Inspection => ProgressScope::OpenInterface,
+            },
             |_| None,
         )
     {
@@ -1599,11 +1605,11 @@ fn conclude(
                     RefusalReason::Violation,
                     machine,
                     at,
-                    "synchronization deadlock: this call retries on an unchanged private atomic cell; no other participant can release it",
+                    &format!("synchronization deadlock: {}", failure.cause.detail()),
                 );
                 return fall_back_or_defect(Roster::of(&elaboration).locate(violation));
             }
-            ProgressFailure::Unproved => {
+            ProgressFailure::Unproved | ProgressFailure::UnprovedExternal => {
                 let sources =
                     terminal_check_tables::row(&elaboration.sources, machine, machine, at)?;
                 unproved.push(UnprovedObligation {
@@ -1614,8 +1620,8 @@ fn conclude(
                     },
                     site: source_of(sources, machine, at)?,
                     cause: UnprovedCause::NoDerivation,
-                    detail: "the initial value may keep the call waiting and no other participant can change this private cell".into(),
-                    statement: "cannot prove synchronization progress at this call".into(),
+                    detail: failure.cause.detail().into(),
+                    statement: "cannot prove synchronization progress at this wait".into(),
                     consumed: None,
                 });
             }
@@ -1742,7 +1748,8 @@ fn conclude(
     // Only a published closure carries operation evidence seals. Generic check
     // forms and conformance witnesses are never published (`publication.rs`
     // retains only their elaboration and discharge for advisories).
-    let seals = if subject == JudgmentSubject::SelectedClosure && elaboration.generic_binders.is_empty()
+    let seals = if matches!(subject, JudgmentSubject::SelectedClosure(_))
+        && elaboration.generic_binders.is_empty()
     {
         match discharged.operation_seals(&elaboration) {
             Ok(seals) => seals,
@@ -1892,7 +1899,7 @@ fn judge_compilation_with_activity_and_policy(
                 Ok(examined) => conclude(
                     examined,
                     AppliedContracts::Undecided,
-                    JudgmentSubject::SelectedClosure,
+                    JudgmentSubject::SelectedClosure(prepared.root_purpose),
                     &mut further,
                 ),
                 Err(decided) => decided,

@@ -1,0 +1,129 @@
+//! An inspected supplier can require an incoming cell to become ready.
+//! The runnable consumer has to establish progress for its actual cell.
+
+#[path = "support/program.rs"]
+mod program;
+
+const SOURCE: &str = r#"
+public data Flag { word: AtomicU32; }
+
+machine await_release(flag: @Flag) {
+    let word: u32 = flag.word.load(Receive);
+    transition word == 1 {
+        true -> await_release(flag),
+        _ -> ready()
+    }
+    machine ready() {}
+}
+
+public machine supplied(flag: @Flag) { await_release(flag); }
+machine main() {
+    let mutable flag: Flag;
+    supplied(@flag);
+}
+"#;
+
+#[test]
+fn an_independent_supplier_leaves_the_incoming_cell_to_its_consumer() {
+    let (inspect, report) = program::invoke(SOURCE, &["psi", "inspect", "--machine", "supplied"]);
+    assert!(inspect.status.success(), "{report}");
+    program::assert_silent_return(SOURCE);
+
+    let held = SOURCE.replace(
+        "supplied(@flag);",
+        "flag.word.store(1, Publish); supplied(@flag);",
+    );
+    let (check, report) = program::invoke(&held, &["--check"]);
+    assert!(!check.status.success());
+    assert!(report.contains("synchronization deadlock"), "{report}");
+}
+
+#[test]
+fn inspecting_an_external_wait_keeps_checking_the_continuation() {
+    let source = SOURCE.replace(
+        "await_release(flag); }",
+        "await_release(flag); let mutable held: Flag; held.word.store(1, Publish); await_release(@held); }",
+    );
+    let (inspect, report) = program::invoke(&source, &["psi", "inspect", "--machine", "supplied"]);
+    assert!(!inspect.status.success());
+    assert!(report.contains("synchronization deadlock"), "{report}");
+}
+
+#[test]
+fn an_open_supplier_must_still_discharge_its_private_alternative() {
+    let source = SOURCE
+        .replace(
+            "public machine supplied(flag: @Flag) { await_release(flag); }",
+            "data Choice<'s> { flag: @'s Flag; }
+         public machine supplied(flag: @Flag, first: bool) {
+             let mutable local: Flag;
+             local.word.store(0, Publish);
+             let chosen: Choice = match first {
+                 true -> Choice { flag: flag }, false -> Choice { flag: @local }
+             };
+             await_release(chosen.flag);
+         }",
+        )
+        .replace("supplied(@flag);", "supplied(@flag, false);");
+    let inspect = |source| program::invoke(source, &["psi", "inspect", "--machine", "supplied"]);
+    let (released, report) = inspect(&source);
+    assert!(released.status.success(), "{report}");
+    let held = source.replace("local.word.store(0", "local.word.store(1");
+    let (blocked, report) = inspect(&held);
+    assert!(!blocked.status.success(), "{report}");
+    assert!(report.contains("synchronization"), "{report}");
+}
+
+#[test]
+fn an_exclusive_input_can_defer_only_bytes_its_supplier_has_preserved() {
+    let untouched = SOURCE
+        .replace("word: AtomicU32;", "word: AtomicU32; sibling: AtomicU32;")
+        .replace(
+            "supplied(flag: @Flag) { await_release(flag); }",
+            "supplied(flag: @mutable Flag, input: u32) {
+                flag.sibling.store(input +% 1u32, Publish); await_release(flag);
+            }",
+        )
+        .replace("supplied(@flag);", "supplied(@mutable flag, 1);");
+    let inspect = |source| program::invoke(source, &["psi", "inspect", "--machine", "supplied"]);
+    let (accepted, report) = inspect(&untouched);
+    assert!(accepted.status.success(), "{report}");
+    let replaced = untouched.replace("flag.sibling.store", "flag.word.store");
+    let (rejected, report) = inspect(&replaced);
+    assert!(!rejected.status.success(), "{report}");
+    assert!(
+        report.contains("cannot prove synchronization progress"),
+        "{report}"
+    );
+}
+
+#[test]
+fn inspecting_a_compound_wait_defers_only_the_supplied_part() {
+    let source = r#"
+        public data Flag { word: AtomicU32; }
+        machine await_pair(a: @Flag, b: @Flag) {
+            let left: u32 = a.word.load(Receive);
+            let right: u32 = b.word.load(Receive);
+            transition left == 1 || right == 1 { true -> await_pair(a, b), false -> done() }
+            machine done() {}
+        }
+        public machine supplied(external: @Flag, input: u32) {
+            let mutable local: Flag;
+            local.word.store(0, Publish);
+            await_pair(external, @local);
+        }
+        machine main() {}
+    "#;
+    for (value, expected) in [
+        ("0", None),
+        ("1", Some("synchronization deadlock")),
+        ("input", Some("cannot prove synchronization progress")),
+    ] {
+        let src = source.replace("store(0", &format!("store({value}"));
+        let (inspect, report) = program::invoke(&src, &["psi", "inspect", "--machine", "supplied"]);
+        assert_eq!(inspect.status.success(), expected.is_none(), "{report}");
+        if let Some(expected) = expected {
+            assert!(report.contains(expected), "{report}");
+        }
+    }
+}
