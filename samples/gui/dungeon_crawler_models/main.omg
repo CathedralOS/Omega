@@ -13,7 +13,7 @@ use {system}/console.omg;
 
 data Smoke {
     actors: |actor_state|::ActorSet<2, 4>;
-    controllers: |state_state|::ControllerSet<2, 2>;
+    controllers: |state_state|::ControllerSet<3, 2>;
     intents: |state_state|::IntentSet<2>;
     timer: |actor_state|::Countdown<|configuration|::ATTACK_FRAMES>;
     dungeon: |rooms|::Dungeon<4>;
@@ -21,8 +21,8 @@ data Smoke {
 
 machine hit_matches(origin: |actor_state|::Position, target: |actor_state|::Position, direction: i32, expected: |actor_state|::Position) -> bool
 requires direction >= 0 && direction < 4 {
-    let attacker: |actor_state|::Actor<4> = |actor_state|::Actor { position: origin, vitality: |actor_state|::Vitality { current: 6, maximum: 6 }, attack: |actor_state|::Countdown { remaining: |configuration|::ATTACK_FRAMES - 1 }, facing: direction, faction: 0, active: true };
-    let enemy: |actor_state|::Actor<4> = |actor_state|::Actor { position: target, vitality: |actor_state|::Vitality { current: 2, maximum: 2 }, faction: 1, active: true };
+    let attacker: |actor_state|::Actor<4> = |actor_state|::Actor { position: origin, vitality: |actor_state|::Vitality { current: 6, maximum: 6 }, attack: |actor_state|::Countdown { remaining: |configuration|::ATTACK_FRAMES - 1 }, facing: direction, faction: 0, active: true, .. };
+    let enemy: |actor_state|::Actor<4> = |actor_state|::Actor { position: target, vitality: |actor_state|::Vitality { current: 2, maximum: 2 }, faction: 1, active: true, .. };
     let hit: |actor_state|::Actor<4> = |combat|::strike::<4>(attacker, enemy);
     hit.vitality.current == 1 && hit.position.x == expected.x && hit.position.y == expected.y && hit.room == enemy.room
 }
@@ -44,15 +44,31 @@ machine check_knockback() -> bool {
 }
 
 machine check_misses() -> bool {
-    let attacker: |actor_state|::Actor<4> = |actor_state|::Actor { position: |actor_state|::Position { x: 128, y: 80 }, vitality: |actor_state|::Vitality { current: 6, maximum: 6 }, attack: |actor_state|::Countdown { remaining: |configuration|::ATTACK_FRAMES - 1 }, facing: 1, faction: 0, active: true };
-    let friendly: |actor_state|::Actor<4> = |actor_state|::Actor { position: |actor_state|::Position { x: 140, y: 80 }, vitality: |actor_state|::Vitality { current: 2, maximum: 2 }, faction: 0, active: true };
-    let behind: |actor_state|::Actor<4> = |actor_state|::Actor { position: |actor_state|::Position { x: 116, y: 80 }, vitality: |actor_state|::Vitality { current: 2, maximum: 2 }, faction: 1, active: true };
-    let distant: |actor_state|::Actor<4> = |actor_state|::Actor { position: |actor_state|::Position { x: 160, y: 80 }, vitality: |actor_state|::Vitality { current: 2, maximum: 2 }, faction: 1, active: true };
-    let other_room: |actor_state|::Actor<4> = |actor_state|::Actor { position: |actor_state|::Position { x: 140, y: 80 }, vitality: |actor_state|::Vitality { current: 2, maximum: 2 }, room: 1, faction: 1, active: true };
+    let attacker: |actor_state|::Actor<4> = |actor_state|::Actor { position: |actor_state|::Position { x: 128, y: 80 }, vitality: |actor_state|::Vitality { current: 6, maximum: 6 }, attack: |actor_state|::Countdown { remaining: |configuration|::ATTACK_FRAMES - 1 }, facing: 1, faction: 0, active: true, .. };
+    let friendly: |actor_state|::Actor<4> = |actor_state|::Actor { position: |actor_state|::Position { x: 140, y: 80 }, vitality: |actor_state|::Vitality { current: 2, maximum: 2 }, faction: 0, active: true, .. };
+    let behind: |actor_state|::Actor<4> = |actor_state|::Actor { position: |actor_state|::Position { x: 116, y: 80 }, vitality: |actor_state|::Vitality { current: 2, maximum: 2 }, faction: 1, active: true, .. };
+    let distant: |actor_state|::Actor<4> = |actor_state|::Actor { position: |actor_state|::Position { x: 160, y: 80 }, vitality: |actor_state|::Vitality { current: 2, maximum: 2 }, faction: 1, active: true, .. };
+    let other_room: |actor_state|::Actor<4> = |actor_state|::Actor { position: |actor_state|::Position { x: 140, y: 80 }, vitality: |actor_state|::Vitality { current: 2, maximum: 2 }, room: 1, faction: 1, active: true, .. };
     miss_matches(attacker, friendly) && miss_matches(attacker, behind) && miss_matches(attacker, distant) && miss_matches(attacker, other_room)
 }
 
-machine Smoke::main(smoke: @mutable Smoke) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
+machine check_input(controls: @mutable |state_state|::ControllerSet<3, 2>, intents: @mutable |state_state|::IntentSet<2>) -> bool {
+    controls.bindings[0] = |state_state|::ControllerBinding { actor: 0, source: |state_state|::ControlSource::Input { device: 0 } };
+    controls.bindings[1] = |state_state|::ControllerBinding { actor: 1, source: |state_state|::ControlSource::Input { device: 0 } };
+    controls.bindings[2] = |state_state|::ControllerBinding { actor: 0, source: |state_state|::ControlSource::Input { device: 1 } };
+    controls.count = 2;
+    |routing|::route_input::<3, 2>(controls, intents, 0, |state_state|::Command { direction: 1, attack: true });
+    let second_device: |state_state|::Command = |state_state|::Command { direction: 3, attack: false };
+    |routing|::route_input::<3, 2>(controls, intents, 1, second_device);
+    let live_prefix: bool = intents.items[0].direction == 1 && intents.items[0].attack
+        && intents.items[1].direction == 1 && intents.items[1].attack;
+    controls.count = 3;
+    |routing|::route_input::<3, 2>(controls, intents, 1, second_device);
+    live_prefix && intents.items[0].direction == 3 && !intents.items[0].attack
+        && intents.items[1].direction == 1 && intents.items[1].attack
+}
+
+machine run_model(smoke: @mutable Smoke) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let knockback: bool = check_knockback();
     let misses: bool = check_misses();
     smoke.actors.items[0].vitality = |actor_state|::Vitality { current: 12, maximum: 12 };
@@ -60,18 +76,14 @@ machine Smoke::main(smoke: @mutable Smoke) reaches |process_exit|::ProcessExit +
     smoke.actors.items[0].position = |actor_state|::Position { x: 128, y: 112 };
     smoke.actors.items[0].speed = 2;
     smoke.actors.items[0].active = true;
-    let moving: |actor_state|::Actor<4> = |actor_state|::Actor { position: |actor_state|::Position { x: 128, y: 112 }, vitality: |actor_state|::Vitality { current: 12, maximum: 12 }, room: 0, speed: 2, active: true };
+    let moving: |actor_state|::Actor<4> = |actor_state|::Actor { position: |actor_state|::Position { x: 128, y: 112 }, vitality: |actor_state|::Vitality { current: 12, maximum: 12 }, room: 0, speed: 2, active: true, .. };
     let moved: |actor_state|::Actor<4> = |travel|::move_actor::<4>(moving, @smoke.dungeon, 1, false);
-    smoke.controllers.bindings[0].actor = 0;
-    smoke.controllers.bindings[1].actor = 1;
-    smoke.controllers.count = 2;
     smoke.timer.remaining = |configuration|::ATTACK_FRAMES;
-    smoke.timer = |actor_state|::elapse(smoke.timer);
-    |routing|::route_input(@smoke.controllers, @mutable smoke.intents, 0, |state_state|::Command { direction: 1, attack: true });
-    transition knockback && misses && smoke.actors.items[0].vitality.current == 11
+    smoke.timer = |actor_state|::elapse::<|configuration|::ATTACK_FRAMES>(smoke.timer);
+    let routed: bool = check_input(@mutable smoke.controllers, @mutable smoke.intents);
+    transition routed && knockback && misses && smoke.actors.items[0].vitality.current == 11
         && moved.position.x == 130 && moved.position.y == 112
-        && smoke.timer.remaining == |configuration|::ATTACK_FRAMES - 1
-        && smoke.intents.items[0].direction == 1 && smoke.intents.items[1].attack {
+        && smoke.timer.remaining == |configuration|::ATTACK_FRAMES - 1 {
         true -> passed(),
         _ -> failed()
     }
@@ -81,5 +93,5 @@ machine Smoke::main(smoke: @mutable Smoke) reaches |process_exit|::ProcessExit +
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let mutable entry_storage: Smoke;
-    Smoke::main(@mutable entry_storage);
+    run_model(@mutable entry_storage);
 }

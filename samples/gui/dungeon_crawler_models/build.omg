@@ -1,9 +1,19 @@
 use main.omg as app;
 use {omega}/build/dependency.omg;
+use {omega}/language/core/process_authority.omg as streams;
+use {omega}/language/core/process_exit.omg as process;
 
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "dungeon_models" };
     let engine_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../dungeon_crawler/engine" }));
-    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Bundled { name: "system" }));
+    let allowed: [BoundaryServiceReference; 3] = [
+        Build::service::<|streams|::StandardInput>(builder),
+        Build::service::<|streams|::StandardOutput>(builder),
+        Build::service::<|process|::ProcessExit>(builder)
+    ];
+    let system: DependencyDescription = |dependency|::from_source(Source::Bundled { name: "system" });
+    _ = |dependency|::add(builder, system, @allowed[..]);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::entry_start);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::entry_start);
     Build::bind(builder, macos_arm64::ProgramEntry, |app|::entry_start);
 }

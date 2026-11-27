@@ -1,12 +1,12 @@
 # Hollow
 
-A native macOS dungeon game written in Omega, with an original 256x192 CPU
-framebuffer displayed at 4x scale. Cocoa supplies the window, event pump and
-pixel presentation; gameplay, collision, sprites and rasterization are Omega.
+Hollow is a dungeon game written in Omega for macOS ARM64 and Windows x86-64.
+Omega draws the 256×192 framebuffer and handles gameplay and collision. Cocoa
+and Win32 present the pixels at 4× scale and deliver input.
 
 ## Play
 
-Open `build/native/dungeon_crawler.app` after building.
+Run the native application from the repository root with the command below.
 
 - Arrow keys or WASD: move and face.
 - Space: swing the sword. Holding it repeats attacks.
@@ -40,62 +40,51 @@ actors. Control and actor passes have explicit termination guarantees and
 decreasing slice/work-count witnesses. The interactive application loop does
 not promise termination.
 
-`engine/configuration.omg` defines room and tile geometry, capacities, combat
+`engine/configuration/configuration.omg` defines room and tile geometry, capacities, combat
 timings, movement limits, frame dimensions, event budget and window scale.
 Room layout decorations, spawn positions, health values and sprite artwork
 remain authored campaign content.
 
-## Build
+## Build and run
 
-From the repository root, using the optimized development compiler:
+From the repository root, build Omega and review the game's dependencies for
+the host target. After accepting the decisions in the generated proposal,
+resume the update and run the game.
 
 ```sh
-cargo build -p omega
+mbx build -p omega
 target/debug/omega packages update --project samples/gui/dungeon_crawler
-# Review the generated decisions, then resume the accepted proposal:
 target/debug/omega packages update --resume --project samples/gui/dungeon_crawler
-target/debug/omega --build-dir samples/gui/dungeon_crawler/build/native samples/gui/dungeon_crawler/main.omg
-open samples/gui/dungeon_crawler/build/native/dungeon_crawler.app
+target/debug/omega run --engine native samples/gui/dungeon_crawler/build.omg
 ```
-
-After editing source, refresh the package review before rebuilding. The local
-build and accepted lock are ignored. Only macOS ARM64 has been implemented and
-executed; this sample does not claim Windows or Linux support.
 
 ## Acceptance
 
-The `smoke` application imports the same `engine` package as the windowed game.
-It checks room geometry, wall collision, doorway travel and backtracking,
-directional combat, persistent defeat, key acquisition, locked passage,
-victory, and representative framebuffer pixels. Its authored result is exit 0
-and `PASS: dungeon campaign, collision, combat, pixels`.
+The campaign and component checks are sibling applications that import the
+same engine as the windowed game. Review dependencies in each application's
+directory before its first run.
+
+The campaign covers collision, doorway travel and backtracking, directional
+combat, persistent defeat, the key and locked passage, victory, and selected
+framebuffer pixels. Both engines print
+`PASS: dungeon campaign, collision, combat, pixels` and exit 0 on Windows
+x86-64. The Windows desktop check also opened the 1024×768 window,
+sampled its pixels, and closed it. [Windows verification](https://github.com/CathedralOS/Omega/pull/6499)
 
 ```sh
-target/debug/omega packages update --project samples/gui/dungeon_crawler/smoke
-# Review and resume as above.
-target/debug/omega run --engine native samples/gui/dungeon_crawler/smoke/main.omg
-target/debug/omega run --engine psi samples/gui/dungeon_crawler/smoke/main.omg
+target/debug/omega run --engine native samples/gui/dungeon_crawler_smoke/build.omg
+target/debug/omega run --engine psi samples/gui/dungeon_crawler_smoke/build.omg
 ```
 
-The native desktop regression requires an unlocked macOS desktop, Accessibility
-and Screen Recording access. Close any existing copy, then run:
+The component model uses four rooms, two actors and three controller bindings.
+It checks runtime health, exact movement, knockback and input fan-out. The
+third binding receives input only after the model increases the live count.
+The expected line is `PASS: bounded components and terminating controller fan-out`.
 
 ```sh
-python3 samples/gui/dungeon_crawler/verify_window.py --cycles 2
+target/debug/omega run --engine native samples/gui/dungeon_crawler_models/build.omg
+target/debug/omega run --engine psi samples/gui/dungeon_crawler_models/build.omg
 ```
-
-It launches the original `.app`, requires its window to be on screen, checks
-that actual keyboard input changes rendered pixels, clicks the red close
-button, and verifies that the process exits before the next launch. Captures
-are retained under `build/window-*.png`. It refuses a locked desktop before
-launching or injecting input. The exact refactor's campaign and two original-ID
-launch/input/close cycles are checked before landing; run identities and scoped
-compiler regression comparisons are recorded with the change.
-
-The separate `smoke/models` application checks a four-room/two-actor instance,
-runtime health maximum 12, exact movement and terminating input fan-out. The
-compiler corpus pins generic component/result/window composition and rejects
-invalid generic bounds, unequal windows and nondecreasing mutable traversal.
 
 The standard-library changes add a dimension-checked borrowed framebuffer
 presenter and map Space, A, D and W in the existing macOS keyboard adapter.
