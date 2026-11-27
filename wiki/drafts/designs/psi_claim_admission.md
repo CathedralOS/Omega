@@ -9,7 +9,10 @@ tracking ID under **PROOF-KERNEL-CORE** in [TASKS.md](../../../TASKS.md).
 
 ## Existing implementation and scope
 
-Steps 1 to 3 below have landed. Decoding marks a closed module as received, and the
+Steps 1 to 5 below have landed. Step 5's
+[containment audit](psi_containment_audit.md) keeps untrusted execution closed
+until the guest discard sequence exists. Decoding marks a closed module as
+received, and the
 interpreter's `TerminalProgram::borrow` and `retain` refuse received code. Received
 Psi executes only through `TerminalProgram::admit`, `retain_authorized` or
 `TerminalExecution::start_artifact`, each of which takes the host's
@@ -32,7 +35,7 @@ external-completion providers and dynamic view results) run once in
 received artifact, so inspection skips them and no executed received module
 misses them.
 
-Step 4 has started. Reference contracts and boundary normal qualifications no
+Reference contracts and boundary normal qualifications no
 longer repeat declaration-dependent entailment during execution: an admitted
 program prepares `terminal_semantics::IntrinsicMemberships` once for its exact
 declaration view, including layout and scalar-geometry replacements, and

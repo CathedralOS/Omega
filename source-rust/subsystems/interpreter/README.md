@@ -89,7 +89,10 @@ Until containment of untrusted artifacts is audited, the
 requires the host to explicitly trust an exact producer artifact before running
 it. Received code executes only through the host's `AuthorizedTerminalArtifact`.
 Canonical decoding and safe Rust do not isolate the guest. Inspection works
-without execution trust, under shared input and work limits.
+without execution trust, under shared input and work limits. The
+[containment audit](../../../wiki/drafts/designs/psi_containment_audit.md)
+lists what must exist before untrusted execution opens, chiefly a way to
+discard a faulted, stopped or waiting guest.
 
 The [implementation plan](../../../wiki/drafts/designs/psi_claim_admission.md)
 tracks the API gate, splitting the inspection and preparation decoders, the

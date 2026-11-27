@@ -311,7 +311,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 - **PROOF-KERNEL-CORE.** (covers **PROOF-CONTRACT-MIGRATION**, **QUOTIENT-THEOREM-LIFT**, **PSI-CLAIM-ADMISSION**) Complete [source proofs](wiki/spec/proofs/foundation.md) and [Psi claim admission](wiki/drafts/designs/psi_claim_admission.md).
   - [Proof kernel core audit](wiki/drafts/designs/proof_kernel_core_audit.md): what #2823 removed, the three general rules still needed, the changes to stage 05's clause readers and the build order.
-  - **PSI-CLAIM-ADMISSION.** Prepare interpreter operation plans once, and audit containment before untrusted execution. [Psi admission and interpreter preparation](wiki/drafts/designs/psi_claim_admission.md#implementation-work)
+  - **PSI-CLAIM-ADMISSION.** Untrusted Psi execution stays closed: a faulted, stopped or waiting guest cannot be discarded. Add a discard operation, provider cancellation, late-completion settlement and retained, charged provider storage, then test late completion after discard and an uncooperative provider. [Containment audit](wiki/drafts/designs/psi_containment_audit.md#gaps-before-untrusted-execution)
 
 ## Build-level behavior exclusions
 
