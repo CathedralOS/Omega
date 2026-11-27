@@ -203,10 +203,11 @@ impl PreparedTargetSupply {
         let mut resolved = Vec::<(BoundaryMachineId, MachineId)>::new();
         let mut requirements = Vec::<DemandedRequirement>::new();
         // The module does not change while the walk runs, so its machine
-        // catalog is read once; each round only adds the boundaries it resolved.
-        let mut graph =
-            terminal_semantics::synchronous_calls::SynchronousCallGraph::new(module, None)
-                .map_err(defect)?;
+        // catalog and callable values are built once in these analyses; each
+        // round only applies the boundaries it resolved to the shared values.
+        let analyses =
+            terminal_semantics::synchronous_calls::call_analyses(module).map_err(defect)?;
+        let mut graph = analyses.calls();
         loop {
             let scalar_roots = graph
                 .scalar_evaluation_roots(&roots, target)
