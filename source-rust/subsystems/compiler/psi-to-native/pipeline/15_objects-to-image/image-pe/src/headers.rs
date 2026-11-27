@@ -78,7 +78,8 @@ pub(crate) fn write_pe_headers(bytes: &mut Vec<u8>, input: PeHeaderInput) {
     let dynamic_base = input.has_reloc || input.isa == PeIsa::Aarch64;
     let dll_characteristics: u16 = 0x0100 | if dynamic_base { 0x0040 } else { 0 };
     write_u16(bytes, dll_characteristics);
-    write_u64(bytes, 0x100000);
+    // Hosted entry planning refuses Omega frames that exceed this reserve.
+    write_u64(bytes, target::WINDOWS_LOADER_STACK_RESERVE_BYTES);
     write_u64(bytes, 0x1000);
     write_u64(bytes, 0x100000);
     write_u64(bytes, 0x1000);

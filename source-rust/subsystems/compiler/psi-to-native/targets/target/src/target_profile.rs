@@ -625,7 +625,23 @@ pub enum TargetWireIdentityError {
     LayoutOverflow,
 }
 
+/// The initial-thread stack reserve a Windows executable image declares.
+pub const WINDOWS_LOADER_STACK_RESERVE_BYTES: u64 = 0x10_0000;
+
+/// The default initial-thread stack limit on Linux and macOS.
+pub const POSIX_LOADER_STACK_LIMIT_BYTES: u64 = 8 * 0x10_0000;
+
 impl NativeTarget {
+    /// Stack the operating-system loader gives the initial thread of a hosted
+    /// executable: the image's declared reserve on Windows, and the platform's
+    /// default main-thread limit on Linux and macOS.
+    pub const fn loader_stack_supply_bytes(&self) -> u64 {
+        match self.object_format {
+            ObjectFormat::Coff => WINDOWS_LOADER_STACK_RESERVE_BYTES,
+            ObjectFormat::Elf | ObjectFormat::MachO => POSIX_LOADER_STACK_LIMIT_BYTES,
+        }
+    }
+
     pub fn identity_bytes(&self) -> [u8; 18] {
         let mut bytes = [0u8; 18];
         bytes[0] = match self.architecture {

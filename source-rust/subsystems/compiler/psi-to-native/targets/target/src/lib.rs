@@ -66,6 +66,7 @@ pub use target_profile::{
     ObjectFormat, ProgramEntryArgument, ProgramEntryCallingConvention,
     ProgramEntryPhysicalContractPackage, ProgramEntrySchema, ProgramEntrySlotDeclaration,
     ProgramEntrySlots, ProgramStorageEntryRootRole, TargetProfile, TargetWireIdentityError,
+    WINDOWS_LOADER_STACK_RESERVE_BYTES,
 };
 pub use target_semantics::{
     SymbolicTargetObservationApplication, TargetEntryStackGuarantee, TargetSemantics, UefiX86_64,
