@@ -84,7 +84,7 @@ pub(super) fn dispatch<'m>(
         .as_ref()
         .map_or(Stored::Unknown, |v| storage.get(v));
     let root = frame.machine.structural_place_type(source)?;
-    let zero = if matches!(value, Stored::Zero) {
+    let zero = if value.is_zero() {
         Some(
             crate::runtime_structural_path_tip(module.types.structural_types.iter(), root, path)?
                 .shape

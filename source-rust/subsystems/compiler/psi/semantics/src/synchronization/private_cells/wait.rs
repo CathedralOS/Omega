@@ -28,19 +28,14 @@ pub(super) fn apply(
             let location = locate(cell.subject.parameter, &cell.subject.path)
                 .ok_or(ProgressFailure::Unproved)?;
             let stored = memory.get(&location);
-            let cause = classify(
+            let observation = classify(
                 memory,
                 &location,
                 cell.while_value,
                 cell.update,
                 requirements,
             );
-            if let Some(cause) = cause
-                && !(cause == ProgressFailure::UnprovedExternal
-                    && scope == ProgressScope::OpenInterface)
-            {
-                return Err(cause);
-            }
+            require_progress(observation, scope)?;
             if cell.update != CellUpdate::Observe {
                 memory.set(&location, stored.after_update(cell.update));
             }
@@ -52,25 +47,22 @@ pub(super) fn apply(
                     return (Observation::Unproved, None);
                 };
                 let observation =
-                    match classify(memory, &location, test, CellUpdate::Observe, requirements) {
-                        None => Observation::Known(false),
-                        Some(ProgressFailure::Deadlock) => Observation::Known(true),
-                        Some(ProgressFailure::Unproved | ProgressFailure::UnprovedImport) => {
-                            Observation::Unproved
-                        }
-                        Some(ProgressFailure::UnprovedExternal) => Observation::Supplied,
-                    };
+                    classify(memory, &location, test, CellUpdate::Observe, requirements);
                 let stable = (!location.includes_shared()).then_some(location);
                 (observation, stable)
             });
-            match retry {
-                Observation::Known(false) => Ok(()),
-                Observation::Known(true) => Err(ProgressFailure::Deadlock),
-                Observation::Unproved => Err(ProgressFailure::Unproved),
-                Observation::Supplied if scope == ProgressScope::OpenInterface => Ok(()),
-                Observation::Supplied => Err(ProgressFailure::UnprovedExternal),
-            }
+            require_progress(retry, scope)
         }
+    }
+}
+
+fn require_progress(observation: Observation, scope: ProgressScope) -> Result<(), ProgressFailure> {
+    match observation {
+        Observation::Known(false) | Observation::PendingProvider => Ok(()),
+        Observation::Known(true) => Err(ProgressFailure::Deadlock),
+        Observation::Unproved => Err(ProgressFailure::Unproved),
+        Observation::Supplied if scope == ProgressScope::OpenInterface => Ok(()),
+        Observation::Supplied => Err(ProgressFailure::UnprovedExternal),
     }
 }
 
@@ -80,24 +72,26 @@ fn classify(
     condition: SpinCondition,
     update: CellUpdate,
     requirements: &[Proposition],
-) -> Option<ProgressFailure> {
-    let assess = |stored: &Stored| failure(stored, condition, update, requirements);
-    let cause = assess(&memory.get(location))?;
-    Some(
-        if memory.only_caller_can_block(location, |stored| assess(stored).is_some()) {
-            ProgressFailure::UnprovedExternal
-        } else {
-            cause
-        },
-    )
+) -> Observation {
+    let assess = |stored: &Stored| observation(stored, condition, update, requirements);
+    let result = assess(&memory.get(location));
+    if result != Observation::Known(false)
+        && memory.only_caller_can_block(location, |stored| {
+            assess(stored) != Observation::Known(false)
+        })
+    {
+        Observation::Supplied
+    } else {
+        result
+    }
 }
 
-fn failure(
+fn observation(
     stored: &Stored,
     condition: SpinCondition,
     update: CellUpdate,
     requirements: &[Proposition],
-) -> Option<ProgressFailure> {
+) -> Observation {
     let mut all_block = true;
     let mut can_block = false;
     let visited = stored.visit_scalars(condition.comparison.pivot.scalar_type(), |value| {
@@ -105,12 +99,25 @@ fn failure(
         all_block &= cause == Some(ProgressFailure::Deadlock);
         can_block |= cause.is_some();
     });
-    if visited.is_none() {
-        return condition.failure(None, update, requirements);
+    let unresolved_can_block = condition.failure(None, update, requirements).is_some();
+    if stored.includes_pending_provider() && unresolved_can_block {
+        return if can_block {
+            Observation::Unproved
+        } else {
+            Observation::PendingProvider
+        };
     }
-    can_block.then_some(if all_block {
-        ProgressFailure::Deadlock
+    if visited.is_none() {
+        if unresolved_can_block {
+            Observation::Unproved
+        } else {
+            Observation::Known(false)
+        }
+    } else if all_block && can_block {
+        Observation::Known(true)
+    } else if can_block {
+        Observation::Unproved
     } else {
-        ProgressFailure::Unproved
-    })
+        Observation::Known(false)
+    }
 }

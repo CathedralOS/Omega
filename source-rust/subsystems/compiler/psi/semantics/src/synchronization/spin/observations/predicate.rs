@@ -160,12 +160,11 @@ impl Predicate {
                         Observation::Known(true) => yes,
                         Observation::Known(false) => no,
                         _ if yes == no => yes,
-                        Observation::Supplied
-                            if yes != Observation::Unproved && no != Observation::Unproved =>
-                        {
-                            Observation::Supplied
-                        }
-                        _ => Observation::Unproved,
+                        unknown => [unknown, yes, no]
+                            .into_iter()
+                            .filter(|choice| !matches!(choice, Observation::Known(_)))
+                            .reduce(Observation::and)
+                            .unwrap_or(Observation::Unproved),
                     }
                 }
             };
@@ -181,6 +180,7 @@ pub(in super::super::super) enum Observation {
     Known(bool),
     Unproved,
     Supplied,
+    PendingProvider,
 }
 
 impl Observation {
@@ -189,7 +189,8 @@ impl Observation {
             (Self::Known(false), _) | (_, Self::Known(false)) => Self::Known(false),
             (Self::Known(true), value) | (value, Self::Known(true)) => value,
             (Self::Unproved, _) | (_, Self::Unproved) => Self::Unproved,
-            (Self::Supplied, Self::Supplied) => Self::Supplied,
+            (Self::Supplied, _) | (_, Self::Supplied) => Self::Supplied,
+            (Self::PendingProvider, Self::PendingProvider) => Self::PendingProvider,
         }
     }
 }
