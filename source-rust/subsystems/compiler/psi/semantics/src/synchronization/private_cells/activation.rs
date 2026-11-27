@@ -364,6 +364,27 @@ impl<'m> Frame<'m> {
                 resident_obligation: None,
             } => {
                 let location = memory.locate(bindings, *place, path)?;
+                if let AtomicAccessEvent::CompareExchangeOnce {
+                    expected,
+                    replacement,
+                    custody,
+                    ..
+                } = event
+                {
+                    let result = op.result.structural()?;
+                    let declared = module.structural_type(result.structural_type)?;
+                    let home = super::atomic_attempt::evaluate(
+                        memory,
+                        location,
+                        declared,
+                        result,
+                        *custody,
+                        bindings.values.get(expected).copied(),
+                        bindings.values.get(replacement).copied(),
+                    )?;
+                    bindings.places.insert(result.place, home);
+                    return Some(());
+                }
                 let observed = if event.observes_resident() {
                     let result = op.result.scalar()?;
                     let prior = memory.get(&location).scalar(result.scalar_type);
