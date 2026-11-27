@@ -653,31 +653,39 @@ fn check_outgoing(
         }
     }
 
-    let described_keys: BTreeSet<(OutgoingAuthorityClass, String)> = description
+    let described_keys: BTreeSet<(OutgoingAuthorityClass, &str)> = description
         .outgoing
         .iter()
-        .map(|row| (row.class, row.identity.clone()))
+        .map(|row| (row.class, row.identity.as_str()))
         .collect();
     for (class, identity) in derived_keys.into_keys() {
-        if !described_keys.contains(&(class, identity.clone())) {
+        if !described_keys.contains(&(class, identity.as_str())) {
             return Err(ComponentVerificationRejection::MissingOutgoingAuthority(
                 identity,
             ));
         }
     }
 
+    // Each called requirement reads the first boundary-requirement row that
+    // names it, so keep only the first evidence per identity.
+    let mut boundary_evidence: BTreeMap<&str, OutgoingEvidence> = BTreeMap::new();
+    for row in &description.outgoing {
+        if row.class == OutgoingAuthorityClass::BoundaryRequirement {
+            boundary_evidence
+                .entry(row.identity.as_str())
+                .or_insert(row.evidence);
+        }
+    }
+    let imported: BTreeSet<&str> = description
+        .imports
+        .iter()
+        .map(|slot| slot.requirement_identity.as_str())
+        .collect();
     for requirement in &inventory.called_requirement_identities {
-        let row = description.outgoing.iter().find(|row| {
-            row.class == OutgoingAuthorityClass::BoundaryRequirement && row.identity == *requirement
-        });
-        match row.map(|row| row.evidence) {
+        match boundary_evidence.get(requirement.as_str()) {
             Some(OutgoingEvidence::ProviderSealed(_)) => {}
             Some(OutgoingEvidence::ModuleDerived) => {
-                if !description
-                    .imports
-                    .iter()
-                    .any(|slot| slot.requirement_identity == *requirement)
-                {
+                if !imported.contains(requirement.as_str()) {
                     return Err(ComponentVerificationRejection::UnboundRequirement(
                         requirement.clone(),
                     ));
@@ -724,6 +732,7 @@ fn check_providers(
         }
         let plan = ProviderPlanInput::read(&provider.plan_input, &provider.plan_digest)
             .map_err(ComponentVerificationRejection::InconsistentProviderClosure)?;
+        let planned: BTreeSet<&str> = plan.rows.iter().map(|row| row.requirement).collect();
         if provider
             .requirement_identities
             .windows(2)
@@ -731,17 +740,19 @@ fn check_providers(
             || provider
                 .requirement_identities
                 .iter()
-                .any(|requirement| !plan.rows.iter().any(|row| row.requirement == requirement))
+                .any(|requirement| !planned.contains(requirement.as_str()))
         {
             return Err(ComponentVerificationRejection::InconsistentProviderClosure(
                 "retained requirement claims are not a canonical subset of the complete committed plan",
             ));
         }
+        // The check above proved the claims strictly sorted, so a binary
+        // search finds each plan row's claim.
         for row in plan.rows.iter().filter(|row| {
             provider
                 .requirement_identities
-                .iter()
-                .any(|claimed| claimed == row.requirement)
+                .binary_search_by(|claimed| claimed.as_str().cmp(row.requirement))
+                .is_ok()
         }) {
             let requirement = row.requirement;
             if called.contains(requirement) {

@@ -63,11 +63,10 @@ pub(crate) mod replay {
 
         pub(crate) use selected_instruction_analyses::register_writes::DirectTraversal as ReplayTraversal;
 
-        #[allow(clippy::needless_lifetimes)]
-        pub(crate) fn keyed_homes<'home>(
-            functions: &'home [register_homes::FunctionRegisterHomes],
+        pub(crate) fn keyed_homes(
+            functions: &[register_homes::FunctionRegisterHomes],
         ) -> Result<
-            BTreeMap<MachineId, &'home register_homes::FunctionRegisterHomes>,
+            BTreeMap<MachineId, &register_homes::FunctionRegisterHomes>,
             super::super::AllocatedCalleeSavedRequirementError,
         > {
             let mut keyed = BTreeMap::new();

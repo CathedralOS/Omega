@@ -686,7 +686,6 @@ dependencies = [
  "native-intrinsics",
  "semantic-vocabulary",
  "service-surface",
- "symbols",
  "target",
  "terminal-psi",
  "terminal-semantics",
@@ -2203,7 +2202,6 @@ dependencies = [
  "function-identity",
  "installation-conditions",
  "language-core",
- "layout",
  "layout-plans",
  "native-binding-admission",
  "native-intrinsics",
@@ -2227,7 +2225,6 @@ dependencies = [
  "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
- "terminal-work",
  "wire",
 ]
 
@@ -2251,7 +2248,6 @@ dependencies = [
  "target-provider-admission",
  "terminal-codec",
  "terminal-psi",
- "wire",
 ]
 
 [[package]]
