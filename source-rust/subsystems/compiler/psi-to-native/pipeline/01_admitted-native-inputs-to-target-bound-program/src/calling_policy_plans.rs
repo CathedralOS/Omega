@@ -137,7 +137,7 @@ pub(super) mod scalar_completion {
                         commitment: model.commitment(),
                     }
                 });
-            let conditions = build_scalar_evaluation::evaluate_scalar_applications(
+            let conditions = build_time_evaluation::scalars::evaluate_scalar_applications(
                 &mut observations,
                 primary.target_name(),
                 demand,

@@ -126,7 +126,7 @@ pub(super) fn decode(
             }
             let scalar = |value: &TerminalStorageContents| match value {
                 TerminalStorageContents::Scalar { value, .. } => {
-                    build_value_projection::scalar_result(program, *value)
+                    build_time_evaluation::projection::scalar_result(program, *value)
                 }
                 _ => Err("private placement argument has a non-scalar leaf".into()),
             };

@@ -101,8 +101,7 @@ dependencies = [
  "boundary-applications",
  "build-model",
  "build-providers",
- "build-scalar-evaluation",
- "build-value-projection",
+ "build-time-evaluation",
  "calling-conventions",
  "component-description",
  "declaration-scope",
@@ -303,9 +302,8 @@ dependencies = [
  "build-model",
  "build-output",
  "build-program-launch",
- "build-scalar-evaluation",
  "build-settings",
- "build-value-projection",
+ "build-time-evaluation",
  "declaration-scope",
  "diagnostics",
  "filesystem-authority",
@@ -331,21 +329,6 @@ dependencies = [
  "terminal-semantics",
  "terminal-work",
  "tokens",
-]
-
-[[package]]
-name = "build-invocation"
-version = "0.1.0"
-dependencies = [
- "build-model",
- "build-value-projection",
- "layout-plans",
- "psi-scalar-applications",
- "semantic-vocabulary",
- "terminal-codec",
- "terminal-interpreter",
- "terminal-psi",
- "terminal-work",
 ]
 
 [[package]]
@@ -409,24 +392,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "build-scalar-evaluation"
-version = "0.1.0"
-dependencies = [
- "build-model",
- "proof-applications",
- "psi-provider-selections",
- "psi-scalar-applications",
- "psi-target-layouts",
- "record-storage",
- "semantic-vocabulary",
- "terminal-codec",
- "terminal-interpreter",
- "terminal-psi",
- "terminal-semantics",
- "terminal-work",
-]
-
-[[package]]
 name = "build-settings"
 version = "0.1.0"
 dependencies = [
@@ -440,14 +405,22 @@ dependencies = [
 ]
 
 [[package]]
-name = "build-value-projection"
+name = "build-time-evaluation"
 version = "0.1.0"
 dependencies = [
  "build-model",
+ "layout-plans",
+ "proof-applications",
+ "psi-provider-selections",
+ "psi-scalar-applications",
+ "psi-target-layouts",
+ "record-storage",
  "semantic-vocabulary",
  "terminal-codec",
  "terminal-interpreter",
  "terminal-psi",
+ "terminal-semantics",
+ "terminal-work",
 ]
 
 [[package]]
@@ -1686,7 +1659,7 @@ name = "native-scalar-inputs"
 version = "0.1.0"
 dependencies = [
  "build-providers",
- "build-scalar-evaluation",
+ "build-time-evaluation",
  "interpreter-numeric-imports",
  "numeric-intrinsic-admission",
  "psi-provider-selections",
@@ -3038,10 +3011,8 @@ dependencies = [
  "arena",
  "artifacts",
  "bignum",
- "build-invocation",
  "build-model",
- "build-scalar-evaluation",
- "build-value-projection",
+ "build-time-evaluation",
  "checked-program-to-psi",
  "declaration-scope",
  "diagnostics",
@@ -3098,9 +3069,8 @@ dependencies = [
 name = "source-completion-accounting"
 version = "0.1.0"
 dependencies = [
- "build-invocation",
  "build-model",
- "build-scalar-evaluation",
+ "build-time-evaluation",
  "checked-program-to-psi",
  "diagnostics",
  "record-storage",

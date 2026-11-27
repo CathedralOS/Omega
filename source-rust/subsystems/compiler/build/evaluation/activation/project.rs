@@ -42,7 +42,7 @@ pub(super) fn destination(
     let (Some(field), None) = (fields.next(), fields.next()) else {
         return Err("BuildPlan must contain exactly one product field".into());
     };
-    let selected = build_value_projection::field_value(instance, root, field)?;
+    let selected = build_time_evaluation::projection::field_value(instance, root, field)?;
     let BuildTimeValue::Case { variant, payload } = selected else {
         return Err("BuildPlan.product did not produce a BuildProduct".into());
     };
@@ -142,7 +142,7 @@ pub(super) fn successor_directory(
         .fields()
         .find(|field| program.module().identities.text(field.identity) == Some("package_root"))
         .ok_or("BuildPlan has no package_root field")?;
-    let selected = build_value_projection::field_value(
+    let selected = build_time_evaluation::projection::field_value(
         instance,
         TerminalObservationRoot::ReturnedArgument(0),
         field,
