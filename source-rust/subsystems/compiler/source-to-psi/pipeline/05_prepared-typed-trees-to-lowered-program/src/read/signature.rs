@@ -4129,21 +4129,27 @@ impl<'p> Converter<'p, '_> {
         first: u32,
         members: u32,
     ) -> Checked<Vec<(MachineId, u32, usize, Option<TermHandle>)>> {
+        // A machine declared inside another that dispatches on nothing (a
+        // law's case read in place) is passed through: its calls are its
+        // caller's.
         #[allow(clippy::type_complexity)]
-        let mut reached: Vec<(MachineId, u32, usize, Option<TermHandle>, Vec<MachineId>)> =
-            Vec::new();
+        let mut reached: Vec<(
+            MachineId,
+            Option<(u32, usize, Option<TermHandle>)>,
+            Vec<MachineId>,
+        )> = Vec::new();
         let mut queue = vec![id];
         while let Some(machine) = queue.pop() {
             if reached.iter().any(|(known, ..)| *known == machine) {
                 continue;
             }
-            let Some((member, subject, result)) = self.mutual_member(machine, first, members)?
-            else {
+            let member = self.mutual_member(machine, first, members)?;
+            if member.is_none() && !self.helper(machine) {
                 continue;
-            };
+            }
             let callees = self.dispatch_callees(machine);
             queue.extend(callees.iter().copied());
-            reached.push((machine, member, subject, result, callees));
+            reached.push((machine, member, callees));
         }
         // Those that reach `id` again through the reached machines' calls.
         let reaches = |from: MachineId| {
@@ -4169,7 +4175,9 @@ impl<'p> Converter<'p, '_> {
         let group: Vec<(MachineId, u32, usize, Option<TermHandle>)> = reached
             .iter()
             .filter(|(machine, ..)| *machine == id || reaches(*machine))
-            .map(|(machine, member, subject, result, _)| (*machine, *member, *subject, *result))
+            .filter_map(|&(machine, member, _)| {
+                member.map(|(member, subject, result)| (machine, member, subject, result))
+            })
             .collect();
         for (position, &(machine, member, ..)) in group.iter().enumerate() {
             if self.template(machine).is_some() {
@@ -4192,9 +4200,8 @@ impl<'p> Converter<'p, '_> {
     }
 
     /// The member of the block at `first` that `machine` dispatches on, the
-    /// formal that takes it and its result type, if any, when one of its
-    /// formals is a value of a member: the one its body dispatches on last,
-    /// or else its only formal of the block.
+    /// formal that takes it and its result type, if any, when its body ends
+    /// in a dispatch on a formal that is a value of a member.
     #[allow(clippy::type_complexity)]
     fn mutual_member(
         &mut self,
@@ -4238,11 +4245,8 @@ impl<'p> Converter<'p, '_> {
                 _ => None,
             }
         });
-        let chosen = match dispatched {
-            Some(slot) => candidates.iter().find(|(position, _)| *position == slot),
-            None if candidates.len() == 1 => candidates.first(),
-            None => None,
-        };
+        let chosen =
+            dispatched.and_then(|slot| candidates.iter().find(|(position, _)| *position == slot));
         let Some(&(subject, member)) = chosen else {
             return Ok(None);
         };

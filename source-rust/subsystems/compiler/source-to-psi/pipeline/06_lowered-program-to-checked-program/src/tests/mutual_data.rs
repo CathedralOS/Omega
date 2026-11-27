@@ -723,3 +723,81 @@ fn a_mutual_machine_calling_where_its_premise_fails_is_refused() {
         "{owed:?}"
     );
 }
+
+/// The laws of `REBUILD` with no result, each case a machine declared inside
+/// the law, read in place, that cites the other law.
+const REBUILT: &str = "
+machine rebuild(e: Even) -> Even
+terminates by e
+{
+    transition e {
+        Even::Zero -> Even::Zero,
+        Even::Next { odd } -> Even::Next { odd: rebuild_odd(odd) }
+    }
+}
+
+machine rebuild_odd(o: Odd) -> Odd
+terminates by o
+{
+    transition o {
+        Odd::Next { even } -> Odd::Next { even: rebuild(even) }
+    }
+}
+
+machine rebuild_id(e: Even)
+terminates by e
+ensures
+    |proof|::Identity::<Even>(rebuild(e), e)
+{
+    transition e {
+        Even::Zero -> zero(),
+        Even::Next { odd } -> next(odd)
+    }
+    machine zero() {
+    }
+    machine next(odd: Odd) {
+        rebuild_odd_id(odd);
+    }
+}
+
+machine rebuild_odd_id(o: Odd)
+terminates by o
+ensures
+    |proof|::Identity::<Odd>(rebuild_odd(o), o)
+{
+    transition o {
+        Odd::Next { even } -> next(even)
+    }
+    machine next(even: Even) {
+        rebuild_id(even);
+    }
+}
+";
+
+#[test]
+fn mutual_laws_citing_each_other_inside_a_case_machine_are_judged() {
+    // The group is found through the machines the cases call.
+    let verdicts = judged(&program(&format!("{MUTUAL}{REBUILT}")));
+    all_judged(&verdicts, &["rebuild_id", "rebuild_odd_id"]);
+}
+
+#[test]
+fn a_case_machine_citing_a_law_of_the_group_elsewhere_is_refused() {
+    let source = program(&format!("{MUTUAL}{REBUILT}")).replace(
+        "        rebuild_odd_id(odd);",
+        "        rebuild_odd_id(Odd::Next { even: Even::Zero });",
+    );
+    assert_ne!(
+        source,
+        program(&format!("{MUTUAL}{REBUILT}")),
+        "the case is changed"
+    );
+    // Only the law at the field is the induction's hypothesis.
+    let refused = refusals(&judged(&source));
+    assert!(
+        refused.iter().any(|detail| detail.contains(
+            "law of a mutual induction cited at an argument that is not a field of the dispatched case"
+        )),
+        "{refused:?}"
+    );
+}
