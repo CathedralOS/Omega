@@ -301,7 +301,14 @@ impl<'input> CheckedNativeBinding<'input> {
         let method = methods
             .next()
             .filter(|_| methods.next().is_none())
-            .ok_or_else(|| "full service schema has no unique exact requirement".to_owned())?;
+            .ok_or_else(|| {
+                format!(
+                    "full service schema has no unique exact requirement for `{}`",
+                    application_identity::type_identity::callable_display_signature(
+                        schema_callable
+                    )
+                )
+            })?;
         terminal_semantics::validate_boundary_normal_memberships(module, boundary, method)?;
         if method.completion != boundary.completion {
             return Err("native requirement changes its declared completion".into());
@@ -377,8 +384,14 @@ fn validate_native_declared_types(
     let signature =
         service_surface::declared_type_signature(parameters.iter().copied(), result_text)?;
     if method.declared_type_signature == [0; 32] || method.declared_type_signature != signature {
+        let readable_parameters = parameters
+            .iter()
+            .map(|parameter| application_identity::type_identity::display_type(parameter))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let readable_result = application_identity::type_identity::display_type(result_text);
         return Err(format!(
-            "native declared types differ from their authenticated service signature (parameters {parameters:?}, result `{result_text}`)"
+            "native declared types differ from their authenticated service signature (({readable_parameters}) -> {readable_result})"
         ));
     }
     Ok(())
