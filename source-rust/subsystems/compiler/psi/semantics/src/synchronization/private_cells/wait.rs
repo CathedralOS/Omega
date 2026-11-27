@@ -25,7 +25,7 @@ pub(super) fn apply(
     };
     match &wait.0 {
         WaitRule::Cell(cell) => {
-            let location = locate(cell.parameter, &cell.path).ok_or(ProgressFailure::Unproved)?;
+            let location = locate(cell.subject.parameter, &cell.subject.path).ok_or(ProgressFailure::Unproved)?;
             let stored = memory.get(&location);
             let cause = classify(
                 memory,

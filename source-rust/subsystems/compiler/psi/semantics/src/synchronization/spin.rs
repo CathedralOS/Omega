@@ -30,8 +30,7 @@ pub(super) enum WaitRule {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct CellWait {
-    pub(super) parameter: usize,
-    pub(super) path: Vec<StructuralPathSegment>,
+    pub(super) subject: Subject,
     pub(super) while_value: SpinCondition,
     pub(super) update: CellUpdate,
 }
@@ -130,26 +129,36 @@ pub(super) struct ForwardedWait {
     borrowed: Vec<Subject>,
 }
 
-impl ForwardedWait {
-    /// Substitute the actual borrowed argument for each formal in the predicate.
-    pub(super) fn apply(&self, mut spin: SpinWait) -> Option<SpinWait> {
-        let substitute = |parameter: &mut usize, path: &mut Vec<StructuralPathSegment>| {
-            let supplied = self.borrowed.get(*parameter)?;
-            let mut projected = supplied.path.clone();
-            projected.append(path);
-            *path = projected;
-            *parameter = supplied.parameter;
-            Some(())
-        };
-        match &mut spin.0 {
-            WaitRule::Cell(cell) => substitute(&mut cell.parameter, &mut cell.path)?,
+impl SpinWait {
+    /// Restate every observed place in the consumer's coordinates. A partial
+    /// translation cannot establish the original retry condition.
+    pub(super) fn map_subjects(
+        mut self,
+        mut map: impl FnMut(&mut Subject) -> Option<()>,
+    ) -> Option<Self> {
+        match &mut self.0 {
+            WaitRule::Cell(cell) => map(&mut cell.subject)?,
             WaitRule::Observations(predicate) => {
                 for subject in predicate.inputs() {
-                    substitute(&mut subject.parameter, &mut subject.path)?;
+                    map(subject)?;
                 }
             }
         }
-        Some(spin)
+        Some(self)
+    }
+}
+
+impl ForwardedWait {
+    /// Substitute the actual borrowed argument for each formal in the predicate.
+    pub(super) fn apply(&self, spin: SpinWait) -> Option<SpinWait> {
+        spin.map_subjects(|subject| {
+            let supplied = self.borrowed.get(subject.parameter)?;
+            let mut projected = supplied.path.clone();
+            projected.append(&mut subject.path);
+            subject.path = projected;
+            subject.parameter = supplied.parameter;
+            Some(())
+        })
     }
 }
 
@@ -578,8 +587,7 @@ fn single_cell_wait(
     Some((
         read.site,
         CellWait {
-            parameter: read.cell.parameter,
-            path: read.cell.path,
+            subject: read.cell,
             update: read.update,
             while_value: SpinCondition {
                 comparison,

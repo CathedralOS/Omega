@@ -1,4 +1,4 @@
-//! Put a selected export's observed cell in the importing program's type coordinates.
+//! Put every cell observed by a selected export in the importing program's type coordinates.
 
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 use terminal_psi::{
@@ -18,20 +18,21 @@ pub fn component_spin_wait(
     candidate: MachineId,
 ) -> Option<SpinWait> {
     let body = producer.machine(candidate)?;
-    let mut wait = selected_spin_wait(producer, candidate, |_| None)?;
-    let source = body.structural_parameters.get(wait.parameter)?;
-    let target = receiving.structural_parameters.get(wait.parameter)?;
-    if source.access != target.access {
-        return None;
-    }
-    wait.path = translate_cell(
-        producer,
-        source.structural_type,
-        receiver,
-        target.structural_type,
-        &wait.path,
-    )?;
-    Some(wait)
+    selected_spin_wait(producer, candidate, |_| None)?.map_subjects(|subject| {
+        let source = body.structural_parameters.get(subject.parameter)?;
+        let target = receiving.structural_parameters.get(subject.parameter)?;
+        if source.access != target.access {
+            return None;
+        }
+        subject.path = translate_cell(
+            producer,
+            source.structural_type,
+            receiver,
+            target.structural_type,
+            &subject.path,
+        )?;
+        Some(())
+    })
 }
 
 fn translate_cell(
