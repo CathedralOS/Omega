@@ -111,6 +111,51 @@ fn prepare_subjects(
     Ok((selected, carrier_bounds))
 }
 
+/// Each sum input, then the carrier bounds of each of its fixed-width integer
+/// payloads, in declared case and field order. A payload read denotes the
+/// carrier's zero outside its case, so each bound holds of every value.
+fn prepare_data_subjects(
+    denotation: &mut Denotation,
+    data_subjects: &[DataSubject],
+    data_inputs: &[u32],
+) -> Result<(Vec<u32>, Vec<u32>), BoundedTheoremError> {
+    use semantic_vocabulary::{
+        CanonicalStructuralPathSegment, IntegerCarrier, ScalarReadProjection,
+    };
+    let mut selected = Vec::with_capacity(data_inputs.len());
+    let mut carrier_bounds = Vec::new();
+    for (subject, &input) in data_subjects.iter().zip(data_inputs) {
+        selected.push(input);
+        for (case, fields) in &subject.shape.cases {
+            for &(field, shape) in fields {
+                let super::DataFieldShape::Scalar(ScalarType::Integer(integer)) = shape else {
+                    continue;
+                };
+                if integer.carrier() != IntegerCarrier::Fixed {
+                    continue;
+                }
+                let read = ScalarTerm::StructuralRead {
+                    root: subject.place,
+                    path: vec![
+                        ScalarReadProjection::Static(CanonicalStructuralPathSegment::Case(*case)),
+                        ScalarReadProjection::Static(CanonicalStructuralPathSegment::Field(field)),
+                    ],
+                    scalar_type: ScalarType::Integer(integer),
+                };
+                for lower in [true, false] {
+                    let (_, evidence) = denotation.carrier_bound(&read, lower, &integer)?;
+                    let Term::Constant { declaration, .. } = denotation.arena.get(evidence) else {
+                        return Err(BoundedTheoremError::UnboundSubject);
+                    };
+                    selected.push(declaration);
+                    carrier_bounds.push(declaration);
+                }
+            }
+        }
+    }
+    Ok((selected, carrier_bounds))
+}
+
 /// Append each closed hypothesis type, with the declarations it names, to the
 /// end of `declarations`, and return its type in `arena`. Each hypothesis's
 /// declarations name only each other, so they keep their meaning as a block.
@@ -254,7 +299,8 @@ pub fn denote_bounded_implication_type(
     let ty = denotation.denote(conclusion)?;
     let ty = denotation.arena.insert(Term::Squash { ty });
     let (mut selected, _) = prepare_subjects(&mut denotation, subjects)?;
-    selected.extend(data_inputs);
+    let (data_selected, _) = prepare_data_subjects(&mut denotation, data_subjects, &data_inputs)?;
+    selected.extend(data_selected);
     let mut context = append_hypotheses(
         &mut denotation.arena,
         &mut denotation.declarations,
@@ -314,8 +360,12 @@ pub fn verify_bounded_theorem(
         semantic_axioms,
         &machine_parameters,
     )?;
-    let (mut selected, carrier_bounds) = prepare_subjects(&mut elaboration.denotation, subjects)?;
-    selected.extend(data_inputs);
+    let (mut selected, mut carrier_bounds) =
+        prepare_subjects(&mut elaboration.denotation, subjects)?;
+    let (data_selected, payload_bounds) =
+        prepare_data_subjects(&mut elaboration.denotation, data_subjects, &data_inputs)?;
+    selected.extend(data_selected);
+    carrier_bounds.extend(payload_bounds);
     let hypotheses = append_hypotheses(
         &mut elaboration.denotation.arena,
         &mut elaboration.denotation.declarations,

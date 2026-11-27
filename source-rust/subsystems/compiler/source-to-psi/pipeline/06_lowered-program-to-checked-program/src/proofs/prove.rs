@@ -3953,7 +3953,9 @@ impl<'a> Prover<'a> {
                     }
                     (Ok(image), _) => image,
                     (Err(_), Some(definition)) => definition,
-                    (Err(reason), None) => return Err(reason),
+                    // A read with no arithmetic image, such as a sum input's
+                    // payload, still holds a value of its carrier.
+                    (Err(reason), None) => self.carrier(term, integer, direction).ok_or(reason)?,
                 };
                 Ok(ComparisonSide {
                     literal: bound.literal,

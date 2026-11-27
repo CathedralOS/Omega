@@ -135,26 +135,31 @@ fn closed_mathematical_relation(proposition: &Proposition) -> Result<Option<bool
 
 fn integer_carrier_bound(left: &ScalarTerm, right: &ScalarTerm) -> bool {
     use semantic_vocabulary::{IntegerCarrier, ScalarType};
+    // A value, or a read of a field such as a sum input's payload, holds a
+    // value of its carrier.
+    let carried = |term: &ScalarTerm| match term {
+        ScalarTerm::Value {
+            scalar_type: ScalarType::Integer(integer_type),
+            ..
+        }
+        | ScalarTerm::StructuralRead {
+            scalar_type: ScalarType::Integer(integer_type),
+            ..
+        } => Some(*integer_type),
+        _ => None,
+    };
     let (literal, value, lower) = match (left, right) {
-        (literal @ ScalarTerm::Integer { .. }, value @ ScalarTerm::Value { .. }) => {
-            (literal, value, true)
-        }
-        (value @ ScalarTerm::Value { .. }, literal @ ScalarTerm::Integer { .. }) => {
-            (literal, value, false)
-        }
+        (literal @ ScalarTerm::Integer { .. }, value) => (literal, value, true),
+        (value, literal @ ScalarTerm::Integer { .. }) => (literal, value, false),
         _ => return false,
     };
-    let ScalarTerm::Value {
-        scalar_type: ScalarType::Integer(integer_type),
-        ..
-    } = value
-    else {
+    let Some(integer_type) = carried(value) else {
         return false;
     };
     let Some((literal_type, literal_value)) = literal.integer_value() else {
         return false;
     };
-    if literal_type != *integer_type {
+    if literal_type != integer_type {
         return false;
     }
     // A parameter width has no literal endpoint, so no literal is one. Every
