@@ -41,8 +41,8 @@ use crate::instruction_selection::selection::edge_transfers::EdgeWork;
 use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedAddressBase, SelectedFunction,
     SelectedInstructionKind, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
-    SelectedStructuralTransport, VirtualRegisterId, VirtualRegisterOrigin, terminator_instruction,
-    terminator_successors, terminator_successors_mut,
+    SelectedStructuralTransport, VirtualRegisterId, VirtualRegisterOrigin, terminator_successors,
+    terminator_successors_mut,
 };
 use semantic_vocabulary::{BlockId, OperationId, PlaceId};
 use terminal_psi::{StructuralAccess, StructuralParameterDeclaration};
@@ -56,6 +56,7 @@ pub(crate) fn share(
     owned_copies: &[OwnedCopy],
 ) -> Dissolved {
     let dissolved = dissolve(function, owned_copies);
+    let addresses = WholeSlotAddresses::new(function);
     let mut shared: Vec<(LocalStorageSlotId, LocalStorageSlotId)> = Vec::new();
     for slot in &function.local_storage_slots {
         let LocalStorageSlotId::StructuralBlockParameter { block, place } = slot.id else {
@@ -63,6 +64,7 @@ pub(crate) fn share(
         };
         if let Some(source) = sole_source(
             function,
+            &addresses,
             edge_work,
             block,
             place,
@@ -117,13 +119,15 @@ pub(crate) fn drop_copies(function: &mut SelectedFunction, dissolved: Dissolved)
 fn dissolve(function: &mut SelectedFunction, copies: &[OwnedCopy]) -> Dissolved {
     let mut renames: Vec<(LocalStorageSlotId, LocalStorageSlotId)> = Vec::new();
     let mut dissolved = Dissolved::default();
+    // Nothing renames a slot until the loop ends, so one table serves it.
+    let addresses = WholeSlotAddresses::new(function);
     for copy in copies {
         let Some(
             from @ LocalStorageSlotId::StructuralBlockParameter {
                 block,
                 place: from_place,
             },
-        ) = whole_slot(function, copy.source)
+        ) = addresses.of(function, copy.source)
         else {
             continue;
         };
@@ -159,31 +163,36 @@ fn dissolve(function: &mut SelectedFunction, copies: &[OwnedCopy]) -> Dissolved 
     dissolved
 }
 
-/// The copy's instructions are the loads and stores of its bytes.
+/// The copy's instructions are the loads and stores of its bytes, and every
+/// id in its range is still in the function. One scan marks the ids it meets.
 fn copying_only(function: &SelectedFunction, copy: &OwnedCopy) -> bool {
-    !copy.instructions.is_empty()
-        && function
-            .blocks
-            .iter()
-            .flat_map(|block| block.instructions.iter())
-            .filter(|row| copy.instructions.contains(&row.id.0))
-            .all(|row| {
-                matches!(
-                    row.kind,
-                    SelectedInstructionKind::Load64 { .. }
-                        | SelectedInstructionKind::Load32 { .. }
-                        | SelectedInstructionKind::Load16 { .. }
-                        | SelectedInstructionKind::Load8 { .. }
-                        | SelectedInstructionKind::Store { .. }
-                        | SelectedInstructionKind::AddressOffset { .. }
-                )
-            })
-        && copy.instructions.clone().all(|id| {
-            function
-                .blocks
-                .iter()
-                .any(|block| block.instructions.iter().any(|row| row.id.0 == id))
-        })
+    let range = &copy.instructions;
+    if range.is_empty() {
+        return false;
+    }
+    let mut present = vec![false; (range.end - range.start) as usize];
+    for row in function
+        .blocks
+        .iter()
+        .flat_map(|block| block.instructions.iter())
+    {
+        if !range.contains(&row.id.0) {
+            continue;
+        }
+        if !matches!(
+            row.kind,
+            SelectedInstructionKind::Load64 { .. }
+                | SelectedInstructionKind::Load32 { .. }
+                | SelectedInstructionKind::Load16 { .. }
+                | SelectedInstructionKind::Load8 { .. }
+                | SelectedInstructionKind::Store { .. }
+                | SelectedInstructionKind::AddressOffset { .. }
+        ) {
+            return false;
+        }
+        present[(row.id.0 - range.start) as usize] = true;
+    }
+    present.into_iter().all(|seen| seen)
 }
 
 /// Only the copy writes its slot or place, and only the copy and edges take
@@ -289,6 +298,7 @@ fn rename(function: &mut SelectedFunction, shared: &[(LocalStorageSlotId, LocalS
 /// `place`, when `place` may share it.
 fn sole_source(
     function: &SelectedFunction,
+    addresses: &WholeSlotAddresses,
     edge_work: &[EdgeWork],
     block: BlockId,
     place: PlaceId,
@@ -347,7 +357,7 @@ fn sole_source(
                 let LocalStorageSlotId::StructuralBlockParameter {
                     block: from_block,
                     place: from_place,
-                } = whole_slot(function, pointer)?
+                } = addresses.of(function, pointer)?
                 else {
                     return None;
                 };
@@ -396,36 +406,52 @@ fn declaration(
     rows.iter().find(|row| row.place == place)
 }
 
-/// The local slot `pointer` addresses at offset 0, through the `FrameAddress`
-/// that defines it.
-fn whole_slot(
-    function: &SelectedFunction,
-    pointer: VirtualRegisterId,
-) -> Option<LocalStorageSlotId> {
-    let (VirtualRegisterOrigin::InstructionResult { instruction, .. }
-    | VirtualRegisterOrigin::AbiTransport { instruction, .. }) =
-        function.virtual_registers.get(pointer.0 as usize)?.origin
-    else {
-        return None;
-    };
-    let defining = function
-        .blocks
-        .iter()
-        .flat_map(|block| {
-            block
-                .instructions
-                .iter()
-                .chain(std::iter::once(terminator_instruction(&block.terminator)))
-        })
-        .find(|row| row.id == instruction)?;
-    let SelectedInstructionKind::FrameAddress {
-        slot: FrameStorageSlotId::Local(slot),
-        byte_offset: 0,
-    } = defining.kind
-    else {
-        return None;
-    };
-    Some(slot)
+/// The local slot each instruction addresses at offset 0 when it is a
+/// `FrameAddress`, indexed by instruction id. Sharing asks this for every copy
+/// source and every edge binding, so it reads one table per pass instead of
+/// scanning the function for each pointer's defining instruction.
+struct WholeSlotAddresses(Vec<Option<LocalStorageSlotId>>);
+
+impl WholeSlotAddresses {
+    fn new(function: &SelectedFunction) -> Self {
+        let length = function
+            .instructions_and_terminators()
+            .map(|row| row.id.0 as usize + 1)
+            .max()
+            .unwrap_or(0);
+        let mut slots = vec![None; length];
+        let mut defined = vec![false; length];
+        for row in function.instructions_and_terminators() {
+            // The first instruction in block order with an id is its definition.
+            if std::mem::replace(&mut defined[row.id.0 as usize], true) {
+                continue;
+            }
+            if let SelectedInstructionKind::FrameAddress {
+                slot: FrameStorageSlotId::Local(slot),
+                byte_offset: 0,
+            } = row.kind
+            {
+                slots[row.id.0 as usize] = Some(slot);
+            }
+        }
+        Self(slots)
+    }
+
+    /// The local slot `pointer` addresses at offset 0, through the
+    /// `FrameAddress` that defines it.
+    fn of(
+        &self,
+        function: &SelectedFunction,
+        pointer: VirtualRegisterId,
+    ) -> Option<LocalStorageSlotId> {
+        let (VirtualRegisterOrigin::InstructionResult { instruction, .. }
+        | VirtualRegisterOrigin::AbiTransport { instruction, .. }) =
+            function.virtual_registers.get(pointer.0 as usize)?.origin
+        else {
+            return None;
+        };
+        self.0.get(instruction.0 as usize).copied().flatten()
+    }
 }
 
 /// Only the parameter's own block entry, or a dissolved copy now living in

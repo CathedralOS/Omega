@@ -843,7 +843,8 @@ pub(crate) mod interrupt_installation_guards {
         use super::*;
         use semantic_vocabulary::StructuralTypeId;
         use terminal_psi::StructuralTypeShape;
-        pub(crate) type Layout = crate::instruction_selection::InstalledInterruptOperandLayout;
+        pub(crate) type Layout =
+            legalized_operations::installed_interrupt_geometry::InstalledInterruptOperandLayout;
         fn argument_type(
             source: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
             argument: &terminal_psi::StructuralArgument,

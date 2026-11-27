@@ -21,7 +21,6 @@ abstract-operations = { path = "../../representations/abstract-operations" }
 boundary-applications = { path = "../../representations/operation-evidence/boundary-applications" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 installation-conditions = { path = "../../verification/installation-admission/conditions" }
-operation-evidence = { path = "../../representations/operation-evidence" }
 optimization-selections = { path = "../../../foundation/optimization-selections" }
 provider-admission = { path = "../../verification/provider-admission" }
 runtime-abi = { path = "../../targets/runtime-abi" }

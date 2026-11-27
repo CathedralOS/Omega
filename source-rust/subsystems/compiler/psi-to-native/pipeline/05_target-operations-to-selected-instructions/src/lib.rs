@@ -48,8 +48,7 @@ pub fn select_instructions(
         .contains(optimization_core::Optimization::X86ScaledIndexedLoad);
     let selected = instruction_selection::select_bound_instructions(&bound, &register_environment)
         .map_err(OptimizedSelectionPipelineError::Selection)?;
-    let custody =
-        selected::selection_custody_receipt(&program, &register_environment, &bound, &selected);
+    let custody = selected::selection_custody_receipt(&program, &register_environment, &bound);
     Ok(StagedOptimizedSelectedInstructions {
         body: std::sync::Arc::new(
             physical_program::NativeBodyFacts::retain_selected_body_facts(

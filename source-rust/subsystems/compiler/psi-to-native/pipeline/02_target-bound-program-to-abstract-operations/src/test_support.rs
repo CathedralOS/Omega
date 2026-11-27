@@ -1,21 +1,22 @@
 //! Direct lowering of controlled fixtures without a published deployment selection.
 use super::admit_providers::artifact_lowering_error;
+#[cfg(test)]
+use super::ArtifactLoweringError;
 use super::{
-    AdmittedNativeRealization, ArtifactLoweringError, NativeAdmissionRequest,
-    VerifiedNativeArtifactInput, admit_prepared_native_realization,
+    AdmittedNativeRealization, NativeAdmissionRequest, VerifiedNativeArtifactInput,
+    admit_prepared_native_realization,
 };
 pub use crate::admit_providers::prepare_native_providers;
 pub use crate::selected_execution::lower_native_execution;
 pub use crate::selected_input::NativeExecutionSelection;
 use diagnostics::Diagnostic;
 use provider_admission::realization_error;
-use verified_optimization_input::VerifiedPsiOptimizationInput;
 
-/// Lower the authorized fixture's default entry and attach its optional evidence seals.
-pub fn lower_artifact(
+/// Lower the authorized fixture's default entry for this crate's own tests.
+#[cfg(test)]
+pub(crate) fn lower_default_entry(
     authorization: &psi_authorization::AuthorizedTerminalArtifact,
-    evidence: Option<terminal_codec::EvidenceSeals>,
-) -> Result<VerifiedPsiOptimizationInput, ArtifactLoweringError> {
+) -> Result<verified_optimization_input::VerifiedPsiOptimizationInput, ArtifactLoweringError> {
     let module = authorization.artifact().semantic_module();
     let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = module.entry else {
         return Err(ArtifactLoweringError::TargetSelectionRequired);
@@ -29,15 +30,12 @@ pub fn lower_artifact(
         None,
     )
     .map_err(ArtifactLoweringError::Lowering)?;
-    let mut input = VerifiedPsiOptimizationInput::lowered(plan, authorization.clone(), None)
-        .map_err(|reason| ArtifactLoweringError::TargetContext(reason.to_owned()))?;
-    if let Some(evidence) = evidence {
-        if input.plan().psi != evidence.module {
-            return Err(ArtifactLoweringError::EvidenceForAnotherModule);
-        }
-        input.retain_evidence_seals(evidence.seals);
-    }
-    Ok(input)
+    verified_optimization_input::VerifiedPsiOptimizationInput::lowered(
+        plan,
+        authorization.clone(),
+        None,
+    )
+    .map_err(|reason| ArtifactLoweringError::TargetContext(reason.to_owned()))
 }
 
 pub fn admit_native_realization<'execution>(
