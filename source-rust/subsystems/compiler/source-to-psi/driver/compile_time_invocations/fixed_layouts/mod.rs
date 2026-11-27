@@ -94,9 +94,12 @@ pub(super) struct Layouts<'scope> {
 }
 
 impl<'scope> Layouts<'scope> {
+    /// `dependencies` must be built from `typed` as it is now; one inventory
+    /// serves each scope's declaration closure.
     pub(super) fn demanded(
         typed: &mut TypedTrees,
         scopes: &'scope [FixedLayoutTargetScope],
+        dependencies: &ComputationDependencyRows,
     ) -> Result<Self, Vec<Diagnostic>> {
         if !typed.plan_laid_layouts.is_empty() || !typed.plan_laid_target_layouts.is_empty() {
             return Err(vec![Diagnostic::error(
@@ -160,16 +163,13 @@ impl<'scope> Layouts<'scope> {
             super::frontier::refresh_evaluated_requests(typed)?;
             return Ok(demanded);
         }
-        // Every scope reads the same unchanged program, so one dependency
-        // inventory serves each scope's declaration closure.
-        let dependencies = ComputationDependencyRows::of(typed);
         let mut requests = Vec::new();
         for (scope_index, scope) in scopes.iter().enumerate() {
             if scope.entry_declarations.is_empty() && scope.provider_declarations.is_empty() {
                 continue;
             }
             let selection = scope
-                .demanded_declarations(typed, &dependencies)
+                .demanded_declarations(typed, dependencies)
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
             for (occurrence, storage) in &written_storage {
                 if !selection.contains(typed.refusal_declaration(occurrence.lexical_owner)) {

@@ -14,7 +14,6 @@ use activation::SourceContext;
 
 mod authored_completion;
 use authored_completion::AuthoredCompletions;
-mod storage;
 
 #[derive(Clone, Default)]
 pub(super) enum BodyDemandRequest {
@@ -50,13 +49,17 @@ pub struct ResolveAndTypeRequest {
     pub(super) body_demand: BodyDemandRequest,
 }
 
-#[derive(Clone, record_storage::Record)]
+#[derive(Clone)]
 pub(crate) struct SourceTypingCheckpoint {
     input: Arc<SourceCompletionInput>,
     completions: AuthoredCompletions,
 }
 
-#[derive(Clone, record_storage::Record)]
+/// A typing paused before its remaining bodies complete. Its typed trees
+/// already carry the refusal row of every evaluation request their
+/// declarations hold: preparation records them, and so does each typed cohort
+/// (`type_completed_bodies`).
+#[derive(Clone)]
 struct SourceCompletionInput {
     typing: typing::SeededTypingBase,
     pending_bodies: resolution::DeferredResolvedFrontier,
@@ -65,7 +68,7 @@ struct SourceCompletionInput {
     demand_completed: bool,
 }
 
-#[derive(Clone, record_storage::Record)]
+#[derive(Clone)]
 pub(crate) struct CompletedSource {
     pub accounting: crate::compile_time_invocations::SourceCompletionAccounting,
     pub typed: crate::source_state::TypedTrees,
@@ -210,6 +213,10 @@ impl ResolveAndTypeRequest {
             };
             (typing, frontier, Vec::new())
         };
+        // Each typed cohort records the requests of the whole program it
+        // returns (`type_completed_bodies`). Only a typing that no cohort
+        // completed still needs its requests recorded here.
+        let mut requests_recorded = false;
         match &body_demand {
             BodyDemandRequest::Default => loop {
                 let build_bodies = pending_bodies.pending_machines_in(followup_scope)?;
@@ -226,15 +233,20 @@ impl ResolveAndTypeRequest {
                 (typing, pending_bodies) = timings
                     .record_result(stages::TYPE, || type_completed_bodies(typing, completed))
                     .map_err(|rows| DiagnosticStage::Typing.attribute(rows))?;
+                requests_recorded = true;
             },
             _ => {
-                (typing, pending_bodies) =
+                (typing, pending_bodies, requests_recorded) =
                     complete_demanded_typed_bodies(typing, pending_bodies, &body_demand, timings)?;
             }
         }
-        PreCheckEvaluation::defer_declared_requests(typing.typed_mut())?;
+        if !requests_recorded {
+            PreCheckEvaluation::defer_declared_requests(typing.typed_mut())?;
+        }
+        // The successor's requests are now recorded on its declarations, so
+        // checking that they are would rescan the program to no effect. The
+        // predecessor's refusal is still reported after the successor's.
         if let Some(retained_requests) = retained_requests {
-            PreCheckEvaluation::require_recorded_requests(typing.typed())?;
             retained_requests?;
         }
         pending_pre_checks.push(pre_check);
@@ -435,10 +447,12 @@ fn complete_demanded_typed_bodies(
     (
         typing::SeededTypingBase,
         resolution::DeferredResolvedFrontier,
+        bool,
     ),
     Vec<Diagnostic>,
 > {
     let mut completed_roots = Vec::new();
+    let mut typed_cohort = false;
     loop {
         let selected = timings
             .record_result(stages::RESOLVE, || {
@@ -462,8 +476,9 @@ fn complete_demanded_typed_bodies(
         (typing, pending_bodies) = timings
             .record_result(stages::TYPE, || type_completed_bodies(typing, resolved))
             .map_err(|rows| DiagnosticStage::Typing.attribute(rows))?;
+        typed_cohort = true;
     }
-    Ok((typing, pending_bodies))
+    Ok((typing, pending_bodies, typed_cohort))
 }
 
 fn resolve_eager_bodies(
@@ -553,21 +568,21 @@ impl SourceTypingCheckpoint {
         self,
         timings: &mut CompileTimings,
     ) -> Result<CompletedSource, Vec<Diagnostic>> {
-        if let Some(source) = self.completions.find(&self.input)? {
+        let Self { input, completions } = self;
+        if let Some(source) = completions.find(&input)? {
             return Ok(source);
         }
-        let input = self.input.clone();
-        let Self {
-            input: owned_input,
-            completions,
-        } = self;
+        // Only another clone of this checkpoint can ask for this completion
+        // again, as registered tests do. Keep the input for that lookup only
+        // then: a second owner of it makes the typing below a copy.
+        let retained_input = completions.is_shared().then(|| Arc::clone(&input));
         let SourceCompletionInput {
             mut typing,
             mut pending_bodies,
             pending_pre_checks,
             demand_completed,
             ..
-        } = Arc::unwrap_or_clone(owned_input);
+        } = Arc::unwrap_or_clone(input);
         if !demand_completed {
             (typing, pending_bodies) = complete_pending_bodies(
                 typing,
@@ -577,12 +592,16 @@ impl SourceTypingCheckpoint {
             )?;
         }
         drop(pending_bodies);
-        PreCheckEvaluation::record_continuations(pending_pre_checks, typing.typed_mut())?;
+        // Preparation and every typed cohort since have recorded the
+        // program's requests; only the continuations' authority remains.
+        PreCheckEvaluation::require_rejoined_authorities(&pending_pre_checks)?;
         let source = CompletedSource {
             typed: typing.into_typed(),
             accounting: Default::default(),
         };
-        completions.retain(input, &source)?;
+        if let Some(input) = retained_input {
+            completions.retain(input, &source)?;
+        }
         Ok(source)
     }
 }
@@ -709,25 +728,6 @@ pub struct SourceFrontends {
     entries: Arc<std::sync::Mutex<Vec<Arc<SourceCompletionInput>>>>,
 }
 impl SourceFrontends {
-    pub fn retained_count(&self) -> Result<usize, Vec<Diagnostic>> {
-        self.snapshots().map(|entries| entries.len())
-    }
-
-    pub fn fork(&self) -> Result<Self, Vec<Diagnostic>> {
-        Ok(Self {
-            entries: Arc::new(std::sync::Mutex::new(self.snapshots()?)),
-        })
-    }
-
-    pub fn replace_with(&self, other: &Self) -> Result<(), Vec<Diagnostic>> {
-        let entries = other.snapshots()?;
-        *self.entries.lock().map_err(|_| {
-            vec![Diagnostic::error(
-                "source frontend retention owner is poisoned",
-            )]
-        })? = entries;
-        Ok(())
-    }
     fn snapshots(&self) -> Result<Vec<Arc<SourceCompletionInput>>, Vec<Diagnostic>> {
         self.entries
             .lock()

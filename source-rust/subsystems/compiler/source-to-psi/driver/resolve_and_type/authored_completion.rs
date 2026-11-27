@@ -4,18 +4,23 @@ use diagnostics::Diagnostic;
 
 use super::{CompletedSource, SourceCompletionInput};
 
-#[derive(Clone, Default, record_storage::Record)]
+#[derive(Clone, Default)]
 pub(super) struct AuthoredCompletions {
     entries: Arc<Mutex<Vec<Completion>>>,
 }
 
-#[derive(record_storage::Record)]
 struct Completion {
     input: Arc<SourceCompletionInput>,
     source: CompletedSource,
 }
 
 impl AuthoredCompletions {
+    /// Whether another checkpoint clone holds these completions and so could
+    /// look one up later. No clone can appear once this is the only holder.
+    pub(super) fn is_shared(&self) -> bool {
+        Arc::strong_count(&self.entries) > 1
+    }
+
     pub(super) fn find(
         &self,
         input: &SourceCompletionInput,

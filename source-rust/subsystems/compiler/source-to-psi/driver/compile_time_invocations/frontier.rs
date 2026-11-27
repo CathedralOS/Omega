@@ -4,7 +4,6 @@
 
 use declaration_scope::PackageDeclarationScope;
 use diagnostics::Diagnostic;
-use record_storage::{Record, RecordError, RecordReader, RecordWriter};
 use std::sync::Arc;
 use typed_trees::source_state::TypedTrees;
 use typed_trees::source_state::deferred_refusals::DeferredRequest;
@@ -395,25 +394,14 @@ impl PreCheckEvaluation {
         Self::require_recorded_requests(activation)?;
         Ok(self.clone())
     }
-    /// All continuations refer to this typed program. Preserve the ordering
-    /// of authority and inventory errors while recording its requests once.
-    pub fn record_continuations(
-        continuations: Vec<Self>,
-        typed: &mut TypedTrees,
-    ) -> Result<(), Vec<Diagnostic>> {
-        let mut continuations = continuations.into_iter();
-        if let Some(first) = continuations.next() {
-            first.require_rejoined_authority()?;
-            defer_source_jobs(typed)?;
-        }
-        for pending in continuations {
-            pending.require_rejoined_authority()?;
-        }
-        Ok(())
-    }
-
-    fn require_rejoined_authority(&self) -> Result<(), Vec<Diagnostic>> {
-        if self.needs_scope_check {
+    /// Refuses until every continuation of one typed program has rejoined
+    /// the current declaration authority. The program's requests are already
+    /// recorded on its declarations (`defer_declared_requests`).
+    pub fn require_rejoined_authorities(continuations: &[Self]) -> Result<(), Vec<Diagnostic>> {
+        if continuations
+            .iter()
+            .any(|pending| pending.needs_scope_check)
+        {
             return Err(vec![Diagnostic::error(
                 "source normalization authority has not been rejoined",
             )]);
@@ -421,91 +409,50 @@ impl PreCheckEvaluation {
         Ok(())
     }
 }
-impl Record for PreCheckEvaluation {
-    fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
-        output.record(|output| {
-            "BTE-source-input-7".to_owned().write(output)?;
-            PackageDeclarationScope::write_checkpoint(self.declaration_scope.as_deref(), output)
-        })
-    }
-    fn read<C>(input: &mut RecordReader<'_, C>) -> Result<Self, RecordError> {
-        input.record(|input| {
-            if String::read(input)? != "BTE-source-input-7" {
-                return Err(
-                    input.error("no product route yet: retired source evaluation continuation")
-                );
-            }
-            Ok(Self {
-                declaration_scope: PackageDeclarationScope::read_checkpoint(input)?,
-                needs_scope_check: true,
-            })
-        })
-    }
-}
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::source_inputs::SourceMap;
+    use semantic_vocabulary::PackageKeyIdentity;
+    use source_admission::{SourceOrigin, SourceResolutionStratum};
+    use source_provenance::DependencyScope;
 
-    #[test]
-    fn existing_package_grants_reopen_without_changing_the_checkpoint_bytes() {
-        use semantic_vocabulary::PackageKeyIdentity;
-        use std::collections::BTreeMap;
-
-        #[derive(record_storage::Record)]
-        enum PreviousGrants {
-            Absent,
-            Packages(BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>>),
-        }
-        #[derive(record_storage::Record)]
-        struct PreviousContinuation(String, PreviousGrants);
-
-        let [root, helper] = [1, 2].map(|id| PackageKeyIdentity::from_digest([id; 32]).unwrap());
-        let previous = PreviousGrants::Packages(BTreeMap::from([
-            (root, vec![root, helper]),
-            (helper, vec![helper]),
-        ]));
-        let limits = record_storage::RecordLimits::default();
-        let bytes = record_storage::encode(
-            &PreviousContinuation("BTE-source-input-7".into(), previous),
-            limits,
-        )
-        .unwrap();
-        let reopened: PreCheckEvaluation = record_storage::decode(&bytes, limits).unwrap();
-        let scope = reopened.declaration_scope.as_ref().unwrap();
-        assert!(scope.allows_declaration_selection(root, helper));
-        assert!(!scope.allows_declaration_selection(helper, root));
-        assert_eq!(record_storage::encode(&reopened, limits).unwrap(), bytes);
-    }
-
+    /// A continuation whose package lost a grant refuses its program until it
+    /// rejoins an authority that keeps every grant it had.
     #[test]
     fn retained_requests_require_the_current_source_authority() {
-        let limits = record_storage::RecordLimits::default();
-        let pending = PreCheckEvaluation::new(None);
-        let bytes = record_storage::encode(&pending, limits).unwrap();
-        let mut restored: PreCheckEvaluation = record_storage::decode(&bytes, limits).unwrap();
-        let mut typed = TypedTrees::default();
+        let [root, helper] = [1, 2].map(|id| PackageKeyIdentity::from_digest([id; 32]).unwrap());
+        let scope = |edges: &[(PackageKeyIdentity, PackageKeyIdentity)]| {
+            Some(Arc::new(PackageDeclarationScope::from_direct_dependencies(
+                &[root, helper],
+                edges.iter().copied(),
+            )))
+        };
+        let mut retained = SourceMap::default();
+        retained.add_checked_instance(
+            "root/entry.omg".into(),
+            "",
+            "root".into(),
+            Some(root),
+            SourceOrigin::User,
+            SourceResolutionStratum::Base,
+            DependencyScope::Product,
+        );
+        let current = PreCheckEvaluation::new(scope(&[(root, helper)]));
+        let mut lost = current.clone();
+        assert!(lost.rejoin_source_authority(&retained, scope(&[])).is_err());
 
-        let error = PreCheckEvaluation::record_continuations(vec![restored.clone()], &mut typed)
-            .unwrap_err();
+        let error =
+            PreCheckEvaluation::require_rejoined_authorities(&[current.clone(), lost.clone()])
+                .unwrap_err();
         assert_eq!(
             error[0].message,
             "source normalization authority has not been rejoined"
         );
 
-        restored
-            .rejoin_source_authority(&Default::default(), None)
+        lost.rejoin_source_authority(&retained, scope(&[(root, helper)]))
             .unwrap();
-        PreCheckEvaluation::record_continuations(vec![pending, restored], &mut typed).unwrap();
-        assert!(typed.deferred_refusals.is_empty());
-
-        let mut obsolete = bytes;
-        let marker = b"BTE-source-input-7";
-        let index = obsolete
-            .windows(marker.len())
-            .position(|bytes| bytes == marker)
-            .unwrap();
-        obsolete[index + marker.len() - 1] = b'6';
-        assert!(record_storage::decode::<PreCheckEvaluation>(&obsolete, limits).is_err());
+        PreCheckEvaluation::require_rejoined_authorities(&[current, lost]).unwrap();
     }
 }

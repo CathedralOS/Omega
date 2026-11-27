@@ -14,7 +14,7 @@ Start at [source_to_psi.rs](source_to_psi.rs) for the supported requests. A chec
 
 Three operations can require more source work during one request.
 
-- A [Build](driver/compile_build.rs) can pause at an authored [dependency wait](driver/compile_build/waits/mod.rs). The next interval receives the live values at that source occurrence and the declarations the Build has since acquired.
+- A [Build](driver/compile_build.rs) can pause at an authored [dependency wait](../../../../wiki/spec/build/scoped_execution.md#checked-build-stages). The next interval receives the live values at that source occurrence and the declarations the Build has since acquired.
 - A [Product](driver/compile_product.rs) can discover a provider that needs another body judgment or a layout on a particular target. Its worklist closes when every chosen provider is present in the checked program.
 - A [compile-time invocation](driver/compile_time_invocations.rs) can supply a value required for preparation. Materialized calls, constant arguments and array extents use one [typed caller](driver/compile_time_invocations/typed_invocation.rs). The interpreter receives a checked invocation and returns its value and [evaluation record](representations/evaluation-receipts/accounting.rs).
 
