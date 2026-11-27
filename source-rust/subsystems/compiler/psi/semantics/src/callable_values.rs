@@ -21,11 +21,12 @@ pub use reachable::{
 };
 pub use terminal::{
     CallableValuePreparationError, ReachedBoundaryCalls, boundary_call_reach,
-    project_callable_invocation, project_owned_cleanup_invocation, reached_boundary_calls,
-    stored_callable_definition, terminal_callable_values,
+    boundary_call_reach_in, project_callable_invocation, project_owned_cleanup_invocation,
+    reached_boundary_calls, stored_callable_definition, terminal_callable_values,
     terminal_callable_values_with_boundary_implementations,
     terminal_callable_values_with_error_context,
 };
+pub(crate) use terminal::{bind_declared_implementations, terminal_callable_values_in};
 pub use terminal_psi::execution::callable_reach::{
     CallableFormalInput, CallableInvocation, CallableInvocationSite, CallableInvocationTarget,
     CallableParameter, CallableValuePossibilities, ReachableCallableInvocation,
@@ -301,7 +302,7 @@ pub struct CallableBoundaryImplementation {
     pub machine: MachineId,
 }
 
-impl CallableValueProgram<'_> {
+impl<'a> CallableValueProgram<'a> {
     /// Pass each boundary call's arguments to its selected machine.
     pub fn with_boundary_implementations(
         mut self,
@@ -310,6 +311,171 @@ impl CallableValueProgram<'_> {
         if implementations.is_empty() {
             return Ok(self);
         }
+        let bindings = self.view().checked_bindings(implementations)?;
+        for (_, body) in &mut self.bodies {
+            for invocation in body
+                .invocations
+                .iter_mut()
+                .filter_map(|row| row.value.as_mut().ok())
+            {
+                if let Some(machine) = bound_machine(&bindings, invocation)? {
+                    invocation.target = CallableInvocationTarget::Machine(machine);
+                }
+            }
+        }
+        Ok(self)
+    }
+
+    /// Read this program with no boundary implementation applied.
+    pub fn view(&self) -> CallableValueView<'_> {
+        self.into()
+    }
+
+    pub fn body(&self, machine: MachineId) -> CallableValueResult<&CallableValueBody> {
+        self.view().body(machine)
+    }
+
+    /// Keep the projected rows and bodies without the module references, so
+    /// a holder that outlives one module borrow can store them.
+    pub(crate) fn into_rows(self) -> CallableValueRows {
+        CallableValueRows {
+            graph: self.graph,
+            bodies: self.bodies,
+        }
+    }
+}
+
+/// The rows and bodies of a program projected from a module. The catalog and
+/// structural types come from that module when a view is taken.
+pub(crate) struct CallableValueRows {
+    graph: Vec<DescriptorMachine>,
+    bodies: Vec<(MachineId, CallableValueBody)>,
+}
+
+impl CallableValueRows {
+    /// Read the rows of a program projected from `module`.
+    pub(crate) fn view<'p>(
+        &'p self,
+        module: &'p terminal_psi::TerminalModule,
+    ) -> CallableValueView<'p> {
+        CallableValueView {
+            catalog: &module.execution.callables,
+            structural_types: &module.types.structural_types,
+            graph: &self.graph,
+            bodies: &self.bodies,
+            bindings: &[],
+        }
+    }
+}
+
+/// The selected body of a boundary invocation, if its boundary is bound.
+/// Only an opaque boundary target can take a selected body.
+fn bound_machine(
+    bindings: &[CallableBoundaryImplementation],
+    invocation: &CallableInvocation,
+) -> CallableValueResult<Option<MachineId>> {
+    let Some(boundary) = invocation.boundary else {
+        return Ok(None);
+    };
+    let Ok(index) = bindings.binary_search_by_key(&boundary, |binding| binding.boundary) else {
+        return Ok(None);
+    };
+    if invocation.target != CallableInvocationTarget::Opaque {
+        return Err("callable boundary implementation replaces a non-boundary target");
+    }
+    Ok(Some(bindings[index].machine))
+}
+
+/// A shared program read with selected boundary implementations.
+///
+/// `with_boundary_implementations` rewrites a program that the caller owns.
+/// Provider closure asks about the same module under several binding sets, so
+/// this overlay keeps the program shared and redirects each bound boundary
+/// call when a query reads it. Reads through `view()` give the same answers as
+/// the rewritten program.
+pub struct BoundCallableValues<'p> {
+    values: CallableValueView<'p>,
+    /// Sorted by boundary, one body per boundary.
+    bindings: Vec<CallableBoundaryImplementation>,
+}
+
+impl<'p> BoundCallableValues<'p> {
+    /// Refuses the bindings `with_boundary_implementations` refuses, with the
+    /// same reason.
+    pub fn new(
+        values: impl Into<CallableValueView<'p>>,
+        implementations: &[CallableBoundaryImplementation],
+    ) -> CallableValueResult<Self> {
+        let values = values.into();
+        let bindings = values.checked_overlay(implementations)?;
+        Ok(Self { values, bindings })
+    }
+
+    pub fn bindings(&self) -> &[CallableBoundaryImplementation] {
+        &self.bindings
+    }
+
+    pub fn view(&self) -> CallableValueView<'_> {
+        self.into()
+    }
+
+    pub(crate) fn into_bindings(self) -> Vec<CallableBoundaryImplementation> {
+        self.bindings
+    }
+}
+
+/// How every query reads a program: its rows and bodies, with each bound
+/// boundary call redirected to the selected machine. It only borrows, so copy
+/// it freely.
+#[derive(Clone, Copy)]
+pub struct CallableValueView<'p> {
+    pub catalog: &'p TerminalCallableCatalog,
+    pub structural_types: &'p [StructuralTypeDeclaration],
+    graph: &'p [DescriptorMachine],
+    bodies: &'p [(MachineId, CallableValueBody)],
+    /// Sorted by boundary, one body per boundary.
+    bindings: &'p [CallableBoundaryImplementation],
+}
+
+impl<'p, 'a: 'p> From<&'p CallableValueProgram<'a>> for CallableValueView<'p> {
+    fn from(program: &'p CallableValueProgram<'a>) -> Self {
+        Self {
+            catalog: program.catalog,
+            structural_types: program.structural_types,
+            graph: &program.graph,
+            bodies: &program.bodies,
+            bindings: &[],
+        }
+    }
+}
+
+impl<'p, 'q: 'p> From<&'p BoundCallableValues<'q>> for CallableValueView<'p> {
+    fn from(values: &'p BoundCallableValues<'q>) -> Self {
+        values.values.with_bindings(&values.bindings)
+    }
+}
+
+impl<'p> CallableValueView<'p> {
+    /// Read the same program through bindings that `checked_overlay` already
+    /// accepted.
+    pub(crate) fn with_bindings(self, bindings: &'p [CallableBoundaryImplementation]) -> Self {
+        Self { bindings, ..self }
+    }
+
+    pub fn body(&self, machine: MachineId) -> CallableValueResult<&'p CallableValueBody> {
+        self.bodies
+            .binary_search_by_key(&machine, |(id, _)| *id)
+            .ok()
+            .map(|position| &self.bodies[position].1)
+            .ok_or("callable provenance has no exact machine body")
+    }
+
+    /// Sort the bindings and refuse a boundary bound twice or a body the
+    /// program does not have.
+    fn checked_bindings(
+        &self,
+        implementations: &[CallableBoundaryImplementation],
+    ) -> CallableValueResult<Vec<CallableBoundaryImplementation>> {
         let mut bindings = implementations.to_vec();
         bindings.sort_unstable_by_key(|binding| binding.boundary);
         if bindings
@@ -321,27 +487,57 @@ impl CallableValueProgram<'_> {
         for binding in &bindings {
             self.body(binding.machine)?;
         }
-        for (_, body) in &mut self.bodies {
+        Ok(bindings)
+    }
+
+    /// The bindings `with_boundary_implementations` would apply, checked the
+    /// same way but without rewriting any body.
+    fn checked_overlay(
+        &self,
+        implementations: &[CallableBoundaryImplementation],
+    ) -> CallableValueResult<Vec<CallableBoundaryImplementation>> {
+        if implementations.is_empty() {
+            return Ok(Vec::new());
+        }
+        let bindings = self.checked_bindings(implementations)?;
+        for (_, body) in self.bodies {
             for invocation in body
                 .invocations
-                .iter_mut()
-                .filter_map(|row| row.value.as_mut().ok())
+                .iter()
+                .filter_map(|row| row.value.as_ref().ok())
             {
-                let Some(boundary) = invocation.boundary else {
-                    continue;
-                };
-                let Ok(index) =
-                    bindings.binary_search_by_key(&boundary, |binding| binding.boundary)
-                else {
-                    continue;
-                };
-                if invocation.target != CallableInvocationTarget::Opaque {
-                    return Err("callable boundary implementation replaces a non-boundary target");
-                }
-                invocation.target = CallableInvocationTarget::Machine(bindings[index].machine);
+                bound_machine(&bindings, invocation)?;
             }
         }
-        Ok(self)
+        Ok(bindings)
+    }
+
+    /// The invocation as this view reads it: a bound boundary call targets its
+    /// selected machine.
+    pub fn bound<'i>(
+        &self,
+        invocation: &'i CallableInvocation,
+    ) -> CallableValueResult<std::borrow::Cow<'i, CallableInvocation>> {
+        Ok(match bound_machine(self.bindings, invocation)? {
+            Some(machine) => {
+                let mut bound = invocation.clone();
+                bound.target = CallableInvocationTarget::Machine(machine);
+                std::borrow::Cow::Owned(bound)
+            }
+            None => std::borrow::Cow::Borrowed(invocation),
+        })
+    }
+
+    pub(crate) fn structural_actual_matches(
+        &self,
+        actual: (StructuralTypeId, StructuralAccess),
+        formal: (StructuralTypeId, StructuralAccess),
+    ) -> bool {
+        crate::references::reference_views::structural_actual_matches(
+            self.structural_types,
+            actual,
+            formal,
+        )
     }
 
     pub(crate) fn validate_occurrence(
@@ -350,7 +546,7 @@ impl CallableValueProgram<'_> {
         invocation: &CallableInvocation,
     ) -> CallableValueResult<()> {
         let body = self.body(caller)?;
-        if body.invocation(invocation.site)? != invocation
+        if *self.bound(body.invocation(invocation.site)?)? != *invocation
             || invocation.operation != invocation.site.operation()
             || invocation.structural_actual_types.len() != invocation.structural_arguments.len()
             || invocation
@@ -470,7 +666,7 @@ impl CallableValueProgram<'_> {
                         })
                 };
                 let mut analysis =
-                    DescriptorAnalysis::with_reference_slots(self.structural_types, &self.graph);
+                    DescriptorAnalysis::with_reference_slots(self.structural_types, self.graph);
                 let left = analysis
                     .location(caller, invocation.position, location)
                     .or_else(|| direct(location).then(|| location.clone()));
@@ -492,16 +688,6 @@ impl CallableValueProgram<'_> {
             }
         }
         Ok(CallableActualValue::Value(query))
-    }
-
-    pub(crate) fn structural_actual_matches(
-        &self,
-        actual: (StructuralTypeId, StructuralAccess),
-        formal: (StructuralTypeId, StructuralAccess),
-    ) -> bool {
-        crate::references::reference_views::structural_actual_matches(
-            self.structural_types, actual, formal,
-        )
     }
 
     pub(crate) fn validate_actuals(
@@ -593,15 +779,7 @@ impl CallableValueProgram<'_> {
         Ok(())
     }
 
-    pub fn body(&self, machine: MachineId) -> CallableValueResult<&CallableValueBody> {
-        self.bodies
-            .binary_search_by_key(&machine, |(id, _)| *id)
-            .ok()
-            .map(|position| &self.bodies[position].1)
-            .ok_or("callable provenance has no exact machine body")
-    }
-
-    fn flow(&self, machine: MachineId) -> CallableValueResult<&DescriptorMachine> {
+    fn flow(&self, machine: MachineId) -> CallableValueResult<&'p DescriptorMachine> {
         let mut rows = self.graph.iter().filter(|row| row.id == machine);
         let row = rows.next().ok_or("callable provenance flow is absent")?;
         if rows.next().is_some() {
@@ -659,9 +837,11 @@ impl CallableValueProgram<'_> {
                             contract: *contract,
                         })
                     }
-                    CallableDefinition::Invocation(position) => {
-                        Source::Invocation(body.primary_invocation(*position)?.clone(), None)
-                    }
+                    CallableDefinition::Invocation(position) => Source::Invocation(
+                        self.bound(body.primary_invocation(*position)?)?
+                            .into_owned(),
+                        None,
+                    ),
                     CallableDefinition::Opaque => Source::Ceiling,
                     CallableDefinition::Unsupported => {
                         return Err("callable provenance uses an unsupported scalar definition");
@@ -736,7 +916,7 @@ impl CallableValueProgram<'_> {
             return Err("callable storage query has a stale observation cut");
         }
         let mut analysis =
-            DescriptorAnalysis::with_reference_slots(self.structural_types, &self.graph);
+            DescriptorAnalysis::with_reference_slots(self.structural_types, self.graph);
         let incoming_borrow = flow.places.iter().any(|place| {
             place.place == observed.root
                 && matches!(place.definition,
@@ -778,7 +958,7 @@ impl CallableValueProgram<'_> {
         if !unresolved_address
             && let Some(sources) = crate::descriptor_results::unchanged_stored_projection_sources_in(
                 self.structural_types,
-                &self.graph,
+                self.graph,
                 &mut analysis,
                 machine,
                 position,
@@ -881,7 +1061,8 @@ impl CallableValueProgram<'_> {
                     && body.has_primary_invocation(*producer)
                 {
                     result.push(Source::Invocation(
-                        body.primary_invocation(*producer)?.clone(),
+                        self.bound(body.primary_invocation(*producer)?)?
+                            .into_owned(),
                         Some(arrival.clone()),
                     ));
                     continue;
@@ -997,7 +1178,7 @@ struct CallableQueryState {
 }
 
 struct Solver<'a, 'program> {
-    program: &'a CallableValueProgram<'program>,
+    program: CallableValueView<'program>,
     // Discovery order is the solver's evaluation order. Only this compact
     // ordinal roster is sorted for repeated lookup of actual query rows.
     queries: Vec<CallableQueryState>,
@@ -1184,12 +1365,12 @@ impl Solver<'_, '_> {
     }
 }
 
-pub fn resolve_callable_value(
-    program: &CallableValueProgram<'_>,
+pub fn resolve_callable_value<'p>(
+    program: impl Into<CallableValueView<'p>>,
     query: CallableValueQuery,
 ) -> CallableValueResult<CallableValuePossibilities> {
     let mut solver = Solver {
-        program,
+        program: program.into(),
         queries: Vec::new(),
         lookup: Vec::new(),
         reached_inputs: None,
@@ -1227,7 +1408,7 @@ pub fn resolve_callable_value(
 
 // The outer reachability fixed point supplies only actual reached inputs.
 fn resolve_reached_value(
-    program: &CallableValueProgram<'_>,
+    program: CallableValueView<'_>,
     query: CallableValueQuery,
     inputs: &[(CallableFormalInput, CallableValuePossibilities)],
 ) -> CallableValueResult<(CallableValuePossibilities, Vec<CallableFormalInput>)> {

@@ -71,7 +71,7 @@
 2 source-rust/subsystems/compiler/psi/semantics/src/structural/primitive_place.rs
 2 source-rust/subsystems/compiler/psi/semantics/src/structural/static_path.rs
 4 source-rust/subsystems/compiler/psi/semantics/src/substitution.rs
-2 source-rust/subsystems/compiler/psi/semantics/src/synchronous_calls.rs
+1 source-rust/subsystems/compiler/psi/semantics/src/synchronous_calls.rs
 5 source-rust/subsystems/compiler/source-to-psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/declarations/declared_types.rs
 1 source-rust/subsystems/compiler/source-to-psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/declarations/generic_data/const_evaluation/arguments.rs
 8 source-rust/subsystems/compiler/source-to-psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/declarations/generic_data/const_evaluation/templates.rs

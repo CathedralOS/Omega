@@ -8,15 +8,36 @@ pub fn terminal_callable_values_with_boundary_implementations<'a>(
     module: &'a TerminalModule,
     implementations: &[CallableBoundaryImplementation],
 ) -> Result<CallableValueProgram<'a>, String> {
+    check_declared_implementations(module, implementations)?;
+    terminal_callable_values(module)?
+        .with_boundary_implementations(implementations)
+        .map_err(str::to_owned)
+}
+
+/// Apply the bindings to an already built program, refusing them with the
+/// same reasons and in the same order as
+/// `terminal_callable_values_with_boundary_implementations`.
+pub(crate) fn bind_declared_implementations<'p>(
+    module: &TerminalModule,
+    program: Result<CallableValueView<'p>, &CallableValuePreparationError>,
+    implementations: &[CallableBoundaryImplementation],
+) -> Result<BoundCallableValues<'p>, String> {
+    check_declared_implementations(module, implementations)?;
+    let program = program.map_err(|error| error.clone().in_module(module))?;
+    BoundCallableValues::new(program, implementations).map_err(str::to_owned)
+}
+
+fn check_declared_implementations(
+    module: &TerminalModule,
+    implementations: &[CallableBoundaryImplementation],
+) -> Result<(), String> {
     if implementations.iter().any(|binding| {
         module.boundary_machine(binding.boundary).is_none()
             || module.machine(binding.machine).is_none()
     }) {
         return Err("callable boundary implementation has an absent requirement or body".into());
     }
-    terminal_callable_values(module)?
-        .with_boundary_implementations(implementations)
-        .map_err(str::to_owned)
+    Ok(())
 }
 
 /// Boundary demand and the exact machines invoked by the same callable analysis.
@@ -44,8 +65,21 @@ pub fn boundary_call_reach(
     entry: MachineId,
     implementations: &[CallableBoundaryImplementation],
 ) -> Result<ReachedBoundaryCalls, String> {
-    let program = terminal_callable_values_with_boundary_implementations(module, implementations)?;
-    let reached = reachable_callable_invocations(&program, [entry])?;
+    check_declared_implementations(module, implementations)?;
+    let program = terminal_callable_values(module)?;
+    let values = BoundCallableValues::new(&program, implementations).map_err(str::to_owned)?;
+    boundary_call_reach_in(module, &values, entry)
+}
+
+/// `boundary_call_reach` over a program the caller already built and bound.
+/// Callers that ask about many entries under one binding set build the
+/// program once instead of once per entry.
+pub fn boundary_call_reach_in<'p>(
+    module: &TerminalModule,
+    values: impl Into<CallableValueView<'p>>,
+    entry: MachineId,
+) -> Result<ReachedBoundaryCalls, String> {
+    let reached = reachable_callable_invocations(values, [entry])?;
     let mut boundaries = Vec::new();
     for row in &reached.invocations {
         if let Some(boundary) = row.invocation.boundary {
@@ -164,13 +198,59 @@ pub fn terminal_callable_values_with_error_context(
         module.machines.iter().map(|machine| machine.id),
     )
     .map_err(CallableValuePreparationError::StorageFlow)?;
+    project_callable_values(module, graph)
+}
+
+/// The same projection, adapting the reference rows with the shared
+/// analyses' sorted machines and zeroed-case table instead of preparing them
+/// again.
+///
+/// The program owns its rows because the native compiler builds the same
+/// type from rows it owns, and a row cannot be copied out of the shared
+/// family. The rows are the ones `terminal_reference_graph_from` returns for
+/// every machine.
+pub(crate) fn terminal_callable_values_in<'m>(
+    analyses: &crate::module_analyses::ModuleAnalyses<'m>,
+) -> Result<CallableValueProgram<'m>, CallableValuePreparationError> {
+    let module = analyses.module();
+    let graph = analyses
+        .closure_rows(
+            crate::descriptor_results::DescriptorSlotKind::References,
+            module.machines.iter().map(|machine| machine.id),
+            &[],
+            crate::descriptors::descriptor_results::GenericCallInputs::default(),
+        )
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(CallableValuePreparationError::StorageFlow)?;
+    project_callable_values(module, graph)
+}
+
+fn project_callable_values(
+    module: &TerminalModule,
+    graph: Vec<DescriptorMachine>,
+) -> Result<CallableValueProgram<'_>, CallableValuePreparationError> {
+    // Each machine and each cleanup caller looks up its row by identity.
+    // Sorting (identity, position) pairs keeps the first row for an identity
+    // first, which is the row a front-to-back search would return.
+    let mut flow_positions = graph
+        .iter()
+        .enumerate()
+        .map(|(position, row)| (row.id, position))
+        .collect::<Vec<_>>();
+    flow_positions.sort_unstable();
+    let flow_of = |machine: semantic_vocabulary::MachineId| {
+        let first = flow_positions.partition_point(|(id, _)| *id < machine);
+        flow_positions
+            .get(first)
+            .filter(|(id, _)| *id == machine)
+            .map(|(_, position)| &graph[*position])
+    };
     let mut bodies: Vec<(semantic_vocabulary::MachineId, CallableValueBody)> =
         Vec::with_capacity(module.machines.len());
     let mut cleanups = Vec::new();
     for machine in &module.machines {
-        let flow = graph
-            .iter()
-            .find(|row| row.id == machine.id)
+        let flow = flow_of(machine.id)
             .ok_or("callable provenance machine lost its current Terminal storage flow")?;
         let mut body = CallableValueBody {
             scalar_result: machine.result.scalar().map(|result| result.scalar_type),
@@ -344,10 +424,8 @@ pub fn terminal_callable_values_with_error_context(
         bodies.insert(position, (machine.id, body));
     }
     for (caller, position, edge, successor, ordinal, cleanup) in cleanups {
-        let flow = graph
-            .iter()
-            .find(|row| row.id == caller)
-            .ok_or("callable cleanup lost its current Terminal storage flow")?;
+        let flow =
+            flow_of(caller).ok_or("callable cleanup lost its current Terminal storage flow")?;
         let site = CallableInvocationSite::CleanupAction {
             edge,
             action_ordinal: ordinal,

@@ -249,8 +249,9 @@ fn terminal_projection_keeps_the_failed_storage_machine_diagnostic() {
     );
 }
 
-#[test]
-fn entry_calls_bind_two_selections_through_one_formal_without_invoking_unused_code() {
+/// Entry 1 selects descriptors 1-3 and passes two of them to machine 2,
+/// which calls its code formal; machine 6 returns its argument.
+fn two_selection_module() -> TerminalModule {
     let mut module = module();
     let mut entry = machine(1);
     let mut identity = machine(6);
@@ -288,7 +289,37 @@ fn entry_calls_bind_two_selections_through_one_formal_without_invoking_unused_co
     unreachable.operations.push(indirect_call(2, value(1).id));
     shared.blocks.push(unreachable);
     module.machines = vec![entry, shared, machine(3), machine(4), machine(5), identity];
+    module
+}
 
+/// Route the entry's result call through boundary 1 and end machines 2 and 4
+/// in external completions at boundaries 2 and 3.
+fn route_through_boundaries(module: &mut TerminalModule) {
+    module.interfaces.boundary_machines =
+        vec![boundary(1, true), boundary(2, false), boundary(3, false)];
+    module.machines[0].blocks[0].operations[3].kind = O::BoundaryCall {
+        boundary: BoundaryMachineId::new(1).unwrap(),
+        arguments: vec![value(1).id],
+        structural_arguments: Vec::new(),
+        completion_receipts: Vec::new(),
+        requirement_obligations: Vec::new(),
+    };
+    for (machine, boundary) in [(2, 2), (4, 3)] {
+        module.machines[machine].blocks[0].terminator = Terminator::ExternalCompletion {
+            edge: EdgeId::new(1).unwrap(),
+            boundary: BoundaryMachineId::new(boundary).unwrap(),
+            kind: semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+            arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            requirement_obligations: Vec::new(),
+            frontier_lower_bound: Vec::new(),
+        };
+    }
+}
+
+#[test]
+fn entry_calls_bind_two_selections_through_one_formal_without_invoking_unused_code() {
+    let mut module = two_selection_module();
     let projected = terminal_callable_values(&module).unwrap();
     let returned = resolve_callable_value(&projected, query(1, 4)).unwrap();
     assert_eq!(returned.descriptors, vec![descriptor_id(1)]);
@@ -364,25 +395,7 @@ fn entry_calls_bind_two_selections_through_one_formal_without_invoking_unused_co
 
     // The same returned value and formal substitution must survive a chosen
     // provider. Its terminal call is reached; an unused descriptor's is not.
-    module.interfaces.boundary_machines = vec![boundary(1, true), boundary(2, false), boundary(3, false)];
-    module.machines[0].blocks[0].operations[3].kind = O::BoundaryCall {
-        boundary: BoundaryMachineId::new(1).unwrap(),
-        arguments: vec![value(1).id],
-        structural_arguments: Vec::new(),
-        completion_receipts: Vec::new(),
-        requirement_obligations: Vec::new(),
-    };
-    for (machine, boundary) in [(2, 2), (4, 3)] {
-        module.machines[machine].blocks[0].terminator = Terminator::ExternalCompletion {
-            edge: EdgeId::new(1).unwrap(),
-            boundary: BoundaryMachineId::new(boundary).unwrap(),
-            kind: semantic_vocabulary::ExternalCompletionKind::ProcessExit,
-            arguments: Vec::new(),
-            structural_arguments: Vec::new(),
-            requirement_obligations: Vec::new(),
-            frontier_lower_bound: Vec::new(),
-        };
-    }
+    route_through_boundaries(&mut module);
     let binding = CallableBoundaryImplementation {
         boundary: BoundaryMachineId::new(1).unwrap(),
         machine: machine_id(6),
@@ -793,7 +806,7 @@ fn callable_arguments_preserve_descriptor_reborrow_authority_and_identity() {
             graph: Vec::new(),
             bodies: Vec::new(),
         };
-        program.structural_actual_matches(actual, formal)
+        program.view().structural_actual_matches(actual, formal)
     };
     assert!(accepts((id(2), MutableBorrow), (id(1), MutableBorrow)));
     assert!(accepts((id(2), SharedBorrow), (id(1), SharedBorrow)));
@@ -819,7 +832,11 @@ fn callable_arguments_preserve_descriptor_reborrow_authority_and_identity() {
         graph: Vec::new(),
         bodies: Vec::new(),
     };
-    assert!(program.structural_actual_matches((id(3), MutableBorrow), (id(2), MutableBorrow)));
+    assert!(
+        program
+            .view()
+            .structural_actual_matches((id(3), MutableBorrow), (id(2), MutableBorrow))
+    );
     module.types.structural_types[2].shape = StructuralTypeShape::ElementView {
         element: id(2),
         access: Some(MutableBorrow),
@@ -830,8 +847,16 @@ fn callable_arguments_preserve_descriptor_reborrow_authority_and_identity() {
         graph: Vec::new(),
         bodies: Vec::new(),
     };
-    assert!(!program.structural_actual_matches((id(3), MutableBorrow), (id(2), MutableBorrow)));
-    assert!(program.structural_actual_matches((id(1), Owned), (id(1), Owned)));
+    assert!(
+        !program
+            .view()
+            .structural_actual_matches((id(3), MutableBorrow), (id(2), MutableBorrow))
+    );
+    assert!(
+        program
+            .view()
+            .structural_actual_matches((id(1), Owned), (id(1), Owned))
+    );
 }
 
 #[test]
@@ -865,7 +890,7 @@ fn callable_reborrows_do_not_erase_declaration_requirements() {
             graph: Vec::new(),
             bodies: Vec::new(),
         };
-        !program.structural_actual_matches(
+        !program.view().structural_actual_matches(
             (
                 StructuralTypeId::new(1).unwrap(),
                 StructuralAccess::SharedBorrow,
@@ -970,4 +995,263 @@ fn missing_boundary_context_uses_the_guarded_point_without_redirecting_duplicate
     let text: CallableValuePreparationError = "unchanged projection failure".into();
     assert_eq!(text.missing_boundary(&module), None);
     assert_eq!(text.in_module(&module), "unchanged projection failure");
+}
+
+fn result_binding() -> CallableBoundaryImplementation {
+    CallableBoundaryImplementation {
+        boundary: BoundaryMachineId::new(1).unwrap(),
+        machine: machine_id(6),
+    }
+}
+
+/// Every answer a caller can read from two programs: their reach and the
+/// resolved values and checked occurrences along it.
+fn answers<'p>(
+    values: impl Into<CallableValueView<'p>>,
+) -> (
+    CallableValueResult<ReachableCallableInvocations>,
+    CallableValueResult<CallableValuePossibilities>,
+    Vec<CallableValueResult<Option<ReachableCallableInvocation>>>,
+) {
+    let values = values.into();
+    let reached = reachable_callable_invocations(values, [machine_id(1)]);
+    let occurrences = match &reached {
+        Ok(reached) => [(1, 4), (2, 1), (2, 2)]
+            .into_iter()
+            .map(|(caller, operation)| {
+                values
+                    .checked_operation(reached, machine_id(caller), operation_id(operation))
+                    .map(Option::<&_>::cloned)
+            })
+            .collect(),
+        Err(_) => Vec::new(),
+    };
+    (
+        reached,
+        resolve_callable_value(values, query(1, 4)),
+        occurrences,
+    )
+}
+
+#[test]
+fn shared_callable_values_answer_as_the_free_projection_does() {
+    let mut module = two_selection_module();
+    for routed in [false, true] {
+        if routed {
+            route_through_boundaries(&mut module);
+        }
+        let free = terminal_callable_values(&module).unwrap();
+        let analyses = crate::module_analyses::ModuleAnalyses::new(&module).unwrap();
+        let shared = analyses.callable_values().unwrap();
+        assert_eq!(
+            shared.bodies.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
+            free.bodies.iter().map(|(id, _)| *id).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            shared.graph.iter().map(|row| row.id).collect::<Vec<_>>(),
+            free.graph.iter().map(|row| row.id).collect::<Vec<_>>()
+        );
+        let expected = answers(&free);
+        assert!(expected.0.is_ok() && expected.1.is_ok());
+        assert_eq!(answers(shared), expected);
+    }
+}
+
+#[test]
+fn bound_callable_values_answer_as_the_rewritten_program_does() {
+    let mut module = two_selection_module();
+    module.interfaces.boundary_machines = vec![boundary(1, true)];
+    let analyses = crate::module_analyses::ModuleAnalyses::new(&module).unwrap();
+    // The selected body is also called directly, so its binding adds no
+    // boundary demand.
+    assert_eq!(
+        analyses.boundary_call_reach(machine_id(1), &[result_binding()]),
+        boundary_call_reach(&module, machine_id(1), &[result_binding()])
+    );
+
+    route_through_boundaries(&mut module);
+    let analyses = crate::module_analyses::ModuleAnalyses::new(&module).unwrap();
+    for bindings in [&[][..], &[result_binding()]] {
+        let rewritten =
+            terminal_callable_values_with_boundary_implementations(&module, bindings).unwrap();
+        let bound = analyses.bound_callable_values(bindings).unwrap();
+        let expected = answers(&rewritten);
+        assert!(expected.0.is_ok() && expected.1.is_ok());
+        assert_eq!(answers(&bound), expected);
+        assert_eq!(
+            analyses.boundary_call_reach(machine_id(1), bindings),
+            boundary_call_reach(&module, machine_id(1), bindings)
+        );
+        // The overlay leaves the shared program as the projection built it.
+        assert_eq!(
+            answers(analyses.callable_values().unwrap()),
+            answers(&terminal_callable_values(&module).unwrap())
+        );
+    }
+    let reach = analyses
+        .boundary_call_reach(machine_id(1), &[result_binding()])
+        .unwrap();
+    assert_eq!(
+        reach.boundaries,
+        vec![
+            BoundaryMachineId::new(1).unwrap(),
+            BoundaryMachineId::new(2).unwrap()
+        ]
+    );
+}
+
+#[test]
+fn bound_callable_values_refuse_bindings_as_the_rewritten_program_does() {
+    let mut module = two_selection_module();
+    route_through_boundaries(&mut module);
+    let analyses = crate::module_analyses::ModuleAnalyses::new(&module).unwrap();
+    let binding = result_binding();
+    for bindings in [
+        vec![binding, binding],
+        vec![CallableBoundaryImplementation {
+            machine: machine_id(99),
+            ..binding
+        }],
+        vec![CallableBoundaryImplementation {
+            boundary: BoundaryMachineId::new(9).unwrap(),
+            ..binding
+        }],
+    ] {
+        let refusal = terminal_callable_values_with_boundary_implementations(&module, &bindings)
+            .err()
+            .expect("the binding set must refuse");
+        assert_eq!(
+            analyses.bound_callable_values(&bindings).err(),
+            Some(refusal)
+        );
+    }
+    // A selected body whose formals do not take the boundary's actuals is
+    // refused while the reach reads it, on both paths.
+    let mismatched = [CallableBoundaryImplementation {
+        machine: machine_id(5),
+        ..binding
+    }];
+    let free = boundary_call_reach(&module, machine_id(1), &mismatched);
+    assert!(free.is_err());
+    assert_eq!(
+        analyses.boundary_call_reach(machine_id(1), &mismatched),
+        free
+    );
+}
+
+#[test]
+fn shared_callable_values_keep_the_failed_storage_diagnostic() {
+    let mut module = module();
+    let mut entry = machine(1);
+    entry.blocks[0]
+        .operations
+        .push(diagnostic_boundary_call(BoundaryMachineId::new(2).unwrap()));
+    module.machines.push(entry);
+    let analyses = crate::module_analyses::ModuleAnalyses::new(&module).unwrap();
+    let free = terminal_callable_values_with_error_context(&module).err();
+    assert_eq!(analyses.callable_values().err(), free.as_ref());
+    let message = terminal_callable_values(&module).err();
+    assert!(message.is_some());
+    assert_eq!(analyses.bound_callable_values(&[]).err(), message);
+    assert_eq!(
+        analyses.boundary_call_reach(machine_id(1), &[]).err(),
+        boundary_call_reach(&module, machine_id(1), &[]).err()
+    );
+    assert_eq!(
+        crate::body_services::body_service_reaches_in(&analyses, &[]).err(),
+        crate::body_services::body_service_reaches(&module, &[]).err()
+    );
+}
+
+#[test]
+fn shared_body_service_reaches_equal_the_free_summary() {
+    let mut module = service_summary_module();
+    module.machines[0].blocks[0].operations = vec![select(1, 1, 1), direct_call(2, 2, Vec::new())];
+    module.machines[1].blocks[0].operations = vec![Operation::unsuspended(
+        operation_id(1),
+        OperationResult::Unit,
+        O::PortWrite {
+            service: ServiceId::new(2).unwrap(),
+            port: 1,
+            value: 1,
+        },
+    )];
+    let analyses = crate::module_analyses::ModuleAnalyses::new(&module).unwrap();
+    let free = crate::body_services::body_service_reaches(&module, &[]);
+    assert!(free.is_ok());
+    assert_eq!(
+        crate::body_services::body_service_reaches_in(&analyses, &[]),
+        free
+    );
+}
+
+/// The machines and boundaries a call graph reaches from the entry.
+fn closure_shape(
+    graph: &crate::synchronous_calls::SynchronousCallGraph<'_>,
+) -> Result<(Vec<MachineId>, Vec<BoundaryMachineId>), String> {
+    let closure = graph.from_root(machine_id(1))?;
+    Ok((
+        closure.machines.iter().map(|machine| machine.id).collect(),
+        closure.boundaries.into_iter().collect(),
+    ))
+}
+
+#[test]
+fn shared_call_graph_follows_computed_calls_as_its_own_program_does() {
+    use crate::synchronous_calls::SynchronousCallGraph;
+    let mut module = two_selection_module();
+    route_through_boundaries(&mut module);
+    let analyses = crate::module_analyses::ModuleAnalyses::new(&module).unwrap();
+    let selected = [(BoundaryMachineId::new(1).unwrap(), machine_id(6))];
+
+    let own = SynchronousCallGraph::new(&module, None).unwrap();
+    let shared = analyses.calls();
+    let unbound = closure_shape(&own);
+    assert!(unbound.is_ok());
+    assert_eq!(closure_shape(&shared), unbound);
+    // Asking twice reads the program the first closure built.
+    assert_eq!(closure_shape(&shared), unbound);
+
+    // Adding boundary bodies after a closure discards the program built
+    // without them, on both kinds of graph.
+    let own = own.with_boundary_calls(selected).unwrap();
+    let shared = shared.with_boundary_calls(selected).unwrap();
+    let fresh = SynchronousCallGraph::new(&module, None)
+        .unwrap()
+        .with_boundary_calls(selected)
+        .unwrap();
+    let bound = closure_shape(&fresh);
+    assert!(bound.as_ref().unwrap().0.contains(&machine_id(6)));
+    assert_eq!(closure_shape(&own), bound);
+    assert_eq!(closure_shape(&shared), bound);
+    for identity in [1, 6, 99] {
+        assert_eq!(
+            shared
+                .machine(machine_id(identity))
+                .map(|machine| machine.id),
+            own.machine(machine_id(identity)).map(|machine| machine.id)
+        );
+    }
+}
+
+#[test]
+fn call_analyses_refuse_a_repeated_machine_as_the_call_graph_does() {
+    let mut module = module();
+    module
+        .machines
+        .extend([machine(1), machine(999), machine(999)]);
+    let refusal = crate::synchronous_calls::SynchronousCallGraph::new(&module, None)
+        .err()
+        .expect("a repeated machine must refuse");
+    assert_eq!(
+        refusal,
+        format!(
+            "synchronous call catalog repeats machine {:?}",
+            machine_id(999)
+        )
+    );
+    assert_eq!(
+        crate::synchronous_calls::call_analyses(&module).err(),
+        Some(refusal)
+    );
 }
