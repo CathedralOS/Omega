@@ -27,7 +27,13 @@ The root application and all nine place projects bind `ProgramEntry` for all fou
 mbx xtask sample-gate --filter samples/cli/facts/indexed_crash_guard
 ```
 
-`parameter`, `local`, `const_name` and `other_machine` pass `omega --check` and run with native/Psi agreement on `windows_x86_64` (exit 0, empty stdout and stderr on both engines); `field`, `call_result` and `match_join` do the same on `linux_x86_64`. `target_body` passes `omega --check`; `omega run` on `windows_x86_64` stops at Build provider selection ("boundary requirement `SelectedForward::forward` has no provider"). `other_state` calls a nested machine whose omitted crash route is inferred as unconditional. The root application's own machines raise no error, but the root package also compiles every subdirectory, `invalid_*` twins included, as one of its modules, so it is refused for their errors. `TASKS.md` (**PROOF-KERNEL-CORE**, step 5) tracks these.
+`parameter`, `local`, `const_name` and `other_machine` pass `omega --check` and run with native/Psi agreement on `windows_x86_64` (exit 0, empty stdout and stderr on both engines); `field`, `call_result` and `match_join` do the same on `linux_x86_64`. The root application, `other_state` and every positive except `target_body` pass `mbx xtask sample-gate` with native/Psi agreement on `linux_x86_64` (2026-11-27). `target_body` passes `omega --check`; under `sample-gate` its package update stops at review ("package review cannot retain provider effects within the selected requirement's checked ceiling from the accepted declaration"). `other_state` calls a nested machine whose omitted crash route is inferred as unconditional.
+
+The root application and the place projects are separate projects that share a directory. A package checked with no source list is its whole directory, unimported subdirectories included ([validation subjects](../../../../wiki/spec/build/validation_subjects.md#admission-and-release)), so a bare `omega --check main.omg` here also compiles every place project, `invalid_*` twins included, and is refused for their errors. Name the root's own files instead, as `sample-gate` does ([source capture](../../../../wiki/spec/build/scoped_execution.md#snapshot-and-staging-protocol)):
+
+```sh
+omega --check --build-input build.omg --build-input main.omg main.omg
+```
 
 ## Reject twins
 
@@ -37,7 +43,7 @@ Each place has an `invalid_<place>/` twin whose `main.omg` omits only the `requi
 error: call from `read_seven` to `maybe_zero` has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 ```
 
-(or `call from read_seven to forward` for `other_machine` and `target_body`, whose call is the boundary requirement `SelectedForward::forward`). Check a twin with `omega --check samples/cli/facts/indexed_crash_guard/invalid_<place>/main.omg`.
+(or `call from read_seven to forward` for `other_machine` and `target_body`, whose call is the boundary requirement `SelectedForward::forward` in `target_body`; and `call from read_seven to consume` for `other_state`, whose nested `consume` publishes the route it forwards). Check a twin with `omega --check samples/cli/facts/indexed_crash_guard/invalid_<place>/main.omg`.
 
 ## Requirements and Evidence
 

@@ -162,6 +162,48 @@ fn an_entryless_subject_checks_its_unimported_module_in_any_filename() {
     );
 }
 
+/// A local root's subject is its captured inventory. A sample family keeps
+/// separate projects, each with its own `build.omg`, in subdirectories of the
+/// root application; the caller names the root's own files with
+/// `--build-input` (scoped_execution.md, "Snapshot and staging protocol"), so
+/// a nested project's invalid twin is not one of the root's modules. Without
+/// that list the whole directory is the package and the twin is checked.
+#[test]
+fn an_explicit_inventory_leaves_a_nested_project_out_of_the_subject() {
+    let root = Project::valid().write("inventory_nested_project");
+    project::write(
+        &root,
+        &[
+            ("invalid_place/build.omg", APP_BUILD),
+            (
+                "invalid_place/main.omg",
+                "public machine main() { let value: u64 = bump(3u64); }\n\
+                 machine bump(count: u64) -> u64 { count + 1u64 }\n",
+            ),
+        ],
+    );
+    let inventory = project::omega(
+        &root,
+        &[
+            "--check",
+            "--offline",
+            "--target",
+            "linux_x86_64",
+            "--build-input",
+            "build.omg",
+            "--build-input",
+            "main.omg",
+            "build.omg",
+        ],
+    );
+    let (accepted, stderr) = project::status(&inventory);
+    assert!(accepted, "the root's own inventory checks: {stderr}");
+
+    let whole = check(&root);
+    assert!(!whole.success, "the whole directory includes the twin");
+    assert!(whole.stderr.contains("invalid_place/"), "{}", whole.stderr);
+}
+
 #[test]
 fn an_unreached_invalid_dependency_body_fails_only_when_the_dependency_is_the_subject() {
     let project = Project {
