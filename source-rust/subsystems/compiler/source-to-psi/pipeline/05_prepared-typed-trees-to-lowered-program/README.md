@@ -329,7 +329,11 @@ The reader also knows each supplied value's type. The shared
 [receiving-type diagnostics](src/read/rejections.rs) reject, at the supplied
 expression, a different scalar carrier, an incompatible declared domain or an
 unrelated declared result lifetime. Match arms use the same code, so a known
-carrier mismatch is not reported as an unsupported construct. A type or
+carrier mismatch is not reported as an unsupported construct. When exactly
+one side of a machine's result is Unit, the rejection names the machine whose
+header lacks the result type: a value arm or final value in a machine that
+declares no result, or a terminal call that forwards such a machine's Unit
+completion into a machine that declares one. A type or
 region relationship the reader cannot decide is still refused by name. There
 is no second typing pass and no classification of diagnostics by their text.
 
