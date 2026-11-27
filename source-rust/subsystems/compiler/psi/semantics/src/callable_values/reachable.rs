@@ -21,14 +21,26 @@ impl CallableValueProgram<'_> {
         caller: MachineId,
         operation: OperationId,
     ) -> CallableValueResult<Option<&'summary ReachableCallableInvocation>> {
+        self.view().checked_operation(summary, caller, operation)
+    }
+}
+
+impl CallableValueView<'_> {
+    /// `CallableValueProgram::checked_operation` with this view's bindings.
+    pub fn checked_operation<'summary>(
+        &self,
+        summary: &'summary ReachableCallableInvocations,
+        caller: MachineId,
+        operation: OperationId,
+    ) -> CallableValueResult<Option<&'summary ReachableCallableInvocation>> {
         let site = CallableInvocationSite::Invocation(InvocationSite::Operation(operation));
-        let source = self.body(caller)?.invocation(site)?;
-        self.validate_occurrence(caller, source)?;
+        let source = self.bound(self.body(caller)?.invocation(site)?)?;
+        self.validate_occurrence(caller, &source)?;
         if summary.reached_machines.binary_search(&caller).is_err() {
             return Err("callable summary has no established caller entry");
         }
         if let Some(reached) = summary.site(caller, site) {
-            if &reached.invocation != source {
+            if reached.invocation != *source {
                 return Err("callable summary changed its exact source occurrence");
             }
             return Ok(Some(reached));
@@ -54,7 +66,7 @@ struct ReachedEdge {
 }
 
 struct ReachedSolver<'a, 'program> {
-    program: &'a CallableValueProgram<'program>,
+    program: CallableValueView<'program>,
     result: ReachableCallableInvocations,
     edges: Vec<ReachedEdge>,
     queries: Vec<(CallableValueQuery, CallableValuePossibilities)>,
@@ -145,7 +157,7 @@ impl ReachedSolver<'_, '_> {
             if !reach.contains(flow.entry) {
                 continue;
             }
-            let invocation = body.invocation(site)?.clone();
+            let invocation = self.program.bound(body.invocation(site)?)?.into_owned();
             if let Some(ordinal) = invocation.successor {
                 let successor = flow
                     .flow
@@ -335,18 +347,19 @@ impl ReachedSolver<'_, '_> {
 
 /// Summarize calls executable from the supplied authoritative entry roots.
 /// Constructed descriptors retain code but never add invocation roots.
-pub fn reachable_callable_invocations(
-    program: &CallableValueProgram<'_>,
+pub fn reachable_callable_invocations<'p>(
+    program: impl Into<CallableValueView<'p>>,
     roots: impl IntoIterator<Item = MachineId>,
 ) -> CallableValueResult<ReachableCallableInvocations> {
     reachable_callable_invocations_with_roots(program, roots, &CallableInvocationRoots::new())
 }
 
-pub fn reachable_callable_invocations_with_roots(
-    program: &CallableValueProgram<'_>,
+pub fn reachable_callable_invocations_with_roots<'p>(
+    program: impl Into<CallableValueView<'p>>,
     roots: impl IntoIterator<Item = MachineId>,
     bound_roots: &CallableInvocationRoots,
 ) -> CallableValueResult<ReachableCallableInvocations> {
+    let program = program.into();
     let mut roots = roots.into_iter().collect::<Vec<_>>();
     roots.sort_unstable();
     roots.dedup();
@@ -380,7 +393,8 @@ pub fn reachable_callable_invocations_with_roots(
         if occurrences.next().is_some() || occurrence.boundary.is_none() {
             return Err("callable entry root has an ambiguous or non-boundary registrar");
         }
-        program.validate_occurrence(owner, occurrence)?;
+        let occurrence = program.bound(occurrence)?;
+        program.validate_occurrence(owner, &occurrence)?;
         for entry in entries {
             program.body(*entry)?;
             program.flow(*entry)?;

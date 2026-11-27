@@ -2,7 +2,9 @@
 //! ceiling. Known bodies compose through their actual invocation edges; an
 //! unresolved code value contributes its complete retained callable contract.
 
-use crate::callable_values::{CallableInvocationTarget, terminal_callable_values};
+use crate::callable_values::{
+    CallableInvocationTarget, CallableValueProgram, CallableValueView, terminal_callable_values,
+};
 use semantic_vocabulary::{MachineId, ServiceId};
 use terminal_psi::{TerminalModule, UnoptimizedBehaviorOperation, UnoptimizedMachineBehavior};
 
@@ -26,6 +28,47 @@ impl BodyServiceReaches {
 pub fn body_service_reaches(
     module: &TerminalModule,
     implementations: &[crate::callable_values::CallableBoundaryImplementation],
+) -> std::result::Result<BodyServiceReaches, String> {
+    body_service_reaches_with(module, implementations, || terminal_callable_values(module))
+}
+
+/// `body_service_reaches` over the shared analyses' callable values, so a
+/// caller that already asked for them does not build them again.
+pub fn body_service_reaches_in(
+    analyses: &crate::module_analyses::ModuleAnalyses<'_>,
+    implementations: &[crate::callable_values::CallableBoundaryImplementation],
+) -> std::result::Result<BodyServiceReaches, String> {
+    let module = analyses.module();
+    body_service_reaches_with(module, implementations, || {
+        analyses
+            .callable_values()
+            .map_err(|error| error.clone().in_module(module))
+    })
+}
+
+/// A program the summary reads, whether the caller owns it or shares it.
+trait ServiceProgram {
+    fn values(&self) -> CallableValueView<'_>;
+}
+
+impl ServiceProgram for CallableValueProgram<'_> {
+    fn values(&self) -> CallableValueView<'_> {
+        self.view()
+    }
+}
+
+impl ServiceProgram for CallableValueView<'_> {
+    fn values(&self) -> CallableValueView<'_> {
+        *self
+    }
+}
+
+/// The program is requested only after the module's service rows pass their
+/// checks, so a refusal names the same first defect on either path.
+fn body_service_reaches_with<Program: ServiceProgram>(
+    module: &TerminalModule,
+    implementations: &[crate::callable_values::CallableBoundaryImplementation],
+    program: impl FnOnce() -> std::result::Result<Program, String>,
 ) -> std::result::Result<BodyServiceReaches, String> {
     let mut installed = std::collections::BTreeMap::new();
     for implementation in implementations {
@@ -126,7 +169,8 @@ pub fn body_service_reaches(
     for contract in &module.execution.callables.contracts {
         validate_row(&contract.envelope.service_reach)?;
     }
-    let program = terminal_callable_values(module)?;
+    let program = program()?;
+    let program = program.values();
     let mut rows = vec![Vec::new(); machines.len()];
     let mut predecessors = vec![Vec::new(); machines.len()];
     for (position, machine) in module.machines.iter().enumerate() {

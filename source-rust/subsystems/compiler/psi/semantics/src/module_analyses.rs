@@ -34,6 +34,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use semantic_vocabulary::{MachineId, PlaceId, StructuralCaseId, StructuralTypeId};
 use terminal_psi::{OperationKind, StructuralTypeDeclaration, TerminalMachine, TerminalModule};
 
+use crate::callable_values::{
+    BoundCallableValues, CallableBoundaryImplementation, CallableValuePreparationError,
+    CallableValueProgram, CallableValueRows, CallableValueView, ReachedBoundaryCalls,
+};
 use crate::descriptors::descriptor_lifetimes::{
     DescriptorLocation, DescriptorPathSegment, StructuralTypeIndex,
 };
@@ -41,6 +45,7 @@ use crate::descriptors::descriptor_results::{
     DescriptorAnalysis, DescriptorCasePredicate, DescriptorGraphError, DescriptorInvocationTarget,
     DescriptorMachine, DescriptorSlotKind, GenericCallInputs, ModuleSummaries, terminal_flow,
 };
+use crate::synchronous_calls::SynchronousCallGraph;
 
 #[cfg(test)]
 mod tests;
@@ -86,6 +91,7 @@ fn push_callees(row: &DescriptorMachine, pending: &mut Vec<MachineId>) {
 /// Saved modules can use sparse identities, so the lookup is a sorted list
 /// rather than a table sized to the largest identity. A module that declares
 /// one identity twice has no answer for it, so construction refuses it.
+#[derive(Clone)]
 pub struct MachineSlots {
     /// Sorted by machine. The second field is the machine's position in
     /// `module.machines`.
@@ -476,6 +482,9 @@ pub struct ModuleAnalyses<'m> {
     /// Whether the module's type permissions keep every nested ownership
     /// obligation, checked by the first affine walk that needs it.
     pub(crate) type_permissions: crate::plain_affine::TypePermissions,
+    /// The callable values of every machine with no boundary body selected.
+    /// Each binding set reads them through `bound_callable_values`.
+    callable_values: OnceLock<Result<CallableValueRows, CallableValuePreparationError>>,
 }
 
 impl<'m> ModuleAnalyses<'m> {
@@ -497,6 +506,7 @@ impl<'m> ModuleAnalyses<'m> {
             replays: OnceLock::new(),
             fences: crate::plain_affine::CallFences::new(module),
             type_permissions: crate::plain_affine::TypePermissions::new(),
+            callable_values: OnceLock::new(),
         })
     }
 
@@ -525,6 +535,49 @@ impl<'m> ModuleAnalyses<'m> {
         machine: MachineId,
     ) -> Result<crate::plain_affine::MachineAffine<'_>, crate::plain_affine::Error> {
         crate::plain_affine::MachineAffine::from_analyses(self, machine, None)
+    }
+
+    /// The module's callable values, built on first use. They equal
+    /// `terminal_callable_values_with_error_context(module)`.
+    pub fn callable_values(&self) -> Result<CallableValueView<'_>, &CallableValuePreparationError> {
+        self.callable_values
+            .get_or_init(|| {
+                crate::callable_values::terminal_callable_values_in(self)
+                    .map(CallableValueProgram::into_rows)
+            })
+            .as_ref()
+            .map(|rows| rows.view(self.module))
+    }
+
+    /// The callable values with selected boundary bodies applied, without
+    /// building the program again. Refuses what
+    /// `terminal_callable_values_with_boundary_implementations` refuses, with
+    /// the same message.
+    pub fn bound_callable_values(
+        &self,
+        implementations: &[CallableBoundaryImplementation],
+    ) -> Result<BoundCallableValues<'_>, String> {
+        crate::callable_values::bind_declared_implementations(
+            self.module,
+            self.callable_values(),
+            implementations,
+        )
+    }
+
+    /// A call graph over this module that reuses these callable values.
+    pub fn calls(&self) -> SynchronousCallGraph<'_> {
+        SynchronousCallGraph::shared(self)
+    }
+
+    /// `boundary_call_reach(module, entry, implementations)` over the shared
+    /// callable values.
+    pub fn boundary_call_reach(
+        &self,
+        entry: MachineId,
+        implementations: &[CallableBoundaryImplementation],
+    ) -> Result<ReachedBoundaryCalls, String> {
+        let values = self.bound_callable_values(implementations)?;
+        crate::callable_values::boundary_call_reach_in(self.module, &values, entry)
     }
 
     /// Whether the machine's body contains a dynamic call.

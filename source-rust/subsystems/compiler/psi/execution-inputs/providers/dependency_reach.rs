@@ -8,7 +8,6 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use terminal_psi::{ProofCallableHeader, TerminalModule};
 use terminal_semantics::callable_values::{
     CallableBoundaryImplementation, reachable_callable_invocations,
-    terminal_callable_values_with_boundary_implementations,
 };
 
 fn error(message: impl Into<String>) -> Vec<Diagnostic> {
@@ -125,21 +124,24 @@ pub fn check(
                 error("dependency reach needs the installed body of the package entry")
             })?,
     };
-    let graph = terminal_semantics::synchronous_calls::SynchronousCallGraph::new(module, None)
-        .and_then(|graph| {
-            graph.with_boundary_calls(
-                implementations
-                    .iter()
-                    .map(|row| (row.boundary, row.machine)),
-            )
-        })
+    // The call graph, the reached invocations and the body service rows all
+    // read one copy of the module's callable values.
+    let analyses = terminal_semantics::synchronous_calls::call_analyses(module).map_err(error)?;
+    let graph = analyses
+        .calls()
+        .with_boundary_calls(
+            implementations
+                .iter()
+                .map(|row| (row.boundary, row.machine)),
+        )
         .map_err(error)?;
     let mut calls = CallGraph::new();
     calls.entry(entry).or_default();
     if entry != Callable::Machine(root) {
         record_call(&mut calls, entry, Callable::Machine(root), None);
     }
-    let program = terminal_callable_values_with_boundary_implementations(module, implementations)
+    let program = analyses
+        .bound_callable_values(implementations)
         .map_err(error)?;
     let mut roots = BTreeSet::from([root]);
     let mut traversed = BTreeSet::new();
@@ -219,8 +221,9 @@ pub fn check(
             );
         }
     }
-    let derived = terminal_semantics::body_services::body_service_reaches(module, implementations)
-        .map_err(error)?;
+    let derived =
+        terminal_semantics::body_services::body_service_reaches_in(&analyses, implementations)
+            .map_err(error)?;
     let scope = &module.scalars.scalar_applications.proof_scope;
     let declarations = scope
         .callable_headers
