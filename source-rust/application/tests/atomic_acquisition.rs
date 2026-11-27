@@ -240,3 +240,51 @@ fn a_private_bit_lock_tracks_its_bit_and_ignores_other_status_bits() {
         );
     }
 }
+
+#[test]
+fn only_a_mismatch_forever_blocks_a_single_attempt_lock() {
+    for (member, outcome, mismatch, acquired) in [
+        (
+            "compare_exchange_once",
+            "AtomicCompareExchangeOnceOutcome",
+            "observed",
+            "",
+        ),
+        (
+            "try_exchange_once",
+            "AtomicTryExchangeOnceOutcome",
+            "proposed",
+            " { displaced }",
+        ),
+    ] {
+        let source = format!(
+            r#"
+            use {{omega}}/language/core/layout.omg;
+            data Flag {{ held: AtomicU32; }}
+            machine acquire(flag: @Flag, vacant: u32, held: u32) {{
+                let result: |layout|::{outcome}<u32> = flag.held.{member}(vacant, held, ReceivePublish, Receive);
+                transition result {{
+                    |layout|::{outcome}::Mismatched {{ {mismatch} }} -> acquire(flag, vacant, held),
+                    |layout|::{outcome}::Uncommitted {{ {mismatch} }} -> acquire(flag, vacant, held),
+                    |layout|::{outcome}::Exchanged{acquired} -> done()
+                }}
+                machine done() {{}}
+            }}
+            machine main() {{
+                let mutable flag: Flag;
+                acquire(@flag, 0, 1);
+                flag.held.store(0, Publish);
+                acquire(@flag, 0, 1);
+            }}
+        "#
+        );
+        program::assert_silent_return(&source);
+        let held = source.replace("flag.held.store(0, Publish);", "");
+        let (outcome, diagnostics) = program::invoke(&held, &["--check"]);
+        assert!(!outcome.status.success(), "{member}: {diagnostics}");
+        assert!(
+            diagnostics.contains("synchronization deadlock"),
+            "{member}: {diagnostics}"
+        );
+    }
+}
