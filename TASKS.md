@@ -182,7 +182,6 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 - **ACTIVATION-STORAGE-PLANS.** Implement [storage plans](wiki/drafts/designs/activation_storage_plans.md).
 
 - **OWNED-CLEANUP.** Implement [by-value cleanup](wiki/drafts/designs/owned_cleanup.md).
-  - Dispose an owned sum that dies unmatched by its active case ([construction and disposal order](wiki/spec/language/ownership.md#construction-and-disposal-order): "only the active sum payload"). `data Choice { case A(left: Token, right: Lease); case B(left: Token, right: Token); }` with `Lease dropped by release` and `machine discard(x: Choice) {}` is refused in lowering with "component disposition needs an established active case". Case A must invoke `release` on `A::right` and discard `A::left`; case B discards both fields.
 
 - **OPEN-CALLABLE-CONTRACTS.** Close [callable contracts](wiki/drafts/designs/open_callable_contracts.md) at runtime and boundary positions.
 

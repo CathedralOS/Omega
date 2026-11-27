@@ -1448,8 +1448,21 @@ impl<'a> Storage<'a> {
                 {
                     return Ok(None);
                 }
-                let backing =
-                    storage.backing(references, &row.destination, row.block, before, concerns)?;
+                let backing = if call_write {
+                    let Some(backing) = storage.optional_backing(
+                        references,
+                        &row.destination,
+                        row.block,
+                        before,
+                        concerns,
+                    )?
+                    else {
+                        return Ok(None);
+                    };
+                    backing
+                } else {
+                    storage.backing(references, &row.destination, row.block, before, concerns)?
+                };
                 if let Stored::Moved(source) = &row.stored {
                     storage.backing(references, source, row.block, before, concerns)?;
                 }
@@ -5662,6 +5675,23 @@ impl<'a> Storage<'a> {
                     root: place.root,
                     segments: place.segments[..length].to_vec(),
                 };
+                // Cleanup on a StructuralCase arm edge runs after that edge
+                // has selected its case.
+                if let ProgramPoint::BeforeCleanup { edge, .. }
+                | ProgramPoint::AfterCleanup { edge, .. }
+                | ProgramPoint::Edge(edge) = point
+                    && let Terminator::StructuralCase {
+                        source,
+                        path,
+                        cases,
+                    } = &self.block(block)?.terminator
+                    && cases
+                        .iter()
+                        .any(|arm| arm.edge == edge && arm.case == *case)
+                    && self.stored_at(*source, path, concerns)? == sum
+                {
+                    continue;
+                }
                 let mut observation = Held {
                     point: Some(point),
                     storage: self,

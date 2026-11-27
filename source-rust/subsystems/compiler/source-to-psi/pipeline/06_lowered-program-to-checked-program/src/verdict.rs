@@ -1294,6 +1294,10 @@ fn affine_refusal(machine: MachineId, error: terminal_semantics::plain_affine::E
             RefusalReason::Violation,
             terminal_semantics::plain_affine::Error::unconsumed_message(at_join),
         ),
+        terminal_semantics::plain_affine::Error::MissingActiveCase { .. } => (
+            RefusalReason::Unsupported,
+            terminal_semantics::plain_affine::Error::missing_active_case_message(),
+        ),
         terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
             (RefusalReason::Unsupported, detail)
         }

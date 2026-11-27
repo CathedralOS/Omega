@@ -55,6 +55,7 @@ mod publication;
 mod qualifications;
 mod read;
 mod references;
+mod sum_disposal;
 
 #[cfg(any(test, feature = "test-support"))]
 pub use canonical::substituted_routes as substituted_call_routes;
@@ -1953,7 +1954,9 @@ fn lower_program_with_parallel<'source>(
         bodies,
         signatures,
         requirements,
-        declarations.map_or(&[][..], |source| source.non_returning_requirements.as_slice()),
+        declarations.map_or(&[][..], |source| {
+            source.non_returning_requirements.as_slice()
+        }),
         callables,
         local_summaries
             .as_ref()
@@ -2372,8 +2375,10 @@ fn finish_storage(
     let module = &mut elaboration.module;
     let tables = &mut elaboration.tables;
     let sources = &mut elaboration.sources;
+    sum_disposal::expand_unmatched_sums(module, tables, sources)?;
     references::ends::install(module, tables, sources, further, parallel)?;
     references::default_obligations::install(module, tables, sources, parallel)?;
+    sum_disposal::expand_unmatched_sums(module, tables, sources)?;
     let sources = &*sources;
     // Each machine's storage plan comes from its own ownership walk over the
     // module; the walks run on the invocation's workers (`plan_then_apply`).
@@ -2478,6 +2483,10 @@ fn storage_plan(
             terminal_semantics::plain_affine::Error::Unconsumed { at_join, .. } => (
                 terminal_check_tables::RefusalReason::Violation,
                 terminal_semantics::plain_affine::Error::unconsumed_message(at_join),
+            ),
+            terminal_semantics::plain_affine::Error::MissingActiveCase { .. } => (
+                terminal_check_tables::RefusalReason::Unsupported,
+                terminal_semantics::plain_affine::Error::missing_active_case_message(),
             ),
             terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
                 (terminal_check_tables::RefusalReason::Unsupported, detail)
