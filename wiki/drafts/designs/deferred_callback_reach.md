@@ -59,7 +59,7 @@ published summaries, library customers and existing suites before closing it.
    caller admission, evaluation and installation. A ceiling contributes no reach.
 4. Carry the summaries through specialization and lowering without scanning
    source again. Update canonical identities and the
-   [reach encoding](../../spec/terminal-psi/encoding.md#deferred-static-reach-summaries),
+   [reach encoding](../../../source-rust/subsystems/compiler/psi/artifact/wire/encoding.md#deferred-static-reach-summaries),
    schema versions, wire tables and codecs together. Existing empty-bound
    metadata must never be silently reinterpreted as open. This docs change
    assigns no new wire tags and changes no serialized bytes.

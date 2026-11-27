@@ -1,7 +1,7 @@
 //! IEEE comparisons in contracts and domain predicates are typed propositions,
 //! not executable operations.
 //! [Comparisons](../../../../wiki/spec/language/numeric_values.md#meaning-comparisons-and-representation)
-//! · [IEEE comparison kinds](../../../../wiki/spec/terminal-psi/encoding.md#ieee-comparison-kinds)
+//! · [IEEE comparison kinds](../../../../source-rust/subsystems/compiler/psi/artifact/wire/encoding.md#ieee-comparison-kinds)
 #[path = "support/source.rs"]
 mod sources;
 use omega_lowering::{

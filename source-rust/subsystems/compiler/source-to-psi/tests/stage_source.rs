@@ -2336,7 +2336,7 @@ fn a_file_qualified_domain_still_requires_its_declared_carrier() {
 /// `b.omg`. One compilation captures and imports `a` before `b`, the other
 /// `b` before `a`; nothing else differs, so the published bytes must not.
 ///
-/// `wiki/spec/terminal-psi/encoding.md`, "Canonical form": "Unordered sets
+/// `source-rust/subsystems/compiler/psi/artifact/wire/encoding.md`, "Canonical form": "Unordered sets
 /// are strictly sorted by stable identity or canonical bytes".
 #[test]
 fn the_order_files_are_met_in_does_not_change_the_published_psi() {

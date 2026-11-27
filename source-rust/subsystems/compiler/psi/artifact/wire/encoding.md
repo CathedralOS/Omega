@@ -1,10 +1,16 @@
 # Terminal canonical encoding and identities
 
-[Portable product](product.md) | [Observations](observations.md)
+[Portable product](../../../../../../wiki/spec/terminal-psi/product.md) | [Observations](../../../../../../wiki/spec/terminal-psi/observations.md)
+
+This page describes the compiler's file format for Psi programs. It sits beside
+the [wire codec](README.md) that implements it, and a codec change updates it
+in the same pull request ([changes to Psi](../../README.md#changes-to-psi)).
+The language specification in `wiki/spec/` owns what programs mean; a trust or
+admission rule stated here must stay intact when the layout changes.
 
 This is the canonical encoding contract; it is not a complete byte-level decoder
-specification. The [documentation index](../../README.md) lists operation subjects.
-[Proof values](mathematical_values.md) and [certificate rules](integer_certificates.md)
+specification. The [documentation index](../../../../../../wiki/README.md) lists operation subjects.
+[Proof values](../../../../../../wiki/spec/terminal-psi/mathematical_values.md) and [certificate rules](../../../../../../wiki/spec/terminal-psi/integer_certificates.md)
 define semantics; the tables below give the physical layout of every operation,
 terminator, scalar-term, and proposition form the codec accepts, plus the
 catalog, scalar-block-invariant, and machine rows.
@@ -42,6 +48,12 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
+Marker 300 ends each theorem contract with its counted proof parameters, as in
+`machine<Inner: NonzeroIsPositive>(n: u8)`, and each theorem application with
+the counted proofs it gives them, as in `Step::<inner>(n)`. Readers reject
+earlier markers before reading the payload, so a saved program from marker 299
+or earlier must be rebuilt.
+
 Marker 299 ends each [theorem supply](#logical-theorem-parameters) with its
 counted instantiation: one proof for each of the cited theorem's own proof
 formals, as in `lifted::<inner>`. Readers reject earlier markers before
@@ -52,7 +64,7 @@ Marker 297 adds the packed integer operations. Each row carries a structural
 result and one or two shared structural arguments. The operation determines
 the element type and extent of each input and the result. Readers check the
 operation selector, immediate bounds, access, and array shape before execution.
-[Fixed-width SIMD values](../language/simd.md)
+[Fixed-width SIMD values](../../../../../../wiki/spec/language/simd.md)
 
 Marker 296 states FloatMeaning equality as the general Identity row,
 [proposition](#propositions) tag 23 at the FloatMeaning carrier, and retires
@@ -137,7 +149,7 @@ semantic changes move producer, codec, interpreter, and lowerers
 together. Current golden bytes establish the current format, not historical
 acceptance.
 
-[Static machines](../language/machines.md#static-declarations-and-explicit-state)
+[Static machines](../../../../../../wiki/spec/language/machines.md#static-declarations-and-explicit-state)
 use ordinary explicit parameter positions and identities. Structural parameters,
 provider signature parameters, structural places and retained-borrow parameter
 roots carry no `self` flag. Removing that byte changes the canonical format;
@@ -146,7 +158,7 @@ as a compatibility dialect. Access, multiplicity, qualifications and custody
 remain independently checked for every ordinary parameter.
 
 Legacy runtime conformance selectors are not callable-package evidence.
-[Machine values](../language/machine_values.md) and [some packages](../language/some_packages.md)
+[Machine values](../../../../../../wiki/spec/language/machine_values.md) and [some packages](../../../../../../wiki/spec/language/some_packages.md)
 replace source `dyn`; static named conformances remain. `SelectImplementation`
 (109), `CallDynamic` (110), and section 25 describe legacy wire forms. They do not
 authorize source `dyn` and must not be silently decoded as runtime callable
@@ -160,7 +172,7 @@ requires no global witness/target roster. Source checking produces these plans;
 lowering carries them; independent verification validates them. Update the
 semantic marker, producer, codec, interpreter, verifier and consumers together.
 New numeric tags and their byte payloads must be specified with that
-implementation, not guessed here. The [migration plan](../../drafts/designs/machine_values_some.md)
+implementation, not guessed here. The [migration plan](../../../../../../wiki/drafts/designs/machine_values_some.md)
 owns replacement of the legacy rows and retirement of their decoders.
 
 Operation variants are closed and typed. Their referenced values must be
@@ -205,16 +217,16 @@ A destination invariant, another origin row or evidence from a different arrival
 cannot serve as its proof. A routed ancestor still needs its authorized provenance.
 
 Canonical identity-table references retain
-[stable index identity](../proofs/contracts.md#stable-canonical-index-identity).
+[stable index identity](../../../../../../wiki/spec/proofs/contracts.md#stable-canonical-index-identity).
 Producers agree on canonical typed structure, selected operation/application,
 arithmetic policy, fixed core simplifications, ordering, and encoding. No
 expansion cutoff or caller-selected law set enters open-index key normalization.
 Compiler-local handles and compression cannot change published identity.
 
-[Compatibility evidence](../proofs/contracts.md#exact-matching-and-evidence-transport)
+[Compatibility evidence](../../../../../../wiki/spec/proofs/contracts.md#exact-matching-and-evidence-transport)
 retains its exact proposition, subjects, substitution and selected law authority
 separately from keys. Reuse of established judgments follows
-[Psi admission](product.md#publication-and-separate-consumption): the host
+[Psi admission](../../../../../../wiki/spec/terminal-psi/product.md#publication-and-separate-consumption): the host
 authorizes the trusted producer's exact artifact. Receipt requires neither
 theorem rediscovery nor certificate replay. Proof-discovery policy and usage
 are accounting; they neither rename applications nor establish claims. Closed
@@ -239,7 +251,7 @@ the `PSICORE` framing remain supported canonical encodings. Their presence grant
 no truth, producer trust, execution permission or provider authority. Decoding
 checks their representation under shared count, byte and work limits;
 it does not re-decide the encoded judgment. The
-[inspection/preparation split](../build/embedding.md#loading-and-preparation)
+[inspection/preparation split](../../../../../../wiki/spec/build/embedding.md#loading-and-preparation)
 preserves canonical and structural validation while assigning execution-only
 analyses to authorized preparation. No wire-format retirement follows from this
 admission policy.
@@ -319,7 +331,7 @@ ordered strictly by `(machine, edge, argument ordinal)`; float entry ranges by
 these bytes participate in semantic identity. Canonical encoding does not
 itself authorize membership. Verification compares the exact same-carrier sets
 at the named source and destination under the
-[scalar qualification rules](calls_and_outcomes.md#scalar-qualifications).
+[scalar qualification rules](../../../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#scalar-qualifications).
 An ordinary strict addition introduces only predicate-free, route-free atoms.
 Predicate or routed membership still requires a checked completion. A pure
 erasure goes to a strict subset, including the bare set. For a replacement,
@@ -527,7 +539,7 @@ header. Absence of that header does not classify a selected contract as nongener
 
 ## Field encodings
 
-The [width-indexed integer contract](../language/numeric_values.md#width-indexed-integers)
+The [width-indexed integer contract](../../../../../../wiki/spec/language/numeric_values.md#width-indexed-integers)
 requires a versioned migration of integer type/value and structural scalar
 encodings: retain positive `u64` semantic widths and exact values beyond 128
 bits without truncation. The legacy `u16` width and `i128`/`u128` value fields
@@ -580,7 +592,7 @@ byte limit. Any tag value absent from a closed-sum table rejects.
 
 Additional input qualifications distinguish facts supplied for a call from
 requirements owed by the original storage, following
-[lender-domain restoration](../language/dependent_values.md#mutable-receivers-and-declared-field-domains).
+[lender-domain restoration](../../../../../../wiki/spec/language/dependent_values.md#mutable-receivers-and-declared-field-domains).
 Each row uses the projected-qualification encoding; an empty path names a
 whole-value qualification. The list is strictly ordered, and every row also
 appears in the value's ordinary whole or projected qualification list. It grants
@@ -821,7 +833,7 @@ Transformation derivations and their input/output rosters are unordered sets,
 strictly sorted by the representation's lexicographic field order; duplicates
 and alternative ordering reject. Parent arguments retain positional operand
 order. Neither order supplies authority. The reconstructed obligations and
-execution behavior follow the [ownership contract](ownership.md).
+execution behavior follow the [ownership contract](../../../../../../wiki/spec/terminal-psi/ownership.md).
 
 Lineage steps retain causal order; each step's input and output claim rosters
 are strictly increasing sets. Marker 183 adds these completed producer links
@@ -864,6 +876,7 @@ integer math and content operands are their own encodings inside the row.
 | 21 | IeeeFloatIntegerExact | scalar source + integer type |
 | 22 | IntegerIeeeFloatExact | scalar integer source + IEEE target format |
 | 23 | Identity | counted Identity values + `u32` left value position + `u32` right value position |
+| 24 | IsMere | proposition |
 
 Tags 12, 18 and 19 are retired; a decoder rejects them.
 
@@ -942,7 +955,7 @@ This encoding retains explicit typed data identity without enumerating fields
 or array elements and does not encode an executable equality operation. A source `==` fact cannot populate it
 without checked evidence connecting the selected comparison to identity.
 
-The ratified [float identity rule](mathematical_values.md#float-equality-and-source-identity)
+The ratified [float identity rule](../../../../../../wiki/spec/terminal-psi/mathematical_values.md#float-equality-and-source-identity)
 requires exact raw IEEE representation identity to remain distinct from IEEE
 comparison and payload-erased meaning equality. This table does not itself add
 a scalar identity encoding or validate an old artifact under new semantics.
@@ -1467,7 +1480,7 @@ External provider rows now retain an optional sealed native meaning immediately
 after their optional numeric intrinsic. Its `u8` outer tag is `1` for hosted
 operations and `2` for fixed-image operations. Hosted `u8` tags are `2` for console byte write and `4` for core process exit.
 Tag `3` designated a byte reader that trapped on input failure and must be
-rejected. Standard input now uses the [checked reader](../resources/bounded_input.md)
+rejected. Standard input now uses the [checked reader](../../../../../../wiki/spec/resources/bounded_input.md)
 with a recoverable error result. Tag `1`, formerly console process exit, also
 rejects. Fixed-image tags are `1`
 program-storage entry and `2` retained-suffix start.
@@ -1838,7 +1851,7 @@ fingerprints. These records supply no producer trust or execution authority.
 The caller separately supplies authorization for the exact canonical artifact;
 attachment checks each seal's module, execution site and goal. Receipt does not
 require proof-kernel replay, as defined by
-[publication and separate consumption](product.md#publication-and-separate-consumption).
+[publication and separate consumption](../../../../../../wiki/spec/terminal-psi/product.md#publication-and-separate-consumption).
 Psi's semantic format and identity are unchanged by this companion.
 
 
@@ -1861,7 +1874,7 @@ An ordinary machine's parameter and result type identities retain their declared
 lifetime relation in one signature context. Its own lifetime binders use
 `region(owner(schema),ordinal(...))`; elided inputs mint distinct binders and an
 elided result uses the signature's unambiguous relation under
-[returned-view elision](../language/lifetimes.md#returned-views). Captured
+[returned-view elision](../../../../../../wiki/spec/language/lifetimes.md#returned-views). Captured
 lifetimes retain their portable declaration owner instead of becoming invocation
 binders. Binder names do not affect these identities. The contract commitment
 uses these same complete type identities, so an input-related result promise
@@ -1928,7 +1941,7 @@ followed by its nonempty counted `requires` clauses as canonical propositions
 in authored order. The sum wrapper remains tag `18`, with its ordinary sum
 payload followed by the same counted clauses. Each clause names its own
 fields and cases, with `self` as place 1, under the
-[structural access contract](structural_access.md#complete-record-construction).
+[structural access contract](../../../../../../wiki/spec/terminal-psi/structural_access.md#complete-record-construction).
 A wrapper with zero clauses or a record wrapper around another constructor
 is rejected. Declarations without clauses retain their ordinary encoding.
 This records the invariant; the receiving checker still proves construction,
@@ -1979,7 +1992,7 @@ checked on canonical reload.
 | entry claim | claim id + input place id + structural path; strictly ordered by claim id |
 | block-entry claim binding | claim id + owned block parameter place id + structural path; strictly ordered by claim id; names the arriving obligation without establishing one |
 | service ceiling | counted service ids; the published ceiling is strictly ordered |
-| synchronous entries | counted service ids, strictly ordered: the requirement identities of the callbacks and inbound entries control may arrive at before the machine returns ([direct synchronous invocation](../language/effects.md#direct-synchronous-invocation)); no parent closure |
+| synchronous entries | counted service ids, strictly ordered: the requirement identities of the callbacks and inbound entries control may arrive at before the machine returns ([direct synchronous invocation](../../../../../../wiki/spec/language/effects.md#direct-synchronous-invocation)); no parent closure |
 | structural result declaration | place id + structural type id + structural multiplicity + counted domain identities + counted projected qualifications + counted reference result sources |
 | reference result source | result structural path + source structural argument; strictly ordered by result path |
 | machine contract | contract id + crash routes + counted erased scalar formal declarations + counted erased proof formals + counted requires propositions + counted ensures clauses + counted outcome-specific ensures |
@@ -2124,7 +2137,7 @@ the bound was omitted and the exact service identities of a finite bound.
 
 ### Deferred static reach summaries
 
-The [deferred reach contract](../language/effects.md#static-callback-reach-dependencies)
+The [deferred reach contract](../../../../../../wiki/spec/language/effects.md#static-callback-reach-dependencies)
 requires published summaries to distinguish an open bound from every finite
 bound, including empty. Preserve structural and nominal machine-binder origins,
 and conformance projections keyed by evidence binder, exact requirement member
@@ -2133,7 +2146,7 @@ commitments and the resulting finite rows. Runtime callable ceilings stay finite
 an installed root cannot retain unresolved static projections.
 
 Canonical identities include these distinctions. An old empty bound cannot be
-reinterpreted as an open one. The [migration](../../drafts/designs/deferred_callback_reach.md#implementation)
+reinterpreted as an open one. The [migration](../../../../../../wiki/drafts/designs/deferred_callback_reach.md#implementation)
 must update the reach schema, wire-field tables, commitments and codecs together,
 with exact round-trip and refusal coverage. Source omission alone cannot recover
 an absent dependency from a previously published interface.
@@ -2343,7 +2356,7 @@ initialized fixed-array backing for one borrowed call argument. Both endpoints
 participate in canonical identity, including empty windows. This terminal
 segment follows the backing's field-only path; it does not identify an owned
 subtree or an escaping reference. The call's type, access, bounds, and overlap
-checks remain required by [byte views](byte_views.md#calls-and-control-transfers).
+checks remain required by [byte views](../../../../../../wiki/spec/terminal-psi/byte_views.md#calls-and-control-transfers).
 
 <!-- canonical-path-segment-tags -->
 
@@ -2887,9 +2900,10 @@ and its implication is its `requires` and `ensures`.
 
 | Row | Fields |
 | --- | --- |
-| theorem contract | counted scalar formal declarations + counted requires propositions + counted ensures propositions |
+| theorem contract | theorem hypothesis + counted theorem hypotheses |
+| theorem hypothesis | counted scalar formal declarations + counted requires propositions + counted ensures propositions |
 | theorem parameter | owner machine id + `u32` proof position + theorem contract |
-| theorem application | owner machine id + edge id + successor block id + proof source + counted fixed scalar subjects + counted premise obligation ids |
+| theorem application | owner machine id + edge id + successor block id + proof source + counted fixed scalar subjects + counted premise obligation ids + counted theorem instantiations |
 | theorem supply | caller machine id + invocation site + `u32` proof position + proof source + counted certificate envelopes + counted theorem instantiations |
 | theorem instantiation | proof source + counted certificate envelopes |
 | proof source | `u8`: 1 + cited machine id; 2 + `u32` caller proof-formal position |
@@ -2897,7 +2911,7 @@ and its implication is its `requires` and `ensures`.
 An application supplies every substituted premise on its edge. Only its unique
 ordinary successor may use the conclusions. The recorded subjects are captured
 scalar values or literals; this metadata grants no storage access or runtime
-call. The [logical-hypothesis rule](../proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use)
+call. The [logical-hypothesis rule](../../../../../../wiki/spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use)
 requires the whole implication over arbitrary admitted subjects, even when a
 particular caller supplies a constant.
 
@@ -2909,7 +2923,7 @@ mathematical type. Ordinary decoding checks each recorded judgment’s source,
 role and subjects, its invocation, and the actual certificate’s canonical
 encoding and declared type. Source-bound validation can replay the derivations.
 The receiving host authorizes the exact artifact and its assumption dependencies
-under [publication and separate consumption](product.md#publication-and-separate-consumption). A forwarded supply names the caller's exact
+under [publication and separate consumption](../../../../../../wiki/spec/terminal-psi/product.md#publication-and-separate-consumption). A forwarded supply names the caller's exact
 proof formal, carries no new derivation, and must have the same complete type.
 The selected theorem remains derivation provenance; it does not select runtime
 code or determine Strict proof identity.
@@ -2922,6 +2936,18 @@ named one retains the same three derivations against that formal's contract,
 and a forwarded one names the caller's exact proof formal, carries no
 derivation and must have the same complete type as the cited machine's formal.
 An instantiation cannot itself be instantiated or name the cited machine.
+
+A theorem contract's hypotheses are its own proof parameters, in its header
+order; each is a contract with none of its own. Its complete type binds them
+after its subjects and before its premises:
+`Π subjects. Π hypotheses. Π premises. conclusion`. Each hypothesis's type
+arrives with the declarations it names, appended after the subjects', so the
+same contract always has the same type. A supply for such a parameter names a
+machine whose own proof formals have exactly those contracts, in order, and
+carries no instantiation; its derivations are unchanged. An application of such
+a parameter carries one instantiation for each hypothesis, checked as a
+supply's instantiation is against that hypothesis. Every other application
+carries none.
 
 ### Closed conformance applications
 
@@ -3260,7 +3286,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 293 | yes |
+| semantic module | `PSITERM\0` | 300 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |
@@ -3305,7 +3331,7 @@ Emitted operations and return edges retain semantic site, operation ordinal,
 function-relative offset, and byte count. Metadata-only settlement rows have
 zero-byte intervals. This is replay/analysis provenance, not native instruction
 cost or runtime charging. Structural call placement must preserve the
-[borrow identity contract](structural_access.md);
+[borrow identity contract](../../../../../../wiki/spec/terminal-psi/structural_access.md);
 it cannot stage every borrowed parameter as an owned copy merely because the
 installation record can describe one.
 

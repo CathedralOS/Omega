@@ -29,7 +29,7 @@ development artifacts working. This does not remove the current format
 discriminator or exact schema identity: incompatible bytes must reject rather
 than be interpreted under a new layout. Package pins, producer authorization,
 selected-provider identity and contracted runtime replacement are live correctness
-mechanisms, not historical baggage. The [encoding contract](../../wiki/spec/terminal-psi/encoding.md)
+mechanisms, not historical baggage. The [encoding contract](../../source-rust/subsystems/compiler/psi/artifact/wire/encoding.md)
 owns these requirements.
 
 A missing implementation, test or difficult repair stays with its owning task.
@@ -117,7 +117,7 @@ public spellings.
   [structural claims and cleanup](../../wiki/spec/terminal-psi/ownership.md),
   [runtime callable dispatch](../../wiki/spec/terminal-psi/dynamic_dispatch.md),
   [observations](../../wiki/spec/terminal-psi/observations.md),
-  [encoding](../../wiki/spec/terminal-psi/encoding.md),
+  [encoding](../../source-rust/subsystems/compiler/psi/artifact/wire/encoding.md),
   [fact validity](../../wiki/spec/terminal-psi/fact_validity.md),
   [mathematical proof values](../../wiki/spec/terminal-psi/mathematical_values.md), and
   [integer certificates](../../wiki/spec/terminal-psi/integer_certificates.md).

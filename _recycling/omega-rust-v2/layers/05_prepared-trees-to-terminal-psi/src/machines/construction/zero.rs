@@ -9,7 +9,7 @@
 //!   record that receives it still owes its predicates over a visible operand.
 //! - A record or fixed array whose every leaf is a scalar is one
 //!   `EstablishZeroedStructural` of the whole type, whatever its extent
-//!   (`wiki/spec/terminal-psi/encoding.md`, operation 94). That operation owes
+//!   (`source-rust/subsystems/compiler/psi/artifact/wire/encoding.md`, operation 94). That operation owes
 //!   the predicates of the result's schema and of every schema inside it.
 //! - Any other record is `EstablishRecord` over the zeros of its fields, a sum
 //!   is `EstablishCase` of its first declared case over the zeros of that

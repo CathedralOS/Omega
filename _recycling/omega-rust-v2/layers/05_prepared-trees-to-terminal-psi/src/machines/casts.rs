@@ -87,7 +87,7 @@ pub(super) enum ScalarChange {
 /// Whether it may issue a domain that selects an access policy is decided by
 /// that policy's executed plan, which lowering does not have: a plan can admit
 /// no issuer, and then the domain has no establishment route for any machine
-/// (`wiki/spec/terminal-psi/encoding.md`, domain rows). The package therefore
+/// (`source-rust/subsystems/compiler/psi/artifact/wire/encoding.md`, domain rows). The package therefore
 /// reports each such cast to its driver, and this refuses one it does not report.
 pub(super) fn scalar_cast<'a>(
     operation: &'a TypedOperation,

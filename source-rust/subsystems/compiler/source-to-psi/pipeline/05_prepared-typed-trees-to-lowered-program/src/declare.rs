@@ -7,7 +7,7 @@ it, and native admission compares it with the entry the Build bound.
 `wiki/spec/terminal-psi/product.md`: "Source-produced machine bodies retain a
 portable checked declaration identity: exact-owner callable and initial
 state, contract commitment, and optional specialization template/commitment."
-`wiki/spec/terminal-psi/encoding.md` gives the row: the exact-owner machine,
+`source-rust/subsystems/compiler/psi/artifact/wire/encoding.md` gives the row: the exact-owner machine,
 initial state and semantic declaration, the parameter types, the callable and
 the result type as identity-table entries, the 32-byte contract commitment,
 and the published suspension and blocking Booleans.

@@ -105,7 +105,7 @@ impl SourceSyntax {
     /// loader met them. Resolution, typing and lowering number declarations,
     /// record types and identities in the order they meet root items, so
     /// without this the same program captured in another order publishes
-    /// other numbers (`wiki/spec/terminal-psi/encoding.md`, "Canonical
+    /// other numbers (`source-rust/subsystems/compiler/psi/artifact/wire/encoding.md`, "Canonical
     /// form": unordered sets are sorted by stable identity). Items keep their
     /// written order within a file.
     fn canonicalize_file_order(
