@@ -427,3 +427,36 @@ fn a_fixed_whole_borrow_preserves_defaults_without_naming_its_unused_elements() 
     );
     assert!(matches!(overwritten.judged(|_| {}), program::Verdict::Rejected(_)));
 }
+
+/// A captured selector can overwrite the literal slot, including across a
+/// block edge. A disjoint literal write preserves the selected payload.
+#[test]
+fn mutable_sum_array_snapshots_preserve_overlapping_writes() {
+    let program = |length: usize, selector: &str| {
+        Program::of(&format!(
+        "domain u64::Small requires self <= 31;
+         data Slot [copy] {{ case Empty; case Full(value: u64 in Small); }}
+         machine observe(slots: @mutable [Slot; {length}], index: u64) -> u64
+         requires index < {length}
+         ensures result == 7 {{
+             slots[2] = Slot::Full {{ value: 7u64 as + Small }};
+             slots[{selector}] = Slot::Full {{ value: 9u64 as + Small }};
+             transition {{ _ -> block read(slots) }}
+             machine read(slots: @mutable [Slot; {length}]) -> u64 {{
+                 transition slots[2] {{ Slot::Full {{ value }} -> (value as - Small), Slot::Empty -> 0 }}
+             }}
+         }}"
+    ))
+    };
+    let [small, large] = [8, 4096].map(|length| {
+        let program = program(length, "index");
+        let lowered = program.lower();
+        let machine = lowered.machine("observe");
+        let tables = lowered.elaboration.tables.machines.get(machine.id).unwrap();
+        (tables.values.len(), tables.places.len())
+    });
+    assert_eq!(small, large);
+    program(8, "1").judged(|_| {}).accepted();
+    let rejection = program(8, "index").judged(|_| {}).rejected();
+    assert!(rejection.unproved.iter().any(|kind| kind.starts_with("NormalGuarantee")), "{rejection:?}");
+}
