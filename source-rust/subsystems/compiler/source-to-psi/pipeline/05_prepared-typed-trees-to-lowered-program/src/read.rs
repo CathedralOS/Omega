@@ -49,6 +49,7 @@ mod contracts;
 pub(crate) mod domain_predicate_forms;
 mod expressions;
 mod families;
+pub(crate) mod field_openings;
 mod fixed_bytes;
 mod float_meaning;
 pub(crate) mod logical;
