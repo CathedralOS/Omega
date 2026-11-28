@@ -1,1 +1,1 @@
-state `bump` receives `rooms[selected]` while local borrow `held` is still active
+state `bump` receives `@mutable rooms[selected]` as mutable more than once (conflicting loans)

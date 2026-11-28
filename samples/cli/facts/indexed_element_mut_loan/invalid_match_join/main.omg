@@ -8,7 +8,7 @@ machine bump(room: @mutable Room) {
 machine exercise(from_index: u64, alternate: u64, flag: bool) -> bool
 requires from_index < 2 && alternate == from_index
 {
-    let mutable rooms: [Room; 2] = [Room { exit_count: 0 }, Room { exit_count: 10 }];
+    let mutable rooms: [Room; 2] = [Room { exit_count: 0u32 as +Wrapping }, Room { exit_count: 10u32 as +Wrapping }];
     let selected: u64 = match flag { true -> from_index, false -> alternate };
     let held: @mutable Room = @mutable rooms[selected];
     bump(@mutable rooms[selected]);
