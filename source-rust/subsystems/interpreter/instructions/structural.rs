@@ -1414,6 +1414,54 @@ impl TerminalExecution<'_> {
             })
             .ok_or(malformed())?
             == StructuralMultiplicity::Unrestricted;
+        // A mutable `[T; N]` reference into a byte view's window, such as
+        // `@mutable row[a..b] as @mutable [u8; N]`, has no structural home:
+        // its elements are the view's bytes. Replacing the whole array
+        // writes each copied element into those bytes.
+        if path.is_empty()
+            && field.is_none()
+            && let Some(view) = self.element_view_values.get(&destination)
+            && view.is_representation()
+        {
+            if !copies_storage
+                || disposition != terminal_psi::StructuralStoreDisposition::ReplaceDiscardable
+                || view.access() != StructuralAccess::MutableBorrow
+            {
+                return Err(malformed());
+            }
+            let view = view.clone();
+            let types = self.structural_types();
+            let value_type = self.live_structural_type(value.place)?;
+            let Some(StructuralTypeShape::FixedArray { element, length }) =
+                types.get(&value_type).map(|row| &row.shape)
+            else {
+                return Err(malformed());
+            };
+            let Some(StructuralTypeShape::PrimitiveScalar(scalar_type)) =
+                types.get(element).map(|row| &row.shape)
+            else {
+                return Err(malformed());
+            };
+            let scalar_type = *scalar_type;
+            if length
+                .literal()
+                .and_then(|length| usize::try_from(length).ok())
+                != Some(view.len())
+            {
+                return Err(malformed());
+            }
+            for index in 0..view.len() {
+                let scalar = self.read_primitive_place(
+                    value.place,
+                    &[StructuralPathSegment::FixedIndex(
+                        u64::try_from(index).map_err(|_| malformed())?,
+                    )],
+                    scalar_type,
+                )?;
+                self.write_representation_element(&view, index, &[], scalar)?;
+            }
+            return Ok(OperationFlow::Advance);
+        }
         let failure = |phase, cause| TerminalInterpretError::StructuralReplacement {
             operation: operation.id,
             phase,

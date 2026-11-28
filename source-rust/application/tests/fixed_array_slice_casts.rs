@@ -128,3 +128,77 @@ public machine main() {{
         );
     }
 }
+
+const MUTABLE_WINDOW: &str =
+    "machine fill(lane: @mutable [u8; 4]) { lane[0] = 9u8; lane[3] = 7u8; }
+machine window(row: @mutable [u8]) requires row.length >= 6 {
+    let lane: @mutable [u8; 4] = @mutable row[2..6] as @mutable [u8; 4];
+    fill(lane);
+}
+machine direct(row: @mutable [u8]) requires row.length >= 2 {
+    let lane: @mutable [u8; 2] = @mutable row[0..2] as @mutable [u8; 2];
+    lane[1] = 8u8;
+}
+public machine main() crashes Trap {
+    let mutable data: [u8; 6] = [1u8, 2u8, 3u8, 40u8, 5u8, 60u8];
+    window(@mutable data[..]);
+    direct(@mutable data[..]);
+    transition data[0] == 1u8 && data[1] == 8u8 && data[2] == 9u8 && data[3] == 40u8
+        && data[4] == 5u8 && data[5] == 7u8 {
+        true -> done(),
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}
+";
+
+/// A window of a mutable view casts to a mutable fixed-array reference, and
+/// writes through it land in the view's backing, on Psi and in native code.
+#[test]
+fn a_mutable_window_casts_to_a_mutable_fixed_array_reference() {
+    observations::assert_silent_return(|| stage("mutable-window", MUTABLE_WINDOW), &["build.omg"]);
+}
+
+/// The mutable reference is an exclusive loan of its window, and a shared
+/// view cannot lend mutable access.
+#[test]
+fn a_mutable_fixed_array_reference_keeps_its_window_exclusive() {
+    for (name, body, expected) in [
+        (
+            "write-around-reference",
+            "let lane: @mutable [u8; 4] = @mutable row[2..6] as @mutable [u8; 4]; row[2] = 1u8; lane[0] = 9u8;",
+            "conflicting loans",
+        ),
+        (
+            "short-mutable-window",
+            "let lane: @mutable [u8; 4] = @mutable row[0..3] as @mutable [u8; 4]; lane[0] = 9u8;",
+            "cannot prove operation safety",
+        ),
+    ] {
+        let main = format!(
+            "machine window(row: @mutable [u8]) requires row.length >= 6 {{ {body} }}
+public machine main() {{
+    let mutable data: [u8; 6] = [1u8, 2u8, 3u8, 40u8, 5u8, 60u8];
+    window(@mutable data[..]);
+}}
+"
+        );
+        let scratch = stage(name, &main);
+        let (output, report) = observations::run(&scratch, &["run"], &["build.omg"]);
+        assert!(!output.status.success(), "{name}: {report}");
+        assert!(report.contains(expected), "{name}: {report}");
+    }
+    let main = "machine window(row: @[u8]) requires row.length >= 6 {
+    let lane: @mutable [u8; 4] = @mutable row[2..6] as @mutable [u8; 4];
+    lane[0] = 9u8;
+}
+public machine main() {
+    let data: [u8; 6] = [1u8, 2u8, 3u8, 40u8, 5u8, 60u8];
+    window(@data[..]);
+}
+";
+    let scratch = stage("shared-view-mutable-window", main);
+    let (output, report) = observations::run(&scratch, &["run"], &["build.omg"]);
+    assert!(!output.status.success(), "{report}");
+}
