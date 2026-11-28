@@ -165,6 +165,52 @@ impl CheckedPackageSites {
         self.field_type(machine, operation, field)?.as_structural()
     }
 
+    /// Check the complete membership set before a declared owner field is
+    /// moved into its opening. Only this operation's checked field can rename
+    /// a carrier, and every live domain must follow that same substitution.
+    pub fn moved_owner_carries(
+        &self,
+        module: &TerminalModule,
+        machine: &TerminalMachine,
+        operation: &Operation,
+        public_type: StructuralTypeId,
+        public: &crate::structural_qualifications::Memberships,
+    ) -> bool {
+        let OperationKind::MoveStructuralValue { source } = &operation.kind else {
+            return false;
+        };
+        let Some(result) = operation.result.structural() else {
+            return false;
+        };
+        let Some(field) = self.projected_field(machine.id, operation.id) else {
+            return false;
+        };
+        let declared = machine
+            .structural_place_type(source.place)
+            .and_then(|root| {
+                crate::canonical_static_projection(
+                    module.types.structural_types.iter(),
+                    root,
+                    &source.path,
+                )
+                .map(|(_, selected)| selected.id)
+            });
+        declared == Some(public_type)
+            && self.projected_structural_type(machine.id, operation.id)
+                == Some(result.structural_type)
+            && self.field_memberships(
+                module,
+                machine.id,
+                operation,
+                field,
+                public,
+                &crate::structural_qualifications::Memberships {
+                    whole: result.qualifications.clone(),
+                    projected: result.projected_qualifications.clone(),
+                },
+            )
+    }
+
     pub(crate) fn invocation_witnesses<'m>(
         &self,
         module: &'m TerminalModule,

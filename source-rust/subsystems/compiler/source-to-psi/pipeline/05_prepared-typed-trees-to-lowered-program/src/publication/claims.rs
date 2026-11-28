@@ -431,6 +431,11 @@ pub(crate) fn publish(
             obligation: None,
         })?;
     }
+    terminal_semantics::plain_affine::publish_callable_claims(
+        &mut module.execution.callables.contracts,
+        &module.types.structural_types,
+    )
+    .map_err(|error| preparation_error(diagnostic, error))?;
     // Each machine's claim rows come from its own ownership walk over the
     // module; the walks run on the invocation's workers (`plan_then_apply`).
     // A walk reads only this machine and its transitive callees/cleanups,

@@ -72,6 +72,19 @@ pub fn validate_transfer_source_memberships(
             .ok_or("leaf copy memberships do not follow from every current payload source")?;
     }
     if current.carrier != result.structural_type {
+        let live = crate::structural_qualifications::Memberships {
+            whole: current.qualifications,
+            projected: current.projected_qualifications,
+        };
+        if analyses.package_sites()?.moved_owner_carries(
+            module,
+            machine,
+            operation,
+            current.carrier,
+            &live,
+        ) {
+            return Ok(());
+        }
         return Err("value transfer source currently holds another carrier");
     }
     let additions = result
