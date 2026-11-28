@@ -1623,8 +1623,15 @@ impl TerminalExecution<'_> {
         let publishes_value = reserved.is_none() || initializes_home;
         let child = ConstructorValue::resolve(self, value)
             .map_err(|error| failure("completed source", error))?;
+        // The destination keeps its declared layout. A checked package store
+        // expects the replacement reference at this opening's type.
+        let expected_type = self
+            .program
+            .package_sites()?
+            .stored_type(self.current_machine, operation.id)
+            .unwrap_or(field_type);
         let (qualifications, projected_qualifications) = child.memberships();
-        if child.structural_type() != field_type
+        if child.structural_type() != expected_type
             || required
                 .iter()
                 .any(|domain| !qualifications.contains(domain))
@@ -1635,7 +1642,7 @@ impl TerminalExecution<'_> {
             return Err(TerminalInterpretError::StructuralStorePreparation {
                 stage: "replacement memberships",
                 detail: format!(
-                    "expected_type={field_type:?}, actual_type={:?}, required={required:?}, projected_required={projected_required:?}, actual={qualifications:?}, projected_actual={projected_qualifications:?}",
+                    "expected_type={expected_type:?}, actual_type={:?}, required={required:?}, projected_required={projected_required:?}, actual={qualifications:?}, projected_actual={projected_qualifications:?}",
                     child.structural_type()
                 ),
             });
