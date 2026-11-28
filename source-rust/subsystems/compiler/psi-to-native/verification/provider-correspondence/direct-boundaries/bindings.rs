@@ -26,6 +26,29 @@ pub enum DirectBoundaryExecution {
     Intrinsic(Option<native_intrinsics::CompilerIntrinsicExecutionIdentity>),
 }
 
+/// Where a direct native binding must get its meaning. A compiler operation
+/// without a direct catalog entry is lowered by the compiler, not selected
+/// by a supplier, even if the supplier can reproduce its calling signature.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DirectBindingSource {
+    Provider,
+    CompilerCatalog,
+}
+
+impl TryFrom<terminal_psi::CheckedBoundaryExecution> for DirectBindingSource {
+    type Error = &'static str;
+
+    fn try_from(execution: terminal_psi::CheckedBoundaryExecution) -> Result<Self, Self::Error> {
+        use terminal_psi::CheckedBoundaryExecution;
+        match execution {
+            CheckedBoundaryExecution::Provider => Ok(Self::Provider),
+            CheckedBoundaryExecution::HostedPrimitive { .. }
+            | CheckedBoundaryExecution::NumericPrimitive => Ok(Self::CompilerCatalog),
+            _ => Err("a direct native binding cannot supply this compiler-owned operation"),
+        }
+    }
+}
+
 impl DirectBoundaryLeaf {
     pub fn matches_any_requirement(&self, requirements: &std::collections::BTreeSet<&str>) -> bool {
         self.plan.rows.iter().any(|row| requirements.contains(self.plan.identities.text(row.requirement_identity)))
@@ -387,9 +410,13 @@ impl DirectBoundaryLeaf {
                 "direct callable route rejoins multiple exact Source/Terminal declarations".into(),
             );
         }
-        let numeric = boundary.declaration.as_ref().is_some_and(|declaration| {
-            declaration.execution == terminal_psi::CheckedBoundaryExecution::NumericPrimitive
-        });
+        let execution = boundary
+            .declaration
+            .as_ref()
+            .ok_or("direct callable route lost its checked declaration")?
+            .execution;
+        DirectBindingSource::try_from(execution)?;
+        let numeric = execution == terminal_psi::CheckedBoundaryExecution::NumericPrimitive;
         if numeric {
             let expected_schema = schemas::numeric_requirement_schema(module, boundary)?;
             if self.satisfied_schema != expected_schema {
@@ -482,5 +509,27 @@ impl DirectBoundaryLeaf {
             }
         }
         Ok(boundary)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DirectBindingSource;
+    use terminal_psi::CheckedBoundaryExecution;
+
+    #[test]
+    fn a_provider_cannot_take_over_a_compiler_operation() {
+        assert_eq!(
+            DirectBindingSource::try_from(CheckedBoundaryExecution::Provider),
+            Ok(DirectBindingSource::Provider)
+        );
+        assert_eq!(
+            DirectBindingSource::try_from(CheckedBoundaryExecution::NumericPrimitive),
+            Ok(DirectBindingSource::CompilerCatalog)
+        );
+        assert_eq!(
+            DirectBindingSource::try_from(CheckedBoundaryExecution::AccessMoveOut),
+            Err("a direct native binding cannot supply this compiler-owned operation")
+        );
     }
 }
