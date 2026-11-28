@@ -120,6 +120,22 @@ machine main() crashes Trap {
     }).collect::<Vec<_>>();
     assert_eq!(owners.len(), 1, "the worker owns both operational dependencies");
     assert!(!owners[0].published_may_suspend && !owners[0].published_may_block);
+    let mut missing = module.clone();
+    let owner = missing.machines.iter_mut().find(|machine| machine.id == owners[0].id).unwrap();
+    let application = owner.closed_reach_application.as_mut().unwrap();
+    application.suspension_dependency.parameters.clear();
+    application.blocking_dependency.parameters.clear();
+    application.template_commitment = terminal_psi::closed_reach_template_commitment(
+        application.template_base_commitment,
+        application.parameters(),
+        &application.suspension_dependency,
+        &application.blocking_dependency,
+        |_| None,
+    ).unwrap();
+    assert_eq!(
+        terminal_semantics::closed_reach::validate_closed_reach_applications(&missing),
+        Err("closed callback dependency omits an operational effect of its body"),
+    );
     program::assert_silent_return(source);
 }
 

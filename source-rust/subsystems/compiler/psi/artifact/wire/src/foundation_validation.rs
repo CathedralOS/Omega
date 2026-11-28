@@ -11444,12 +11444,14 @@ fn validate_callable_contracts(module: &TerminalModule) -> Result<(), CodecError
     {
         return malformed("a physical body contract carries an invocation-specific selection");
     }
-    for contract in module
-        .execution
-        .declaration_contracts
-        .iter()
-        .chain(module.machines.iter().map(|machine| &machine.contract))
+    for (contract, application) in module.execution.declaration_contracts.iter()
+        .map(|contract| (contract, None))
+        .chain(module.machines.iter().map(|machine| (
+            &machine.contract, machine.closed_reach_application.as_ref(),
+        )))
     {
+        let [suspension, blocking] =
+            terminal_semantics::calls::operational_dependencies::fixed_ceilings(contract, application);
         if contract
             .declared_service_reach
             .as_ref()
@@ -11462,11 +11464,9 @@ fn validate_callable_contracts(module: &TerminalModule) -> Result<(), CodecError
                 .declared_crash_routes
                 .as_ref()
                 .is_some_and(|row| row != &contract.crash_routes)
-            || contract
-                .declared_suspension
+            || suspension
                 .is_some_and(|allowed| allowed != contract.published_may_suspend)
-            || contract
-                .declared_blocking
+            || blocking
                 .is_some_and(|allowed| allowed != contract.published_may_block)
         {
             return malformed("authored callable effects differ from their published promises");

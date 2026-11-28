@@ -279,25 +279,8 @@ pub fn validate_closed_reach_applications(module: &TerminalModule) -> Result<(),
                 "closed callback substitution differs from its published operational contract",
             );
         }
-        if !machine.blocks.is_empty()
-            && (!application.suspension_dependency.parameters.is_empty()
-                || !application.blocking_dependency.parameters.is_empty())
-        {
-            let required = super::operational_dependencies::direct(module, machine, |position| {
-                let ClosedReachParameter::Machine(binding) = application.parameter(position)? else {
-                    return None;
-                };
-                Some([binding.upper_bound_may_suspend, binding.upper_bound_may_block])
-            })?;
-            for (exposed, actual) in [&application.suspension_dependency, &application.blocking_dependency]
-                .into_iter().zip(required)
-            {
-                if !exposed.concrete && (actual.concrete || actual.parameters.iter()
-                    .any(|parameter| exposed.parameters.binary_search(parameter).is_err()))
-                {
-                    return Err("closed callback dependency omits an operational effect of its body");
-                }
-            }
+        if invocations.values().any(|call| call.static_reach_binding.is_some()) {
+            super::operational_dependencies::validate_body(module, machine, application)?;
         }
         if let Some(capture) = &application.capture {
             validate_operational_contract(

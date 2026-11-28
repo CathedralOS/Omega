@@ -41,17 +41,10 @@ fn published(machine: &TerminalMachine) -> [bool; 2] {
 }
 
 fn declared(machine: &TerminalMachine) -> [Option<bool>; 2] {
-    let mut bounds = [machine.declared_suspension, machine.declared_blocking];
-    if let Some(application) = &machine.closed_reach_application {
-        for (bound, term) in bounds.iter_mut().zip([
-            &application.suspension_dependency, &application.blocking_dependency,
-        ]) {
-            if *bound == Some(true) && !term.parameters.is_empty() {
-                *bound = None;
-            }
-        }
-    }
-    bounds
+    terminal_semantics::calls::operational_dependencies::fixed_ceilings(
+        &machine.contract,
+        machine.closed_reach_application.as_ref(),
+    )
 }
 
 fn calls(elaboration: &Elaboration, machine: &TerminalMachine) -> Checked<Vec<Call>> {
