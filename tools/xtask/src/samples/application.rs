@@ -11,8 +11,14 @@ use std::{
     process::{Command, Stdio},
 };
 
+#[derive(Clone, Copy)]
+enum ExpectedTermination {
+    Exit(i32),
+    Trap,
+}
+
 pub(super) struct Oracle {
-    exit: Option<i32>,
+    termination: Option<ExpectedTermination>,
     stdout: Option<Vec<u8>>,
     stdout_contains: Option<String>,
     stderr: Option<Vec<u8>>,
@@ -24,42 +30,40 @@ impl Oracle {
         project: &SampleProject,
         entry: &Path,
         target: &str,
-        has_input: bool,
         evidence: &Path,
     ) -> Result<Self, String> {
         let directory = &project.directory;
         let (exit, stdout_contains) = parse_header_oracle(entry)?;
-        let mut oracle = Self {
-            exit,
-            stdout: None,
+        let mut termination = exit.map(ExpectedTermination::Exit);
+        for path in [
+            directory.join(format!("expected_native_exit.{target}.txt")),
+            directory.join("expected_native_exit.txt"),
+        ] {
+            if let Some(text) = optional_text(&path)? {
+                termination = Some(match text.trim() {
+                    "trap" => ExpectedTermination::Trap,
+                    code => ExpectedTermination::Exit(code.parse().map_err(|_| {
+                        format!("{} requires an i32 exit status or `trap`", path.display())
+                    })?),
+                });
+                break;
+            }
+        }
+        Ok(Self {
+            termination,
+            stdout: optional_bytes(&directory.join("expected_stdout.txt"))?,
             stdout_contains,
-            stderr: None,
+            stderr: optional_bytes(&directory.join("expected_stderr.txt"))?,
             files: file_outputs::expected(
                 directory,
                 &project.output_files,
                 &evidence.join("expected-files"),
             )?,
-        };
-        if has_input {
-            let target_exit = directory.join(format!("expected_native_exit.{target}.txt"));
-            let generic_exit = directory.join("expected_native_exit.txt");
-            for path in [target_exit, generic_exit] {
-                if let Some(text) = optional_text(&path)? {
-                    oracle.exit =
-                        Some(text.trim().parse::<i32>().map_err(|_| {
-                            format!("{} requires an i32 exit status", path.display())
-                        })?);
-                    break;
-                }
-            }
-            oracle.stdout = optional_bytes(&directory.join("expected_stdout.txt"))?;
-            oracle.stderr = optional_bytes(&directory.join("expected_stderr.txt"))?;
-        }
-        Ok(oracle)
+        })
     }
 
     pub(super) fn is_empty(&self) -> bool {
-        self.exit.is_none()
+        self.termination.is_none()
             && self.stdout.is_none()
             && self.stdout_contains.is_none()
             && self.stderr.is_none()
@@ -67,13 +71,19 @@ impl Oracle {
     }
 
     fn check(&self, observation: &Observation) -> Result<(), String> {
-        if let Some(expected) = self.exit
-            && observation.exit != Some(expected)
-        {
-            return Err(format!(
-                "expected exit {expected}, got {}",
-                observation.termination
-            ));
+        match self.termination {
+            Some(ExpectedTermination::Exit(code)) if observation.exit != Some(code) => {
+                return Err(format!(
+                    "expected exit {code}, got {}",
+                    observation.termination
+                ));
+            }
+            Some(ExpectedTermination::Trap)
+                if observation.trap != Some(true) || observation.explicit_native_exit =>
+            {
+                return Err(format!("expected Trap, got {}", observation.termination));
+            }
+            _ => {}
         }
         if let Some(expected) = &self.stdout {
             equal_bytes("expected stdout", expected, &observation.stdout)?;
@@ -527,6 +537,16 @@ mod tests {
                 .unwrap_err()
                 .contains("unavailable")
         );
+        let entry = dir.join("main.omg");
+        fs::write(&entry, "// Expected exit: 0.\n").unwrap();
+        fs::write(dir.join("expected_native_exit.txt"), "trap\n").unwrap();
+        let project = super::super::project_at(&dir, &dir).unwrap();
+        let oracle = Oracle::load(&project, &entry, "linux_x86_64", &dir).unwrap();
+        oracle.check(&native_trap).unwrap();
+        oracle.check(&psi_trap).unwrap();
+        for wrong in [&known_return, &psi_return, &psi_abort] {
+            assert!(oracle.check(wrong).unwrap_err().contains("expected Trap"));
+        }
         for kind in ["incomplete", "unavailable", "failed"] {
             let report = format!("psi\t{kind}\treason\n");
             let result = read("psi", &report);
