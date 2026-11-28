@@ -30,11 +30,13 @@ impl OpenedReferenceField {
             }
             _ => None,
         };
-        Some(Self {
+        let storage_referent = witness(storage_type)?;
+        let opened_referent = witness(opened_type)?;
+        (storage_referent != opened_referent).then_some(Self {
             storage_type,
             opened_type,
-            storage_referent: witness(storage_type)?,
-            opened_referent: witness(opened_type)?,
+            storage_referent,
+            opened_referent,
         })
     }
 
@@ -113,6 +115,7 @@ mod tests {
         assert_ne!(shape(4), shape(6));
         let field = OpenedReferenceField::new(&lookup, ty(4), ty(5)).unwrap();
         assert!(OpenedReferenceField::new(&lookup, ty(4), ty(6)).is_none());
+        assert!(OpenedReferenceField::new(&lookup, ty(4), ty(4)).is_none());
         let stored = ReferenceStorage {
             root: ReferenceRoot::Place(place(8)),
             carrier_type: ty(4),

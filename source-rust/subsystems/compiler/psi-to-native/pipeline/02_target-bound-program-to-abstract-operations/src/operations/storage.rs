@@ -628,6 +628,8 @@ pub(crate) mod borrowed_windows {
         let Some(source) = source_signature(machine, value.place) else {
             return Err(invalid("stored value has no declared source signature"));
         };
+        let opened_value_type =
+            opened_value_type.filter(|opened| *opened != projection.structural_type);
         let expected = opened_value_type.unwrap_or(projection.structural_type);
         if source.structural_type != expected {
             return Err(invalid(&format!(
@@ -1382,7 +1384,7 @@ pub(crate) mod structural_leaf_copy {
                         "copy result differs from its checked package projection",
                     ));
                 }
-                Some(selected_type)
+                (selected_type != expected_type).then_some(selected_type)
             } else {
                 None
             };
