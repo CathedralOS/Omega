@@ -20,6 +20,8 @@ mod opening;
 mod owned;
 mod requirements;
 mod restoration;
+mod returned;
+pub(crate) use returned::{ReturnedReferences, returned_referents};
 mod store;
 mod subjects;
 mod substitution;
@@ -32,6 +34,16 @@ use opening::{invocation, projection};
 pub use restoration::local_call_write_origins;
 pub(crate) use restoration::local_mutable_field_homes;
 use substitution::Substitution;
+
+/// The hidden referent of the inline reference actually stored at this path.
+/// Following the reference into its pointee no longer selects the stored loan.
+pub fn hidden_reference_referent(
+    module: &TerminalModule,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<StructuralTypeId> {
+    fields::hidden_reference_field(module, root, path).map(|member| member.referent)
+}
 
 type Site = (MachineId, OperationId);
 

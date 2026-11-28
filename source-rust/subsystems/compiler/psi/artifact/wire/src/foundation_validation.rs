@@ -3614,7 +3614,7 @@ pub(crate) mod machine_foundations {
         validate_structural_parameters(module, &machine.structural_parameters)?;
         super::call_foundations::validate_outcome_subjects(module, machine)?;
         super::scalar_observations::machine(module, machine)?;
-        structural_result_wire::validate_reference_sources(module, machine)?;
+        structural_result_wire::validate_reference_sources(analyses, machine)?;
         for block in &machine.blocks {
             validate_block_parameters(module, machine, block)?;
         }

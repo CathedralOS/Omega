@@ -111,6 +111,7 @@ pub(super) struct HiddenReferenceField<'path> {
     pub field: StructuralFieldId,
     pub path: &'path [StructuralPathSegment],
     pub access: StructuralAccess,
+    pub referent: StructuralTypeId,
 }
 
 pub(super) fn hidden_reference_field<'path>(
@@ -144,6 +145,7 @@ pub(super) fn hidden_reference_field<'path>(
                     field: field.id,
                     path: &path[position + 1..],
                     access,
+                    referent,
                 });
         }
     }

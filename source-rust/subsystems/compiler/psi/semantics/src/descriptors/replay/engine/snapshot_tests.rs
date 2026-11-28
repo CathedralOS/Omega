@@ -1055,6 +1055,7 @@ fn native_subobjects_and_header_only_calls_publish_their_checked_reference_type(
                 }],
                 unknown_contents: Vec::new(),
                 unresolved_slots: Vec::new(),
+                package_referents: Default::default(),
                 case_facts: Default::default(),
             },
         )
