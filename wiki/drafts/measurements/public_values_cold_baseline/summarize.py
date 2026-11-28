@@ -16,8 +16,9 @@ for row in rows:
         continue
     group = row["client"].split("-")[0]
     key = (group, row["label"])
-    for name in ("seconds", "peak_kib", "bytes"):
-        timings[(*key, name)].append(row[name])
+    for name in ("seconds", "peak_kib", "user_cpu_s", "system_cpu_s", "bytes"):
+        if name in row:
+            timings[(*key, name)].append(row[name])
     if group == "instrumented":
         lines = (
             (root / row["client"] / (row["label"] + ".stderr")).read_text().splitlines()
@@ -35,9 +36,9 @@ for row in rows:
                 phases["timeline / " + m[4]] += float(m[3])
                 if m[4] == "prepare_targets":
                     prepared = float(m[2])
-                if m[4] == "settle_rechecks":
+                if m[4] == "teardown":
                     phases.setdefault(
-                        "post-prepare through first settle start",
+                        "end of prepare_targets to first teardown (ms)",
                         float(m[1]) - prepared,
                     )
         for name, value in phases.items():

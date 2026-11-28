@@ -1,7 +1,6 @@
 """Run from a detached Omega checkout under mbx reserve. Use a new output directory."""
 
 import argparse
-import ctypes
 import hashlib
 import io
 import json
@@ -22,6 +21,7 @@ parser.add_argument("--count", type=int, default=5)
 parser.add_argument("--profile-only", action="store_true")
 parser.add_argument("--verify-only", action="store_true")
 args = parser.parse_args()
+TARGET = "linux_x86_64"
 omega = args.omega.resolve(strict=True)
 out = args.output.resolve()
 out.mkdir(mode=0o700)
@@ -54,12 +54,8 @@ def client(name):
     env.update(
         OMEGA_LIBRARY_ROOT=str(root / "source/library"),
         XDG_CACHE_HOME=str(root / "cache"),
-        LOCALAPPDATA=str(root / "cache"),
         HOME=str(root / "home"),
-        USERPROFILE=str(root / "home"),
         TMPDIR=str(root / "temp"),
-        TEMP=str(root / "temp"),
-        TMP=str(root / "temp"),
     )
     return root, env
 
@@ -78,43 +74,18 @@ def measure(root, env, label, cmd):
             cwd=root / "scratch",
             env=env,
         )
-        if os.name == "nt":
-            rc = proc.wait()
-            end = time.perf_counter_ns()
-
-            class Counters(ctypes.Structure):
-                _fields_ = [("cb", ctypes.c_uint32), ("faults", ctypes.c_uint32)] + [
-                    (key, ctypes.c_size_t)
-                    for key in (
-                        "peak",
-                        "working",
-                        "pp",
-                        "p",
-                        "np",
-                        "n",
-                        "page",
-                        "peakpage",
-                    )
-                ]
-
-            mem = Counters()
-            mem.cb = ctypes.sizeof(mem)
-            if not ctypes.windll.psapi.GetProcessMemoryInfo(
-                ctypes.c_void_p(int(proc._handle)), ctypes.byref(mem), mem.cb
-            ):
-                raise ctypes.WinError()
-            rss = mem.peak // 1024
-        else:
-            _, status, usage = os.wait4(proc.pid, 0)
-            end = time.perf_counter_ns()
-            rc = proc.returncode = os.waitstatus_to_exitcode(status)
-            rss = usage.ru_maxrss
+        _, status, usage = os.wait4(proc.pid, 0)
+        end = time.perf_counter_ns()
+        rc = proc.returncode = os.waitstatus_to_exitcode(status)
+        rss = usage.ru_maxrss
     return {
         "label": label,
         "cmd": list(map(str, cmd)),
         "rc": rc,
         "seconds": (end - started) / 1e9,
         "peak_kib": rss,
+        "user_cpu_s": usage.ru_utime,
+        "system_cpu_s": usage.ru_stime,
     }
 
 
@@ -124,7 +95,23 @@ def record(row):
         print(json.dumps(row), file=log)
 
 
-def build(root, env, label, timing=False, target="windows_x86_64"):
+def check_guest(root, env, label, command):
+    row = measure(root, env, label, command)
+    record(row)
+    if (
+        row["rc"]
+        or (root / (label + ".stdout")).stat().st_size
+        or any((root / "scratch").iterdir())
+    ):
+        raise RuntimeError(f"{label} failed exit, stdout or scratch cleanup in {root}")
+    stderr = (root / (label + ".stderr")).read_bytes()
+    if (label.startswith("native") and stderr) or (
+        label == "psi" and b"Psi exit 0" not in stderr.splitlines()
+    ):
+        raise RuntimeError(f"unexpected {label} diagnostics in {root}")
+
+
+def build(root, env, label, timing=False, target=TARGET):
     fixture = root / FIXTURE
     cmd = [omega, "build", "--target", target]
     if timing:
@@ -147,14 +134,10 @@ def build(root, env, label, timing=False, target="windows_x86_64"):
         binary = root / "scratch" / matches[0]
         assert binary.resolve().is_relative_to(fixture / "build")
         data = binary.read_bytes()
-        if target.startswith("windows"):
-            assert data[:2] == b"MZ"
-            pe = struct.unpack_from("<I", data, 0x3C)[0]
-            assert (
-                data[pe : pe + 4] == b"PE\0\0"
-                and struct.unpack_from("<H", data, pe + 4)[0] == 0x8664
-            )
-            assert struct.unpack_from("<H", data, pe + 24)[0] == 0x20B
+        assert (
+            data[:6] == b"\x7fELF\x02\x01"
+            and struct.unpack_from("<H", data, 18)[0] == 62
+        )
         row.update(binary=str(binary), bytes=len(data), binary_sha256=digest(binary))
     record(row)
     if row["rc"]:
@@ -164,36 +147,20 @@ def build(root, env, label, timing=False, target="windows_x86_64"):
 
 metadata = {
     "revision": rev,
+    "target": TARGET,
     "omega_sha256": digest(omega),
     "host": platform.uname()._asdict(),
-    "cpu": os.environ.get("PROCESSOR_IDENTIFIER"),
     "os_page_cache": "uncontrolled; source staged before each trial",
 }
-if os.name == "nt":
-    cpu = subprocess.run(
-        [
-            "powershell",
-            "-NoProfile",
-            "-Command",
-            "(Get-CimInstance Win32_Processor).Name",
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    metadata["cpu"] = cpu.stdout.strip()
-else:
-    metadata["cpu"] = next(
-        line.split(":", 1)[1].strip()
-        for line in Path("/proc/cpuinfo").read_text().splitlines()
-        if line.startswith("model name")
-    )
-    metadata["affinity"] = sorted(os.sched_getaffinity(0))
-    metadata["nice"] = os.getpriority(os.PRIO_PROCESS, 0)
-    metadata["cgroup_cpu_max"] = Path("/sys/fs/cgroup/cpu.max").read_text().strip()
-    metadata["cgroup_memory_max"] = (
-        Path("/sys/fs/cgroup/memory.max").read_text().strip()
-    )
+metadata["cpu"] = next(
+    line.split(":", 1)[1].strip()
+    for line in Path("/proc/cpuinfo").read_text().splitlines()
+    if line.startswith("model name")
+)
+metadata["affinity"] = sorted(os.sched_getaffinity(0))
+metadata["nice"] = os.getpriority(os.PRIO_PROCESS, 0)
+metadata["cgroup_cpu_max"] = Path("/sys/fs/cgroup/cpu.max").read_text().strip()
+metadata["cgroup_memory_max"] = Path("/sys/fs/cgroup/memory.max").read_text().strip()
 (out / "host.json").write_text(json.dumps(metadata, indent=2))
 if args.profile_only:
     root, env = client("sampled")
@@ -213,7 +180,9 @@ if args.profile_only:
                 omega,
                 "build",
                 "--target",
-                "windows_x86_64",
+                TARGET,
+                "--report-file",
+                root / "report.txt",
                 root / FIXTURE / "build.omg",
             ],
         )
@@ -221,32 +190,15 @@ if args.profile_only:
     sys.exit()
 if args.verify_only:
     root, env = client("verify")
-    target = "windows_x86_64" if os.name == "nt" else "linux_x86_64"
+    target = TARGET
     binary = build(root, env, "host-build", target=target)
-    record(measure(root, env, "native", [binary]))
-    record(
-        measure(
-            root,
-            env,
-            "psi",
-            [omega, "run", "--target", target, root / FIXTURE / "build.omg"],
-        )
+    check_guest(root, env, "native", [binary])
+    check_guest(
+        root,
+        env,
+        "psi",
+        [omega, "run", "--target", target, root / FIXTURE / "build.omg"],
     )
-    if os.name != "nt":
-        record(
-            measure(
-                root,
-                env,
-                "psi-windows",
-                [
-                    omega,
-                    "run",
-                    "--target",
-                    "windows_x86_64",
-                    root / FIXTURE / "build.omg",
-                ],
-            )
-        )
     sys.exit()
 for i in range(1, args.count + 1):
     for timing in (True, False) if i % 2 else (False, True):
@@ -257,8 +209,7 @@ for i in range(1, args.count + 1):
         )
         binary = build(root, env, "cold", timing)
         original_binary_sha = digest(binary)
-        if os.name == "nt":
-            record(measure(root, env, "native-cold", [binary]))
+        check_guest(root, env, "native-cold", [binary])
         src = root / FIXTURE / "main.omg"
         data = src.read_bytes()
         assert data.count(b"portable_source.tmp") == 5
@@ -270,5 +221,4 @@ for i in range(1, args.count + 1):
         assert digest(binary) != original_binary_sha, (
             "stale executable after filename edit"
         )
-        if os.name == "nt":
-            record(measure(root, env, "native-edited", [binary]))
+        check_guest(root, env, "native-edited", [binary])
