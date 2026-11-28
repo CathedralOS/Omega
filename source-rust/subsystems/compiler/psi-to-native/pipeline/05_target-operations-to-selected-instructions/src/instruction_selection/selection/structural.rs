@@ -3593,7 +3593,7 @@ pub(crate) mod reference {
             return Err(invalid());
         }
         let (_, value, _, address_type) = builder.resolve(*address).ok_or_else(invalid)?;
-        if !matches!(address_type, semantic_vocabulary::ClosedScalarType::Integer(integer) if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 64)
+        if !matches!(address_type, semantic_vocabulary::ClosedScalarType::Integer(integer) if integer.is_address() && integer.bits() == 64)
         {
             return Err(invalid());
         }
