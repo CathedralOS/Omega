@@ -171,7 +171,11 @@ pub fn call_write_regions(
                 .get(parameter)
                 .ok_or("write frame has no scalar actual")?;
             let address = crate::storage::native_borrows::address_origin(module, caller, *actual);
-            if address.opaque || address.sources.is_empty() || !address.parameters.is_empty() {
+            if address.expired
+                || address.opaque
+                || address.sources.is_empty()
+                || !address.parameters.is_empty()
+            {
                 return Ok(None);
             }
             for (at, source) in address.observed_sources() {

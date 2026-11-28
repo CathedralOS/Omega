@@ -799,7 +799,8 @@ fn adapt_flow(
                 } if event.modifies_resident() => {
                     payload_writes.push(payload_query(*place, path, None));
                 }
-                OperationKind::AtomicAccess { .. }
+                OperationKind::SelectMachine { .. }
+                | OperationKind::AtomicAccess { .. }
                 | OperationKind::AtomicFence { .. }
                 | OperationKind::StorageAddress { .. }
                 | OperationKind::StorageAlignment { .. }
@@ -978,7 +979,7 @@ fn adapt_flow(
                         &mut step,
                         operation.id,
                         result?,
-                        origin.observed_sources().map(|(at, source)| (at, *source)),
+                        origin.observed_sources(),
                         origin.exact,
                         origin.parameters.clone(),
                         origin.opaque,

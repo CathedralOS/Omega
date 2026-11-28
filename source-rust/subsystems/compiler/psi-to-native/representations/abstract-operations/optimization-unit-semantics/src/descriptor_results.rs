@@ -855,6 +855,48 @@ pub(crate) mod scalar_expressions {
         edge: &'function OptimizationEdge,
     }
 
+    fn storage_home(
+        function: &PsiOptimizationFunction,
+        place: semantic_vocabulary::PlaceId,
+        at: terminal_semantics::storage::native_borrows::Position,
+    ) -> terminal_semantics::storage::native_borrows::StorageHome<'_> {
+        use terminal_semantics::storage::native_borrows::StorageHome;
+        if let Some((ordinal, parameter)) = function
+            .structural_parameters
+            .iter()
+            .enumerate()
+            .find(|(_, p)| p.place == place)
+        {
+            return StorageHome::Formal(ordinal, parameter.access, parameter.structural_type);
+        }
+        if let Some(previous) = at.1.checked_sub(1)
+            && let Some(node) = function
+                .block(at.0)
+                .and_then(|b| b.nodes.get(previous as usize))
+            && let O::EstablishReference {
+                result,
+                source,
+                storage: None,
+                ..
+            } = &node.operation
+            && result.place == place
+        {
+            return StorageHome::FreshReference(source, (at.0, previous));
+        }
+        function
+            .block_nodes()
+            .find_map(|node| match &node.operation {
+                O::EstablishPrimitiveLocal { result, .. }
+                | O::EstablishStructuralLocal { result, .. }
+                    if result.place == place =>
+                {
+                    Some(StorageHome::Local(result.structural_type))
+                }
+                _ => None,
+            })
+            .unwrap_or(StorageHome::Other)
+    }
+
     pub(crate) struct ScalarExpressions<'function> {
         entry: BlockId,
         formals: Vec<ValueId>,
@@ -953,11 +995,14 @@ pub(crate) mod scalar_expressions {
         pub(super) fn native_address(
             &self,
             functions: &[&PsiOptimizationFunction],
+            shapes: &[terminal_psi::StructuralTypeDeclaration],
             value: ValueId,
         ) -> terminal_semantics::storage::native_borrows::NativeAddressOrigin<
             terminal_psi::StructuralArgument,
         > {
-            use terminal_semantics::storage::native_borrows::{AddressReturnBody, trace_address};
+            use terminal_semantics::storage::native_borrows::{
+                AddressReturnBody, ReturnedStorage, trace_address,
+            };
             trace_address(
                 value,
                 |v| self.address_definition(v),
@@ -982,6 +1027,11 @@ pub(crate) mod scalar_expressions {
                         callee.parameters.iter().map(|p| p.value).collect(),
                         results,
                         |v| expressions.address_definition(v),
+                        |source, at| {
+                            ReturnedStorage::classify(shapes, source, at, |place, cut| {
+                                storage_home(callee, place, cut)
+                            })
+                        },
                     ))
                 },
             )
@@ -993,10 +1043,19 @@ pub(crate) mod scalar_expressions {
         ) -> terminal_semantics::storage::native_borrows::AddressDefinition<
             terminal_psi::StructuralArgument,
         > {
-            use terminal_semantics::storage::native_borrows::AddressDefinition;
+            use terminal_semantics::storage::native_borrows::{AddressCall, AddressDefinition};
             if let Some(definition) = self.definitions.get(&value) {
                 if let Some(call) = definition.node.operation.module_invocation() {
-                    return AddressDefinition::Call(call.callee, call.arguments.to_vec());
+                    let (block, index) = definition.position;
+                    let Ok(index) = u32::try_from(index) else {
+                        return AddressDefinition::Opaque;
+                    };
+                    return AddressDefinition::Call(AddressCall {
+                        callee: call.callee,
+                        scalars: call.arguments.to_vec(),
+                        storage: call.structural_arguments.to_vec(),
+                        at: (block, index),
+                    });
                 }
                 return match &definition.node.operation {
                     O::ObserveStorageLocation {
@@ -1648,7 +1707,7 @@ fn adapt(
                             .iter()
                             .map(|formal| formal.value)
                             .zip(actuals.iter().copied()),
-                        |actual| scalar_expressions.native_address(functions, actual),
+                        |actual| scalar_expressions.native_address(functions, types, actual),
                         track_native_address_effects,
                     )
                 };
@@ -1961,7 +2020,10 @@ fn adapt(
                     address,
                     ..
                 } if slot_kind.tracks_references() => {
-                    let origin = scalar_expressions.native_address(functions, *address);
+                    let origin = scalar_expressions.native_address(functions, types, *address);
+                    if origin.expired {
+                        return None;
+                    }
                     graph.native_address_borrow(
                         types,
                         position,

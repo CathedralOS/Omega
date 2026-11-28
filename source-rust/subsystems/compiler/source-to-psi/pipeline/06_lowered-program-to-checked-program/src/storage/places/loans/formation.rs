@@ -282,6 +282,20 @@ impl<'a> Storage<'a> {
             self.lowered,
             address,
         );
+        if origin.expired {
+            if origin.sources.is_empty() && origin.parameters.is_empty() && !origin.opaque {
+                return Err(crate::refusal(
+                    RefusalReason::Violation,
+                    self.machine,
+                    concerns,
+                    "a native borrow cannot use storage owned by a machine that already returned",
+                ));
+            }
+            return Err(self.unsupported(
+                concerns,
+                "a native address may refer to storage owned by a machine that already returned",
+            ));
+        }
         let mut sources = Vec::new();
         let mut exact = origin.exact && origin.sources.len() == 1;
         for (at, source) in origin.observed_sources() {
