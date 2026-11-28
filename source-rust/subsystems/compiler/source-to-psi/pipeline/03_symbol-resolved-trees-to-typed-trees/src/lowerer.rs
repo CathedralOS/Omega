@@ -2073,7 +2073,11 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_type_references,
     )?;
-    crate::expressions::package_openings::open_cohort(&mut lowerer.typed_trees, cohort)?;
+    crate::expressions::package_openings::open_cohort(
+        lowerer.source_trees,
+        &mut lowerer.typed_trees,
+        cohort,
+    )?;
     // Result and effect queries must see the signature of the evaluated callee,
     // including calls in declaration contracts and initializers.
     let mut callable_admission = crate::expressions::runtime_callables::bind_calls_in_cohort(
