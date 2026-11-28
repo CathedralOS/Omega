@@ -198,7 +198,10 @@ fn retained_backing_carrier(
             Some(output.id)
         }
         StructuralAccess::MutableBorrow
-            if declared_access.is_none_or(|a| a == StructuralAccess::MutableBorrow) =>
+            if (input.id == output.id
+                || (input.declaration_identity.is_absent()
+                    && output.declaration_identity.is_absent()))
+                && declared_access.is_none_or(|a| a == StructuralAccess::MutableBorrow) =>
         {
             Some(output.id)
         }

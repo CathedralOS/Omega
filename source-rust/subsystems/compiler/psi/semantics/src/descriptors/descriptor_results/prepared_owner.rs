@@ -130,6 +130,9 @@ pub(super) fn invocation(
             .filter_map(|(position, kind)| {
                 (*kind == terminal_psi::BoundaryParameterKind::Structural).then_some(position)
             });
+    if structural_positions.clone().count() != formals.len() {
+        return None;
+    }
     for (position, ((actual, formal), source_position)) in structural_arguments
         .iter()
         .zip(formals)

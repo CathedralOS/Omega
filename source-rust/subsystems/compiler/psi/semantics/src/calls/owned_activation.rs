@@ -140,6 +140,7 @@ fn declares_worker(
     selected: terminal_psi::TerminalPreparedActivationEntry,
     ty: terminal_psi::TerminalIdentityIndex,
     family: &str,
+    first_argument_region: u32,
     reply: Option<&str>,
 ) -> Result<bool, &'static str> {
     let operands = declared_operands(module, ty, family)?;
@@ -158,11 +159,32 @@ fn declares_worker(
         .machine(selected.entry_machine)
         .and_then(|body| body.declaration.as_ref())
         .ok_or("activation lost its selected worker declaration")?;
-    let [input] = worker.parameter_types.as_slice() else {
+    let method = module
+        .boundary_machine(selected.preparation)
+        .and_then(|boundary| boundary.declaration.as_ref())
+        .ok_or("activation lost its checked preparation")?;
+    let [
+        terminal_psi::ClosedReachArgument::Type(a),
+        terminal_psi::ClosedReachArgument::Type(r),
+        ..,
+    ] = method.method_arguments.as_slice()
+    else {
         return Ok(false);
     };
-    Ok(module.identities.text(*input) == Some(arguments)
-        && module.identities.text(worker.result_type) == Some(result)
+    let checked = |actual, id, first| {
+        application_identity::type_identity::schema_carrier_region_count(
+            actual,
+            module.identities.text(id)?,
+            first,
+        )
+    };
+    let Some(count) = checked(arguments, *a, Some(first_argument_region)) else {
+        return Ok(false);
+    };
+    let first_result_region = first_argument_region
+        .checked_add(count)
+        .ok_or("activation has too many declared regions")?;
+    Ok(checked(result, *r, Some(first_result_region)).is_some()
         && declared_worker_operand(module, worker).as_deref() == Some(entry)
         && selected.storage.matches_type_operand(storage))
 }
@@ -273,10 +295,22 @@ pub fn prepare_shape(
         storage: TerminalActivationStorage::from_core_argument(text(*plan)?)
             .ok_or("prepare did not select its declared storage plan")?,
     };
-    if worker.parameter_types.as_slice() != [*args]
-        || worker.result_type != *out
+    let matches = |id, argument, first| {
+        module
+            .identities
+            .text(id)
+            .zip(module.identities.text(argument))
+            .is_some_and(|(declared, carrier)| {
+                application_identity::type_identity::schema_carrier_region_count(
+                    declared, carrier, first,
+                )
+                .is_some()
+            })
+    };
+    if !matches!(worker.parameter_types.as_slice(), [input] if matches(*input, *args, None))
+        || !matches(worker.result_type, *out, None)
         || source.parameter_types.len() != 2
-        || source.parameter_types.first() != Some(args)
+        || !matches(source.parameter_types[0], *args, Some(1))
     {
         return Err("prepare's argument and result binders differ from the worker's signature");
     }
@@ -298,6 +332,7 @@ pub fn prepare_shape(
             selected,
             source.result_type,
             "ActivationPreparation",
+            1,
             None,
         )?
     {

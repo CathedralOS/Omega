@@ -468,6 +468,33 @@ fn fixed_step_and_resume_preserve_the_closed_owner_and_returned_inputs() {
     );
     refused(&wrong_issuer);
 
+    let mut nominal_refund = reopened.clone();
+    let prepared =
+        terminal_semantics::calls::owned_activation::prepare_shape(&reopened, make).unwrap();
+    let raw_bytes = make.structural_parameters.last().unwrap().structural_type;
+    assert_ne!(raw_bytes, prepared.retained_carrier);
+    let foreign = reopened
+        .structural_type(step.ready_owner)
+        .unwrap()
+        .declaration_identity;
+    let refund = nominal_refund
+        .types
+        .structural_types
+        .iter_mut()
+        .find(|row| row.id == prepared.retained_carrier)
+        .unwrap();
+    assert!(refund.declaration_identity.is_absent());
+    // Replacing the common descriptor changes both the prepare refund and the
+    // completed step. Agreement between their layouts cannot mint a nominal value.
+    refund.declaration_identity = foreign;
+    assert_eq!(
+        terminal_semantics::calls::owned_activation::prepare_shape(&nominal_refund, make)
+            .unwrap_err(),
+        "retained backing must return the original exclusive byte slice"
+    );
+    assert!(step_shape(&nominal_refund, advance, make.id).is_err());
+    refused(&nominal_refund);
+
     let mut missing_demand = reopened.clone();
     missing_demand.execution.task_activation_demands.clear();
     // Lowering replays loans against the closed calls before it computes how
