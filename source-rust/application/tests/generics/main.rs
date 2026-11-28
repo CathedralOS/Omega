@@ -7,5 +7,6 @@ mod declaration_copy_layout;
 mod generic_case_payloads;
 mod generic_parameter_ownership;
 mod generic_record_fields;
+mod indexed_casts;
 mod inherited_static_siblings;
 mod mixed_static_arguments;
