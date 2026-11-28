@@ -140,11 +140,8 @@ fn local_view_backings(
     at: DescriptorPosition,
     references: &mut DescriptorAnalysis<'_>,
     view: &DescriptorLocation,
-    element: StructuralTypeId,
+    view_type: StructuralTypeId,
 ) -> Option<Vec<DescriptorLocation>> {
-    if !numeric_storage(module, element) {
-        return None;
-    }
     let types = &module.types.structural_types;
     let mut regions = Vec::new();
     for (source, path) in references.local_reference_homes(machine.id, at, view)? {
@@ -157,13 +154,12 @@ fn local_view_backings(
         }
         let root = machine.structural_place_type(source)?;
         let array = crate::runtime_structural_path_tip(types.iter(), root, &path)?;
-        let StructuralTypeShape::FixedArray {
-            element: stored, ..
-        } = array.shape
-        else {
+        let StructuralTypeShape::FixedArray { element, .. } = array.shape else {
             return None;
         };
-        if stored != element {
+        if !numeric_storage(module, element)
+            || crate::collection_backing(types.iter(), view_type, element).is_none()
+        {
             return None;
         }
         regions.push(descriptor_location(types, source, root, &path, None)?);
@@ -207,12 +203,12 @@ fn local_package_arguments(
         if homes.as_slice() != std::slice::from_ref(&local) {
             return None;
         }
-        if let StructuralTypeShape::ElementView { element, .. } = record.shape {
+        if record.shape.is_view_descriptor() {
             if !actual.path.is_empty() || machine.structural_parameter(actual.place).is_some() {
                 return None;
             }
             regions.extend(local_view_backings(
-                module, machine, at, references, &local, element,
+                module, machine, at, references, &local, record.id,
             )?);
             regions.push(local);
             continue;
