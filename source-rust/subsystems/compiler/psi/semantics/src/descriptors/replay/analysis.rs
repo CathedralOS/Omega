@@ -2049,6 +2049,12 @@ impl<'a> DescriptorAnalysis<'a> {
                     continue;
                 }
                 let source = match origin {
+                    DescriptorStoredOrigin::OwnerBacking(query) => {
+                        // The hidden owner keeps the loan alive. The actual
+                        // spatial origin comes from its checked preparation.
+                        pending.push((&query.owner, false));
+                        continue;
+                    }
                     DescriptorStoredOrigin::Invocation { .. }
                     | DescriptorStoredOrigin::Literal { .. }
                     | DescriptorStoredOrigin::Empty

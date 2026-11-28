@@ -1845,6 +1845,7 @@ fn adapt_flow(
                                             },
                                             path: path.clone(),
                                             structural_type,
+                                            activation_backing: None,
                                             lifetime_dependencies: lifetime_dependencies
                                                 .clone(),
                                         };
@@ -1958,14 +1959,16 @@ fn adapt_flow(
                                 })
                         });
                     let declaration = module.boundary_machine(*boundary)?;
-                    let preparation = if declaration.declaration.as_ref().is_some_and(|d| d.execution ==
-                        terminal_psi::CheckedBoundaryExecution::OwnedActivation(
-                            language_core::sealed_intrinsics::ActivationOperation::Prepare))
-                    {
-                        let shape = crate::calls::owned_activation::prepare_shape(module, declaration).ok()?;
-                        Some(super::prepared_owner::invocation(module, machine, operation,
-                            declaration, shape, slot_kind)?)
-                    } else { None };
+                    let preparation = match declaration.declaration.as_ref().map(|d| &d.execution) {
+                        Some(terminal_psi::CheckedBoundaryExecution::OwnedActivation(
+                            control @ (language_core::sealed_intrinsics::ActivationOperation::Prepare
+                            | language_core::sealed_intrinsics::ActivationOperation::StepFixed
+                            | language_core::sealed_intrinsics::ActivationOperation::Resume)
+                        )) => Some(super::prepared_owner::invocation(
+                            module, machine, operation, declaration, *control, slot_kind,
+                        )?),
+                        _ => None,
+                    };
                     if preparation.is_none() && !preserves_access_token
                         && !boundary_call_preserves_descriptor_storage(
                             module, machine, operation,
