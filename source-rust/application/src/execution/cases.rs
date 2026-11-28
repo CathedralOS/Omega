@@ -66,7 +66,7 @@ impl InputCase {
 }
 
 pub fn run_project_cases(
-    artifact: Option<psi_authorization::AuthorizedTerminalArtifact>,
+    artifact: Option<psi_authorization::AdmittedTerminalArtifact>,
     request: CaseRunRequest,
     present_test: impl FnMut(&str),
 ) -> Result<CaseRunOutcome, RunError> {

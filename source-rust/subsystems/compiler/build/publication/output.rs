@@ -336,6 +336,17 @@ impl CompletedProduct {
         }
     }
 
+    /// The contained admission of a runtime product made from saved Psi the
+    /// host does not trust. Such a product runs only on the contained route.
+    pub fn contained_artifact(&self) -> Option<&psi_authorization::ContainedTerminalArtifact> {
+        match &self.product {
+            CompileProduct::TerminalArtifact(product) => {
+                product.artifact.authorization().contained()
+            }
+            _ => None,
+        }
+    }
+
     pub fn into_retained_terminal_artifact(self) -> Option<RetainedTerminalArtifact> {
         match self.product {
             CompileProduct::TerminalArtifact(product) => Some(product.artifact),

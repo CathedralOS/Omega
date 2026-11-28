@@ -501,7 +501,7 @@ fn check_callback_publication(retain_body_source: bool) {
     };
     let admit = || {
         let input = VerifiedNativeArtifactInput::prepare_with_private_entry_ram(
-            &super::authorize_fixture(artifact),
+            &super::authorize_fixture(artifact).into(),
             target::TargetProfile::WindowsX64,
             request.entry,
             &[],
@@ -712,7 +712,7 @@ fn check_callback_publication(retain_body_source: bool) {
         ..request
     };
     let input = VerifiedNativeArtifactInput::prepare_with_private_entry_ram(
-        &super::authorize_fixture(artifact),
+        &super::authorize_fixture(artifact).into(),
         target::TargetProfile::WindowsX64,
         body_request.entry,
         &[],
@@ -724,6 +724,7 @@ fn check_callback_publication(retain_body_source: bool) {
     let mut planned_entry = None;
     let (body, _) = super::emit_body_inspecting_physical(
         admitted,
+        target::TargetProfile::WindowsX64,
         retain_body_source,
         |target| {
             assert!(

@@ -12,10 +12,7 @@ pub use plan_realization::{
     PublishedComponentSuppliers, TargetSupplyExecutionInputs, TargetSupplyRealizationError,
     TargetSupplyRealizationRequest, realize_target_supply,
 };
-pub use realized_supply::{
-    ProviderPlanRealizationInput, RealizedTargetSupply, SelectedProviderRealization,
-    TargetSupplyRealizationInput,
-};
+pub use realized_supply::{RealizedTargetSupply, SelectedProviderRealization};
 
 mod installation_reach;
 pub use installation_reach::NormalizedNativeSupply;

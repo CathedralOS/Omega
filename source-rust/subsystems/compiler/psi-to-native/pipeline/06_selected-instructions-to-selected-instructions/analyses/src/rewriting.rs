@@ -491,20 +491,6 @@ pub fn register_occurs_once(
     occurrences == 1
 }
 
-/// Receipt digest bytes: the rewrite's tag, unit and coordinates. The receipt
-/// shares the programs it read and produced; checks compare those directly.
-pub fn rewrite_bytes(
-    tag: &'static [u8],
-    optimization_unit: impl AsRef<[u8]>,
-    tail: impl FnOnce(&mut Vec<u8>),
-) -> Vec<u8> {
-    let mut bytes = Vec::new();
-    bytes.extend_from_slice(tag);
-    bytes.extend_from_slice(optimization_unit.as_ref());
-    tail(&mut bytes);
-    bytes
-}
-
 pub fn shifted_boundary_settlements<E>(
     function: &selected_instructions::SelectedFunction,
     block: selected_instructions::SelectedBlockId,

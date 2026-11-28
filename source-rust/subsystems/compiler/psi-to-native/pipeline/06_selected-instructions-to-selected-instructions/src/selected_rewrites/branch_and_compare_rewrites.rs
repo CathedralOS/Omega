@@ -592,8 +592,8 @@ pub(crate) mod constant_boolean {
     use register_environment::ValidatedTargetRegisterEnvironment;
     use register_model::RegisterUnitId;
     use selected_instructions::{
-        ConstantBooleanIdentity, MachineSemanticKind, PreparedMachineEffectCatalog,
-        SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
+        MachineSemanticKind, PreparedMachineEffectCatalog, SelectedFunction, SelectedInstructionId,
+        SelectedInstructionPlan,
     };
     use semantic_vocabulary::WorkScheduleIdentity;
     use std::collections::BTreeSet;
@@ -605,15 +605,6 @@ pub(crate) mod constant_boolean {
         function_index: usize,
         materialization: SelectedInstructionId,
     });
-
-    rewrite_receipt_identity!(
-        constant_boolean_identity,
-        ConstantBooleanIdentity,
-        ConstantBooleanReceipt,
-        b"omega.terminal-constant-boolean-fold.v2\0",
-        "constant-boolean",
-        materialization,
-    );
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum ConstantBooleanError {
@@ -1200,8 +1191,8 @@ pub(crate) mod constant_branch {
     use register_environment::ValidatedTargetRegisterEnvironment;
     use register_model::RegisterUnitId;
     use selected_instructions::{
-        ConstantBranchIdentity, PreparedMachineEffectCatalog, SelectedFunction,
-        SelectedInstructionId, SelectedInstructionPlan,
+        PreparedMachineEffectCatalog, SelectedFunction, SelectedInstructionId,
+        SelectedInstructionPlan,
     };
     use semantic_vocabulary::WorkScheduleIdentity;
     use std::collections::BTreeSet;
@@ -1213,15 +1204,6 @@ pub(crate) mod constant_branch {
         function_index: usize,
         branch: SelectedInstructionId,
     });
-
-    rewrite_receipt_identity!(
-        constant_branch_identity,
-        ConstantBranchIdentity,
-        ConstantBranchReceipt,
-        b"omega.terminal-constant-branch-fold.v2\0",
-        "constant-branch",
-        branch,
-    );
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum ConstantBranchError {
@@ -1963,8 +1945,7 @@ pub(crate) mod dead_compare {
         use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
         use register_environment::ValidatedTargetRegisterEnvironment;
         use selected_instructions::{
-            EquivalentCompareIdentity, SelectedFunction, SelectedInstructionId,
-            SelectedInstructionPlan,
+            SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
         };
         use semantic_vocabulary::WorkScheduleIdentity;
 
@@ -1979,15 +1960,6 @@ pub(crate) mod dead_compare {
             function_index: usize,
             compare: SelectedInstructionId,
         });
-
-        rewrite_receipt_identity!(
-            equivalent_compare_identity,
-            EquivalentCompareIdentity,
-            EquivalentCompareReceipt,
-            b"omega.terminal-equivalent-compare-removal.v2\0",
-            "equivalent-compare",
-            compare,
-        );
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         pub enum EquivalentCompareError {
@@ -2106,8 +2078,7 @@ pub(crate) mod dead_compare {
         use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
         use register_environment::ValidatedTargetRegisterEnvironment;
         use selected_instructions::{
-            RedundantCompareIdentity, SelectedFunction, SelectedInstructionId,
-            SelectedInstructionPlan,
+            SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
         };
         use semantic_vocabulary::WorkScheduleIdentity;
 
@@ -2122,15 +2093,6 @@ pub(crate) mod dead_compare {
             function_index: usize,
             compare: SelectedInstructionId,
         });
-
-        rewrite_receipt_identity!(
-            redundant_compare_identity,
-            RedundantCompareIdentity,
-            RedundantCompareReceipt,
-            b"omega.terminal-redundant-compare-removal.v2\0",
-            "redundant-compare",
-            compare,
-        );
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         pub enum RedundantCompareError {
@@ -2201,9 +2163,7 @@ pub(crate) mod dead_compare {
 
     use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
     use register_environment::ValidatedTargetRegisterEnvironment;
-    use selected_instructions::{
-        DeadCompareIdentity, SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
-    };
+    use selected_instructions::{SelectedFunction, SelectedInstructionId, SelectedInstructionPlan};
     use semantic_vocabulary::WorkScheduleIdentity;
 
     use crate::selected_rewrites::ValidatedSelectedAnalysis;
@@ -2225,15 +2185,6 @@ pub(crate) mod dead_compare {
         function_index: usize,
         compare: SelectedInstructionId,
     });
-
-    rewrite_receipt_identity!(
-        dead_compare_identity,
-        DeadCompareIdentity,
-        DeadCompareReceipt,
-        b"omega.terminal-dead-compare-removal.v2\0",
-        "dead-compare",
-        compare,
-    );
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum DeadCompareError {

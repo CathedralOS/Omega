@@ -328,6 +328,7 @@ pub(crate) mod byte_arrays {
         use crate::engine::execution::frame_field_mut;
         use crate::storage::byte_sequences::ByteSequenceView;
         use crate::storage::byte_sequences::storage::ByteSequenceStorage;
+        use crate::storage::primitive_storage::encoding::unsigned_byte_scalar;
         use crate::storage::scalar_array::PackedScalarArrayValue;
         use crate::storage::scalar_storage::{ScalarCell, TerminalScalarBacking};
         use build_model::accounting::EvaluationInvocationAccount;
@@ -516,7 +517,7 @@ pub(crate) mod byte_arrays {
                 match &mut self.backing {
                     StructuralByteArrayBacking::Local(bytes) => bytes.replace_byte(index, byte),
                     StructuralByteArrayBacking::Cells(cells) => {
-                        cells.set_element(index, byte_scalar(byte)?)
+                        cells.set_element(index, unsigned_byte_scalar(byte)?)
                     }
                 }
             }
@@ -529,9 +530,10 @@ pub(crate) mod byte_arrays {
                 TerminalInterpretError,
             > {
                 match &self.backing {
-                    StructuralByteArrayBacking::Local(bytes) => {
-                        Ok((byte_scalar(*bytes.get(index).ok_or(malformed())?)?, None))
-                    }
+                    StructuralByteArrayBacking::Local(bytes) => Ok((
+                        unsigned_byte_scalar(*bytes.get(index).ok_or(malformed())?)?,
+                        None,
+                    )),
                     StructuralByteArrayBacking::Cells(cells) => {
                         let cell = cells.cell(index).ok_or(malformed())?;
                         Ok((
@@ -579,13 +581,6 @@ pub(crate) mod byte_arrays {
                 };
                 cells.install_resident(index, resident)
             }
-        }
-
-        fn byte_scalar(byte: u8) -> Result<TerminalScalarValue, TerminalInterpretError> {
-            Ok(TerminalScalarValue::Integer {
-                scalar_type: IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| malformed())?,
-                value: IntegerValue::Unsigned(u128::from(byte)),
-            })
         }
 
         #[derive(Clone, PartialEq, Eq)]
@@ -923,10 +918,11 @@ pub(crate) mod byte_arrays {
                     )
                 };
                 let mut owner = make(&[7, 23]);
-                let original = Rc::new(OriginalByte(Cell::new(byte_scalar(7).unwrap())));
+                let original = Rc::new(OriginalByte(Cell::new(unsigned_byte_scalar(7).unwrap())));
                 let backing: Rc<dyn TerminalScalarBacking> = original.clone();
                 let resident =
-                    ScalarCell::resident(byte_scalar(7).unwrap(), backing.clone()).unwrap();
+                    ScalarCell::resident(unsigned_byte_scalar(7).unwrap(), backing.clone())
+                        .unwrap();
                 owner.prepare_resident_install(0, &resident, None).unwrap();
                 assert!(
                     owner.capture_scalar(0).unwrap().1.is_none(),
@@ -938,7 +934,7 @@ pub(crate) mod byte_arrays {
                 let prepared = owner.prepare_replacement(&incoming).unwrap().unwrap();
                 assert_eq!(
                     original.0.get(),
-                    byte_scalar(7).unwrap(),
+                    unsigned_byte_scalar(7).unwrap(),
                     "staging cannot publish writes"
                 );
                 let replaced = prepared.commit().unwrap();
@@ -946,13 +942,13 @@ pub(crate) mod byte_arrays {
                     &replaced.capture_scalar(0).unwrap().1.unwrap(),
                     &backing
                 ));
-                assert_eq!(original.0.get(), byte_scalar(31).unwrap());
+                assert_eq!(original.0.get(), unsigned_byte_scalar(31).unwrap());
                 assert_eq!(replaced.read(0).unwrap(), 31);
                 assert_eq!(replaced.read(1).unwrap(), 41);
                 assert_eq!(owner.read(0).unwrap(), 31);
                 assert_eq!(owner.read(1).unwrap(), 23);
                 assert_eq!(snapshot.bytes(), &[7, 23]);
-                original.0.set(byte_scalar(47).unwrap());
+                original.0.set(unsigned_byte_scalar(47).unwrap());
                 assert_eq!(replaced.read_view().unwrap().read(0).unwrap(), 47);
                 assert_eq!(owner.read(0).unwrap(), 47);
                 assert_eq!(snapshot.bytes(), &[7, 23]);
@@ -1496,146 +1492,103 @@ pub(crate) mod byte_arrays {
             ) {
                 return Err(malformed());
             }
-            if argument.path.is_empty()
-                && let Some(binding @ ByteSequenceBinding::Immutable(_)) =
-                    self.byte_sequence_values.get(&argument.place)
-            {
-                let value = self.structural_value(argument.place)?;
-                if parameter.access != StructuralAccess::SharedBorrow {
-                    return Err(malformed());
-                }
-                self.check_byte_view_handback(value, argument, parameter)?;
-                let binding =
-                    self.reborrow_byte_sequence_binding(binding, value, parameter.access)?;
-                if value.structural_type != parameter.structural_type {
-                    let machine = self.program.verified_machine(self.current_machine)?;
-                    let source = machine
-                        .structural_parameters
-                        .iter()
-                        .chain(machine.block_structural_parameters())
-                        .find(|source| source.place == argument.place)
-                        .ok_or(malformed())?;
-                    let types = self.structural_types();
-                    if source.structural_type != value.structural_type
-                        || source.access != StructuralAccess::SharedBorrow
-                        || !matches!(
-                            types.declaration(&source.structural_type)?.shape,
-                            StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BoundedView { .. }
-                            )
-                        )
-                        || !matches!(
-                            types.declaration(&parameter.structural_type)?.shape,
-                            StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                            )
-                        )
-                    {
-                        return Err(malformed());
-                    }
-                    let window = terminal_semantics::fixed_byte_array_window(
-                        types.values(),
-                        source,
-                        argument,
-                        parameter,
-                    )
-                    .ok_or(malformed())?;
-                    let ByteSequenceBinding::Immutable(bytes) = binding else {
-                        return Err(malformed());
-                    };
-                    if !window.backing_path.is_empty()
-                        || window.offset != 0
-                        || bytes.len() as u128 != u128::from(window.length)
-                    {
-                        return Err(malformed());
-                    }
-                    let mut presented = value.clone();
-                    presented.structural_type = parameter.structural_type;
-                    presented.qualifications = parameter.qualifications.clone();
-                    let binding = ByteSequenceBinding::Immutable(
-                        bytes.with_descriptor_home(presented.clone()),
-                    );
-                    return Ok(Some((presented, binding)));
-                }
-                return Ok(Some((value.clone(), binding)));
+            if !argument.path.is_empty() {
+                return Ok(None);
             }
-            if argument.path.is_empty()
-                && let Some(binding @ ByteSequenceBinding::MutableArray { .. }) =
-                    self.byte_sequence_values.get(&argument.place)
-            {
-                let value = self.structural_value(argument.place)?;
-                self.check_byte_view_handback(value, argument, parameter)?;
-                let borrowed =
-                    self.reborrow_byte_sequence_binding(binding, value, parameter.access)?;
-                if value.structural_type != parameter.structural_type {
-                    let machine = self.program.verified_machine(self.current_machine)?;
-                    let source = machine
-                        .structural_parameters
-                        .iter()
-                        .chain(machine.block_structural_parameters())
-                        .find(|source| source.place == argument.place)
-                        .ok_or(malformed())?;
-                    let types = self.structural_types();
-                    if source.structural_type != value.structural_type
-                        || source.access != StructuralAccess::MutableBorrow
-                        || parameter.access != StructuralAccess::SharedBorrow
-                        || ![source.structural_type, parameter.structural_type]
-                            .iter()
-                            .all(|identity| {
-                                types.get(identity).is_some_and(|declaration| {
-                                    matches!(
-                                        declaration.shape,
-                                        StructuralTypeShape::ByteSequence(
-                                            terminal_psi::ByteSequenceCarrier::BoundedView { .. }
-                                        )
-                                    )
-                                })
-                            })
-                    {
-                        return Err(malformed());
-                    }
-                    let window = terminal_semantics::fixed_byte_array_window(
-                        types.values(),
-                        source,
-                        argument,
-                        parameter,
-                    )
-                    .ok_or(malformed())?;
-                    let ByteSequenceBinding::Immutable(bytes) = borrowed else {
-                        return Err(malformed());
-                    };
-                    if !window.backing_path.is_empty()
-                        || window.offset != 0
-                        || bytes.len() as u128 != u128::from(window.length)
-                        || !value.projected_qualifications.is_empty()
-                    {
-                        return Err(malformed());
-                    }
-                    let mut presented = value.clone();
-                    presented.structural_type = parameter.structural_type;
-                    presented.qualifications = parameter.qualifications.clone();
-                    return Ok(Some((
-                        presented.clone(),
-                        ByteSequenceBinding::Immutable(bytes.with_descriptor_home(presented)),
-                    )));
+            let Some(
+                binding @ (ByteSequenceBinding::Immutable(_)
+                | ByteSequenceBinding::MutableArray { .. }),
+            ) = self.byte_sequence_values.get(&argument.place)
+            else {
+                return Ok(None);
+            };
+            let value = self.structural_value(argument.place)?;
+            let immutable = matches!(binding, ByteSequenceBinding::Immutable(_));
+            if immutable && parameter.access != StructuralAccess::SharedBorrow {
+                return Err(malformed());
+            }
+            self.check_byte_view_handback(value, argument, parameter)?;
+            let borrowed = self.reborrow_byte_sequence_binding(binding, value, parameter.access)?;
+            if value.structural_type == parameter.structural_type {
+                if immutable {
+                    return Ok(Some((value.clone(), borrowed)));
                 }
-                let presented = if let ByteSequenceBinding::MutableArray {
+                let mut presented = value.clone();
+                if let ByteSequenceBinding::MutableArray {
                     referent,
                     descriptor_home: Some(_),
                     ..
                 } = binding
                 {
-                    let mut presented = value.clone();
                     presented.opaque_identity = referent.opaque_identity;
-                    presented.path = referent.path.clone();
-                    presented
-                } else {
-                    value.clone()
-                };
+                    presented.path.clone_from(&referent.path);
+                }
                 let borrowed = borrowed.with_descriptor_home(presented.clone());
                 return Ok(Some((presented, borrowed)));
             }
-            Ok(None)
+
+            let machine = self.program.verified_machine(self.current_machine)?;
+            let source = machine
+                .structural_parameters
+                .iter()
+                .chain(machine.block_structural_parameters())
+                .find(|source| source.place == argument.place)
+                .ok_or(malformed())?;
+            let types = self.structural_types();
+            if source.structural_type != value.structural_type || source.access != binding.access()
+            {
+                return Err(malformed());
+            }
+            use terminal_psi::ByteSequenceCarrier::{BorrowedView, BoundedView};
+            if immutable {
+                if !matches!(
+                    types.declaration(&source.structural_type)?.shape,
+                    StructuralTypeShape::ByteSequence(BoundedView { .. })
+                ) || !matches!(
+                    types.declaration(&parameter.structural_type)?.shape,
+                    StructuralTypeShape::ByteSequence(BorrowedView { .. })
+                ) {
+                    return Err(malformed());
+                }
+            } else if parameter.access != StructuralAccess::SharedBorrow
+                || ![source.structural_type, parameter.structural_type]
+                    .iter()
+                    .all(|id| {
+                        types.get(id).is_some_and(|decl| {
+                            matches!(
+                                decl.shape,
+                                StructuralTypeShape::ByteSequence(BoundedView { .. })
+                            )
+                        })
+                    })
+            {
+                return Err(malformed());
+            }
+            let window = terminal_semantics::fixed_byte_array_window(
+                types.values(),
+                source,
+                argument,
+                parameter,
+            )
+            .ok_or(malformed())?;
+            let ByteSequenceBinding::Immutable(bytes) = borrowed else {
+                return Err(malformed());
+            };
+            if !window.backing_path.is_empty()
+                || window.offset != 0
+                || bytes.len() as u128 != u128::from(window.length)
+                || (!immutable && !value.projected_qualifications.is_empty())
+            {
+                return Err(malformed());
+            }
+            let mut presented = value.clone();
+            presented.structural_type = parameter.structural_type;
+            presented
+                .qualifications
+                .clone_from(&parameter.qualifications);
+            let borrowed =
+                ByteSequenceBinding::Immutable(bytes.with_descriptor_home(presented.clone()));
+            Ok(Some((presented, borrowed)))
         }
 
         /// A fixed array supplies temporary descriptor storage for this call.
@@ -3258,7 +3211,6 @@ pub(crate) mod scalar_fields {
                 let Some(declaration) = types.get(&current) else {
                     return true;
                 };
-                let mut fields = Vec::new();
                 match &declaration.shape {
                     StructuralTypeShape::Reference { .. }
                     | StructuralTypeShape::TypeParameter
@@ -3280,22 +3232,13 @@ pub(crate) mod scalar_fields {
                         pending.push(*element);
                         continue;
                     }
-                    StructuralTypeShape::Record {
-                        fields: members, ..
-                    } => fields.extend(members),
-                    StructuralTypeShape::Sum { cases } => {
-                        fields.extend(cases.iter().flat_map(|case| &case.fields));
-                    }
-                    StructuralTypeShape::Mixed {
-                        fields: members,
-                        cases,
-                    } => {
-                        fields.extend(members);
-                        fields.extend(cases.iter().flat_map(|case| &case.fields));
-                    }
+                    StructuralTypeShape::Record { .. }
+                    | StructuralTypeShape::Sum { .. }
+                    | StructuralTypeShape::Mixed { .. } => {}
                 }
-                for field in fields
-                    .into_iter()
+                for field in declaration
+                    .shape
+                    .fields()
                     .filter(|field| !field.relevance.is_erased())
                 {
                     match field.field_type {

@@ -424,10 +424,13 @@ impl Frontier<'_, '_> {
                 return Ok(true);
             }
             StorageShape::Opaque => return Ok(regions.is_empty()),
-            StorageShape::PrimitiveScalar { .. } | StorageShape::ByteSequence(_) => {
-                return Ok(true);
-            }
-            _ => {}
+            StorageShape::AtomicCell(_)
+            | StorageShape::PrimitiveScalar { .. }
+            | StorageShape::ByteSequence(_) => return Ok(true),
+            StorageShape::FixedArray { .. }
+            | StorageShape::ElementView { .. }
+            | StorageShape::Record(_)
+            | StorageShape::Sum(_) => {}
         }
         self.active.push(record);
         let mut bound = substitution.to_vec();

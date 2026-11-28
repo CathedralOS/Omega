@@ -16,7 +16,7 @@ use target::NativeTarget;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct X86BranchRelaxationRecord {
     pub machine: Arc<post_allocation_machine::PostAllocationMachinePlan>, // Upstream post-allocation machine plan.
-    pub pre_layout: crate::SelectedFormEncodingIdentity, // Upstream pre-layout encoding identity.
+    pub pre_layout: crate::SelectedFormEncodingHandle, // Upstream pre-layout encoding.
     pub target: NativeTarget, // Target platform for which relaxation was performed.
     pub policy: X86BranchRelaxationPolicy, // Relaxation policy applied during the sweep.
     pub budget: OptimizationWorkBudget, // Work budget governing the relaxation sweep.
@@ -33,8 +33,8 @@ impl X86BranchRelaxationRecord {
         &self.machine
     }
 
-    pub const fn pre_layout(&self) -> crate::SelectedFormEncodingIdentity {
-        self.pre_layout
+    pub fn pre_layout(&self) -> &crate::SelectedFormEncodingHandle {
+        &self.pre_layout
     }
 
     pub const fn target(&self) -> NativeTarget {

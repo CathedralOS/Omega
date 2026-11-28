@@ -1,0 +1,13 @@
+// `embed(x) + embed(y)` is only at least `embed(z)`, which leaves the sum
+// unbounded above, so `fits` stays unproved.
+machine bounded(x: u64, y: u64, z: u64)
+requires embed(z) <= embed(x) + embed(y)
+{
+    fits(x, y);
+}
+
+machine fits(x: u64, y: u64)
+requires embed(x) + embed(y) <= 18446744073709551615
+{}
+
+machine main() {}

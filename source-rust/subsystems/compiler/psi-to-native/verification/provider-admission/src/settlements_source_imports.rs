@@ -172,6 +172,7 @@ pub(super) fn derive_source_evaluated_mechanisms(
                     [] => crate::normalized_foreign_terminal_mechanism(
                         evaluated.locator(),
                         boundary_entry_plan,
+                        None,
                     ),
                     [first, rest @ ..]
                         if first.registrar_boundary_entry_plan == *boundary_entry_plan
@@ -181,10 +182,10 @@ pub(super) fn derive_source_evaluated_mechanisms(
                                     && callback.registrar_context == first.registrar_context
                             }) =>
                     {
-                        crate::normalized_foreign_terminal_mechanism_with_callback_materializations(
+                        crate::normalized_foreign_terminal_mechanism(
                             evaluated.locator(),
                             boundary_entry_plan,
-                            &first.registrar_context,
+                            Some(&first.registrar_context),
                         )
                     }
                     callbacks => Err(format!(

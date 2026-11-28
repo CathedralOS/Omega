@@ -1,10 +1,14 @@
 /*
-We compute the canonical cryptographic identities (`OptimizationUnitIdentity`,
-`scalar_refinement_identity_bytes`, `access_view_catalog_identity_bytes`) for
-`PsiOptimizationUnit` and its structural, proposition, and runtime-evidence
-catalogs. Every declaration, fact, frontier snapshot, and
-function body is serialized into `CanonicalBytes` in a deterministic order so
-any structural or semantic drift produces a distinct identity hash.
+A native receipt identifies the checked Psi program, the inputs Stage 02 used to
+lower it and the accepted facts attached for target lowering. Changing the
+target, selected reach, admitted scalar values or laid-out storage can change
+the unit even when the Psi program is the same.
+
+The seed constructor also accepts independently built abstract plans. Their
+operands need a content identity of their own. Construction hashes the ordered
+functions once and retains that digest with the read-only graph. Module and
+fact attachment reuse it. Definitions, uses, effect links, edges and ownership
+events are determined by construction from those same functions.
 */
 
 use abstract_operations::{AbstractFunctionResult, CompletionClaimSource, ValueBinding};
@@ -12,31 +16,23 @@ use arena::NumericId;
 use optimization_core::OptimizationUnitIdentity;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, ContentAlgebra, ContentAlgebraKind, ContentConservation,
-    ContentPlaceSegment, ContentPlaceVersion, ContentProjectionExpression, ContentProjectionScalar,
-    ContentStructuralPlace, ContentTerm, IeeeFloatComparisonKind, IeeeFloatFormat,
-    IeeeFloatStructuralField, IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition,
-    ScalarTerm, ScalarType, StructuralCaseSubject, StructuralPlaceKind,
+    ContentPlaceSegment, ContentPlaceVersion, ContentStructuralPlace, ContentTerm,
+    IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatStructuralField, IntegerMathTerm,
+    IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType,
+    StructuralCaseSubject, StructuralPlaceKind,
 };
 use terminal_psi::{
-    BindingRelevance, BoundaryContentGuarantee, BoundaryMachineDeclaration, ByteSequenceCarrier,
-    ClaimContentProjection, ContentConservationGuarantee, CrashCause, CrashPredicateTerm,
-    CrashRouteBucket, CrashRouteGuard, EntryClaim, EvidenceContractLane, EvidenceContractLaneKind,
-    EvidenceInterfaceIdentity, MachineContract, OutcomeSpecificCallEvidence,
-    ProgramLocalRootIntroductionSchema, ProviderCandidateConformance,
-    RetainedBorrowContentProjection, RetainedBorrowCustody, RetainedBorrowPlace,
-    RetainedBorrowPlaceRoot, ServiceDeclaration, StructuralAccess, StructuralArgument,
-    StructuralDomainDeclaration, StructuralDomainRequirement, StructuralFieldDeclaration,
+    BindingRelevance, ByteSequenceCarrier, ClaimContentProjection, ContentConservationGuarantee,
+    CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard, EntryClaim,
+    EvidenceInterfaceIdentity, OutcomeSpecificCallEvidence, ProviderCandidateConformance,
+    StructuralAccess, StructuralArgument, StructuralDomainRequirement, StructuralFieldDeclaration,
     StructuralFieldType, StructuralMultiplicity, StructuralOperationResult,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
     StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
-    TerminalAffineCleanupAction, TerminalRootServiceReach,
+    TerminalAffineCleanupAction,
 };
 
-use crate::{
-    AcceptedObligationFact, EffectLink, OptimizationEdge, OptimizationFact, OptimizationNode,
-    OwnershipEvent, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ValueDefinition,
-    ValueDefinitionSite, ValueUse, WorkSettlement,
-};
+use crate::{AcceptedObligationFact, PsiOptimizationUnit};
 
 use unit_encoding::CanonicalBytes;
 
@@ -107,9 +103,12 @@ pub(crate) mod carrier_encoding {
     }
 
     pub(super) fn encode_integer_type(bytes: &mut CanonicalBytes, integer_type: IntegerType) {
-        bytes.u8(match integer_type.sign() {
-            IntegerSign::Unsigned => 1,
-            IntegerSign::Signed => 2,
+        use semantic_vocabulary::IntegerCarrier;
+        bytes.u8(match (integer_type.carrier(), integer_type.sign()) {
+            (IntegerCarrier::Fixed, IntegerSign::Unsigned) => 1,
+            (IntegerCarrier::Fixed, IntegerSign::Signed) => 2,
+            (IntegerCarrier::Address, IntegerSign::Unsigned) => 3,
+            (IntegerCarrier::Address, IntegerSign::Signed) => 4,
         });
         // This fingerprints raw refinement/receiving metadata; it does not
         // establish executable closure. Keep scoped widths distinct while the
@@ -876,33 +875,6 @@ pub(crate) mod proposition_encoding {
             }
         }
     }
-    pub(super) fn encode_runtime_membership(
-        bytes: &mut CanonicalBytes,
-        row: &terminal_psi::RuntimeDomainMembership,
-    ) {
-        match row {
-            terminal_psi::RuntimeDomainMembership::Scalar { subject, domain } => {
-                bytes.u8(1);
-                encode_scalar_term(bytes, subject);
-                bytes.id(*domain);
-            }
-            terminal_psi::RuntimeDomainMembership::Structural {
-                root,
-                path,
-                version,
-                domain,
-            } => {
-                bytes.u8(2);
-                bytes.id(*root);
-                encode_canonical_path(bytes, path);
-                bytes.u8(match version {
-                    semantic_vocabulary::ContentPlaceVersion::Current => 1,
-                    semantic_vocabulary::ContentPlaceVersion::Entry => 2,
-                });
-                bytes.id(*domain);
-            }
-        }
-    }
 
     fn encode_float_projection_contract(
         bytes: &mut CanonicalBytes,
@@ -1031,310 +1003,34 @@ pub(crate) mod proposition_encoding {
     }
 }
 
-pub(crate) mod runtime_evidence_encoding {
-    use super::CanonicalBytes;
-    use super::carrier_encoding::{encode_optional, encode_scalar_type};
-    use super::structural_encoding::{encode_evidence_contract_lane, encode_evidence_interface};
-    use crate::RuntimeEvidenceCatalog;
-
-    pub(super) fn encode_proposition_declaration(
-        bytes: &mut CanonicalBytes,
-        declaration: &terminal_psi::PropositionDeclaration,
-    ) {
-        bytes.id(declaration.id);
-        bytes.string(&declaration.name);
-        bytes.slice(&declaration.binders, |bytes, binder| {
-            bytes.string(&binder.name);
-            match binder.kind {
-                terminal_psi::PropositionBinderKind::Type => bytes.u8(1),
-                terminal_psi::PropositionBinderKind::Const { type_identity } => {
-                    bytes.u8(2);
-                    bytes.u32(type_identity.0);
-                }
-                terminal_psi::PropositionBinderKind::Machine => bytes.u8(3),
-            }
-        });
-        bytes.slice(&declaration.parameter_types, |bytes, ty| bytes.string(ty));
-        match &declaration.evidence {
-            terminal_psi::PropositionEvidence::FactOnly => bytes.u8(1),
-            terminal_psi::PropositionEvidence::Witness { evidence_type } => {
-                bytes.u8(2);
-                bytes.string(evidence_type);
-            }
-        }
-    }
-
-    fn encode_proposition_application(
-        bytes: &mut CanonicalBytes,
-        application: &terminal_psi::PropositionApplicationIdentity,
-    ) {
-        bytes.id(application.id);
-        bytes.id(application.declaration);
-        bytes.slice(&application.binder_arguments, |bytes, argument| {
-            use terminal_psi::PropositionBinderArgumentKind as K;
-            bytes.u8(match argument.kind {
-                K::Type => 1,
-                K::Const => 2,
-                K::Machine => 3,
-            });
-            bytes.u32(argument.identity.0);
-            encode_optional(
-                bytes,
-                argument.evidence_projection.as_ref(),
-                |bytes, projection| {
-                    bytes.id(projection.term);
-                    bytes.u32(projection.declaring_trait_identity.0);
-                    bytes.slice(&projection.declaring_trait_arguments, |bytes, argument| {
-                        bytes.string(argument)
-                    });
-                    bytes.u32(projection.requirement_identity.0);
-                },
-            );
-        });
-        bytes.slice(&application.arguments, |bytes, argument| {
-            bytes.string(argument)
-        });
-        encode_optional(
-            bytes,
-            application.evidence_interface.as_ref(),
-            encode_evidence_interface,
-        );
-    }
-
-    pub(super) fn encode_callable_evidence_lane(
-        bytes: &mut CanonicalBytes,
-        lane: &terminal_psi::TerminalCallableEvidenceLane,
-    ) {
-        bytes.u8(match lane.kind {
-            terminal_psi::EvidenceContractLaneKind::Requires => 1,
-            terminal_psi::EvidenceContractLaneKind::Ensures => 2,
-        });
-        bytes.u32(lane.position);
-        encode_proposition_declaration(bytes, &lane.declaration);
-        encode_proposition_application(bytes, &lane.application);
-        bytes.id(lane.term.id);
-        bytes.id(lane.term.proposition);
-        encode_evidence_interface(bytes, &lane.term.interface);
-        bytes.slice(
-            &lane.argument_subjects,
-            super::structural_encoding::encode_evidence_argument_subject,
-        );
-    }
-
-    pub(super) fn encode_catalog(bytes: &mut CanonicalBytes, catalog: &RuntimeEvidenceCatalog) {
-        bytes.u16(catalog.psi().vocabulary_marker.get());
-        bytes.bytes(catalog.psi().program_fingerprint.as_bytes());
-        super::unit_encoding::encode_callable_catalog(bytes, catalog.callables());
-        bytes.slice(catalog.declarations(), |bytes, (machine, declaration)| {
-            bytes.id(*machine);
-            encode_optional(bytes, declaration.as_ref(), |bytes, declaration| {
-                bytes.u32(declaration.machine.identity().0);
-                bytes.u32(declaration.state.identity().0);
-                bytes.u32(declaration.semantic_declaration.0);
-                bytes.slice(&declaration.parameter_types, |bytes, identity| {
-                    bytes.u32(identity.0)
-                });
-                bytes.u32(declaration.callable.0);
-                bytes.u32(declaration.result_type.0);
-                bytes.bytes(&declaration.contract);
-                encode_optional(
-                    bytes,
-                    declaration.specialization.as_ref(),
-                    |bytes, specialization| {
-                        bytes.u32(specialization.template.identity().0);
-                        bytes.u32(specialization.template_entry.identity().0);
-                        bytes.u32(specialization.template_callable.0);
-                        bytes.u32(specialization.template_semantic_declaration.0);
-                        bytes.bytes(&specialization.commitment);
-                    },
-                );
-            });
-        });
-        bytes.slice(
-            catalog.proposition_declarations(),
-            encode_proposition_declaration,
-        );
-        bytes.slice(catalog.owned_cleanups(), |bytes, row| {
-            bytes.id(row.machine);
-            bytes.id(row.edge);
-            bytes.u32(row.action_ordinal);
-            super::structural_encoding::encode_owned_cleanup(bytes, &row.invocation);
-        });
-        bytes.slice(catalog.applications(), encode_proposition_application);
-        bytes.slice(catalog.terms(), |bytes, term| {
-            bytes.id(term.id);
-            bytes.id(term.proposition);
-            encode_evidence_interface(bytes, &term.interface);
-        });
-        bytes.slice(catalog.lanes(), encode_evidence_contract_lane);
-        bytes.slice(catalog.calls(), |bytes, call| {
-            bytes.id(call.caller);
-            bytes.u32(call.ordinal);
-            bytes.u32(call.target_identity.0);
-            encode_optional(
-                bytes,
-                call.static_requirement_dispatch.as_ref(),
-                |bytes, dispatch| {
-                    bytes.u64(dispatch.conformance_application_report_fingerprint);
-                    bytes.bytes(&dispatch.conformance_application_commitment.as_bytes());
-                    bytes.u32(dispatch.public_requirement_identity.0);
-                    bytes.u32(dispatch.declaring_trait_identity.0);
-                    bytes.u32(dispatch.requirement_identity.0);
-                    bytes.u32(dispatch.realization_identity.0);
-                    bytes.u32(dispatch.realization_callable_identity.0);
-                    bytes.id(dispatch.realization);
-                },
-            );
-            encode_optional(
-                bytes,
-                call.runtime_result.as_ref(),
-                |bytes, result| match result {
-                    terminal_psi::ProofOutputRuntimeResult::Unit => bytes.u8(1),
-                    terminal_psi::ProofOutputRuntimeResult::NoNormal => bytes.u8(3),
-                    terminal_psi::ProofOutputRuntimeResult::Structural(structural_type) => {
-                        bytes.u8(4);
-                        bytes.id(*structural_type);
-                    }
-                    terminal_psi::ProofOutputRuntimeResult::Scalar(scalar_type) => {
-                        bytes.u8(2);
-                        encode_scalar_type(bytes, *scalar_type);
-                    }
-                },
-            );
-            encode_optional(bytes, call.runtime_call.as_ref(), |bytes, runtime| {
-                let mut site = Vec::new();
-                runtime.site.encode_identity(&mut site);
-                bytes.slice(&site, |bytes, value| bytes.u8(*value));
-                match runtime.target {
-                    terminal_psi::EvidenceCallableTarget::Machine(machine) => {
-                        bytes.u8(1);
-                        bytes.id(machine);
-                    }
-                    terminal_psi::EvidenceCallableTarget::Runtime { contract, callee } => {
-                        bytes.u8(2);
-                        bytes.id(contract);
-                        bytes.id(callee);
-                    }
-                }
-            });
-            bytes.slice(&call.evidence_arguments, |bytes, argument| {
-                bytes.u32(argument.input_position);
-                bytes.id(argument.callee_proposition);
-                bytes.id(argument.source);
-                bytes.id(argument.instantiated_proposition);
-            });
-            bytes.slice(&call.outputs, |bytes, output| {
-                bytes.u32(output.output_position);
-                bytes.string(&output.output_field);
-                bytes.id(output.callee_proposition);
-                encode_optional(bytes, output.callee_output.as_ref(), |bytes, term| {
-                    bytes.id(*term)
-                });
-                bytes.id(output.instantiated_proposition);
-                encode_optional(
-                    bytes,
-                    output.forwarded_input_position.as_ref(),
-                    |bytes, position| bytes.u32(*position),
-                );
-                encode_optional(bytes, output.output.as_ref(), |bytes, term| bytes.id(*term));
-            });
-        });
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        use semantic_vocabulary::{EvidenceTermId, MachineId, OperationId, PropositionId};
-        use terminal_psi::{
-            ProofOutputCall, ProofOutputEvidenceArgument, ProofOutputRuntimeCall,
-            ProofOutputRuntimeResult, SemanticFingerprint, TerminalIdentityIndex, TerminalModule,
-            TerminalPsiIdentity, VocabularyMarker,
-        };
-
-        #[test]
-        fn invocation_subject_provenance_is_part_of_optimizer_content() {
-            let machine = MachineId::new(1).unwrap();
-            let mut module = TerminalModule::for_entry(machine);
-            module.proofs.proof_output_calls.push(ProofOutputCall {
-                caller: machine,
-                ordinal: 0,
-                target_identity: TerminalIdentityIndex(1),
-                static_requirement_dispatch: None,
-                runtime_result: Some(ProofOutputRuntimeResult::Unit),
-                runtime_call: Some(ProofOutputRuntimeCall {
-                    site: OperationId::new(1).unwrap().into(),
-                    target: terminal_psi::EvidenceCallableTarget::Machine(machine),
-                }),
-                evidence_arguments: vec![ProofOutputEvidenceArgument {
-                    input_position: 0,
-                    callee_proposition: PropositionId::new(1).unwrap(),
-                    source: EvidenceTermId::new(1).unwrap(),
-                    instantiated_proposition: PropositionId::new(2).unwrap(),
-                }],
-                outputs: Vec::new(),
-            });
-            let psi = TerminalPsiIdentity {
-                vocabulary_marker: VocabularyMarker::CURRENT,
-                program_fingerprint: SemanticFingerprint::from_bytes([7; 32]),
-            };
-            let encoded = |module: &TerminalModule| {
-                let mut bytes = CanonicalBytes::collect();
-                encode_catalog(
-                    &mut bytes,
-                    &RuntimeEvidenceCatalog::from_verified_module(psi, module),
-                );
-                bytes.finish()
-            };
-            let before = encoded(&module);
-            module.proofs.proof_output_calls[0].evidence_arguments[0].source =
-                EvidenceTermId::new(2).unwrap();
-            assert_ne!(before, encoded(&module));
-            module.proofs.proof_output_calls[0]
-                .runtime_call
-                .as_mut()
-                .unwrap()
-                .site = OperationId::new(2).unwrap().into();
-            assert_ne!(before, encoded(&module));
-        }
-    }
-}
-
 pub(crate) mod structural_encoding {
     use super::carrier_encoding::{
         encode_access, encode_ids, encode_integer_type, encode_integer_value, encode_multiplicity,
-        encode_optional, encode_optional_access, encode_scalar_type, encode_structural_parameter,
+        encode_optional, encode_optional_access, encode_scalar_type,
         encode_structural_path_segment,
     };
     use super::proposition_encoding::{
-        encode_content_term, encode_float_format, encode_proposition, encode_runtime_membership,
+        encode_content_term, encode_float_format, encode_proposition,
     };
     use super::{
-        BindingRelevance, BoundaryContentGuarantee, BoundaryMachineDeclaration,
-        ByteSequenceCarrier, CanonicalBytes, ClaimContentProjection, CompletionClaimSource,
-        ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentConservationGuarantee,
-        ContentPlaceSegment, ContentPlaceVersion, ContentProjectionExpression,
-        ContentProjectionScalar, ContentStructuralPlace, EntryClaim,
-        ProgramLocalRootIntroductionSchema, ProviderCandidateConformance,
-        RetainedBorrowContentProjection, RetainedBorrowCustody, RetainedBorrowPlace,
-        RetainedBorrowPlaceRoot, StructuralDomainDeclaration, StructuralDomainRequirement,
-        StructuralFieldDeclaration, StructuralFieldType, StructuralOperationResult,
-        StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration,
-        StructuralTypeShape, TerminalAffineCleanupAction,
+        BindingRelevance, ByteSequenceCarrier, CanonicalBytes, ClaimContentProjection,
+        CompletionClaimSource, ContentAlgebra, ContentAlgebraKind, ContentConservation,
+        ContentConservationGuarantee, ContentPlaceSegment, ContentPlaceVersion,
+        ContentStructuralPlace, EntryClaim, ProviderCandidateConformance,
+        StructuralDomainRequirement, StructuralFieldDeclaration, StructuralFieldType,
+        StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind,
+        StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
     };
-    use terminal_psi::BoundaryMachineResult;
 
     mod contract {
         use super::super::carrier_encoding::{
-            encode_ids, encode_optional, encode_scalar_type, encode_structural_path_segment,
+            encode_ids, encode_optional, encode_structural_path_segment,
         };
+        use super::super::proposition_encoding::encode_proposition;
         use super::super::{
             CanonicalBytes, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard,
-            EvidenceContractLane, EvidenceContractLaneKind, EvidenceInterfaceIdentity,
-            MachineContract, OutcomeSpecificCallEvidence,
+            EvidenceInterfaceIdentity, OutcomeSpecificCallEvidence,
         };
-        use super::encode_result_lifetimes;
-
-        use super::super::proposition_encoding::{encode_proposition, encode_runtime_membership};
 
         pub(in super::super) fn encode_crash_cause(bytes: &mut CanonicalBytes, cause: CrashCause) {
             bytes.u8(match cause {
@@ -1433,119 +1129,11 @@ pub(crate) mod structural_encoding {
                 bytes.id(usage.caller_result);
             });
         }
-
-        pub(in super::super) fn encode_machine_contract(
-            bytes: &mut CanonicalBytes,
-            contract: &MachineContract,
-        ) {
-            bytes.id(contract.id);
-            encode_result_lifetimes(bytes, contract.result_lifetimes.as_deref());
-            bytes.slice(&contract.crash_routes, encode_crash_route_bucket);
-            bytes.slice(&contract.erased_scalar_formals, |bytes, formal| {
-                bytes.id(formal.id);
-                encode_scalar_type(bytes, formal.scalar_type);
-                bytes.u64(formal.qualifications.get());
-            });
-            bytes.slice(&contract.erased_proof_formals, |bytes, formal| {
-                match formal.source {
-                    terminal_psi::ProofFormalSource::ValueParameter(position) => {
-                        bytes.u8(1);
-                        bytes.u32(position);
-                    }
-                    terminal_psi::ProofFormalSource::GenericParameter(position) => {
-                        bytes.u8(2);
-                        bytes.u32(position);
-                    }
-                }
-                bytes.u32(formal.type_identity.0);
-            });
-            bytes.slice(&contract.membership_ensures, encode_runtime_membership);
-            bytes.slice(&contract.requires, encode_proposition);
-            bytes.slice(&contract.source_checked_requires, encode_proposition);
-            bytes.slice(&contract.ensures, |bytes, clause| {
-                bytes.id(clause.obligation);
-                encode_proposition(bytes, &clause.proposition);
-            });
-            bytes.slice(&contract.outcome_specific_ensures, |bytes, row| {
-                bytes.id(row.guard.result_type);
-                bytes.id(row.guard.result_case);
-                bytes.u32(row.position);
-                bytes.id(row.obligation);
-                encode_proposition(bytes, &row.proposition);
-                encode_optional(bytes, row.evidence.as_ref(), |bytes, evidence| {
-                    bytes.id(evidence.term);
-                    bytes.string(&evidence.output_field);
-                    bytes.slice(&evidence.argument_subjects, |bytes, subject| {
-                        bytes.u32(subject.argument_position);
-                        bytes.u32(subject.parameter_position);
-                        encode_optional(bytes, subject.structural_path.as_ref(), |bytes, path| {
-                            bytes.slice(path, encode_structural_path_segment);
-                        });
-                    });
-                });
-            });
-        }
-
-        pub(in super::super) fn encode_evidence_argument_subject(
-            bytes: &mut CanonicalBytes,
-            subject: &terminal_psi::EvidenceArgumentSubject,
-        ) {
-            use terminal_psi::EvidenceArgumentSubject as S;
-            match subject {
-                S::Parameter(parameter) => {
-                    bytes.u8(1);
-                    bytes.u32(parameter.argument_position);
-                    bytes.u32(parameter.parameter_position);
-                    encode_optional(bytes, parameter.structural_path.as_ref(), |bytes, path| {
-                        bytes.slice(path, encode_structural_path_segment)
-                    });
-                }
-                S::Result { argument_position } => {
-                    bytes.u8(2);
-                    bytes.u32(*argument_position);
-                }
-                S::Closed { argument_position } => {
-                    bytes.u8(3);
-                    bytes.u32(*argument_position);
-                }
-                S::Unknown { argument_position } => {
-                    bytes.u8(4);
-                    bytes.u32(*argument_position);
-                }
-            }
-        }
-
-        pub(in super::super) fn encode_evidence_contract_lane(
-            bytes: &mut CanonicalBytes,
-            lane: &EvidenceContractLane,
-        ) {
-            match lane.owner {
-                terminal_psi::EvidenceCallableOwner::Machine(machine) => {
-                    bytes.u8(1);
-                    bytes.id(machine);
-                }
-                terminal_psi::EvidenceCallableOwner::Runtime(contract) => {
-                    bytes.u8(2);
-                    bytes.id(contract);
-                }
-            }
-            bytes.u8(match lane.kind {
-                EvidenceContractLaneKind::Requires => 1,
-                EvidenceContractLaneKind::Ensures => 2,
-            });
-            bytes.u32(lane.position);
-            bytes.id(lane.term);
-            encode_optional(bytes, lane.output_field.as_ref(), |bytes, output| {
-                bytes.string(output)
-            });
-            bytes.slice(&lane.argument_subjects, encode_evidence_argument_subject);
-        }
     }
 
     pub(super) use contract::{
         encode_crash_cause, encode_crash_predicate, encode_crash_route_bucket,
-        encode_evidence_argument_subject, encode_evidence_contract_lane, encode_evidence_interface,
-        encode_machine_contract, encode_outcome_specific_call_evidence,
+        encode_outcome_specific_call_evidence,
     };
 
     pub(super) fn encode_place_declaration(
@@ -1606,199 +1194,6 @@ pub(crate) mod structural_encoding {
         }
     }
 
-    pub(super) fn encode_boundary_machine(
-        bytes: &mut CanonicalBytes,
-        declaration: &BoundaryMachineDeclaration,
-    ) {
-        bytes.id(declaration.id);
-        bytes.u32(declaration.identity.0);
-        bytes.u32(declaration.owner.identity().0);
-        bytes.u8(match declaration.role {
-            terminal_psi::BoundaryDeclarationRole::Callable => 0,
-            terminal_psi::BoundaryDeclarationRole::ContractEvidence => 1,
-        });
-        bytes.u8(match declaration.kind {
-            terminal_psi::BoundaryRequirementKind::Machine => 0,
-            terminal_psi::BoundaryRequirementKind::Trait => 1,
-            terminal_psi::BoundaryRequirementKind::Operator => 2,
-        });
-        bytes.u8(match declaration.completion {
-            terminal_psi::BoundaryCompletion::NormalReturn => 0,
-            terminal_psi::BoundaryCompletion::External(
-                terminal_psi::ExternalCompletionKind::ProcessExit,
-            ) => 1,
-        });
-        bytes.boolean(declaration.unconditional_termination);
-        encode_optional(
-            bytes,
-            declaration.attachment.as_ref(),
-            |bytes, attachment| bytes.id(*attachment),
-        );
-        bytes.slice(&declaration.scalar_parameters, |bytes, parameter| {
-            encode_scalar_type(bytes, *parameter)
-        });
-        bytes.slice(&declaration.parameter_order, |bytes, kind| {
-            bytes.u8(match kind {
-                terminal_psi::BoundaryParameterKind::Scalar => 0,
-                terminal_psi::BoundaryParameterKind::Structural => 1,
-            });
-        });
-        bytes.slice(
-            &declaration.structural_parameters,
-            encode_structural_parameter,
-        );
-        encode_boundary_result(bytes, &declaration.result);
-        encode_result_lifetimes(bytes, declaration.result_lifetimes.as_deref());
-        bytes.slice(&declaration.membership_ensures, encode_runtime_membership);
-        bytes.slice(&declaration.requires, encode_domain_requirement);
-        bytes.slice(
-            &declaration.normal_qualifications,
-            encode_domain_requirement,
-        );
-        bytes.slice(&declaration.reference_outputs, |bytes, output| {
-            match output.destination {
-                terminal_psi::BoundaryReferenceDestination::Parameter(position) => {
-                    bytes.u8(0);
-                    bytes.u32(position);
-                }
-            }
-            bytes.slice(&output.path, encode_structural_path_segment);
-            encode_access(bytes, output.access);
-            bytes.slice(&output.dependencies, encode_boundary_lifetime_dependency);
-        });
-        bytes.slice(
-            &declaration.program_local_root_introductions,
-            encode_program_local_root_introduction,
-        );
-        bytes.slice(
-            &declaration.content_guarantees,
-            encode_boundary_content_guarantee,
-        );
-        encode_ids(bytes, &declaration.fixed_service_reach);
-        bytes.boolean(declaration.service_reach_is_installation_bound);
-        encode_optional(
-            bytes,
-            declaration.owning_service.as_ref(),
-            |bytes, service| bytes.id(*service),
-        );
-        encode_ids(bytes, &declaration.published_service_ceiling);
-    }
-
-    fn encode_result_lifetimes(
-        bytes: &mut CanonicalBytes,
-        groups: Option<&[terminal_psi::DeclaredResultLifetime]>,
-    ) {
-        bytes.boolean(groups.is_some());
-        if let Some(groups) = groups {
-            bytes.slice(groups, |bytes, group| {
-                bytes.slice(&group.inputs, encode_boundary_lifetime_dependency);
-                bytes.slice(&group.results, |bytes, path| {
-                    bytes.slice(path, encode_structural_path_segment);
-                });
-            });
-        }
-    }
-
-    fn encode_boundary_lifetime_dependency(
-        bytes: &mut CanonicalBytes,
-        dependency: &terminal_psi::BoundaryLifetimeDependency,
-    ) {
-        match dependency {
-            terminal_psi::BoundaryLifetimeDependency::Referent {
-                argument_index,
-                access,
-            } => {
-                bytes.u8(0);
-                bytes.u32(*argument_index);
-                encode_access(bytes, *access);
-            }
-            terminal_psi::BoundaryLifetimeDependency::Stored {
-                argument_index,
-                path,
-                access,
-            } => {
-                bytes.u8(1);
-                bytes.u32(*argument_index);
-                encode_access(bytes, *access);
-                bytes.slice(path, encode_structural_path_segment);
-            }
-        }
-    }
-
-    fn encode_boundary_content_guarantee(
-        bytes: &mut CanonicalBytes,
-        guarantee: &BoundaryContentGuarantee,
-    ) {
-        match guarantee {
-            BoundaryContentGuarantee::Conservation(guarantee) => {
-                bytes.u8(1);
-                encode_content_conservation_guarantee(bytes, guarantee);
-            }
-            BoundaryContentGuarantee::RetainedBorrow(custody) => {
-                bytes.u8(2);
-                encode_retained_borrow_custody(bytes, custody);
-            }
-        }
-    }
-
-    fn encode_retained_borrow_place(bytes: &mut CanonicalBytes, place: &RetainedBorrowPlace) {
-        bytes.u8(match place.version {
-            ContentPlaceVersion::Entry => 1,
-            ContentPlaceVersion::Current => 2,
-        });
-        match &place.root {
-            RetainedBorrowPlaceRoot::Parameter { position, identity } => {
-                bytes.u8(1);
-                bytes.u32(*position);
-                bytes.u32(identity.0);
-            }
-            RetainedBorrowPlaceRoot::Result => bytes.u8(2),
-        }
-        bytes.slice(&place.segments, |bytes, segment| match segment {
-            ContentPlaceSegment::Case(identity) => {
-                bytes.u8(1);
-                bytes.string(identity);
-            }
-            ContentPlaceSegment::Field(identity) => {
-                bytes.u8(2);
-                bytes.string(identity);
-            }
-            ContentPlaceSegment::FixedIndex(index) => {
-                bytes.u8(3);
-                bytes.u64(*index);
-            }
-        });
-    }
-
-    fn encode_retained_borrow_projection(
-        bytes: &mut CanonicalBytes,
-        projection: &RetainedBorrowContentProjection,
-    ) {
-        bytes.id(projection.semantic_domain);
-        bytes.u32(projection.carrier_identity.0);
-        bytes.id(projection.projection.identity.domain);
-        bytes.u64(projection.projection.identity.projection_report_fingerprint);
-        encode_content_algebra(bytes, &projection.projection.algebra);
-        encode_content_projection_expression(bytes, &projection.projection.expression);
-    }
-
-    fn encode_retained_borrow_custody(bytes: &mut CanonicalBytes, custody: &RetainedBorrowCustody) {
-        bytes.u32(custody.callable_identity.0);
-        encode_retained_borrow_place(bytes, &custody.source);
-        encode_retained_borrow_place(bytes, &custody.result);
-        super::carrier_encoding::encode_access(bytes, custody.access);
-        bytes.u32(custody.callable_lifetime_parameter_count);
-        bytes.u32(custody.callable_lifetime_parameter_ordinal);
-        bytes.u32(custody.result_nominal_identity.0);
-        encode_multiplicity(bytes, custody.result_multiplicity);
-        bytes.u32(custody.result_lifetime_argument_count);
-        bytes.u32(custody.result_lifetime_argument_ordinal);
-        bytes.boolean(custody.result_lifetime_slot_is_erased);
-        bytes.id(custody.retained_semantic_domain);
-        encode_retained_borrow_projection(bytes, &custody.source_projection);
-        encode_retained_borrow_projection(bytes, &custody.result_projection);
-    }
-
     pub(super) fn encode_domain_requirement(
         bytes: &mut CanonicalBytes,
         requirement: &StructuralDomainRequirement,
@@ -1806,83 +1201,6 @@ pub(crate) mod structural_encoding {
         bytes.u32(requirement.argument_index);
         bytes.slice(&requirement.path, encode_structural_path_segment);
         bytes.id(requirement.domain);
-    }
-
-    pub(super) fn encode_program_local_root_introduction(
-        bytes: &mut CanonicalBytes,
-        schema: &ProgramLocalRootIntroductionSchema,
-    ) {
-        bytes.u32(schema.argument_index);
-        bytes.u32(schema.source_parameter_position);
-        bytes.id(schema.qualification);
-        bytes.id(schema.carrier);
-        bytes.id(schema.projection.domain);
-        bytes.u64(schema.projection.projection_report_fingerprint);
-        encode_content_algebra(bytes, &schema.algebra);
-        encode_content_projection_expression(bytes, &schema.capacity);
-        bytes.u64(schema.compatibility_report_identity);
-    }
-
-    pub(super) fn encode_content_projection_expression(
-        bytes: &mut CanonicalBytes,
-        expression: &ContentProjectionExpression,
-    ) {
-        match expression {
-            ContentProjectionExpression::IntervalSet(members) => {
-                bytes.u8(1);
-                bytes.len(members.len());
-                for (start, end) in members {
-                    encode_content_projection_scalar(bytes, start);
-                    encode_content_projection_scalar(bytes, end);
-                }
-            }
-            ContentProjectionExpression::CountedQuantity(magnitude) => {
-                bytes.u8(2);
-                encode_content_projection_scalar(bytes, magnitude);
-            }
-        }
-    }
-
-    pub(super) fn encode_content_projection_scalar(
-        bytes: &mut CanonicalBytes,
-        scalar: &ContentProjectionScalar,
-    ) {
-        let mut pending = vec![scalar];
-        while let Some(scalar) = pending.pop() {
-            match scalar {
-                ContentProjectionScalar::SubjectField(path)
-                | ContentProjectionScalar::RuntimeScalarEmbedding(path) => {
-                    bytes.u8(
-                        if matches!(scalar, ContentProjectionScalar::SubjectField(_)) {
-                            1
-                        } else {
-                            2
-                        },
-                    );
-                    bytes.slice(path, |bytes, segment| bytes.string(segment));
-                }
-                ContentProjectionScalar::Natural(value) => {
-                    bytes.u8(3);
-                    bytes.string(value);
-                }
-                ContentProjectionScalar::Successor(inner) => {
-                    bytes.u8(4);
-                    pending.push(inner);
-                }
-                ContentProjectionScalar::Add(left, right)
-                | ContentProjectionScalar::Subtract(left, right)
-                | ContentProjectionScalar::Multiply(left, right) => {
-                    bytes.u8(match scalar {
-                        ContentProjectionScalar::Add(_, _) => 5,
-                        ContentProjectionScalar::Subtract(_, _) => 6,
-                        ContentProjectionScalar::Multiply(_, _) => 7,
-                        _ => unreachable!(),
-                    });
-                    pending.push(right);
-                    pending.push(left);
-                }
-            }
-        }
     }
 
     pub(super) fn encode_content_conservation_guarantee(
@@ -1981,6 +1299,7 @@ pub(crate) mod structural_encoding {
             bytes.u32(parameter.position);
             bytes.id(parameter.structural_type);
             encode_multiplicity(bytes, parameter.multiplicity);
+            encode_access(bytes, parameter.access);
             encode_ids(bytes, &parameter.qualifications);
             encode_projected_qualification_roster(bytes, &parameter.projected_qualifications);
         });
@@ -2021,6 +1340,12 @@ pub(crate) mod structural_encoding {
                 bytes.id(selection.cleanup_machine);
             },
         );
+        bytes.slice(&declaration.requires, encode_proposition);
+        encode_optional(
+            bytes,
+            declaration.scalar_restriction.as_ref(),
+            encode_scalar_restriction,
+        );
         match &declaration.shape {
             // This tag distinguishes hash inputs; executable codecs reject open storage.
             StructuralTypeShape::TypeParameter => bytes.u8(20),
@@ -2031,15 +1356,8 @@ pub(crate) mod structural_encoding {
                 encode_access(bytes, *access);
             }
             StructuralTypeShape::PrimitiveScalar(scalar_type) => {
-                bytes.u8(if declaration.scalar_restriction.is_some() {
-                    12
-                } else {
-                    6
-                });
+                bytes.u8(6);
                 encode_scalar_type(bytes, *scalar_type);
-                if let Some(restriction) = &declaration.scalar_restriction {
-                    encode_scalar_restriction(bytes, restriction);
-                }
             }
             StructuralTypeShape::AtomicCell(cell) => {
                 bytes.u8(16);
@@ -2078,16 +1396,6 @@ pub(crate) mod structural_encoding {
                     }
                 }
                 bytes.slice(fields, encode_structural_field);
-                if matches!(
-                    storage,
-                    terminal_psi::StructuralRecordStorage::Authored(_)
-                        | terminal_psi::StructuralRecordStorage::AccessView(_)
-                        | terminal_psi::StructuralRecordStorage::Accessor(_)
-                ) {
-                    for field in fields {
-                        encode_authored_field_storage(bytes, field.storage.as_ref());
-                    }
-                }
             }
             StructuralTypeShape::FixedArray { element, length } => {
                 bytes.u8(3);
@@ -2175,15 +1483,6 @@ pub(crate) mod structural_encoding {
         }
     }
 
-    pub(super) fn encode_structural_domain(
-        bytes: &mut CanonicalBytes,
-        declaration: &StructuralDomainDeclaration,
-    ) {
-        let encoded = psi_declaration_encoding::encode_structural_domain_declaration(declaration)
-            .expect("a checked domain declaration has a bounded canonical encoding");
-        bytes.bytes(&encoded);
-    }
-
     pub(super) fn encode_structural_field(
         bytes: &mut CanonicalBytes,
         field: &StructuralFieldDeclaration,
@@ -2200,6 +1499,7 @@ pub(crate) mod structural_encoding {
             BindingRelevance::Erased => 2,
         });
         encode_scalar_restriction(bytes, &field.field_type);
+        encode_authored_field_storage(bytes, field.storage.as_ref());
     }
 
     pub(super) fn encode_byte_carrier(bytes: &mut CanonicalBytes, carrier: ByteSequenceCarrier) {
@@ -2230,6 +1530,13 @@ pub(crate) mod structural_encoding {
         encode_ids(bytes, &result.qualifications);
         encode_projected_qualification_roster(bytes, &result.projected_qualifications);
         encode_projected_qualification_roster(bytes, &result.additional_input_qualifications);
+        bytes.slice(
+            &result.qualification_establishments,
+            |bytes, establishment| {
+                bytes.id(establishment.domain);
+                bytes.u32(establishment.route);
+            },
+        );
         bytes.len(result.claims.len());
         for claim in &result.claims {
             bytes.id(claim.claim);
@@ -2332,7 +1639,7 @@ pub(crate) mod structural_encoding {
         bytes.id(cleanup.cleanup_machine);
         bytes.slice(
             &cleanup.claim_transfers,
-            super::operation_encoding::calls_and_effects::encode_claim_transfer,
+            super::operation_encoding::encode_claim_transfer,
         );
         encode_ids(bytes, &cleanup.requirement_obligations);
     }
@@ -2353,6 +1660,69 @@ pub(crate) mod structural_encoding {
             }
             TerminalAffineCleanupAction::InvokeOwned(cleanup) => {
                 encode_owned_cleanup(bytes, cleanup)
+            }
+        }
+    }
+
+    pub(super) fn encode_scalar_restriction(
+        bytes: &mut CanonicalBytes,
+        field_type: &StructuralFieldType,
+    ) {
+        match field_type {
+            StructuralFieldType::RefinedScalar(refinement) => {
+                bytes.u8(9);
+                encode_scalar_type(bytes, refinement.carrier());
+                encode_proposition(bytes, refinement.predicate());
+            }
+            StructuralFieldType::AtomicBoundedInteger(bounds) => {
+                bytes.u8(10);
+                encode_integer_type(bytes, bounds.integer_type());
+                encode_integer_value(bytes, bounds.minimum());
+                encode_integer_value(bytes, bounds.maximum());
+            }
+            StructuralFieldType::Atomic(value) => {
+                bytes.u8(8);
+                encode_scalar_type(bytes, *value);
+            }
+            StructuralFieldType::BoundedInteger(bounds) => {
+                bytes.u8(6);
+                encode_integer_type(bytes, bounds.integer_type());
+                encode_integer_value(bytes, bounds.minimum());
+                encode_integer_value(bytes, bounds.maximum());
+            }
+            StructuralFieldType::Scalar(value) => {
+                bytes.u8(1);
+                encode_scalar_type(bytes, *value);
+            }
+            StructuralFieldType::IeeeFloat(value) => {
+                bytes.u8(2);
+                encode_float_format(bytes, *value);
+            }
+            StructuralFieldType::PredicateByteSequence {
+                carrier,
+                predicates,
+            } => {
+                bytes.u8(7);
+                encode_byte_carrier(bytes, *carrier);
+                bytes.u8(predicates.bits());
+            }
+            StructuralFieldType::ByteSequence(value) => {
+                bytes.u8(3);
+                encode_byte_carrier(bytes, *value);
+            }
+            StructuralFieldType::Structural(value) => {
+                bytes.u8(4);
+                bytes.id(*value);
+            }
+            StructuralFieldType::Erased {
+                type_identity,
+                scalar,
+            } => {
+                bytes.u8(5);
+                bytes.u32(type_identity.0);
+                encode_optional(bytes, scalar.as_ref(), |bytes, scalar| {
+                    encode_scalar_type(bytes, *scalar)
+                });
             }
         }
     }
@@ -2501,305 +1871,58 @@ pub(crate) mod structural_encoding {
             }
         }
     }
-
-    pub(super) fn encode_scalar_restriction(
-        bytes: &mut CanonicalBytes,
-        field_type: &StructuralFieldType,
-    ) {
-        match field_type {
-            StructuralFieldType::RefinedScalar(refinement) => {
-                bytes.u8(9);
-                encode_scalar_type(bytes, refinement.carrier());
-                encode_proposition(bytes, refinement.predicate());
-            }
-            StructuralFieldType::AtomicBoundedInteger(bounds) => {
-                bytes.u8(10);
-                encode_integer_type(bytes, bounds.integer_type());
-                encode_integer_value(bytes, bounds.minimum());
-                encode_integer_value(bytes, bounds.maximum());
-            }
-            StructuralFieldType::Atomic(value) => {
-                bytes.u8(8);
-                encode_scalar_type(bytes, *value);
-            }
-            StructuralFieldType::BoundedInteger(bounds) => {
-                bytes.u8(6);
-                encode_integer_type(bytes, bounds.integer_type());
-                encode_integer_value(bytes, bounds.minimum());
-                encode_integer_value(bytes, bounds.maximum());
-            }
-            StructuralFieldType::Scalar(value) => {
-                bytes.u8(1);
-                encode_scalar_type(bytes, *value);
-            }
-            StructuralFieldType::IeeeFloat(value) => {
-                bytes.u8(2);
-                encode_float_format(bytes, *value);
-            }
-            StructuralFieldType::PredicateByteSequence {
-                carrier,
-                predicates,
-            } => {
-                bytes.u8(7);
-                encode_byte_carrier(bytes, *carrier);
-                bytes.u8(predicates.bits());
-            }
-            StructuralFieldType::ByteSequence(value) => {
-                bytes.u8(3);
-                encode_byte_carrier(bytes, *value);
-            }
-            StructuralFieldType::Structural(value) => {
-                bytes.u8(4);
-                bytes.id(*value);
-            }
-            StructuralFieldType::Erased { type_identity, .. } => {
-                bytes.u8(5);
-                bytes.u32(type_identity.0);
-            }
-        }
-    }
-
-    pub(super) fn encode_boundary_result(
-        bytes: &mut CanonicalBytes,
-        result: &BoundaryMachineResult,
-    ) {
-        match result {
-            BoundaryMachineResult::Unit => bytes.u8(0),
-            BoundaryMachineResult::Scalar(result) => {
-                bytes.u8(1);
-                encode_scalar_type(bytes, result.scalar_type);
-                bytes.u64(result.qualifications.get());
-            }
-            BoundaryMachineResult::Structural(result) => {
-                bytes.u8(2);
-                bytes.id(result.structural_type);
-                encode_multiplicity(bytes, result.multiplicity);
-                encode_ids(bytes, &result.qualifications);
-                encode_projected_qualification_roster(bytes, &result.projected_qualifications);
-            }
-        }
-    }
-
-    #[cfg(test)]
-    mod normal_qualification_tests {
-        use crate::{PsiOptimizationUnit, recompute_psi_optimization_unit_identity};
-        use optimization_core::OptimizationUnitIdentity;
-        use semantic_vocabulary::{
-            BoundaryMachineId, MachineId, PlaceId, StructuralDomainId, StructuralTypeId,
-            WorkScheduleIdentity,
-        };
-        use std::sync::Arc;
-        use terminal_psi::{
-            BoundaryCompletion, BoundaryMachineDeclaration, BoundaryMachineResult,
-            BoundaryParameterKind, BoundaryRequirementKind, NominalDeclarationIdentity,
-            SemanticFingerprint, StructuralAccess, StructuralDomainRequirement,
-            StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-            TerminalIdentityIndex, TerminalIdentityTableBuilder, TerminalPsiIdentity,
-            VocabularyMarker,
-        };
-
-        fn unit() -> PsiOptimizationUnit {
-            let mut identities = TerminalIdentityTableBuilder::default();
-            for position in 1..=4 {
-                identities.intern(&format!("test::normal-preservation::{position}"));
-            }
-            let boundary = BoundaryMachineDeclaration {
-                id: BoundaryMachineId::new(1).unwrap(),
-                declaration: None,
-                role: terminal_psi::BoundaryDeclarationRole::Callable,
-                kind: BoundaryRequirementKind::Machine,
-                completion: BoundaryCompletion::NormalReturn,
-                numeric_intrinsic: None,
-                unconditional_termination: false,
-                identity: TerminalIdentityIndex(1),
-                owner: NominalDeclarationIdentity::new(TerminalIdentityIndex(2)),
-                attachment: None,
-                parameter_order: vec![BoundaryParameterKind::Structural],
-                scalar_parameters: Vec::new(),
-                crash_routes: Vec::new(),
-                structural_parameters: vec![StructuralParameterDeclaration {
-                    place: PlaceId::new(1).unwrap(),
-                    position: 0,
-                    structural_type: StructuralTypeId::new(1).unwrap(),
-                    multiplicity: StructuralMultiplicity::Affine,
-                    access: StructuralAccess::MutableBorrow,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                    additional_input_qualifications: Vec::new(),
-                }],
-                result: BoundaryMachineResult::Unit,
-                requires: vec![requirement(Vec::new())],
-                membership_ensures: Vec::new(),
-                normal_qualifications: Vec::new(),
-                scalar_domain_requirements: Vec::new(),
-                scalar_requires: Vec::new(),
-                scalar_ensures: Vec::new(),
-                result_reference_regions: Vec::new(),
-                result_lifetimes: None,
-                reference_outputs: Vec::new(),
-                program_local_root_introductions: Vec::new(),
-                content_guarantees: Vec::new(),
-                fixed_service_reach: Vec::new(),
-                service_reach_is_installation_bound: false,
-                owning_service: None,
-                published_synchronous_entries: Vec::new(),
-                published_service_ceiling: Vec::new(),
-            };
-            PsiOptimizationUnit {
-                identity: OptimizationUnitIdentity::from_canonical_bytes(b"uncomputed test seed"),
-                psi: TerminalPsiIdentity {
-                    vocabulary_marker: VocabularyMarker::CURRENT,
-                    program_fingerprint: SemanticFingerprint::from_bytes([7; 32]),
-                },
-                work_schedule: WorkScheduleIdentity::new(1).unwrap(),
-                entry: MachineId::new(1).unwrap(),
-                structural_types: Vec::new().into(),
-                structural_domains: Arc::new([]),
-                services: Arc::new([]),
-                root_service_reach: Default::default(),
-                boundary_machines: vec![boundary],
-                provider_candidates: Vec::new(),
-                dynamic_dispatch: Default::default(),
-                callables: Default::default(),
-                accepted_obligation_facts: Vec::new(),
-                identities: identities.build(),
-                runtime_evidence: None,
-                functions: Vec::new(),
-            }
-        }
-
-        fn requirement(path: Vec<StructuralPathSegment>) -> StructuralDomainRequirement {
-            StructuralDomainRequirement {
-                argument_index: 0,
-                path,
-                domain: StructuralDomainId::new(1).unwrap(),
-            }
-        }
-
-        #[test]
-        fn optimization_unit_identity_commits_normal_boundary_rows_and_exact_scope() {
-            let mut unit = unit();
-            let absent = recompute_psi_optimization_unit_identity(&unit);
-            unit.boundary_machines[0]
-                .normal_qualifications
-                .push(requirement(Vec::new()));
-            let root = recompute_psi_optimization_unit_identity(&unit);
-            assert_ne!(
-                root, absent,
-                "normal-only guarantees must enter the unit identity"
-            );
-            unit.boundary_machines[0].normal_qualifications[0].path =
-                vec![StructuralPathSegment::Field(TerminalIdentityIndex(3))];
-            let field = recompute_psi_optimization_unit_identity(&unit);
-            unit.boundary_machines[0].normal_qualifications[0].path = vec![
-                StructuralPathSegment::Referent,
-                StructuralPathSegment::AllElements,
-            ];
-            let elements = recompute_psi_optimization_unit_identity(&unit);
-            assert_ne!(field, root);
-            assert_ne!(elements, field);
-            assert_ne!(elements, root);
-        }
-
-        #[test]
-        fn optimization_unit_identity_commits_normal_membership_meaning() {
-            use terminal_psi::RuntimeDomainMembership;
-            let mut unit = unit();
-            let absent = recompute_psi_optimization_unit_identity(&unit);
-            unit.boundary_machines[0].membership_ensures.push(
-                RuntimeDomainMembership::Structural {
-                    root: semantic_vocabulary::PlaceId::new(1).unwrap(),
-                    path: Vec::new(),
-                    version: semantic_vocabulary::ContentPlaceVersion::Current,
-                    domain: semantic_vocabulary::StructuralDomainId::new(1).unwrap(),
-                },
-            );
-            let whole = recompute_psi_optimization_unit_identity(&unit);
-            let RuntimeDomainMembership::Structural { path, .. } =
-                &mut unit.boundary_machines[0].membership_ensures[0]
-            else {
-                unreachable!()
-            };
-            path.push(semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(1));
-            let field = recompute_psi_optimization_unit_identity(&unit);
-            let RuntimeDomainMembership::Structural { domain, .. } =
-                &mut unit.boundary_machines[0].membership_ensures[0]
-            else {
-                unreachable!()
-            };
-            *domain = semantic_vocabulary::StructuralDomainId::new(2).unwrap();
-            let application = recompute_psi_optimization_unit_identity(&unit);
-            assert_ne!(absent, whole);
-            assert_ne!(whole, field);
-            assert_ne!(field, application);
-        }
-
-        #[test]
-        fn optimization_unit_identity_commits_boundary_result_lifetime_availability() {
-            let original = unit();
-            let mut changed = unit();
-            changed.boundary_machines[0].result_lifetimes = Some(Vec::new());
-            assert_ne!(
-                recompute_psi_optimization_unit_identity(&original),
-                recompute_psi_optimization_unit_identity(&changed)
-            );
-        }
-
-        #[test]
-        fn optimization_unit_identity_commits_required_boundary_scope() {
-            let mut unit = unit();
-            let root = recompute_psi_optimization_unit_identity(&unit);
-            unit.boundary_machines[0].requires[0].path =
-                vec![StructuralPathSegment::Field(TerminalIdentityIndex(3))];
-            let field = recompute_psi_optimization_unit_identity(&unit);
-            assert_ne!(field, root);
-            unit.boundary_machines[0].requires[0].path[0] =
-                StructuralPathSegment::Field(TerminalIdentityIndex(4));
-            assert_ne!(recompute_psi_optimization_unit_identity(&unit), field);
-        }
-    }
 }
 
 pub(crate) mod unit_encoding {
     use super::carrier_encoding::{
-        encode_abstract_result, encode_access, encode_binding, encode_ids, encode_integer_value,
-        encode_multiplicity, encode_optional, encode_scalar_type, encode_structural_binding,
-        encode_structural_parameter, encode_structural_path_segment,
+        encode_abstract_result, encode_access, encode_ids, encode_multiplicity, encode_optional,
+        encode_scalar_type, encode_structural_parameter, encode_structural_path_segment,
     };
     use super::operation_encoding::encode_operation;
     use super::structural_encoding::{
-        encode_boundary_machine, encode_boundary_result, encode_cleanup,
-        encode_content_entry_claim, encode_entry_claim, encode_evidence_contract_lane,
-        encode_machine_contract, encode_place_declaration, encode_projected_qualification_roster,
-        encode_provider_candidate, encode_structural_domain, encode_structural_type,
+        encode_entry_claim, encode_projected_qualification_roster, encode_provider_candidate,
+        encode_structural_type,
     };
     use super::{
-        AbstractFunctionResult, AcceptedObligationFact, EffectLink, NumericId, OptimizationEdge,
-        OptimizationFact, OptimizationNode, OptimizationUnitIdentity, OwnershipEvent,
-        PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ServiceDeclaration,
-        StructuralResultDeclaration, TerminalRootServiceReach, ValueDefinition,
-        ValueDefinitionSite, ValueUse, WorkSettlement,
+        AbstractFunctionResult, AcceptedObligationFact, NumericId, OptimizationUnitIdentity,
+        PsiOptimizationUnit, StructuralResultDeclaration,
     };
 
-    const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v62\0";
+    const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v64\0";
     pub fn recompute_psi_optimization_unit_identity(
         unit: &PsiOptimizationUnit,
     ) -> OptimizationUnitIdentity {
-        let mut length = CanonicalBytes::length();
-        encode_unit(&mut length, unit);
-        let mut digest = CanonicalBytes::digest(OptimizationUnitIdentity::canonical_encoder(
-            length.finish_length(),
-        ));
-        encode_unit(&mut digest, unit);
-        OptimizationUnitIdentity::from_canonical_encoder(digest.finish_digest())
+        OptimizationUnitIdentity::from_canonical_bytes(&CanonicalBytes::digest(
+            UNIT_IDENTITY_DOMAIN,
+            |bytes| encode_unit(bytes, unit),
+        ))
     }
 
     fn encode_unit(bytes: &mut CanonicalBytes, unit: &PsiOptimizationUnit) {
-        bytes.bytes(UNIT_IDENTITY_DOMAIN);
         bytes.u16(unit.psi.vocabulary_marker.get());
         bytes.bytes(unit.psi.program_fingerprint.as_bytes());
         bytes.u32(unit.work_schedule.marker());
         bytes.id(unit.entry);
+        encode_optional(
+            bytes,
+            unit.scope_provider_closure.as_ref(),
+            |bytes, digest| bytes.bytes(digest),
+        );
+        encode_optional(bytes, unit.lowering_target.as_ref(), |bytes, target| {
+            bytes.string(target)
+        });
+        encode_optional(
+            bytes,
+            unit.scalar_values_digest.as_ref(),
+            |bytes, digest| bytes.bytes(digest),
+        );
+        bytes.slice(
+            unit.structural_types.owned_sequence_bounds(),
+            |bytes, (ty, bound)| {
+                bytes.id(*ty);
+                bytes.u64(*bound);
+            },
+        );
         bytes.slice(&unit.structural_types, encode_structural_type);
         bytes.slice(unit.structural_types.referents(), |bytes, referent| {
             bytes.id(referent.id);
@@ -2812,242 +1935,39 @@ pub(crate) mod unit_encoding {
             |bytes, value| bytes.u8(*value),
         );
         encode_access_view_catalog(bytes, &unit.structural_types);
-        bytes.slice(unit.structural_domains.as_ref(), encode_structural_domain);
-        bytes.slice(unit.services.as_ref(), encode_service_declaration);
-        encode_root_service_reach(bytes, &unit.root_service_reach);
-        bytes.slice(&unit.boundary_machines, encode_boundary_machine);
+        // Rows copied verbatim from the Terminal module are already committed
+        // by `unit.psi`, the fingerprint of the whole module encoding: the
+        // structural domains, services, root service reach and runtime
+        // evidence attached from the verified module, and the plan's callable
+        // and dynamic-dispatch catalogs (`identities` was never hashed for the
+        // same reason). Only the choice of rows enters here: whether the
+        // module context is attached, and which boundary declarations the
+        // native scope kept.
+        encode_optional(bytes, unit.runtime_evidence.as_deref(), |bytes, catalog| {
+            bytes.u16(catalog.psi().vocabulary_marker.get());
+            bytes.bytes(catalog.psi().program_fingerprint.as_bytes());
+        });
+        bytes.slice(&unit.boundary_machines, |bytes, boundary| {
+            bytes.id(boundary.id)
+        });
         bytes.slice(&unit.provider_candidates, encode_provider_candidate);
         bytes.slice(&unit.accepted_obligation_facts, encode_accepted_fact);
-        encode_optional(
-            bytes,
-            unit.runtime_evidence.as_deref(),
-            super::runtime_evidence_encoding::encode_catalog,
-        );
-        bytes.slice(&unit.functions, encode_function);
-        encode_callable_catalog(bytes, &unit.callables);
-        if !unit.dynamic_dispatch.interfaces.is_empty() || !unit.dynamic_dispatch.tables.is_empty()
-        {
-            bytes.bytes(b"omega.psi-optimization-dynamic-dispatch.v3\0");
-            bytes.slice(&unit.dynamic_dispatch.interfaces, |bytes, interface| {
-                bytes.u32(interface.id);
-                bytes.u32(interface.identity.0);
-                bytes.slice(&interface.slots, |bytes, slot| {
-                    bytes.u32(slot.slot);
-                    bytes.u32(slot.declaring_trait_identity.0);
-                    bytes.u32(slot.requirement_identity.0);
-                    bytes.slice(&slot.family_tuple, |bytes, value| {
-                        bytes.string(&value.canonical_identity())
-                    });
-                    bytes.slice(&slot.scalar_parameters, |bytes, scalar_type| {
-                        encode_scalar_type(bytes, *scalar_type);
-                    });
-                    bytes.slice(&slot.structural_parameters, |bytes, parameter| {
-                        bytes.u32(parameter.position);
-                        bytes.id(parameter.structural_type);
-                        super::carrier_encoding::encode_access(bytes, parameter.access);
-                        encode_multiplicity(bytes, parameter.multiplicity);
-                    });
-                    bytes.slice(&slot.entry_claim_paths, |bytes, claim| {
-                        bytes.u32(claim.argument_index);
-                        bytes.slice(&claim.path, encode_structural_path_segment);
-                    });
-                    encode_boundary_result(bytes, &slot.result);
-                    bytes.slice(&slot.result_claim_paths, |bytes, path| {
-                        bytes.slice(path, encode_structural_path_segment);
-                    });
-                    bytes.slice(&slot.result_reference_regions, |bytes, region| {
-                        bytes.slice(&region.path, encode_structural_path_segment);
-                        match region.origin {
-                            terminal_psi::TerminalDynamicReferenceOrigin::Parameter {
-                                argument_index,
-                            } => {
-                                bytes.u8(1);
-                                bytes.u32(argument_index);
-                            }
-                            terminal_psi::TerminalDynamicReferenceOrigin::Invocation {
-                                carrier_type,
-                            } => {
-                                bytes.u8(2);
-                                bytes.id(carrier_type);
-                            }
-                        }
-                        bytes.slice(&region.source_path, encode_structural_path_segment);
-                        encode_access(bytes, region.access);
-                    });
-                });
-            });
-            bytes.slice(&unit.dynamic_dispatch.tables, |bytes, table| {
-                bytes.u32(table.id);
-                bytes.u32(table.interface);
-                bytes.u32(table.implementation_identity.0);
-                bytes.slice(&table.rows, |bytes, machine| {
-                    encode_optional(bytes, machine.as_ref(), |bytes, machine| bytes.id(*machine));
-                });
-            });
-        }
-    }
-
-    pub(super) fn encode_callable_catalog(
-        bytes: &mut CanonicalBytes,
-        catalog: &terminal_psi::TerminalCallableCatalog,
-    ) {
-        bytes.slice(&catalog.contracts, |bytes, contract| {
-            bytes.id(contract.id);
-            bytes.u32(contract.identity.0);
-            bytes.slice(&contract.scalar_parameters, |bytes, formal| {
-                bytes.id(formal.id);
-                encode_scalar_type(bytes, formal.scalar_type);
-                bytes.u64(formal.qualifications.get());
-            });
-            bytes.slice(&contract.parameter_order, |bytes, kind| {
-                bytes.u8(match kind {
-                    terminal_psi::BoundaryParameterKind::Scalar => 0,
-                    terminal_psi::BoundaryParameterKind::Structural => 1,
-                })
-            });
-            bytes.slice(&contract.structural_parameters, encode_structural_parameter);
-            encode_boundary_result(bytes, &contract.result);
-            match &contract.proof_result {
-                terminal_psi::TerminalMachineResult::Unit => bytes.u8(0),
-                terminal_psi::TerminalMachineResult::Scalar(formal) => {
-                    bytes.u8(1);
-                    bytes.id(formal.id);
-                    encode_scalar_type(bytes, formal.scalar_type);
-                    bytes.u64(formal.qualifications.get());
-                }
-                terminal_psi::TerminalMachineResult::Structural(formal) => {
-                    bytes.u8(2);
-                    encode_structural_result(bytes, formal);
-                }
-            }
-            bytes.slice(&contract.entry_claim_paths, |bytes, claim| {
-                bytes.u32(claim.argument_index);
-                bytes.slice(&claim.path, encode_structural_path_segment);
-            });
-            bytes.slice(&contract.result_claim_paths, |bytes, path| {
-                bytes.slice(path, encode_structural_path_segment)
-            });
-            bytes.slice(&contract.result_reference_regions, |bytes, region| {
-                bytes.slice(&region.path, encode_structural_path_segment);
-                match region.origin {
-                    terminal_psi::TerminalDynamicReferenceOrigin::Parameter { argument_index } => {
-                        bytes.u8(0);
-                        bytes.u32(argument_index);
-                    }
-                    terminal_psi::TerminalDynamicReferenceOrigin::Invocation { carrier_type } => {
-                        bytes.u8(1);
-                        bytes.id(carrier_type);
-                    }
-                }
-                bytes.slice(&region.source_path, encode_structural_path_segment);
-                encode_access(bytes, region.access);
-            });
-            encode_machine_contract(bytes, &contract.proof);
-            bytes.slice(
-                &contract.evidence_contract,
-                super::runtime_evidence_encoding::encode_callable_evidence_lane,
-            );
-            encode_callable_envelope(bytes, &contract.envelope);
-        });
-        bytes.slice(&catalog.machine_envelopes, |bytes, row| {
-            encode_optional(bytes, row.as_ref(), |bytes, row| {
-                bytes.id(row.machine);
-                encode_callable_envelope(bytes, &row.envelope);
-            });
-        });
-        bytes.slice(&catalog.boundary_envelopes, |bytes, row| {
-            encode_optional(bytes, row.as_ref(), |bytes, row| {
-                bytes.id(row.boundary);
-                encode_callable_envelope(bytes, &row.envelope);
-            });
-        });
-        bytes.slice(&catalog.declaration_envelopes, |bytes, row| {
-            bytes.id(row.contract);
-            encode_callable_envelope(bytes, &row.envelope);
-        });
-        bytes.slice(&catalog.descriptors, |bytes, descriptor| {
-            bytes.id(descriptor.id);
-            bytes.id(descriptor.contract);
-            bytes.id(descriptor.machine);
-            bytes.u32(descriptor.origin.application.0);
-            encode_optional(
-                bytes,
-                descriptor.origin.conformance.as_ref(),
-                |bytes, identity| bytes.u32(identity.0),
-            );
-            encode_optional(
-                bytes,
-                descriptor.origin.requirement.as_ref(),
-                |bytes, identity| bytes.u32(identity.0),
-            );
-            encode_ids(bytes, &descriptor.refinement_obligations);
-            bytes.slice(&descriptor.refinement_evidence, |bytes, certificate| {
-                bytes.id(certificate.identity);
-                bytes.u16(certificate.proof_system_marker.get());
-            });
-        });
-    }
-
-    fn encode_callable_envelope(
-        bytes: &mut CanonicalBytes,
-        envelope: &terminal_psi::TerminalCallableEnvelope,
-    ) {
-        encode_ids(bytes, &envelope.service_reach);
-        bytes.slice(
-            &envelope.invocations,
-            |bytes, invocation| match invocation {
-                terminal_psi::TerminalCallableInvocation::Parameter(ordinal) => {
-                    bytes.u8(0);
-                    bytes.u32(*ordinal);
-                }
-                terminal_psi::TerminalCallableInvocation::Service(service) => {
-                    bytes.u8(1);
-                    bytes.id(*service);
-                }
-            },
-        );
-        bytes.u8(u8::from(envelope.suspends));
-        bytes.u8(u8::from(envelope.blocks));
-        match &envelope.termination {
-            terminal_psi::TerminalCallableTermination::NotGuaranteed => bytes.u8(0),
-            terminal_psi::TerminalCallableTermination::Terminates { premises } => {
-                bytes.u8(1);
-                bytes.slice(premises, |bytes, premise| {
-                    bytes.u32(premise.parameter);
-                    bytes.slice(&premise.path, encode_structural_path_segment);
-                    bytes.id(premise.domain);
-                });
-            }
-        }
-    }
-
-    fn encode_service_declaration(bytes: &mut CanonicalBytes, service: &ServiceDeclaration) {
-        bytes.id(service.id);
-        bytes.u32(service.identity.0);
-        encode_ids(bytes, &service.parents);
-    }
-
-    fn encode_root_service_reach(bytes: &mut CanonicalBytes, reach: &TerminalRootServiceReach) {
-        encode_ids(bytes, &reach.concrete);
-        bytes.slice(&reach.installation_dependencies, |bytes, dependency| {
-            bytes.u32(dependency.requirement_identity.0);
-            encode_ids(bytes, &dependency.upper_bound);
-        });
+        bytes.bytes(&unit.functions.digest);
     }
 
     pub(super) enum CanonicalBytes {
-        Length(usize),
-        Digest(optimization_core::CanonicalIdentityEncoder),
+        Digest(wire::digest_encoder::DomainDigestEncoder),
         Collect(Vec<u8>),
     }
 
     impl CanonicalBytes {
-        fn length() -> Self {
-            Self::Length(0)
-        }
-
-        fn digest(encoder: optimization_core::CanonicalIdentityEncoder) -> Self {
-            Self::Digest(encoder)
+        fn digest(domain: &[u8], encode: impl FnOnce(&mut Self)) -> [u8; 32] {
+            let mut output = Self::Digest(wire::digest_encoder::DomainDigestEncoder::new(domain));
+            encode(&mut output);
+            match output {
+                Self::Digest(digest) => digest.finish(),
+                Self::Collect(_) => unreachable!("digest sink"),
+            }
         }
 
         pub(super) fn collect() -> Self {
@@ -3061,28 +1981,9 @@ pub(crate) mod unit_encoding {
             }
         }
 
-        fn finish_length(self) -> u64 {
-            match self {
-                Self::Length(length) => {
-                    u64::try_from(length).expect("canonical optimization-unit length fits u64")
-                }
-                Self::Digest(_) => unreachable!("digest pass follows the completed length pass"),
-                Self::Collect(_) => unreachable!("length target precedes length inspection"),
-            }
-        }
-
-        fn finish_digest(self) -> optimization_core::CanonicalIdentityEncoder {
-            match self {
-                Self::Digest(encoder) => encoder,
-                Self::Length(_) => unreachable!("length pass precedes the digest pass"),
-                Self::Collect(_) => unreachable!("digest target precedes digest inspection"),
-            }
-        }
-
         pub(super) fn bytes(&mut self, bytes: &[u8]) {
             match self {
-                Self::Length(length) => *length += bytes.len(),
-                Self::Digest(encoder) => encoder.update(bytes),
+                Self::Digest(encoder) => encoder.raw(bytes),
                 Self::Collect(buffer) => buffer.extend_from_slice(bytes),
             }
         }
@@ -3165,48 +2066,59 @@ pub(crate) mod unit_encoding {
         }
     }
 
-    fn encode_function(bytes: &mut CanonicalBytes, function: &PsiOptimizationFunction) {
-        bytes.id(function.machine);
-        encode_optional(bytes, function.attachment.as_ref(), |bytes, attachment| {
+    pub(crate) fn function_digest(functions: &[abstract_operations::AbstractFunction]) -> [u8; 32] {
+        CanonicalBytes::digest(b"omega.abstract-functions.v1\0", |bytes| {
+            bytes.slice(functions, encode_function);
+        })
+    }
+
+    fn encode_parameter(
+        bytes: &mut CanonicalBytes,
+        parameter: &abstract_operations::AbstractParameter,
+    ) {
+        bytes.id(parameter.value);
+        encode_scalar_type(bytes, parameter.scalar_type);
+    }
+
+    fn encode_function(
+        bytes: &mut CanonicalBytes,
+        function: &abstract_operations::AbstractFunction,
+    ) {
+        let abstract_operations::AbstractFunction {
+            machine,
+            attachment,
+            entry,
+            parameters,
+            structural_parameters,
+            result,
+            entry_claims,
+            block_entry_claims,
+            published_service_ceiling,
+            blocks,
+        } = function;
+        bytes.id(*machine);
+        encode_optional(bytes, attachment.as_ref(), |bytes, attachment| {
             bytes.id(*attachment)
         });
-        bytes.id(function.entry);
-        bytes.slice(&function.parameters, encode_definition);
-        bytes.slice(&function.structural_parameters, encode_structural_parameter);
-        bytes.slice(&function.structural_places, |bytes, place| {
-            encode_place_declaration(bytes, *place)
+        bytes.id(*entry);
+        bytes.slice(parameters, encode_parameter);
+        bytes.slice(structural_parameters, encode_structural_parameter);
+        encode_function_result(bytes, result);
+        bytes.slice(entry_claims, encode_entry_claim);
+        bytes.slice(block_entry_claims, encode_entry_claim);
+        encode_ids(bytes, published_service_ceiling);
+        bytes.slice(blocks, |bytes, block| {
+            let abstract_operations::AbstractBlock {
+                block,
+                parameters,
+                structural_parameters,
+                operations,
+            } = block;
+            bytes.id(*block);
+            bytes.slice(parameters, encode_parameter);
+            bytes.slice(structural_parameters, encode_structural_parameter);
+            bytes.slice(operations, encode_operation);
         });
-        encode_function_result(bytes, &function.result);
-        bytes.len(function.declared_places.len());
-        for place in &function.declared_places {
-            bytes.id(*place);
-        }
-        bytes.slice(&function.entry_claim_declarations, encode_entry_claim);
-        bytes.slice(&function.block_entry_claims, encode_entry_claim);
-        bytes.slice(&function.content_entry_claims, encode_content_entry_claim);
-        encode_optional(
-            bytes,
-            function.verified_contract.as_ref(),
-            encode_machine_contract,
-        );
-        bytes.slice(
-            &function.evidence_contract_lanes,
-            encode_evidence_contract_lane,
-        );
-        bytes.len(function.entry_claims.len());
-        for claim in &function.entry_claims {
-            bytes.id(*claim);
-        }
-        encode_ids(bytes, &function.published_service_ceiling);
-        encode_ids(bytes, &function.declared_service_reach);
-        bytes.slice(&function.facts, encode_fact);
-        bytes.len(function.blocks.len());
-        for block in &function.blocks {
-            bytes.id(block.id);
-            bytes.slice(&block.parameters, encode_definition);
-            bytes.slice(&block.structural_parameters, encode_structural_parameter);
-            bytes.slice(&block.nodes, encode_node);
-        }
     }
 
     fn encode_function_result(bytes: &mut CanonicalBytes, result: &AbstractFunctionResult) {
@@ -3259,181 +2171,37 @@ pub(crate) mod unit_encoding {
         });
     }
 
-    fn encode_node(bytes: &mut CanonicalBytes, node: &OptimizationNode) {
-        encode_operation(bytes, &node.operation);
-        bytes.slice(&node.provenance, |bytes, provenance| {
-            encode_provenance(bytes, *provenance)
-        });
-        bytes.slice(&node.work, encode_work);
-        encode_effect(bytes, node.effect);
-        bytes.slice(&node.definitions, encode_definition);
-        bytes.slice(&node.uses, encode_use);
-        bytes.slice(&node.successors, encode_edge);
-        bytes.slice(&node.ownership, encode_ownership);
-    }
-
-    fn encode_provenance(bytes: &mut CanonicalBytes, provenance: PsiProvenance) {
-        match provenance {
-            PsiProvenance::Operation(operation) => {
-                bytes.u8(1);
-                bytes.id(operation);
-            }
-            PsiProvenance::Edge(edge) => {
-                bytes.u8(2);
-                bytes.id(edge);
-            }
-        }
-    }
-
-    fn encode_work(bytes: &mut CanonicalBytes, work: &WorkSettlement) {
-        encode_provenance(bytes, work.site);
-        bytes.u64(work.units);
-    }
-
-    fn encode_effect(bytes: &mut CanonicalBytes, effect: EffectLink) {
-        bytes.u64(effect.input);
-        bytes.u64(effect.output);
-    }
-
-    fn encode_definition(bytes: &mut CanonicalBytes, definition: &ValueDefinition) {
-        bytes.id(definition.value);
-        encode_scalar_type(bytes, definition.scalar_type);
-        match definition.site {
-            ValueDefinitionSite::FunctionParameter(position) => {
-                bytes.u8(1);
-                bytes.u32(position);
-            }
-            ValueDefinitionSite::BlockParameter { block, position } => {
-                bytes.u8(2);
-                bytes.id(block);
-                bytes.u32(position);
-            }
-            ValueDefinitionSite::Node { block, node } => {
-                bytes.u8(3);
-                bytes.id(block);
-                bytes.u32(node);
-            }
-        }
-    }
-
-    fn encode_use(bytes: &mut CanonicalBytes, value_use: &ValueUse) {
-        bytes.id(value_use.value);
-        bytes.id(value_use.block);
-        bytes.u32(value_use.node);
-    }
-
-    fn encode_edge(bytes: &mut CanonicalBytes, edge: &OptimizationEdge) {
-        bytes.id(edge.psi_edge);
-        bytes.id(edge.target);
-        bytes.slice(&edge.bindings, encode_binding);
-        bytes.slice(&edge.structural_bindings, encode_structural_binding);
-        bytes.slice(&edge.cleanup_actions, encode_cleanup);
-        bytes.slice(&edge.provenance, |bytes, provenance| {
-            encode_provenance(bytes, *provenance)
-        });
-        bytes.slice(&edge.work, encode_work);
-    }
-
-    fn encode_ownership(bytes: &mut CanonicalBytes, event: &OwnershipEvent) {
-        match event {
-            OwnershipEvent::ClaimTransfer(claims) => {
-                bytes.u8(1);
-                encode_ids(bytes, claims);
-            }
-            OwnershipEvent::ClaimCompletion(receipts) => {
-                bytes.u8(2);
-                bytes.slice(receipts, |bytes, receipt| {
-                    bytes.id(receipt.claim);
-                    bytes.u32(receipt.argument_index);
-                    bytes.slice(&receipt.path, encode_structural_path_segment);
-                });
-            }
-            OwnershipEvent::Cleanup(actions) => {
-                bytes.u8(3);
-                bytes.slice(actions, encode_cleanup);
-            }
-            OwnershipEvent::StructuralReturn(claims) => {
-                bytes.u8(4);
-                encode_ids(bytes, claims);
-            }
-            OwnershipEvent::CrashFrontier(claims) => {
-                bytes.u8(5);
-                encode_ids(bytes, claims);
-            }
-            OwnershipEvent::ExternalCompletionFrontier(claims) => {
-                bytes.u8(6);
-                encode_ids(bytes, claims);
-            }
-        }
-    }
-
-    fn encode_fact(bytes: &mut CanonicalBytes, fact: &OptimizationFact) {
-        match fact {
-            OptimizationFact::OperationObligationReference {
-                obligation,
-                support,
-            } => {
-                bytes.u8(1);
-                bytes.id(*obligation);
-                bytes.id(*support);
-            }
-            OptimizationFact::BooleanConstant {
-                value,
-                constant,
-                support,
-            } => {
-                bytes.u8(2);
-                bytes.id(*value);
-                bytes.boolean(*constant);
-                bytes.id(*support);
-            }
-            OptimizationFact::IntegerConstant {
-                value,
-                constant,
-                support,
-            } => {
-                bytes.u8(3);
-                bytes.id(*value);
-                encode_integer_value(bytes, *constant);
-                bytes.id(*support);
-            }
-        }
-    }
-
     fn encode_access_view_plans(
         bytes: &mut CanonicalBytes,
         plans: &[terminal_psi::TerminalAccessViewPlan],
     ) {
-        if !plans.is_empty() {
-            bytes.bytes(b"placed-interpretations-v1");
-            bytes.slice(plans, |bytes, plan| {
-                bytes.id(plan.carrier);
-                bytes.id(plan.schema);
-                for identity in [
-                    plan.view_identity,
-                    plan.policy_identity,
-                    plan.policy_plan_machine_identity,
-                    plan.schema_identity,
-                ] {
-                    bytes.u32(identity.0);
-                }
-                bytes.bytes(&plan.placement.content_interpretation().commitment());
-                bytes.slice(&plan.fields, |bytes, field| {
-                    bytes.u32(field.access_slot);
-                    bytes.u32(field.view_field.0);
-                    bytes.u32(field.schema_field.0);
-                    bytes.id(field.accessor);
-                    bytes.slice(&field.operations, |bytes, operation| {
-                        bytes.id(operation.boundary);
-                        bytes.u8(match operation.kind {
-                            terminal_psi::TerminalAccessorKind::Read => 0,
-                            terminal_psi::TerminalAccessorKind::Take => 1,
-                            terminal_psi::TerminalAccessorKind::Write => 2,
-                        });
+        bytes.slice(plans, |bytes, plan| {
+            bytes.id(plan.carrier);
+            bytes.id(plan.schema);
+            for identity in [
+                plan.view_identity,
+                plan.policy_identity,
+                plan.policy_plan_machine_identity,
+                plan.schema_identity,
+            ] {
+                bytes.u32(identity.0);
+            }
+            bytes.bytes(&plan.placement.content_interpretation().commitment());
+            bytes.slice(&plan.fields, |bytes, field| {
+                bytes.u32(field.access_slot);
+                bytes.u32(field.view_field.0);
+                bytes.u32(field.schema_field.0);
+                bytes.id(field.accessor);
+                bytes.slice(&field.operations, |bytes, operation| {
+                    bytes.id(operation.boundary);
+                    bytes.u8(match operation.kind {
+                        terminal_psi::TerminalAccessorKind::Read => 0,
+                        terminal_psi::TerminalAccessorKind::Take => 1,
+                        terminal_psi::TerminalAccessorKind::Write => 2,
                     });
                 });
             });
-        }
+        });
     }
 
     fn encode_access_view_catalog(
@@ -3441,170 +2209,562 @@ pub(crate) mod unit_encoding {
         catalog: &abstract_operations::StructuralTypeCatalog,
     ) {
         encode_access_view_plans(bytes, catalog.access_views());
-        if !catalog.access_lifecycles().is_empty() {
-            bytes.bytes(b"placement-lifecycle-demands-v1");
-            bytes.bytes(catalog.access_lifecycle_identity_bytes());
-        }
-        if !catalog.access_view_inputs().is_empty() {
-            bytes.bytes(b"placed-formal-demands-v1");
-            bytes.slice(catalog.access_view_inputs(), |bytes, input| {
-                bytes.id(input.machine);
-                bytes.u32(input.position);
-                bytes.u32(input.runtime_position);
-                for identity in [
-                    input.carrier_identity,
-                    input.source_machine_identity,
-                    input.source_state_identity,
-                    input.source_parameter_identity,
-                    input.view_identity,
-                    input.policy_identity,
-                    input.policy_plan_machine_identity,
-                    input.schema_identity,
-                ] {
-                    bytes.u32(identity.0);
-                }
-                encode_access(bytes, input.access);
-                bytes.u8(u8::from(input.binding_is_const));
-                bytes.u8(u8::from(input.binding_is_mutable));
-                bytes.u64(input.placement_report_fingerprint);
-                bytes.bytes(&input.placement_commitment);
-            });
-        }
+        let lifecycles = catalog.access_lifecycle_identity_bytes();
+        bytes.len(lifecycles.len());
+        bytes.bytes(lifecycles);
+        bytes.slice(catalog.access_view_inputs(), |bytes, input| {
+            bytes.id(input.machine);
+            bytes.u32(input.position);
+            bytes.u32(input.runtime_position);
+            for identity in [
+                input.carrier_identity,
+                input.source_machine_identity,
+                input.source_state_identity,
+                input.source_parameter_identity,
+                input.view_identity,
+                input.policy_identity,
+                input.policy_plan_machine_identity,
+                input.schema_identity,
+            ] {
+                bytes.u32(identity.0);
+            }
+            encode_access(bytes, input.access);
+            bytes.u8(u8::from(input.binding_is_const));
+            bytes.u8(u8::from(input.binding_is_mutable));
+            bytes.u64(input.placement_report_fingerprint);
+            bytes.bytes(&input.placement_commitment);
+        });
     }
 }
 
 pub(crate) mod operation_encoding {
     use super::CanonicalBytes;
-    use abstract_operations::AbstractOperation;
-    // Each family numbers its own tags, and several numbers repeat across
-    // families (Jump and IeeeFloatConstant both use 42). The family byte
-    // written first keeps two operations from different families apart.
-    const STRUCTURAL: u8 = 0;
-    const ATOMIC: u8 = 1;
-    const CALLS_AND_EFFECTS: u8 = 2;
-    const IEEE_FLOAT: u8 = 3;
-    const SCALAR: u8 = 4;
-    const CONTROL: u8 = 5;
+    use super::carrier_encoding::*;
+    use super::proposition_encoding::{encode_canonical_path, encode_float_format};
+    use super::structural_encoding::*;
+    use abstract_operations::{
+        AbstractOperation, IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy,
+        IntegerShiftDirection, IntegerShiftPolicy,
+    };
+    use semantic_vocabulary::{IntegerType, ScalarType};
 
-    pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
-        use AbstractOperation as O;
-        match operation {
-            O::EstablishActivationClaim { .. }
-            | O::SplitActivationClaim { .. }
-            | O::MergeActivationClaim { .. }
-            | O::ReleaseActivationClaim { .. }
-            | O::ObserveStorageLocation { .. }
-            | O::ByteSequenceSubslice { .. }
-            | O::EstablishElementView { .. }
-            | O::ElementViewSubslice { .. }
-            | O::ElementViewFixedArray { .. }
-            | O::EstablishPrimitiveLocal { .. }
-            | O::PrimitiveLocalStore { .. }
-            | abstract_operations::primitive_storage_observation_pattern!(..)
-            | O::WriteOnlyPrimitiveStore { .. }
-            | O::StructuralScalarFieldStore { .. }
-            | O::EstablishScalarArray { .. }
-            | abstract_operations::structural_array_or_case_pattern!(..)
-            | abstract_operations::establish_byte_literal_triple_pattern!(..)
-            | O::EstablishZeroedStructural { .. }
-            | O::EstablishStructuralLocal { .. }
-            | O::EstablishReference { .. }
-            | O::EstablishAccessReference { .. }
-            | O::ReleaseReference { .. }
-            | abstract_operations::move_or_store_structural_field_pattern!()
-            | O::PackedIntegerUnary { .. }
-            | O::PackedIntegerBinary { .. }
-            | O::StructuralLeafCopy { .. }
-            | O::MoveStructuralValue { .. }
-            | O::DecomposeStructuralValue { .. }
-            | O::TransformContent { .. }
-            | O::EstablishNativeCodeLayout { .. }
-            | O::EstablishRecord { .. } => {
-                bytes.u8(STRUCTURAL);
-                structural::encode(bytes, operation)
-            }
+    // Bare plans can supply every operand independently. Match every field so that adding
+    // an operand to a variant requires choosing its canonical encoding.
+    trait OperationField {
+        fn encode(&self, bytes: &mut CanonicalBytes);
+    }
 
-            O::AtomicEvent { .. } => {
-                bytes.u8(ATOMIC);
-                atomic::encode(bytes, operation)
-            }
-
-            O::CallStructural { .. }
-            | O::SelectImplementation { .. }
-            | O::SelectMachine { .. }
-            | O::BoundaryCall { .. }
-            | O::PortWrite { .. }
-            | O::ActivateTaskRegister { .. }
-            | O::ReadTaskRegister { .. }
-            | O::ReloadSegmentDescriptors { .. }
-            | O::ReadSegmentSelector { .. }
-            | O::GlobalDescriptorTable { .. }
-            | O::RegisterAccess { .. }
-            | O::Call { .. } => {
-                bytes.u8(CALLS_AND_EFFECTS);
-                calls_and_effects::encode(bytes, operation)
-            }
-
-            O::IeeeFloatConstant { .. }
-            | O::FloatResultPolicy { .. }
-            | O::NearestIeeeFloatFusedMultiplyAdd { .. }
-            | O::IeeeFloatCompare { .. } => {
-                bytes.u8(IEEE_FLOAT);
-                ieee_float::encode(bytes, operation)
-            }
-
-            O::IntegerConstant { .. }
-            | O::BooleanConstant { .. }
-            | O::StructuralScalarFieldRead { .. }
-            | abstract_operations::byte_read_predicate_equal_pattern!(..)
-            | O::ByteSequenceWrite { .. }
-            | abstract_operations::byte_sequence_store_pair_pattern!(..)
-            | O::StructuralByteViewFieldStore { .. }
-            | O::StructuralByteSequenceFieldByteStore { .. }
-            | O::ByteSequenceLength { .. }
-            | O::ElementViewLength { .. }
-            | abstract_operations::element_view_read_write_pair_pattern!(..)
-            | abstract_operations::byte_len_or_field_read_pattern!(..)
-            | abstract_operations::boolean_not_or_equal_pair_pattern!(..)
-            | abstract_operations::integer_equal_less_pair_pattern!(..)
-            | abstract_operations::bitwise_not_or_less_pair_pattern!(..)
-            | abstract_operations::integer_widen_or_exact_cast_pattern!(..)
-            | abstract_operations::bitwise_and_or_view_pair_pattern!(..)
-            | abstract_operations::bitwise_or_xor_pair_pattern!(..)
-            | abstract_operations::integer_dispatch_triple_pattern!(..) => {
-                bytes.u8(SCALAR);
-                scalar::encode(bytes, operation)
-            }
-
-            abstract_operations::jump_or_conditional_pattern!()
-            | O::StructuralCase { .. }
-            | abstract_operations::return_or_return_unit_pattern!()
-            | O::ReturnStructural { .. }
-            | O::InvokeNoNormal { .. }
-            | O::ExternalCompletion { .. }
-            | O::EliminateEmpty { .. }
-            | O::Crash { .. } => {
-                bytes.u8(CONTROL);
-                control::encode(bytes, operation)
-            }
+    impl<T: OperationField> OperationField for Vec<T> {
+        fn encode(&self, bytes: &mut CanonicalBytes) {
+            bytes.slice(self, |bytes, field| field.encode(bytes));
+        }
+    }
+    impl<T: OperationField> OperationField for Option<T> {
+        fn encode(&self, bytes: &mut CanonicalBytes) {
+            encode_optional(bytes, self.as_ref(), |bytes, field| field.encode(bytes));
         }
     }
 
-    fn encode_optional_field(
-        bytes: &mut CanonicalBytes,
-        field: Option<semantic_vocabulary::StructuralFieldId>,
-    ) {
-        bytes.u64(field.map_or(0, semantic_vocabulary::StructuralFieldId::get));
+    macro_rules! field {
+        ($ty:ty, |$bytes:ident, $value:ident| $body:expr) => {
+            impl OperationField for $ty {
+                fn encode(&self, $bytes: &mut CanonicalBytes) {
+                    let $value = self;
+                    $body
+                }
+            }
+        };
     }
 
+    macro_rules! ids {
+        ($($ty:ident),+) => { $(field!(semantic_vocabulary::$ty, |bytes, value| bytes.id(*value));)+ };
+    }
+    ids!(
+        OperationId,
+        ValueId,
+        MachineId,
+        StructuralTypeId,
+        StructuralDomainId,
+        StructuralCaseId,
+        StructuralFieldId,
+        ClaimId,
+        PlaceId,
+        ServiceId,
+        ObligationId,
+        BoundaryMachineId,
+        MachineDescriptorId,
+        EdgeId,
+        BlockId
+    );
+    field!(u8, |bytes, value| bytes.u8(*value));
+    field!(u16, |bytes, value| bytes.u16(*value));
+    field!(u32, |bytes, value| bytes.u32(*value));
+    field!(u64, |bytes, value| bytes.u64(*value));
+    field!(bool, |bytes, value| bytes.boolean(*value));
+    field!(abstract_operations::AbstractResult, |bytes, value| {
+        encode_abstract_result(bytes, *value)
+    });
+    field!(IntegerType, |bytes, value| encode_integer_type(
+        bytes, *value
+    ));
+    field!(ScalarType, |bytes, value| encode_scalar_type(bytes, *value));
+    field!(semantic_vocabulary::IntegerValue, |bytes, value| {
+        encode_integer_value(bytes, *value)
+    });
+    field!(terminal_psi::CrashCause, |bytes, value| encode_crash_cause(
+        bytes, *value
+    ));
+    field!(terminal_psi::StructuralPlaceDeclaration, |bytes, value| {
+        encode_place_declaration(bytes, *value)
+    });
+    field!(semantic_vocabulary::IeeeFloatFormat, |bytes, value| {
+        encode_float_format(bytes, *value)
+    });
+    field!(abstract_operations::ValueBinding, |bytes, value| {
+        encode_binding(bytes, value)
+    });
+    field!(terminal_psi::StructuralOperationResult, |bytes, value| {
+        encode_structural_operation_result(bytes, value)
+    });
+    field!(terminal_psi::StructuralTypeDeclaration, |bytes, value| {
+        encode_structural_type(bytes, value)
+    });
+    field!(terminal_psi::StructuralArgument, |bytes, value| {
+        encode_structural_argument(bytes, value)
+    });
+    field!(
+        abstract_operations::AbstractStructuralBinding,
+        |bytes, value| encode_structural_binding(bytes, value)
+    );
+    field!(terminal_psi::StructuralPathSegment, |bytes, value| {
+        encode_structural_path_segment(bytes, value)
+    });
+    field!(terminal_psi::TerminalAffineCleanupAction, |bytes, value| {
+        encode_cleanup(bytes, value)
+    });
+    field!(
+        abstract_operations::CompletionClaimSource,
+        |bytes, value| encode_completion_claim_source(bytes, value)
+    );
+    field!(terminal_psi::CrashPredicateTerm, |bytes, value| {
+        encode_crash_predicate(bytes, value)
+    });
+    field!(terminal_psi::CrashRouteBucket, |bytes, value| {
+        encode_crash_route_bucket(bytes, value)
+    });
+    field!(terminal_psi::ClaimTransfer, |bytes, value| {
+        encode_claim_transfer(bytes, value)
+    });
+    field!(
+        terminal_psi::ContentTransformationDerivation,
+        |bytes, value| encode_content_transformation(bytes, value)
+    );
+    field!(
+        terminal_psi::control_flow::ByteSequenceOperand,
+        |bytes, value| encode_byte_sequence_operand(bytes, value)
+    );
+    field!(abstract_operations::StructuralWindowRoot, |bytes, value| {
+        encode_window_root(bytes, value)
+    });
+    field!(terminal_psi::RecordFieldInitializer, |bytes, value| {
+        encode_record_initializer(bytes, value)
+    });
+    field!(abstract_operations::AbstractSuccessor, |bytes, value| {
+        encode_successor(bytes, value)
+    });
+    field!(
+        Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        |bytes, value| encode_canonical_path(bytes, value)
+    );
+    field!(terminal_psi::SegmentRegister, |bytes, value| bytes
+        .u8(value.code()));
+    field!(terminal_psi::SegmentReload, |bytes, value| bytes
+        .u8(value.code()));
+    field!(terminal_psi::ByteSequencePredicate, |bytes, value| bytes
+        .u8(value.mask_bit()));
+    field!(abstract_operations::AbstractCallTarget, |bytes, value| {
+        value.visit_canonical_bytes(|part| bytes.bytes(part))
+    });
+    field!(
+        semantic_vocabulary::PackedIntegerUnaryOperation,
+        |bytes, value| match value {
+            semantic_vocabulary::PackedIntegerUnaryOperation::ShiftRightArithmeticI16x8 {
+                count,
+            } => {
+                bytes.u8(0);
+                bytes.u8(*count);
+            }
+            semantic_vocabulary::PackedIntegerUnaryOperation::WidenU8x8ToI16x8 => bytes.u8(1),
+            semantic_vocabulary::PackedIntegerUnaryOperation::NarrowI16x8ToU8x8Saturating =>
+                bytes.u8(2),
+            semantic_vocabulary::PackedIntegerUnaryOperation::LoadI16x4ZeroExtend => bytes.u8(3),
+            semantic_vocabulary::PackedIntegerUnaryOperation::WidenU8x4ToI16x8 => bytes.u8(4),
+            semantic_vocabulary::PackedIntegerUnaryOperation::NarrowI16x8ToU8x4Saturating =>
+                bytes.u8(5),
+            semantic_vocabulary::PackedIntegerUnaryOperation::AbsI16x8 => bytes.u8(6),
+        }
+    );
+    field!(
+        semantic_vocabulary::PackedIntegerBinaryOperation,
+        |bytes, value| match value {
+            semantic_vocabulary::PackedIntegerBinaryOperation::WrappingAddI16x8 => {
+                bytes.u8(0)
+            }
+            semantic_vocabulary::PackedIntegerBinaryOperation::WrappingSubI16x8 => {
+                bytes.u8(1)
+            }
+            semantic_vocabulary::PackedIntegerBinaryOperation::ShuffleI16x8 { lanes } => {
+                bytes.u8(2);
+                for lane in lanes {
+                    bytes.u8(*lane);
+                }
+            }
+            semantic_vocabulary::PackedIntegerBinaryOperation::WrappingAddU8x16 => {
+                bytes.u8(3)
+            }
+            semantic_vocabulary::PackedIntegerBinaryOperation::MinI16x8 => bytes.u8(4),
+            semantic_vocabulary::PackedIntegerBinaryOperation::CmpGtI16x8 => {
+                bytes.u8(5)
+            }
+            semantic_vocabulary::PackedIntegerBinaryOperation::BitAndI16x8 => {
+                bytes.u8(6)
+            }
+            semantic_vocabulary::PackedIntegerBinaryOperation::BitAndNotI16x8 => {
+                bytes.u8(7)
+            }
+        }
+    );
+    field!(
+        terminal_psi::ElementViewRegion,
+        |bytes, value| match value {
+            terminal_psi::ElementViewRegion::WholeCollection => bytes.u8(0),
+            terminal_psi::ElementViewRegion::WholeRepresentation {
+                source_length,
+                obligation,
+            } => {
+                bytes.u8(2);
+                bytes.id(*source_length);
+                bytes.id(*obligation);
+            }
+            terminal_psi::ElementViewRegion::RepresentationBytes {
+                start,
+                end,
+                obligation,
+            } => {
+                bytes.u8(1);
+                bytes.id(*start);
+                bytes.id(*end);
+                bytes.id(*obligation);
+            }
+        }
+    );
+    field!(
+        semantic_vocabulary::IeeeFloatValue,
+        |bytes, value| match value {
+            semantic_vocabulary::IeeeFloatValue::Binary32(bits) => {
+                bytes.u8(0);
+                bytes.u32(*bits);
+            }
+            semantic_vocabulary::IeeeFloatValue::Binary64(bits) => {
+                bytes.u8(1);
+                bytes.u64(*bits);
+            }
+        }
+    );
+    field!(
+        abstract_operations::AccessReferenceBacking,
+        |bytes, value| match value {
+            abstract_operations::AccessReferenceBacking::OrdinaryRam(correspondence) => {
+                bytes.u8(0);
+                bytes.id(correspondence.schema);
+                bytes.id(correspondence.carrier);
+                bytes.u64(correspondence.source_byte_length);
+                bytes.u64(correspondence.required_base.modulus());
+                bytes.u64(correspondence.required_base.residue());
+                bytes.slice(&correspondence.fields, |bytes, field| {
+                    bytes.u32(field.access_slot);
+                    bytes.id(field.source_field);
+                    bytes.u64(field.byte_offset);
+                    bytes.u16(field.transfer_width_bits);
+                    encode_scalar_type(bytes, field.logical_scalar);
+                    encode_scalar_type(bytes, field.stored_scalar);
+                });
+            }
+            abstract_operations::AccessReferenceBacking::Resident(resident) => {
+                bytes.u8(1);
+                bytes.id(resident.owner);
+                bytes.id(resident.schema);
+                bytes.id(resident.carrier);
+                bytes.id(resident.roles.base);
+                bytes.id(resident.roles.length);
+                bytes.id(resident.roles.granted);
+                bytes.id(resident.roles.resident);
+                bytes.bytes(&resident.placement_commitment);
+            }
+            abstract_operations::AccessReferenceBacking::BorrowedExtent(backing) => {
+                bytes.u8(2);
+                bytes.id(backing.owner);
+                bytes.id(backing.schema);
+                bytes.id(backing.carrier);
+                bytes.id(backing.base);
+                bytes.id(backing.length);
+                bytes.id(backing.granted);
+                bytes.bytes(&backing.placement_commitment);
+            }
+        }
+    );
+    field!(
+        abstract_operations::AbstractBoundaryResult,
+        |bytes, value| match value {
+            abstract_operations::AbstractBoundaryResult::Unit => bytes.u8(0),
+            abstract_operations::AbstractBoundaryResult::Scalar(result) => {
+                bytes.u8(1);
+                encode_abstract_result(bytes, *result);
+            }
+            abstract_operations::AbstractBoundaryResult::Structural(result) => {
+                bytes.u8(2);
+                encode_structural_operation_result(bytes, result);
+            }
+        }
+    );
+    field!(
+        semantic_vocabulary::ExternalCompletionKind,
+        |bytes, value| match value {
+            semantic_vocabulary::ExternalCompletionKind::ProcessExit => bytes.u8(1),
+        }
+    );
+    field!(terminal_psi::StorageLocationQuery, |bytes, value| bytes.u8(
+        match value {
+            terminal_psi::StorageLocationQuery::Address => 0,
+            terminal_psi::StorageLocationQuery::Alignment => 1,
+        }
+    ));
+    field!(
+        terminal_psi::GlobalDescriptorTableOperation,
+        |bytes, value| bytes.u8(match value {
+            terminal_psi::GlobalDescriptorTableOperation::Store => 0,
+            terminal_psi::GlobalDescriptorTableOperation::Load => 1,
+        })
+    );
+    field!(
+        semantic_vocabulary::IeeeFloatComparisonOperation,
+        |bytes, value| bytes.u8(match value {
+            semantic_vocabulary::IeeeFloatComparisonOperation::Equal => 0,
+            semantic_vocabulary::IeeeFloatComparisonOperation::NotEqual => 1,
+            semantic_vocabulary::IeeeFloatComparisonOperation::Less => 2,
+            semantic_vocabulary::IeeeFloatComparisonOperation::LessOrEqual => 3,
+            semantic_vocabulary::IeeeFloatComparisonOperation::Greater => 4,
+            semantic_vocabulary::IeeeFloatComparisonOperation::GreaterOrEqual => 5,
+        })
+    );
+    field!(terminal_psi::StructuralStoreDisposition, |bytes, value| {
+        bytes.u8(match value {
+            terminal_psi::StructuralStoreDisposition::Vacant => 0,
+            terminal_psi::StructuralStoreDisposition::ReplaceDiscardable => 1,
+        })
+    });
+    field!(terminal_psi::FloatResultPolicy, |bytes, value| {
+        bytes.u8(match value {
+            terminal_psi::FloatResultPolicy::Trapping { .. } => 0,
+            terminal_psi::FloatResultPolicy::Saturating { .. } => 1,
+        });
+        for operand in value.operands() {
+            bytes.id(operand);
+        }
+    });
+    field!(IntegerShiftPolicy, |bytes, value| match value {
+        IntegerShiftPolicy::Wrapping => bytes.u8(0),
+        IntegerShiftPolicy::Exact { obligation } => {
+            bytes.u8(1);
+            bytes.id(*obligation);
+        }
+    });
+    field!(IntegerShiftDirection, |bytes, value| bytes.u8(
+        match value {
+            IntegerShiftDirection::Left => 0,
+            IntegerShiftDirection::Right => 1,
+        }
+    ));
+    field!(IntegerArithmetic, |bytes, value| {
+        bytes.u8(match value.operator() {
+            IntegerArithmeticOperator::Add => 0,
+            IntegerArithmeticOperator::Subtract => 1,
+            IntegerArithmeticOperator::Multiply => 2,
+            IntegerArithmeticOperator::Divide => 3,
+            IntegerArithmeticOperator::Remainder => 4,
+        });
+        bytes.u8(match value.policy() {
+            IntegerOverflowPolicy::Wrapping => 0,
+            IntegerOverflowPolicy::Exact => 1,
+            IntegerOverflowPolicy::Saturating => 2,
+        });
+        value.obligation().encode(bytes);
+    });
+    field!(terminal_psi::TrappingIntegerOperation, |bytes, value| {
+        use terminal_psi::TrappingIntegerPrimitive as P;
+        bytes.u8(match value.primitive() {
+            P::Add => 0,
+            P::Subtract => 1,
+            P::Multiply => 2,
+            P::Divide => 3,
+            P::Remainder => 4,
+            P::ShiftLeft => 5,
+            P::ShiftRight => 6,
+            P::Convert => 7,
+        });
+        for operand in value.operands() {
+            bytes.id(operand);
+        }
+    });
+    field!(terminal_psi::RegisterAccessEvent, |bytes, value| {
+        bytes.u16(value.operation().catalog_tag());
+        bytes.len(value.inputs().count());
+        for input in value.inputs() {
+            bytes.id(*input);
+        }
+    });
+    field!(terminal_psi::ReferenceStorageView, |bytes, value| {
+        bytes.id(value.byte_offset);
+        value.stored_scalar.encode(bytes);
+    });
+    field!(
+        abstract_operations::StructuralCopyPath,
+        |bytes, value| match value {
+            abstract_operations::StructuralCopyPath::Ordinary(path) => {
+                bytes.u8(0);
+                path.encode(bytes);
+            }
+            abstract_operations::StructuralCopyPath::Case(path) => {
+                bytes.u8(1);
+                path.encode(bytes);
+            }
+        }
+    );
+    field!(
+        (
+            semantic_vocabulary::OperationId,
+            terminal_psi::StructuralPlaceDeclaration,
+            terminal_psi::StructuralTypeDeclaration
+        ),
+        |bytes, value| {
+            value.0.encode(bytes);
+            value.1.encode(bytes);
+            value.2.encode(bytes);
+        }
+    );
+    field!(terminal_psi::CompletionReceipt, |bytes, value| {
+        bytes.id(value.claim);
+        bytes.u32(value.argument_index);
+        value.path.encode(bytes);
+    });
+    field!(
+        terminal_psi::StructuralResultClaimBinding,
+        |bytes, value| {
+            bytes.id(value.claim);
+            value.path.encode(bytes);
+        }
+    );
+    field!(
+        abstract_operations::AbstractStructuralCaseSuccessor,
+        |bytes, value| {
+            value.psi_edge.encode(bytes);
+            value.target.encode(bytes);
+            value.case.encode(bytes);
+            bytes.slice(&value.payloads, |bytes, payload| {
+                bytes.id(payload.parameter);
+                bytes.id(payload.field);
+                encode_scalar_type(bytes, payload.scalar_type);
+            });
+            value.structural_bindings.encode(bytes);
+            value.cleanup_actions.encode(bytes);
+        }
+    );
+    field!(
+        abstract_operations::AbstractStructuralCallResult,
+        |bytes, value| match value {
+            abstract_operations::AbstractStructuralCallResult::Unit => bytes.u8(0),
+            abstract_operations::AbstractStructuralCallResult::Scalar(result) => {
+                bytes.u8(1);
+                result.encode(bytes);
+            }
+            abstract_operations::AbstractStructuralCallResult::Structural {
+                result,
+                selected_evidence,
+            } => {
+                bytes.u8(2);
+                result.encode(bytes);
+                bytes.slice(selected_evidence, encode_outcome_specific_call_evidence);
+            }
+        }
+    );
+    pub(super) fn encode_claim_transfer(
+        bytes: &mut CanonicalBytes,
+        transfer: &terminal_psi::ClaimTransfer,
+    ) {
+        bytes.id(transfer.claim);
+        bytes.u32(transfer.argument_index);
+        bytes.slice(&transfer.path, encode_structural_path_segment);
+    }
+    fn encode_record_initializer(
+        bytes: &mut CanonicalBytes,
+        initializer: &terminal_psi::RecordFieldInitializer,
+    ) {
+        bytes.id(initializer.field);
+        match &initializer.value {
+            terminal_psi::RecordFieldValue::Scalar {
+                value,
+                range_obligation,
+            } => {
+                bytes.u8(0);
+                bytes.id(*value);
+                encode_optional_id(bytes, range_obligation.as_ref());
+            }
+            terminal_psi::RecordFieldValue::Structural(argument) => {
+                bytes.u8(1);
+                encode_structural_argument(bytes, argument);
+            }
+        }
+    }
+    fn encode_successor(
+        bytes: &mut CanonicalBytes,
+        successor: &abstract_operations::AbstractSuccessor,
+    ) {
+        bytes.id(successor.psi_edge);
+        bytes.id(successor.target);
+        bytes.slice(&successor.bindings, encode_binding);
+        bytes.slice(&successor.structural_bindings, encode_structural_binding);
+        bytes.slice(&successor.cleanup_actions, encode_cleanup);
+    }
+    fn encode_byte_sequence_operand(
+        bytes: &mut CanonicalBytes,
+        operand: &terminal_psi::control_flow::ByteSequenceOperand,
+    ) {
+        match operand {
+            terminal_psi::control_flow::ByteSequenceOperand::Whole { source, length } => {
+                bytes.u8(0);
+                encode_structural_argument(bytes, source);
+                bytes.id(*length);
+            }
+            terminal_psi::control_flow::ByteSequenceOperand::Field {
+                source,
+                field,
+                length,
+            } => {
+                bytes.u8(1);
+                encode_structural_argument(bytes, source);
+                bytes.id(*field);
+                bytes.id(*length);
+            }
+        }
+    }
     mod atomic {
         use crate::identity::carrier_encoding::{
-            encode_abstract_result, encode_optional_id, encode_structural_path_segment,
+            encode_abstract_result, encode_structural_path_segment,
         };
         use crate::identity::structural_encoding::encode_structural_operation_result;
 
         use super::CanonicalBytes;
-        use abstract_operations::AbstractOperation;
+        use abstract_operations::AbstractAtomicEvent;
         use abstract_operations::atomic::AbstractAtomicLocation;
         use abstract_operations::{
             AbstractAtomicFenceOrdering, AbstractAtomicReadModifyWrite, AtomicResidencyEdge,
@@ -3615,21 +2775,8 @@ pub(crate) mod operation_encoding {
             AtomicCompareExchangeOutcomeIdentity, MemoryOrdering,
         };
 
-        pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
-            let AbstractOperation::AtomicEvent {
-                psi_operation,
-                event,
-                resident_obligation,
-                reads_from,
-                modification_after,
-            } = operation
-            else {
-                unreachable!("operation family routing admitted a non-atomic operation")
-            };
+        pub(super) fn encode(bytes: &mut CanonicalBytes, event: &AbstractAtomicEvent) {
             use abstract_operations::AbstractAtomicEvent as E;
-            bytes.u8(72);
-            bytes.id(*psi_operation);
-            encode_optional_id(bytes, resident_obligation.as_ref());
             match event {
                 E::Load {
                     location,
@@ -3739,11 +2886,12 @@ pub(crate) mod operation_encoding {
                     });
                 }
             }
-            encode_residency_edge(bytes, reads_from);
-            encode_residency_edge(bytes, modification_after);
         }
 
-        fn encode_residency_edge(bytes: &mut CanonicalBytes, edge: &Option<AtomicResidencyEdge>) {
+        pub(super) fn encode_residency_edge(
+            bytes: &mut CanonicalBytes,
+            edge: &Option<AtomicResidencyEdge>,
+        ) {
             match edge {
                 None => bytes.u8(1),
                 Some(AtomicResidencyEdge::InitialResidency) => bytes.u8(2),
@@ -3790,1873 +2938,22 @@ pub(crate) mod operation_encoding {
             bytes.slice(&location.path, encode_structural_path_segment);
         }
     }
+    field!(abstract_operations::AbstractAtomicEvent, |bytes, value| {
+        atomic::encode(bytes, value)
+    });
+    field!(
+        Option<abstract_operations::AtomicResidencyEdge>,
+        |bytes, value| atomic::encode_residency_edge(bytes, value)
+    );
 
-    pub(super) mod calls_and_effects {
-        use crate::identity::carrier_encoding::{
-            encode_abstract_result, encode_ids, encode_scalar_type, encode_structural_argument,
-            encode_structural_path_segment,
-        };
-        use crate::identity::structural_encoding::{
-            encode_completion_claim_source, encode_crash_route_bucket,
-            encode_outcome_specific_call_evidence, encode_structural_operation_result,
-        };
-
-        use super::CanonicalBytes;
-        use abstract_operations::AbstractOperation;
-        pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
-            use AbstractOperation as O;
-            match operation {
-                O::CallStructural {
-                    psi_operation,
-                    callee,
-                    arguments,
-                    structural_arguments,
-                    claim_transfers,
-                    result,
-                    requirement_obligations,
-                    crash_continuations,
-                } => {
-                    use abstract_operations::AbstractStructuralCallResult as R;
-                    match result {
-                        R::Unit | R::Scalar(_) => {
-                            bytes.u8(if matches!(result, R::Unit) { 3 } else { 4 });
-                            bytes.id(*psi_operation);
-                            if let Some(result) = result.scalar() {
-                                encode_abstract_result(bytes, result);
-                            }
-                            encode_target(bytes, *callee);
-                            encode_ids(bytes, arguments);
-                            bytes.slice(structural_arguments, encode_structural_argument);
-                            encode_ordinary_call_tail(
-                                bytes,
-                                claim_transfers,
-                                requirement_obligations,
-                                crash_continuations,
-                            );
-                        }
-                        R::Structural {
-                            result,
-                            selected_evidence,
-                        } => {
-                            bytes.u8(5);
-                            bytes.id(*psi_operation);
-                            encode_structural_operation_result(bytes, result);
-                            encode_target(bytes, *callee);
-                            encode_ids(bytes, arguments);
-                            bytes.slice(structural_arguments, encode_structural_argument);
-                            bytes.slice(claim_transfers, encode_claim_transfer);
-                            encode_ids(bytes, requirement_obligations);
-                            bytes.slice(crash_continuations, encode_crash_route_bucket);
-                            bytes.slice(selected_evidence, encode_outcome_specific_call_evidence);
-                        }
-                    }
-                }
-                O::SelectMachine {
-                    psi_operation,
-                    result,
-                    descriptor,
-                } => {
-                    bytes.u8(255);
-                    bytes.id(*psi_operation);
-                    encode_abstract_result(bytes, *result);
-                    bytes.id(*descriptor);
-                }
-                O::SelectImplementation {
-                    psi_operation,
-                    result,
-                    table,
-                } => {
-                    bytes.u8(95);
-                    bytes.id(*psi_operation);
-                    encode_abstract_result(bytes, *result);
-                    bytes.u32(*table);
-                }
-                O::BoundaryCall {
-                    psi_operation,
-                    result,
-                    boundary,
-                    arguments,
-                    structural_arguments,
-                    completion_claim_sources,
-                    completion_receipts,
-                } => {
-                    bytes.u8(6);
-                    bytes.id(*psi_operation);
-                    match result {
-                        abstract_operations::AbstractBoundaryResult::Unit => bytes.u8(0),
-                        abstract_operations::AbstractBoundaryResult::Scalar(result) => {
-                            bytes.u8(1);
-                            encode_abstract_result(bytes, *result);
-                        }
-                        abstract_operations::AbstractBoundaryResult::Structural(result) => {
-                            bytes.u8(2);
-                            encode_structural_operation_result(bytes, result);
-                        }
-                    }
-                    bytes.id(*boundary);
-                    encode_ids(bytes, arguments);
-                    bytes.slice(structural_arguments, encode_structural_argument);
-                    bytes.slice(completion_claim_sources, encode_completion_claim_source);
-                    bytes.slice(completion_receipts, |bytes, receipt| {
-                        bytes.id(receipt.claim);
-                        bytes.u32(receipt.argument_index);
-                        bytes.slice(&receipt.path, encode_structural_path_segment);
-                    });
-                }
-                O::PortWrite {
-                    psi_operation,
-                    service,
-                    port,
-                    value,
-                } => {
-                    bytes.u8(7);
-                    bytes.id(*psi_operation);
-                    bytes.id(*service);
-                    bytes.u16(*port);
-                    bytes.u8(*value);
-                }
-                O::ActivateTaskRegister {
-                    psi_operation,
-                    service,
-                    result,
-                    entries,
-                    gdt,
-                    task_state,
-                    selector,
-                    scratch,
-                } => {
-                    bytes.u8(244);
-                    bytes.id(*psi_operation);
-                    bytes.id(*service);
-                    encode_abstract_result(bytes, *result);
-                    bytes.u16(*entries);
-                    encode_structural_argument(bytes, gdt);
-                    encode_structural_argument(bytes, task_state);
-                    bytes.id(*selector);
-                    encode_structural_argument(bytes, scratch);
-                }
-                O::ReadTaskRegister {
-                    psi_operation,
-                    service,
-                    result,
-                } => {
-                    bytes.u8(245);
-                    bytes.id(*psi_operation);
-                    bytes.id(*service);
-                    encode_abstract_result(bytes, *result);
-                }
-                O::ReloadSegmentDescriptors {
-                    psi_operation,
-                    service,
-                    result,
-                    entries,
-                    gdt,
-                    kind,
-                    selector,
-                    scratch,
-                } => {
-                    bytes.u8(246);
-                    bytes.id(*psi_operation);
-                    bytes.id(*service);
-                    encode_abstract_result(bytes, *result);
-                    bytes.u16(*entries);
-                    encode_structural_argument(bytes, gdt);
-                    bytes.u8(kind.code());
-                    bytes.id(*selector);
-                    encode_structural_argument(bytes, scratch);
-                }
-                O::ReadSegmentSelector {
-                    register,
-                    psi_operation,
-                    service,
-                    result,
-                } => {
-                    bytes.u8(247);
-                    bytes.u8(register.code());
-                    bytes.id(*psi_operation);
-                    bytes.id(*service);
-                    encode_abstract_result(bytes, *result);
-                }
-                O::GlobalDescriptorTable {
-                    psi_operation,
-                    service,
-                    operation,
-                    source,
-                } => {
-                    bytes.u8(243);
-                    bytes.id(*psi_operation);
-                    bytes.id(*service);
-                    bytes.u8(match operation {
-                        terminal_psi::GlobalDescriptorTableOperation::Store => 0,
-                        terminal_psi::GlobalDescriptorTableOperation::Load => 1,
-                    });
-                    encode_structural_argument(bytes, source);
-                }
-                O::RegisterAccess {
-                    psi_operation,
-                    service,
-                    event,
-                    result,
-                } => {
-                    bytes.u8(242);
-                    bytes.id(*psi_operation);
-                    bytes.u64(service.map_or(0, |service| service.get()));
-                    bytes.u16(event.operation().catalog_tag());
-                    encode_ids(bytes, &event.inputs().copied().collect::<Vec<_>>());
-                    bytes.u8(u8::from(result.is_some()));
-                    if let Some(result) = result {
-                        encode_abstract_result(bytes, *result);
-                    }
-                }
-                O::Call {
-                    psi_operation,
-                    result,
-                    scalar_type,
-                    callee,
-                    arguments,
-                    requirement_obligations,
-                    crash_continuations,
-                } => {
-                    bytes.u8(8);
-                    bytes.id(*psi_operation);
-                    bytes.id(*result);
-                    encode_scalar_type(bytes, *scalar_type);
-                    bytes.id(*callee);
-                    encode_ids(bytes, arguments);
-                    encode_ids(bytes, requirement_obligations);
-                    bytes.slice(crash_continuations, encode_crash_route_bucket);
-                }
-                _ => unreachable!("operation family routing admitted a non-call operation"),
-            }
+    pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
+        macro_rules! encode_fields {
+            ($tag:expr $(, $operand:ident)*) => {{
+                bytes.u8($tag);
+                $($operand.encode(bytes);)*
+            }};
         }
-
-        pub(in crate::identity) fn encode_claim_transfer(
-            bytes: &mut CanonicalBytes,
-            transfer: &terminal_psi::ClaimTransfer,
-        ) {
-            bytes.id(transfer.claim);
-            bytes.u32(transfer.argument_index);
-            bytes.slice(&transfer.path, encode_structural_path_segment);
-        }
-
-        fn encode_ordinary_call_tail(
-            bytes: &mut CanonicalBytes,
-            claim_transfers: &[terminal_psi::ClaimTransfer],
-            requirement_obligations: &[semantic_vocabulary::ObligationId],
-            crash_continuations: &[terminal_psi::CrashRouteBucket],
-        ) {
-            bytes.slice(claim_transfers, encode_claim_transfer);
-            encode_ids(bytes, requirement_obligations);
-            bytes.slice(crash_continuations, encode_crash_route_bucket);
-        }
-
-        fn encode_target(
-            bytes: &mut CanonicalBytes,
-            target: abstract_operations::AbstractCallTarget,
-        ) {
-            target.visit_canonical_bytes(|part| bytes.bytes(part));
-        }
-    }
-
-    mod control {
-        use super::super::carrier_encoding::{
-            encode_binding, encode_ids, encode_scalar_type, encode_structural_argument,
-            encode_structural_binding, encode_structural_path_segment,
-        };
-        use super::super::structural_encoding::{
-            encode_cleanup, encode_crash_cause, encode_crash_predicate, encode_crash_route_bucket,
-            encode_place_declaration, encode_structural_type,
-        };
-        use super::CanonicalBytes;
-        use super::calls_and_effects::encode_claim_transfer;
-        use abstract_operations::AbstractOperation;
-        use abstract_operations::AbstractSuccessor;
-        pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
-            use AbstractOperation as O;
-            match operation {
-                O::InvokeNoNormal {
-                    psi_edge,
-                    callee,
-                    arguments,
-                    structural_arguments,
-                    claim_transfers,
-                    requirement_obligations,
-                    crash_continuations,
-                } => {
-                    bytes.u8(253);
-                    bytes.id(*psi_edge);
-                    bytes.id(*callee);
-                    encode_ids(bytes, arguments);
-                    bytes.slice(structural_arguments, encode_structural_argument);
-                    bytes.slice(claim_transfers, encode_claim_transfer);
-                    encode_ids(bytes, requirement_obligations);
-                    bytes.slice(crash_continuations, encode_crash_route_bucket);
-                }
-
-                O::Jump {
-                    psi_edge,
-                    target,
-                    bindings,
-                    structural_bindings,
-                    cleanup_actions,
-                } => {
-                    bytes.u8(42);
-                    bytes.id(*psi_edge);
-                    bytes.id(*target);
-                    bytes.slice(bindings, encode_binding);
-                    bytes.slice(structural_bindings, encode_structural_binding);
-                    bytes.slice(cleanup_actions, encode_cleanup);
-                }
-                O::Conditional {
-                    condition,
-                    when_true,
-                    when_false,
-                } => {
-                    bytes.u8(43);
-                    bytes.id(*condition);
-                    encode_successor(bytes, when_true);
-                    encode_successor(bytes, when_false);
-                }
-                O::StructuralCase {
-                    psi_block,
-                    source,
-                    path,
-                    cases,
-                } => {
-                    bytes.u8(48);
-                    bytes.id(*psi_block);
-                    bytes.id(*source);
-                    bytes.slice(path, encode_structural_path_segment);
-                    bytes.len(cases.len());
-                    for case in cases {
-                        bytes.id(case.psi_edge);
-                        bytes.id(case.target);
-                        bytes.id(case.case);
-                        bytes.len(case.payloads.len());
-                        for payload in &case.payloads {
-                            bytes.id(payload.parameter);
-                            bytes.id(payload.field);
-                            encode_scalar_type(bytes, payload.scalar_type);
-                        }
-                        bytes.slice(&case.structural_bindings, encode_structural_binding);
-                        bytes.slice(&case.cleanup_actions, encode_cleanup);
-                    }
-                }
-                O::Return {
-                    psi_edge,
-                    result,
-                    value,
-                    scalar_type,
-                    cleanup_actions,
-                } => {
-                    bytes.u8(44);
-                    bytes.id(*psi_edge);
-                    bytes.id(*result);
-                    bytes.id(*value);
-                    encode_scalar_type(bytes, *scalar_type);
-                    bytes.slice(cleanup_actions, encode_cleanup);
-                }
-                O::ReturnUnit {
-                    psi_edge,
-                    cleanup_actions,
-                } => {
-                    bytes.u8(45);
-                    bytes.id(*psi_edge);
-                    bytes.slice(cleanup_actions, encode_cleanup);
-                }
-                O::ReturnStructural {
-                    psi_edge,
-                    source,
-                    returned_claims,
-                    trivial_affine_locals,
-                    cleanup_actions,
-                } => {
-                    bytes.u8(46);
-                    bytes.id(*psi_edge);
-                    bytes.id(*source);
-                    bytes.slice(returned_claims, |bytes, binding| {
-                        bytes.id(binding.claim);
-                        bytes.slice(&binding.path, encode_structural_path_segment);
-                    });
-                    bytes.len(trivial_affine_locals.len());
-                    for (operation, place, structural_type) in trivial_affine_locals {
-                        bytes.id(*operation);
-                        encode_place_declaration(bytes, *place);
-                        encode_structural_type(bytes, structural_type);
-                    }
-                    bytes.slice(cleanup_actions, encode_cleanup);
-                }
-                O::ExternalCompletion {
-                    psi_edge,
-                    boundary,
-                    kind,
-                    arguments,
-                    structural_arguments,
-                    requirement_obligations,
-                    frontier_lower_bound,
-                } => {
-                    bytes.u8(101);
-                    bytes.id(*psi_edge);
-                    bytes.id(*boundary);
-                    match kind {
-                        semantic_vocabulary::ExternalCompletionKind::ProcessExit => bytes.u8(1),
-                    }
-                    encode_ids(bytes, arguments);
-                    bytes.slice(structural_arguments, encode_structural_argument);
-                    encode_ids(bytes, requirement_obligations);
-                    encode_ids(bytes, frontier_lower_bound);
-                }
-                O::EliminateEmpty {
-                    psi_edge,
-                    source,
-                    path,
-                } => {
-                    bytes.u8(240);
-                    bytes.id(*psi_edge);
-                    bytes.id(*source);
-                    bytes.slice(path, encode_structural_path_segment);
-                }
-                O::Crash {
-                    psi_edge,
-                    cause,
-                    site_guard,
-                    frontier_lower_bound,
-                } => {
-                    bytes.u8(47);
-                    bytes.id(*psi_edge);
-                    encode_crash_cause(bytes, *cause);
-                    bytes.slice(site_guard, encode_crash_predicate);
-                    encode_ids(bytes, frontier_lower_bound);
-                }
-                _ => unreachable!("operation family routing admitted a non-control operation"),
-            }
-        }
-
-        fn encode_successor(bytes: &mut CanonicalBytes, successor: &AbstractSuccessor) {
-            bytes.id(successor.psi_edge);
-            bytes.id(successor.target);
-            bytes.slice(&successor.bindings, encode_binding);
-            bytes.slice(&successor.structural_bindings, encode_structural_binding);
-            bytes.slice(&successor.cleanup_actions, encode_cleanup);
-        }
-    }
-
-    mod ieee_float {
-        use super::CanonicalBytes;
-        use abstract_operations::AbstractOperation;
-        use semantic_vocabulary::IeeeFloatFormat;
-
-        fn encode_operation_format(bytes: &mut CanonicalBytes, format: &IeeeFloatFormat) {
-            bytes.u8(match format {
-                IeeeFloatFormat::Binary32 => 0,
-                IeeeFloatFormat::Binary64 => 1,
-            });
-        }
-
-        pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
-            use AbstractOperation as O;
-            match operation {
-                O::FloatResultPolicy {
-                    psi_operation,
-                    result,
-                    format,
-                    policy,
-                } => {
-                    bytes.u8(97);
-                    bytes.id(*psi_operation);
-                    bytes.id(*result);
-                    encode_operation_format(bytes, format);
-                    match policy {
-                        terminal_psi::FloatResultPolicy::Trapping { .. } => bytes.u8(0),
-                        terminal_psi::FloatResultPolicy::Saturating { .. } => bytes.u8(1),
-                    };
-                    for operand in policy.operands() {
-                        bytes.id(operand);
-                    }
-                }
-                O::IeeeFloatConstant {
-                    psi_operation,
-                    result,
-                    value,
-                } => {
-                    bytes.u8(42);
-                    bytes.id(*psi_operation);
-                    bytes.id(*result);
-                    match value {
-                        semantic_vocabulary::IeeeFloatValue::Binary32(bits) => {
-                            bytes.u8(0);
-                            bytes.u32(*bits);
-                        }
-                        semantic_vocabulary::IeeeFloatValue::Binary64(bits) => {
-                            bytes.u8(1);
-                            bytes.u64(*bits);
-                        }
-                    }
-                }
-                O::IeeeFloatCompare {
-                    psi_operation,
-                    result,
-                    comparison,
-                    format,
-                    left,
-                    right,
-                } => {
-                    bytes.u8(70);
-                    bytes.id(*psi_operation);
-                    bytes.id(*result);
-                    bytes.u8(match comparison {
-                        semantic_vocabulary::IeeeFloatComparisonOperation::Equal => 0,
-                        semantic_vocabulary::IeeeFloatComparisonOperation::NotEqual => 1,
-                        semantic_vocabulary::IeeeFloatComparisonOperation::Less => 2,
-                        semantic_vocabulary::IeeeFloatComparisonOperation::LessOrEqual => 3,
-                        semantic_vocabulary::IeeeFloatComparisonOperation::Greater => 4,
-                        semantic_vocabulary::IeeeFloatComparisonOperation::GreaterOrEqual => 5,
-                    });
-                    encode_operation_format(bytes, format);
-                    bytes.id(*left);
-                    bytes.id(*right);
-                }
-                O::NearestIeeeFloatFusedMultiplyAdd {
-                    psi_operation,
-                    result,
-                    format,
-                    left,
-                    right,
-                    addend,
-                } => {
-                    bytes.u8(43);
-                    bytes.id(*psi_operation);
-                    bytes.id(*result);
-                    encode_operation_format(bytes, format);
-                    bytes.id(*left);
-                    bytes.id(*right);
-                    bytes.id(*addend);
-                }
-                _ => unreachable!("operation family routing admitted a non-IEEE operation"),
-            }
-        }
-    }
-
-    mod scalar {
-        use super::scalar_shapes::{
-            encode_cast, encode_shift, encode_trapping, encode_typed_binary, encode_typed_unary,
-            encode_untyped_binary, encode_untyped_unary,
-        };
-        use crate::identity::carrier_encoding::{
-            encode_abstract_result, encode_integer_value, encode_optional_id, encode_scalar_type,
-            encode_structural_argument, encode_structural_path_segment,
-        };
-        use crate::identity::proposition_encoding::encode_canonical_path;
-
-        use super::CanonicalBytes;
-        use abstract_operations::AbstractOperation;
-        use abstract_operations::{
-            IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy,
-            IntegerShiftDirection, IntegerShiftPolicy,
-        };
-        use semantic_vocabulary::ScalarType;
-
-        pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
-            use AbstractOperation as O;
-            match operation {
-                O::StructuralByteSequenceFieldByteStore {
-                    psi_operation,
-                    destination,
-                    path,
-                    field,
-                    index,
-                    value,
-                    length,
-                    obligation,
-                } => {
-                    bytes.u8(78);
-                    bytes.id(*psi_operation);
-                    bytes.id(*destination);
-                    bytes.slice(path, encode_structural_path_segment);
-                    bytes.id(*field);
-                    bytes.id(*index);
-                    bytes.id(*value);
-                    bytes.id(*length);
-                    bytes.id(*obligation);
-                }
-                O::ByteSequenceStore {
-                    psi_operation,
-                    destination,
-                    source,
-                    length,
-                    obligation,
-                } => {
-                    bytes.u8(241);
-                    bytes.id(*psi_operation);
-                    bytes.id(*destination);
-                    bytes.id(*source);
-                    bytes.id(*length);
-                    bytes.id(*obligation);
-                }
-                O::StructuralByteSequenceFieldStore {
-                    psi_operation,
-                    destination,
-                    path,
-                    field,
-                    source,
-                    length,
-                    obligation,
-                } => {
-                    bytes.u8(77);
-                    bytes.id(*psi_operation);
-                    bytes.id(*destination);
-                    bytes.slice(path, encode_structural_path_segment);
-                    bytes.id(*field);
-                    bytes.id(*source);
-                    bytes.id(*length);
-                    bytes.id(*obligation);
-                }
-                O::StructuralByteViewFieldStore {
-                    psi_operation,
-                    destination,
-                    path,
-                    field,
-                    source,
-                    predicate_obligation,
-                } => {
-                    bytes.u8(98);
-                    bytes.id(*psi_operation);
-                    bytes.id(*destination);
-                    bytes.slice(path, encode_structural_path_segment);
-                    super::encode_optional_field(bytes, *field);
-                    bytes.id(*source);
-                    encode_optional_id(bytes, predicate_obligation.as_ref());
-                }
-                O::ByteSequenceWrite {
-                    psi_operation,
-                    destination,
-                    index,
-                    value,
-                    length,
-                    obligation,
-                } => {
-                    bytes.u8(68);
-                    bytes.id(*psi_operation);
-                    bytes.id(*destination);
-                    bytes.id(*index);
-                    bytes.id(*value);
-                    bytes.id(*length);
-                    bytes.id(*obligation);
-                }
-                O::ByteSequenceRead {
-                    psi_operation,
-                    result,
-                    source,
-                    index,
-                    length,
-                    obligation,
-                } => {
-                    bytes.u8(63);
-                    bytes.id(*psi_operation);
-                    encode_abstract_result(bytes, *result);
-                    bytes.id(*source);
-                    bytes.id(*index);
-                    bytes.id(*length);
-                    bytes.id(*obligation);
-                }
-                O::ByteSequencePredicate {
-                    psi_operation,
-                    result,
-                    operand,
-                    predicate,
-                } => {
-                    bytes.u8(100);
-                    bytes.id(*psi_operation);
-                    encode_abstract_result(bytes, *result);
-                    encode_byte_sequence_operand(bytes, operand);
-                    bytes.u8(predicate.mask_bit());
-                }
-                O::ByteSequenceEqual {
-                    psi_operation,
-                    result,
-                    left,
-                    right,
-                } => {
-                    bytes.u8(104);
-                    bytes.id(*psi_operation);
-                    encode_abstract_result(bytes, *result);
-                    encode_byte_sequence_operand(bytes, left);
-                    encode_byte_sequence_operand(bytes, right);
-                }
-                O::StructuralByteSequenceFieldRead {
-                    psi_operation,
-                    result,
-                    source,
-                    path,
-                    field,
-                    index,
-                    length,
-                    obligation,
-                } => {
-                    bytes.u8(89);
-                    bytes.id(*psi_operation);
-                    encode_abstract_result(bytes, *result);
-                    bytes.id(*source);
-                    bytes.slice(path, encode_structural_path_segment);
-                    bytes.id(*field);
-                    bytes.id(*index);
-                    bytes.id(*length);
-                    bytes.id(*obligation);
-                }
-                O::StructuralByteSequenceFieldLength {
-                    psi_operation,
-                    result,
-                    source,
-                    path,
-                    field,
-                } => {
-                    bytes.u8(76);
-                    bytes.id(*psi_operation);
-                    encode_abstract_result(bytes, *result);
-                    bytes.id(*source);
-                    bytes.slice(path, encode_structural_path_segment);
-                    bytes.id(*field);
-                }
-                O::ByteSequenceLength {
-                    psi_operation,
-                    result,
-                    source,
-                } => {
-                    bytes.u8(62);
-                    bytes.id(*psi_operation);
-                    encode_abstract_result(bytes, *result);
-                    encode_structural_argument(bytes, source);
-                }
-                O::ElementViewLength {
-                    psi_operation,
-                    result,
-                    source,
-                } => {
-                    bytes.u8(86);
-                    bytes.id(*psi_operation);
-                    encode_abstract_result(bytes, *result);
-                    encode_structural_argument(bytes, source);
-                }
-                O::ElementViewRead {
-                    psi_operation,
-                    result,
-                    source,
-                    index,
-                    length,
-                    obligation,
-                    path,
-                } => {
-                    bytes.u8(87);
-                    bytes.id(*psi_operation);
-                    encode_abstract_result(bytes, *result);
-                    if source.path.is_empty() {
-                        bytes.id(source.place);
-                    } else {
-                        bytes.u64(0);
-                        encode_structural_argument(bytes, source);
-                    }
-                    bytes.id(*index);
-                    bytes.id(*length);
-                    bytes.id(*obligation);
-                    bytes.slice(path, encode_structural_path_segment);
-                }
-                O::ElementViewWrite {
-                    path,
-                    psi_operation,
-                    destination,
-                    index,
-                    value,
-                    length,
-                    obligation,
-                } => {
-                    bytes.u8(88);
-                    bytes.slice(path, encode_structural_path_segment);
-                    bytes.id(*psi_operation);
-                    encode_structural_argument(bytes, destination);
-                    bytes.id(*index);
-                    bytes.id(*value);
-                    bytes.id(*length);
-                    bytes.id(*obligation);
-                }
-                O::IntegerConstant {
-                    psi_operation,
-                    result,
-                    scalar_type,
-                    value,
-                } => {
-                    bytes.u8(9);
-                    bytes.id(*psi_operation);
-                    bytes.id(*result);
-                    encode_scalar_type(bytes, *scalar_type);
-                    encode_integer_value(bytes, *value);
-                }
-                O::BooleanConstant {
-                    psi_operation,
-                    result,
-                    value,
-                } => {
-                    bytes.u8(10);
-                    bytes.id(*psi_operation);
-                    bytes.id(*result);
-                    bytes.boolean(*value);
-                }
-                O::StructuralScalarFieldRead {
-                    psi_operation,
-                    result,
-                    source,
-                    path,
-                    field,
-                } => {
-                    if result.scalar_type == ScalarType::Boolean {
-                        bytes.u8(11);
-                        bytes.id(*psi_operation);
-                        bytes.id(result.value);
-                    } else {
-                        bytes.u8(51);
-                        bytes.id(*psi_operation);
-                        encode_abstract_result(bytes, *result);
-                    }
-                    bytes.id(*source);
-                    encode_canonical_path(bytes, path);
-                    bytes.id(*field);
-                }
-                O::BooleanNot {
-                    psi_operation,
-                    result,
-                    operand,
-                } => encode_untyped_unary(bytes, 12, *psi_operation, *result, *operand),
-                O::BooleanEqual {
-                    psi_operation,
-                    result,
-                    left,
-                    right,
-                } => encode_untyped_binary(bytes, 13, *psi_operation, *result, *left, *right),
-                O::IntegerEqual {
-                    psi_operation,
-                    result,
-                    left,
-                    right,
-                } => encode_untyped_binary(bytes, 14, *psi_operation, *result, *left, *right),
-                O::IntegerLessThan {
-                    psi_operation,
-                    result,
-                    left,
-                    right,
-                } => encode_untyped_binary(bytes, 15, *psi_operation, *result, *left, *right),
-                O::IntegerLessOrEqual {
-                    psi_operation,
-                    result,
-                    left,
-                    right,
-                } => encode_untyped_binary(bytes, 16, *psi_operation, *result, *left, *right),
-                O::IntegerBitwiseNot {
-                    psi_operation,
-                    result,
-                    scalar_type,
-                    operand,
-                } => encode_typed_unary(bytes, 17, *psi_operation, *result, *scalar_type, *operand),
-                O::IntegerWiden {
-                    psi_operation,
-                    result,
-                    source_type,
-                    target_type,
-                    operand,
-                } => encode_cast(
-                    bytes,
-                    18,
-                    *psi_operation,
-                    None,
-                    *result,
-                    *source_type,
-                    *target_type,
-                    *operand,
-                ),
-                O::ScalarRepresentationView {
-                    psi_operation,
-                    result,
-                    source_type,
-                    target_type,
-                    operand,
-                } => {
-                    bytes.u8(99);
-                    bytes.id(*psi_operation);
-                    bytes.id(*result);
-                    encode_scalar_type(bytes, *source_type);
-                    encode_scalar_type(bytes, *target_type);
-                    bytes.id(*operand);
-                }
-                O::IntegerExactCast {
-                    psi_operation,
-                    obligation,
-                    result,
-                    source_type,
-                    target_type,
-                    operand,
-                } => encode_cast(
-                    bytes,
-                    19,
-                    *psi_operation,
-                    Some(*obligation),
-                    *result,
-                    *source_type,
-                    *target_type,
-                    *operand,
-                ),
-                O::IntegerBitwiseAnd {
-                    psi_operation,
-                    result,
-                    scalar_type,
-                    left,
-                    right,
-                } => encode_typed_binary(
-                    bytes,
-                    20,
-                    *psi_operation,
-                    None,
-                    *result,
-                    *scalar_type,
-                    *left,
-                    *right,
-                ),
-                O::IntegerBitwiseOr {
-                    psi_operation,
-                    result,
-                    scalar_type,
-                    left,
-                    right,
-                } => encode_typed_binary(
-                    bytes,
-                    21,
-                    *psi_operation,
-                    None,
-                    *result,
-                    *scalar_type,
-                    *left,
-                    *right,
-                ),
-                O::IntegerBitwiseXor {
-                    psi_operation,
-                    result,
-                    scalar_type,
-                    left,
-                    right,
-                } => encode_typed_binary(
-                    bytes,
-                    22,
-                    *psi_operation,
-                    None,
-                    *result,
-                    *scalar_type,
-                    *left,
-                    *right,
-                ),
-                O::IntegerShift {
-                    psi_operation,
-                    result,
-                    value_type,
-                    count_type,
-                    policy,
-                    direction,
-                    value,
-                    count,
-                } => encode_shift(
-                    bytes,
-                    integer_shift_tag(*policy, *direction),
-                    *psi_operation,
-                    policy.obligation(),
-                    *result,
-                    *value_type,
-                    *count_type,
-                    *value,
-                    *count,
-                ),
-                O::IntegerArithmetic {
-                    psi_operation,
-                    result,
-                    scalar_type,
-                    arithmetic,
-                    left,
-                    right,
-                } => encode_typed_binary(
-                    bytes,
-                    integer_arithmetic_tag(*arithmetic),
-                    *psi_operation,
-                    arithmetic.obligation(),
-                    *result,
-                    *scalar_type,
-                    *left,
-                    *right,
-                ),
-                O::TrappingInteger {
-                    psi_operation,
-                    result,
-                    scalar_type,
-                    operand_type,
-                    operation,
-                } => encode_trapping(
-                    bytes,
-                    90,
-                    *psi_operation,
-                    *result,
-                    *scalar_type,
-                    *operand_type,
-                    *operation,
-                ),
-                _ => unreachable!("operation family routing admitted a non-scalar operation"),
-            }
-        }
-
-        fn integer_shift_tag(policy: IntegerShiftPolicy, direction: IntegerShiftDirection) -> u8 {
-            match (policy, direction) {
-                (IntegerShiftPolicy::Wrapping, IntegerShiftDirection::Left) => 23,
-                (IntegerShiftPolicy::Wrapping, IntegerShiftDirection::Right) => 24,
-                (IntegerShiftPolicy::Exact { .. }, IntegerShiftDirection::Left) => 25,
-                (IntegerShiftPolicy::Exact { .. }, IntegerShiftDirection::Right) => 26,
-            }
-        }
-
-        fn integer_arithmetic_tag(arithmetic: IntegerArithmetic) -> u8 {
-            use IntegerArithmeticOperator as Operator;
-            use IntegerOverflowPolicy as Policy;
-            match (arithmetic.policy(), arithmetic.operator()) {
-                (Policy::Wrapping, Operator::Add) => 27,
-                (Policy::Exact, Operator::Add) => 28,
-                (Policy::Saturating, Operator::Add) => 29,
-                (Policy::Wrapping, Operator::Subtract) => 30,
-                (Policy::Exact, Operator::Subtract) => 31,
-                (Policy::Saturating, Operator::Subtract) => 32,
-                (Policy::Wrapping, Operator::Multiply) => 33,
-                (Policy::Exact, Operator::Multiply) => 34,
-                (Policy::Exact, Operator::Divide) => 35,
-                (Policy::Exact, Operator::Remainder) => 36,
-                (Policy::Wrapping, Operator::Divide) => 37,
-                (Policy::Wrapping, Operator::Remainder) => 38,
-                (Policy::Saturating, Operator::Divide) => 39,
-                (Policy::Saturating, Operator::Remainder) => 40,
-                (Policy::Saturating, Operator::Multiply) => 41,
-            }
-        }
-
-        pub(super) fn encode_byte_sequence_operand(
-            bytes: &mut CanonicalBytes,
-            operand: &terminal_psi::control_flow::ByteSequenceOperand,
-        ) {
-            match operand {
-                terminal_psi::control_flow::ByteSequenceOperand::Whole { source, length } => {
-                    bytes.u8(0);
-                    encode_structural_argument(bytes, source);
-                    bytes.id(*length);
-                }
-                terminal_psi::control_flow::ByteSequenceOperand::Field {
-                    source,
-                    field,
-                    length,
-                } => {
-                    bytes.u8(1);
-                    encode_structural_argument(bytes, source);
-                    bytes.id(*field);
-                    bytes.id(*length);
-                }
-            }
-        }
-    }
-
-    mod scalar_shapes {
-        use super::super::IntegerType;
-        use super::CanonicalBytes;
-        use crate::identity::carrier_encoding::{encode_integer_type, encode_optional};
-        pub(super) fn encode_untyped_unary(
-            bytes: &mut CanonicalBytes,
-            tag: u8,
-            operation: semantic_vocabulary::OperationId,
-            result: semantic_vocabulary::ValueId,
-            operand: semantic_vocabulary::ValueId,
-        ) {
-            bytes.u8(tag);
-            bytes.id(operation);
-            bytes.id(result);
-            bytes.id(operand);
-        }
-
-        pub(super) fn encode_untyped_binary(
-            bytes: &mut CanonicalBytes,
-            tag: u8,
-            operation: semantic_vocabulary::OperationId,
-            result: semantic_vocabulary::ValueId,
-            left: semantic_vocabulary::ValueId,
-            right: semantic_vocabulary::ValueId,
-        ) {
-            bytes.u8(tag);
-            bytes.id(operation);
-            bytes.id(result);
-            bytes.id(left);
-            bytes.id(right);
-        }
-
-        pub(super) fn encode_typed_unary(
-            bytes: &mut CanonicalBytes,
-            tag: u8,
-            operation: semantic_vocabulary::OperationId,
-            result: semantic_vocabulary::ValueId,
-            scalar_type: IntegerType,
-            operand: semantic_vocabulary::ValueId,
-        ) {
-            bytes.u8(tag);
-            bytes.id(operation);
-            bytes.id(result);
-            encode_integer_type(bytes, scalar_type);
-            bytes.id(operand);
-        }
-
-        #[allow(clippy::too_many_arguments)]
-        pub(super) fn encode_cast(
-            bytes: &mut CanonicalBytes,
-            tag: u8,
-            operation: semantic_vocabulary::OperationId,
-            obligation: Option<semantic_vocabulary::ObligationId>,
-            result: semantic_vocabulary::ValueId,
-            source_type: IntegerType,
-            target_type: IntegerType,
-            operand: semantic_vocabulary::ValueId,
-        ) {
-            bytes.u8(tag);
-            bytes.id(operation);
-            encode_optional(bytes, obligation.as_ref(), |bytes, value| bytes.id(*value));
-            bytes.id(result);
-            encode_integer_type(bytes, source_type);
-            encode_integer_type(bytes, target_type);
-            bytes.id(operand);
-        }
-
-        #[allow(clippy::too_many_arguments)]
-        pub(super) fn encode_typed_binary(
-            bytes: &mut CanonicalBytes,
-            tag: u8,
-            operation: semantic_vocabulary::OperationId,
-            obligation: Option<semantic_vocabulary::ObligationId>,
-            result: semantic_vocabulary::ValueId,
-            scalar_type: IntegerType,
-            left: semantic_vocabulary::ValueId,
-            right: semantic_vocabulary::ValueId,
-        ) {
-            bytes.u8(tag);
-            bytes.id(operation);
-            encode_optional(bytes, obligation.as_ref(), |bytes, value| bytes.id(*value));
-            bytes.id(result);
-            encode_integer_type(bytes, scalar_type);
-            bytes.id(left);
-            bytes.id(right);
-        }
-
-        #[allow(clippy::too_many_arguments)]
-        pub(super) fn encode_shift(
-            bytes: &mut CanonicalBytes,
-            tag: u8,
-            operation: semantic_vocabulary::OperationId,
-            obligation: Option<semantic_vocabulary::ObligationId>,
-            result: semantic_vocabulary::ValueId,
-            value_type: IntegerType,
-            count_type: IntegerType,
-            value: semantic_vocabulary::ValueId,
-            count: semantic_vocabulary::ValueId,
-        ) {
-            bytes.u8(tag);
-            bytes.id(operation);
-            encode_optional(bytes, obligation.as_ref(), |bytes, value| bytes.id(*value));
-            bytes.id(result);
-            encode_integer_type(bytes, value_type);
-            encode_integer_type(bytes, count_type);
-            bytes.id(value);
-            bytes.id(count);
-        }
-
-        pub(super) fn encode_trapping(
-            bytes: &mut CanonicalBytes,
-            tag: u8,
-            operation: semantic_vocabulary::OperationId,
-            result: semantic_vocabulary::ValueId,
-            scalar_type: IntegerType,
-            operand_type: IntegerType,
-            primitive: terminal_psi::TrappingIntegerOperation,
-        ) {
-            use terminal_psi::TrappingIntegerPrimitive as P;
-            bytes.u8(tag);
-            bytes.id(operation);
-            bytes.id(result);
-            encode_integer_type(bytes, scalar_type);
-            encode_integer_type(bytes, operand_type);
-            bytes.u8(match primitive.primitive() {
-                P::Add => 0,
-                P::Subtract => 1,
-                P::Multiply => 2,
-                P::Divide => 3,
-                P::Remainder => 4,
-                P::ShiftLeft => 5,
-                P::ShiftRight => 6,
-                P::Convert => 7,
-            });
-            for operand in primitive.operands() {
-                bytes.id(operand);
-            }
-        }
-    }
-
-    mod structural {
-        use crate::identity::carrier_encoding::{
-            encode_abstract_result, encode_ids, encode_optional_id, encode_structural_argument,
-            encode_structural_parameter, encode_structural_path_segment, encode_window_root,
-        };
-        use crate::identity::structural_encoding::{
-            encode_place_declaration, encode_structural_operation_result, encode_structural_type,
-        };
-
-        use super::CanonicalBytes;
-        use super::scalar::encode_byte_sequence_operand;
-        use abstract_operations::AbstractOperation;
-        use abstract_operations::StructuralCopyPath;
-        pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
-            use AbstractOperation as O;
-            macro_rules! tag {
-                ($bytes:expr, $tag:expr, $operation:expr) => {
-                    $bytes.u8($tag);
-                    $bytes.id(*$operation);
-                };
-            }
-
-            match operation {
-                O::EstablishActivationClaim {
-                    psi_operation,
-                    result,
-                    bound,
-                    committed,
-                    backing_type,
-                    established_case,
-                    rejected_case,
-                } => {
-                    tag!(bytes, 253, psi_operation);
-                    encode_structural_operation_result(bytes, result);
-                    bytes.u64(*bound);
-                    bytes.id(*committed);
-                    bytes.id(*backing_type);
-                    bytes.id(*established_case);
-                    bytes.id(*rejected_case);
-                }
-                O::ReleaseActivationClaim {
-                    psi_operation,
-                    source,
-                    claim,
-                } => {
-                    tag!(bytes, 254, psi_operation);
-                    encode_structural_argument(bytes, source);
-                    bytes.id(*claim);
-                }
-                O::SplitActivationClaim {
-                    psi_operation,
-                    result,
-                    source,
-                    claim,
-                    bound_at,
-                    committed_at,
-                    covered_case,
-                    rejected_case,
-                } => {
-                    tag!(bytes, 251, psi_operation);
-                    encode_structural_operation_result(bytes, result);
-                    encode_structural_argument(bytes, source);
-                    bytes.id(*claim);
-                    bytes.u64(*bound_at);
-                    bytes.id(*committed_at);
-                    bytes.id(*covered_case);
-                    bytes.id(*rejected_case);
-                }
-                O::MergeActivationClaim {
-                    psi_operation,
-                    result,
-                    lower,
-                    upper,
-                    lower_claim,
-                    upper_claim,
-                    covered_case,
-                    rejected_case,
-                } => {
-                    tag!(bytes, 252, psi_operation);
-                    encode_structural_operation_result(bytes, result);
-                    encode_structural_argument(bytes, lower);
-                    encode_structural_argument(bytes, upper);
-                    bytes.id(*lower_claim);
-                    bytes.id(*upper_claim);
-                    bytes.id(*covered_case);
-                    bytes.id(*rejected_case);
-                }
-
-                O::EstablishNativeCodeLayout {
-                    psi_operation,
-                    result,
-                    machine,
-                } => {
-                    tag!(bytes, 255, psi_operation);
-                    bytes.id(*machine);
-                    encode_structural_operation_result(bytes, result);
-                }
-                O::ObserveStorageLocation {
-                    query,
-                    psi_operation,
-                    result,
-                    source,
-                    path,
-                } => {
-                    tag!(bytes, 122, psi_operation);
-                    bytes.u8(match query {
-                        terminal_psi::StorageLocationQuery::Address => 0,
-                        terminal_psi::StorageLocationQuery::Alignment => 1,
-                    });
-                    encode_abstract_result(bytes, *result);
-                    bytes.id(*source);
-                    bytes.slice(path, encode_structural_path_segment);
-                }
-                O::EstablishByteSequenceConcatenation {
-                    psi_operation,
-                    result,
-                    left,
-                    right,
-                    capacity_obligation,
-                } => {
-                    tag!(bytes, 92, psi_operation);
-                    encode_structural_operation_result(bytes, result);
-                    for operand in [left, right] {
-                        encode_byte_sequence_operand(bytes, operand);
-                    }
-                    bytes.id(*capacity_obligation);
-                }
-                O::EstablishStructuralArray {
-                    psi_operation,
-                    result,
-                    elements,
-                } => {
-                    tag!(bytes, 105, psi_operation);
-                    encode_structural_operation_result(bytes, result);
-                    bytes.slice(elements, encode_structural_argument);
-                }
-                O::EstablishScalarArray {
-                    psi_operation,
-                    result,
-                    elements,
-                } => {
-                    tag!(bytes, 69, psi_operation);
-                    encode_structural_operation_result(bytes, result);
-                    bytes.slice(elements, |bytes, value| bytes.id(*value));
-                }
-                O::EstablishPrimitiveLocal {
-                    psi_operation,
-                    result,
-                    value,
-                    range_obligation,
-                } => {
-                    tag!(bytes, 65, psi_operation);
-                    encode_structural_operation_result(bytes, result);
-                    encode_abstract_result(bytes, *value);
-                    encode_optional_id(bytes, range_obligation.as_ref());
-                }
-                O::PrimitiveLocalStore {
-                    psi_operation,
-                    destination,
-                    value,
-                } => {
-                    tag!(bytes, 66, psi_operation);
-                    bytes.id(*destination);
-                    encode_abstract_result(bytes, *value);
-                }
-                O::StructuralCaseMembership {
-                    psi_operation,
-                    result,
-                    source,
-                    path,
-                    case,
-                } => {
-                    tag!(bytes, 71, psi_operation);
-                    encode_abstract_result(bytes, *result);
-                    bytes.id(*source);
-                    bytes.slice(path, encode_structural_path_segment);
-                    bytes.id(*case);
-                }
-                O::PrimitiveScalarRead {
-                    psi_operation,
-                    result,
-                    source,
-                    path,
-                } => {
-                    tag!(bytes, if path.is_empty() { 67 } else { 73 }, psi_operation);
-                    encode_abstract_result(bytes, *result);
-                    bytes.id(*source);
-                    if !path.is_empty() {
-                        bytes.slice(path, encode_structural_path_segment);
-                    }
-                }
-                O::ByteSequenceSubslice {
-                    psi_operation,
-                    result,
-                    source,
-                    start,
-                    end,
-                    length,
-                    obligation,
-                } => {
-                    tag!(bytes, 64, psi_operation);
-                    encode_structural_operation_result(bytes, result);
-                    encode_structural_argument(bytes, source);
-                    bytes.id(*start);
-                    bytes.id(*end);
-                    bytes.id(*length);
-                    bytes.id(*obligation);
-                }
-                O::ElementViewSubslice {
-                    psi_operation,
-                    result,
-                    source,
-                    start,
-                    end,
-                    length,
-                    obligation,
-                } => {
-                    tag!(bytes, 84, psi_operation);
-                    encode_structural_operation_result(bytes, result);
-                    encode_structural_argument(bytes, source);
-                    bytes.id(*start);
-                    bytes.id(*end);
-                    bytes.id(*length);
-                    bytes.id(*obligation);
-                }
-                O::ElementViewFixedArray {
-                    psi_operation,
-                    result,
-                    source,
-                    length,
-                    extent,
-                    obligation,
-                } => {
-                    tag!(bytes, 139, psi_operation);
-                    encode_structural_operation_result(bytes, result);
-                    encode_structural_argument(bytes, source);
-                    bytes.id(*length);
-                    bytes.u64(*extent);
-                    bytes.id(*obligation);
-                }
-                O::EstablishElementView {
-                    psi_operation,
-                    result,
-                    destination,
-                    source,
-                    element,
-                    region,
-                } => {
-                    tag!(bytes, 85, psi_operation);
-                    encode_structural_operation_result(bytes, result);
-                    bytes.id(*destination);
-                    encode_structural_argument(bytes, source);
-                    bytes.id(*element);
-                    match region {
-                        terminal_psi::ElementViewRegion::WholeCollection => bytes.u8(0),
-                        terminal_psi::ElementViewRegion::WholeRepresentation {
-                            source_length,
-                            obligation,
-                        } => {
-                            bytes.u8(2);
-                            bytes.id(*source_length);
-                            bytes.id(*obligation);
-                        }
-                        terminal_psi::ElementViewRegion::RepresentationBytes {
-                            start,
-                            end,
-                            obligation,
-                        } => {
-                            bytes.u8(1);
-                            bytes.id(*start);
-                            bytes.id(*end);
-                            bytes.id(*obligation);
-                        }
-                    }
-                }
-                O::WriteOnlyPrimitiveStore {
-                    psi_operation,
-                    destination,
-                    path,
-                    value,
-                    range_obligation,
-                } => {
-                    bytes.u8(if range_obligation.is_some() {
-                        106
-                    } else if path.is_empty() {
-                        49
-                    } else {
-                        74
-                    });
-                    bytes.id(*psi_operation);
-                    encode_store_destination(bytes, destination);
-                    if range_obligation.is_some() || !path.is_empty() {
-                        bytes.slice(path, encode_structural_path_segment);
-                    }
-                    encode_abstract_result(bytes, *value);
-                    if let Some(obligation) = range_obligation {
-                        bytes.id(*obligation);
-                    }
-                }
-                O::StructuralScalarFieldStore {
-                    psi_operation,
-                    destination,
-                    path,
-                    field,
-                    value,
-                    range_obligation,
-                } => {
-                    bytes.u8(if range_obligation.is_some() { 75 } else { 50 });
-                    bytes.id(*psi_operation);
-                    encode_store_destination(bytes, destination);
-                    bytes.slice(path, encode_structural_path_segment);
-                    bytes.id(*field);
-                    encode_abstract_result(bytes, *value);
-                    if let Some(obligation) = range_obligation {
-                        bytes.id(*obligation);
-                    }
-                }
-                O::EstablishCase {
-                    psi_operation,
-                    result,
-                    result_case,
-                    fields,
-                } => {
-                    tag!(bytes, 48, psi_operation);
-                    encode_structural_operation_result(bytes, result);
-                    bytes.id(*result_case);
-                    bytes.slice(fields, encode_record_initializer);
-                }
-                O::EstablishByteSequenceLiteral {
-                    psi_operation,
-                    place,
-                    structural_type,
-                    bytes: literal,
-                    qualifications,
-                } => {
-                    tag!(bytes, 1, psi_operation);
-                    encode_place_declaration(bytes, *place);
-                    encode_structural_type(bytes, structural_type);
-                    bytes.len(literal.len());
-                    bytes.bytes(literal);
-                    encode_ids(bytes, qualifications);
-                }
-                O::EstablishTrivialAffineLocal {
-                    psi_operation,
-                    place,
-                    structural_type,
-                } => {
-                    tag!(bytes, 2, psi_operation);
-                    encode_place_declaration(bytes, *place);
-                    encode_structural_type(bytes, structural_type);
-                }
-                O::EstablishZeroedStructural {
-                    psi_operation,
-                    result,
-                } => {
-                    tag!(bytes, 90, psi_operation);
-                    encode_structural_operation_result(bytes, result);
-                }
-                O::EstablishStructuralLocal {
-                    psi_operation,
-                    result,
-                } => {
-                    tag!(bytes, 103, psi_operation);
-                    encode_structural_operation_result(bytes, result);
-                }
-                O::EstablishRecord {
-                    psi_operation,
-                    result,
-                    fields,
-                } => {
-                    tag!(bytes, 56, psi_operation);
-                    encode_structural_operation_result(bytes, result);
-                    bytes.slice(fields, encode_record_initializer);
-                }
-                O::EstablishAccessReference {
-                    psi_operation,
-                    result,
-                    source,
-                    correspondence,
-                } => {
-                    tag!(bytes, 113, psi_operation);
-                    encode_structural_operation_result(bytes, result);
-                    encode_structural_argument(bytes, source);
-                    match correspondence {
-                        abstract_operations::AccessReferenceBacking::OrdinaryRam(
-                            correspondence,
-                        ) => {
-                            bytes.u8(0);
-                            bytes.id(correspondence.schema);
-                            bytes.id(correspondence.carrier);
-                            bytes.u64(correspondence.source_byte_length);
-                            bytes.u64(correspondence.required_base.modulus());
-                            bytes.u64(correspondence.required_base.residue());
-                            bytes.slice(&correspondence.fields, |bytes, field| {
-                                bytes.u32(field.access_slot);
-                                bytes.id(field.source_field);
-                                bytes.u64(field.byte_offset);
-                                bytes.u16(field.transfer_width_bits);
-                                super::super::carrier_encoding::encode_scalar_type(
-                                    bytes,
-                                    field.logical_scalar,
-                                );
-                                super::super::carrier_encoding::encode_scalar_type(
-                                    bytes,
-                                    field.stored_scalar,
-                                );
-                            });
-                        }
-                        abstract_operations::AccessReferenceBacking::Resident(resident) => {
-                            bytes.u8(1);
-                            bytes.id(resident.owner);
-                            bytes.id(resident.schema);
-                            bytes.id(resident.carrier);
-                            bytes.id(resident.roles.base);
-                            bytes.id(resident.roles.length);
-                            bytes.id(resident.roles.granted);
-                            bytes.id(resident.roles.resident);
-                            bytes.bytes(&resident.placement_commitment);
-                        }
-                        abstract_operations::AccessReferenceBacking::BorrowedExtent(backing) => {
-                            bytes.u8(2);
-                            bytes.id(backing.owner);
-                            bytes.id(backing.schema);
-                            bytes.id(backing.carrier);
-                            bytes.id(backing.base);
-                            bytes.id(backing.length);
-                            bytes.id(backing.granted);
-                            bytes.bytes(&backing.placement_commitment);
-                        }
-                    }
-                }
-                O::EstablishReference {
-                    psi_operation,
-                    result,
-                    source,
-                    storage,
-                } => {
-                    bytes.u8(if storage.is_some() { 110 } else { 79 });
-                    bytes.id(*psi_operation);
-                    encode_structural_operation_result(bytes, result);
-                    encode_structural_argument(bytes, source);
-                    if let Some(storage) = storage {
-                        bytes.id(storage.byte_offset);
-                        bytes.boolean(storage.stored_scalar.is_some());
-                        if let Some(stored_scalar) = storage.stored_scalar {
-                            super::super::carrier_encoding::encode_scalar_type(
-                                bytes,
-                                stored_scalar,
-                            );
-                        }
-                    }
-                }
-                O::ReleaseReference {
-                    psi_operation,
-                    source,
-                    path,
-                } => {
-                    tag!(bytes, 80, psi_operation);
-                    bytes.id(*source);
-                    bytes.slice(path, encode_structural_path_segment);
-                }
-                O::MoveStructuralField {
-                    psi_operation,
-                    result,
-                    source,
-                    path,
-                    field,
-                } => {
-                    tag!(bytes, 81, psi_operation);
-                    encode_structural_operation_result(bytes, result);
-                    encode_window_root(bytes, source);
-                    bytes.slice(path, encode_structural_path_segment);
-                    super::encode_optional_field(bytes, *field);
-                }
-                O::StoreStructuralField {
-                    disposition,
-                    psi_operation,
-                    destination,
-                    path,
-                    field,
-                    value,
-                } => {
-                    bytes.u8(match disposition {
-                        terminal_psi::StructuralStoreDisposition::Vacant => 82,
-                        terminal_psi::StructuralStoreDisposition::ReplaceDiscardable => 117,
-                    });
-                    bytes.id(*psi_operation);
-                    encode_window_root(bytes, destination);
-                    bytes.slice(path, encode_structural_path_segment);
-                    super::encode_optional_field(bytes, *field);
-                    encode_structural_argument(bytes, value);
-                }
-                O::TransformContent {
-                    psi_operation,
-                    result,
-                    source,
-                    parents,
-                    derivations,
-                } => {
-                    tag!(bytes, 124, psi_operation);
-                    encode_structural_operation_result(bytes, result);
-                    encode_structural_argument(bytes, source);
-                    bytes.slice(parents, encode_structural_argument);
-                    bytes.slice(
-                        derivations,
-                        super::super::structural_encoding::encode_content_transformation,
-                    );
-                }
-                O::DecomposeStructuralValue {
-                    psi_operation,
-                    subject,
-                } => {
-                    tag!(bytes, 138, psi_operation);
-                    encode_structural_argument(bytes, subject);
-                }
-                O::MoveStructuralValue {
-                    psi_operation,
-                    result,
-                    source,
-                } => {
-                    tag!(bytes, 123, psi_operation);
-                    encode_structural_operation_result(bytes, result);
-                    encode_structural_argument(bytes, source);
-                }
-                O::PackedIntegerUnary {
-                    psi_operation,
-                    result,
-                    operation,
-                    source,
-                } => {
-                    tag!(bytes, 181, psi_operation);
-                    match operation {
-                        semantic_vocabulary::PackedIntegerUnaryOperation::ShiftRightArithmeticI16x8 { count } => {
-                            bytes.u8(0);
-                            bytes.u8(*count);
-                        }
-                        semantic_vocabulary::PackedIntegerUnaryOperation::WidenU8x8ToI16x8 => bytes.u8(1),
-                        semantic_vocabulary::PackedIntegerUnaryOperation::NarrowI16x8ToU8x8Saturating => bytes.u8(2),
-                        semantic_vocabulary::PackedIntegerUnaryOperation::LoadI16x4ZeroExtend => bytes.u8(3),
-                        semantic_vocabulary::PackedIntegerUnaryOperation::WidenU8x4ToI16x8 => bytes.u8(4),
-                        semantic_vocabulary::PackedIntegerUnaryOperation::NarrowI16x8ToU8x4Saturating => bytes.u8(5),
-                        semantic_vocabulary::PackedIntegerUnaryOperation::AbsI16x8 => bytes.u8(6),
-                    }
-                    encode_structural_operation_result(bytes, result);
-                    encode_structural_argument(bytes, source);
-                }
-                O::PackedIntegerBinary {
-                    psi_operation,
-                    result,
-                    operation,
-                    left,
-                    right,
-                } => {
-                    tag!(bytes, 180, psi_operation);
-                    match operation {
-                        semantic_vocabulary::PackedIntegerBinaryOperation::WrappingAddI16x8 => {
-                            bytes.u8(0)
-                        }
-                        semantic_vocabulary::PackedIntegerBinaryOperation::WrappingSubI16x8 => {
-                            bytes.u8(1)
-                        }
-                        semantic_vocabulary::PackedIntegerBinaryOperation::ShuffleI16x8 {
-                            lanes,
-                        } => {
-                            bytes.u8(2);
-                            for lane in lanes {
-                                bytes.u8(*lane);
-                            }
-                        }
-                        semantic_vocabulary::PackedIntegerBinaryOperation::WrappingAddU8x16 => {
-                            bytes.u8(3)
-                        }
-                        semantic_vocabulary::PackedIntegerBinaryOperation::MinI16x8 => bytes.u8(4),
-                        semantic_vocabulary::PackedIntegerBinaryOperation::CmpGtI16x8 => {
-                            bytes.u8(5)
-                        }
-                        semantic_vocabulary::PackedIntegerBinaryOperation::BitAndI16x8 => {
-                            bytes.u8(6)
-                        }
-                        semantic_vocabulary::PackedIntegerBinaryOperation::BitAndNotI16x8 => {
-                            bytes.u8(7)
-                        }
-                    }
-                    encode_structural_operation_result(bytes, result);
-                    encode_structural_argument(bytes, left);
-                    encode_structural_argument(bytes, right);
-                }
-                O::StructuralLeafCopy {
-                    psi_operation,
-                    result,
-                    source,
-                    path,
-                } => {
-                    bytes.u8(match path {
-                        StructuralCopyPath::Ordinary(_) => 88,
-                        StructuralCopyPath::Case(_) => 91,
-                    });
-                    bytes.id(*psi_operation);
-                    encode_structural_operation_result(bytes, result);
-                    bytes.id(*source);
-                    match path {
-                        StructuralCopyPath::Ordinary(path) => {
-                            bytes.slice(path, encode_structural_path_segment);
-                        }
-                        StructuralCopyPath::Case(path) => {
-                            super::super::proposition_encoding::encode_canonical_path(bytes, path);
-                        }
-                    }
-                }
-                _ => unreachable!("operation family routing admitted a non-structural operation"),
-            }
-        }
-
-        fn encode_store_destination(
-            bytes: &mut CanonicalBytes,
-            destination: &abstract_operations::StructuralScalarStoreDestination,
-        ) {
-            use abstract_operations::StructuralScalarStoreDestination as Destination;
-            match destination {
-                Destination::Parameter(parameter) => {
-                    bytes.u8(0);
-                    encode_structural_parameter(bytes, parameter);
-                }
-                Destination::OwnedResult { producer, result } => {
-                    bytes.u8(1);
-                    bytes.id(*producer);
-                    encode_structural_operation_result(bytes, result);
-                }
-                Destination::OwnedBlockParameter { block, parameter } => {
-                    bytes.u8(2);
-                    bytes.id(*block);
-                    encode_structural_parameter(bytes, parameter);
-                }
-            }
-        }
-
-        fn encode_record_initializer(
-            bytes: &mut super::CanonicalBytes,
-            initializer: &terminal_psi::RecordFieldInitializer,
-        ) {
-            bytes.id(initializer.field);
-            match &initializer.value {
-                terminal_psi::RecordFieldValue::Scalar {
-                    value,
-                    range_obligation,
-                } => {
-                    bytes.u8(0);
-                    bytes.id(*value);
-                    encode_optional_id(bytes, range_obligation.as_ref());
-                }
-                terminal_psi::RecordFieldValue::Structural(argument) => {
-                    bytes.u8(1);
-                    encode_structural_argument(bytes, argument);
-                }
-            }
-        }
+        abstract_operations::visit_abstract_operation_fields!(operation, encode_fields);
     }
 }
 
@@ -5680,6 +2977,10 @@ mod width_identity_tests {
     fn width_identities_keep_fixed_bytes_and_distinguish_rigid_parameter_owners() {
         let fixed = IntegerType::new(IntegerSign::Signed, 32).unwrap();
         assert_eq!(identity(fixed), [2, 32, 0]);
+        assert_ne!(
+            identity(IntegerType::address(64).unwrap()),
+            identity(IntegerType::new(IntegerSign::Unsigned, 64).unwrap())
+        );
         assert_eq!(range_identity(fixed), [1, 1, 32, 0]);
         let parameter = |owner, value| {
             IntegerType::parameterized(
@@ -5881,61 +3182,282 @@ mod declaration_identity_tests {
 }
 
 #[cfg(test)]
-mod operation_family_identity_tests {
-    // Families reuse tag numbers (42, 43, 48, 88, 90, 253 and 255), so each
-    // operation starts with its family byte. These pairs once shared tag 42
-    // and tag 43; their first bytes must differ.
-    use super::CanonicalBytes;
-    use super::operation_encoding::encode_operation;
-    use abstract_operations::{AbstractOperation, AbstractSuccessor};
-    use semantic_vocabulary::{
-        BlockId, EdgeId, IeeeFloatFormat, IeeeFloatValue, OperationId, ValueId,
+mod unit_identity_tests {
+    use crate::{
+        PsiOptimizationUnit, RuntimeEvidenceCatalog, recompute_psi_optimization_unit_identity,
+    };
+    use optimization_core::OptimizationUnitIdentity;
+    use semantic_vocabulary::{BoundaryMachineId, MachineId, WorkScheduleIdentity};
+    use std::sync::Arc;
+    use terminal_psi::{
+        BoundaryCompletion, BoundaryMachineDeclaration, BoundaryMachineResult,
+        BoundaryRequirementKind, NominalDeclarationIdentity, SemanticFingerprint,
+        TerminalIdentityIndex, TerminalModule, TerminalPsiIdentity, VocabularyMarker,
     };
 
-    fn bytes(operation: &AbstractOperation) -> Vec<u8> {
-        let mut bytes = CanonicalBytes::collect();
-        encode_operation(&mut bytes, operation);
-        bytes.finish()
+    fn psi(byte: u8) -> TerminalPsiIdentity {
+        TerminalPsiIdentity {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes([byte; 32]),
+        }
     }
 
-    fn successor() -> AbstractSuccessor {
-        AbstractSuccessor {
-            psi_edge: EdgeId::new(1).unwrap(),
-            target: BlockId::new(1).unwrap(),
-            bindings: Vec::new(),
-            structural_bindings: Vec::new(),
-            cleanup_actions: Vec::new(),
+    fn boundary(id: u64) -> BoundaryMachineDeclaration {
+        BoundaryMachineDeclaration {
+            id: BoundaryMachineId::new(id).unwrap(),
+            declaration: None,
+            role: terminal_psi::BoundaryDeclarationRole::Callable,
+            kind: BoundaryRequirementKind::Machine,
+            completion: BoundaryCompletion::NormalReturn,
+            numeric_intrinsic: None,
+            unconditional_termination: false,
+            identity: TerminalIdentityIndex(1),
+            owner: NominalDeclarationIdentity::new(TerminalIdentityIndex(2)),
+            attachment: None,
+            parameter_order: Vec::new(),
+            scalar_parameters: Vec::new(),
+            crash_routes: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: BoundaryMachineResult::Unit,
+            requires: Vec::new(),
+            membership_ensures: Vec::new(),
+            normal_qualifications: Vec::new(),
+            scalar_domain_requirements: Vec::new(),
+            scalar_requires: Vec::new(),
+            scalar_ensures: Vec::new(),
+            result_reference_regions: Vec::new(),
+            result_lifetimes: None,
+            reference_outputs: Vec::new(),
+            program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
+            fixed_service_reach: Vec::new(),
+            service_reach_is_installation_bound: false,
+            owning_service: None,
+            published_synchronous_entries: Vec::new(),
+            published_service_ceiling: Vec::new(),
+        }
+    }
+
+    fn unit() -> PsiOptimizationUnit {
+        PsiOptimizationUnit {
+            identity: OptimizationUnitIdentity::from_canonical_bytes(b"uncomputed test seed"),
+            psi: psi(7),
+            work_schedule: WorkScheduleIdentity::new(1).unwrap(),
+            scope_provider_closure: None,
+            lowering_target: None,
+            scalar_values_digest: None,
+            entry: MachineId::new(1).unwrap(),
+            structural_types: Vec::new().into(),
+            structural_domains: Arc::new([]),
+            services: Arc::new([]),
+            root_service_reach: Default::default(),
+            boundary_machines: vec![boundary(1)],
+            provider_candidates: Vec::new(),
+            dynamic_dispatch: Default::default(),
+            callables: Default::default(),
+            accepted_obligation_facts: Vec::new(),
+            identities: Default::default(),
+            runtime_evidence: None,
+            functions: crate::OptimizationFunctions {
+                rows: Vec::new(),
+                digest: crate::identity::unit_encoding::function_digest(&[]),
+            },
         }
     }
 
     #[test]
-    fn operations_from_different_families_start_with_different_bytes() {
-        let jump = AbstractOperation::Jump {
-            psi_edge: EdgeId::new(1).unwrap(),
-            target: BlockId::new(1).unwrap(),
-            bindings: Vec::new(),
-            structural_bindings: Vec::new(),
-            cleanup_actions: Vec::new(),
+    fn unit_identity_commits_the_terminal_program_fingerprint() {
+        let original = recompute_psi_optimization_unit_identity(&unit());
+        assert_eq!(original, recompute_psi_optimization_unit_identity(&unit()));
+        let mut changed = unit();
+        changed.psi = psi(8);
+        assert_ne!(original, recompute_psi_optimization_unit_identity(&changed));
+    }
+
+    #[test]
+    fn unit_identity_commits_the_kept_boundary_declarations() {
+        let original = recompute_psi_optimization_unit_identity(&unit());
+        let mut renamed = unit();
+        renamed.boundary_machines[0] = boundary(2);
+        assert_ne!(original, recompute_psi_optimization_unit_identity(&renamed));
+        let mut widened = unit();
+        widened.boundary_machines.push(boundary(2));
+        assert_ne!(original, recompute_psi_optimization_unit_identity(&widened));
+        let mut dropped = unit();
+        dropped.boundary_machines.clear();
+        assert_ne!(original, recompute_psi_optimization_unit_identity(&dropped));
+    }
+
+    #[test]
+    fn independent_plans_bind_operations_even_when_graph_provenance_and_uses_agree() {
+        use abstract_operations::{
+            AbstractBlock, AbstractFunction, AbstractFunctionResult, AbstractOperation as Op,
+            AbstractOperationPlan,
         };
-        let float_constant = AbstractOperation::IeeeFloatConstant {
-            psi_operation: OperationId::new(1).unwrap(),
-            result: ValueId::new(1).unwrap(),
-            value: IeeeFloatValue::Binary32(0),
+        use semantic_vocabulary::{BlockId, OperationId, ValueId};
+
+        let id = ValueId::new(1).unwrap();
+        let second = ValueId::new(2).unwrap();
+        let site = OperationId::new(1).unwrap();
+        let machine = MachineId::new(1).unwrap();
+        let block = BlockId::new(1).unwrap();
+        let functions = |operation| {
+            vec![AbstractFunction {
+                machine,
+                attachment: None,
+                entry: block,
+                parameters: vec![],
+                structural_parameters: vec![],
+                result: AbstractFunctionResult::Unit,
+                entry_claims: vec![],
+                block_entry_claims: vec![],
+                published_service_ceiling: vec![],
+                blocks: vec![AbstractBlock {
+                    block,
+                    parameters: vec![],
+                    structural_parameters: vec![],
+                    operations: vec![operation],
+                }],
+            }]
         };
-        let conditional = AbstractOperation::Conditional {
-            condition: ValueId::new(1).unwrap(),
-            when_true: successor(),
-            when_false: successor(),
+        let mut plan = AbstractOperationPlan {
+            psi: psi(7),
+            entry: machine,
+            structural_types: vec![].into(),
+            boundary_machines: vec![],
+            provider_candidates: vec![],
+            callables: Default::default(),
+            dynamic_dispatch: Default::default(),
+            identities: Default::default(),
+            functions: functions(Op::IntegerLessThan {
+                psi_operation: site,
+                result: id,
+                left: id,
+                right: second,
+            }),
         };
-        let fused_multiply_add = AbstractOperation::NearestIeeeFloatFusedMultiplyAdd {
-            psi_operation: OperationId::new(1).unwrap(),
-            result: ValueId::new(1).unwrap(),
-            format: IeeeFloatFormat::Binary64,
-            left: ValueId::new(1).unwrap(),
-            right: ValueId::new(1).unwrap(),
-            addend: ValueId::new(1).unwrap(),
+        let identity = |plan: &AbstractOperationPlan| {
+            crate::reconstruct_psi_optimization_unit_seed(
+                plan,
+                WorkScheduleIdentity::new(1).unwrap(),
+            )
+            .unwrap()
+            .identity
         };
-        assert_ne!(bytes(&jump)[0], bytes(&float_constant)[0]);
-        assert_ne!(bytes(&conditional)[0], bytes(&fused_multiply_add)[0]);
+        let original = identity(&plan);
+        assert_eq!(original, identity(&plan.clone()));
+        plan.functions = functions(Op::IntegerLessOrEqual {
+            psi_operation: site,
+            result: id,
+            left: id,
+            right: second,
+        });
+        assert_ne!(original, identity(&plan));
+        plan.functions = functions(Op::IntegerLessThan {
+            psi_operation: site,
+            result: id,
+            left: second,
+            right: id,
+        });
+        assert_ne!(original, identity(&plan));
+        plan.functions.clear();
+        assert_ne!(original, identity(&plan));
+    }
+
+    #[test]
+    fn unit_identity_binds_schedule_entry_scope_geometry_providers_and_facts() {
+        use semantic_vocabulary::{ObligationId, OperationId, StructuralTypeId};
+        let original = recompute_psi_optimization_unit_identity(&unit());
+        let changed = |edit: fn(&mut PsiOptimizationUnit)| {
+            let mut seed = unit();
+            edit(&mut seed);
+            assert_ne!(original, recompute_psi_optimization_unit_identity(&seed));
+        };
+        changed(|seed| seed.work_schedule = WorkScheduleIdentity::new(2).unwrap());
+        changed(|seed| seed.entry = MachineId::new(2).unwrap());
+        changed(|seed| seed.scope_provider_closure = Some([0; 32]));
+        let mut scoped = unit();
+        scoped.scope_provider_closure = Some([1; 32]);
+        let first_scope = recompute_psi_optimization_unit_identity(&scoped);
+        scoped.scope_provider_closure = Some([2; 32]);
+        assert_ne!(
+            first_scope,
+            recompute_psi_optimization_unit_identity(&scoped)
+        );
+        changed(|seed| {
+            seed.structural_types = vec![terminal_psi::StructuralTypeDeclaration {
+                id: StructuralTypeId::new(1).unwrap(),
+                declaration_identity: Default::default(),
+                identity: TerminalIdentityIndex(1),
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                no_code_affine_cleanup: false,
+                descriptor_cleanup: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                nominal_cleanup: None,
+                shape: terminal_psi::StructuralTypeShape::Record {
+                    fields: vec![],
+                    storage: terminal_psi::StructuralRecordStorage::Authored(
+                        semantic_vocabulary::AuthoredRecordStorage {
+                            byte_size: 16,
+                            byte_alignment: 8,
+                        },
+                    ),
+                },
+                requires: vec![],
+                scalar_restriction: None,
+            }]
+            .into()
+        });
+        changed(|seed| {
+            seed.structural_types = seed
+                .structural_types
+                .clone()
+                .with_owned_sequence_bounds(vec![(StructuralTypeId::new(1).unwrap(), 16)])
+        });
+        changed(|seed| {
+            seed.provider_candidates
+                .push(terminal_psi::ProviderCandidateConformance {
+                    boundary: seed.boundary_machines[0].id,
+                    requirement_identity: TerminalIdentityIndex(1),
+                    source_requirement_identity: TerminalIdentityIndex(1),
+                    declaration_application: Default::default(),
+                    receiving_application: Default::default(),
+                    receiving_region_arguments: vec![],
+                    provider_identity: TerminalIdentityIndex(2),
+                    provider_declaration: NominalDeclarationIdentity::new(TerminalIdentityIndex(2)),
+                    candidate_identity: TerminalIdentityIndex(3),
+                    source_candidate_identity: TerminalIdentityIndex(3),
+                    source_candidate_package_identity: None,
+                    candidate: seed.entry,
+                    signature: terminal_psi::ProviderSignature::empty(),
+                    refinement: terminal_psi::ProviderRefinement::empty(),
+                })
+        });
+        changed(|seed| {
+            seed.accepted_obligation_facts
+                .push(crate::AcceptedObligationFact::new(
+                    seed.psi,
+                    [1; 32],
+                    seed.entry,
+                    OperationId::new(1).unwrap(),
+                    ObligationId::new(1).unwrap(),
+                    vec![5],
+                ))
+        });
+    }
+
+    #[test]
+    fn unit_identity_commits_module_context_attachment() {
+        let seed = unit();
+        let mut attached = unit();
+        attached.runtime_evidence = Some(Arc::new(RuntimeEvidenceCatalog::from_verified_module(
+            attached.psi,
+            &TerminalModule::for_entry(attached.entry),
+        )));
+        assert_ne!(
+            recompute_psi_optimization_unit_identity(&seed),
+            recompute_psi_optimization_unit_identity(&attached)
+        );
     }
 }

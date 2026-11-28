@@ -864,7 +864,9 @@ pub(crate) mod interrupt_installation_guards {
                     .and_then(|shape| shape.selected.as_structural())
                     .ok_or_else(|| failure("installation argument lost its referent type"))?;
             Ok(
-                match terminal_psi::find_structural_type(declarations, selected)
+                match declarations
+                    .declaration(selected)
+                    .ok()
                     .map(|row| &row.shape)
                 {
                     Some(StructuralTypeShape::Reference { referent, .. }) => *referent,

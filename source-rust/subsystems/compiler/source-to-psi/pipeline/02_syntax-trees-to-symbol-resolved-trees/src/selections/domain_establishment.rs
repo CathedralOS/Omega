@@ -165,10 +165,9 @@ fn record_route_selection_once(
 
     let retained = program
         .authored_declaration_selections()
-        .iter()
+        .at_source_span(source_span)
         .any(|selection| {
-            selection.source_span() == source_span
-                && selection.exposure() == exposure
+            selection.exposure() == exposure
                 && selection.kind() == kind
                 && matches!(
                     selection.target(),

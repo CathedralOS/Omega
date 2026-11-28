@@ -86,22 +86,29 @@ pub(super) struct HostBoundarySelections {
 }
 
 impl HostBoundarySelections {
-    pub fn add(
-        &mut self,
+    pub(super) fn from_provisions(
         program: &TerminalProgram,
-        provision: &published_runtime_input::TerminalRuntimeHostProvision,
-    ) {
-        if executes_internally(program, provision) {
-            return;
+        provisions: &TerminalRuntimeHostProvisions,
+    ) -> Self {
+        let mut selections = Self::default();
+        for provision in provisions.host() {
+            if matches!(&provision.realization,
+                BoundarySettlementRealization::NormalizedForeignCall(binding)
+                    if matches!(binding.mechanism, target_vocabulary::NormalizedForeignCallMechanism::Component { .. }))
+                || executes_internally(program, provision)
+            {
+                continue;
+            }
+            if program
+                .external_completion_requirement(provision.boundary)
+                .is_some()
+            {
+                selections.external_completions.push(provision.boundary);
+            } else {
+                selections.imports.push(provision.boundary);
+            }
         }
-        if program
-            .external_completion_requirement(provision.boundary)
-            .is_some()
-        {
-            self.external_completions.push(provision.boundary);
-        } else {
-            self.imports.push(provision.boundary);
-        }
+        selections
     }
 }
 

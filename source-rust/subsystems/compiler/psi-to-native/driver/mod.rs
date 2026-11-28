@@ -79,6 +79,14 @@ fn produce(
     let proposal = retained.native_realization_proposal();
     let optimizations = proposal.post_terminal_optimizations().selections();
     let exports = image::components::bind(proposal, &execution, request.suppliers)?;
+    // A contained program runs only on the interpreter, which takes no
+    // components, and component emission compiles native code.
+    let contained = retained.authorization().is_contained();
+    if contained && (!exports.is_empty() || !request.suppliers.is_empty()) {
+        return Err(vec![Diagnostic::error(
+            "a program admitted for contained interpretation cannot call components",
+        )]);
+    }
     let mut components = image::components::Emission {
         suppliers: request.suppliers,
         authority: &request.terminal_authority_policy,
@@ -121,12 +129,28 @@ fn produce(
     let realization = admit_realization(artifact, input, proposal, &execution, &admission)?;
     if stop == NativeProductionStop::RuntimeAdmission {
         let provisions = realization.runtime_provisions.ok_or_else(|| {
-            vec![Diagnostic::error("runtime admission requires a checked program entry")]
+            vec![Diagnostic::error(
+                "runtime admission requires a checked program entry",
+            )]
         })?;
-        let provisions = provisions.map_adapters(runtime::foreign_adapters::compile);
+        // Foreign adapters are native code; a contained program gets none.
+        let provisions = if contained {
+            provisions.map_adapters(|_| {
+                Err("a program admitted for contained interpretation gets no native foreign adapter"
+                    .to_owned())
+            })
+        } else {
+            provisions.map_adapters(runtime::foreign_adapters::compile)
+        };
         observation.complete();
         return Ok(Produced::Runtime(provisions, components.products));
     }
+    // Past runtime admission every stage reuses the artifact's checked
+    // judgments to optimize and emit native code, so it needs producer trust.
+    retained
+        .authorization()
+        .authorized()
+        .map_err(|reason| vec![Diagnostic::error(reason.to_string())])?;
     let planning = image::plan_callables::NativeProgramPlanningRequest {
         proposal,
         execution: &execution,

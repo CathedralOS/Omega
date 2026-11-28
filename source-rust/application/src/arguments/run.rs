@@ -36,7 +36,7 @@ pub(super) const USAGE: &str = concat!(
     run_help!(work_budget),
     "\n",
     run_help!(host_packages),
-    "\nomega run lowers Omega source to Psi and interprets it, or interprets a trusted saved Psi program.\nFor a single run, --outputs <new-dir> writes raw stdout, stderr and termination.tsv. The command succeeds when it records a completed execution, including a guest crash or nonzero exit.\n--target selects the target environment for interpretation.",
+    "\nomega run lowers Omega source to Psi and interprets it, or interprets a saved Psi program. Without --trusted-artifact, saved Psi runs contained: standard streams, the working directory read/write at / unless --run-directories-* mappings replace it, and no native code, network or program launch.\nFor a single run, --outputs <new-dir> writes raw stdout, stderr and termination.tsv. The command succeeds when it records a completed execution, including a guest crash or nonzero exit.\n--target selects the target environment for interpretation.",
 );
 
 pub(super) fn parse_arguments(

@@ -14,8 +14,9 @@
 // required formal at the argument-relative path without establish-time history
 // scanning.
 
-use super::{AdmittedInstalledProviderCall, ProviderInstallationError};
+use super::ProviderInstallationError;
 use abstract_operations::{AbstractFunctionResult, AbstractOperation, AbstractOperationPlan};
+use operation_evidence::provider_calls::InstalledProviderCallEvidence;
 use terminal_psi::{
     ClaimContentProjection, ProviderCandidateConformance, StructuralParameterDeclaration,
     StructuralPathQualification, StructuralPathSegment, TerminalModule,
@@ -49,7 +50,7 @@ pub(super) fn replay_installed_provider_calls(
     plan: &AbstractOperationPlan,
     module: &terminal_psi::TerminalModule,
     installed: &[ProviderCandidateConformance],
-) -> Result<Vec<AdmittedInstalledProviderCall>, ProviderInstallationError> {
+) -> Result<Vec<InstalledProviderCallEvidence>, ProviderInstallationError> {
     if installed.is_empty() {
         return Ok(Vec::new());
     }
@@ -64,10 +65,6 @@ pub(super) fn replay_installed_provider_calls(
     let mut function_by_id = std::collections::BTreeMap::new();
     for row in &plan.functions {
         function_by_id.entry(row.machine).or_insert(row);
-    }
-    let mut machine_by_id = std::collections::BTreeMap::new();
-    for row in &module.machines {
-        machine_by_id.entry(row.id).or_insert(row);
     }
     let mut calls = Vec::new();
     for caller in &plan.functions {
@@ -96,14 +93,8 @@ pub(super) fn replay_installed_provider_calls(
                     .get(boundary)
                     .copied()
                     .ok_or_else(malformed)?;
-                let candidate = machine_by_id
-                    .get(&provider.candidate)
-                    .copied()
-                    .ok_or_else(malformed)?;
-                let source = machine_by_id
-                    .get(&caller.machine)
-                    .copied()
-                    .ok_or_else(malformed)?;
+                let candidate = module.machine(provider.candidate).ok_or_else(malformed)?;
+                let source = module.machine(caller.machine).ok_or_else(malformed)?;
                 let mut edges = source
                     .blocks
                     .iter()
@@ -158,7 +149,7 @@ pub(super) fn replay_installed_provider_calls(
                 {
                     return Err(malformed());
                 }
-                calls.push(AdmittedInstalledProviderCall {
+                calls.push(InstalledProviderCallEvidence {
                     caller: caller.machine,
                     invocation_site,
                     boundary: *boundary,
@@ -199,14 +190,8 @@ pub(super) fn replay_installed_provider_calls(
                 .get(&provider.candidate)
                 .copied()
                 .ok_or_else(malformed)?;
-            let terminal_candidate = machine_by_id
-                .get(&provider.candidate)
-                .copied()
-                .ok_or_else(malformed)?;
-            let terminal_caller = machine_by_id
-                .get(&caller.machine)
-                .copied()
-                .ok_or_else(malformed)?;
+            let terminal_candidate = module.machine(provider.candidate).ok_or_else(malformed)?;
+            let terminal_caller = module.machine(caller.machine).ok_or_else(malformed)?;
             let terminal_operation = terminal_caller
                 .operation(*psi_operation)
                 .ok_or_else(malformed)?;
@@ -355,7 +340,7 @@ pub(super) fn replay_installed_provider_calls(
             {
                 return Err(malformed());
             }
-            calls.push(AdmittedInstalledProviderCall {
+            calls.push(InstalledProviderCallEvidence {
                 caller: caller.machine,
                 invocation_site: (*psi_operation).into(),
                 result: terminal_operation.result.clone(),

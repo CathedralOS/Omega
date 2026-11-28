@@ -181,7 +181,10 @@ Where practical, reserve and validate final table/stack placements before exit.
 The post-exit critical sequence then performs only required mapping/stack
 transition, visibility, prepared-root publication, checked table installation,
 and finalization. External interrupts remain disabled until the complete
-exception floor exists. Software-fault-free claims retain explicit platform
+exception floor exists. On x86, publication preserves the mask. The selected
+work may [enable interrupts](interrupt_obligations.md#enabling-interrupts-after-x86-table-publication)
+once it establishes readiness and controller authority for the current CPU.
+Software-fault-free claims retain explicit platform
 assumptions; they do not prove NMI, machine-check, or physical failure absent.
 
 Reports bind selected requirements/providers, calling/state plans, admitted

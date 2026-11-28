@@ -115,23 +115,20 @@ pub(super) fn encode_function_frame<FrameOrigin, ImportOrigin>(
     let environment = &program.environment;
     let protocol = encode_target_frame_protocols(protocols, environment)
         .map_err(FunctionBodyEncodingError::FrameProtocol)?;
-    let protocol_identity = if audit {
+    if audit {
         encoding_admission::frame_protocol::validate_target_frame_protocol_encoding(
             &layout,
             environment,
             &protocol,
         )
-        .map_err(FunctionBodyEncodingError::FrameProtocol)?
-    } else {
-        machine_code::target_frame_protocol_encoding_identity(&protocol)
-    };
+        .map_err(FunctionBodyEncodingError::FrameProtocol)?;
+    }
     Ok(FramedMachineProgram {
         bindings,
         fragment_origins: Arc::new(
             encoding_admission::fragment_origins::prepare_fragment_origins(&program),
         ),
         frame_demands: layout.shared_demands(),
-        protocol_identity,
         instructions: program,
         storage,
         frame: layout.shared_plan(),

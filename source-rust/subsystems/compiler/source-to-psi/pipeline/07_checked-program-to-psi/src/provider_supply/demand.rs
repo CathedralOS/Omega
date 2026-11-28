@@ -222,13 +222,11 @@ impl AcceptedTerminalSource {
             .filter(|supply| supply.selection.target.canonical_name() == target)
         {
             let mut supplied = Vec::new();
-            for (boundary, source) in self
-                .closure()
-                .elaboration()
-                .boundaries
-                .iter()
-                .filter(|(boundary, _)| reached.contains(boundary))
-            {
+            // Logical closure returns distinct boundaries in declaration order.
+            for &boundary in reached {
+                let Some(source) = self.closure().elaboration().boundaries.get(boundary) else {
+                    continue;
+                };
                 let row = match supply.materialization_for(self.source(), *source) {
                     Ok(Some(row)) => row,
                     Ok(None) => continue,

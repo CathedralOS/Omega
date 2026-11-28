@@ -66,10 +66,8 @@ pub fn validate_current_program(
     {
         return Err(Error::RegisterMismatch);
     }
-    let preservation = program.preservation.plan();
+    let preservation = &program.preservation;
     if &program.preservation != original_preservation
-        || program.preservation.identity()
-            != register_homes::allocated_callee_saved_requirement_identity(preservation)
         || preservation.selected != machine.selected
         || preservation.homes != machine.homes
         || preservation.post_allocation_manifest != machine.post_allocation_manifest
@@ -113,10 +111,8 @@ pub fn validate_current_program_integrity(
     {
         return Err(Error::RegisterMismatch);
     }
-    let requirements = program.preservation.plan();
-    if register_homes::allocated_callee_saved_requirement_identity(requirements)
-        != program.preservation.identity()
-        || requirements.selected != machine.selected
+    let requirements = &program.preservation;
+    if requirements.selected != machine.selected
         || requirements.homes != machine.homes
         || requirements.post_allocation_manifest != machine.post_allocation_manifest
         || requirements.register_environment != machine.register_environment
@@ -127,8 +123,7 @@ pub fn validate_current_program_integrity(
         return Err(Error::PreservationMismatch);
     }
     let publication = program.publication.record();
-    if publication.identity != publication.recomputed_identity()
-        || publication.identity != machine.post_allocation_manifest
+    if *publication != machine.post_allocation_manifest
         || publication.selected != machine.selected
         || publication.homes != machine.homes
         || publication.target != machine.target
@@ -186,8 +181,7 @@ pub fn validate_current_program_integrity(
 mod tests {
     use std::sync::Arc;
 
-    use optimization_core::{OptimizationUnitIdentity, PostAllocationOptimizationManifestIdentity};
-    use register_homes::RegisterHomeIdentity;
+    use optimization_core::OptimizationUnitIdentity;
     use register_model::RegisterConstraintCatalogIdentity;
     use selected_instructions::{
         MachineEffectCatalogIdentity, MachineSemanticKind, SelectedBlock, SelectedBlockId,
@@ -213,7 +207,7 @@ mod tests {
         let target = NativeTarget::linux_x64();
         let environment =
             register_environment::baseline_target_register_environment(target).unwrap();
-        let physical = environment.physical().clone();
+        let physical_register_model = environment.physical().identity();
         let catalog =
             target_x86_64::x86_64_machine_effect_catalog(target, environment.constraints())
                 .unwrap();
@@ -282,15 +276,47 @@ mod tests {
             }]
             .into(),
         };
-        let mut machine = PostAllocationMachinePlan {
-            selected: Arc::new(selected.clone()),
-            homes: RegisterHomeIdentity::from_bytes([5; 32]),
-            post_allocation_manifest: PostAllocationOptimizationManifestIdentity::from_bytes(
-                [6; 32],
-            ),
+        let shared_selected = Arc::new(selected.clone());
+        let allocator_availability =
+            register_homes::AllocatorAvailabilityIdentity::from_bytes([12; 32]);
+        let homes = Arc::new(register_homes::RegisterHomePlan {
+            selected: Arc::clone(&shared_selected),
+            register_environment: environment.identity(),
+            allocator_availability,
+            functions: Vec::new(),
+        });
+        let budget =
+            optimization_core::OptimizationWorkBudget::new(100, 100, 100, 100, 100).unwrap();
+        let selections = optimization_core::OptimizationSelections::default();
+        let publication_record = Arc::new(register_homes::PostAllocationOptimizationManifest {
+            stage: register_homes::PostAllocationManifestStage::RegisterHomes,
+            optimization_unit: optimization_core::OptimizationUnitIdentity::from_bytes([10; 32]),
+            selection: selections.identity(),
+            budget_per_pass: budget,
+            target: selected.target,
+            selected: Arc::clone(&shared_selected),
+            selected_lowering_output: None,
+            pre_allocation_output: None,
+            selected_transformations: Vec::new(),
+            register_environment: environment.identity(),
+            allocator_availability,
+            homes: Arc::clone(&homes),
+            spills: register_homes::PostAllocationSpillStatus::NotRequiredForValidatedHomePlan,
+            frame: register_homes::PostAllocationUnavailableData::Unavailable,
+            emission: register_homes::PostAllocationUnavailableData::Unavailable,
+            publication: register_homes::PostAllocationUnavailableData::Unavailable,
+            statistics: register_homes::PostAllocationStatistics {
+                functions: 1,
+                ..Default::default()
+            },
+        });
+        let machine = PostAllocationMachinePlan {
+            selected: shared_selected,
+            homes,
+            post_allocation_manifest: Arc::clone(&publication_record),
             target: selected.target,
             register_environment: environment.identity(),
-            physical_register_model: physical.identity(),
+            physical_register_model,
             register_constraints: RegisterConstraintCatalogIdentity::from_bytes([8; 32]),
             machine_effect_catalog: MachineEffectCatalogIdentity::from_bytes([9; 32]),
             choice_rule: MachineAlternativeChoiceRule::UniqueApplicableInCatalogOrderV1,
@@ -304,36 +330,6 @@ mod tests {
                 }],
             }],
         };
-        let budget =
-            optimization_core::OptimizationWorkBudget::new(100, 100, 100, 100, 100).unwrap();
-        let selections = optimization_core::OptimizationSelections::default();
-        let mut publication_record = register_homes::PostAllocationOptimizationManifest {
-            identity: PostAllocationOptimizationManifestIdentity::from_bytes([0; 32]),
-            stage: register_homes::PostAllocationManifestStage::RegisterHomes,
-            optimization_unit: optimization_core::OptimizationUnitIdentity::from_bytes([10; 32]),
-            selection: selections.identity(),
-            budget_per_pass: budget,
-            target: machine.target,
-            selected: Arc::clone(&machine.selected),
-            selected_lowering_completion: None,
-            pre_allocation_completion: None,
-            selected_transformations: Vec::new(),
-            register_environment: machine.register_environment,
-            allocator_availability: register_homes::AllocatorAvailabilityIdentity::from_bytes(
-                [12; 32],
-            ),
-            homes: machine.homes,
-            spills: register_homes::PostAllocationSpillStatus::NotRequiredForValidatedHomePlan,
-            frame: register_homes::PostAllocationUnavailableData::Unavailable,
-            emission: register_homes::PostAllocationUnavailableData::Unavailable,
-            publication: register_homes::PostAllocationUnavailableData::Unavailable,
-            statistics: register_homes::PostAllocationStatistics {
-                functions: 1,
-                ..Default::default()
-            },
-        };
-        publication_record.identity = publication_record.recomputed_identity();
-        machine.post_allocation_manifest = publication_record.identity;
         let publication = Arc::new(register_homes::AllocationPublicationFacts::retain(
             publication_record,
             selections.clone(),
@@ -348,10 +344,10 @@ mod tests {
         let convention = register_environment::selected_abi_preservation(&environment).unwrap();
         let preservation_plan = register_homes::AllocatedCalleeSavedRequirementPlan {
             selected: Arc::clone(&machine.selected),
-            homes: machine.homes,
-            post_allocation_manifest: machine.post_allocation_manifest,
+            homes: Arc::clone(&machine.homes),
+            post_allocation_manifest: Arc::clone(&machine.post_allocation_manifest),
             register_environment: machine.register_environment,
-            physical_register_model: physical.identity(),
+            physical_register_model,
             target,
             abi: convention.kind,
             callee_saved_units: convention.convention.callee_saved.clone(),
@@ -363,12 +359,8 @@ mod tests {
                 modified_units: Vec::new(),
             }],
         };
-        let preservation = register_homes::AllocatedCalleeSavedRequirements {
-            identity: register_homes::allocated_callee_saved_requirement_identity(
-                &preservation_plan,
-            ),
-            plan: Arc::new(preservation_plan),
-        };
+        let preservation: register_homes::AllocatedCalleeSavedRequirements =
+            Arc::new(preservation_plan);
         let mut program = PostAllocationMachineProgram {
             contracts: Arc::clone(&selected.contracts),
             psi: selected.psi,
@@ -534,12 +526,7 @@ mod tests {
     fn a_rehashed_preservation_body_cannot_replace_the_admitted_requirements() {
         let (selected, mut program) = fixture();
         let admitted = program.clone();
-        Arc::make_mut(&mut program.preservation.plan)
-            .usage
-            .candidates += 1;
-        program.preservation.identity = register_homes::allocated_callee_saved_requirement_identity(
-            program.preservation.plan(),
-        );
+        Arc::make_mut(&mut program.preservation).usage.candidates += 1;
         program.identity = program.recomputed_identity();
         assert_eq!(
             validate_current_program(&program, replay(&selected, &admitted)),

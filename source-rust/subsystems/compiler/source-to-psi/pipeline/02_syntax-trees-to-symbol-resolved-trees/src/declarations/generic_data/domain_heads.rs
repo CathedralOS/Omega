@@ -26,7 +26,7 @@ use crate::resolution::declarations::declaration_selection::ConstantSelection;
 
 pub(crate) fn normalize(
     syntax: &mut SyntaxTrees,
-    selection: Option<&ConstantSelection>,
+    selection: &ConstantSelection,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut pending = Vec::new();
     let mut alias_heads = Vec::new();
@@ -199,13 +199,6 @@ pub(crate) fn normalize(
     if pending.is_empty() && alias_heads.is_empty() {
         return Ok(());
     }
-    let fallback;
-    let selection = if let Some(selection) = selection {
-        selection
-    } else {
-        fallback = ConstantSelection::new(syntax, None, Vec::new())?;
-        &fallback
-    };
     for (site, ordinal, leaf, reference) in pending {
         let Some(address) = selection.generic_carrier_domain_address(syntax, &leaf, reference)
         else {

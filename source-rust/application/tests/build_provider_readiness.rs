@@ -36,14 +36,18 @@ fn check(source: &str) -> Result<(), Vec<Diagnostic>> {
     let entry = root.join("build.omg");
     std::fs::write(&entry, source).unwrap();
 
-    let product = root.join("product");
-    std::fs::create_dir(&product).unwrap();
-    std::fs::write(
-        product.join("build.omg"),
-        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "product" }; }"#,
-    )
-    .unwrap();
-    std::fs::write(product.join("main.omg"), "public data Item {}").unwrap();
+    // An unregistered directory under the root is ordinary product source,
+    // so the `product` package is staged only for a Build that registers it.
+    if source.contains(r#"location: "product""#) {
+        let product = root.join("product");
+        std::fs::create_dir(&product).unwrap();
+        std::fs::write(
+            product.join("build.omg"),
+            r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "product" }; }"#,
+        )
+        .unwrap();
+        std::fs::write(product.join("main.omg"), "public data Item {}").unwrap();
+    }
 
     let libraries = [BuildLibraryRequest {
         max_reach: Default::default(),
@@ -69,6 +73,10 @@ fn check(source: &str) -> Result<(), Vec<Diagnostic>> {
     Ok(())
 }
 
+/// The refusal of the `wrong_backing` arm, which binds only a UEFI entry.
+const WRONG_BACKING: &str =
+    "selected target `linux_x86_64` has no bound required root slot `linux_x86_64::ProgramEntry`";
+
 fn assert_refused(source: &str, reason: &str) {
     let errors = check(source).expect_err("the Build must be refused");
     assert!(
@@ -84,7 +92,9 @@ fn a_build_waits_for_its_named_provider_and_calls_through_it() {
 
 #[test]
 fn the_call_after_the_wait_goes_through_the_provider_the_build_named() {
-    assert_refused(&build_for("OtherImage"), "project role");
+    // `OtherImage` reports 128, so the Build takes `wrong_backing`, which
+    // binds no Linux entry.
+    assert_refused(&build_for("OtherImage"), WRONG_BACKING);
 }
 
 #[test]
@@ -121,7 +131,7 @@ fn the_installed_provider_survives_a_product_dependency_wait() {
             format!("use {{omega}}/build/dependency.omg;\n{build}\nmachine expected_offset() -> address {{ 64 }}\n")
         };
         check(&source("TestImage")).unwrap();
-        assert_refused(&source("OtherImage"), "project role");
+        assert_refused(&source("OtherImage"), WRONG_BACKING);
     }
 }
 

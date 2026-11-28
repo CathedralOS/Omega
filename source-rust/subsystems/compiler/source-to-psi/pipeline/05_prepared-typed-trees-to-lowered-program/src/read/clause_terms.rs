@@ -159,6 +159,48 @@ impl Program<'_> {
 
     /// Read `expression` as a term of the sort `usage` asks for, with its
     /// names denoting what `scope` gives them.
+    /// The type of a clause value whose field is read, when the clause
+    /// says it: a formal, a for-every binder, or a call of a mathematical
+    /// function.
+    fn clause_receiver_type(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        receiver: ExpressionHandle,
+    ) -> Checked<Option<ValueType>> {
+        let typed = self.typed;
+        let table = &typed.expression_table;
+        Ok(match table.expression(receiver) {
+            ExpressionNode::Name(path)
+                if !path.static_application.is_valid()
+                    && !path.reserved_result_of.is_valid()
+                    && table.name_path_members(path.members).len() == 1 =>
+            {
+                if let Some(actual) = self.proposition_argument(path.symbol) {
+                    return self.clause_receiver_type(id, scope, actual);
+                }
+                match self.universal_binder(path.symbol) {
+                    Some((_, value_type)) => Some(value_type),
+                    None => scope
+                        .slots
+                        .iter()
+                        .find(|slot| slot.symbol == path.symbol)
+                        .map(|slot| slot.value_type),
+                }
+            }
+            ExpressionNode::Call(call) if self.mathematical => {
+                match self.mathematical_function(call) {
+                    Some(target) => {
+                        let (_, entry) = self.declaration(id, target)?;
+                        Some(self.value_type(id, entry.return_type)?)
+                    }
+                    None => None,
+                }
+            }
+            _ => None,
+        })
+    }
+
     pub(super) fn clause_term(
         &mut self,
         id: MachineId,
@@ -1383,6 +1425,7 @@ impl Program<'_> {
         // A row of the implementation being read, named by its requirement,
         // is the same abstract operation as its trait's requirement.
         let sibling = match table.expression(expression) {
+            ExpressionNode::Call(call) if call.static_requirement_dispatch.is_some() => true,
             ExpressionNode::Call(call) if !call.receiver.is_valid() && bodyless.is_none() => self
                 .contract_operator_owner(id, scope)
                 .ok()
@@ -1518,9 +1561,8 @@ impl Program<'_> {
                     // the value arguments, as the generic machine's
                     // definition takes them.
                     if !call.machine_arguments.is_empty() {
-                        let callee = typed
-                            .machine_by_symbol(target)
-                            .ok_or_else(|| unavailable("clause application lost its machine"))?;
+                        let callee =
+                            self.required_machine(id, target, "clause application target")?;
                         let required = self.required_callables(id, callee)?;
                         if required.len() != call.machine_arguments.len() {
                             return Err(unavailable(
@@ -1641,12 +1683,15 @@ impl Program<'_> {
                     // evidence implementation. Typing calls that row's
                     // member; the clause names the row, exactly as
                     // `Implementation::equals(..)` would.
-                    let sibling = (!call.receiver.is_valid())
-                        .then(|| {
-                            self.sibling_row(owner, target, call.authored_call_selection)
-                                .or_else(|| self.witness_conformance_row(target))
-                        })
-                        .flatten();
+                    let sibling = match &call.static_requirement_dispatch {
+                        Some(dispatch) => Some(self.dispatched_row(id, dispatch)?),
+                        None => (!call.receiver.is_valid())
+                            .then(|| {
+                                self.sibling_row(owner, target, call.authored_call_selection)
+                                    .or_else(|| self.witness_conformance_row(target))
+                            })
+                            .flatten(),
+                    };
                     if let Some((requirement, _)) = sibling {
                         target = requirement;
                     }
@@ -1655,7 +1700,25 @@ impl Program<'_> {
                             expression, call,
                         ),
                     );
-                    if invocation.unsupported
+                    // A copied requirement call keeps its selected row as
+                    // its dispatch, which `dispatched_row` already read.
+                    let unsupported = match call.static_requirement_dispatch {
+                        Some(_) => {
+                            call.runtime_call.is_some()
+                                || call.build_selection.is_valid()
+                                || call.quotient_operation.is_some()
+                                || call.private_layout_operation.is_some()
+                                || call.installed_interrupt_operation.is_some()
+                                || call.layout_query.is_some()
+                                || call.native_code_layout.is_some()
+                                || call.requirement_application.is_valid()
+                                || call.exact_coercion_target.is_valid()
+                                || call.static_machine_parameter.is_valid()
+                                || !call.evidence_arguments.is_empty()
+                        }
+                        None => invocation.unsupported,
+                    };
+                    if unsupported
                         || call.operational_acknowledgement.acknowledges_suspend
                         || call.operational_acknowledgement.acknowledges_block
                     {
@@ -1663,12 +1726,16 @@ impl Program<'_> {
                             "clause application has another dispatch or effect",
                         ));
                     }
-                    self.direct_selection(
-                        id,
-                        target,
-                        call.authored_call_selection,
-                        call.authored_call_binding,
-                    )?;
+                    // The author selected the parameter's placeholder, which
+                    // the dispatch replaced by the row it selects.
+                    if call.static_requirement_dispatch.is_none() {
+                        self.direct_selection(
+                            id,
+                            target,
+                            call.authored_call_selection,
+                            call.authored_call_binding,
+                        )?;
+                    }
                     let receiver = table.name_path_node(call.receiver).map(|name| name.symbol);
                     if call.receiver.is_valid() && receiver.is_none() {
                         return Err(unavailable(
@@ -2108,8 +2175,24 @@ impl Program<'_> {
                     // field of a call of a machine parameter has no such
                     // selection: the call's declared result is the record,
                     // and the field is the one of that name.
-                    let receiver = if selected.is_valid() {
-                        self.record(id, typed.symbols.get(selected).parent)?
+                    let owner = if selected.is_valid() {
+                        typed.symbols.get(selected).parent
+                    } else {
+                        SymbolHandle::invalid()
+                    };
+                    // A field of generic data is the same declaration in every
+                    // application; the receiver's own type says which one.
+                    let generic = selected.is_valid()
+                        && typed
+                            .unique_data_definition_by_symbol(owner)
+                            .is_some_and(|data| !data.type_parameters.is_empty());
+                    let receiver = if generic {
+                        self.clause_receiver_type(id, scope, member.receiver)?
+                            .ok_or_else(|| {
+                                unavailable("field of generic data whose receiver has no known type")
+                            })?
+                    } else if selected.is_valid() {
+                        self.record(id, owner)?
                     } else {
                         match table.expression(member.receiver) {
                             ExpressionNode::Call(call) => {
@@ -2368,6 +2451,35 @@ impl Program<'_> {
                     && row.requirement == selected
             })
             .map(|row| (row.requirement, conformance.symbol))
+    }
+
+    /// The requirement and implementation a copied clause names when it
+    /// called a requirement through an implementation parameter, such as
+    /// `E::equals` in a machine generic over `E satisfies Equatable<T>`
+    /// copied for `CoinByBoth`. Specialization keeps the selected row as the
+    /// call's dispatch; the clause names that row, exactly as
+    /// `CoinByBoth::equals(..)` would.
+    fn dispatched_row(
+        &self,
+        id: MachineId,
+        dispatch: &crate::source_state::StaticRequirementDispatch,
+    ) -> Checked<(SymbolHandle, SymbolHandle)> {
+        let (conformance, row) = self
+            .typed
+            .owned_conformance_realization(dispatch.realization_machine)
+            .ok_or_else(|| {
+                refuse_at(
+                    id,
+                    Unserved::Contract("clause dispatch names no implementation row"),
+                )
+            })?;
+        if row.requirement != dispatch.requirement {
+            return Err(refuse_at(
+                id,
+                Unserved::Contract("clause dispatch names another requirement than its row"),
+            ));
+        }
+        Ok((row.requirement, conformance.symbol))
     }
 
     /// The requirement and implementation when a requirement's clause,

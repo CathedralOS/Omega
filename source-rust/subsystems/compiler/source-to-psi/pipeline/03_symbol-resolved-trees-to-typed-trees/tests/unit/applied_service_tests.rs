@@ -100,3 +100,58 @@ fn applied_service_invocation_preserves_a_lexically_shadowing_parameter() {
         "{errors:?}"
     );
 }
+
+#[test]
+fn a_requirement_family_description_names_its_owner_and_refuses_unprepared_arguments() {
+    use crate::source_state::expression::{ExpressionNode, StaticMachineArgument};
+    use crate::source_state::reflection::construction::callable_description_identity;
+
+    let source = r#"
+        boundary trait Reader {
+            machine read<T>(word: u32) -> u32 reaches none crashes none;
+        }
+        boundary trait Peer {
+            machine read<T>(word: u32) -> u32 reaches none crashes none;
+        }
+        machine main() reaches Reader reaches Peer invokes Reader invokes Peer {
+            let first: u32 = Reader::read::<u32>(1);
+            let second: u32 = Peer::read::<u32>(1);
+        }
+        "#;
+    let typed = crate::qualified_operator_home_tests::checked(&[("main.omg", source)]).unwrap();
+    let requester = typed.realized_machine_named("main").unwrap().symbol;
+    let mut descriptions = Vec::new();
+    for (_, node) in typed.expression_table.iter_expressions() {
+        let ExpressionNode::Call(call) = node else {
+            continue;
+        };
+        let bare = StaticMachineArgument {
+            symbol: call.target_symbol,
+            ..Default::default()
+        };
+        let (requirement, identity) =
+            callable_description_identity(&typed, &bare, requester).unwrap();
+        assert!(requirement);
+        descriptions.push(identity);
+
+        assert!(call.authored_machine_application.is_valid());
+        let unprepared = StaticMachineArgument {
+            authored_machine_application: call.authored_machine_application,
+            ..bare
+        };
+        let refusal = callable_description_identity(&typed, &unprepared, requester).unwrap_err();
+        assert!(
+            refusal.contains("requires its complete requirement application"),
+            "{refusal}"
+        );
+    }
+    let [reader, peer] = descriptions.as_slice() else {
+        panic!("expected both requirement descriptions");
+    };
+    assert_ne!(reader[0], peer[0], "the declaring traits differ");
+    assert_ne!(reader[1], peer[1], "the callable identities differ");
+    assert_eq!(
+        reader[2], peer[2],
+        "both declarations share a source revision"
+    );
+}

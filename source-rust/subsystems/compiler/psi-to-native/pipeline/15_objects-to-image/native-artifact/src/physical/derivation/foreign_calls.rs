@@ -22,7 +22,7 @@ use crate::NormalizedForeignCallbackRelocations;
 use crate::OptimizedBoundaryOccurrence;
 use crate::PhysicalChildParent;
 use crate::PhysicalRelocationDisposition;
-use crate::physical::derivation::evidence::{ranges_overlap, seal_physical_child_parts, span};
+use crate::physical::derivation::evidence::{PhysicalChildPlacement, ranges_overlap, span};
 use crate::physical::derivation::fragment_custody::fragment_normalized_foreign_rejoin;
 use crate::physical::derivation::settlement_identity::admitted_provider_boundary_trait_settlement_identity;
 use crate::physical::fragment_publication::FragmentPublicationBinding;
@@ -38,7 +38,6 @@ use machine_code::CallbackAddressDestination;
 use object_file::RelocationKind;
 use object_file::SectionKind;
 use object_file::invocation_relocation_origin;
-use optimization_core::NativeOptimizationProjectionIdentity;
 use sha2::{Digest, Sha256};
 use target::Architecture;
 use target::NativeTarget;
@@ -48,10 +47,10 @@ use terminal_psi::OperationKind;
 use terminal_psi::OperationResult;
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn derive_normalized_foreign_child(
+pub(super) fn derive_normalized_foreign_child(
     result_geometry: &calling_conventions::terminal_layout::StructuralLayoutResolver<'_>,
     occurrence: &OptimizedBoundaryOccurrence,
-    projection: NativeOptimizationProjectionIdentity,
+    placement: PhysicalChildPlacement,
     requirement_identity: &str,
     selected_plan: Option<&NativeSelectedProviderPlan>,
     native_bindings: &native_binding_admission::RetainedNativeBindings,
@@ -770,6 +769,7 @@ pub(crate) fn derive_normalized_foreign_child(
                         "normalized foreign callback custody differs from its materialization inventory",
                     );
                 }
+                let mut mutable_intervals = vec![(field_offset, field_end)];
                 let mut callback_relocations =
                     Vec::with_capacity(field.callback_materializations.len());
                 for (custody, placed) in foreign
@@ -782,12 +782,12 @@ pub(crate) fn derive_normalized_foreign_child(
                         linked_object,
                         custody.target.callback_function,
                     )?;
-                    let exact_callback_relocation =
+                    let mut exact_callback_relocation =
                         |section_offset: u64, kind: RelocationKind| -> Result<_, &'static str> {
                             let offset = usize::try_from(section_offset).map_err(|_| {
                                 "normalized foreign D41 callback field offset does not fit this target"
                             })?;
-                            admitted_callback_relocation(
+                            let relocation = admitted_callback_relocation(
                                 object
                                     .relocations()
                                     .records()
@@ -796,7 +796,17 @@ pub(crate) fn derive_normalized_foreign_child(
                                 offset,
                                 callback_symbol,
                                 kind,
-                            )
+                            )?;
+                            if !intervals.contains_object_span(offset, 4) {
+                                return Err(
+                                    "normalized foreign callback relocation crosses its invocation interval",
+                                );
+                            }
+                            let end = offset
+                                .checked_add(4)
+                                .ok_or("callback relocation end overflow")?;
+                            mutable_intervals.push((offset, end));
+                            Ok(relocation)
                         };
                     callback_relocations.push(match placed.encoding {
                         machine_code::PlacedCallbackAddressEncoding::X86_64Relative32 {
@@ -825,42 +835,6 @@ pub(crate) fn derive_normalized_foreign_child(
                             )?,
                         },
                     });
-                }
-                let mut mutable_intervals = vec![(field_offset, field_end)];
-                for callback in &field.callback_materializations {
-                    let patch_section_offsets: [u64; 2] = match callback.encoding {
-                        machine_code::PlacedCallbackAddressEncoding::X86_64Relative32 {
-                            relocation_section_offset,
-                            ..
-                        } => [relocation_section_offset, u64::MAX],
-                        machine_code::PlacedCallbackAddressEncoding::Aarch64PageAddress {
-                            page_relocation_section_offset,
-                            page_offset_relocation_section_offset,
-                            ..
-                        } => [
-                            page_relocation_section_offset,
-                            page_offset_relocation_section_offset,
-                        ],
-                    };
-                    for patch_section_offset in patch_section_offsets {
-                        if patch_section_offset == u64::MAX {
-                            continue;
-                        }
-                        let patch_start = usize::try_from(patch_section_offset).map_err(
-                            |_| "normalized foreign D41 callback field offset does not fit this target",
-                        )?;
-                        if !intervals.contains_object_span(patch_start, 4) {
-                            return Err(
-                                "normalized foreign callback relocation crosses its invocation interval",
-                            );
-                        }
-                        mutable_intervals.push((
-                            patch_start,
-                            patch_start
-                                .checked_add(4)
-                                .ok_or("callback relocation end overflow")?,
-                        ));
-                    }
                 }
                 (
                     mutable_intervals,
@@ -1041,23 +1015,15 @@ pub(crate) fn derive_normalized_foreign_child(
             role,
             identity: parent_identity,
         });
-    Ok(Some(
-        seal_physical_child_parts(
-            parent,
-            projection,
-            NativePhysicalOccurrence::Boundary(occurrence.identity()),
-            intervals.machine,
-            intervals.object,
-            intervals.final_image,
-            [
-                byte_digests.machine,
-                byte_digests.object,
-                byte_digests.final_image,
-            ],
-            relocation,
-        )
-        .into(),
-    ))
+    Ok(Some(placement.seal(
+        parent,
+        NativePhysicalOccurrence::Boundary(occurrence.identity()),
+        intervals.machine,
+        intervals.object,
+        byte_digests.object,
+        byte_digests.final_image,
+        relocation,
+    )?))
 }
 
 // A private body retains local unresolved symbol handles after composition.
@@ -1179,11 +1145,9 @@ pub(crate) fn normalized_foreign_structural_parameter_shapes(
 struct CoveredInvocationIntervals {
     machine: Vec<NativeByteSpan>,
     object: Vec<NativeByteSpan>,
-    final_image: Vec<NativeByteSpan>,
 }
 
 struct CoveredByteDigests {
-    machine: [u8; 32],
     object: [u8; 32],
     final_image: [u8; 32],
 }
@@ -1220,11 +1184,7 @@ impl CoveredInvocationIntervals {
             machine.push(native_byte_span(offset, count));
             object.push(native_byte_span(object_offset, count));
         }
-        Ok(Self {
-            machine,
-            final_image: object.clone(),
-            object,
-        })
+        Ok(Self { machine, object })
     }
 
     fn contains_object_span(&self, offset: usize, count: usize) -> bool {
@@ -1321,15 +1281,12 @@ impl CoveredInvocationIntervals {
                 return Err("foreign mutable interval crosses uncovered bytes");
             }
         }
-        let mut machine_digest = Sha256::new();
         let mut object_digest = Sha256::new();
         let mut final_image_digest = Sha256::new();
-        for ((machine_span, object_span), image_span) in
-            self.machine.iter().zip(&self.object).zip(&self.final_image)
-        {
+        for (machine_span, object_span) in self.machine.iter().zip(&self.object) {
             let before_machine = span(machine_bytes, *machine_span)?;
             let before_object = span(object_bytes, *object_span)?;
-            let after_image = span(final_image_bytes, *image_span)?;
+            let after_image = span(final_image_bytes, *object_span)?;
             if before_machine != before_object {
                 return Err("normalized foreign call changed before object custody");
             }
@@ -1348,12 +1305,10 @@ impl CoveredInvocationIntervals {
                     );
                 }
             }
-            machine_digest.update(before_machine);
             object_digest.update(before_object);
             final_image_digest.update(after_image);
         }
         Ok(CoveredByteDigests {
-            machine: machine_digest.finalize().into(),
             object: object_digest.finalize().into(),
             final_image: final_image_digest.finalize().into(),
         })

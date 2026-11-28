@@ -162,8 +162,6 @@ pub(crate) fn plan_inputs_and_review(
             binding: evaluated,
         });
     }
-    requirements.sort_unstable();
-    requirements.dedup();
     let calling = CallingProgram {
         artifact: Arc::clone(&artifact),
     };

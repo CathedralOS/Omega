@@ -26,10 +26,7 @@ impl Program<'_> {
             RankingViewSelection::CanonicalDefault(view) => (view, true),
             RankingViewSelection::Declaration(symbol) => {
                 use language_core::sealed_intrinsics::{CompilerPrimitive, SealedIntrinsic};
-                let declaration = self
-                    .typed
-                    .machine_by_symbol(symbol)
-                    .ok_or_else(|| unsupported("selected ranking view has no declaration"))?;
+                let declaration = self.required_machine(id, symbol, "selected ranking view")?;
                 if self
                     .typed
                     .symbols

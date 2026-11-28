@@ -56,9 +56,18 @@ fn a_contained_guest_needs_an_account_and_contained_adapters() {
     let received = Arc::new(
         terminal_codec::CanonicalTerminalArtifact::from_bytes(&produced.to_bytes()).unwrap(),
     );
+    let unadmitted = Arc::clone(&received);
     let contained = psi_authorization::admit_contained_interpretation(received).unwrap();
     // The admitted copy still requires producer trust on every trusted route.
     assert!(TerminalProgram::borrow(contained.artifact().view()).is_err());
+    // Compile-time evaluation borrows it only as a contained program, and a
+    // received copy without that admission not at all.
+    assert!(
+        TerminalProgram::borrow_admitted(contained.artifact().view())
+            .unwrap()
+            .is_contained()
+    );
+    assert!(TerminalProgram::borrow_admitted(unadmitted.view()).is_err());
 
     let program = TerminalProgram::admit_contained(&contained);
     assert!(program.is_contained());

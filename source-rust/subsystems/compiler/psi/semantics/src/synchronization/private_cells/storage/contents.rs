@@ -6,7 +6,7 @@ mod indices;
 use super::{Assumption, CaseEffect, Location};
 use crate::entry_values::TerminalScalarValue as Scalar;
 use crate::synchronization::progress::ScalarFact;
-use crate::synchronization::spin::CellUpdate;
+use crate::synchronization::spin::{AtomicWordUpdate, CellUpdate};
 use semantic_vocabulary::{ScalarType, StructuralCaseId};
 use std::rc::Rc;
 use terminal_psi::StructuralPathSegment as Segment;
@@ -50,8 +50,7 @@ impl ScalarWitness {
         prior: &[Assumption],
         path: &[Assumption],
     ) {
-        let relevant =
-            |fact: &Assumption| value.literal().is_none() && fact.mentions(value);
+        let relevant = |fact: &Assumption| value.literal().is_none() && fact.mentions(value);
         if let Some(existing) = values.iter_mut().find(|candidate| candidate.value == value) {
             existing
                 .when
@@ -423,6 +422,53 @@ impl Stored {
             }
             _ => *self = Self::Unknown,
         }
+    }
+
+    /// Evaluate one atomic instruction in the caller's storage. The result is
+    /// the new word, if this instruction can change it. A failed exchange can
+    /// preserve the word even when the proposed replacement is unknown.
+    pub(in super::super) fn after_observation<V>(
+        &self,
+        scalar_type: ScalarType,
+        update: AtomicWordUpdate<V>,
+        mut value: impl FnMut(V) -> Option<ScalarFact>,
+    ) -> Option<Self> {
+        let next = match update {
+            AtomicWordUpdate::Stable(CellUpdate::Observe) => return None,
+            AtomicWordUpdate::Stable(CellUpdate::CompareExchange {
+                expected,
+                replacement,
+            }) => {
+                let observed = self.scalar(scalar_type);
+                let replacement = value(replacement);
+                match (value(expected), replacement) {
+                    (Some(expected), _) if observed == Some(expected) => replacement.into(),
+                    (Some(expected), _) if replacement == Some(expected) => return None,
+                    (Some(expected), Some(replacement)) => {
+                        self.after_update(CellUpdate::CompareExchange {
+                            expected,
+                            replacement,
+                        })
+                    }
+                    (Some(ScalarFact::Literal(_)), _)
+                        if observed.and_then(ScalarFact::literal).is_some() =>
+                    {
+                        return None;
+                    }
+                    _ => Self::Unknown,
+                }
+            }
+            AtomicWordUpdate::Stable(change) => change
+                .try_map(value)
+                .map_or(Self::Unknown, |change| self.after_update(change)),
+            AtomicWordUpdate::Periodic(orbit) => {
+                let step = orbit.try_map(|operand| value(operand)?.literal());
+                self.map_scalars(scalar_type, |prior| {
+                    step?.next(prior.literal()?).map(ScalarFact::Literal)
+                })
+            }
+        };
+        Some(next)
     }
 
     /// Apply the instruction's transfer independently to every admitted

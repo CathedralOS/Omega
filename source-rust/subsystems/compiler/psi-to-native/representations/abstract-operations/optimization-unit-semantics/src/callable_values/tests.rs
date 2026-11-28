@@ -2,8 +2,8 @@
 
 use super::*;
 use abstract_operations::{
-    AbstractBlock, AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractParameter,
-    AbstractResult, AbstractStructuralCallResult,
+    AbstractBlock, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperationPlan, AbstractParameter, AbstractResult, AbstractStructuralCallResult,
 };
 use semantic_vocabulary::{
     BlockId, CallableContractId, ContractId, EdgeId, MachineDescriptorId, MachineId, OperationId,

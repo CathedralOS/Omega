@@ -1,0 +1,12 @@
+// `w` and `c` both equal `embed(r) + embed(t)`, so they equal each other.
+machine chained(w: u64, r: u64, t: u64, c: u64)
+requires embed(w) == embed(r) + embed(t), embed(r) + embed(t) == embed(c)
+{
+    same(c, w);
+}
+
+machine same(a: u64, b: u64)
+requires a == b
+{}
+
+machine main() {}

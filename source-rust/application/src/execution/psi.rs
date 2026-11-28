@@ -18,6 +18,17 @@ pub(super) fn execute(
             "run lost its produced Psi artifact before execution",
         ))?;
     let runtime = report.runtime();
+    if let Some(contained) = report.contained() {
+        return super::contained::execute(
+            contained,
+            program.artifact,
+            target,
+            runtime.map(|provisions| provisions.execution()),
+            input,
+            psi_work_budget,
+            directories,
+        );
+    }
     use terminal_runtime::{
         TerminalFilesystemDelegation as Filesystem, TerminalNativeServiceDelegation as Services,
     };

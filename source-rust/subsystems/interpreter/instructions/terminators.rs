@@ -2729,18 +2729,24 @@ impl TerminalExecution<'_> {
         meter: &mut dyn ExecutionMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         self.reject_no_normal_return()?;
-        let Terminator::Return {
-            value,
-            cleanup_actions,
-            ..
-        } = terminator
-        else {
-            unreachable!("dispatched settle_return")
-        };
         let machine = self.program.verified_machine(self.current_machine)?;
-        if !matches!(machine.result, TerminalMachineResult::Scalar(_)) {
-            return Err(malformed());
-        }
+        let (value, cleanup_actions) = match (terminator, &machine.result) {
+            (
+                Terminator::Return {
+                    value,
+                    cleanup_actions,
+                    ..
+                },
+                TerminalMachineResult::Scalar(_),
+            ) => (Some(*value), cleanup_actions),
+            (
+                Terminator::ReturnUnit {
+                    cleanup_actions, ..
+                },
+                TerminalMachineResult::Unit,
+            ) => (None, cleanup_actions),
+            _ => return Err(malformed()),
+        };
         let cleanup_actions = block_bindings::BlockBindings::default().prepare_cleanup_actions(
             self,
             &[],
@@ -2750,43 +2756,13 @@ impl TerminalExecution<'_> {
         if let Err(error) = meter.charge_terminator(terminator) {
             return meter_status(error).map(TerminatorFlow::Yield);
         }
-        let result = self.scalar_value(*value)?;
-        self.continue_cleanup_actions(
-            cleanup_actions.into_iter(),
-            CleanupContinuation::Return(CompletedReturn::plain(TerminalExecutionResult::Scalar(
-                result,
-            ))),
-        )
-    }
-
-    pub(crate) fn settle_return_unit(
-        &mut self,
-        terminator: &Terminator,
-        meter: &mut dyn ExecutionMeter,
-    ) -> Result<TerminatorFlow, TerminalInterpretError> {
-        self.reject_no_normal_return()?;
-        let Terminator::ReturnUnit {
-            cleanup_actions, ..
-        } = terminator
-        else {
-            unreachable!("dispatched settle_return_unit")
+        let result = match value {
+            Some(value) => TerminalExecutionResult::Scalar(self.scalar_value(value)?),
+            None => TerminalExecutionResult::Unit,
         };
-        let machine = self.program.verified_machine(self.current_machine)?;
-        if machine.result != TerminalMachineResult::Unit {
-            return Err(malformed());
-        }
-        let cleanup_actions = block_bindings::BlockBindings::default().prepare_cleanup_actions(
-            self,
-            &[],
-            cleanup_actions,
-            None,
-        )?;
-        if let Err(error) = meter.charge_terminator(terminator) {
-            return meter_status(error).map(TerminatorFlow::Yield);
-        }
         self.continue_cleanup_actions(
             cleanup_actions.into_iter(),
-            CleanupContinuation::Return(CompletedReturn::plain(TerminalExecutionResult::Unit)),
+            CleanupContinuation::Return(CompletedReturn::plain(result)),
         )
     }
 
@@ -2805,7 +2781,7 @@ impl TerminalExecution<'_> {
         else {
             unreachable!("dispatched settle_crash")
         };
-        if frontier_lower_bound != &self.live_claims.keys().copied().collect::<Vec<_>>() {
+        if frontier_lower_bound.iter().ne(self.live_claims.keys()) {
             return Err(malformed());
         }
         if let Err(error) = meter.charge_terminator(terminator) {

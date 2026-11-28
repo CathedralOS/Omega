@@ -1376,10 +1376,9 @@ fn attach_custody(
         let original = {
             let mut retained = program
                 .authored_declaration_selections()
-                .iter()
+                .at_source_span(*reference)
                 .filter(|row| {
-                    row.source_span() == *reference
-                        && row.exposure() == Exposure::PrivateImplementation
+                    row.exposure() == Exposure::PrivateImplementation
                         && row.kind() == Kind::Call
                         && row.compiler_partition().is_none()
                 });

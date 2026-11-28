@@ -107,6 +107,20 @@ impl Operand {
         argument: &StaticMachineArgument,
         supplying_owner: SymbolHandle,
     ) -> Served<Self> {
+        Self::read_after(program, binder, argument, supplying_owner, &[])
+    }
+
+    /// [`Operand::read`], given the operands already read for the binders
+    /// before this one. An implementation binder bounded by an applied trait,
+    /// `E satisfies EqualImpliesIdentity<T>`, is given an implementation of
+    /// that trait at the types those operands supply.
+    pub fn read_after(
+        program: &mut TypedTrees,
+        binder: &crate::source_state::data::TypeParameter,
+        argument: &StaticMachineArgument,
+        supplying_owner: SymbolHandle,
+        earlier: &[Operand],
+    ) -> Served<Self> {
         use crate::source_state::data::TypeParameterKind;
         let parameter = binder.symbol;
         let kind = &binder.kind;
@@ -135,7 +149,7 @@ impl Operand {
                 (identity, StaticMachineBindingValue::Type(reference))
             }
             TypeParameterKind::Implementation => (
-                Identity::Declaration(named_implementation(program, parameter, argument)?),
+                Identity::Declaration(named_implementation(program, parameter, argument, earlier)?),
                 StaticMachineBindingValue::Conformance(argument.clone()),
             ),
             TypeParameterKind::Const { type_reference }
@@ -598,17 +612,19 @@ fn named_callable(program: &TypedTrees, argument: &StaticMachineArgument) -> Ser
 /// The implementation a static argument names when it is only a name, as
 /// the declaration that stands for its value: an implementation parameter
 /// in scope, or a named implementation with no parameters of its own, of
-/// exactly the trait `parameter` is bound by. An applied implementation, a
-/// projection and a bound applied at arguments are unserved here.
+/// exactly the trait `parameter` is bound by, at the bound's arguments with
+/// the `earlier` type operands in place of their binders. An applied
+/// implementation and a projection are unserved here.
 ///
 /// conformances.md, "Resulting-value identity": "A name or unused
 /// constructor argument creates no additional identity", so two names that
 /// construct one value are one argument, and the application is keyed by the
 /// first declaration constructing it (`implementation_value_head`).
 fn named_implementation(
-    program: &TypedTrees,
+    program: &mut TypedTrees,
     parameter: SymbolHandle,
     argument: &StaticMachineArgument,
+    earlier: &[Operand],
 ) -> Served<SymbolHandle> {
     let symbol = argument.symbol;
     if !only_a_name(program, argument)
@@ -634,15 +650,23 @@ fn named_implementation(
                     "an implementation binder needs exactly one declared conformance bound",
                 ));
             };
-            let plain = program.conformance_by_symbol(symbol).is_some_and(|named| {
-                named.trait_symbol == bound.trait_symbol
-                    && bound.arguments.is_empty()
-                    && bound.lifetime_arguments.is_empty()
-                    && named.arguments.is_empty()
-                    && named.trait_lifetime_arguments.is_empty()
-                    && named.lifetime_parameters.is_empty()
-                    && program.conformance_type_parameters(named).is_empty()
-            });
+            let bound = bound.clone();
+            let Some(named) = program.conformance_by_symbol(symbol).cloned() else {
+                return Err(unserved(
+                    "a static implementation must be plain and match its binder's exact trait",
+                ));
+            };
+            let written = program
+                .type_reference_table
+                .type_reference_handles(named.arguments)
+                .to_vec();
+            let plain = named.trait_symbol == bound.trait_symbol
+                && bound.lifetime_arguments.is_empty()
+                && named.trait_lifetime_arguments.is_empty()
+                && named.lifetime_parameters.is_empty()
+                && program.conformance_type_parameters(&named).is_empty()
+                && written.len() == bound.arguments.len()
+                && bound_arguments_match(program, owner, &bound.arguments, &written, earlier)?;
             if !plain {
                 return Err(unserved(
                     "a static implementation must be plain and match its binder's exact trait",
@@ -654,6 +678,34 @@ fn named_implementation(
             "a static implementation argument names neither an implementation nor its parameter",
         )),
     }
+}
+
+/// Whether an implementation's trait arguments are its binder's bound
+/// arguments with each earlier type binder replaced by its operand. A bound
+/// argument still naming an open binder matches no closed implementation.
+fn bound_arguments_match(
+    program: &mut TypedTrees,
+    owner: SymbolHandle,
+    bound: &[TypeReferenceHandle],
+    written: &[TypeReferenceHandle],
+    earlier: &[Operand],
+) -> Served<bool> {
+    let substitutions = earlier
+        .iter()
+        .filter_map(|operand| match operand.value {
+            StaticMachineBindingValue::Type(reference) => Some((operand.parameter, reference)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    for (&bound, &written) in bound.iter().zip(written) {
+        let applied = program
+            .substitute_type_parameters(bound, owner, &substitutions)
+            .map_err(unserved)?;
+        if program.normalized_type_identity(applied) != program.normalized_type_identity(written) {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 fn named_static_record(

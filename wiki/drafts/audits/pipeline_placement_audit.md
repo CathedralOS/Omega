@@ -42,7 +42,7 @@ raw evidence and codecs).
 
 | Location | Content | Disposition |
 | --- | --- | --- |
-| `omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/literal_fold_rewrites.rs` (`identity` module) | the `LiteralFoldIdentity` content encoding and producer; the identity type itself is imported from `representations/selected-instructions` | Open: the other two named identities (fixed-view-copy, pressure-rematerialization) moved to `representations/selected-instructions` at `dfb414e84c`; literal fold alone remains |
+| `omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/literal_fold_rewrites.rs` (`identity` module) | the `LiteralFoldIdentity` content encoding and producer; the identity type itself is imported from `representations/selected-instructions` | Resolved: `LiteralFoldIdentity` and the other rewrite receipt digests were deleted; the transformation ledger records each rewrite by kind |
 
 ## Rows verified clean
 

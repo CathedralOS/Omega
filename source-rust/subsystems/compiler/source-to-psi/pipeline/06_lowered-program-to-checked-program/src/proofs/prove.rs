@@ -2644,6 +2644,9 @@ impl<'a> Prover<'a> {
                         "integer order antisymmetry requires one non-address integer carrier",
                     );
                 }
+                if let Some(proof) = self.equal_through_equations(goal) {
+                    return Ok(proof);
+                }
                 self.antisymmetry(
                     goal,
                     Proposition::LessOrEqual(left.clone(), right.clone()),
@@ -5410,7 +5413,238 @@ impl<'a> Prover<'a> {
         }
         self.correlated_subtract(left, right)
             .or_else(|| self.mathematical_offset_order(left, right))
+            .or_else(|| self.equal_term_order(left, right))
             .ok_or(interval.err().unwrap_or("no bound"))
+    }
+
+    /// `left == right` over fixed integers from two mathematical equations
+    /// that meet in one term: `embed(left) == X` and `X == embed(right)`.
+    /// The second equation may first be transported through the value
+    /// equalities among the facts, so `embed(r) + embed(m) == embed(c)` meets
+    /// `embed(w) == embed(r) + embed(t)` given `m == t`. Each direction of
+    /// the order starts from `embed(left) <= embed(left)` and rewrites one
+    /// endpoint along the two equations; antisymmetry joins the directions.
+    fn equal_through_equations(&mut self, goal: &Proposition) -> Option<ProofNode> {
+        let Proposition::Equal(goal_left, goal_right) = goal else {
+            return None;
+        };
+        let Some(Proposition::IntegerMathEqual(first, second)) =
+            proof_admission::lift_fixed_integer_relation(goal)
+        else {
+            return None;
+        };
+        let equations: Vec<usize> = (0..self.facts.len())
+            .filter(|&index| {
+                matches!(
+                    self.facts[index].proposition(),
+                    Proposition::IntegerMathEqual(..)
+                )
+            })
+            .collect();
+        let values: Vec<usize> = (0..self.facts.len())
+            .filter(|&index| {
+                matches!(
+                    self.facts[index].proposition(),
+                    Proposition::Equal(subject @ (ScalarTerm::Value { .. } | ScalarTerm::StructuralRead { .. }), other)
+                        if subject != other
+                            && subject.scalar_type().as_integer().is_some()
+                )
+            })
+            .collect();
+        let other = |proposition: &Proposition, term: &IntegerMathTerm| match proposition {
+            Proposition::IntegerMathEqual(left, right) if left == term && right != term => {
+                Some(right.clone())
+            }
+            Proposition::IntegerMathEqual(left, right) if right == term && left != term => {
+                Some(left.clone())
+            }
+            _ => None,
+        };
+        let sorted = |left: &IntegerMathTerm, right: &IntegerMathTerm| {
+            if left <= right {
+                Proposition::IntegerMathEqual(left.clone(), right.clone())
+            } else {
+                Proposition::IntegerMathEqual(right.clone(), left.clone())
+            }
+        };
+        for &start in &equations {
+            let Some(middle) = other(self.facts[start].proposition(), &first) else {
+                continue;
+            };
+            for &end in &equations {
+                if end == start {
+                    continue;
+                }
+                let end_fact = self.facts[end].proposition().clone();
+                let Some(reached) = other(&end_fact, &second) else {
+                    continue;
+                };
+                let joined = if reached == middle {
+                    self.compound_order_fact(end)
+                } else {
+                    if values.is_empty() {
+                        continue;
+                    }
+                    let wanted = sorted(&middle, &second);
+                    let equalities = || values.iter().map(|&index| self.facts[index].proposition());
+                    let (Ok(actual), Ok(needed)) = (
+                        check_value_equality_denotation(self.context, &end_fact, equalities()),
+                        check_value_equality_denotation(self.context, &wanted, equalities()),
+                    ) else {
+                        continue;
+                    };
+                    if actual != needed {
+                        continue;
+                    }
+                    let premise = self.compound_order_fact(end);
+                    let equalities = values
+                        .iter()
+                        .map(|&index| self.compound_order_fact(index))
+                        .collect();
+                    node(
+                        wanted,
+                        ProofRule::ValueEqualityTransport {
+                            premise: Box::new(premise),
+                            equalities,
+                        },
+                    )
+                };
+                let substitute = |relation: ProofNode,
+                                  equality: ProofNode,
+                                  endpoint: usize,
+                                  to: &IntegerMathTerm| {
+                    let Proposition::IntegerMathLessOrEqual(left, right) = &relation.conclusion
+                    else {
+                        unreachable!("only math orders are substituted here");
+                    };
+                    let conclusion = if endpoint == 0 {
+                        Proposition::IntegerMathLessOrEqual(to.clone(), right.clone())
+                    } else {
+                        Proposition::IntegerMathLessOrEqual(left.clone(), to.clone())
+                    };
+                    node(
+                        conclusion,
+                        ProofRule::IntegerOrderSubstitution {
+                            relation: Box::new(relation),
+                            equality: Box::new(equality),
+                            endpoint,
+                        },
+                    )
+                };
+                let begun = self.compound_order_fact(start);
+                let (path, from) =
+                    if IntegerMathTerm::embed(goal_left.clone()).as_ref() == Some(&first) {
+                        (
+                            [(begun, middle.clone()), (joined, second.clone())],
+                            first.clone(),
+                        )
+                    } else {
+                        (
+                            [(joined, middle.clone()), (begun, first.clone())],
+                            second.clone(),
+                        )
+                    };
+                let reflexive = self.reflexive_math_order(goal_left, &from)?;
+                let walk = |endpoint: usize| {
+                    path.iter()
+                        .fold(reflexive.clone(), |relation, (equality, to)| {
+                            substitute(relation, equality.clone(), endpoint, to)
+                        })
+                };
+                let assumptions = self.assumptions.len();
+                let restated = |proof: ProofNode, left: &ScalarTerm, right: &ScalarTerm| {
+                    proof_admission::restate_integer_relation(
+                        Proposition::LessOrEqual(left.clone(), right.clone()),
+                        proof,
+                        assumptions,
+                    )
+                };
+                return Some(node(
+                    goal.clone(),
+                    ProofRule::IntegerOrderAntisymmetry {
+                        forward: Box::new(restated(walk(1), goal_left, goal_right)),
+                        backward: Box::new(restated(walk(0), goal_right, goal_left)),
+                    },
+                ));
+            }
+        }
+        None
+    }
+
+    /// `term <= term` in mathematical integers, for `term` the lift of the
+    /// fixed integer `operand`: reflexive equality, weakened to an order,
+    /// then restated through the lift.
+    fn reflexive_math_order(
+        &mut self,
+        operand: &ScalarTerm,
+        term: &IntegerMathTerm,
+    ) -> Option<ProofNode> {
+        let equal = self.reflexive(Proposition::Equal(operand.clone(), operand.clone()))?;
+        let order = node(
+            Proposition::LessOrEqual(operand.clone(), operand.clone()),
+            ProofRule::IntegerOrderWeakening {
+                relation: Box::new(equal),
+            },
+        );
+        Some(proof_admission::restate_integer_relation(
+            Proposition::IntegerMathLessOrEqual(term.clone(), term.clone()),
+            order,
+            self.assumptions.len(),
+        ))
+    }
+
+    /// `term <= limit` (or `limit <= term`) from a fact `term == other` and
+    /// the same order on `other`: `embed(x) + embed(y) == embed(z)` bounds the
+    /// sum by `embed(z)`'s carrier although each operand alone could reach it.
+    /// The kernel replays the rewrite as `IntegerOrderSubstitution`.
+    fn equal_term_order(
+        &mut self,
+        left: &IntegerMathTerm,
+        right: &IntegerMathTerm,
+    ) -> Option<ProofNode> {
+        let (term, upper) = match (left, right) {
+            (IntegerMathTerm::IntegerLiteral(_), IntegerMathTerm::IntegerLiteral(_)) => {
+                return None;
+            }
+            (term, IntegerMathTerm::IntegerLiteral(_)) => (term, true),
+            (IntegerMathTerm::IntegerLiteral(_), term) => (term, false),
+            _ => return None,
+        };
+        for index in 0..self.facts.len() {
+            let Proposition::IntegerMathEqual(first, second) = self.facts[index].proposition()
+            else {
+                continue;
+            };
+            let other = if first == term {
+                second
+            } else if second == term {
+                first
+            } else {
+                continue;
+            };
+            if other == term {
+                continue;
+            }
+            let other = other.clone();
+            let subgoal = if upper {
+                Proposition::IntegerMathLessOrEqual(other, right.clone())
+            } else {
+                Proposition::IntegerMathLessOrEqual(left.clone(), other)
+            };
+            let Ok(relation) = self.prove_direct_subgoal(&subgoal) else {
+                continue;
+            };
+            let equality = self.compound_order_fact(index);
+            return Some(node(
+                Proposition::IntegerMathLessOrEqual(left.clone(), right.clone()),
+                ProofRule::IntegerOrderSubstitution {
+                    relation: Box::new(relation),
+                    equality: Box::new(equality),
+                    endpoint: if upper { 0 } else { 1 },
+                },
+            ));
+        }
+        None
     }
 
     /// `0 <= a - b` for an unsigned exact subtract, from `b <= a` between the

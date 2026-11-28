@@ -69,7 +69,9 @@ fn a_row_for_another_target_is_checked() {
 fn every_row_with_a_provable_entry_checks() {
     // The twin binds the provable entry for every target.
     let (success, text) = check_fixture("windows_x86_64", |build| {
-        build.replace(", launch);", ", other);")
+        let provable = build.replace("|app|::launch);", "|app|::other);");
+        assert_ne!(provable, build, "the fixture binds `launch`");
+        provable
     });
     assert!(success, "{text}");
 }

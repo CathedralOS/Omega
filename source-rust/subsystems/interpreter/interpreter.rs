@@ -152,9 +152,9 @@ pub use embedding::adapters::{
 };
 pub use embedding::instance::{
     TerminalBindingRejection, TerminalComponentBinding, TerminalDiscardStatus, TerminalInstance,
-    TerminalInstanceCloseError, TerminalOutstandingCustody, TerminalInstanceError, TerminalObservationRoot,
-    TerminalProcessExitAdmission, TerminalReturnedLoan, TerminalReturnedLoanError,
-    TerminalStorageObservationError, TerminalStorageObservationValue,
+    TerminalInstanceCloseError, TerminalInstanceError, TerminalObservationRoot,
+    TerminalOutstandingCustody, TerminalProcessExitAdmission, TerminalStorageObservationError,
+    TerminalStorageObservationValue,
 };
 pub use embedding::program::{
     TerminalInstantiation, TerminalProgram, TerminalProgramEntry, TerminalScalarApplicationRequest,
