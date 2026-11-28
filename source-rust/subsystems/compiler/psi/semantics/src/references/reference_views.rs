@@ -151,6 +151,57 @@ pub fn descriptor_reborrow_shapes_match(
         && destination_ceiling.is_none_or(|access| requested_access.admits_referent(access))
 }
 
+/// Select the existing shared descriptor that supplies a mutability upgrade.
+/// For a canonical input view, the incoming formal or producing operation
+/// must supply its shared permission.
+pub fn mutability_upgrade_source<'a>(
+    machine: &terminal_psi::TerminalMachine,
+    types: &'a [StructuralTypeDeclaration],
+    source: &terminal_psi::StructuralArgument,
+    destination: &StructuralTypeShape,
+) -> Option<&'a StructuralTypeDeclaration> {
+    if source.access != StructuralAccess::SharedBorrow {
+        return None;
+    }
+    let root = machine.structural_place_type(source.place)?;
+    let input = runtime_structural_path_tip(types.iter(), root, &source.path)?;
+    let permission = if input.shape.is_canonical_view_descriptor() {
+        crate::structural_projection_authority(machine, types, source)
+    } else {
+        None
+    };
+    mutability_upgrade_shapes_match(&input.shape, permission, destination).then_some(input)
+}
+
+/// An unsafe upgrade changes only the permission of an existing descriptor.
+/// A canonical input view takes its source permission from its occurrence.
+/// The result must explicitly carry the borrowed mutable descriptor ABI.
+pub fn mutability_upgrade_shapes_match(
+    source: &StructuralTypeShape,
+    source_occurrence_access: Option<StructuralAccess>,
+    destination: &StructuralTypeShape,
+) -> bool {
+    use StructuralAccess::{MutableBorrow, SharedBorrow};
+    match (source, destination) {
+        (
+            StructuralTypeShape::Reference {
+                referent: from,
+                access: SharedBorrow,
+            },
+            StructuralTypeShape::Reference {
+                referent: to,
+                access: MutableBorrow,
+            },
+        ) => from == to,
+        _ => {
+            descriptor_geometry_matches(source, destination)
+                && stored_reference_access(source).or(source_occurrence_access)
+                    == Some(SharedBorrow)
+                && stored_reference_access(destination) == Some(MutableBorrow)
+        }
+    }
+}
+
 pub fn stored_reference_access(shape: &StructuralTypeShape) -> Option<StructuralAccess> {
     match shape {
         StructuralTypeShape::Reference { access, .. } => Some(*access),

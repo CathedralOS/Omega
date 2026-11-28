@@ -294,6 +294,10 @@ fn exact_authored_invocations(
         .iter()
         .map(|entry| match entry {
             ServiceSynchronousInvocation::Service(name) => Ok(name.clone()),
+            ServiceSynchronousInvocation::ProjectedParameter { parameter, path } => Err(diagnostics::Diagnostic::error(format!(
+                "ProviderPlan `{}` exact overload `{}` has no checked invocation target for parameter {parameter}{}",
+                plan.name, plan.schema.identity_text(method.requirement_identity), semantic_vocabulary::display_invocation_path(path),
+            ))),
             ServiceSynchronousInvocation::Parameter(position) => Err(diagnostics::Diagnostic::error(format!(
                 "ProviderPlan `{}` exact overload `{}` has no checked invocation target for callable parameter {position}",
                 plan.name,

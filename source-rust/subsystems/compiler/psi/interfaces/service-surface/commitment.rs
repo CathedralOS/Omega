@@ -234,6 +234,29 @@ impl<Output: ServiceContractSink> ContractEncoder<'_, Output> {
                     self.byte(2);
                     self.string(name);
                 }
+                ServiceSynchronousInvocation::ProjectedParameter { parameter, path } => {
+                    use semantic_vocabulary::InvocationPathSegment as Step;
+                    self.byte(3);
+                    self.output.service_contract_bytes(&parameter.to_le_bytes());
+                    self.len(path.len());
+                    for step in path {
+                        match step {
+                            Step::Field(name) => {
+                                self.byte(1);
+                                self.string(name);
+                            }
+                            Step::FixedIndex(index) => {
+                                self.byte(2);
+                                self.output.service_contract_bytes(&index.to_le_bytes());
+                            }
+                            Step::Case(name) => {
+                                self.byte(3);
+                                self.string(name);
+                            }
+                            Step::Referent => self.byte(4),
+                        }
+                    }
+                }
             }
         }
         self.bool(method.may_suspend);

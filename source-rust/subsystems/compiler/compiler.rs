@@ -6,6 +6,9 @@ mod request_outcome;
 mod runtime_consent;
 pub use provider_correspondence::trust::selected_provider_grants;
 pub use request_outcome::CompilerRequestOutcome;
+pub use runtime_consent::{
+    RealizedServicePermissions, reviewed_nominal_identity, reviewed_service_declaration,
+};
 
 use diagnostics::Diagnostic;
 use psi_authorization::{

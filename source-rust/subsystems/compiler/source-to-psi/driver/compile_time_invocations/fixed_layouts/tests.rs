@@ -265,8 +265,10 @@ machine packet_size<'target>(target: @'target |layout|::LayoutTarget) -> u64 rea
         provider_declarations: Vec::new(),
     });
     let mut accounting = crate::compile_time_invocations::SourceCompletionAccounting::default();
-    evaluate(&mut source, &scopes, &mut accounting)
-    .unwrap_or_else(|errors| panic!("{}", diagnostics::join_messages(&errors)));
+    let workers = worker_budget::ExecutionBudget::with_workers(2).unwrap();
+    workers
+        .run(|| evaluate(&mut source, &scopes, &mut accounting))
+        .unwrap_or_else(|errors| panic!("{}", diagnostics::join_messages(&errors)));
     let [plan] = source.plan_laid_layouts.as_slice() else {
         panic!("one authored policy");
     };

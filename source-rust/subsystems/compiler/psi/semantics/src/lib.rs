@@ -180,8 +180,9 @@ pub use operations::{OperationSemanticError, OperationSemanticTag};
 pub use references::reference_views::{
     borrowed_field_presentation, descriptor_geometry_matches, descriptor_reborrow_matches,
     descriptor_reborrow_shapes_match, descriptor_source_projection_accessible,
-    descriptor_value_transfer_matches, is_copyable_carrier, reference_byte_field_compatible,
-    reference_referent_compatible, reference_source_compatible,
+    descriptor_value_transfer_matches, is_copyable_carrier, mutability_upgrade_shapes_match,
+    mutability_upgrade_source, reference_byte_field_compatible, reference_referent_compatible,
+    reference_source_compatible,
     reference_source_projection_accessible, reference_source_projection_compatible,
     reference_source_storage_path, reference_storage_export_byte_width,
     reference_storage_source_compatible, scalar_reference_view_admits,
@@ -312,8 +313,9 @@ pub use structural::structural_claims::{
 };
 
 pub use scalars::scalar_observations::{
-    scalar_application_read_equation, storage_alignment_fact, structural_read_scalar_type,
-    structural_read_type_with_crossings, structural_read_type_with_extents,
+    known_storage_alignment, scalar_application_read_equation, storage_alignment_fact,
+    structural_observation_bound, structural_read_scalar_type, structural_read_type_with_crossings,
+    structural_read_type_with_extents,
 };
 
 pub use access::access_ram_origins::{

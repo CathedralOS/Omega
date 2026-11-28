@@ -57,9 +57,6 @@ pub(crate) fn runtime_permission_rows(
     permissions: &[crate::permission_acceptance::RuntimeServicePermission],
     assumptions: &[crate::record::PackagePolicyComponentAssumption],
 ) -> Result<Vec<PackagePolicyRow>, PackageReviewEncodingError> {
-    use crate::record::{
-        PackagePolicyTerminalPermission, PackageReviewNominalIdentity, PackageReviewNominalOwner,
-    };
     let mut builder = Builder::new(
         package,
         target,
@@ -68,18 +65,7 @@ pub(crate) fn runtime_permission_rows(
         true,
     )?;
     for row in permissions {
-        let nominal = |path: &str| PackageReviewNominalIdentity {
-            owner: PackageReviewNominalOwner::Package(row.owner),
-            path: path.to_owned(),
-        };
-        components::terminal_permission(
-            &mut builder,
-            &nominal(&row.service_path).into(),
-            &PackagePolicyTerminalPermission {
-                requirement: nominal(&row.requirement_path),
-                permitted: row.permitted.clone(),
-            },
-        )?;
+        components::terminal_permission(&mut builder, &row.service, &row.permission)?;
     }
     assembly::component_assumptions_rows(&mut builder, assumptions)?;
     builder.finish().map(|(rows, _)| rows)
@@ -88,7 +74,7 @@ pub(crate) fn runtime_permission_rows(
 fn restricted_request_schema(request: &crate::record::PackagePolicyRestrictedBuildRequest) -> u16 {
     match request.operation {
         build_consent::RestrictedBuildOperation::SendDatagram { .. } => {
-            crate::encoding::BASELINE_WITH_NETWORK_REQUESTS
+            crate::encoding::BASELINE_WITH_NETWORK_AUTHORITY
         }
         _ => crate::encoding::BASELINE_WITHOUT_STRUCTURAL_PARAMETERS,
     }
@@ -111,7 +97,7 @@ pub fn restricted_build_request_acceptance_text(
             ),
             true,
             true,
-            &|encoder| baseline::request(encoder, &request),
+            &|encoder| baseline::request(encoder, &request, restricted_request_schema(&request)),
         )
     })
 }
@@ -122,7 +108,9 @@ pub fn restricted_build_request_payload(
     request: &build_consent::RestrictedBuildRequest,
 ) -> Result<String, PackageReviewEncodingError> {
     let request = crate::record::PackagePolicyRestrictedBuildRequest::from(request);
-    canonical_request_text(|encoder| baseline::request(encoder, &request))
+    canonical_request_text(|encoder| {
+        baseline::request(encoder, &request, restricted_request_schema(&request))
+    })
 }
 
 fn canonical_request_text(

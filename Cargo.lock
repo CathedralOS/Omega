@@ -220,6 +220,7 @@ dependencies = [
  "build-model",
  "build-output",
  "filesystem-authority",
+ "semantic-vocabulary",
  "target",
 ]
 
@@ -567,6 +568,7 @@ dependencies = [
  "build-providers",
  "component-description",
  "diagnostics",
+ "language-core",
  "native-compiler",
  "package-compilation",
  "product-publication",
@@ -575,9 +577,13 @@ dependencies = [
  "psi-entry-memory",
  "review-evidence",
  "semantic-vocabulary",
+ "source-admission",
  "source-compiler",
+ "source-provenance",
+ "symbols",
  "target",
  "terminal-codec",
+ "terminal-psi",
 ]
 
 [[package]]

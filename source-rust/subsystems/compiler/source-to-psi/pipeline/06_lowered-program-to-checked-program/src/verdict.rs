@@ -703,32 +703,15 @@ fn exceeded_reach(
                     format!("parameter {}", u64::from(*position) + 1)
                 }
                 crate::ceilings::Permission::Entry(
-                    terminal_psi::TerminalCallableInvocation::ParameterPath { parameter, path },
-                ) => {
-                    use std::fmt::Write;
-                    use terminal_psi::StructuralPathSegment as Step;
-                    let mut result = format!("parameter {}", u64::from(*parameter) + 1);
-                    for step in path {
-                        match step {
-                            Step::Field(identity) => {
-                                let _ = write!(
-                                    result,
-                                    ".{}",
-                                    module.identities.text(*identity).unwrap_or("?")
-                                );
-                            }
-                            Step::FixedIndex(index) => {
-                                let _ = write!(result, "[{index}]");
-                            }
-                            Step::Case(case) => {
-                                let _ = write!(result, "::{case:?}");
-                            }
-                            Step::Referent => result.push_str(".*"),
-                            _ => result.push_str(".?"),
-                        }
-                    }
-                    result
-                }
+                    terminal_psi::TerminalCallableInvocation::ProjectedParameter {
+                        parameter,
+                        path,
+                    },
+                ) => format!(
+                    "parameter {}{}",
+                    u64::from(*parameter) + 1,
+                    semantic_vocabulary::display_invocation_path(path)
+                ),
                 crate::ceilings::Permission::Entry(
                     terminal_psi::TerminalCallableInvocation::Service(service),
                 ) => module
@@ -1299,9 +1282,8 @@ fn plan_affine_machines(
 /// The affine plan of `machine`: its dead stored references each have an
 /// explicit last-use disposition, and its owned values are used affinely.
 /// Beside it, what the claim receiver (`minted::follow_the_lowered_form`)
-/// reads from `MachineAffine::verify_claims` on this same module. Two walks
-/// answer all three: the reference-end walk and `verify_with_claims`. Both
-/// read `machine`'s borrowed-storage closure from the shared analyses.
+/// reads from the same verification walk. Only a candidate can produce a
+/// missing last-use disposition, so an empty candidate set needs no plan.
 fn affine_plan(
     analyses: &terminal_semantics::ModuleAnalyses<'_>,
     machine: MachineId,
@@ -1324,19 +1306,19 @@ fn affine_plan(
     let walks = analyses
         .affine(machine)
         .map_err(|error| AffineRefusal::of(crate::minted::affine_refusal(machine, error)))?;
-    let ends = walks
-        .plan_reference_ends(candidates)
-        .map_err(|error| AffineRefusal::of(crate::minted::affine_refusal(machine, error)))?;
-    if !ends.reference_ends.is_empty() {
-        return Err(AffineRefusal::Decided(fall_back_or_defect(refusal(
-            RefusalReason::ForeignIdentity,
-            machine,
-            Construct::Machine,
-            "a dead stored reference has no explicit last-use disposition",
-        ))));
+    if !candidates.is_empty() {
+        let ends = walks
+            .plan_reference_ends(candidates)
+            .map_err(|error| AffineRefusal::of(crate::minted::affine_refusal(machine, error)))?;
+        if !ends.reference_ends.is_empty() {
+            return Err(AffineRefusal::Decided(fall_back_or_defect(refusal(
+                RefusalReason::ForeignIdentity,
+                machine,
+                Construct::Machine,
+                "a dead stored reference has no explicit last-use disposition",
+            ))));
+        }
     }
-    // One walk with claims answers both the verified schedule and the claim
-    // rows the receiver reads, on the graph the walk above built.
     let (plan, received) = walks
         .verify_with_claims()
         .map_err(|error| AffineRefusal::of(crate::minted::affine_refusal(machine, error)))?;

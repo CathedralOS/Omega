@@ -120,6 +120,7 @@ fn entry_and_dispatch_agree_on_which_parameter_uses_need_storage() {
     let call_argument =
         |id, access, offset| transport(id, access, offset, placement.clone(), placement.clone());
     let call = |arguments| LegalizedScalarCall {
+        suspension_crossing: None,
         arguments,
         call_plan: call_plan.clone(),
         source: NativeCallOrigin::Authored,

@@ -55,7 +55,7 @@ impl ExternalBindingIdentity {
 macro_rules! semantic_id {
     ($(#[$doc:meta])* $name:ident) => {
         $(#[$doc])*
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, record_storage::Record)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, record_storage::Record)]
         pub struct $name(pub u32);
 
         impl $name {

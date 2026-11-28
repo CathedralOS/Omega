@@ -8,14 +8,15 @@ use crate::source_resolved::data::{TypeParameter, TypeParameterKind};
 use crate::source_resolved::types::{TypeReference, TypeReferenceArena};
 use crate::source_symbols::SymbolTable;
 use diagnostics::Diagnostic;
-use std::collections::HashMap;
 use symbols::{SymbolHandle, SymbolKind};
 
 /// A structural callable can contain an operand introduced by an opening at
 /// its use. Retain only symbols visible at that occurrence. Alias-owned names
 /// are still resolved by the definition-site filter in assign_signatures.
 #[derive(Default)]
-pub(super) struct CallableOpenings(HashMap<RuntimeCallableContractHandle, Vec<TypeParameter>>);
+pub(super) struct CallableOpenings(
+    Vec<Option<(RuntimeCallableContractHandle, Vec<TypeParameter>)>>,
+);
 
 impl CallableOpenings {
     pub(super) fn of(
@@ -27,17 +28,14 @@ impl CallableOpenings {
         if contracts.is_empty() || types.package_openings.is_empty() {
             return Ok(captured);
         }
-        let names: HashMap<_, _> = types
-            .package_openings
-            .iter()
-            .filter(|(_, binding)| binding.symbol.is_valid())
-            .map(|(_, binding)| (binding.symbol, binding))
-            .collect();
+        let declarations = &program.tables.declarations.runtime_callable_contracts;
         super::repeated_locals::inspect_bindings(program, &mut |reference, visible| {
             visit_callables(types, reference, &mut |contract| {
+                if visible.is_empty() || !declarations.is_valid(contract) {
+                    return;
+                }
                 let parameters = visible
                     .iter()
-                    .filter_map(|symbol| names.get(symbol))
                     .map(|binding| TypeParameter {
                         symbol: binding.symbol,
                         name: binding.name.clone(),
@@ -45,12 +43,19 @@ impl CallableOpenings {
                         bounds: Default::default(),
                     })
                     .collect::<Vec<_>>();
-                if !parameters.is_empty() {
-                    captured.0.insert(contract, parameters);
+                let index = contract.arena_index() as usize;
+                if captured.0.len() <= index {
+                    captured.0.resize_with(index + 1, || None);
                 }
+                captured.0[index] = Some((contract, parameters));
             });
         })?;
         Ok(captured)
+    }
+
+    fn parameters(&self, contract: RuntimeCallableContractHandle) -> Option<&[TypeParameter]> {
+        let (stored, parameters) = self.0.get(contract.arena_index() as usize)?.as_ref()?;
+        (*stored == contract).then_some(parameters.as_slice())
     }
 }
 
@@ -178,7 +183,7 @@ pub(super) fn callable_parameters(
         .runtime_callable_contracts
         .get(handle)
         .lexical_owner;
-    let parameters = openings.0.get(&handle).cloned().unwrap_or_default();
+    let parameters = openings.parameters(handle).unwrap_or_default().to_vec();
     owner_parameters(program, captured, openings, owner, parameters)
 }
 
@@ -208,7 +213,7 @@ pub(super) fn owner_parameters(
                 &parameters,
                 program.data_type_parameters(declaration.signature.type_parameters),
             );
-            if let Some(opened) = openings.0.get(&enclosing) {
+            if let Some(opened) = openings.parameters(enclosing) {
                 parameters = declaration_type_scope(&parameters, opened);
             }
             owner = declaration.lexical_owner;

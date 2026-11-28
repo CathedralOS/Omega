@@ -803,7 +803,10 @@ pub(crate) mod copy_removal {
                     instruction: id,
                     register: subject,
                 } => id == instruction || subject == register,
-                StructuralParameter { .. } | EntryParameter { .. } | BlockParameter { .. } => false,
+                ActivationOwner
+                | StructuralParameter { .. }
+                | EntryParameter { .. }
+                | BlockParameter { .. } => false,
             }
         }
 
