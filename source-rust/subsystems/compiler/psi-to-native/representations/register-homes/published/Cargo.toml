@@ -1,0 +1,12 @@
+[package]
+name = "allocated-body"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+allocated-body-issuer = { path = "issuer" }
+register-homes = { path = ".." }
+selected-instructions = { path = "../../selected-instructions" }
+register-environment = { path = "../../../targets/register-environment" }
+physical-program = { path = "../../post-allocation-machine/body-facts" }

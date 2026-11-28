@@ -1,0 +1,14 @@
+use main.omg as app;
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "checked_provider_input_domain" };
+    Build::select_provider::<|app|::Required, |app|::Actual>(builder, linux_arm64);
+    Build::select_provider::<|app|::Required, |app|::Actual>(builder, linux_x86_64);
+    Build::select_provider::<|app|::Required, |app|::Actual>(builder, macos_arm64);
+    Build::select_provider::<|app|::Required, |app|::Actual>(builder, windows_x86_64);
+    Build::select_provider::<|app|::Required, |app|::Actual>(builder, windows_arm64);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, windows_arm64::ProgramEntry, |app|::main);
+}

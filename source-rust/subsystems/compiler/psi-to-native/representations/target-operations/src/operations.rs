@@ -201,6 +201,8 @@ pub enum TargetUnitOperation {    InstallStaticInterrupt {
         indices: Vec<TargetStructuralRuntimeIndex>,
     },
     PrimitiveScalarRead {
+        /// Type of the stored scalar before a dependent callable field is opened.
+        storage_scalar: semantic_vocabulary::ScalarType,
         psi_operation: OperationId,
         result: AbstractResult,
         source: PlaceId,
@@ -404,6 +406,7 @@ pub enum TargetUnitOperation {    InstallStaticInterrupt {
     EstablishRecord {
         psi_operation: OperationId,
         result_home: crate::TargetStructuralHomeRequirement,
+        instantiated: operation_operands::structural_stores::InstantiatedFieldTypes,
         fields: Vec<terminal_psi::RecordFieldInitializer>,
     },
     EstablishAccessReference {

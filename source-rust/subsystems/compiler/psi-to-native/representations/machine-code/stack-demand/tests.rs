@@ -17,6 +17,7 @@ fn program() -> PhysicalStackProgram {
             program_fingerprint: SemanticFingerprint::from_bytes([5; 32]),
         },
         target: NativeTarget::linux_x64(),
+        entry: machine(1),
         functions: vec![
             PhysicalStackFunction {
                 machine: machine(1),
@@ -36,6 +37,20 @@ fn program() -> PhysicalStackProgram {
             },
         ],
     }
+}
+
+#[test]
+fn an_independent_worker_needs_a_call_graph_resolved_for_its_own_entry() {
+    let program = program();
+    // The worker has a perfectly good physical frame. That alone cannot
+    // reuse the targets resolved for a different caller's machine arguments.
+    assert_eq!(
+        derive_physical_stack_demand(&program, machine(2), vec![]),
+        Err(Error::DifferentEntry {
+            measured: machine(1),
+            requested: machine(2)
+        })
+    );
 }
 
 #[test]

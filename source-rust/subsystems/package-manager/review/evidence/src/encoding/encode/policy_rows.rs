@@ -73,6 +73,9 @@ pub(crate) fn runtime_permission_rows(
 
 fn restricted_request_schema(request: &crate::record::PackagePolicyRestrictedBuildRequest) -> u16 {
     match request.operation {
+        build_consent::RestrictedBuildOperation::ReceiveDatagram { .. } => {
+            crate::encoding::BASELINE_WITH_DATAGRAM_REPLIES
+        }
         build_consent::RestrictedBuildOperation::SendDatagram { .. } => {
             crate::encoding::BASELINE_WITH_NETWORK_AUTHORITY
         }

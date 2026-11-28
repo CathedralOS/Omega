@@ -3255,6 +3255,7 @@ pub(crate) mod record {
             result,
             fields: initializers,
             shape,
+            ..
         } = &row.kind
         else {
             return Err(invalid());

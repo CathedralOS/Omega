@@ -50,6 +50,9 @@ pub struct TerminalDeclarationEnvelope {
 pub struct TerminalCallableContract {
     pub id: CallableContractId,
     pub identity: TerminalIdentityIndex,
+    /// A named requirement admits only descriptors already bound to its route.
+    /// A structural callable has no such restriction on its supplier.
+    pub requirement: Option<TerminalIdentityIndex>,
     pub scalar_parameters: Vec<ValueDeclaration>,
     pub parameter_order: Vec<BoundaryParameterKind>,
     pub structural_parameters: Vec<StructuralParameterDeclaration>,

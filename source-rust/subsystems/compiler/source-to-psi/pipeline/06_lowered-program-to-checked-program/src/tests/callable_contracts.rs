@@ -64,27 +64,32 @@ fn refinement_module() -> TerminalModule {
         obligation: id(90),
         proposition: subject_bound(11, 10),
     }];
-    module.execution.callables.contracts.push(TerminalCallableContract {
-        id: id(1),
-        identity,
-        scalar_parameters: vec![parameter],
-        parameter_order,
-        structural_parameters: Vec::new(),
-        result: BoundaryMachineResult::Scalar(result.value_type()),
-        proof_result: TerminalMachineResult::Scalar(result),
-        entry_claim_paths: Vec::new(),
-        result_claim_paths: Vec::new(),
-        result_reference_regions: Vec::new(),
-        proof,
-        evidence_contract: Vec::new(),
-        envelope: TerminalCallableEnvelope {
-            service_reach: Vec::new(),
-            invocations: Vec::new(),
-            suspends: false,
-            blocks: false,
-            termination: TerminalCallableTermination::NotGuaranteed,
-        },
-    });
+    module
+        .execution
+        .callables
+        .contracts
+        .push(TerminalCallableContract {
+            id: id(1),
+            identity,
+            requirement: None,
+            scalar_parameters: vec![parameter],
+            parameter_order,
+            structural_parameters: Vec::new(),
+            result: BoundaryMachineResult::Scalar(result.value_type()),
+            proof_result: TerminalMachineResult::Scalar(result),
+            entry_claim_paths: Vec::new(),
+            result_claim_paths: Vec::new(),
+            result_reference_regions: Vec::new(),
+            proof,
+            evidence_contract: Vec::new(),
+            envelope: TerminalCallableEnvelope {
+                service_reach: Vec::new(),
+                invocations: Vec::new(),
+                suspends: false,
+                blocks: false,
+                termination: TerminalCallableTermination::NotGuaranteed,
+            },
+        });
     let goals = callable_contract_refinement_goals(&module, id(1), id(1)).unwrap();
     let mut next_obligation = 100;
     let obligations = goals
@@ -272,22 +277,32 @@ fn declared_refinement_module() -> TerminalModule {
     let identity = identities.intern(&required_identity);
     let application = identities.intern("source-owned-selected-application");
     module.identities = identities.build();
-    let envelope = module.execution.callables.machine_envelope(id(1)).unwrap().clone();
-    module.execution.callables.contracts.push(TerminalCallableContract {
-        id: id(1),
-        identity,
-        scalar_parameters: selected.parameters.clone(),
-        parameter_order: selected.parameter_order.clone(),
-        structural_parameters: selected.structural_parameters.clone(),
-        result: BoundaryMachineResult::Scalar(selected.result.scalar().unwrap().value_type()),
-        proof_result: selected.result.clone(),
-        proof,
-        entry_claim_paths: Vec::new(),
-        result_claim_paths: Vec::new(),
-        result_reference_regions: Vec::new(),
-        evidence_contract: Vec::new(),
-        envelope,
-    });
+    let envelope = module
+        .execution
+        .callables
+        .machine_envelope(id(1))
+        .unwrap()
+        .clone();
+    module
+        .execution
+        .callables
+        .contracts
+        .push(TerminalCallableContract {
+            id: id(1),
+            identity,
+            requirement: None,
+            scalar_parameters: selected.parameters.clone(),
+            parameter_order: selected.parameter_order.clone(),
+            structural_parameters: selected.structural_parameters.clone(),
+            result: BoundaryMachineResult::Scalar(selected.result.scalar().unwrap().value_type()),
+            proof_result: selected.result.clone(),
+            proof,
+            entry_claim_paths: Vec::new(),
+            result_claim_paths: Vec::new(),
+            result_reference_regions: Vec::new(),
+            evidence_contract: Vec::new(),
+            envelope,
+        });
     let questions = callable_contract_refinement_goals(&module, id(1), id(1)).unwrap();
     module
         .execution.callables

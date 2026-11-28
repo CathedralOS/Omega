@@ -10,10 +10,10 @@ use diagnostics::Diagnostic;
 
 pub(crate) fn lower_contracts(lowerer: &mut crate::lowerer::Lowerer<'_>) -> Result<(), Diagnostic> {
     let mut pending = Vec::new();
-    lowerer.typed_trees.runtime_callable_lowering =
-        typed::callable_values::RuntimeCallableLowering::from_contracts(
-            &lowerer.typed_trees.runtime_callable_contracts,
-        )
+    let tables = &mut lowerer.typed_trees.tables;
+    tables
+        .runtime_callable_lowering
+        .rebuild_source_rows(&tables.runtime_callable_contracts)
         .map_err(Diagnostic::error)?;
     for (source, row) in lowerer
         .source_trees
@@ -72,6 +72,35 @@ pub(crate) fn lower_contracts(lowerer: &mut crate::lowerer::Lowerer<'_>) -> Resu
             .runtime_callable_contracts
             .get_mut(handle)
             .signature = signature;
+    }
+    Ok(())
+}
+
+/// A machine body may name a requirement before the trait declaration has
+/// been typed. Bind its callable row to the actual signature, not a second
+/// declaration with the same parameter types.
+pub(crate) fn finish_requirement_types(program: &mut typed::TypedTrees) -> Result<(), Diagnostic> {
+    while let Some(handle) = program.runtime_callable_lowering.next_pending_requirement() {
+        let retained = program.runtime_callable_contracts.get(handle);
+        let (owner, signature) = program
+            .trait_machine_signature(retained.signature.symbol)
+            .filter(|(owner, _)| owner.symbol == retained.lexical_owner)
+            .ok_or_else(|| {
+                Diagnostic::error("a named callable type has no retained trait requirement")
+            })?;
+        if !owner.type_parameters.is_empty() || !owner.lifetime_parameters.is_empty() {
+            return Err(Diagnostic::error(
+                "a runtime requirement type needs a closed trait application",
+            )
+            .with_source_span(
+                program
+                    .symbols
+                    .symbol_provenance_source_span(signature.symbol)
+                    .unwrap_or_default(),
+            ));
+        }
+        let signature = signature.clone();
+        program.runtime_callable_contracts.get_mut(handle).signature = signature;
     }
     Ok(())
 }
@@ -384,6 +413,13 @@ pub(crate) fn prepare_named_value(
     } else {
         (conformance, requirement)
     };
+    let expected = program.runtime_callable_contract(contract).signature.symbol;
+    if program.trait_machine_signature(expected).is_some() && requirement != expected {
+        return Err(Diagnostic::error(
+            "a named callable type requires a selection bound to that exact requirement",
+        )
+        .with_source_span(program.expression_table.source_span(value)));
+    }
     let selected = StaticMachineArgument {
         path: names.into_boxed_slice(),
         symbol: entry.symbol,

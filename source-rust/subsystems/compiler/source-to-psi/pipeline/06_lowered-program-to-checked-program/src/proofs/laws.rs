@@ -410,6 +410,7 @@ fn judge_laws(
 fn script(law: &Law, case: usize) -> Option<&LawCase> {
     match &law.proof {
         LawProof::Direct(_)
+        | LawProof::UnderPremises { .. }
         | LawProof::Fuel { .. }
         | LawProof::Family { .. }
         | LawProof::Integers
@@ -771,6 +772,29 @@ impl Proving<'_> {
         for &ty in &frame.telescope {
             context = context.extend(ty);
         }
+        // Only the checked second projection of a record supplies its
+        // stored conditions. Each component still has its exact subject.
+        let mut held = frame.evidence.clone();
+        for (at, &ty) in frame.telescope.iter().enumerate() {
+            let Term::Constant { declaration, .. } = self.arena.get(ty) else {
+                continue;
+            };
+            if let Some(SignatureEntryKind::Record {
+                strict_conditions, ..
+            }) = self
+                .entries
+                .get(declaration as usize)
+                .map(|entry| &entry.kind)
+                && *strict_conditions > 0
+            {
+                let record = variable(self.arena, frame.telescope.len() - 1 - at);
+                let proofs = self.arena.insert(Term::Snd { pair: record });
+                held.extend((0..*strict_conditions).map(|index| {
+                    self.arena
+                        .tuple_component(proofs, index, *strict_conditions)
+                }));
+            }
+        }
         let hypotheses = &frame.hypotheses;
         let evidence = Cited {
             arena: self.arena,
@@ -780,7 +804,7 @@ impl Proving<'_> {
             laws: self.laws,
             law: self.law,
             names: &frame.names,
-            held: frame.evidence.clone(),
+            held,
             hypothesis: &|field| hypotheses.get(field as usize).copied().flatten(),
             companions: &frame.companions,
         }
@@ -2477,6 +2501,14 @@ fn prove_law(
             });
         }
         LawProof::Direct(direct) => proving.case(frame, direct, None)?,
+        LawProof::UnderPremises { body, script } => proving.case(
+            Frame {
+                goal: *body,
+                ..frame
+            },
+            script,
+            None,
+        )?,
         LawProof::Pointwise { row, binders } => {
             let mut context = closed.clone();
             for &ty in &frame.telescope {

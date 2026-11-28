@@ -277,6 +277,12 @@ borrowed result; those need their own carriers and are refused. A bare
 borrowed entry annotation supplies no host storage either. See
 [component arguments](instructions/calls.rs).
 
+A component receiving a mutable byte slice borrows the caller's original array
+cells for that invocation. The slice retains its bounds and element addresses
+when forwarded. Returning a sum with a scalar payload translates its selected
+case and field declarations into the caller's artifact. The offline Build
+network recording exercises both operations in one call.
+
 Lending an opaque object gives the guest no field cells. Local scalar and
 atomic stores and subtree replacement under those borrowed homes are refused
 before any detached payload is made; host effects still act on the original

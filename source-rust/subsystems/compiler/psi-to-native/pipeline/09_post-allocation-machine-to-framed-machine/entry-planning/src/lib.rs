@@ -19,6 +19,7 @@ pub struct PhysicalRecipeOrigin(());
 pub mod body_cpu;
 mod bridge_values;
 pub mod callable_entry;
+pub mod fixed_activation;
 pub mod hosted_entry;
 pub mod hosted_program;
 pub mod imports;

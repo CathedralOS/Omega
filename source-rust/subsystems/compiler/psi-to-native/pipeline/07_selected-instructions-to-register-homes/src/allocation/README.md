@@ -5,7 +5,7 @@ home (register view) and recovers from register pressure as the build allows.
 Start at [stage_register_allocation](register_allocation.rs), which runs the
 steps; [lib.rs](../lib.rs) lists every module and its re-exports. The earlier
 selected-to-selected stage owns rewrites and reusable control-flow analyses;
-allocation does not rerun it. The [optimization overview](../../../../optimization.md)
+allocation does not rerun it. The [optimization overview](../../../../README.md#optimization-phases)
 gives the stage order.
 
 ## Private allocation entrance
@@ -28,9 +28,11 @@ selection that combines its phases with each other or with a recovery rule.
 
 ## Current facts and evidence
 
-[RetainedAllocation](output.rs) holds the program and its allocation facts.
-On an explicit audit, [publication validation](publication_validation.rs)
-checks the selected recovery and manifest against the allocation history.
+[`AllocatedBody`](../../../../representations/register-homes/published) publishes
+the admitted program and allocation facts to machine lowering.
+[RetainedAllocation](output.rs) keeps producer history separately when replay is
+requested. On an explicit audit, [publication validation](publication_validation.rs)
+checks the selected recovery and manifest against that history.
 Plain, fixed-view-copy, rematerialization and executable-spill results share
 one allocation view.
 
@@ -210,5 +212,5 @@ for the target, storage placement, return-address handling, frame protocol and
 reconciling the final machine code belong to [machine emission](README.md).
 Abstract spill evidence cannot choose an SP/FP base, red-zone policy, probing,
 unwind behavior or a source crash route. The public
-[storage contract](../../../../../wiki/spec/resources/storage.md) requires the
+[storage contract](../../../../../../../../wiki/spec/resources/storage.md) requires the
 final realized demand and admitted backing storage before execution.

@@ -586,6 +586,7 @@ pub(crate) mod byte_arrays {
         #[derive(Clone, PartialEq, Eq)]
         pub(crate) enum ArrayStorageHome {
             Runtime,
+            Component,
             Frame {
                 depth: usize,
                 place: PlaceId,
@@ -609,6 +610,18 @@ pub(crate) mod byte_arrays {
         }
 
         impl TerminalExecution<'_> {
+            pub(crate) fn checked_byte_array_extent(
+                &self,
+                storage: &ArrayStorage,
+                ty: StructuralTypeId,
+            ) -> Option<u64> {
+                if storage.home == ArrayStorageHome::Component {
+                    let lender = self.component_byte_arrays.get(&storage.referent)?;
+                    return u64::try_from(lender.cells.cells().len()).ok();
+                }
+                super::byte_array_length(&self.structural_types(), ty)
+            }
+
             pub(crate) fn stored_byte_array_read_view(
                 &self,
                 storage: &ArrayStorage,
@@ -620,6 +633,14 @@ pub(crate) mod byte_arrays {
             > {
                 use crate::storage::byte_sequences::read::TerminalByteRead;
                 match storage.home {
+                    ArrayStorageHome::Component => TerminalByteRead::cells(
+                        self.component_byte_arrays
+                            .require(&storage.referent)?
+                            .cells
+                            .cells()
+                            .get(start..end)
+                            .ok_or(malformed())?,
+                    ),
                     ArrayStorageHome::Runtime => {
                         let Some(bytes) = self.structural_byte_storage.get(&storage.referent)
                         else {
@@ -728,6 +749,12 @@ pub(crate) mod byte_arrays {
                 storage: &ArrayStorage,
             ) -> Result<usize, TerminalInterpretError> {
                 match storage.home {
+                    ArrayStorageHome::Component => Ok(self
+                        .component_byte_arrays
+                        .require(&storage.referent)?
+                        .cells
+                        .cells()
+                        .len()),
                     ArrayStorageHome::Runtime => {
                         if let Some(bytes) = self.structural_byte_storage.get(&storage.referent) {
                             Ok(bytes.len())
@@ -750,6 +777,16 @@ pub(crate) mod byte_arrays {
                 index: usize,
             ) -> Result<u8, TerminalInterpretError> {
                 match storage.home {
+                    ArrayStorageHome::Component => scalar_byte(
+                        &self
+                            .component_byte_arrays
+                            .require(&storage.referent)?
+                            .cells
+                            .cells()
+                            .get(index)
+                            .ok_or(malformed())?
+                            .read()?,
+                    ),
                     ArrayStorageHome::Runtime => self
                         .structural_byte_storage
                         .require(&storage.referent)?
@@ -777,6 +814,15 @@ pub(crate) mod byte_arrays {
                 byte: u8,
             ) -> Result<(), TerminalInterpretError> {
                 let result = match storage.home {
+                    ArrayStorageHome::Component => self
+                        .component_byte_arrays
+                        .require(&storage.referent)?
+                        .cells
+                        .cells()
+                        .get(index)
+                        .ok_or(malformed())?
+                        .clone()
+                        .write(unsigned_byte_scalar(byte)?),
                     ArrayStorageHome::Runtime => self
                         .structural_byte_storage
                         .get_mut(&storage.referent)
@@ -815,44 +861,10 @@ pub(crate) mod byte_arrays {
                 start: usize,
                 end: usize,
             ) -> Result<ByteSequenceView, TerminalInterpretError> {
-                if let ArrayStorageHome::Runtime = storage.home {
-                    if !self.structural_byte_storage.contains_key(&storage.referent)
-                        && start == 0
-                        && end == 0
-                        && self.initialized_empty_byte_array(&storage.referent)?
-                    {
-                        return Ok(ByteSequenceView::new(ByteSequenceStorage::from_values(
-                            0,
-                            std::iter::empty(),
-                            self.account.as_ref(),
-                        )?));
-                    }
-                    let array = self.structural_byte_storage.require(&storage.referent)?;
-                    if start > end || end > array.len() {
-                        return Err(malformed());
-                    }
-                    return Ok(ByteSequenceView::new(ByteSequenceStorage::from_values(
-                        end.checked_sub(start).ok_or(malformed())?,
-                        (start..end).map(|index| array.read(index)),
-                        self.account.as_ref(),
-                    )?));
-                }
-                if start > end || end > self.stored_byte_array_length(storage)? {
-                    return Err(malformed());
-                }
-                let ArrayStorageHome::Frame { depth, place, .. } = storage.home else {
-                    return Err(malformed());
-                };
-                let (base, _) = self.frame_byte_array_window(storage)?;
-                let values = self
-                    .frame_array(depth, place)
-                    .and_then(|array| array.cells().get(base + start..base + end))
-                    .ok_or(malformed())?
-                    .iter()
-                    .map(|cell| scalar_byte(&cell.read()?));
+                let bytes = self.stored_byte_array_read_view(storage, start, end)?;
                 Ok(ByteSequenceView::new(ByteSequenceStorage::from_values(
-                    end - start,
-                    values,
+                    bytes.len(),
+                    (0..bytes.len()).map(|index| bytes.read(index)),
                     self.account.as_ref(),
                 )?))
             }

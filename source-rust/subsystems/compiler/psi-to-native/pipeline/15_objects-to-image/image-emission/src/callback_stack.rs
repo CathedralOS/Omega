@@ -185,6 +185,7 @@ mod tests {
         let entry = MachineId::new(1).unwrap();
         PhysicalStackProgram {
             psi,
+            entry,
             target: target::NativeTarget::linux_x64(),
             functions: vec![PhysicalStackFunction {
                 machine: entry,

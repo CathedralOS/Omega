@@ -74,6 +74,12 @@ impl Substitution<'_> {
         expected.id = actual.id;
         expected.identity = actual.identity;
         expected.proof.id = actual.proof.id;
+        // Each contract owns its published guarantee IDs. Pair the clauses in
+        // declaration order; equality below still compares their count and
+        // every proposition, including the formal and result coordinates.
+        for (public, opened) in expected.proof.ensures.iter_mut().zip(&actual.proof.ensures) {
+            public.obligation = opened.obligation;
+        }
         if !self.parameters(&mut expected.structural_parameters)
             || !self.parameters(&mut expected.proof.structural_parameters)
         {

@@ -650,6 +650,7 @@ fn retained_call_descriptor_origins_do_not_need_old_bodies_but_audit_does() {
             1,
             vec![
                 AbstractOperation::CallStructural {
+                    opened_referents: Vec::new(),
                     psi_operation: op(1),
                     suspension_crossing: None,
                     callee: callee.into(),

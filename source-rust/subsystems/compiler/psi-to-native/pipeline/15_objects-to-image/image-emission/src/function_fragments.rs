@@ -3091,6 +3091,7 @@ mod source {
                     value: scalar,
                 },
                 AbstractOperation::PrimitiveScalarRead {
+                    storage_scalar: scalar.scalar_type,
                     psi_operation: operation,
                     path: Vec::new(),
                     result: scalar,
