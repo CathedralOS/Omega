@@ -554,3 +554,68 @@ machine main() {{
         }
     }
 }
+
+#[test]
+fn trusted_saved_psi_still_needs_source_policy_for_reachable_native_borrows() {
+    let dormant = r#"
+public machine dormant(location: address) -> u8 {
+    let byte: @u8 = |native|::borrow_at::<u8>(location);
+    $byte
+}
+machine main() {}
+"#;
+    for (source, grants, reachable) in [
+        (ADDRESSED_BYTES, &[READ, WRITE][..], true),
+        (UPGRADED_BYTE, &[UPGRADE][..], true),
+        (dormant, &[][..], false),
+    ] {
+        let producer = Program::new(source, grants);
+        let published = producer
+            .command(&[
+                "--emit-psi",
+                "program.psi",
+                "--target",
+                "linux_x86_64",
+                "build.omg",
+            ])
+            .output()
+            .unwrap();
+        assert!(published.status.success(), "{}", report(&published));
+
+        let bytes = fs::read(producer.0.path().join("program.psi")).unwrap();
+        let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+        let manifest = artifact.manifest().identity().to_string();
+        let consumer = TemporaryDirectory::create("saved-native-borrow-consumer", false).unwrap();
+        fs::write(consumer.path().join("program.psi"), &bytes).unwrap();
+        let built = producer
+            .command(&[
+                "build",
+                "--trusted-artifact",
+                &manifest,
+                "--target",
+                "linux_x86_64",
+                "--build-dir",
+                "output",
+                "program.psi",
+            ])
+            .env("OMEGA_LIBRARY_ROOT", consumer.path().join("absent-library"))
+            .current_dir(consumer.path())
+            .output()
+            .unwrap();
+        let message = report(&built);
+        let image = consumer.path().join("output/omega-program");
+        if reachable {
+            assert!(!built.status.success(), "{message}");
+            assert!(
+                message.contains("saved Psi has no source Build policy for")
+                    && message.contains("build the original source Product"),
+                "{message}"
+            );
+            assert!(!image.exists());
+        } else {
+            assert!(built.status.success(), "{message}");
+            let ran = Command::new(image).stdin(Stdio::null()).output().unwrap();
+            assert_eq!(ran.status.code(), Some(0), "{ran:?}");
+        }
+    }
+}
