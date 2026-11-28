@@ -271,6 +271,39 @@ pub(crate) mod debug_map {
         module: &TerminalModule,
         bytes: &[u8],
     ) -> Result<TerminalDebugMap, DebugMapError> {
+        decode_section(module, bytes).map(|(map, _)| map)
+    }
+
+    impl TerminalDebugMap {
+        /// The envelope retains these bytes after the receiver has checked every
+        /// site, its module identity and the canonical encoding against the input.
+        pub fn validated_section(
+            module: &TerminalModule,
+            bytes: &[u8],
+        ) -> Result<Vec<u8>, DebugMapError> {
+            decode_section(module, bytes).map(|(_, canonical)| canonical)
+        }
+
+        #[cfg(feature = "test-support")]
+        pub fn validation_count() -> usize {
+            DEBUG_VALIDATIONS.get()
+        }
+
+        #[cfg(feature = "test-support")]
+        pub fn encode_unchecked(&self) -> Vec<u8> {
+            encode_raw(self).unwrap()
+        }
+    }
+
+    #[cfg(feature = "test-support")]
+    thread_local! {
+        static DEBUG_VALIDATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
+    fn decode_section(
+        module: &TerminalModule,
+        bytes: &[u8],
+    ) -> Result<(TerminalDebugMap, Vec<u8>), DebugMapError> {
         let mut reader = Reader::new(bytes);
         if reader.take(MAGIC.len())? != MAGIC {
             return Err(DebugMapError::InvalidMagic);
@@ -322,16 +355,19 @@ pub(crate) mod debug_map {
             sites,
         };
         validate_debug_map(module, &debug_map)?;
-        if encode_raw(&debug_map)? != bytes {
+        let canonical = encode_raw(&debug_map)?;
+        if canonical != bytes {
             return Err(DebugMapError::NonCanonicalEncoding);
         }
-        Ok(debug_map)
+        Ok((debug_map, canonical))
     }
 
     pub fn validate_debug_map(
         module: &TerminalModule,
         debug_map: &TerminalDebugMap,
     ) -> Result<(), DebugMapError> {
+        #[cfg(feature = "test-support")]
+        DEBUG_VALIDATIONS.set(DEBUG_VALIDATIONS.get() + 1);
         let expected = terminal_psi_identity(module)?;
         if debug_map.semantic != expected {
             return Err(DebugMapError::SemanticIdentityMismatch {

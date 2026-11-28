@@ -1,8 +1,8 @@
 //! The bundle must give every closure the rows the free closure functions
 //! give. Two twins differ only in machine 2's body: in the static twin it
 //! returns at once, in the dynamic twin it selects an implementation and
-//! calls it dynamically, so every row in a closure that reaches it must be
-//! adapted against that closure's rows.
+//! calls it dynamically, so its row must be adapted against the
+//! initial rows of the closure that reaches it.
 
 use super::*;
 use crate::descriptors::descriptor_results::{terminal_graph_closure, terminal_graph_rows};
@@ -17,6 +17,10 @@ use terminal_psi::{
 };
 
 mod affine;
+
+thread_local! {
+    pub(super) static SECOND_PASS_BODIES: std::cell::RefCell<Vec<MachineId>> = const { std::cell::RefCell::new(Vec::new()) };
+}
 
 const ROOT: u64 = 1;
 const SELECTING: u64 = 2;
@@ -37,7 +41,7 @@ fn id(number: u64) -> MachineId {
     MachineId::new(number).unwrap()
 }
 
-fn machine(identity: u64, operations: Vec<Operation>) -> TerminalMachine {
+pub(crate) fn machine(identity: u64, operations: Vec<Operation>) -> TerminalMachine {
     let entry = BlockId::new(1).unwrap();
     let mut block = Block::plain(
         entry,
@@ -265,10 +269,14 @@ fn a_closure_with_a_dynamic_call_owns_rows_adapted_against_that_closure() {
     assert!(analyses.calls_dynamically(id(SELECTING)));
     assert!(!analyses.calls_dynamically(id(ROOT)));
     for kind in KINDS {
-        let expected = terminal_graph_closure(&module, [id(ROOT)], kind, &[]).unwrap();
-        // The dynamic call reaches its realization.
+        let expected = rows_before_the_bundle(&module, [id(ROOT)], kind)
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
         assert_eq!(expected.len(), 4, "{kind:?}");
+        SECOND_PASS_BODIES.with_borrow_mut(Vec::clear);
         let rows = analyses.descriptor_closure(kind, [id(ROOT)]).unwrap();
+        assert_eq!(SECOND_PASS_BODIES.take(), [id(SELECTING)], "{kind:?}");
         assert!(matches!(rows, DescriptorRows::Owned(_)), "{kind:?}");
         assert_eq!(shapes(rows.iter()), shapes(&expected), "{kind:?}");
         // A closure that does not reach the dynamic call still shares.
