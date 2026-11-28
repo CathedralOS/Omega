@@ -364,6 +364,13 @@ impl Projection {
         projection
     }
 
+    pub(crate) fn declared_reference_path(&self) -> Option<&[StructuralPathSegment]> {
+        match &self.descriptor {
+            DescriptorPrefix::Closed(path) => Some(path),
+            _ => None,
+        }
+    }
+
     pub(crate) fn as_native_enclosing_storage(mut self) -> Self {
         self.native_enclosing_storage = true;
         self

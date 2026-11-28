@@ -338,7 +338,7 @@ fn reference_sources_for_leaves(
             if let DescriptorStoredOrigin::Invocation { carrier_type, projection } = origin {
                 // An admitted public contract supplies the promised reference.
                 // Forwarding it must retain both the typed region and its access.
-                let declared = projection.original_descriptor_path().ok_or("returned invocation reference lost its declared region")?;
+                let declared = projection.declared_reference_path().ok_or("returned invocation reference lost its declared region")?;
                 super::result_regions::validate_input_region(
                     types.iter(), *carrier_type, StructuralAccess::Owned, declared, access,
                 )?;
