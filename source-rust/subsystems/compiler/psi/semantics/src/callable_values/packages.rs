@@ -12,13 +12,14 @@ pub struct PackageCallableSites {
         (DescriptorPosition, DescriptorLocation),
         (CallableContractId, CallableContractId),
     >,
-    calls: BTreeMap<OperationId, OpenedCall>,
+    calls: Vec<OpenedCall>,
 }
 
 struct OpenedCall {
+    operation: OperationId,
     contract: CallableContractId,
     witnesses: Vec<StructuralTypeId>,
-    stored_referents: BTreeMap<usize, StructuralTypeId>,
+    stored_referents: Vec<Option<StructuralTypeId>>,
 }
 
 impl PackageCallableSites {
@@ -71,33 +72,34 @@ impl PackageCallableSites {
             .contract(contract)
             .ok_or("package call lacks its opened contract")?;
         let mut witnesses = Vec::new();
-        let mut stored_referents = BTreeMap::new();
+        let mut stored_referents = vec![None; interface.structural_parameters.len()];
         for (i, public) in referents {
             let formal = interface
                 .structural_parameters
                 .get(i)
                 .ok_or("package call names an absent borrowed parameter")?;
             if formal.access == StructuralAccess::Owned
-                || stored_referents.insert(i, public).is_some()
+                || stored_referents[i].replace(public).is_some()
             {
                 return Err("package call names an invalid borrowed parameter");
             }
             insert_ordered(&mut witnesses, formal.structural_type);
         }
-        if self
+        let Err(index) = self
             .calls
-            .insert(
-                operation,
-                OpenedCall {
-                    contract,
-                    witnesses,
-                    stored_referents,
-                },
-            )
-            .is_some()
-        {
+            .binary_search_by_key(&operation, |call| call.operation)
+        else {
             return Err("package call has two openings");
-        }
+        };
+        self.calls.insert(
+            index,
+            OpenedCall {
+                operation,
+                contract,
+                witnesses,
+                stored_referents,
+            },
+        );
         Ok(())
     }
 
@@ -115,9 +117,12 @@ impl PackageCallableSites {
         let CallableInvocationTarget::Value(_, contract) = invocation.target else {
             return None;
         };
-        self.calls
-            .get(&invocation.operation?)
-            .filter(|call| call.contract == contract)
+        let index = self
+            .calls
+            .binary_search_by_key(&invocation.operation?, |call| call.operation)
+            .ok()?;
+        let call = &self.calls[index];
+        (call.contract == contract).then_some(call)
     }
 
     pub(super) fn admits_descriptor(
@@ -143,7 +148,11 @@ impl PackageCallableSites {
         invocation: &CallableInvocation,
         index: usize,
     ) -> Option<StructuralTypeId> {
-        self.call(invocation)?.stored_referents.get(&index).copied()
+        self.call(invocation)?
+            .stored_referents
+            .get(index)
+            .copied()
+            .flatten()
     }
 }
 
