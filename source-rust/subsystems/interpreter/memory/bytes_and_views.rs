@@ -239,14 +239,16 @@ pub(crate) mod byte_sequences {
                         {
                             return Err(malformed());
                         }
-                        Ok(Self::MutableArray {
+                        let exclusive = Self::MutableArray {
                             array: window.array.clone(),
                             array_type: window.array_type,
                             offset: u64::try_from(window.offset).map_err(|_| malformed())?,
                             length: u64::try_from(window.length).map_err(|_| malformed())?,
                             referent: referent.clone(),
                             descriptor_home: None,
-                        })
+                        };
+                        exclusive.validate_mutable_referent(execution, referent)?;
+                        Ok(exclusive)
                     }
                     Self::Representation(_) => {
                         Err(TerminalInterpretError::UnsupportedSemanticVariant(
