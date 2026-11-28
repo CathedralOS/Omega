@@ -99,6 +99,28 @@ fn project<'a>(
                             )?;
                         }
                     }
+                    O::StructuralScalarFieldStore {
+                        destination,
+                        path,
+                        field,
+                        opened_callable: Some(opened),
+                        value,
+                        ..
+                    } => {
+                        let actual = semantic_vocabulary::ScalarType::Callable(*opened);
+                        if value.scalar_type != actual {
+                            return Err(
+                                "package callable store changed its checked value contract",
+                            );
+                        }
+                        body.package_sites.stored_field(
+                            structural_types,
+                            position,
+                            (destination.place(), destination.structural_type()),
+                            (path, *field),
+                            &terminal_psi::StructuralFieldType::Scalar(actual),
+                        )?;
+                    }
                     O::CallStructural {
                         psi_operation,
                         callee: AbstractCallTarget::Callable { contract, .. },

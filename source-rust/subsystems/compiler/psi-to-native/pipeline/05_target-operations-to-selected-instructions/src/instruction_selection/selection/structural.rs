@@ -5754,6 +5754,7 @@ pub(crate) mod scalar_store {
         let (
             destination,
             value,
+            storage_scalar,
             byte_offset,
             byte_size,
             indices,
@@ -5764,6 +5765,7 @@ pub(crate) mod scalar_store {
                 destination,
                 path,
                 field,
+                storage_scalar,
                 value,
                 byte_offset,
                 byte_size,
@@ -5777,11 +5779,22 @@ pub(crate) mod scalar_store {
                         path,
                         terminal_psi::StructuralAccess::WriteOnlyBorrow,
                     );
+                if *storage_scalar != value.scalar_type
+                    && !matches!(
+                        (*storage_scalar, value.scalar_type),
+                        (
+                            semantic_vocabulary::ScalarType::Callable(_),
+                            semantic_vocabulary::ScalarType::Callable(_)
+                        )
+                    )
+                {
+                    return Err(invalid());
+                }
                 let geometry = field_store_geometry(
                     destination.structural_type(),
                     path,
                     *field,
-                    value.scalar_type,
+                    *storage_scalar,
                     source.geometry(),
                 )
                 .ok_or_else(|| invalid())?;
@@ -5795,6 +5808,7 @@ pub(crate) mod scalar_store {
                 (
                     destination.clone(),
                     value,
+                    *storage_scalar,
                     *byte_offset,
                     *byte_size,
                     indices,
@@ -5823,6 +5837,7 @@ pub(crate) mod scalar_store {
                 (
                     destination.clone(),
                     value,
+                    value.scalar_type,
                     *byte_offset,
                     u32::from(*byte_size),
                     indices,
@@ -5951,7 +5966,7 @@ pub(crate) mod scalar_store {
         if u32::from(codec.byte_size()) != byte_size {
             return Err(invalid());
         }
-        let canonical = runtime_abi::ScalarStorageCodec::from_scalar(value.scalar_type)
+        let canonical = runtime_abi::ScalarStorageCodec::from_scalar(storage_scalar)
             .ok_or_else(|| invalid())?;
         if codec != canonical || matches!(codec.byte_size(), 3 | 5 | 6 | 7) {
             let address = super::encoded_scalar::backing_address(

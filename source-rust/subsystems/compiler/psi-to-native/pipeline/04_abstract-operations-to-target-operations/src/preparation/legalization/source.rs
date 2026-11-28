@@ -515,6 +515,7 @@ pub(crate) mod scalar_graph {
                     destination,
                     path,
                     field,
+                    storage_scalar,
                     field_byte_offset,
                     field_byte_size,
                     source,
@@ -528,6 +529,7 @@ pub(crate) mod scalar_graph {
                     destination: destination.clone(),
                     path: path.clone(),
                     field: *field,
+                    storage_scalar: *storage_scalar,
                     value: abstract_operations::AbstractResult {
                         value: source.source_value(),
                         scalar_type: source.scalar_type(),
@@ -1046,6 +1048,7 @@ pub(crate) mod scalar_graph {
                             ),
                         path: path.clone(),
                         field: StructuralFieldId::new(1).unwrap(),
+                        storage_scalar: scalar_type,
                         destination_storage:
                             target_operations::TargetStructuralArgumentSource::BlockParameter {
                                 block: semantic_vocabulary::BlockId::new(1).unwrap(),
@@ -1098,6 +1101,36 @@ pub(crate) mod scalar_graph {
                         (value.source_value(), scalar_type, 16, 8)
                     );
                     assert_eq!(indices[0].accepted_fact, fact.identity);
+
+                    let callable = |id| {
+                        semantic_vocabulary::ScalarType::Callable(
+                            semantic_vocabulary::CallableContractId::new(id).unwrap(),
+                        )
+                    };
+                    let mut opened_store = store.clone();
+                    let TargetUnitOperation::StructuralScalarFieldStore {
+                        storage_scalar,
+                        source: TargetUnitScalarArgumentSource::Parameter { scalar_type, .. },
+                        ..
+                    } = &mut opened_store
+                    else {
+                        panic!("parameter store");
+                    };
+                    *storage_scalar = callable(1);
+                    *scalar_type = callable(2);
+                    let opened_store = project_structural_scalar_field_store(
+                        machine,
+                        std::slice::from_ref(&fact),
+                        &opened_store,
+                    )
+                    .unwrap();
+                    assert!(matches!(
+                        opened_store,
+                        legalized_operations::LegalizedScalarInstructionKind::StructuralScalarFieldStore {
+                            storage_scalar, value, ..
+                        } if storage_scalar == callable(1) && value.scalar_type == callable(2)
+                    ));
+
                     assert!(project_primitive_scalar_read(machine, &[], &read).is_err());
                     assert!(project_structural_scalar_field_store(machine, &[], &store).is_err());
                     assert!(

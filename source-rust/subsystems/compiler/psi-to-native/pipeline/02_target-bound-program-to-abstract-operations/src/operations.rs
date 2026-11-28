@@ -1316,6 +1316,7 @@ mod machine {
                             machine,
                             structural_types,
                             module,
+                            packages,
                             value_types,
                         )
                     }
