@@ -149,6 +149,75 @@ fn typed_source(source: &str) -> crate::source_state::TypedTrees {
 }
 
 #[test]
+fn preparing_two_workers_keeps_the_selected_machine_in_each_return_type() {
+    let typed = typed_source(
+        r"
+        use {omega}/language/core/activation.omg;
+        use {omega}/language/core/task.omg;
+        machine read_left(value: u8) -> u8 reaches none crashes none { value }
+        machine read_right(value: u8) -> u8 reaches none crashes none { value }
+        machine make_left<'storage>(backing: @'storage mutable [u8])
+            -> |activation|::ActivationPreparation<'storage, u8, u8, read_left, |task|::ActivationStorage::Fixed>
+            reaches none crashes none {
+            |activation|::prepare::<u8, u8, read_left, |task|::ActivationStorage::Fixed>(0u8, backing)
+        }
+        machine make_right<'storage>(backing: @'storage mutable [u8])
+            -> |activation|::ActivationPreparation<'storage, u8, u8, read_right, |task|::ActivationStorage::Fixed>
+            reaches none crashes none {
+            |activation|::prepare::<u8, u8, read_right, |task|::ActivationStorage::Fixed>(0u8, backing)
+        }
+    ",
+    );
+    let prepared = preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
+    let typed = prepared.trees();
+    let mut workers = Vec::new();
+    for machine in typed.machines() {
+        let Some(specialization) = typed.machine_specialization(machine.symbol) else {
+            continue;
+        };
+        if typed.sealed_callable(specialization.template)
+            != Some(
+                language_core::sealed_intrinsics::SealedIntrinsic::OwnedActivation(
+                    language_core::sealed_intrinsics::ActivationOperation::Prepare,
+                ),
+            )
+        {
+            continue;
+        }
+        let selection = &typed
+            .expression_table
+            .static_machine_application_arguments(specialization.binding_application)[2];
+        let worker = typed
+            .machine_by_symbol(selection.symbol)
+            .or_else(|| typed.machine_holding_state(selection.symbol))
+            .unwrap();
+        let result = typed.machine_states(machine)[0].return_type;
+        let result = typed
+            .data_application_definition(result)
+            .and_then(|data| data.generic_instance)
+            .unwrap_or(result);
+        let crate::source_state::types::TypeReferenceNode::Generic { arguments, .. } =
+            typed.type_reference_table.type_reference(result)
+        else {
+            panic!("prepare returns an applied owner type")
+        };
+        let entry = typed
+            .type_reference_table
+            .type_reference_handles(*arguments)[2];
+        assert_eq!(
+            typed
+                .static_operand_from_type_reference(entry)
+                .unwrap()
+                .symbol,
+            worker.symbol
+        );
+        workers.push(worker.name.as_str());
+    }
+    workers.sort_unstable();
+    assert_eq!(workers, ["read_left", "read_right"]);
+}
+
+#[test]
 fn preparing_a_child_names_its_worker_and_returns_the_rejected_backing() {
     let mut typed = typed_source(
         r"
