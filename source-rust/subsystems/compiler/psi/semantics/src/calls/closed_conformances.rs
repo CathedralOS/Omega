@@ -265,6 +265,12 @@ pub fn validate_boundary_callable(
         return Err("contract evidence cannot carry an executable boundary declaration");
     }
     hosted_primitive_requirement(module, boundary)?;
+    if let terminal_psi::CheckedBoundaryExecution::OwnedActivation(operation) = checked.execution {
+        match operation {
+            language_core::sealed_intrinsics::ActivationOperation::Park => super::owned_activation::validate_park(module, boundary)?,
+            language_core::sealed_intrinsics::ActivationOperation::NewReplyPair => return Err("reply pair issuance needs a checked closed result"),
+        }
+    }
     if checked.execution == terminal_psi::CheckedBoundaryExecution::LayoutTargetFacts {
         super::layout_target::snapshot_fields(module, boundary)?;
     }

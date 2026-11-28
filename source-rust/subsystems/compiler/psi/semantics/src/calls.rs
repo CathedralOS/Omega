@@ -10,6 +10,7 @@ pub mod operational_dependencies;
 pub mod evidence_calls;
 pub(crate) mod invocation_inputs;
 pub mod layout_target;
+pub mod owned_activation;
 
 /// Whether one call's scalar actuals establish the exact extent indices of
 /// its structural actual. Parameter identities stay local to each machine;
