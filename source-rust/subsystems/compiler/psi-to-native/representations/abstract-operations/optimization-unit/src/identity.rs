@@ -1928,11 +1928,14 @@ pub(crate) mod unit_encoding {
                 bytes.u64(*bound);
             },
         );
-        bytes.slice(unit.structural_types.value_storage().execution_owners, |bytes, home| {
-            bytes.id(home.ty());
-            bytes.u32(home.bytes());
-            bytes.u16(home.alignment());
-        });
+        bytes.slice(
+            unit.structural_types.value_storage().execution_owners,
+            |bytes, home| {
+                bytes.id(home.ty());
+                bytes.u32(home.bytes());
+                bytes.u16(home.alignment());
+            },
+        );
         bytes.slice(&unit.structural_types, encode_structural_type);
         bytes.slice(unit.structural_types.referents(), |bytes, referent| {
             bytes.id(referent.id);

@@ -56,7 +56,10 @@ fn compiler_builtin_execution(
             })
         }
         CompilerIntrinsicExecutionIdentity::FixedActivation(operation) => Some(
-            CompilerBuiltinExecution::FixedActivation(target_operations::FixedActivationBinding { boundary, operation }),
+            CompilerBuiltinExecution::FixedActivation(target_operations::FixedActivationBinding {
+                boundary,
+                operation,
+            }),
         ),
         CompilerIntrinsicExecutionIdentity::EmptyRunRelease => {
             Some(CompilerBuiltinExecution::EmptyRunRelease)

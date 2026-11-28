@@ -186,7 +186,9 @@ pub fn admit_native_providers<'request>(
     let (native_settlements, native_mechanisms) =
         crate::native_binding_settlements::settle(input, request, &compiler_builtins)?;
     let (fixed_settlements, fixed_mechanisms) = crate::fixed_activations::settle(
-        input, request.profile, request.terminal_authority_policy,
+        input,
+        request.profile,
+        request.terminal_authority_policy,
     )?;
     let graph = AuthorityGraph::new(
         input,

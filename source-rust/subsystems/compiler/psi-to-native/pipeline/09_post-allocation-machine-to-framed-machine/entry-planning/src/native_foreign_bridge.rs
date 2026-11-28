@@ -238,7 +238,10 @@ pub(crate) fn plan_call(
     let result_snapshot = match (&result, &foreign.result) {
         (Some(storage), Some(value)) if !storage.is_indirect() || retained.is_some() => {
             if !storage.is_indirect()
-                && storage.pieces().iter().any(|piece| matches!(piece.location, WordLocation::Stack(_)))
+                && storage
+                    .pieces()
+                    .iter()
+                    .any(|piece| matches!(piece.location, WordLocation::Stack(_)))
             {
                 return Err(Error::UnsupportedValueTransport);
             }
@@ -358,11 +361,15 @@ pub(crate) fn plan_call(
             WordLocation::Stack(offset) => encoding.copy_word(&mut bytes, output, offset, 8)?,
         }
     }
-    if let (Some(ValueStorage::Indirect { pointer, .. }), Some(snapshot)) = (&result, result_snapshot) {
+    if let (Some(ValueStorage::Indirect { pointer, .. }), Some(snapshot)) =
+        (&result, result_snapshot)
+    {
         encoding.place_address(&mut bytes, pointer.location, snapshot)?;
     }
     bytes.push(AdapterOperation::Call);
-    if let (Some(storage), Some(snapshot), Some(value)) = (&result, result_snapshot, &foreign.result) {
+    if let (Some(storage), Some(snapshot), Some(value)) =
+        (&result, result_snapshot, &foreign.result)
+    {
         if let ValueStorage::Direct(pieces) = storage {
             encoding.capture_registers(&mut bytes, pieces, snapshot)?;
         }

@@ -480,9 +480,12 @@ pub(crate) mod structural_type_lookup {
                     source.iter(),
                     source.value_storage(),
                 )?,
-                projections: legalized_operations::native_geometry::NativeGeometry::with_value_storage(
-                    source, source.value_storage(), target,
-                )?,
+                projections:
+                    legalized_operations::native_geometry::NativeGeometry::with_value_storage(
+                        source,
+                        source.value_storage(),
+                        target,
+                    )?,
                 catalog: source,
                 borrowed_layouts,
                 carriers: runtime_abi::target_carrier_layout(target),

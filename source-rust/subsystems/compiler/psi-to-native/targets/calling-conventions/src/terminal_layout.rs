@@ -50,7 +50,13 @@ impl<'a> NativeGeometry<'a> {
         declarations: &'a [StructuralTypeDeclaration],
         bounds: &'a [(StructuralTypeId, u64)],
     ) -> Result<Self, NonDenseIdentities> {
-        Self::with_value_storage(declarations, runtime_abi::NativeValueStorage { sequences: bounds, ..Default::default() })
+        Self::with_value_storage(
+            declarations,
+            runtime_abi::NativeValueStorage {
+                sequences: bounds,
+                ..Default::default()
+            },
+        )
     }
 
     pub fn with_value_storage(
@@ -180,7 +186,13 @@ impl<'a> StructuralLayoutResolver<'a> {
         rows: impl IntoIterator<Item = &'a StructuralTypeDeclaration>,
         owned_sequences: &'a [(StructuralTypeId, u64)],
     ) -> Result<Self, NonDenseIdentities> {
-        Self::with_value_storage(rows, runtime_abi::NativeValueStorage { sequences: owned_sequences, ..Default::default() })
+        Self::with_value_storage(
+            rows,
+            runtime_abi::NativeValueStorage {
+                sequences: owned_sequences,
+                ..Default::default()
+            },
+        )
     }
 
     pub fn with_value_storage(
@@ -651,7 +663,10 @@ pub fn opaque_borrow_transport(
     access: terminal_psi::StructuralAccess,
 ) -> Option<ValueShape> {
     (access != terminal_psi::StructuralAccess::Owned
-        && matches!(shape, StructuralTypeShape::Opaque | StructuralTypeShape::BorrowingOpaque { .. }))
+        && matches!(
+            shape,
+            StructuralTypeShape::Opaque | StructuralTypeShape::BorrowingOpaque { .. }
+        ))
     .then_some(ValueShape::integer(8, 8))
 }
 
@@ -1225,21 +1240,33 @@ mod owned_sequence_tests {
         let homes = [0, 2].map(|index| {
             runtime_abi::ExecutionOwnerHome::for_target(rows[index].id, target).unwrap()
         });
-        let storage = runtime_abi::NativeValueStorage { sequences: &[], execution_owners: &homes };
+        let storage = runtime_abi::NativeValueStorage {
+            sequences: &[],
+            execution_owners: &homes,
+        };
         let geometry = NativeGeometry::with_value_storage(&rows, storage).unwrap();
         let layouts = StructuralLayouts::with_value_storage(rows.iter(), storage).unwrap();
-        assert!(layouts.required_scalar_extents([rows[0].id]).unwrap().is_empty());
+        assert!(
+            layouts
+                .required_scalar_extents([rows[0].id])
+                .unwrap()
+                .is_empty()
+        );
         assert!(layouts.required_scalar_extents([rows[1].id]).is_err());
         assert_eq!(geometry.shape(rows[0].id), Ok(ValueShape::integer(8, 8)));
         for foreign in &rows[1..] {
             assert_eq!(
                 geometry.shape(foreign.id),
-                Err(TerminalLayoutError::UnclosedOpaqueRepresentation(foreign.id)),
+                Err(TerminalLayoutError::UnclosedOpaqueRepresentation(
+                    foreign.id
+                )),
             );
         }
         assert_eq!(
             NativeGeometry::new(&rows).unwrap().shape(rows[0].id),
-            Err(TerminalLayoutError::UnclosedOpaqueRepresentation(rows[0].id)),
+            Err(TerminalLayoutError::UnclosedOpaqueRepresentation(
+                rows[0].id
+            )),
         );
     }
 

@@ -111,7 +111,9 @@ fn callback_fixup(
     fixed: bool,
 ) -> Result<X86_64NormalizedForeignCallFixup, X86_64NormalizedForeignCallTemplateError> {
     let bad = X86_64NormalizedForeignCallTemplateError::MalformedTemplate;
-    if fixed && !destinations.is_empty() { return Err(bad); }
+    if fixed && !destinations.is_empty() {
+        return Err(bad);
+    }
     let mut callbacks = Vec::with_capacity(destinations.len());
     let mut offset = 0u16;
     for destination in destinations {
@@ -171,7 +173,12 @@ pub fn encode_x86_64_selected_normalized_foreign_call_template(
         return Err(X86_64NormalizedForeignCallTemplateError::InstructionKindMismatch);
     };
     let bytes = build_bytes(callback_destinations)?;
-    let fixup = callback_fixup(boundary, ordinal, callback_destinations, record.call.binding.fixed_activation().is_some())?;
+    let fixup = callback_fixup(
+        boundary,
+        ordinal,
+        callback_destinations,
+        record.call.binding.fixed_activation().is_some(),
+    )?;
     validate_x86_64_selected_normalized_foreign_call_template(
         target,
         physical,
@@ -261,7 +268,14 @@ pub fn validate_x86_64_selected_normalized_foreign_call_template(
     if bytes != build_bytes(callback_destinations)? {
         return Err(X86_64NormalizedForeignCallTemplateError::MalformedTemplate);
     }
-    if fixup != callback_fixup(boundary, ordinal, callback_destinations, record.call.binding.fixed_activation().is_some())? {
+    if fixup
+        != callback_fixup(
+            boundary,
+            ordinal,
+            callback_destinations,
+            record.call.binding.fixed_activation().is_some(),
+        )?
+    {
         return Err(X86_64NormalizedForeignCallTemplateError::FixupMismatch);
     }
     Ok(Template::new(

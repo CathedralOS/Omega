@@ -58,7 +58,10 @@ pub fn prepare_function_origin(function: &SelectedFunction) -> FragmentFunctionO
                                     call.instruction == instruction.id
                                         && call.call.boundary == boundary
                                 })
-                                .map(|call| call.call.binding.import_locator().is_none() && call.call.binding.fixed_activation().is_none())
+                                .map(|call| {
+                                    call.call.binding.import_locator().is_none()
+                                        && call.call.binding.fixed_activation().is_none()
+                                })
                                 .ok_or(ResolvedFragmentEmissionError::RootMismatch)
                         } else {
                             Ok(false)

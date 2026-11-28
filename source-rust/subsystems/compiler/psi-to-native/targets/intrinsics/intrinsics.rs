@@ -233,7 +233,12 @@ pub fn compiler_intrinsic_execution_identity_bytes(
         Execution::EmptyRunRelease => IntrinsicTag::EmptyRunRelease,
         Execution::FixedActivation(operation) => {
             use language_core::sealed_intrinsics::ActivationOperation as Op;
-            bytes[1] = match operation { Op::Prepare => 0, Op::StepFixed => 1, Op::Park => 2, Op::Resume => 3 };
+            bytes[1] = match operation {
+                Op::Prepare => 0,
+                Op::StepFixed => 1,
+                Op::Park => 2,
+                Op::Resume => 3,
+            };
             IntrinsicTag::FixedActivation
         }
         Execution::AccessLifecycle(operation) => {

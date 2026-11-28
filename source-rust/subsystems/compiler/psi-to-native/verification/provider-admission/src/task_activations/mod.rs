@@ -35,11 +35,7 @@ pub fn validate_task_activations(
         .layouts()
         .geometry(artifact)
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
-    let storage = TaskStorage::new(
-        geometry.declarations(),
-        reach.value_storage(),
-        profile,
-    )?;
+    let storage = TaskStorage::new(geometry.declarations(), reach.value_storage(), profile)?;
     check_plans(demands, &module.identities, providers, profile, &storage)
 }
 

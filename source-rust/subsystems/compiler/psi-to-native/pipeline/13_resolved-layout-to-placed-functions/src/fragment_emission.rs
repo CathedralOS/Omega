@@ -3,10 +3,16 @@ use machine_code::fragment_origins::{
     FragmentFunctionOrigin, FragmentInstructionOrigin, FragmentOrigins,
 };
 
-fn fragment_call_state(state: SelectedFormNormalizedForeignCallFixupState) -> FunctionFragmentNormalizedForeignCallFixupState {
+fn fragment_call_state(
+    state: SelectedFormNormalizedForeignCallFixupState,
+) -> FunctionFragmentNormalizedForeignCallFixupState {
     match state {
-        SelectedFormNormalizedForeignCallFixupState::UnresolvedImportFieldV1 => FunctionFragmentNormalizedForeignCallFixupState::UnresolvedImportFieldV1,
-        SelectedFormNormalizedForeignCallFixupState::UnresolvedFixedActivationFieldV1 => FunctionFragmentNormalizedForeignCallFixupState::UnresolvedFixedActivationFieldV1,
+        SelectedFormNormalizedForeignCallFixupState::UnresolvedImportFieldV1 => {
+            FunctionFragmentNormalizedForeignCallFixupState::UnresolvedImportFieldV1
+        }
+        SelectedFormNormalizedForeignCallFixupState::UnresolvedFixedActivationFieldV1 => {
+            FunctionFragmentNormalizedForeignCallFixupState::UnresolvedFixedActivationFieldV1
+        }
     }
 }
 

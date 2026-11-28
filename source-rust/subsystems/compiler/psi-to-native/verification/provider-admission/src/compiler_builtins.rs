@@ -190,9 +190,11 @@ pub(super) fn settle_compiler_builtins<'request>(
             continue;
         }
         let realization = match execution {
-            CompilerBuiltinExecution::FixedActivation(_) => return Err(vec![Diagnostic::error(
-                "fixed activation execution must be derived from its sealed source boundary",
-            )]),
+            CompilerBuiltinExecution::FixedActivation(_) => {
+                return Err(vec![Diagnostic::error(
+                    "fixed activation execution must be derived from its sealed source boundary",
+                )]);
+            }
             CompilerBuiltinExecution::StaticInterrupt { .. } => {
                 return Err(vec![Diagnostic::error(
                     "static interrupt execution requires its exact installed occurrence; ordinary provider proposals cannot supply it",

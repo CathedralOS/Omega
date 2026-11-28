@@ -63,7 +63,14 @@ pub fn plan_callable_entry_transport(
     inbound: &BoundaryEntryPlan,
     inbound_ordinals: &[u32],
 ) -> Result<PlannedCallableEntryTransport, Error> {
-    plan_entry_transport(body, body.instructions.entry, installations, inbound, inbound_ordinals, None)
+    plan_entry_transport(
+        body,
+        body.instructions.entry,
+        installations,
+        inbound,
+        inbound_ordinals,
+        None,
+    )
 }
 
 /// A prepared worker is an ordinary reached machine in the physical unit.
@@ -73,7 +80,10 @@ pub fn plan_fixed_worker_entry(
     worker: semantic_vocabulary::MachineId,
     installations: installation_admission::EntryInstallationResources<'_>,
 ) -> Result<PlannedCallableEntryTransport, Error> {
-    let abi = body.instructions.contracts.function_abi(worker)
+    let abi = body
+        .instructions
+        .contracts
+        .function_abi(worker)
         .ok_or(Error::Mismatch("fixed worker has no physical ABI"))?;
     let signature = calling_conventions::CallSignature {
         parameters: abi.call_plan.parameters.iter().map(|p| p.shape).collect(),
@@ -82,9 +92,13 @@ pub fn plan_fixed_worker_entry(
     let inbound = calling_conventions::evaluate_ordinary_boundary_entry_plan(
         calling_conventions::CallingPolicy::native_for_target(body.instructions.target),
         &signature,
-    ).map_err(|_| Error::Mismatch("fixed worker has no ordinary entry ABI"))?;
+    )
+    .map_err(|_| Error::Mismatch("fixed worker has no ordinary entry ABI"))?;
     let ordinals = (0..signature.parameters.len())
-        .map(|index| u32::try_from(index).map_err(|_| Error::Mismatch("fixed worker parameter ordinal overflows")))
+        .map(|index| {
+            u32::try_from(index)
+                .map_err(|_| Error::Mismatch("fixed worker parameter ordinal overflows"))
+        })
         .collect::<Result<Vec<_>, _>>()?;
     plan_entry_transport(body, worker, installations, inbound.plan(), &ordinals, None)
 }

@@ -1,8 +1,8 @@
 #![forbid(unsafe_code)]
 
 pub mod code_layout;
-pub mod fixed_activation;
 mod companion_code;
+pub mod fixed_activation;
 pub mod import_code;
 #[cfg(feature = "test-support")]
 pub mod test_support;

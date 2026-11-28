@@ -58,7 +58,10 @@ pub(super) fn closed_policy_mechanisms() -> Vec<CompilerIntrinsicExecutionIdenti
     mechanisms.push(CompilerIntrinsicExecutionIdentity::ProgramStorageEntry);
     mechanisms.push(CompilerIntrinsicExecutionIdentity::EmptyRunRelease);
     use language_core::sealed_intrinsics::ActivationOperation as Op;
-    mechanisms.extend([Op::Prepare, Op::StepFixed, Op::Park, Op::Resume].map(CompilerIntrinsicExecutionIdentity::FixedActivation));
+    mechanisms.extend(
+        [Op::Prepare, Op::StepFixed, Op::Park, Op::Resume]
+            .map(CompilerIntrinsicExecutionIdentity::FixedActivation),
+    );
     mechanisms.push(CompilerIntrinsicExecutionIdentity::TaskRegisterActivate);
     mechanisms.push(CompilerIntrinsicExecutionIdentity::TaskRegisterRead);
     mechanisms.extend(

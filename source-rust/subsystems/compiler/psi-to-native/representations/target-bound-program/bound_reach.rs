@@ -38,7 +38,10 @@ pub struct TargetBoundReach {
     scalar_applications: Arc<[ScalarApplicationId]>,
     owned_sequence_bounds: Vec<(semantic_vocabulary::StructuralTypeId, u64)>,
     execution_owners: Vec<runtime_abi::ExecutionOwnerHome>,
-    steps: Vec<(BoundaryMachineId, terminal_semantics::calls::owned_activation::StepShape)>,
+    steps: Vec<(
+        BoundaryMachineId,
+        terminal_semantics::calls::owned_activation::StepShape,
+    )>,
     demands: terminal_psi::TerminalBoundaryApplicationDemands,
     selected_candidate_positions: Vec<usize>,
 }
@@ -97,11 +100,18 @@ impl TargetBoundReach {
             Arc::new(layouts)
         };
         let (execution_owners, steps) = execution_preparation::owner_homes(
-            module, &emitted, profile.native_target(), prepared, parent,
+            module,
+            &emitted,
+            profile.native_target(),
+            prepared,
+            parent,
         )?;
         let scalar_applications = ScalarDemand {
             emitted: Some(&emitted),
-            storage: runtime_abi::NativeValueStorage { sequences: &owned_sequence_bounds, execution_owners: &execution_owners },
+            storage: runtime_abi::NativeValueStorage {
+                sequences: &owned_sequence_bounds,
+                execution_owners: &execution_owners,
+            },
         }
         .scalar_application_demand(module, &layouts)?;
         Ok(Self {
@@ -132,7 +142,10 @@ impl TargetBoundReach {
         let bounds = Self::full_module_owned_sequence_bounds(module).map_err(str::to_owned)?;
         ScalarDemand {
             emitted: None,
-            storage: runtime_abi::NativeValueStorage { sequences: &bounds, ..Default::default() },
+            storage: runtime_abi::NativeValueStorage {
+                sequences: &bounds,
+                ..Default::default()
+            },
         }
         .scalar_application_demand(module, layouts)
     }
@@ -142,11 +155,20 @@ impl TargetBoundReach {
     }
 
     pub fn value_storage(&self) -> runtime_abi::NativeValueStorage<'_> {
-        runtime_abi::NativeValueStorage { sequences: &self.owned_sequence_bounds, execution_owners: &self.execution_owners }
+        runtime_abi::NativeValueStorage {
+            sequences: &self.owned_sequence_bounds,
+            execution_owners: &self.execution_owners,
+        }
     }
 
-    pub fn step(&self, boundary: BoundaryMachineId) -> Option<&terminal_semantics::calls::owned_activation::StepShape> {
-        self.steps.binary_search_by_key(&boundary, |(id, _)| *id).ok().map(|i| &self.steps[i].1)
+    pub fn step(
+        &self,
+        boundary: BoundaryMachineId,
+    ) -> Option<&terminal_semantics::calls::owned_activation::StepShape> {
+        self.steps
+            .binary_search_by_key(&boundary, |(id, _)| *id)
+            .ok()
+            .map(|i| &self.steps[i].1)
     }
 
     pub const fn entry(&self) -> MachineId {

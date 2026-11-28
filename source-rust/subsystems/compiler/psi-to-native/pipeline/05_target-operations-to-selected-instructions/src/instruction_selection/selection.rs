@@ -664,21 +664,22 @@ pub(crate) mod construction {
         }
         let catalog = environment.constraints();
         require_key_rows(&constraints.keys, catalog)?;
-        let native_geometry = crate::instruction_selection::native_geometry::NativeGeometries::with_value_storage(
-            target.scalar_functions.iter().map(|source| {
-                source
-                    .structural
-                    .as_ref()
-                    .map_or((&[][..], Default::default()), |contract| {
-                        (
-                            contract.structural_types.as_slice(),
-                            contract.structural_types.value_storage(),
-                        )
-                    })
-            }),
-            target.target,
-        )
-        .map_err(|_| SelectedInstructionError::custody())?;
+        let native_geometry =
+            crate::instruction_selection::native_geometry::NativeGeometries::with_value_storage(
+                target.scalar_functions.iter().map(|source| {
+                    source
+                        .structural
+                        .as_ref()
+                        .map_or((&[][..], Default::default()), |contract| {
+                            (
+                                contract.structural_types.as_slice(),
+                                contract.structural_types.value_storage(),
+                            )
+                        })
+                }),
+                target.target,
+            )
+            .map_err(|_| SelectedInstructionError::custody())?;
         let backings = super::foreign_scalar_backings::ForeignScalarBackings::new(
             target,
             &native_geometry,
@@ -698,9 +699,12 @@ pub(crate) mod construction {
                                 .structural
                                 .as_ref()
                                 .map_or(&[][..], |contract| contract.structural_types.as_slice()),
-                            source.structural.as_ref().map_or_else(Default::default, |contract| {
-                                contract.structural_types.value_storage()
-                            }),
+                            source
+                                .structural
+                                .as_ref()
+                                .map_or_else(Default::default, |contract| {
+                                    contract.structural_types.value_storage()
+                                }),
                         )
                         .ok_or_else(SelectedInstructionError::custody)?,
                     constraints,
@@ -1171,9 +1175,12 @@ pub(crate) mod foreign_scalar_backings {
                     .geometries
                     .get_with_storage(
                         declarations,
-                        function.structural.as_ref().map_or_else(Default::default, |signature| {
-                            signature.structural_types.value_storage()
-                        }),
+                        function
+                            .structural
+                            .as_ref()
+                            .map_or_else(Default::default, |signature| {
+                                signature.structural_types.value_storage()
+                            }),
                     )
                     .ok_or_else(|| {
                         SelectedInstructionError::custody_because(

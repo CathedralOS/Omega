@@ -32,7 +32,14 @@ impl<'a> NativeGeometry<'a> {
         bounds: &'a [(StructuralTypeId, u64)],
         target: NativeTarget,
     ) -> Result<Self, NonDenseIdentities> {
-        Self::with_value_storage(declarations, runtime_abi::NativeValueStorage { sequences: bounds, ..Default::default() }, target)
+        Self::with_value_storage(
+            declarations,
+            runtime_abi::NativeValueStorage {
+                sequences: bounds,
+                ..Default::default()
+            },
+            target,
+        )
     }
 
     pub fn with_value_storage(
@@ -161,11 +168,27 @@ impl<'a> NativeGeometries<'a> {
         >,
         target: NativeTarget,
     ) -> Result<Self, NonDenseIdentities> {
-        Self::with_value_storage(declarations.map(|(rows, sequences)| (rows, runtime_abi::NativeValueStorage { sequences, ..Default::default() })), target)
+        Self::with_value_storage(
+            declarations.map(|(rows, sequences)| {
+                (
+                    rows,
+                    runtime_abi::NativeValueStorage {
+                        sequences,
+                        ..Default::default()
+                    },
+                )
+            }),
+            target,
+        )
     }
 
     pub fn with_value_storage(
-        declarations: impl Iterator<Item = (&'a [StructuralTypeDeclaration], runtime_abi::NativeValueStorage<'a>)>,
+        declarations: impl Iterator<
+            Item = (
+                &'a [StructuralTypeDeclaration],
+                runtime_abi::NativeValueStorage<'a>,
+            ),
+        >,
         target: NativeTarget,
     ) -> Result<Self, NonDenseIdentities> {
         let mut catalogs = declarations.collect::<Vec<_>>();
@@ -174,9 +197,7 @@ impl<'a> NativeGeometries<'a> {
         Ok(Self {
             catalogs: catalogs
                 .into_iter()
-                .map(|(rows, bounds)| {
-                    NativeGeometry::with_value_storage(rows, bounds, target)
-                })
+                .map(|(rows, bounds)| NativeGeometry::with_value_storage(rows, bounds, target))
                 .collect::<Result<_, _>>()?,
         })
     }
@@ -200,7 +221,13 @@ impl<'a> NativeGeometries<'a> {
         declarations: &[StructuralTypeDeclaration],
         bounds: &[(semantic_vocabulary::StructuralTypeId, u64)],
     ) -> Option<&NativeGeometry<'a>> {
-        self.get_with_storage(declarations, runtime_abi::NativeValueStorage { sequences: bounds, ..Default::default() })
+        self.get_with_storage(
+            declarations,
+            runtime_abi::NativeValueStorage {
+                sequences: bounds,
+                ..Default::default()
+            },
+        )
     }
 
     pub fn get_with_storage(

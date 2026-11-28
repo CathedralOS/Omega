@@ -571,7 +571,9 @@ impl BoundaryExecutionBinding {
         match self {
             Self::AdmittedProvider(provider) => Some(ExternalExecutionBinding::Provider(provider)),
             Self::NativeBinding(binding) => Some(ExternalExecutionBinding::NativeBinding(binding)),
-            Self::CompilerBuiltin(CompilerBuiltinExecution::FixedActivation(binding)) => Some(ExternalExecutionBinding::FixedActivation(binding)),
+            Self::CompilerBuiltin(CompilerBuiltinExecution::FixedActivation(binding)) => {
+                Some(ExternalExecutionBinding::FixedActivation(binding))
+            }
             Self::CompilerBuiltin(_) => None,
         }
     }

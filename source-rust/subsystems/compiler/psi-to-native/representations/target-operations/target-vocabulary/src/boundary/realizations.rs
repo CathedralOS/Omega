@@ -347,8 +347,14 @@ impl NormalizedForeignCallMechanism {
                 source: TableBindingSource::Provider(same_stack_contribution),
                 ..
             } => Some(same_stack_contribution),
-            Self::Table { source: TableBindingSource::BuildBinding { .. }, .. } => None,
-            Self::FixedActivation(_) | Self::SystemCall(_) | Self::BuildImport { .. } | Self::CompilerImport { .. } => None,
+            Self::Table {
+                source: TableBindingSource::BuildBinding { .. },
+                ..
+            } => None,
+            Self::FixedActivation(_)
+            | Self::SystemCall(_)
+            | Self::BuildImport { .. }
+            | Self::CompilerImport { .. } => None,
         }
     }
 }
@@ -501,7 +507,9 @@ impl NormalizedForeignCallBinding {
 
     pub fn native_target(&self) -> Option<target::NativeTarget> {
         match &self.mechanism {
-            NormalizedForeignCallMechanism::FixedActivation(_) => Some(target::NativeTarget::linux_x64()),
+            NormalizedForeignCallMechanism::FixedActivation(_) => {
+                Some(target::NativeTarget::linux_x64())
+            }
             NormalizedForeignCallMechanism::Import { locator, .. }
             | NormalizedForeignCallMechanism::BuildImport { locator, .. } => {
                 Some(locator.target().native_target())
@@ -564,7 +572,10 @@ impl NormalizedForeignCallBinding {
         };
         let call = &self.boundary_entry_plan.call;
         match &self.mechanism {
-            NormalizedForeignCallMechanism::FixedActivation(_) => call.policy == CallingPolicy::SystemVAMD64 && call.entry_control == EntryControl::CallReturn,
+            NormalizedForeignCallMechanism::FixedActivation(_) => {
+                call.policy == CallingPolicy::SystemVAMD64
+                    && call.entry_control == EntryControl::CallReturn
+            }
             NormalizedForeignCallMechanism::CompilerImport {
                 import,
                 requirement_identity,

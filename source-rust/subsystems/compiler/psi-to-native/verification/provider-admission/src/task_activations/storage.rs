@@ -18,13 +18,13 @@ impl<'a> TaskStorage<'a> {
         storage: runtime_abi::NativeValueStorage<'a>,
         profile: target::TargetProfile,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let layouts =
-            StructuralLayoutResolver::with_value_storage(declarations, storage)
-                .map_err(|error| {
-                    vec![Diagnostic::error(format!(
-                        "task storage declarations: {error:?}"
-                    ))]
-                })?;
+        let layouts = StructuralLayoutResolver::with_value_storage(declarations, storage).map_err(
+            |error| {
+                vec![Diagnostic::error(format!(
+                    "task storage declarations: {error:?}"
+                ))]
+            },
+        )?;
         let target = profile.native_target();
         Ok(Self {
             layouts,

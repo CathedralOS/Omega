@@ -142,7 +142,10 @@ impl StructuralTypeCatalog {
     }
 
     pub fn value_storage(&self) -> runtime_abi::NativeValueStorage<'_> {
-        runtime_abi::NativeValueStorage { sequences: &self.6, execution_owners: &self.7 }
+        runtime_abi::NativeValueStorage {
+            sequences: &self.6,
+            execution_owners: &self.7,
+        }
     }
 
     pub fn with_access_views(mut self, plans: Vec<TerminalAccessViewPlan>) -> Self {

@@ -96,10 +96,12 @@ impl<'a> Reviewer<'a> {
                 native_intrinsics::CompilerIntrinsicExecutionIdentity::AccessLifecycle(plan.operation)
             });
         let intrinsic = match declaration.declaration.as_ref().map(|row| row.execution) {
-            Some(terminal_psi::CheckedBoundaryExecution::OwnedActivation(operation)) =>
-                Some(native_intrinsics::CompilerIntrinsicExecutionIdentity::FixedActivation(operation)),
-            Some(terminal_psi::CheckedBoundaryExecution::EmptyRunRelease) =>
-                Some(native_intrinsics::CompilerIntrinsicExecutionIdentity::EmptyRunRelease),
+            Some(terminal_psi::CheckedBoundaryExecution::OwnedActivation(operation)) => Some(
+                native_intrinsics::CompilerIntrinsicExecutionIdentity::FixedActivation(operation),
+            ),
+            Some(terminal_psi::CheckedBoundaryExecution::EmptyRunRelease) => {
+                Some(native_intrinsics::CompilerIntrinsicExecutionIdentity::EmptyRunRelease)
+            }
             _ => lifecycle,
         };
         if let Some(intrinsic) = intrinsic {

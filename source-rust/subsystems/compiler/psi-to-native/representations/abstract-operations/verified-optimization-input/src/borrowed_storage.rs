@@ -97,11 +97,8 @@ impl AdmittedBorrowedStorage {
         if roots.is_empty() {
             return Ok(NativeBorrowedStorageLayouts::default());
         }
-        let geometry =
-            NativeGeometry::with_value_storage(catalog, catalog.value_storage())
-                .map_err(
-                    |_| "borrowed storage declarations have non-dense structural identities",
-                )?;
+        let geometry = NativeGeometry::with_value_storage(catalog, catalog.value_storage())
+            .map_err(|_| "borrowed storage declarations have non-dense structural identities")?;
         // A reachable opaque type may have no native representation. Consumers
         // requiring that recipe must refuse the borrow when its row is absent.
         let layouts = roots

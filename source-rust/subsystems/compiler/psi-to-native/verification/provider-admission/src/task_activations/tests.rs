@@ -94,7 +94,12 @@ fn demands() -> (Vec<TerminalTaskActivationDemand>, TerminalIdentityTable) {
 #[test]
 fn the_selected_task_runtime_must_cover_the_published_requirement() {
     let (input, identities) = demands();
-    let storage = TaskStorage::new(std::iter::empty(), Default::default(), TargetProfile::LinuxX64).unwrap();
+    let storage = TaskStorage::new(
+        std::iter::empty(),
+        Default::default(),
+        TargetProfile::LinuxX64,
+    )
+    .unwrap();
     assert!(
         check_plans(
             &input,
@@ -122,7 +127,12 @@ fn the_selected_task_runtime_must_cover_the_published_requirement() {
 #[test]
 fn activation_checks_keep_the_frame_graph_and_suspension_obligations() {
     let (input, identities) = demands();
-    let storage = TaskStorage::new(std::iter::empty(), Default::default(), TargetProfile::LinuxX64).unwrap();
+    let storage = TaskStorage::new(
+        std::iter::empty(),
+        Default::default(),
+        TargetProfile::LinuxX64,
+    )
+    .unwrap();
     let check = |input| {
         check_plans(
             input,

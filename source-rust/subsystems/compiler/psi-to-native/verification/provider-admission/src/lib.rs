@@ -4,12 +4,12 @@
 #![forbid(unsafe_code)]
 
 mod access_lifecycles;
-mod fixed_activations;
 mod adapters;
 mod admission;
 mod admission_source;
 mod callback_entries;
 mod compiler_builtins;
+mod fixed_activations;
 pub mod installed_interrupt_helpers;
 mod isolated_execution;
 mod lowering_facts;

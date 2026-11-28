@@ -301,7 +301,9 @@ pub fn encode_boundary_execution_identity(
     execution: BoundaryExecutionBinding,
 ) {
     match execution {
-        BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::FixedActivation(binding)) => {
+        BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::FixedActivation(
+            binding,
+        )) => {
             bytes.push(12);
             binding.encode(bytes);
         }

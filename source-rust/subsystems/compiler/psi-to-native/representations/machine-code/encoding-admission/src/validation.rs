@@ -858,8 +858,13 @@ fn validate_normalized_foreign_call(
         return Err(Error::ArtifactMismatch);
     };
     let fixed = record.call.binding.fixed_activation().is_some();
-    let expected = if fixed { SelectedFormNormalizedForeignCallFixupState::UnresolvedFixedActivationFieldV1 } else { SelectedFormNormalizedForeignCallFixupState::UnresolvedImportFieldV1 };
-    if (fixed && target.architecture != Architecture::X86_64) || fixup.state != expected
+    let expected = if fixed {
+        SelectedFormNormalizedForeignCallFixupState::UnresolvedFixedActivationFieldV1
+    } else {
+        SelectedFormNormalizedForeignCallFixupState::UnresolvedImportFieldV1
+    };
+    if (fixed && target.architecture != Architecture::X86_64)
+        || fixup.state != expected
         || fixup.addend != 0
     {
         return Err(Error::ArtifactMismatch);
@@ -893,7 +898,11 @@ fn validate_normalized_foreign_call(
                 bytes,
                 X86_64NormalizedForeignCallFixup {
                     kind: target_kind,
-                    state: if fixed { X86_64NormalizedForeignCallFixupState::UnresolvedFixedActivationFieldV1 } else { X86_64NormalizedForeignCallFixupState::UnresolvedImportFieldV1 },
+                    state: if fixed {
+                        X86_64NormalizedForeignCallFixupState::UnresolvedFixedActivationFieldV1
+                    } else {
+                        X86_64NormalizedForeignCallFixupState::UnresolvedImportFieldV1
+                    },
                     boundary: fixup.boundary,
                     ordinal: fixup.ordinal,
                     opcode_byte_offset: fixup.opcode_row_offset,
