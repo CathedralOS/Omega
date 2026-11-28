@@ -742,6 +742,9 @@ pub(super) fn reviewed_invocations(
             TerminalCallableInvocation::Parameter(position) => {
                 Ok(PackageReviewSynchronousInvocation::Parameter(*position))
             }
+            TerminalCallableInvocation::ParameterPath { .. } => Err(unavailable(
+                "the parameter field that a callback invocation enters",
+            )),
             TerminalCallableInvocation::Service(service) => reviewed_service(identities, *service)
                 .map(PackageReviewSynchronousInvocation::Service),
         })
@@ -806,11 +809,32 @@ pub(super) fn validate_body_effect_inventory(
     Ok(())
 }
 
+// The service-only body inventory cannot sign a call through a field of a formal.
+// Check the contract used at each call, including a separately selected declaration.
+fn check_reviewed_invocation_paths(
+    envelope: Option<&terminal_psi::TerminalCallableEnvelope>,
+) -> Result<(), Vec<Diagnostic>> {
+    if envelope.is_some_and(|envelope| {
+        envelope.invocations.iter().any(|entry| {
+            matches!(
+                entry,
+                terminal_psi::TerminalCallableInvocation::ParameterPath { .. }
+            )
+        })
+    }) {
+        return Err(unavailable(
+            "the parameter field that a callback invocation enters",
+        ));
+    }
+    Ok(())
+}
+
 pub(super) fn body_effects(
     module: &TerminalModule,
     body: &terminal_psi::TerminalMachine,
     original: &terminal_psi::UnoptimizedMachineBehavior,
 ) -> Result<([Vec<ServiceId>; 2], [bool; 2]), Vec<Diagnostic>> {
+    check_reviewed_invocation_paths(module.execution.callables.machine_envelope(body.id))?;
     if body.callable_invocations().next().is_some() {
         return Err(unavailable("the callable’s indirect call effects"));
     }
@@ -863,6 +887,11 @@ fn contribution(
 ) -> Result<([&[ServiceId]; 2], [bool; 2]), Vec<Diagnostic>> {
     match callee {
         TargetMachineCallable::Machine(machine) => {
+            let callables = &module.execution.callables;
+            check_reviewed_invocation_paths(match required {
+                Some(contract) => callables.declaration_envelope(contract),
+                None => callables.machine_envelope(machine),
+            })?;
             let header = module
                 .invocation_machine_contract(machine, required)
                 .ok_or_else(|| unavailable("a call's exact public contract"))?;
@@ -878,6 +907,9 @@ fn contribution(
             if required.is_some() {
                 return Err(unavailable("a selected boundary call's public association"));
             }
+            check_reviewed_invocation_paths(
+                module.execution.callables.boundary_envelope(boundary),
+            )?;
             let header = module
                 .boundary_machine(boundary)
                 .ok_or_else(|| unavailable("a call's boundary contract"))?;
@@ -1091,6 +1123,55 @@ pub(super) fn published_source_crash_routes(
 
 #[cfg(test)]
 mod exposure_tests {
+
+    #[test]
+    fn package_review_preserves_whole_parameters_and_refuses_invoked_fields() {
+        use semantic_vocabulary::{ContractId, MachineId};
+        use terminal_psi::{
+            StructuralPathSegment, TargetMachineCallable, TerminalCallableEnvelope,
+            TerminalCallableInvocation, TerminalCallableTermination, TerminalDeclarationEnvelope,
+            TerminalIdentityIndex, TerminalModule,
+        };
+
+        let mut envelope = TerminalCallableEnvelope {
+            service_reach: Vec::new(),
+            invocations: vec![TerminalCallableInvocation::Parameter(1)],
+            suspends: false,
+            blocks: false,
+            termination: TerminalCallableTermination::NotGuaranteed,
+        };
+        assert_eq!(
+            super::reviewed_invocations(&[], &envelope).unwrap(),
+            [super::PackageReviewSynchronousInvocation::Parameter(1)]
+        );
+
+        envelope.invocations[0] = TerminalCallableInvocation::ParameterPath {
+            parameter: 1,
+            path: vec![StructuralPathSegment::Field(TerminalIdentityIndex(2))],
+        };
+        let direct = super::reviewed_invocations(&[], &envelope).unwrap_err();
+        assert_eq!(
+            direct,
+            super::unavailable("the parameter field that a callback invocation enters")
+        );
+
+        let mut module = TerminalModule::declarations();
+        let selected = ContractId::new(1).unwrap();
+        module
+            .execution
+            .callables
+            .declaration_envelopes
+            .push(TerminalDeclarationEnvelope {
+                contract: selected,
+                envelope,
+            });
+        let callee = TargetMachineCallable::Machine(MachineId::new(1).unwrap());
+        assert_eq!(
+            super::contribution(&module, callee, Some(selected)).unwrap_err(),
+            direct
+        );
+    }
+
     #[test]
     fn exported_boundary_supply_exposes_its_contract_without_publishing_its_name() {
         use source_compiler::representations::{
