@@ -1,4 +1,6 @@
 //! Two structurally distinct package subjects share one public declaration.
+mod copies;
+
 use super::*;
 use crate::packages::check_package_sites;
 use semantic_vocabulary::{PlaceId, StructuralFieldId, StructuralTypeId};
@@ -581,8 +583,7 @@ fn a_field_read_through_an_alias_must_reach_its_recorded_package() {
     assert_eq!(error, "package projection reads a field of another subject");
 }
 
-#[test]
-fn package_sites_repack_only_references_from_the_same_live_opening() {
+fn repacked_shared_pair() -> TerminalModule {
     use terminal_psi::{RecordFieldInitializer, RecordFieldValue};
     let mut program = shared_pair_projections();
     let m = &mut program.machines[0];
@@ -617,6 +618,12 @@ fn package_sites_repack_only_references_from_the_same_live_opening() {
             witnesses: vec![ty(2)],
         },
     });
+    program
+}
+
+#[test]
+fn package_sites_repack_only_references_from_the_same_live_opening() {
+    let mut program = repacked_shared_pair();
     check_package_sites(&program).expect("two shared references from one package may be repacked");
     let op = &mut program.machines[0].blocks[0].operations[1];
     if let O::StructuralLeafCopy { source, .. } = &mut op.kind {
