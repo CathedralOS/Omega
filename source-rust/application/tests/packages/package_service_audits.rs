@@ -261,3 +261,200 @@ fn fresh_audit_reports_each_build_and_a_version_four_lock_refuses_the_chain() {
     );
     assert!(!root.join("omega.lock").exists());
 }
+
+#[test]
+fn fresh_audit_names_native_borrow_origins_and_foreign_boundaries() {
+    let project = TemporaryDirectory::create("review-unsafe-origins", false).unwrap();
+    fs::write(
+        project.path().join("build.omg"),
+        r#"use {omega}/language/core/unsafe.omg as trust;
+machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Package { name: "cell_reader" };
+    Build::enable_unsafe::<|trust|::RawMemoryRead>(plan);
+    Build::enable_unsafe::<|trust|::ForeignCodeExecution>(plan);
+}"#,
+    )
+    .unwrap();
+    fs::write(
+        project.path().join("main.omg"),
+        r#"use {omega}/language/core/unsafe.omg as trust;
+public boundary trait ProcessIdentity {
+    machine read() -> i32 reaches |trust|::ForeignCodeExecution crashes none;
+}
+public machine process_id() -> i32 { ProcessIdentity::read() }
+machine read(source: address) -> u8 {
+    let cell: @u8 = |trust|::borrow_at::<u8>(source);
+    $cell
+}
+public machine consult(source: address) -> u8 { read(source) }
+public machine transfer(source: address) -> address { source }
+machine dormant(source: address) -> u8 {
+    let cell: @mutable u8 = |trust|::borrow_mutable_at::<u8>(source);
+    $cell
+}
+"#,
+    )
+    .unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .args(["packages", "audit", "--offline", "--target", "linux_x86_64"])
+        .env(
+            "OMEGA_LIBRARY_ROOT",
+            support::repository_root().join("source/library"),
+        )
+        .current_dir(project.path())
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&output.stderr),
+        String::from_utf8_lossy(&output.stdout)
+    );
+    let report = String::from_utf8(output.stdout).unwrap();
+    for required in [
+        "Build enabled RawMemoryRead",
+        "Build enabled ForeignCodeExecution",
+        r#"operation |unsafe|::borrow_at in "cell_reader"::"main.omg::read" (Psi operation "#,
+        r#"boundary operation "cell_reader"::"main.omg::ProcessIdentity::read""#,
+        r#"operation |unsafe|::borrow_mutable_at in "cell_reader"::"main.omg::dormant" (Psi operation "#,
+        "requires Unsafe + RawMemoryWrite (Product opt-in absent)",
+        "requires Unsafe + RawMemoryRead (Product opt-in enabled)",
+        "requires Unsafe + ForeignCodeExecution",
+    ] {
+        assert!(
+            report.contains(required),
+            "missing {required:?} in {report}"
+        );
+    }
+    assert!(
+        !report
+            .lines()
+            .any(|line| line.contains("operation") && line.contains("main.omg::transfer")),
+        "{report}"
+    );
+}
+
+#[test]
+fn package_audit_keeps_the_unsafe_ceiling_of_each_alias() {
+    let project = super::project::stage(
+        "unsafe-aliases",
+        &[
+            (
+                "storage/build.omg",
+                r#"use {omega}/language/core/unsafe.omg as trust;
+machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Package { name: "storage" };
+    Build::enable_unsafe::<|trust|::RawMemoryRead>(plan);
+}"#,
+            ),
+            (
+                "storage/main.omg",
+                r#"use {omega}/language/core/unsafe.omg as trust;
+machine read_cell(source: address) -> u8 {
+    let byte: @u8 = |trust|::borrow_at::<u8>(source);
+    $byte
+}
+public machine read(source: address) -> u8 { read_cell(source) }
+public machine forward(source: address) -> address { source }
+"#,
+            ),
+            (
+                "main.omg",
+                r#"use {readable}/main.omg as allow;
+use {offline}/main.omg as passthrough;
+public machine read(source: address) -> u8 { |allow|::read(|passthrough|::forward(source)) }
+machine main() crashes Trap {
+    let value: u8 = 17u8;
+    transition read(address_of(@value)) == 17u8 { true -> done(), _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+"#,
+            ),
+            (
+                "build.omg",
+                r#"use {omega}/language/core/unsafe.omg as trust;
+use {omega}/build/dependency.omg as dep;
+use main.omg as app;
+machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Application { name: "consumer" };
+    Build::enable_unsafe::<|trust|::RawMemoryRead>(plan);
+    let mutable b: DependencyDescription = |dep|::from_source(Source::Path { location: "storage" });
+    |dep|::with_alias(@mutable b, "offline");
+    _ = Build::dependency(plan, b);
+    let mutable a: DependencyDescription = |dep|::from_source(Source::Path { location: "storage" });
+    |dep|::with_alias(@mutable a, "readable");
+    let allowed: [BoundaryServiceReference; 1] = [Build::service::<|trust|::RawMemoryRead>(plan)];
+    _ = |dep|::add(plan, a, @allowed[..]);
+    Build::bind(plan, linux_x86_64::ProgramEntry, |app|::main);
+}
+"#,
+            ),
+        ],
+    );
+    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .args(["packages", "audit", "--target", "linux_x86_64", "--offline"])
+        .env(
+            "OMEGA_LIBRARY_ROOT",
+            support::repository_root().join("source/library"),
+        )
+        .current_dir(project.path())
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report = String::from_utf8(output.stdout).unwrap();
+    let admitted = report
+        .lines()
+        .find(|line| line.contains(r#"dependency "readable" -> "storage" ["#))
+        .unwrap_or_else(|| panic!("{report}"));
+    let offline = report
+        .lines()
+        .find(|line| line.contains(r#"dependency "offline" -> "storage" ["#))
+        .unwrap_or_else(|| panic!("{report}"));
+    assert_eq!(
+        admitted
+            .split_once('[')
+            .unwrap()
+            .1
+            .split_once(']')
+            .unwrap()
+            .0,
+        offline
+            .split_once('[')
+            .unwrap()
+            .1
+            .split_once(']')
+            .unwrap()
+            .0,
+        "{report}"
+    );
+    assert!(admitted.ends_with("admits RawMemoryRead"), "{report}");
+    assert!(offline.ends_with("admits no Unsafe child"), "{report}");
+    assert!(
+        report.contains(r#"operation |unsafe|::borrow_at in "storage"::"main.omg::read_cell""#),
+        "{report}"
+    );
+    let admitted_path = report
+        .lines()
+        .find(|line| line.contains(r#"admitted by dependency "readable""#))
+        .unwrap_or_else(|| panic!("{report}"));
+    for callable in [
+        r#""consumer"::"main.omg::main""#,
+        r#""consumer"::"main.omg::read""#,
+        r#""storage"::"main.omg::read""#,
+        r#""storage"::"main.omg::read_cell""#,
+    ] {
+        assert!(
+            admitted_path.contains(callable),
+            "missing {callable} in {admitted_path}"
+        );
+    }
+    assert!(
+        !report.contains(r#"admitted by dependency "offline""#),
+        "{report}"
+    );
+}

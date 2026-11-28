@@ -1319,6 +1319,7 @@ mod tests {
                 requires: Vec::new(),
                 normal_qualifications: Vec::new(),
                 scalar_domain_requirements: Vec::new(),
+                membership_requires: Vec::new(),
                 membership_ensures: Vec::new(),
                 scalar_requires: Vec::new(),
                 scalar_ensures: Vec::new(),

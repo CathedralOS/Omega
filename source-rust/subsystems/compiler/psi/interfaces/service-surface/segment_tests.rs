@@ -1,4 +1,4 @@
-use super::{ServiceNormalResultMembership, ServiceResultProjection};
+use super::{ServiceDomainMembership, ServiceMembershipProjection};
 use record_storage::{Record, decode, encode};
 use semantic_vocabulary::{
     ContentPlaceSegment, ContentPlaceVersion, ContentStructuralPlace, PlaceId,
@@ -141,7 +141,7 @@ fn content_segment_preserves_historical_order_hash_and_records() {
 #[test]
 fn service_segment_preserves_historical_order_and_hash() {
     use OriginalServiceSegment as Old;
-    use ServiceResultProjection as Current;
+    use ServiceMembershipProjection as Current;
     let original = samples(Old::Field, Old::Case, Old::FixedIndex);
     let current = samples(Current::Field, Current::Case, Current::FixedIndex);
     check_comparison_and_hash(&original, &current);
@@ -158,7 +158,8 @@ fn service_segment_preserves_historical_order_and_hash() {
                 path: old.clone(),
                 domain: domain.into(),
             });
-            current_memberships.push(ServiceNormalResultMembership {
+            current_memberships.push(ServiceDomainMembership {
+                subject: crate::ServiceMembershipSubject::NormalResult,
                 path: new.clone(),
                 domain: domain.into(),
             });

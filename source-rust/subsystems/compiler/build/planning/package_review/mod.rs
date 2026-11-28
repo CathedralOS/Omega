@@ -18,6 +18,11 @@ mod services;
 mod telescope;
 mod terminal_permissions;
 mod traits;
+mod unsafe_authority;
+pub use unsafe_authority::{
+    ReviewedUnsafeAdmission, ReviewedUnsafeAuthority, ReviewedUnsafeDependency,
+    ReviewedUnsafeOrigin, ReviewedUnsafePath, ReviewedUnsafeUse,
+};
 
 pub use preparations::ReviewedPreparation;
 
@@ -36,6 +41,7 @@ pub struct CheckedPackagePolicy {
         source_compiler::compile_time_invocations::SourceCompletionAccounting,
     pub selected_build_machine_identity: String,
     pub preparations: Vec<ReviewedPreparation>,
+    pub unsafe_authority: ReviewedUnsafeAuthority,
     pub restricted_build_requests: Vec<RestrictedBuildRequest>,
     pub policy: PackagePolicyBaseline,
     pub semantic_binding_candidates: Vec<SemanticBindingReviewCandidate>,
@@ -120,6 +126,7 @@ impl crate::ProductStage<'_> {
             input.sources().exact_toolchain_sources(),
             source_provenance::DependencyScope::Product,
         )?;
+        let unsafe_authority = input.unsafe_authority(inputs, &selected)?;
         let policy = policy::project(
             &services,
             &input,
@@ -127,6 +134,7 @@ impl crate::ProductStage<'_> {
             profile,
             package,
             component_assumptions,
+            &unsafe_authority.services,
         )?;
         let semantic_binding_candidates =
             semantic_bindings::candidates(&services, &input, &selected, &policy, profile)?;
@@ -139,6 +147,7 @@ impl crate::ProductStage<'_> {
                 )]
             })?;
         Ok(CheckedPackagePolicy {
+            unsafe_authority: unsafe_authority.report,
             preparations: product.reviewed_preparations()?,
             restricted_build_requests: input.restricted_build_requests,
             sources,

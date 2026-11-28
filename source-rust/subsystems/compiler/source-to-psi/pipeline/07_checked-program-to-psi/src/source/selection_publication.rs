@@ -1908,6 +1908,33 @@ impl<'source> Declarations<'source> {
             SymbolKind::PropositionMachineParameter => SelectionBindingKind::PropositionMachine,
             _ => return Err(refused("resolved local selection names no actual binding")),
         };
+        // A named witness is declared by its value binding. The checked
+        // opening ties this exact witness and value to their lexical state.
+        let scope_owner = if kind == SelectionBindingKind::Type
+            && matches!(
+                self.typed.symbols.get(declared_owner).kind,
+                SymbolKind::Parameter | SymbolKind::Local
+            ) {
+            let state = self.typed.symbols.get(declared_owner).parent;
+            let scoped_witness = self.typed.package_openings.iter().any(|(_, opening)| {
+                opening.state == state
+                    && opening.subject.steps.is_empty()
+                    && matches!(opening.subject.root,
+                        crate::source_state::package_openings::PackageSubjectRoot::Binding(owner)
+                            if owner == declared_owner)
+                    && opening.witnesses.iter().any(|(_, witness)|
+                        matches!(self.typed.type_reference_table.type_reference(*witness),
+                            crate::source_state::types::TypeReferenceNode::Named { symbol: named, .. }
+                                if *named == symbol))
+            });
+            if scoped_witness {
+                state
+            } else {
+                declared_owner
+            }
+        } else {
+            declared_owner
+        };
         // A formal belongs to the entry state, and the body is checked
         // in its machine's lexical scope. Follow the source declarations
         // first. When an enclosing static binder was copied, check the
@@ -1922,12 +1949,12 @@ impl<'source> Declarations<'source> {
                     return Err(refused("local selection has a cyclic lexical scope"));
                 }
                 scopes.push(scope);
-                if scope == declared_owner
+                if scope == scope_owner
                     || self.typed.machine_by_symbol(scope).is_some_and(|machine| {
                         self.typed
                             .machine_states(machine)
                             .iter()
-                            .any(|state| state.symbol == declared_owner)
+                            .any(|state| state.symbol == scope_owner)
                     })
                 {
                     return Ok(true);
@@ -3281,6 +3308,55 @@ machine entry() reaches Input {}
             meanings.len() >= 2,
             "the two selected callable applications must survive publication: {meanings:?}"
         );
+    }
+
+    #[test]
+    fn implicit_and_named_package_witnesses_belong_to_their_actual_states() {
+        let source = accepted_source(
+            "data Pair<'a, some S> { value: @'a S; }
+             machine implicit(p: @Pair) { p.value; }
+             machine named(p: @Pair<some T>) { p.value; }
+             machine entry() {}",
+            &[],
+        );
+        let typed = source.source();
+        let mut declarations = Declarations::new(&source, source.module()).unwrap();
+        let mut questions = SelectionQuestions::default();
+        let mut checked = Vec::new();
+        for (_, opening) in typed.package_openings.iter() {
+            let machine = typed.symbols.get(opening.state).parent;
+            let sibling = typed
+                .machines()
+                .iter()
+                .find(|other| {
+                    other.symbol != machine && matches!(other.name.as_str(), "implicit" | "named")
+                })
+                .unwrap();
+            let [(_, witness)] = opening.witnesses.as_slice() else {
+                panic!("one hidden type in Pair");
+            };
+            let crate::source_state::types::TypeReferenceNode::Named { symbol, .. } =
+                typed.type_reference_table.type_reference(*witness)
+            else {
+                panic!("each witness has its own type identity");
+            };
+            let owner = typed.symbols.get(*symbol).parent;
+            declarations
+                .local_binding(&mut questions, machine, *symbol, owner)
+                .unwrap();
+            let refusal = declarations
+                .local_binding(&mut questions, sibling.symbol, *symbol, owner)
+                .unwrap_err();
+            assert!(
+                refusal
+                    .message
+                    .contains("outside its actual lexical context"),
+                "{refusal:?}"
+            );
+            checked.push(typed.symbols.name(machine));
+        }
+        checked.sort_unstable();
+        assert_eq!(checked, ["implicit", "named"]);
     }
 
     #[test]

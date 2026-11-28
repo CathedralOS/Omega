@@ -411,7 +411,7 @@ impl<'a> Permissions<'a> {
                 return Err(StructuralQualificationError {
                     machine: Some(at.machine),
                     detail: rule.denial,
-                    violation: Some(QualificationViolation::MemoryAccess {
+                    violation: Some(QualificationViolation::Operation {
                         machine: at.machine,
                         operation: operation.id,
                     }),

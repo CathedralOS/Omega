@@ -79,6 +79,7 @@ impl PackageReviewRound<'_> {
         };
         let review = CompilerIssuedPackageReview {
             preparations: checked.preparations,
+            unsafe_authority: checked.unsafe_authority,
             key: key.clone(),
             resolution: occurrence.resolution.clone(),
             source_consumption_commitment,

@@ -109,6 +109,7 @@ pub(super) fn frontier_with_product_files(
             .unwrap();
         crate::frontend_fixture::parse(&mut syntax, id, &tokens).unwrap();
     }
+    if !loaded.contains(&"foundation.omg") {
     sources.add_checked_instance(
         root.join("foundation.omg"),
         include_str!(concat!(
@@ -121,6 +122,7 @@ pub(super) fn frontier_with_product_files(
         source_admission::SourceResolutionStratum::Base,
         core_scope,
     );
+    }
     let bindings = crate::resolution::fixture_local_and_core_imports(&syntax, &sources, &root);
     let mut request = crate::resolution::ResolutionRequest::new(syntax);
     request.sources = Some(Arc::new(sources));
