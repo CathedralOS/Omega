@@ -3747,13 +3747,15 @@ pub(crate) mod reference {
         address: &crate::instruction_selection::selection::reference_input::BorrowedReferenceAddress,
     ) -> Result<selected_instructions::VirtualRegisterId, SelectedInstructionError> {
         let pointer = super::place_pointer(builder, row, place, 0)?;
-        let (slots, scalar_slot) = match address.pointer_slots.split_last() {
-            Some((last, preceding)) if last.scalar_descriptor => (preceding, Some(last)),
+        let (slots, descriptor_slot) = match address.pointer_slots.split_last() {
+            Some((last, preceding)) if last.scalar_descriptor || address.opened_package => {
+                (preceding, Some(last))
+            }
             _ => (address.pointer_slots.as_slice(), None),
         };
         let (pointer, leaf_index) =
             cross_references(builder, row, place, pointer, &address.indices, slots)?;
-        let (pointer, offset) = if let Some(slot) = scalar_slot {
+        let (pointer, offset) = if let Some(slot) = descriptor_slot {
             if address.referent_offset != 0 || slot.indices.end != address.indices.len() {
                 return Err(invalid());
             }
@@ -3783,7 +3785,72 @@ pub(crate) mod reference {
         };
         let output = transport_register(builder, place, offset)?;
         transport_at_byte_offset(builder, pointer, output, offset, provenance(row))?;
+        if address.opened_package {
+            let slot = descriptor_slot.ok_or_else(invalid)?;
+            return opened_argument(
+                builder,
+                row,
+                place,
+                output,
+                offset,
+                address
+                    .indices
+                    .get(slot.indices.clone())
+                    .ok_or_else(invalid)?,
+            );
+        }
         Ok(output)
+    }
+
+    fn opened_argument(
+        builder: &mut Builder<'_>,
+        row: &impl crate::instruction_selection::selection::construction::scalar_graph::call_arguments::InvocationArgumentSource,
+        place: semantic_vocabulary::PlaceId,
+        descriptor: selected_instructions::VirtualRegisterId,
+        offset: u32,
+        indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
+    ) -> Result<selected_instructions::VirtualRegisterId, SelectedInstructionError> {
+        use super::fragmented_scalar::{binary, constant};
+        use selected_instructions::SelectedInstructionKind as I;
+
+        // The ordinary scalar callee receives the descriptor's address. A record
+        // callee receives the backing address stored in its first word.
+        let layout = runtime_abi::ScalarReferenceLayout::NATIVE;
+        let mut word = |displacement: u32| {
+            let byte_offset = offset.checked_add(displacement).ok_or_else(invalid)?;
+            footprint(
+                builder,
+                row,
+                place,
+                byte_offset,
+                8,
+                indices,
+                super::runtime_address::Written::None,
+            )?;
+            let value = transport_register(builder, place, byte_offset)?;
+            builder.emit_load64(displacement, descriptor, value, provenance(row))?;
+            Ok::<_, SelectedInstructionError>(value)
+        };
+        let backing = word(layout.address_byte_offset)?;
+        let codec = word(layout.codec_byte_offset)?;
+        let zero = constant(builder, row, place, 0)?;
+        let direct = transport_register(builder, place, 0)?;
+        builder.emit(
+            I::CompareI64Zero,
+            builder.constraints.keys.compare_i64_zero,
+            &[codec],
+            provenance(row),
+        )?;
+        builder.emit(
+            I::MaterializeBooleanEqual,
+            builder.constraints.keys.materialize_boolean,
+            &[direct],
+            provenance(row),
+        )?;
+        let direct_mask = binary(builder, row, place, I::WrappingSubtractI64, zero, direct)?;
+        let changed = binary(builder, row, place, I::BitwiseXorI64, descriptor, backing)?;
+        let changed = binary(builder, row, place, I::BitwiseAndI64, changed, direct_mask)?;
+        binary(builder, row, place, I::BitwiseXorI64, descriptor, changed)
     }
 }
 pub(crate) use local_storage::descriptor as stage_descriptor;
@@ -4734,7 +4801,7 @@ pub(crate) mod fragmented_scalar {
 
     pub(crate) fn constant(
         builder: &mut Builder<'_>,
-        row: &LegalizedScalarInstruction,
+        row: &impl crate::instruction_selection::selection::construction::scalar_graph::call_arguments::InvocationArgumentSource,
         place: PlaceId,
         value: u64,
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
@@ -4749,7 +4816,7 @@ pub(crate) mod fragmented_scalar {
 
     pub(crate) fn binary(
         builder: &mut Builder<'_>,
-        row: &LegalizedScalarInstruction,
+        row: &impl crate::instruction_selection::selection::construction::scalar_graph::call_arguments::InvocationArgumentSource,
         place: PlaceId,
         kind: SelectedInstructionKind,
         left: VirtualRegisterId,

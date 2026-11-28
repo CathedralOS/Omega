@@ -117,6 +117,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                     access: StructuralAccess::Owned,
                 },
                 target: target_vocabulary::TargetStructuralArgument {
+                    opened_referent: None,
                     place: parameter.semantic.place,
                     access: StructuralAccess::Owned,
                     path: Vec::new(),

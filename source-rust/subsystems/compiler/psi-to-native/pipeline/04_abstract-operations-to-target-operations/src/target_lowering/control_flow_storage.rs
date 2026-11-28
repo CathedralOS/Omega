@@ -270,6 +270,7 @@ pub(crate) mod aggregate_borrows {
             return Err(invalid());
         }
         Ok(TargetStructuralArgument {
+            opened_referent: None,
             place: argument.place,
             access: argument.access,
             path: argument.path.clone(),

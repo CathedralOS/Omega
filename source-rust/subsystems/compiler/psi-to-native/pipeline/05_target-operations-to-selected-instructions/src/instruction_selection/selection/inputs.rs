@@ -4566,6 +4566,22 @@ pub(crate) mod reference_input {
         )?;
         let selected = projection.selected;
         let offset = projection.referent_offset;
+        let witnesses = declarations.storage_inputs();
+        let opened_package = match target.opened_referent {
+            Some(opened) => {
+                if !witnesses.is_package_witness(selected)
+                    || !witnesses.is_package_witness(opened)
+                    || selected == opened
+                    || argument.path.last() != Some(&StructuralPathSegment::Referent)
+                    || offset != 0
+                {
+                    return None;
+                }
+                true
+            }
+            None if witnesses.is_package_witness(selected) => return None,
+            None => false,
+        };
         let opaque = calling_conventions::terminal_layout::opaque_borrow_transport(
             &terminal_psi::find_structural_type(declarations, selected)?.shape,
             argument.access,
@@ -4607,10 +4623,12 @@ pub(crate) mod reference_input {
             indices: indices.to_vec(),
             referent_offset: offset,
             scalar_descriptor: projection.scalar_descriptor,
+            opened_package,
         })
     }
 
     pub(crate) struct BorrowedReferenceAddress {
+        pub(crate) opened_package: bool,
         pub(crate) pointer_slots: Vec<PointerSlot>,
         pub(crate) indices: Vec<legalized_operations::LegalizedRuntimeIndexOperand>,
         pub(crate) referent_offset: u32,
@@ -5194,6 +5212,89 @@ pub(crate) mod reference_input {
                     super::establishment(&prepared, &function.blocks[0].instructions[0]).is_none()
                 );
             }
+        }
+
+        #[test]
+        fn opened_call_addresses_the_two_words_of_its_exact_array_member() {
+            use crate::instruction_selection::native_geometry::{NativeFunction, NativeGeometry};
+            use calling_conventions::{
+                CallSignature, CallingPolicy, ValueShape, evaluate_call_plan,
+            };
+            use structural_storage::structural_type_catalog::StorageLayoutInputs;
+            use target_vocabulary::{TargetStructuralArgument, TargetStructuralArgumentSource};
+
+            let mut types = catalog();
+            types[0].shape = StructuralTypeShape::Opaque;
+            types.push(declaration(5, StructuralTypeShape::Opaque));
+            let target = target::NativeTarget::linux_x64();
+            let witnesses = [type_id(1), type_id(5)];
+            let geometry = NativeGeometry::with_storage_inputs(
+                &types,
+                StorageLayoutInputs {
+                    package_witnesses: &witnesses,
+                    ..Default::default()
+                },
+                target,
+            )
+            .unwrap();
+            let semantic = StructuralArgument {
+                place: PlaceId::new(1).unwrap(),
+                access: StructuralAccess::MutableBorrow,
+                path: vec![
+                    StructuralPathSegment::FixedIndex(1),
+                    StructuralPathSegment::Field(TerminalIdentityIndex(21)),
+                    StructuralPathSegment::Referent,
+                ],
+            };
+            let destination = evaluate_call_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature {
+                    parameters: vec![ValueShape::integer(8, 8)],
+                    result: None,
+                },
+            )
+            .unwrap()
+            .parameters
+            .remove(0);
+            let mut function = storage_view_function(32, false);
+            let signature = function.structural.as_mut().unwrap();
+            signature.structural_types = types.clone().into();
+            let mut argument = TargetStructuralArgument {
+                opened_referent: Some(type_id(5)),
+                place: semantic.place,
+                access: semantic.access,
+                path: semantic.path.clone(),
+                root_structural_type: type_id(4),
+                structural_type: type_id(1),
+                shape: destination.shape,
+                source_byte_offset: 0,
+                fixed_array_length: None,
+                element_stride: None,
+                indices: Vec::new(),
+                source: TargetStructuralArgumentSource::Placement(
+                    signature.parameters[0].target.placement.clone(),
+                ),
+                destination,
+            };
+            let checked = NativeFunction::new(&function, &geometry);
+            let admitted = |argument| super::borrowed_argument(&checked, &semantic, argument, &[]);
+            let address = admitted(&argument).unwrap();
+            assert!(address.opened_package);
+            assert_eq!(address.pointer_slots.len(), 1);
+            // The record contains an eight-byte prefix and a sixteen-byte reference.
+            assert_eq!(address.pointer_slots[0].byte_offset, 24 + 8);
+            assert_eq!(address.referent_offset, 0);
+            argument.opened_referent = Some(type_id(1));
+            assert!(admitted(&argument).is_none());
+            argument.opened_referent = None;
+            assert!(admitted(&argument).is_none());
+            let ordinary = NativeGeometry::new(&types, target).unwrap();
+            let ordinary = NativeFunction::new(&function, &ordinary);
+            let address = super::borrowed_argument(&ordinary, &semantic, &argument, &[]).unwrap();
+            assert!(!address.opened_package);
+            assert_eq!(address.pointer_slots[0].byte_offset, 16 + 8);
+            argument.opened_referent = Some(type_id(5));
+            assert!(super::borrowed_argument(&ordinary, &semantic, &argument, &[]).is_none());
         }
 
         #[test]

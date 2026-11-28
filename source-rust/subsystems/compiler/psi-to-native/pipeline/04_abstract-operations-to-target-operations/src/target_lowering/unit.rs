@@ -372,6 +372,7 @@ pub(crate) mod boundary_call {
                                 return Err(LoweringError::BoundaryRealizationMismatch(boundary));
                             }
                             return Ok(TargetStructuralArgument {
+                                opened_referent: None,
                                 place: argument.place,
                                 access: argument.access,
                                 path: argument.path.clone(),
@@ -527,6 +528,7 @@ pub(crate) mod boundary_call {
                         }
                     }
                     Ok(TargetStructuralArgument {
+                        opened_referent: None,
                         place: argument.place,
                         access: argument.access,
                         path: argument.path.clone(),
@@ -1588,6 +1590,7 @@ pub(crate) mod roster_arguments {
                 return Err(argument_type_mismatch(callee, argument.place));
             }
             return Ok(TargetStructuralArgument {
+                opened_referent: None,
                 place: argument.place,
                 access: argument.access,
                 path: Vec::new(),
@@ -1625,6 +1628,7 @@ pub(crate) mod roster_arguments {
                 return Err(argument_type_mismatch(callee, argument.place));
             }
             return Ok(TargetStructuralArgument {
+                opened_referent: None,
                 place: argument.place,
                 access: argument.access,
                 path: Vec::new(),
@@ -1737,7 +1741,8 @@ pub(crate) mod roster_arguments {
                 selected_shape,
             ),
         };
-        let projected_argument = move || TargetStructuralArgument {
+        let projected_argument = move || {            TargetStructuralArgument {
+            opened_referent: None,
             place: argument.place,
             access: argument.access,
             path: argument.path.clone(),
@@ -2042,6 +2047,7 @@ pub(crate) mod roster_arguments {
                 callee_parameter.structural_type,
             ) == Some(terminal_semantics::BorrowedReferentPresentation::Unchanged);
         Ok(Some(TargetStructuralArgument {
+            opened_referent: None,
             place: argument.place,
             access: argument.access,
             path: argument.path.clone(),

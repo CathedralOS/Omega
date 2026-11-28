@@ -28,6 +28,8 @@ pub struct TargetStructuralParameter {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetStructuralArgument {
+    /// Opened callable parameter receiving the stored package witness at this invocation.
+    pub opened_referent: Option<StructuralTypeId>,
     pub place: PlaceId,
     pub access: terminal_psi::StructuralAccess,
     pub path: Vec<StructuralPathSegment>,

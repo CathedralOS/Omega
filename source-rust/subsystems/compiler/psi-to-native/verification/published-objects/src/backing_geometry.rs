@@ -334,6 +334,7 @@ mod incoming_calls {
                             locations: Vec::new(),
                         };
                         let target = TargetStructuralArgument {
+                            opened_referent: None,
                             place: expected.subject.place,
                             access: StructuralAccess::Owned,
                             path: Vec::new(),

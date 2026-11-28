@@ -44,6 +44,14 @@ pub(crate) mod borrowed_argument {
         else {
             return None;
         };
+        if target.opened_referent.is_some()
+            && (!matches!(
+                call.target,
+                target_vocabulary::NativeCallTarget::Callable { .. }
+            ) || semantic.path.last() != Some(&terminal_psi::StructuralPathSegment::Referent))
+        {
+            return None;
+        }
         let structural_argument_index = call.arguments[..argument_index]
             .iter()
             .filter(|argument| matches!(argument, LegalizedScalarArgument::Structural { .. }))

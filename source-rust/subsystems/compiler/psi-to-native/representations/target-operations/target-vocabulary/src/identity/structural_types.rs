@@ -137,6 +137,7 @@ pub fn encode_target_structural_argument(
     crate::codec_bytes::push_encoded(bytes, argument.structural_type.get().to_le_bytes());
     encode_shape(bytes, argument.shape);
     crate::codec_bytes::push_encoded(bytes, argument.source_byte_offset.to_le_bytes());
+    wire::codec_bytes::encode_option_u64(bytes, argument.opened_referent.map(|id| id.get()));
     wire::codec_bytes::encode_option_u64(bytes, argument.fixed_array_length);
     encode_option(bytes, argument.element_stride, |bytes, stride| {
         crate::codec_bytes::push_encoded(bytes, stride.to_le_bytes())
