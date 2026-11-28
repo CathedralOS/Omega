@@ -18,7 +18,7 @@ pub struct PackageCallableSites {
 struct OpenedCall {
     operation: OperationId,
     contract: CallableContractId,
-    witnesses: Vec<StructuralTypeId>,
+    admitted: Vec<CallableContractId>,
     stored_referents: Vec<Option<StructuralTypeId>>,
 }
 
@@ -66,7 +66,7 @@ impl PackageCallableSites {
         catalog: &TerminalCallableCatalog,
         operation: OperationId,
         contract: CallableContractId,
-        witnesses: &[StructuralTypeId],
+        admitted: Vec<CallableContractId>,
         referents: impl IntoIterator<Item = (usize, StructuralTypeId)>,
     ) -> CallableValueResult<()> {
         let interface = catalog
@@ -95,7 +95,7 @@ impl PackageCallableSites {
             OpenedCall {
                 operation,
                 contract,
-                witnesses: witnesses.to_vec(),
+                admitted,
                 stored_referents,
             },
         );
@@ -126,20 +126,11 @@ impl PackageCallableSites {
 
     pub(super) fn admits_descriptor(
         &self,
-        module: Option<&terminal_psi::TerminalModule>,
         invocation: &CallableInvocation,
         actual: CallableContractId,
     ) -> bool {
-        module
-            .zip(self.call(invocation))
-            .is_some_and(|(module, call)| {
-                crate::packages::opened_callable_admits(
-                    module,
-                    &call.witnesses,
-                    call.contract,
-                    actual,
-                )
-            })
+        self.call(invocation)
+            .is_some_and(|call| call.admitted.contains(&actual))
     }
 
     pub(super) fn stored_argument(

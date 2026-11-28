@@ -1117,7 +1117,7 @@ pub(crate) mod calls {
                 callee,
                 arguments,
                 structural_arguments,
-                opened_referents,
+                opening,
                 claim_transfers,
                 result,
                 requirement_obligations,
@@ -1130,7 +1130,9 @@ pub(crate) mod calls {
                     diagnostic_owner: callee.machine().unwrap_or(function.machine),
                     scalar_arguments: arguments,
                     structural_arguments,
-                    opened_referents,
+                    opened_referents: opening
+                        .as_ref()
+                        .map_or(&[], |call| call.stored_referents.as_slice()),
                     claim_transfers,
                     requirement_obligations,
                     crash_continuations,
@@ -2185,7 +2187,7 @@ pub(crate) mod selected_boundary_calls {
         let resolved = match (result, &candidate.result) {
             (abstract_operations::AbstractBoundaryResult::Unit, AbstractFunctionResult::Unit) => {
                 AbstractOperation::CallStructural {
-                    opened_referents: Vec::new(),
+                    opening: None,
                     psi_operation: *psi_operation,
                     suspension_crossing: *suspension_crossing,
                     callee: callee.into(),
@@ -2204,7 +2206,7 @@ pub(crate) mod selected_boundary_calls {
                 && result.multiplicity == candidate_result.multiplicity =>
             {
                 AbstractOperation::CallStructural {
-                    opened_referents: Vec::new(),
+                    opening: None,
                     psi_operation: *psi_operation,
                     suspension_crossing: *suspension_crossing,
                     result: AbstractStructuralCallResult::Structural {
@@ -2236,7 +2238,7 @@ pub(crate) mod selected_boundary_calls {
                     }
                 } else {
                     AbstractOperation::CallStructural {
-                        opened_referents: Vec::new(),
+                        opening: None,
                         psi_operation: *psi_operation,
                         suspension_crossing: *suspension_crossing,
                         result: AbstractStructuralCallResult::Scalar(*result),
