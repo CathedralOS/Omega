@@ -55,3 +55,22 @@ fn a_closed_comparison_establishes_which_boolean_is_supplied() {
         "{report}"
     );
 }
+
+#[test]
+fn a_negated_float_order_allows_an_unordered_operand() {
+    for (requirement, expected_exit) in [("!(value > 5.0)", 0), ("value <= 5.0", 1)] {
+        let source = format!(
+            "machine consume(value: f64) requires {requirement} {{}}
+             public machine relay(value: f64) requires !(value > 5.0) {{ consume(value); }}
+             machine main() {{}}"
+        );
+        let (output, report) = program::invoke(&source, &["--check"]);
+        assert_eq!(output.status.code(), Some(expected_exit), "{report}");
+        if expected_exit == 1 {
+            assert!(
+                report.contains("cannot prove requires contract for call consume"),
+                "{report}"
+            );
+        }
+    }
+}

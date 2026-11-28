@@ -452,3 +452,20 @@ fn a_record_layout_invariant_uses_the_element_type_of_each_borrow() {
     let rejection = Program::of(&incorrect).judged(|_| {}).rejected();
     assert!(!rejection.unproved.is_empty(), "{rejection:?}");
 }
+
+#[test]
+fn a_negated_integer_order_supplies_the_reverse_bound() {
+    let program = Program::of(
+        "machine inclusive(value: u8) -> u8 requires !(value > 5u8) { 5u8 - value }
+         machine strict(value: u8) -> u8 requires !(value >= 5u8) { 4u8 - value }",
+    );
+    let lowered = program.lower();
+    for (machine, order) in [("inclusive", "<="), ("strict", "<")] {
+        let body = lowered.machine(machine);
+        let (op, left, right) = comparison(&body.contract.requires[0]);
+        assert_eq!(op, order);
+        assert_eq!(left, Term::Value(formals(body)[0]));
+        assert_eq!(right, Term::Integer(IntegerValue::Unsigned(5)));
+    }
+    program.judged(|_| {}).accepted();
+}
