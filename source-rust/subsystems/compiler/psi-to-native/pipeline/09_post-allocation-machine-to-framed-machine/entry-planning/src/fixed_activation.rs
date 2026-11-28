@@ -175,7 +175,8 @@ impl FixedActivationLayout {
             // The step calls the job adapter, which calls the selected entry.
             .and_then(|n| n.checked_add(u64::from(marshal.frame_bytes) + 2 * u64::from(WORD)))
             .ok_or("fixed activation entry stack size overflows")?;
-        let layout = Self::pack(argument, result, stack, u64::from(body.stack_alignment()))?;
+        let stack_alignment = u64::from(body.stack_alignment()).max(u64::from(call.stack_alignment));
+        let layout = Self::pack(argument, result, stack, stack_alignment)?;
         let displacement = i32::try_from(layout.stack_top)
             .map_err(|_| "fixed worker stack exceeds the target displacement range")?;
         let transfer = FixedTransfer {
