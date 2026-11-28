@@ -1351,6 +1351,10 @@ pub(crate) mod structural_encoding {
             // This tag distinguishes hash inputs; executable codecs reject open storage.
             StructuralTypeShape::TypeParameter => bytes.u8(20),
             StructuralTypeShape::Opaque => bytes.u8(19),
+            StructuralTypeShape::BorrowingOpaque { lifetime_count } => {
+                bytes.u8(21);
+                bytes.u32(lifetime_count.get());
+            }
             StructuralTypeShape::Reference { referent, access } => {
                 bytes.u8(7);
                 bytes.id(*referent);

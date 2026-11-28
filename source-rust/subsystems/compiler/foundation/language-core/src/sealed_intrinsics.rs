@@ -103,6 +103,9 @@ pub enum NativeBorrow {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ActivationOperation {
     Park,
+    Prepare,
+    StepFixed,
+    Resume,
 }
 
 /// The checked packed-integer instructions. Each one is the contract of one
@@ -913,6 +916,24 @@ const ROWS: &[SealedIntrinsicRow] = &[
         "park",
         BundledFile::CoreActivation,
         SealedIntrinsic::OwnedActivation(ActivationOperation::Park),
+    ),
+    row(
+        "activation.omg",
+        "prepare",
+        BundledFile::CoreActivation,
+        SealedIntrinsic::OwnedActivation(ActivationOperation::Prepare),
+    ),
+    row(
+        "activation.omg",
+        "step_fixed",
+        BundledFile::CoreActivation,
+        SealedIntrinsic::OwnedActivation(ActivationOperation::StepFixed),
+    ),
+    row(
+        "activation.omg",
+        "resume",
+        BundledFile::CoreActivation,
+        SealedIntrinsic::OwnedActivation(ActivationOperation::Resume),
     ),
     SealedIntrinsicRow {
         file: "task.omg",

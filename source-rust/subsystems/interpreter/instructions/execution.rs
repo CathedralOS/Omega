@@ -3125,6 +3125,9 @@ pub(crate) mod execution {
         pub(crate) call_stack: Vec<SuspendedCall>,
         pub(crate) awaiting_effect: Option<Box<crate::engine::calls::PendingBoundaryCall>>,
         pub(crate) last_park: u64,
+        // A prepared child keeps its own control across steps. A caller cannot
+        // supply another producer's pending answer at the same instruction.
+        pub(crate) owned_step: Option<crate::activation::StepControl>,
         pub(crate) result: Option<TerminalExecutionResult>,
         pub(crate) returned_byte_sequence: Option<ByteSequenceBinding>,
         pub(crate) returned_element_view: Option<crate::storage::element_views::ElementView>,
@@ -3594,6 +3597,7 @@ pub(crate) mod execution {
                 call_stack: Vec::new(),
                 awaiting_effect: None,
                 last_park: 0,
+                owned_step: None,
                 result: None,
                 returned_byte_sequence: None,
                 returned_element_view: None,
@@ -4174,7 +4178,20 @@ pub(crate) mod execution {
                             && pending.site.machine == self.current_machine
                             && pending.site.block == self.current
                     });
-                    if !pending_component
+                    let pending_reply = self
+                        .owned_step
+                        .as_ref()
+                        .and_then(|control| control.stopped_at());
+                    if let Some(site) = pending_reply
+                        && (site.operation != operation.id
+                            || site.block != self.current
+                            || site.machine != self.current_machine
+                            || site.program != program.identity)
+                    {
+                        return Err(malformed());
+                    }
+                    if pending_reply.is_none()
+                        && !pending_component
                         && !pending_effect
                         && let Err(error) = meter.charge_operation(operation)
                     {

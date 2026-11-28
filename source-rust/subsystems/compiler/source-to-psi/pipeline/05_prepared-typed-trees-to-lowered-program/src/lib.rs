@@ -1557,6 +1557,7 @@ fn finish_reading_into<'source>(
     // Real typed bodies retain their actual declarations in check forms too.
     // A synthetic frame has no such declaration and is recorded as undeclared.
     program.publish_theorem_parameters(&mut elaboration.module)?;
+    let mut caller_entries = Vec::new();
     let prepared_applications = declare::declare(
         program.typed,
         &program,
@@ -1564,6 +1565,7 @@ fn finish_reading_into<'source>(
         &checking_envelopes,
         &mut elaboration,
         parallel_machines,
+        &mut caller_entries,
     )
     .map_err(|error| error.into_refusal(diagnostic, &program))?;
     let mut requirements = elaboration.requirements.clone();
@@ -1657,6 +1659,11 @@ fn finish_reading_into<'source>(
     // A call can forward a loan. Its published result and storage contracts
     // must exist before a crossing can name the borrower's live backing.
     lower::suspension::publish_crossings(&mut elaboration.module).map_err(declaration_error)?;
+    for entry in caller_entries {
+        let demand = terminal_semantics::calls::owned_activation::caller_demand(&elaboration.module, entry)
+            .map_err(declaration_error)?;
+        elaboration.module.execution.task_activation_demands.push(demand);
+    }
     source.review_requirements = program.review_requirements(diagnostic, &elaboration.module);
     program.publish_machine_rows(&mut elaboration);
     elaboration.machines = program.symbols;

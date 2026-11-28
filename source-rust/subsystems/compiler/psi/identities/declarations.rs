@@ -47,6 +47,12 @@ pub struct CheckedMachineDeclaration {
 }
 
 impl CheckedMachineDeclaration {
+    /// An executable selection names both a declaration and the contract
+    /// checked for that declaration. Equal signatures alone do not select code.
+    pub fn matches_selection(&self, identity: TerminalIdentityIndex, contract: &[u8; 32]) -> bool {
+        self.semantic_declaration == identity && self.contract == *contract && *contract != [0; 32]
+    }
+
     pub fn callable_evidence_identity(callable: &str, specialization: Option<&[u8; 32]>) -> String {
         let Some(commitment) = specialization else {
             return callable.to_owned();

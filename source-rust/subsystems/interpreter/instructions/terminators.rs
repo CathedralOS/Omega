@@ -1680,6 +1680,15 @@ pub(crate) mod completion {
     use crate::engine::execution::FailedReturn;
     use terminal_psi::TerminalAffineCleanupAction;
 
+    pub(crate) enum ReturnDestination<'a> {
+        Unit,
+        Scalar(ValueId),
+        Structural(
+            &'a terminal_psi::StructuralOperationResult,
+            Option<&'a crate::storage::provider_storage::profiles::PendingResourceProfile>,
+        ),
+    }
+
     impl TerminalExecution<'_> {
         pub(crate) fn reject_no_normal_return(&self) -> Result<(), TerminalInterpretError> {
             if let Some(SuspendedCall {
@@ -1872,53 +1881,57 @@ pub(crate) mod completion {
             expected: &SuspendedCallResult,
             loan_completions: &[terminal_psi::LoanCompletion],
         ) -> Result<(), TerminalInterpretError> {
-            if let SuspendedCallResult::NoNormal { callee, edge } = expected {
-                return Err(TerminalInterpretError::NoNormalInvocationReturned {
-                    callee: *callee,
-                    edge: *edge,
-                });
-            }
-            if let SuspendedCallResult::ExternalCompletion { boundary, edge } = expected {
-                return Err(TerminalInterpretError::ExternalCompletionProviderReturned {
-                    boundary: *boundary,
-                    edge: *edge,
-                });
-            }
+            let destination = match expected {
+                SuspendedCallResult::NoNormal { callee, edge } => {
+                    return Err(TerminalInterpretError::NoNormalInvocationReturned {
+                        callee: *callee,
+                        edge: *edge,
+                    });
+                }
+                SuspendedCallResult::ExternalCompletion { boundary, edge } => {
+                    return Err(TerminalInterpretError::ExternalCompletionProviderReturned {
+                        boundary: *boundary,
+                        edge: *edge,
+                    });
+                }
+                SuspendedCallResult::Unit | SuspendedCallResult::OwnedCleanups { .. } => {
+                    ReturnDestination::Unit
+                }
+                SuspendedCallResult::Scalar(id) => ReturnDestination::Scalar(*id),
+                SuspendedCallResult::Structural {
+                    result,
+                    profile_completion,
+                    ..
+                } => ReturnDestination::Structural(result, profile_completion.as_ref()),
+            };
+            self.install_completed_value(completed, destination, loan_completions)
+        }
+
+        pub(crate) fn install_completed_value(
+            &mut self,
+            completed: &mut CompletedReturn,
+            destination: ReturnDestination<'_>,
+            loan_completions: &[terminal_psi::LoanCompletion],
+        ) -> Result<(), TerminalInterpretError> {
             if let Some(claims) = completed.rebound_claims.take() {
                 self.live_claims = claims;
             }
             self.complete_loan_custody(loan_completions)?;
-            match expected {
-                SuspendedCallResult::NoNormal { callee, edge } => {
-                    Err(TerminalInterpretError::NoNormalInvocationReturned {
-                        callee: *callee,
-                        edge: *edge,
-                    })
-                }
-                SuspendedCallResult::ExternalCompletion { boundary, edge } => {
-                    Err(TerminalInterpretError::ExternalCompletionProviderReturned {
-                        boundary: *boundary,
-                        edge: *edge,
-                    })
-                }
-                SuspendedCallResult::Unit | SuspendedCallResult::OwnedCleanups { .. } => {
+            match destination {
+                ReturnDestination::Unit => {
                     if completed.value != TerminalExecutionResult::Unit {
                         return Err(malformed());
                     }
                     Ok(())
                 }
-                SuspendedCallResult::Scalar(destination) => {
+                ReturnDestination::Scalar(destination) => {
                     let TerminalExecutionResult::Scalar(value) = &completed.value else {
                         return Err(malformed());
                     };
-                    self.values.insert(*destination, *value)?;
-                    self.observe_completed_entry_result(*destination)
+                    self.values.insert(destination, *value)?;
+                    self.observe_completed_entry_result(destination)
                 }
-                SuspendedCallResult::Structural {
-                    result,
-                    profile_completion,
-                    ..
-                } => {
+                ReturnDestination::Structural(result, profile_completion) => {
                     if completed.destination.as_ref() != Some(result) {
                         return Err(malformed());
                     }

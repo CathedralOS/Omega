@@ -2285,13 +2285,7 @@ impl<'a> Replay<'a> {
     ) -> Value {
         let _read = depth.enter()?;
         if location.path.last() == Some(&DescriptorPathSegment::UnknownContents) {
-            let ty = self.unknown_contents_type(machine, location)?;
-            if !matches!(
-                self.type_index.find(ty)?.shape,
-                StructuralTypeShape::TypeParameter
-            ) {
-                return None;
-            }
+            self.unknown_contents_type(machine, location)?;
             return state.slots.get(location)?.clone();
         }
         if location.path.is_empty()

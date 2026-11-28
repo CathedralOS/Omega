@@ -149,6 +149,115 @@ fn typed_source(source: &str) -> crate::source_state::TypedTrees {
 }
 
 #[test]
+fn preparing_a_child_names_its_worker_and_returns_the_rejected_backing() {
+    let mut typed = typed_source(r"
+        use {omega}/language/core/activation.omg;
+        use {omega}/language/core/task.omg;
+        machine worker(input: u8) -> u8 reaches none crashes none { input }
+        machine make<'storage>(input: u8, backing: @'storage mutable [u8])
+            -> |activation|::ActivationPreparation<'storage, u8, u8, worker, |task|::ActivationStorage::Fixed>
+            reaches none crashes none {
+            |activation|::prepare::<u8, u8, worker, |task|::ActivationStorage::Fixed>(input, backing)
+        }
+    ");
+    let (caller, call) = query_call(&typed, "make");
+    let call = typed.expression_table.call_node(call).unwrap();
+    let declaration = typed.machine_by_symbol(call.target_symbol)
+        .or_else(|| typed.machine_holding_state(call.target_symbol)).unwrap();
+    assert_eq!(typed.sealed_callable(declaration.symbol),
+        Some(language_core::sealed_intrinsics::SealedIntrinsic::OwnedActivation(
+            language_core::sealed_intrinsics::ActivationOperation::Prepare)),
+        "the source fixture must use the same bundled core revision as the compiler");
+    let parameters = typed.machine_callable_parameters(declaration);
+    let plan = parameters.last().unwrap();
+    let crate::source_state::data::TypeParameterKind::Const { type_reference } = plan.kind else {
+        panic!("the plan is a structural constant, not an extra runtime argument");
+    };
+    let supplied = typed.expression_table.static_machine_application_arguments(call.authored_machine_application);
+    let key = typed.canonical_aggregate_argument(type_reference, supplied.last().unwrap())
+        .unwrap().application_identity().unwrap();
+    assert_eq!(terminal_psi::TerminalActivationStorage::from_core_argument(&key),
+        Some(terminal_psi::TerminalActivationStorage::Fixed), "{key}");
+    let entries = [caller];
+    let request = production::TerminalSourceCompilation {
+        calling: None, providers: None, declaration_metadata: &[], entries: &entries,
+        subjects: &[], purpose: source_provenance::DependencyScope::Product,
+        selected: &[], bindings: &[], supplies: &[],
+    };
+    evaluate(&mut typed, request, &mut SourceCompletionAccounting::default()).unwrap();
+    let prepared = preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
+    let accepted = judge_lowered_source::judge_terminal_source(prepared, request,
+        terminal_codec::TerminalPublication::Portable)
+        .expect("a caller may prepare this selected worker with an exclusive loan of retained backing");
+    let bytes = terminal_codec::encode_module(accepted.module()).unwrap();
+    let reopened = terminal_codec::decode_module(&bytes).unwrap();
+    let [demand] = reopened.execution.task_activation_demands.as_slice() else {
+        panic!("the preparation must publish its worker's storage demand");
+    };
+    let terminal_psi::TerminalActivationOrigin::Caller(entry) = &demand.origin else {
+        panic!("preparing a child must not select a scheduler");
+    };
+    assert_eq!(entry.storage, terminal_psi::TerminalActivationStorage::Fixed);
+    assert!(entry.selected_body(&reopened).is_some());
+    let mut forged = *entry;
+    forged.storage = terminal_psi::TerminalActivationStorage::Split;
+    assert!(forged.selected_body(&reopened).is_none());
+    // Keep the selected worker and signature intact but understate the
+    // storage needed for its input. The receiver has the body to catch it.
+    let mut understated = reopened;
+    understated.execution.task_activation_demands[0].frames[0].states[0]
+        .crossing_arguments[0].clear();
+    let refused = terminal_codec::encode_module(&understated)
+        .and_then(|bytes| terminal_codec::decode_module(&bytes))
+        .unwrap_err();
+    assert!(refused.to_string().contains("storage demand differs"), "{refused}");
+}
+
+#[test]
+fn a_prepared_execution_owner_cannot_escape_its_backing() {
+    let source = r"
+        use {omega}/language/core/activation.omg;
+        use {omega}/language/core/task.omg;
+        machine worker(value: u8) -> u8 reaches none crashes none { value }
+        data MaybeOwner<'storage> {
+            case Kept(owner: |activation|::ReadyActivation<'storage, u8, u8, worker, |task|::ActivationStorage::Fixed>);
+            case Empty;
+        }
+        machine keep<'storage>(backing: @'storage mutable [u8]) -> MaybeOwner<'storage>
+        reaches none crashes none {
+            let mutable scratch: [u8; 1] = [0u8];
+            match |activation|::prepare::<u8, u8, worker, |task|::ActivationStorage::Fixed>(7u8, BACKING) {
+                |activation|::ActivationPreparation::Ready { owner } -> MaybeOwner::Kept { owner: owner },
+                |activation|::ActivationPreparation::Rejected { arguments, retained } -> MaybeOwner::Empty,
+            }
+        }
+    ";
+    // Only the successful arm returns the opaque owner. The rejected arm
+    // deliberately returns no reference that could independently catch the escape.
+    for (backing, may_return) in [("backing", true), ("@mutable scratch[..]", false)] {
+        let mut typed = typed_source(&source.replace("BACKING", backing));
+        let entries = [typed.realized_machine_named("keep").unwrap().symbol];
+        let request = production::TerminalSourceCompilation {
+            calling: None, providers: None, declaration_metadata: &[], entries: &entries,
+            subjects: &[], purpose: source_provenance::DependencyScope::Product,
+            selected: &[], bindings: &[], supplies: &[],
+        };
+        evaluate(&mut typed, request, &mut SourceCompletionAccounting::default()).unwrap();
+        let prepared = preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
+        let judgment = judge_lowered_source::judge_terminal_source(prepared, request,
+            terminal_codec::TerminalPublication::Portable);
+        if may_return {
+            judgment.expect("the caller's backing can accompany the returned owner");
+        } else {
+            let error = judgment.err().expect("a local array cannot accompany the returned owner");
+            let detail = format!("{error:?}").to_lowercase();
+            assert!(detail.contains("lifetime") || detail.contains("local storage") || detail.contains("outlive"),
+                "must reject the escaping backing, not preparation itself: {error:?}");
+        }
+    }
+}
+
+#[test]
 fn only_the_checked_issuer_can_make_a_pair_of_funded_reply_handles() {
     let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("pipeline/06_lowered-program-to-checked-program/tests/fixtures/owned_activation");

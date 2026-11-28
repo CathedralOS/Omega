@@ -199,7 +199,7 @@ fn disposable_storage<'types>(
     visiting.push(identity);
     let valid = match &declaration.shape {
         StructuralTypeShape::Opaque => declaration.no_code_affine_cleanup,
-        StructuralTypeShape::TypeParameter => false,
+        StructuralTypeShape::TypeParameter | StructuralTypeShape::BorrowingOpaque { .. } => false,
         StructuralTypeShape::PrimitiveScalar(_) => true,
         StructuralTypeShape::AtomicCell(_) => true,
         StructuralTypeShape::ByteSequence(carrier) => {

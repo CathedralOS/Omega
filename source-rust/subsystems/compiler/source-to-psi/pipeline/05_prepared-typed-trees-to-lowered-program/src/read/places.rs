@@ -440,7 +440,7 @@ impl Program<'_> {
                     }
                 }
             }
-            StorageShape::Opaque
+            StorageShape::Opaque | StorageShape::BorrowingOpaque { .. }
             | StorageShape::TypeParameter(_)
             | StorageShape::ByteSequence(_)
             | StorageShape::AtomicCell(_)
@@ -769,7 +769,11 @@ impl Program<'_> {
             return Err(unserved("copy data with an owned field"));
         }
         let shape = if data.supply_mode == language_core::DataSupplyMode::BoundaryOpaque {
-            crate::StorageShape::Opaque
+            match std::num::NonZeroU32::new(u32::try_from(data.lifetime_parameters.len())
+                .map_err(|_| unserved("opaque lifetime binder count exceeds u32"))?) {
+                None => crate::StorageShape::Opaque,
+                Some(lifetime_count) => crate::StorageShape::BorrowingOpaque { lifetime_count },
+            }
         } else if case_types.is_empty() {
             crate::StorageShape::Record(declared)
         } else {
@@ -779,7 +783,14 @@ impl Program<'_> {
         // (`Index<Limit>` while `Limit` is rigid) makes the requires name that
         // input, so the record belongs to this checking machine like an array
         // sized by one.
-        let (bound, bound_owner) = self.application_values(id, symbol, application.as_ref())?;
+        // The application already retains and checks every static operand.
+        // Only a declaration predicate needs those operands as proof terms;
+        // a record indexed by an enum need not reinterpret it as an integer.
+        let (bound, bound_owner) = if data.requires_facts.is_empty() {
+            (Vec::new(), None)
+        } else {
+            self.application_values(id, symbol, application.as_ref())?
+        };
         let storage_owner = self.storage_constant_input_owner(id, &shape)?;
         let constant_input_owner = match (storage_owner, bound_owner) {
             (Some(left), Some(right)) if left != right => {
@@ -1791,7 +1802,7 @@ impl Program<'_> {
         };
         if matches!(
             self.data_type(id, record)?.shape,
-            crate::StorageShape::Opaque
+            crate::StorageShape::Opaque | crate::StorageShape::BorrowingOpaque { .. }
         ) {
             return Err(typing(
                 "opaque literal requires its checked representation and supplied contents",
@@ -2418,9 +2429,6 @@ fn record_shape_for(
         return unserved("opaque data with declared members");
     }
     if data.supply_mode == language_core::DataSupplyMode::BoundaryOpaque {
-        if !data.lifetime_parameters.is_empty() {
-            return unserved("opaque data without its retained lifetime obligations");
-        }
         if !data.requires_facts.is_empty() {
             return unserved("opaque data without its checked value predicates");
         }

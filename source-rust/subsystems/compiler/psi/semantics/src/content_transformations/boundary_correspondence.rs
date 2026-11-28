@@ -516,6 +516,7 @@ fn owned_addresses(
                 }
             }
             StructuralTypeShape::Opaque
+            | StructuralTypeShape::BorrowingOpaque { .. }
             | StructuralTypeShape::TypeParameter
             | StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::ByteSequence(_)

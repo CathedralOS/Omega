@@ -2242,6 +2242,31 @@ pub fn validate_source_type_description(description: &str) -> Result<(), TypeIde
     visit_type_identity_package_owners(description, &mut DeclarationIdentitySyntax { depth: 0 })
 }
 
+/// Borrow the complete ordered arguments of a named generic application.
+/// The caller can compare two related carriers without dropping lifetime,
+/// machine or const operands, and malformed nested arguments never match.
+pub fn named_application_arguments<'a>(
+    description: &'a str,
+    expected_name: &str,
+) -> Result<Option<&'a str>, TypeIdentityVisitError> {
+    use vocabulary::{Label, TypeForm};
+    let mut reader = framing::Reader::new(description);
+    let mut syntax = DeclarationIdentitySyntax { depth: 0 };
+    reader.expect_tag(TypeForm::Generic)?;
+    let arguments = grammar::compound(&mut reader, &mut syntax, |reader, syntax| {
+        let name = reader.atom(Label::Name, syntax)?;
+        let start = reader.position();
+        while reader.next(b',') {
+            reader.expect(b',')?;
+            index::static_argument(reader, syntax)?;
+        }
+        Ok((name == expected_name && start != reader.position())
+            .then(|| reader.consumed_since(start)))
+    })?;
+    reader.finish()?;
+    Ok(arguments)
+}
+
 /// Visit a declared service and all its binders using the receiver-application grammar.
 pub fn visit_trait_application_package_owners(
     identity: &str,

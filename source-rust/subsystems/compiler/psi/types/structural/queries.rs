@@ -99,7 +99,7 @@ pub fn structural_type_has_borrowed_storage_by<'types>(
     structural_type_contains_by(
         lookup,
         root,
-        StructuralTypeShape::is_borrowed_descriptor,
+        |shape| shape.is_borrowed_descriptor() || matches!(shape, StructuralTypeShape::BorrowingOpaque { .. }),
         |field| {
             matches!(
                 field.byte_sequence_carrier(),
@@ -161,7 +161,7 @@ fn structural_type_contains_by<'types>(
                 }
             }
             StructuralTypeShape::ElementView { element, .. } => pending.push(*element),
-            StructuralTypeShape::Opaque
+            StructuralTypeShape::Opaque | StructuralTypeShape::BorrowingOpaque { .. }
             | StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::AtomicCell(_)

@@ -2,13 +2,13 @@ use super::{identity_text, nonzero};
 use diagnostics::Diagnostic;
 use build_providers::plans::{ServiceMethod, ServiceSchema};
 use terminal_psi::{
-    TerminalIdentityTable, TerminalTaskActivationDemand, TerminalTaskStartOperation,
+    TerminalIdentityTable, TerminalTaskRuntimeSelection, TerminalTaskStartOperation,
 };
 
 pub(super) fn validate_selected_runtime(
     identities: &TerminalIdentityTable,
     selected_provider_plans: &build_providers::selections::SelectedProviderPlanFacts,
-    demand: &TerminalTaskActivationDemand,
+    demand: &TerminalTaskRuntimeSelection,
 ) -> Result<(), Vec<Diagnostic>> {
     let requirement_owner_package = demand.requirement_owner_package;
     let requirement_owner_path = identity_text(identities, demand.requirement_owner_path)?;

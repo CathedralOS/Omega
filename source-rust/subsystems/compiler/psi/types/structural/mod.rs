@@ -83,6 +83,10 @@ pub enum StructuralTypeShape {
     /// preserves the supplying host's identity, rather than constructing
     /// an empty record with the same name.
     Opaque,
+    /// The value owns hidden contents bounded by these declared lifetime
+    /// parameters. Moving it transfers its existing loan dependencies; it
+    /// supplies neither a reference nor a way to inspect those contents.
+    BorrowingOpaque { lifetime_count: std::num::NonZeroU32 },
     Reference {
         referent: StructuralTypeId,
         access: crate::StructuralAccess,
@@ -208,6 +212,12 @@ impl StructuralTypeShape {
     /// access. A reference to descriptor storage has a Reference shape.
     pub const fn is_view_descriptor(&self) -> bool {
         self.is_borrowed_byte_carrier() || matches!(self, Self::ElementView { .. })
+    }
+
+    /// Contents of this value move with it but have no visible field through
+    /// which their addresses can be recovered.
+    pub const fn carries_hidden_contents(&self) -> bool {
+        matches!(self, Self::TypeParameter | Self::BorrowingOpaque { .. })
     }
 
     /// Descriptors own a carrier whose retirement ends its retained permission.

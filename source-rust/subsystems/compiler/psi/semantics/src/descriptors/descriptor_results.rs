@@ -26,6 +26,7 @@ pub(crate) use semantic_vocabulary::PropositionContext;
 pub(crate) use semantic_vocabulary::ScalarTerm;
 pub(crate) use semantic_vocabulary::ValueId;
 pub(crate) mod contents;
+mod prepared_owner;
 pub(crate) mod payload_entry;
 pub(crate) use payload_entry::prove as prove_payload_predicate;
 pub(crate) mod payload_history;

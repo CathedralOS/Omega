@@ -179,7 +179,8 @@ impl Program<'_> {
                 })?;
             let (signature, _) = self.boundary_signature(context, &declared)?;
             let envelope = self.signature_envelope(context, &declared)?;
-            let declaration = crate::declare::intrinsic_boundary_source(typed, target)
+            let binders = self.application_binders_for(context, target)?;
+            let declaration = crate::declare::intrinsic_boundary_source(typed, target, &binders)
                 .map_err(|reason| crate::read::unavailable(context, reason))?;
             let id = self.boundaries.rows.push(BoundarySource {
                 source: target,
@@ -198,7 +199,7 @@ impl Program<'_> {
             == Some(language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement)
         {
             let signature = self.numeric_primitive_signature(context, target)?;
-            let declaration = crate::declare::intrinsic_boundary_source(typed, target)
+            let declaration = crate::declare::intrinsic_boundary_source(typed, target, &[])
                 .map_err(|reason| crate::read::unavailable(context, reason))?;
             let intrinsic =
                 crate::source_state::declarations::intrinsic_requirements::IntrinsicRequirement::by_symbol(
@@ -292,7 +293,7 @@ impl Program<'_> {
             source.owner = target;
             source.kind = semantic_vocabulary::BoundaryRequirementKind::Machine;
             source.owning_service = None;
-            source.declaration = crate::declare::intrinsic_boundary_source(typed, target)
+            source.declaration = crate::declare::intrinsic_boundary_source(typed, target, &[])
                 .map_err(|reason| crate::read::unavailable(context, reason))?;
             self.admitted_declarations.include(target);
             let id = self.boundaries.rows.push(source);

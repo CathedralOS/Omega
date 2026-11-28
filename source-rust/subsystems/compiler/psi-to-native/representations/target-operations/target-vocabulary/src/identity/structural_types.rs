@@ -311,6 +311,10 @@ pub fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &StructuralTypeD
         // This tag distinguishes hash inputs; executable codecs reject open storage.
         StructuralTypeShape::TypeParameter => bytes.push(20),
         StructuralTypeShape::Opaque => bytes.push(19),
+        StructuralTypeShape::BorrowingOpaque { lifetime_count } => {
+            bytes.push(21);
+            bytes.extend_from_slice(&lifetime_count.get().to_le_bytes());
+        }
         StructuralTypeShape::Reference { referent, access } => {
             bytes.push(7);
             crate::codec_bytes::push_encoded(bytes, referent.get().to_le_bytes());

@@ -1,5 +1,9 @@
 //! A saved program must not turn its own bodyless declaration into a park
 //! operation, or use one publication to request a different reply.
+mod demand;
+mod preparation;
+mod step;
+pub use demand::caller_demand;
 use application_identity::{
     conformance_identity::MachineApplicationCommitment,
     type_identity::{
@@ -8,6 +12,8 @@ use application_identity::{
     },
 };
 use language_core::sealed_intrinsics::ActivationOperation;
+pub use preparation::PreparationShape;
+pub use step::{StepShape, step_shape};
 use terminal_psi::{
     BoundaryMachineDeclaration, BoundaryParameterKind, StructuralAccess, StructuralMultiplicity,
     StructuralTypeShape, TerminalModule,
@@ -47,11 +53,90 @@ fn toolchain_name(name: &str) -> String {
     )
 }
 
+/// A preparation borrows storage; it does not call the worker. Verify the
+/// worker selection here, not by searching for a matching machine at runtime.
+/// The prepare signature and its custody rules are separate obligations.
+pub fn prepare_shape(
+    module: &TerminalModule,
+    boundary: &BoundaryMachineDeclaration,
+) -> Result<PreparationShape, &'static str> {
+    use terminal_psi::{ClosedReachArgument as Arg, TerminalActivationOrigin};
+    let checked = boundary.declaration.as_ref().ok_or("prepare has no checked declaration")?;
+    let source = &checked.source;
+    let closed = source.specialization.as_ref().ok_or("prepare is not specialized")?;
+    let text = |id| module.identities.text(id).filter(|s| !s.is_empty()).ok_or("prepare has an unresolved identity");
+    if checked.execution != terminal_psi::CheckedBoundaryExecution::OwnedActivation(ActivationOperation::Prepare)
+        || boundary.kind != terminal_psi::BoundaryRequirementKind::Machine
+        || boundary.completion != terminal_psi::BoundaryCompletion::NormalReturn
+        || !boundary.crash_routes.is_empty() || !boundary.fixed_service_reach.is_empty()
+        || !boundary.published_service_ceiling.is_empty() || !boundary.published_synchronous_entries.is_empty()
+        || boundary.owning_service.is_some() || boundary.service_reach_is_installation_bound
+        || boundary.attachment.is_some() || boundary.numeric_intrinsic.is_some()
+        || !only_declared_inputs(boundary) || !boundary.unconditional_termination
+        || text(closed.template.identity())? != source_owner("prepare")
+        || text(closed.template_entry.identity())? != source_owner("prepare::entry")
+        || closed.capture.is_some() || source.machine != boundary.owner
+        || source.callable != boundary.identity || checked.service_declaration != source.contract
+        || source.published_may_suspend || source.published_may_block {
+        return Err("prepare differs from its sealed core declaration");
+    }
+    let [Arg::Type(args), Arg::Type(out), Arg::Machine { identity, .. }, Arg::Const(plan)] =
+        checked.method_arguments.as_slice() else { return Err("prepare needs its exact argument, result, worker and storage binders"); };
+    if worker_application_commitment(
+        text(closed.template_callable)?, &[text(*args)?, text(*out)?], text(*identity)?, text(*plan)?,
+    )? != closed.commitment {
+        return Err("prepare selection differs from its closed application");
+    }
+    let mut plans = module.execution.task_activation_demands.iter().filter_map(|d| {
+        if let TerminalActivationOrigin::Caller(p) = &d.origin
+            && p.preparation == boundary.id { Some(p) } else { None }
+    });
+    let selected = plans.next().ok_or("prepare has no matching activation plan")?;
+    if plans.next().is_some() {
+        return Err("prepare must select one checked worker in this program");
+    }
+    let worker = selected.selected_body(module).and_then(|m| m.declaration.as_ref())
+        .ok_or("prepare must select one checked worker in this program")?;
+    if worker.parameter_types.as_slice() != [*args] || worker.result_type != *out
+        || source.parameter_types.len() != 2 || source.parameter_types.first() != Some(args) {
+        return Err("prepare's argument and result binders differ from the worker's signature");
+    }
+    preparation::result_shape(module, boundary, *selected)
+}
+
+fn worker_application_commitment(
+    callable: &str,
+    types: &[&str],
+    worker: &str,
+    plan: &str,
+) -> Result<[u8; 32], &'static str> {
+    let (_, value) = terminal_psi::TerminalActivationStorage::decode_core_argument(plan)
+        .ok_or("prepare storage is not the exact core enum value")?;
+    let mut commitment = MachineApplicationCommitment::new(callable)?;
+    for ty in types {
+        commitment.type_argument(ty)?;
+    }
+    commitment.machine_argument(worker)?;
+    commitment.const_argument(&value)?;
+    Ok(commitment.finish())
+}
+
 fn named(name: &str) -> String {
     compound(TypeForm::Named, [atom(Label::Name, name)])
 }
 
-fn published_request_types(reply: &str) -> (String, String, String) {
+// These operations transport their inputs. None of them is a provider for
+// additional regions, writes through reference parameters, or arbitrary facts.
+fn only_declared_inputs(boundary: &BoundaryMachineDeclaration) -> bool {
+    boundary.requires.iter().cloned().eq(terminal_psi::StructuralDomainRequirement::declared_roots(
+        &boundary.structural_parameters,
+    )) && boundary.normal_qualifications.is_empty() && boundary.scalar_domain_requirements.is_empty()
+        && boundary.membership_ensures.is_empty() && boundary.scalar_requires.is_empty()
+        && boundary.scalar_ensures.is_empty() && boundary.reference_outputs.is_empty()
+        && boundary.program_local_root_introductions.is_empty() && boundary.content_guarantees.is_empty()
+}
+
+fn publication_types(role: &str, reply: &str) -> (String, String, String) {
     use application_identity::type_identity::vocabulary::ConstraintForm;
     use language_core::bundled_files::core_revision;
     let carrier = named(&toolchain_name("Publication"));
@@ -60,7 +145,7 @@ fn published_request_types(reply: &str) -> (String, String, String) {
         ConstraintForm::DeclaredDomain,
         [
             atom(Label::Name, &toolchain_name(family)),
-            named(&toolchain_name("RequestRole")),
+            named(&toolchain_name(role)),
             reply.to_owned(),
         ],
     );
@@ -85,7 +170,7 @@ fn published_request_types(reply: &str) -> (String, String, String) {
         TypeForm::Generic,
         [
             atom(Label::Name, &core_owner(&core_revision::REPLY, &owner)),
-            named(&core_owner(&core_revision::REPLY, "RequestRole")),
+            named(&core_owner(&core_revision::REPLY, role)),
             reply.to_owned(),
         ],
     );
@@ -104,7 +189,7 @@ fn reply_result_matches(
     result: &terminal_psi::BoundaryMachineResult,
     reply: &str,
 ) -> bool {
-    use semantic_vocabulary::{IeeeFloatFormat, IntegerSign, ScalarQualificationSetId, ScalarType};
+    use semantic_vocabulary::ScalarQualificationSetId;
     use terminal_psi::BoundaryMachineResult;
     match result {
         BoundaryMachineResult::Unit => {
@@ -122,40 +207,33 @@ fn reply_result_matches(
             if result.qualifications != ScalarQualificationSetId::ZERO {
                 return false;
             }
-            let atom = match result.scalar_type {
-                ScalarType::Boolean => "bool".to_string(),
-                ScalarType::Integer(i) if i.is_address() => "address".to_string(),
-                ScalarType::Integer(i) => {
-                    let Some(bits) = i.bits() else { return false };
-                    format!(
-                        "{}{bits}",
-                        if i.sign() == IntegerSign::Signed {
-                            'i'
-                        } else {
-                            'u'
-                        }
-                    )
-                }
-                ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => "f32".into(),
-                ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => "f64".into(),
-                ScalarType::Callable(_) => return false,
-            };
-            application_identity::type_identity::compiler_type_identity(&atom) == reply
+            scalar_identity(result.scalar_type).as_deref() == Some(reply)
         }
     }
+}
+
+fn scalar_identity(scalar: semantic_vocabulary::ScalarType) -> Option<String> {
+    use semantic_vocabulary::{IeeeFloatFormat, IntegerSign, ScalarType};
+    let atom = match scalar {
+        ScalarType::Boolean => "bool".into(),
+        ScalarType::Integer(i) if i.is_address() => "address".into(),
+        ScalarType::Integer(i) => format!("{}{}", if i.sign() == IntegerSign::Signed { 'i' } else { 'u' }, i.bits()?),
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => "f32".into(),
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => "f64".into(),
+        ScalarType::Callable(_) => return None,
+    };
+    Some(application_identity::type_identity::compiler_type_identity(&atom))
 }
 
 fn checked_reply<'m>(
     module: &'m TerminalModule,
     boundary: &BoundaryMachineDeclaration,
-    operation: ActivationOperation,
 ) -> Result<&'m str, &'static str> {
     use terminal_psi::{
         BoundaryCompletion, BoundaryRequirementKind, CheckedBoundaryExecution, ClosedReachArgument,
     };
-    let (name, suspends) = match operation {
-        ActivationOperation::Park => ("park", true),
-    };
+    let operation = ActivationOperation::Park;
+    let name = "park";
     let checked = boundary
         .declaration
         .as_ref()
@@ -176,7 +254,7 @@ fn checked_reply<'m>(
         || checked.service_declaration != source.contract
         || boundary.kind != BoundaryRequirementKind::Machine
         || boundary.completion != BoundaryCompletion::NormalReturn
-        || source.published_may_suspend != suspends
+        || !source.published_may_suspend
         || source.published_may_block
         || boundary.unconditional_termination
         || !boundary.crash_routes.is_empty()
@@ -188,20 +266,8 @@ fn checked_reply<'m>(
         || boundary.attachment.is_some()
         || boundary.numeric_intrinsic.is_some()
         || source.contract == [0; 32]
-        || !boundary.requires.iter().cloned().eq(
-            terminal_psi::StructuralDomainRequirement::declared_roots(
-                &boundary.structural_parameters,
-            ),
-        )
-        || !boundary.normal_qualifications.is_empty()
-        || !boundary.scalar_domain_requirements.is_empty()
-        || !boundary.membership_ensures.is_empty()
-        || !boundary.scalar_requires.is_empty()
-        || !boundary.scalar_ensures.is_empty()
-        || !boundary.reference_outputs.is_empty()
+        || !only_declared_inputs(boundary)
         || !boundary.result_reference_regions.is_empty()
-        || !boundary.program_local_root_introductions.is_empty()
-        || !boundary.content_guarantees.is_empty()
     {
         return Err("park differs from its sealed source or suspension contract");
     }
@@ -229,7 +295,7 @@ pub fn park_shape(
     module: &TerminalModule,
     boundary: &BoundaryMachineDeclaration,
 ) -> Result<ParkShape, &'static str> {
-    let reply = checked_reply(module, boundary, ActivationOperation::Park)?;
+    let reply = checked_reply(module, boundary)?;
     let source = &boundary
         .declaration
         .as_ref()
@@ -247,12 +313,65 @@ pub fn park_shape(
     let [request_declared] = source.parameter_types.as_slice() else {
         return Err("park lacks its sole declared request");
     };
-    let carrier = module
-        .structural_type(request.structural_type)
-        .ok_or("park request type is absent")?;
     if !boundary.scalar_parameters.is_empty()
         || boundary.parameter_order != [BoundaryParameterKind::Structural]
-        || request.access != StructuralAccess::Owned
+    {
+        return Err("park consumes the request alone");
+    }
+    publication_shape(module, request, *request_declared, source.result_type, "RequestRole")
+}
+
+/// Check the caller's one-shot answer against the reply binder of the actual
+/// resume declaration. A handle to the same slot with the request role is
+/// not an answer permit. This check does not establish the parked owner.
+pub fn resume_permit(module: &TerminalModule, boundary: &BoundaryMachineDeclaration)
+    -> Result<ParkShape, &'static str> {
+    use terminal_psi::{CheckedBoundaryExecution, ClosedReachArgument as Arg};
+    let checked = boundary.declaration.as_ref().ok_or("resume has no declaration")?;
+    let source = &checked.source;
+    let closed = source.specialization.as_ref().ok_or("resume has no specialisation")?;
+    let [Arg::Type(args), Arg::Type(out), Arg::Type(reply), Arg::Machine { identity, .. }, Arg::Const(plan)] =
+        checked.method_arguments.as_slice() else { return Err("resume lost its closed reply type"); };
+    let [_, declared, value] = source.parameter_types.as_slice() else { return Err("resume needs owner, permit and value"); };
+    if checked.execution != CheckedBoundaryExecution::OwnedActivation(ActivationOperation::Resume)
+        || module.identities.text(closed.template.identity()) != Some(source_owner("resume").as_str())
+        || module.identities.text(closed.template_entry.identity()) != Some(source_owner("resume::entry").as_str())
+        || closed.capture.is_some() || source.machine != boundary.owner || source.callable != boundary.identity
+        || checked.service_declaration != source.contract || source.published_may_suspend || source.published_may_block
+        || boundary.kind != terminal_psi::BoundaryRequirementKind::Machine
+        || boundary.completion != terminal_psi::BoundaryCompletion::NormalReturn
+        || !boundary.crash_routes.is_empty() || !boundary.fixed_service_reach.is_empty()
+        || !boundary.published_service_ceiling.is_empty() || !boundary.published_synchronous_entries.is_empty()
+        || boundary.owning_service.is_some() || boundary.service_reach_is_installation_bound
+        || boundary.attachment.is_some() || boundary.numeric_intrinsic.is_some()
+        || !only_declared_inputs(boundary) || !boundary.unconditional_termination
+        || boundary.parameter_order.get(1) != Some(&BoundaryParameterKind::Structural)
+        || module.identities.text(*value) != module.identities.text(*reply) {
+        return Err("resume has a different operation or value type");
+    }
+    let text = |id| module.identities.text(id).filter(|s| !s.is_empty())
+        .ok_or("resume has an unresolved binder");
+    if worker_application_commitment(text(closed.template_callable)?, &[text(*args)?, text(*out)?, text(*reply)?],
+        text(*identity)?, text(*plan)?)? != closed.commitment {
+        return Err("resume differs from its checked reply, worker or storage application");
+    }
+    let permit = boundary.structural_parameters.get(1)
+        .filter(|p| p.position == 1)
+        .ok_or("resume needs its original answer permit")?;
+    publication_shape(module, permit, *declared, *reply, "AnswerRole")
+}
+
+fn publication_shape(
+    module: &TerminalModule, request: &terminal_psi::StructuralParameterDeclaration,
+    declared_type: terminal_psi::TerminalIdentityIndex, reply_type: terminal_psi::TerminalIdentityIndex,
+    role: &str,
+) -> Result<ParkShape, &'static str> {
+    let text = |id| module.identities.text(id);
+    let reply = text(reply_type).ok_or("publication has no closed reply type")?;
+    let carrier = module
+        .structural_type(request.structural_type)
+        .ok_or("publication type is absent")?;
+    if request.access != StructuralAccess::Owned
         || request.multiplicity != StructuralMultiplicity::Linear
         || carrier.multiplicity != StructuralMultiplicity::Linear
         || text(carrier.declaration_identity) != Some("toolchain::Publication")
@@ -260,22 +379,22 @@ pub fn park_shape(
         || !request.projected_qualifications.is_empty()
         || !request.additional_input_qualifications.is_empty()
     {
-        return Err("park must consume exactly one owned linear publication");
+        return Err("the operation must consume an owned linear publication");
     }
     let [qualification] = request.qualifications.as_slice() else {
-        return Err("park requires one protected request role");
+        return Err("the publication needs one protected role");
     };
     let qualified = module
         .structural_domain(*qualification)
-        .ok_or("park request domain is absent")?;
+        .ok_or("publication domain is absent")?;
     let plan = qualified
         .access_policy
         .as_ref()
-        .ok_or("park request lost its issuance policy")?;
+        .ok_or("publication lost its issuance policy")?;
     let Some([(_, terminal_psi::StructuralEstablishmentRoute::ExactMachine { declaration, .. })]) =
         plan.issuance.as_deref()
     else {
-        return Err("only the checked reply issuer may mint a request");
+        return Err("only the checked reply issuer may mint a publication");
     };
     let expected_issuer = core_owner(
         &language_core::bundled_files::core_revision::REPLY,
@@ -296,7 +415,7 @@ pub fn park_shape(
         return Err("issued request must be a record");
     };
     let [field] = fields.as_slice() else {
-        return Err("issued request must contain exactly its publication anchor");
+        return Err("an issued publication must contain exactly its slot anchor");
     };
     let terminal_psi::StructuralFieldType::Structural(reference) = field.field_type else {
         return Err("the publication anchor is not a reference field");
@@ -309,7 +428,7 @@ pub fn park_shape(
         access: StructuralAccess::SharedBorrow,
     } = reference.shape
     else {
-        return Err("issued request must store an ordinary shared reference");
+        return Err("a publication must store an ordinary shared reference");
     };
     if text(field.declaration_identity) != Some("toolchain::Publication::anchor")
         || field.relevance.is_erased() || field.storage.is_some()
@@ -317,19 +436,44 @@ pub fn park_shape(
             StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Integer(i))
                 if i.sign() == semantic_vocabulary::IntegerSign::Unsigned && i.bits() == Some(8) && !i.is_address()))
     {
-        return Err("park requires the exact field borrowing the slot's ordinary byte");
+        return Err("the publication must borrow the slot's ordinary byte");
     }
-    let (base, declared, issued) = published_request_types(reply);
-    if text(*request_declared) != Some(declared.as_str())
+    let (base, declared, issued) = publication_types(role, reply);
+    if text(declared_type) != Some(declared.as_str())
         || text(qualified.identity) != Some(issued.as_str())
         || text(qualified.subject_identity) != Some(base.as_str())
         || text(carrier.identity) != Some(base.as_str())
     {
-        return Err("the declared request does not carry the closed reply and request role");
+        return Err("the publication has a different role or closed reply type");
     }
     Ok(ParkShape {
         anchor: field.id,
         anchor_identity: field.identity,
-        reply: source.result_type,
+        reply: reply_type,
     })
+}
+
+#[cfg(test)]
+mod preparation_commitment_tests {
+    use super::*;
+    use terminal_psi::TerminalActivationStorage::{Fixed, Split};
+
+    #[test]
+    fn reopens_the_source_workers_typed_storage_constant() {
+        let fixed = Fixed.canonical_value().unwrap();
+        let mut source = MachineApplicationCommitment::new("prepare").unwrap();
+        source.type_argument("args").unwrap();
+        source.type_argument("out").unwrap();
+        source.machine_argument("worker").unwrap();
+        source.const_argument(&fixed).unwrap();
+        let published = source.finish();
+        let reopen = |key: &str| worker_application_commitment("prepare", &["args", "out"], "worker", key);
+        assert_eq!(reopen(&fixed.application_identity().unwrap()), Ok(published));
+        let split = Split.canonical_value().unwrap();
+        assert_ne!(reopen(&split.application_identity().unwrap()).unwrap(), published);
+        let mut unrelated = fixed;
+        unrelated.type_name = "OtherStorage".into();
+        assert!(reopen(&unrelated.application_identity().unwrap()).is_err());
+        assert!(reopen("Fixed").is_err());
+    }
 }

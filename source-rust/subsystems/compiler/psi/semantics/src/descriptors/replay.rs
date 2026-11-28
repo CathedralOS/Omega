@@ -9,6 +9,7 @@ use crate::descriptors::descriptor_results::*;
 use crate::exactly_one::exactly_one;
 
 mod input_contents;
+pub(crate) use input_contents::retained_input_debts;
 mod location_map;
 use location_map::LocationMap;
 
@@ -271,7 +272,7 @@ fn may_contain_descriptor(
         StructuralTypeShape::FixedArray { element, .. } => {
             may_contain_descriptor(kind, scope, types, *element, active)
         }
-        StructuralTypeShape::TypeParameter => true,
+        StructuralTypeShape::TypeParameter | StructuralTypeShape::BorrowingOpaque { .. } => true,
         _ => kind.is_slot(types, ty),
     };
     active.remove(&ty);
@@ -559,7 +560,7 @@ fn indirect_contents_contain_slot(
             fields_contain(fields) || cases.iter().any(|case| fields_contain(&case.fields))
         }
         StructuralTypeShape::Sum { cases } => cases.iter().any(|case| fields_contain(&case.fields)),
-        StructuralTypeShape::TypeParameter => true,
+        StructuralTypeShape::TypeParameter | StructuralTypeShape::BorrowingOpaque { .. } => true,
         _ => false,
     };
     active.remove(&structural_type);
@@ -722,7 +723,7 @@ fn slot_inventory(
             }
         }
         match &declaration.shape {
-            StructuralTypeShape::TypeParameter => {
+            StructuralTypeShape::TypeParameter | StructuralTypeShape::BorrowingOpaque { .. } => {
                 let mut contents = location.clone();
                 contents.path.push(DescriptorPathSegment::UnknownContents);
                 result.unknown_contents.push(UnknownDescriptorContents {
