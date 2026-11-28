@@ -136,9 +136,9 @@ provider, network, program launch or native compilation.
 `--trusted-artifact <manifest-id>` runs saved Psi on the trusted route. A
 source or trusted run of a Linux program on its matching Linux host, with no
 native provider, gets the same working-directory default. Source and trusted
-runs that require a native provider or target a different environment still use
-the host namespace and matching-host adapters when no mapping was requested.
-The remaining cases are tracked in [PSI-UNTRUSTED-INTERPRETATION](../../TASKS.md#psi-untrusted-interpretation).
+runs outside that path, including Windows on Windows and runs with native
+providers, still select the host filesystem when no mapping was requested.
+Track this implementation gap in [PSI-UNTRUSTED-INTERPRETATION](../../TASKS.md#psi-untrusted-interpretation).
 
 ```bash
 mbx run -p omega -- packages update --project samples/cli/basics/cli_mvp --target macos_arm64
