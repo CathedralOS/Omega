@@ -2,10 +2,11 @@
 
 See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
 
-The original 16-case native and Terminal termination evidence is retained in the
-recovery record. Current qualification compares native output and actual captured
-Terminal output with the unchanged independent oracle. See `VALIDATION.md` for
-the commands, admission requirements and numerical tolerance.
+The laminate solver runs on Linux x86-64 and ARM64 macOS. On the Mac, all
+16 test inputs produced the expected exit and output. Every reported number
+matched `data/expected.json` within its absolute tolerance of 0.000002. The
+Mac native executable and the Windows-hosted Psi interpreter targeting macOS
+produced identical output bytes.
 
 A complete bounded classical laminate workflow in Omega. It assembles rotated
 orthotropic plane-stress stiffness, membrane A, coupling B and bending D, solves
@@ -72,21 +73,23 @@ Valid runs exit 0. Empty input, unknown bytes, CRLF and overlong records exit 2.
 The native sample gate feeds root `input.txt` (mode 0, the equal 0/90 stack);
 a direct run with empty stdin is the invalid-input rejection.
 
-From repository root, with a current-main `omega` binary and matching
-`OMEGA_LIBRARY_ROOT=.../source/library`:
+Run these commands from the sample directory with the compiler and its matching
+bundled library. On Linux x86-64, set `target=linux_x86_64`.
 
 ```sh
-omega packages update --project samples/cli/scientific/laminate_stiffness_response --target linux_x86_64
-# Review the generated package decisions; acceptance is a separate action.
-omega --check samples/cli/scientific/laminate_stiffness_response/main.omg
-omega run --keep samples/cli/scientific/laminate_stiffness_response/main.omg < samples/cli/scientific/laminate_stiffness_response/data/mode_0.stdin
-omega --check samples/cli/scientific/laminate_stiffness_response/controls/bounds/main.omg
+target=macos_arm64
+set --
+for source in build.omg main.omg mechanics/*/*.omg; do
+    set -- "$@" --build-input "$source"
+done
+omega packages update --project . --target "$target" "$@"
+# After reviewing the generated package decisions, resume the update.
+omega packages update --project . --resume
+omega run --target "$target" "$@" --input data/mode_0.stdin --outputs build/psi build.omg
+omega --target "$target" "$@" --build-dir build/native build.omg
+mbx reserve --cpus 1 -- build/native/omega-program < data/mode_0.stdin
 ```
 
 The bounds control is a separate complete application intentionally writing
 index 4 of a four-element array. A bounds diagnostic is required; package,
 entry-slot or unrelated type rejection does not count as acceptance.
-`VALIDATION.md` records actual commands, identities, outcomes and blockers.
-Generated native/Terminal artifacts and logs stay in ignored `build/` and are
-included in the review bundle when available. Linux x86_64 is the declared
-execution target; other hosts are not claimed.
