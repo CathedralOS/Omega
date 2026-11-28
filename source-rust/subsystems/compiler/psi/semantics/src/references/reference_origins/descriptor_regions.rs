@@ -303,31 +303,27 @@ fn reference_sources_for_leaves(
         }
         let mut sources = Vec::with_capacity(slot.origins.len());
         for origin in &slot.origins {
-            if let DescriptorStoredOrigin::NativeAddress {
-                carrier,
-                projection,
-                ..
-            } = origin
-            {
-                if projection != &Projection::new(&[]) && projection != &Projection::upgraded() {
-                    return Err("native reference result no longer names its original pointee");
-                }
-                let Some(StructuralTypeShape::Reference {
-                    referent: from,
-                    access: offered,
-                }) = terminal_psi::find_structural_type(types, *carrier).map(|row| &row.shape)
-                else {
-                    return Err("native borrow lost its typed reference");
-                };
-                let offered = if projection.upgraded_mutability
-                    && *offered == StructuralAccess::SharedBorrow
+            if let DescriptorStoredOrigin::NativeAddress { carrier, projection, .. } = origin {
+                if projection.window.is_some()
+                    || projection.is_native_enclosing_storage()
+                    || (!projection.exact && projection.stripped_origin_path().is_none())
                 {
+                    return Err("native reference result has no retained pointee projection");
+                }
+                let Some(StructuralTypeShape::Reference { referent: root, access: offered }) =
+                    terminal_psi::find_structural_type(types, *carrier).map(|row| &row.shape)
+                else { return Err("native borrow lost its typed reference"); };
+                let mut pointee_path = Vec::new();
+                append_projection(&mut pointee_path, projection)?;
+                let effective = if projection.upgraded_mutability && *offered == StructuralAccess::SharedBorrow {
                     StructuralAccess::MutableBorrow
                 } else {
                     *offered
                 };
-                if *from != referent || !access.admits_referent(offered) {
-                    return Err("native reference result changes its original type or access");
+                if super::reference_origin_type(types.iter(), *root, &pointee_path) != Some(referent)
+                    || !access.admits_referent(effective)
+                {
+                    return Err("native reference result changes its admitted pointee or access");
                 }
                 sources.push(terminal_psi::StructuralReferenceOrigin::Invocation {
                     carrier_type: leaf.structural_type,
@@ -336,6 +332,25 @@ fn reference_sources_for_leaves(
                     )],
                     extent: ReferenceOriginExtent::Projected,
                     access,
+                });
+                continue;
+            }
+            if let DescriptorStoredOrigin::Invocation { carrier_type, projection } = origin {
+                // An admitted public contract supplies the promised reference.
+                // Forwarding it must retain both the typed region and its access.
+                super::result_regions::validate_input_region(
+                    types.iter(), *carrier_type, StructuralAccess::Owned, &projection.path, access,
+                )?;
+                let path = projection.path.iter().cloned()
+                    .map(ReferenceOriginProjection::Exact).collect::<Vec<_>>();
+                if super::reference_origin_type(types.iter(), *carrier_type, &path) != Some(referent)
+                    || projection.window.is_some()
+                    || projection.is_native_enclosing_storage()
+                {
+                    return Err("returned invocation reference exceeds its admitted typed region");
+                }
+                sources.push(terminal_psi::StructuralReferenceOrigin::Invocation {
+                    carrier_type: *carrier_type, path, extent: ReferenceOriginExtent::Projected, access,
                 });
                 continue;
             }

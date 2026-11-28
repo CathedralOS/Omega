@@ -884,6 +884,41 @@ fn native_borrow_results_follow_scalar_address_actuals_back_to_their_storage() {
 }
 
 #[test]
+fn native_subobjects_and_header_only_calls_publish_their_checked_reference_type() {
+    use semantic_vocabulary::OperationId;
+    let scalar = StructuralTypeId::new(1).unwrap();
+    let array = StructuralTypeId::new(2).unwrap();
+    let base = StructuralTypeId::new(3).unwrap();
+    let element = StructuralTypeId::new(4).unwrap();
+    let mut array_row = scalar_type(2);
+    array_row.shape = StructuralTypeShape::FixedArray { element: scalar, length: terminal_psi::ArrayExtent::Literal(2) };
+    let types = [scalar_type(1), array_row, reference_type(3, array, StructuralAccess::SharedBorrow),
+        reference_type(4, scalar, StructuralAccess::SharedBorrow)];
+    let result = terminal_psi::StructuralResultDeclaration {
+        place: location(1).root, structural_type: element,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+        qualifications: Vec::new(), projected_qualifications: Vec::new(), reference_sources: Vec::new(),
+    };
+    let publish = |origin| crate::reference_result_contents(&types, &[], &result, &DescriptorResultContents {
+        slots: vec![DescriptorResultSlot { path: Vec::new(), origins: vec![origin] }],
+        unknown_contents: Vec::new(), unresolved_slots: Vec::new(), case_facts: Default::default(),
+    });
+    let native = |path| DescriptorStoredOrigin::NativeAddress {
+        parameters: Vec::new(), exact_parameters: true, machine: MachineId::new(1).unwrap(),
+        operation: OperationId::new(1).unwrap(), place: location(2).root, carrier: base, projection: Projection::new(path),
+    };
+    assert!(publish(native(&[StructuralPathSegment::FixedIndex(1)])).is_ok());
+    assert!(publish(native(&[])).is_err());
+    let public = |carrier_type| {
+        let mut projection = Projection::new(&[StructuralPathSegment::Referent]);
+        projection.forget_address();
+        DescriptorStoredOrigin::Invocation { carrier_type, projection }
+    };
+    assert!(publish(public(element)).is_ok());
+    assert!(publish(public(base)).is_err());
+}
+
+#[test]
 fn returned_storage_borrows_keep_the_resident_argument_after_replacement() {
     let scalar = StructuralTypeId::new(1).unwrap();
     let array = StructuralTypeId::new(2).unwrap();
