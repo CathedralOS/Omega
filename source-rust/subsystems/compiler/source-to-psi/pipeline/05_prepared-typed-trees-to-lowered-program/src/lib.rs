@@ -1488,6 +1488,7 @@ fn finish_reading_into<'source>(
         Some(&program),
         parallel_machines,
     )?;
+    let services = services.with_declared_fields(&elaboration.module.identities);
     elaboration.machines = program.symbols.clone();
     for schema in &elaboration.static_schemas {
         for declaration in &schema.requirements {
@@ -1971,6 +1972,8 @@ fn lower_program_with_parallel<'source>(
         typed_source,
         identities,
     )?;
+    let declared_services = services.with_declared_fields(&declared.identities);
+    let services = declared_services.as_ref();
     let outcomes = body::outcome::outcomes(
         bodies,
         signatures,

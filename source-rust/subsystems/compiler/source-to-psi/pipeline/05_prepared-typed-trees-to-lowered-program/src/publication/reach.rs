@@ -16,19 +16,56 @@ use terminal_psi::{
 
 use crate::{Elaboration, Unserved, refuse};
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum InvocationStep {
+    Field(String),
+    Case(semantic_vocabulary::StructuralCaseId),
+    FixedIndex(u64),
+    Referent,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum SourceInvocation {
     Parameter(u32),
     Service(ServiceReachId),
+    ParameterPath {
+        parameter: u32,
+        path: Vec<InvocationStep>,
+    },
+}
+
+impl SourceInvocation {
+    pub(crate) fn parameter(&self) -> Option<(u32, &[InvocationStep])> {
+        match self {
+            Self::Parameter(position) => Some((*position, &[])),
+            Self::ParameterPath { parameter, path } => Some((*parameter, path)),
+            Self::Service(_) => None,
+        }
+    }
 }
 
 impl Ord for SourceInvocation {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        let key = |target: &Self| match target {
-            Self::Parameter(position) => (0u8, *position),
-            Self::Service(service) => (1, service.0),
+        let tag = |target: &Self| match target {
+            Self::Parameter(_) => 0,
+            Self::Service(_) => 1,
+            Self::ParameterPath { .. } => 2,
         };
-        key(self).cmp(&key(other))
+        match (self, other) {
+            (Self::Parameter(a), Self::Parameter(b)) => a.cmp(b),
+            (
+                Self::ParameterPath {
+                    parameter: a,
+                    path: ap,
+                },
+                Self::ParameterPath {
+                    parameter: b,
+                    path: bp,
+                },
+            ) => (a, ap).cmp(&(b, bp)),
+            (Self::Service(a), Self::Service(b)) => a.0.cmp(&b.0),
+            _ => tag(self).cmp(&tag(other)),
+        }
     }
 }
 impl PartialOrd for SourceInvocation {
@@ -60,6 +97,8 @@ struct ServiceSource {
 pub(crate) struct ServiceMap {
     declarations: Vec<ServiceSource>,
     bindings: Vec<(ServiceReachId, ServiceId)>,
+    invocation_fields:
+        std::collections::BTreeMap<String, Option<terminal_psi::TerminalIdentityIndex>>,
 }
 impl ServiceMap {
     pub(crate) fn prepare(
@@ -147,6 +186,7 @@ impl ServiceMap {
         Ok(Self {
             declarations,
             bindings,
+            ..Self::default()
         })
     }
     pub(crate) fn service(&self, context: MachineId, source: ServiceReachId) -> Checked<ServiceId> {
@@ -176,6 +216,60 @@ impl ServiceMap {
         row.dedup();
         Ok(row)
     }
+    pub(crate) fn retain_invocation_fields(&mut self, invocations: &[SourceInvocation]) {
+        for entry in invocations {
+            if let SourceInvocation::ParameterPath { path, .. } = entry {
+                for step in path {
+                    if let InvocationStep::Field(name) = step {
+                        self.invocation_fields.entry(name.clone()).or_default();
+                    }
+                }
+            }
+        }
+    }
+
+    pub(crate) fn with_declared_fields(
+        &self,
+        names: &terminal_psi::TerminalIdentityTable,
+    ) -> std::borrow::Cow<'_, Self> {
+        if self.invocation_fields.is_empty() {
+            return std::borrow::Cow::Borrowed(self);
+        }
+        let mut resolved = self.clone();
+        for (name, identity) in &mut resolved.invocation_fields {
+            *identity = names.index_of(name);
+        }
+        std::borrow::Cow::Owned(resolved)
+    }
+
+    pub(crate) fn invocation(
+        &self,
+        context: MachineId,
+        source: &SourceInvocation,
+    ) -> Checked<TerminalCallableInvocation> {
+        use terminal_psi::StructuralPathSegment as Segment;
+        match source {
+            SourceInvocation::Parameter(position) => {
+                Ok(TerminalCallableInvocation::Parameter(*position))
+            }
+            SourceInvocation::Service(service) => self
+                .service(context, *service)
+                .map(TerminalCallableInvocation::Service),
+            SourceInvocation::ParameterPath { parameter, path } => {
+                let path = path.iter().map(|step| Ok(match step {
+                    InvocationStep::Case(case) => Segment::Case(*case),
+                    InvocationStep::Field(name) => Segment::Field(self.invocation_fields.get(name).copied().flatten()
+                        .ok_or_else(|| unavailable(context, "invoked formal field is absent from its declared identities"))?),
+                    InvocationStep::FixedIndex(index) => Segment::FixedIndex(*index),
+                    InvocationStep::Referent => Segment::Referent,
+                })).collect::<Checked<Vec<_>>>()?;
+                Ok(TerminalCallableInvocation::ParameterPath {
+                    parameter: *parameter,
+                    path,
+                })
+            }
+        }
+    }
     pub(crate) fn envelope(
         &self,
         context: MachineId,
@@ -184,14 +278,7 @@ impl ServiceMap {
         let mut invocations = source
             .invocations
             .iter()
-            .map(|target| match target {
-                SourceInvocation::Parameter(position) => {
-                    Ok(TerminalCallableInvocation::Parameter(*position))
-                }
-                SourceInvocation::Service(service) => self
-                    .service(context, *service)
-                    .map(TerminalCallableInvocation::Service),
-            })
+            .map(|target| self.invocation(context, target))
             .collect::<Checked<Vec<_>>>()?;
         invocations.sort();
         invocations.dedup();
