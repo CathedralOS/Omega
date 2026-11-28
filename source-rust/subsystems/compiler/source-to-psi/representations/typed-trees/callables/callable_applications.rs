@@ -1,5 +1,3 @@
-#[path = "specialization_regions.rs"]
-mod specialization_regions;
 //! Typed callable applications retain the selected declaration, its scope and its substituted signature.
 
 #[path = "arguments/canonical_values.rs"]
@@ -32,6 +30,9 @@ pub(crate) mod machine_selections;
 mod contract_views;
 #[path = "signatures/substitution.rs"]
 pub(crate) mod signatures;
+
+#[path = "specialization_regions.rs"]
+mod specialization_regions;
 
 #[path = "static_callback_contracts.rs"]
 mod static_callback_contracts;
