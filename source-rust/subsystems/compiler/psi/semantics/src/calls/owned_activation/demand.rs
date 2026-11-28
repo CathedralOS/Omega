@@ -203,11 +203,17 @@ pub fn caller_demand(
                     // this closed catalog under this exact contract. Size for
                     // all constructible alternatives, even when the argument
                     // is supplied later and the unique value is unknown.
-                    let mut choices = module.execution.callables.descriptors.iter()
+                    let mut choices = module
+                        .execution
+                        .callables
+                        .descriptors
+                        .iter()
                         .filter(|descriptor| descriptor.contract == contract)
                         .peekable();
                     if choices.peek().is_none() {
-                        return Err("prepared frame has no checked descriptor for its callable argument");
+                        return Err(
+                            "prepared frame has no checked descriptor for its callable argument",
+                        );
                     }
                     children.extend(choices.map(|descriptor| descriptor.machine));
                 } else if matches!(op.kind, OperationKind::CallDynamic { .. }) {

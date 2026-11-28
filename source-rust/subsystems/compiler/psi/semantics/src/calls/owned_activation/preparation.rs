@@ -2,8 +2,8 @@
 //! The interpreter and native emitter must not guess a case tag or offset.
 use semantic_vocabulary::{StructuralCaseId, StructuralFieldId, StructuralTypeId};
 use terminal_psi::{
-    BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind,
-    StructuralFieldType, StructuralMultiplicity, StructuralTypeShape, TerminalModule,
+    BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind, StructuralFieldType,
+    StructuralMultiplicity, StructuralTypeShape, TerminalModule,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -28,7 +28,9 @@ pub(super) fn result_shape(
     let BoundaryMachineResult::Structural(output) = &boundary.result else {
         return Err("prepare must return the ready or rejected outcome");
     };
-    let result = module.structural_type(output.structural_type).ok_or("prepare result type is absent")?;
+    let result = module
+        .structural_type(output.structural_type)
+        .ok_or("prepare result type is absent")?;
     let StructuralTypeShape::Sum { cases } = &result.shape else {
         return Err("prepare result has no ready and rejected cases");
     };
@@ -40,11 +42,17 @@ pub(super) fn result_shape(
     {
         return Err("prepare has a foreign or incomplete result");
     }
-    let case = |identity| cases.iter().find(|c| name(c.declaration_identity) == Some(identity))
-        .ok_or("prepare result lacks a declared case");
+    let case = |identity| {
+        cases
+            .iter()
+            .find(|c| name(c.declaration_identity) == Some(identity))
+            .ok_or("prepare result lacks a declared case")
+    };
     let ready = case("toolchain::ActivationPreparation::Ready")?;
     let rejected = case("toolchain::ActivationPreparation::Rejected")?;
-    let [owner] = ready.fields.as_slice() else { return Err("ready must hold one execution owner") };
+    let [owner] = ready.fields.as_slice() else {
+        return Err("ready must hold one execution owner");
+    };
     let StructuralFieldType::Structural(owner_type) = owner.field_type else {
         return Err("a ready owner must not be scalar");
     };
@@ -56,32 +64,51 @@ pub(super) fn result_shape(
         || name(owner.declaration_identity)
             != Some("toolchain::ActivationPreparation::Ready::owner")
         || name(token.declaration_identity) != Some("toolchain::ReadyActivation")
-        || !token.owns_linear_claim || token.multiplicity != StructuralMultiplicity::Linear
-        || !matches!(token.shape, StructuralTypeShape::BorrowingOpaque { lifetime_count } if lifetime_count.get() == 1) {
+        || !token.owns_linear_claim
+        || token.multiplicity != StructuralMultiplicity::Linear
+        || !matches!(token.shape, StructuralTypeShape::BorrowingOpaque { lifetime_count } if lifetime_count.get() == 1)
+    {
         return Err("ready must hold the core linear execution owner");
     }
     let application = |id, family| {
         application_identity::type_identity::named_application_arguments(
             name(id).ok_or("prepare result is missing its application identity")?,
             &super::toolchain_name(family),
-        ).map_err(|_| "prepare has a malformed result application")?
-            .ok_or("prepare has a foreign result application")
+        )
+        .map_err(|_| "prepare has a malformed result application")?
+        .ok_or("prepare has a foreign result application")
     };
-    if application(result.identity, "ActivationPreparation")? != application(token.identity, "ReadyActivation")? {
+    if application(result.identity, "ActivationPreparation")?
+        != application(token.identity, "ReadyActivation")?
+    {
         return Err("prepare returned an owner with different worker or storage arguments");
     }
-    if rejected.fields.len() != 2 { return Err("rejection must return both inputs"); }
-    let field = |identity| rejected.fields.iter().find(|f| name(f.declaration_identity) == Some(identity))
-        .ok_or("rejection must return the original arguments and retained loan");
+    if rejected.fields.len() != 2 {
+        return Err("rejection must return both inputs");
+    }
+    let field = |identity| {
+        rejected
+            .fields
+            .iter()
+            .find(|f| name(f.declaration_identity) == Some(identity))
+            .ok_or("rejection must return the original arguments and retained loan")
+    };
     let arguments = field("toolchain::ActivationPreparation::Rejected::arguments")?;
     let retained = field("toolchain::ActivationPreparation::Rejected::retained")?;
     if retained.relevance.is_erased() || retained.storage.is_some() || arguments.storage.is_some() {
         return Err("preparation changed the storage of a rejected input");
     }
     let [argument_kind, BoundaryParameterKind::Structural] = boundary.parameter_order.as_slice()
-        else { return Err("prepare needs arguments and one retained loan"); };
-    let (backing, rest) = boundary.structural_parameters.split_last().ok_or("retained loan is absent")?;
-    let backing_type = module.structural_type(backing.structural_type).ok_or("retained loan type is absent")?;
+    else {
+        return Err("prepare needs arguments and one retained loan");
+    };
+    let (backing, rest) = boundary
+        .structural_parameters
+        .split_last()
+        .ok_or("retained loan is absent")?;
+    let backing_type = module
+        .structural_type(backing.structural_type)
+        .ok_or("retained loan type is absent")?;
     let byte_slice = match backing_type.shape {
         StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView { .. }) => true,
         StructuralTypeShape::ElementView { element, .. } => module.structural_type(element)
@@ -90,12 +117,19 @@ pub(super) fn result_shape(
                     && i.sign() == semantic_vocabulary::IntegerSign::Unsigned)),
         _ => false,
     };
-    if !byte_slice || backing.position != 1
-        || matches!(backing.access, terminal_psi::StructuralAccess::SharedBorrow |
-            terminal_psi::StructuralAccess::WriteOnlyBorrow)
+    if !byte_slice
+        || backing.position != 1
+        || matches!(
+            backing.access,
+            terminal_psi::StructuralAccess::SharedBorrow
+                | terminal_psi::StructuralAccess::WriteOnlyBorrow
+        )
         || crate::descriptors::descriptor_results::descriptor_value_access(
-            std::iter::once(backing_type), backing_type.id, backing.multiplicity
-        ) != Some(terminal_psi::StructuralAccess::MutableBorrow) {
+            std::iter::once(backing_type),
+            backing_type.id,
+            backing.multiplicity,
+        ) != Some(terminal_psi::StructuralAccess::MutableBorrow)
+    {
         return Err("retained backing must be an exclusive byte slice");
     }
     let arguments_match = match (argument_kind, boundary.scalar_parameters.as_slice(), rest) {
@@ -122,6 +156,14 @@ pub(super) fn result_shape(
     ) {
         return Err("preparation asserted an unprovided result qualification");
     }
-    Ok(PreparationShape { selected, result: result.id, ready: ready.id, owner: owner.id, owner_type,
-        rejected: rejected.id, arguments: arguments.id, retained: retained.id })
+    Ok(PreparationShape {
+        selected,
+        result: result.id,
+        ready: ready.id,
+        owner: owner.id,
+        owner_type,
+        rejected: rejected.id,
+        arguments: arguments.id,
+        retained: retained.id,
+    })
 }

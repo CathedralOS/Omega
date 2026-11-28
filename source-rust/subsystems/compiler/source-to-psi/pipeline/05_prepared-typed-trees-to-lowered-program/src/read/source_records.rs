@@ -63,22 +63,26 @@ enum SelectedMachine {
 
 /// The machine a static machine argument of a record application selects,
 /// when it has exactly the formals and result `required` declares once the
-/// application's arguments `bindings` stand for the declaration's binders.
+/// application's arguments stand for the declaration's binders in their supplying scopes.
 fn selected_sampler(
     typed: &crate::source_state::TypedTrees,
     required: &crate::source_state::signature::StateSignature,
     argument: TypeReferenceHandle,
-    bindings: &[(SymbolHandle, TypeReferenceHandle)],
+    signature_scope: &crate::source_state::SourceTypeScope,
 ) -> Result<SymbolHandle, SelectedMachine> {
     use SelectedMachine::{Rejected, Unserved};
-    let TypeReferenceNode::Named { symbol, .. } =
-        typed.type_reference_table.type_reference(argument)
-    else {
-        return Err(Unserved("record machine argument that names no machine"));
-    };
+    let selected = typed
+        .static_operand_from_type_reference(argument)
+        .map_err(Unserved)?;
+    if selected.application.is_some() || selected.evidence_projection.is_some() {
+        return Err(Unserved(
+            "record machine argument with an unapplied selection",
+        ));
+    }
+    let symbol = selected.symbol;
     let machine = (symbol.is_valid()
-        && typed.symbols.get(*symbol).kind == symbols::SymbolKind::Machine)
-        .then(|| typed.machine_by_symbol(*symbol))
+        && typed.symbols.get(symbol).kind == symbols::SymbolKind::Machine)
+        .then(|| typed.machine_by_symbol(symbol))
         .flatten()
         .ok_or(Unserved("record machine argument that names no machine"))?;
     if !typed.machine_type_parameters(machine).is_empty() {
@@ -89,12 +93,7 @@ fn selected_sampler(
         .first()
         .ok_or(Unserved("record machine argument without its entry"))?;
     let same = |selected: TypeReferenceHandle, declared: TypeReferenceHandle| {
-        let expected = typed.type_identity_with_simultaneous_substitutions(
-            crate::source_state::type_identity::TypeIdentityRequest {
-                substitutions: bindings,
-                ..crate::source_state::type_identity::TypeIdentityRequest::ordinary(declared)
-            },
-        );
+        let expected = signature_scope.type_identity(typed, declared);
         selected.is_valid()
             && declared.is_valid()
             && typed.normalized_type_identity(selected) == expected
@@ -331,14 +330,32 @@ fn checked_source_application(
                     contract:
                         crate::source_state::data::MachineParameterContract::Structural(required),
                 } => {
-                    let bindings = parameters
-                        .iter()
-                        .zip(arguments)
-                        .map(|(parameter, argument)| (parameter.symbol, *argument))
-                        .collect::<Vec<_>>();
-                    selected_sampler(typed, required, *argument, &bindings).map_err(|stop| {
-                        match stop {
-                            SelectedMachine::Unserved(what) => unavailable(what),
+                    let supplied = scope
+                        .supplied_type_reference(typed, *argument)
+                        .map_err(|why| malformed(machine, why))?;
+                    let signature_scope = crate::source_state::SourceTypeScope {
+                        parent: Some(scope.clone()),
+                        substitutions: parameters
+                            .iter()
+                            .zip(arguments)
+                            .map(|(parameter, argument)| (parameter.symbol, *argument))
+                            .collect(),
+                        rigid_parameters: Vec::new(),
+                    };
+                    selected_sampler(typed, required, supplied.reference, &signature_scope)
+                        .map_err(|stop| match stop {
+                            SelectedMachine::Unserved(what) => {
+                                let mut refusal = unavailable(what);
+                                refusal.detail.push_str(&format!(
+                                    " `{}` for parameter `{}` of `{}`",
+                                    typed.display_type_reference_with_constraints(
+                                        supplied.reference
+                                    ),
+                                    parameter.name.as_str(),
+                                    template.name.as_str(),
+                                ));
+                                refusal
+                            }
                             SelectedMachine::Rejected(rule) => crate::reject(
                                 machine,
                                 crate::SourceOrigin::of(
@@ -349,8 +366,7 @@ fn checked_source_application(
                                 ),
                                 rule,
                             ),
-                        }
-                    })?;
+                        })?;
                     binders.push(parameter.symbol);
                     substitutions.push((parameter.symbol, *argument));
                     continue;

@@ -3789,10 +3789,20 @@ fn stepping_an_owner_returns_its_original_stack_and_keeps_other_loans_private() 
             replay.substitute_actuals(machine, &state, actuals, &summary),
             Some([stack].into())
         );
-        assert_eq!(replay.substitute_actuals(machine, &state, actuals, &query(preparation, Some(vec![]))),
-            Some([argument_loan].into()));
-        assert!(replay.substitute_actuals(machine, &state, actuals,
-            &query(preparation, Some(hidden.path.clone()))).is_none());
+        assert_eq!(
+            replay.substitute_actuals(machine, &state, actuals, &query(preparation, Some(vec![]))),
+            Some([argument_loan].into())
+        );
+        assert!(
+            replay
+                .substitute_actuals(
+                    machine,
+                    &state,
+                    actuals,
+                    &query(preparation, Some(hidden.path.clone()))
+                )
+                .is_none()
+        );
         assert!(
             replay
                 .substitute_actuals(machine, &state, actuals, &query(other_preparation, None))

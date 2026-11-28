@@ -150,7 +150,8 @@ fn typed_source(source: &str) -> crate::source_state::TypedTrees {
 
 #[test]
 fn preparing_a_child_names_its_worker_and_returns_the_rejected_backing() {
-    let mut typed = typed_source(r"
+    let mut typed = typed_source(
+        r"
         use {omega}/language/core/activation.omg;
         use {omega}/language/core/task.omg;
         machine worker(input: u8) -> u8 reaches none crashes none { input }
@@ -159,36 +160,66 @@ fn preparing_a_child_names_its_worker_and_returns_the_rejected_backing() {
             reaches none crashes none {
             |activation|::prepare::<u8, u8, worker, |task|::ActivationStorage::Fixed>(input, backing)
         }
-    ");
+    ",
+    );
     let (caller, call) = query_call(&typed, "make");
     let call = typed.expression_table.call_node(call).unwrap();
-    let declaration = typed.machine_by_symbol(call.target_symbol)
-        .or_else(|| typed.machine_holding_state(call.target_symbol)).unwrap();
-    assert_eq!(typed.sealed_callable(declaration.symbol),
-        Some(language_core::sealed_intrinsics::SealedIntrinsic::OwnedActivation(
-            language_core::sealed_intrinsics::ActivationOperation::Prepare)),
-        "the source fixture must use the same bundled core revision as the compiler");
+    let declaration = typed
+        .machine_by_symbol(call.target_symbol)
+        .or_else(|| typed.machine_holding_state(call.target_symbol))
+        .unwrap();
+    assert_eq!(
+        typed.sealed_callable(declaration.symbol),
+        Some(
+            language_core::sealed_intrinsics::SealedIntrinsic::OwnedActivation(
+                language_core::sealed_intrinsics::ActivationOperation::Prepare
+            )
+        ),
+        "the source fixture must use the same bundled core revision as the compiler"
+    );
     let parameters = typed.machine_callable_parameters(declaration);
     let plan = parameters.last().unwrap();
     let crate::source_state::data::TypeParameterKind::Const { type_reference } = plan.kind else {
         panic!("the plan is a structural constant, not an extra runtime argument");
     };
-    let supplied = typed.expression_table.static_machine_application_arguments(call.authored_machine_application);
-    let key = typed.canonical_aggregate_argument(type_reference, supplied.last().unwrap())
-        .unwrap().application_identity().unwrap();
-    assert_eq!(terminal_psi::TerminalActivationStorage::from_core_argument(&key),
-        Some(terminal_psi::TerminalActivationStorage::Fixed), "{key}");
+    let supplied = typed
+        .expression_table
+        .static_machine_application_arguments(call.authored_machine_application);
+    let key = typed
+        .canonical_aggregate_argument(type_reference, supplied.last().unwrap())
+        .unwrap()
+        .application_identity()
+        .unwrap();
+    assert_eq!(
+        terminal_psi::TerminalActivationStorage::from_core_argument(&key),
+        Some(terminal_psi::TerminalActivationStorage::Fixed),
+        "{key}"
+    );
     let entries = [caller];
     let request = production::TerminalSourceCompilation {
-        calling: None, providers: None, declaration_metadata: &[], entries: &entries,
-        subjects: &[], purpose: source_provenance::DependencyScope::Product,
-        selected: &[], bindings: &[], supplies: &[],
+        calling: None,
+        providers: None,
+        declaration_metadata: &[],
+        entries: &entries,
+        subjects: &[],
+        purpose: source_provenance::DependencyScope::Product,
+        selected: &[],
+        bindings: &[],
+        supplies: &[],
     };
-    evaluate(&mut typed, request, &mut SourceCompletionAccounting::default()).unwrap();
+    evaluate(
+        &mut typed,
+        request,
+        &mut SourceCompletionAccounting::default(),
+    )
+    .unwrap();
     let prepared = preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
-    let accepted = judge_lowered_source::judge_terminal_source(prepared, request,
-        terminal_codec::TerminalPublication::Portable)
-        .expect("a caller may prepare this selected worker with an exclusive loan of retained backing");
+    let accepted = judge_lowered_source::judge_terminal_source(
+        prepared,
+        request,
+        terminal_codec::TerminalPublication::Portable,
+    )
+    .expect("a caller may prepare this selected worker with an exclusive loan of retained backing");
     let bytes = terminal_codec::encode_module(accepted.module()).unwrap();
     let reopened = terminal_codec::decode_module(&bytes).unwrap();
     let [demand] = reopened.execution.task_activation_demands.as_slice() else {
@@ -197,7 +228,10 @@ fn preparing_a_child_names_its_worker_and_returns_the_rejected_backing() {
     let terminal_psi::TerminalActivationOrigin::Caller(entry) = &demand.origin else {
         panic!("preparing a child must not select a scheduler");
     };
-    assert_eq!(entry.storage, terminal_psi::TerminalActivationStorage::Fixed);
+    assert_eq!(
+        entry.storage,
+        terminal_psi::TerminalActivationStorage::Fixed
+    );
     assert!(entry.selected_body(&reopened).is_some());
     let mut forged = *entry;
     forged.storage = terminal_psi::TerminalActivationStorage::Split;
@@ -205,28 +239,41 @@ fn preparing_a_child_names_its_worker_and_returns_the_rejected_backing() {
     // Keep the selected worker and signature intact but understate the
     // storage needed for its input. The receiver has the body to catch it.
     let mut understated = reopened;
-    understated.execution.task_activation_demands[0].frames[0].states[0]
-        .crossing_arguments[0].clear();
+    understated.execution.task_activation_demands[0].frames[0].states[0].crossing_arguments[0]
+        .clear();
     let refused = terminal_codec::encode_module(&understated)
         .and_then(|bytes| terminal_codec::decode_module(&bytes))
         .unwrap_err();
-    assert!(refused.to_string().contains("storage demand differs"), "{refused}");
+    assert!(
+        refused.to_string().contains("storage demand differs"),
+        "{refused}"
+    );
 }
 
 fn judge_activation(
     source: &str,
     roots: &[&str],
 ) -> Result<production::AcceptedTerminalSource, Vec<diagnostics::Diagnostic>> {
+    let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0xA1; 32]).unwrap();
     let mut typed = schema_customer_source::source_with_core(
         &fixture_repository::root().join("source/library"),
         source,
-        semantic_vocabulary::PackageKeyIdentity::from_digest([0xA1; 32]).unwrap(),
+        package,
         &[],
     )
     .map_err(|detail| vec![diagnostics::Diagnostic::error(detail)])?;
     let entries = roots
         .iter()
-        .map(|name| typed.realized_machine_named(name).unwrap().symbol)
+        .map(|name| {
+            let mut matches = typed.machines().iter().filter(|machine| {
+                machine.target.is_none()
+                    && machine.name.as_str() == *name
+                    && typed.symbols.symbol_package_identity(machine.symbol) == Some(package)
+            });
+            let selected = matches.next().expect("the authored fixture root");
+            assert!(matches.next().is_none(), "ambiguous fixture root {name}");
+            selected.symbol
+        })
         .collect::<Vec<_>>();
     let request = production::TerminalSourceCompilation {
         calling: None,
@@ -400,21 +447,41 @@ fn a_prepared_execution_owner_cannot_escape_its_backing() {
         let mut typed = typed_source(&source.replace("BACKING", backing));
         let entries = [typed.realized_machine_named("keep").unwrap().symbol];
         let request = production::TerminalSourceCompilation {
-            calling: None, providers: None, declaration_metadata: &[], entries: &entries,
-            subjects: &[], purpose: source_provenance::DependencyScope::Product,
-            selected: &[], bindings: &[], supplies: &[],
+            calling: None,
+            providers: None,
+            declaration_metadata: &[],
+            entries: &entries,
+            subjects: &[],
+            purpose: source_provenance::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
         };
-        evaluate(&mut typed, request, &mut SourceCompletionAccounting::default()).unwrap();
+        evaluate(
+            &mut typed,
+            request,
+            &mut SourceCompletionAccounting::default(),
+        )
+        .unwrap();
         let prepared = preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
-        let judgment = judge_lowered_source::judge_terminal_source(prepared, request,
-            terminal_codec::TerminalPublication::Portable);
+        let judgment = judge_lowered_source::judge_terminal_source(
+            prepared,
+            request,
+            terminal_codec::TerminalPublication::Portable,
+        );
         if may_return {
             judgment.expect("the caller's backing can accompany the returned owner");
         } else {
-            let error = judgment.err().expect("a local array cannot accompany the returned owner");
+            let error = judgment
+                .err()
+                .expect("a local array cannot accompany the returned owner");
             let detail = format!("{error:?}").to_lowercase();
-            assert!(detail.contains("lifetime") || detail.contains("local storage") || detail.contains("outlive"),
-                "must reject the escaping backing, not preparation itself: {error:?}");
+            assert!(
+                detail.contains("lifetime")
+                    || detail.contains("local storage")
+                    || detail.contains("outlive"),
+                "must reject the escaping backing, not preparation itself: {error:?}"
+            );
         }
     }
 }
