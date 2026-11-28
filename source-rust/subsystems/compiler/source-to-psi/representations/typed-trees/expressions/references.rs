@@ -2104,15 +2104,15 @@ pub fn collect_program_conformance_occurrences(
     occurrences.conformance_applications(program)
 }
 
-pub(crate) struct ProgramApplicationOccurrences {
-    pub requirement_applications: Vec<TypeOccurrence>,
-    pub conformance_applications: Vec<StaticMachineApplicationHandle>,
+pub struct ProgramApplicationOccurrences {
+    pub(crate) requirement_applications: Vec<TypeOccurrence>,
+    pub(crate) conformance_applications: Vec<StaticMachineApplicationHandle>,
     /// Every static application written in its own lexical owner, including
     /// ordinary generic calls that bind evidence without a direct selection.
     pub invocation_applications: Vec<StaticMachineApplicationHandle>,
 }
 
-pub(crate) fn collect_program_application_occurrences(
+pub fn collect_program_application_occurrences(
     program: &TypedTrees,
 ) -> ProgramApplicationOccurrences {
     let mut occurrences = TypeOccurrences::default();
