@@ -103,7 +103,6 @@ pub enum NativeBorrow {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ActivationOperation {
     Park,
-    NewReplyPair,
 }
 
 /// The checked packed-integer instructions. Each one is the contract of one
@@ -914,12 +913,6 @@ const ROWS: &[SealedIntrinsicRow] = &[
         "park",
         BundledFile::CoreActivation,
         SealedIntrinsic::OwnedActivation(ActivationOperation::Park),
-    ),
-    row(
-        "activation.omg",
-        "new_reply_pair",
-        BundledFile::CoreActivation,
-        SealedIntrinsic::OwnedActivation(ActivationOperation::NewReplyPair),
     ),
     SealedIntrinsicRow {
         file: "task.omg",

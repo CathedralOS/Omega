@@ -61,7 +61,6 @@ mod generic_machine;
 mod guard_contradiction;
 mod handoffs;
 mod hosted_primitives;
-mod owned_activation_park;
 mod indexed_contracts;
 mod indexed_family;
 mod inferred_bounds;

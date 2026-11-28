@@ -8,33 +8,87 @@ use application_identity::{
     },
 };
 use language_core::sealed_intrinsics::ActivationOperation;
-use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};
 use terminal_psi::{
     BoundaryMachineDeclaration, BoundaryParameterKind, StructuralAccess, StructuralMultiplicity,
     StructuralTypeShape, TerminalModule,
 };
 
-fn source_owner(path: &str) -> String {
-    use language_core::bundled_files::core_revision;
+fn core_owner(revision: &[u8; 32], path: &str) -> String {
     compound(
         NameForm::Nominal,
         [
-            byte_atom(OwnerForm::ToolchainSource, &core_revision::ACTIVATION),
+            byte_atom(OwnerForm::ToolchainSource, revision),
             atom(Label::Path, path),
         ],
     )
 }
 
-fn applied(name: &str, reply: &str) -> String {
+fn source_owner(path: &str) -> String {
+    core_owner(
+        &language_core::bundled_files::core_revision::ACTIVATION,
+        path,
+    )
+}
+
+/// The issued request carries a reference, not an encoded identifier.
+/// Both engines follow this field to the exact lending place.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ParkShape {
+    pub anchor: semantic_vocabulary::StructuralFieldId,
+    pub reply: terminal_psi::TerminalIdentityIndex,
+}
+
+fn toolchain_name(name: &str) -> String {
     use application_identity::type_identity::encoding::bare;
-    let name = compound(
+    compound(
         NameForm::Nominal,
         [bare(OwnerForm::Toolchain), atom(Label::Path, name)],
-    );
-    compound(
-        TypeForm::Generic,
-        [atom(Label::Name, &name), reply.to_owned()],
     )
+}
+
+fn named(name: &str) -> String {
+    compound(TypeForm::Named, [atom(Label::Name, name)])
+}
+
+fn published_request_types(reply: &str) -> (String, String, String) {
+    use application_identity::type_identity::vocabulary::ConstraintForm;
+    use language_core::bundled_files::core_revision;
+    let carrier = named(&toolchain_name("Publication"));
+    let family = "Publication::Issued";
+    let source_domain = compound(
+        ConstraintForm::DeclaredDomain,
+        [
+            atom(Label::Name, &toolchain_name(family)),
+            named(&toolchain_name("RequestRole")),
+            reply.to_owned(),
+        ],
+    );
+    let declared = compound(
+        TypeForm::Constrained,
+        [
+            carrier.clone(),
+            compound(
+                ConstraintForm::DeclaredDomain,
+                [atom(Label::Name, &source_domain)],
+            ),
+        ],
+    );
+    let owner = compound(
+        Label::Declaration,
+        [
+            atom(Label::Path, family),
+            compound(Label::Owner, [carrier.clone()]),
+        ],
+    );
+    let issued = compound(
+        TypeForm::Generic,
+        [
+            atom(Label::Name, &core_owner(&core_revision::REPLY, &owner)),
+            named(&core_owner(&core_revision::REPLY, "RequestRole")),
+            reply.to_owned(),
+        ],
+    );
+    (carrier, declared, issued)
 }
 
 fn stored_reply(reply: &str) -> std::borrow::Cow<'_, str> {
@@ -44,23 +98,42 @@ fn stored_reply(reply: &str) -> std::borrow::Cow<'_, str> {
     )
 }
 
-fn reply_result_matches(module: &TerminalModule, result: &terminal_psi::BoundaryMachineResult, reply: &str) -> bool {
-    use semantic_vocabulary::{ScalarQualificationSetId, ScalarType, IntegerSign, IeeeFloatFormat};
+fn reply_result_matches(
+    module: &TerminalModule,
+    result: &terminal_psi::BoundaryMachineResult,
+    reply: &str,
+) -> bool {
+    use semantic_vocabulary::{IeeeFloatFormat, IntegerSign, ScalarQualificationSetId, ScalarType};
     use terminal_psi::BoundaryMachineResult;
     match result {
-        BoundaryMachineResult::Unit => reply == application_identity::type_identity::encoding::bare(TypeForm::Unit),
-        BoundaryMachineResult::Structural(result) => module.structural_type(result.structural_type).is_some_and(|ty|
-            result.qualifications.is_empty() && result.projected_qualifications.is_empty()
-            && ty.multiplicity == result.multiplicity
-            && module.identities.text(ty.identity) == Some(stored_reply(reply).as_ref())),
+        BoundaryMachineResult::Unit => {
+            reply == application_identity::type_identity::encoding::bare(TypeForm::Unit)
+        }
+        BoundaryMachineResult::Structural(result) => module
+            .structural_type(result.structural_type)
+            .is_some_and(|ty| {
+                result.qualifications.is_empty()
+                    && result.projected_qualifications.is_empty()
+                    && ty.multiplicity == result.multiplicity
+                    && module.identities.text(ty.identity) == Some(stored_reply(reply).as_ref())
+            }),
         BoundaryMachineResult::Scalar(result) => {
-            if result.qualifications != ScalarQualificationSetId::ZERO { return false; }
+            if result.qualifications != ScalarQualificationSetId::ZERO {
+                return false;
+            }
             let atom = match result.scalar_type {
                 ScalarType::Boolean => "bool".to_string(),
                 ScalarType::Integer(i) if i.is_address() => "address".to_string(),
                 ScalarType::Integer(i) => {
                     let Some(bits) = i.bits() else { return false };
-                    format!("{}{bits}", if i.sign() == IntegerSign::Signed { 'i' } else { 'u' })
+                    format!(
+                        "{}{bits}",
+                        if i.sign() == IntegerSign::Signed {
+                            'i'
+                        } else {
+                            'u'
+                        }
+                    )
                 }
                 ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => "f32".into(),
                 ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => "f64".into(),
@@ -81,7 +154,6 @@ fn checked_reply<'m>(
     };
     let (name, suspends) = match operation {
         ActivationOperation::Park => ("park", true),
-        ActivationOperation::NewReplyPair => ("new_reply_pair", false),
     };
     let checked = boundary
         .declaration
@@ -115,7 +187,11 @@ fn checked_reply<'m>(
         || boundary.attachment.is_some()
         || boundary.numeric_intrinsic.is_some()
         || source.contract == [0; 32]
-        || !boundary.requires.is_empty()
+        || !boundary.requires.iter().cloned().eq(
+            terminal_psi::StructuralDomainRequirement::declared_roots(
+                &boundary.structural_parameters,
+            ),
+        )
         || !boundary.normal_qualifications.is_empty()
         || !boundary.scalar_domain_requirements.is_empty()
         || !boundary.membership_ensures.is_empty()
@@ -145,6 +221,13 @@ pub fn validate_park(
     module: &TerminalModule,
     boundary: &BoundaryMachineDeclaration,
 ) -> Result<(), &'static str> {
+    park_shape(module, boundary).map(drop)
+}
+
+pub fn park_shape(
+    module: &TerminalModule,
+    boundary: &BoundaryMachineDeclaration,
+) -> Result<ParkShape, &'static str> {
     let reply = checked_reply(module, boundary, ActivationOperation::Park)?;
     let source = &boundary
         .declaration
@@ -152,7 +235,9 @@ pub fn validate_park(
         .ok_or("park lacks its declaration")?
         .source;
     let text = |id| module.identities.text(id);
-    if text(source.result_type) != Some(reply) || !reply_result_matches(module, &boundary.result, reply) {
+    if text(source.result_type) != Some(reply)
+        || !reply_result_matches(module, &boundary.result, reply)
+    {
         return Err("park result differs from its reply");
     }
     let [request] = boundary.structural_parameters.as_slice() else {
@@ -164,109 +249,85 @@ pub fn validate_park(
     let carrier = module
         .structural_type(request.structural_type)
         .ok_or("park request type is absent")?;
-    let expected = applied("ParkRequest", reply);
-    if text(*request_declared) != Some(expected.as_str())
-        || !boundary.scalar_parameters.is_empty()
+    if !boundary.scalar_parameters.is_empty()
         || boundary.parameter_order != [BoundaryParameterKind::Structural]
         || request.access != StructuralAccess::Owned
         || request.multiplicity != StructuralMultiplicity::Linear
         || carrier.multiplicity != StructuralMultiplicity::Linear
-        || carrier.shape != StructuralTypeShape::Opaque
-        || text(carrier.declaration_identity) != Some("toolchain::ParkRequest")
-        || text(carrier.identity) != Some(applied("ParkRequest", &stored_reply(reply)).as_str())
+        || text(carrier.declaration_identity) != Some("toolchain::Publication")
         || !carrier.owns_linear_claim
-        || !request.qualifications.is_empty()
         || !request.projected_qualifications.is_empty()
         || !request.additional_input_qualifications.is_empty()
     {
-        return Err("park must consume an opaque linear request for its exact reply type");
+        return Err("park must consume exactly one owned linear publication");
     }
-    Ok(())
-}
-
-pub struct ReplyPairShape {
-    pub result: StructuralTypeId,
-    pub request: StructuralFieldId,
-    pub request_type: StructuralTypeId,
-    pub permit: StructuralFieldId,
-    pub permit_type: StructuralTypeId,
-}
-
-/// Use the declared fields, not their order in an artifact's table. A second
-/// opaque handle with the same storage shape is not an answer permit.
-pub fn reply_pair_shape(
-    module: &TerminalModule,
-    boundary: &BoundaryMachineDeclaration,
-) -> Result<ReplyPairShape, &'static str> {
-    use terminal_psi::{BoundaryMachineResult, StructuralFieldType, StructuralRecordStorage};
-    let reply = checked_reply(module, boundary, ActivationOperation::NewReplyPair)?;
-    let source = &boundary
-        .declaration
-        .as_ref()
-        .ok_or("reply pair lacks its declaration")?
-        .source;
-    let text = |id| module.identities.text(id);
-    let BoundaryMachineResult::Structural(result) = &boundary.result else {
-        return Err("reply pair requires a structural result");
+    let [qualification] = request.qualifications.as_slice() else {
+        return Err("park requires one protected request role");
     };
-    let record = module
-        .structural_type(result.structural_type)
-        .ok_or("reply pair has no result type")?;
+    let qualified = module
+        .structural_domain(*qualification)
+        .ok_or("park request domain is absent")?;
+    let plan = qualified
+        .access_policy
+        .as_ref()
+        .ok_or("park request lost its issuance policy")?;
+    let Some([(_, terminal_psi::StructuralEstablishmentRoute::ExactMachine { declaration, .. })]) =
+        plan.issuance.as_deref()
+    else {
+        return Err("only the checked reply issuer may mint a request");
+    };
+    let expected_issuer = core_owner(
+        &language_core::bundled_files::core_revision::REPLY,
+        "new_reply_pair",
+    );
+    if text(declaration.identity()) != Some(expected_issuer.as_str())
+        || qualified.carrier != carrier.id
+        || !matches!(plan.writers.as_slice(), [((root, Some(path)), writers)]
+            if *root == plan.schema.root() && path.is_empty() && writers.is_empty())
+    {
+        return Err("park request must retain its exact issuer and deny re-targeting the slot");
+    }
     let StructuralTypeShape::Record {
         fields,
-        storage: StructuralRecordStorage::Packed,
-    } = &record.shape
+        storage: terminal_psi::StructuralRecordStorage::Packed,
+    } = &carrier.shape
     else {
-        return Err("reply pair result must be an ordinary record");
+        return Err("issued request must be a record");
     };
-    if !source.parameter_types.is_empty()
-        || !boundary.parameter_order.is_empty()
-        || !boundary.scalar_parameters.is_empty()
-        || !boundary.structural_parameters.is_empty()
-        || text(source.result_type) != Some(applied("ReplyPair", reply).as_str())
-        || text(record.declaration_identity) != Some("toolchain::ReplyPair")
-        || text(record.identity) != Some(applied("ReplyPair", &stored_reply(reply)).as_str())
-        || fields.len() != 2
-        || record.multiplicity != StructuralMultiplicity::Affine || record.owns_linear_claim
-        || result.multiplicity != record.multiplicity
-        || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
+    let [field] = fields.as_slice() else {
+        return Err("issued request must contain exactly its publication anchor");
+    };
+    let terminal_psi::StructuralFieldType::Structural(reference) = field.field_type else {
+        return Err("the publication anchor is not a reference field");
+    };
+    let reference = module
+        .structural_type(reference)
+        .ok_or("anchor reference type is absent")?;
+    let StructuralTypeShape::Reference {
+        referent,
+        access: StructuralAccess::SharedBorrow,
+    } = reference.shape
+    else {
+        return Err("issued request must store an ordinary shared reference");
+    };
+    if text(field.declaration_identity) != Some("toolchain::Publication::anchor")
+        || field.relevance.is_erased() || field.storage.is_some()
+        || !module.structural_type(referent).is_some_and(|t| matches!(t.shape,
+            StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Integer(i))
+                if i.sign() == semantic_vocabulary::IntegerSign::Unsigned && i.bits() == Some(8) && !i.is_address()))
     {
-        return Err("reply pair must denote the sealed pair at the selected reply type");
+        return Err("park requires the exact field borrowing the slot's ordinary byte");
     }
-    let field = |member: &str, carrier: &str, name: &str| {
-        let field = fields
-            .iter()
-            .find(|field| text(field.declaration_identity) == Some(member))
-            .ok_or("reply pair field has another declaration")?;
-        let StructuralFieldType::Structural(id) = field.field_type else {
-            return Err("reply pair field is not an owned handle");
-        };
-        let handle = module
-            .structural_type(id)
-            .ok_or("reply pair field has no handle declaration")?;
-        if field.relevance != language_core::BindingRelevance::Relevant
-            || field.storage.is_some()
-            || text(handle.declaration_identity) != Some(carrier)
-            || text(handle.identity) != Some(applied(name, &stored_reply(reply)).as_str())
-            || handle.shape != StructuralTypeShape::Opaque
-            || handle.multiplicity != StructuralMultiplicity::Linear
-            || !handle.owns_linear_claim
-        {
-            return Err("reply pair requires distinct linear opaque handles");
-        }
-        Ok((field.id, id))
-    };
-    let (request, request_type) = field("toolchain::ReplyPair::request", "toolchain::ParkRequest", "ParkRequest")?;
-    let (permit, permit_type) = field("toolchain::ReplyPair::permit", "toolchain::AnswerPermit", "AnswerPermit")?;
-    if request == permit || request_type == permit_type {
-        return Err("reply pair aliases its two handles");
+    let (base, declared, issued) = published_request_types(reply);
+    if text(*request_declared) != Some(declared.as_str())
+        || text(qualified.identity) != Some(issued.as_str())
+        || text(qualified.subject_identity) != Some(base.as_str())
+        || text(carrier.identity) != Some(base.as_str())
+    {
+        return Err("the declared request does not carry the closed reply and request role");
     }
-    Ok(ReplyPairShape {
-        result: record.id,
-        request,
-        request_type,
-        permit,
-        permit_type,
+    Ok(ParkShape {
+        anchor: field.id,
+        reply: source.result_type,
     })
 }
