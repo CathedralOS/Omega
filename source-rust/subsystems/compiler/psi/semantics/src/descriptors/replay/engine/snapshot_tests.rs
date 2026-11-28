@@ -793,13 +793,31 @@ fn native_borrow_results_follow_scalar_address_actuals_back_to_their_storage() {
     let machine = bare_machine(
         MachineId::new(1).unwrap(),
         vec![
-            DescriptorPlace { producer: None, place: input.root, definition: DescriptorDefinition::Parameter {
-                position: 0, access: StructuralAccess::SharedBorrow, structural_type: scalar,
-            } },
-            DescriptorPlace { producer: None, place: local.root, definition: DescriptorDefinition::Local },
-            DescriptorPlace { producer: None, place: temporary.root, definition: DescriptorDefinition::Local },
+            DescriptorPlace {
+                producer: None,
+                place: input.root,
+                definition: DescriptorDefinition::Parameter {
+                    position: 0,
+                    access: StructuralAccess::SharedBorrow,
+                    structural_type: scalar,
+                },
+            },
+            DescriptorPlace {
+                producer: None,
+                place: local.root,
+                definition: DescriptorDefinition::Local,
+            },
+            DescriptorPlace {
+                producer: None,
+                place: temporary.root,
+                definition: DescriptorDefinition::Local,
+            },
         ],
-        BTreeMap::from([(input.root, scalar), (local.root, scalar), (temporary.root, reference)]),
+        BTreeMap::from([
+            (input.root, scalar),
+            (local.root, scalar),
+            (temporary.root, reference),
+        ]),
         BTreeSet::new(),
     );
     let replay = Replay::with_slot_kind(
@@ -809,7 +827,10 @@ fn native_borrow_results_follow_scalar_address_actuals_back_to_their_storage() {
     );
     let state = replay.initial(&machine).unwrap();
     let mut observed = state.clone();
-    observed.slots_mut().insert(temporary.clone(), Some(BTreeSet::from([Origin::Storage(input.clone())])));
+    observed.slots_mut().insert(
+        temporary.clone(),
+        Some(BTreeSet::from([Origin::Storage(input.clone())])),
+    );
     let formal = ValueId::new(1).unwrap();
     let forwarded = ValueId::new(2).unwrap();
     let make_origin = |parameters| DescriptorStoredOrigin::NativeAddress {
@@ -830,18 +851,36 @@ fn native_borrow_results_follow_scalar_address_actuals_back_to_their_storage() {
             opaque: storage.is_none() && forwarded.is_none(),
             parameter: formal,
             exact,
-            sources: storage.into_iter().map(|location| NativeAddressObservation {
-                at: machine.entry, location, projection: None, pointee: observed_type, storage_address: true,
-            }).collect(),
+            sources: storage
+                .into_iter()
+                .map(|location| NativeAddressObservation {
+                    at: machine.entry,
+                    location,
+                    projection: None,
+                    pointee: observed_type,
+                    storage_address: true,
+                })
+                .collect(),
             parameters: forwarded.into_iter().collect(),
         }];
         let history = States::from([(machine.entry, observed.clone())]);
         let reads = DescriptorReadDepth::at(&machine, &state, Some(&history));
-        let origins = replay.substitute_actuals_with_depth(&machine, &state, DescriptorActualInputs {
-            native_address_arguments: &native_address_arguments,
-            scalar_arguments: &[], arguments: &[], argument_contents: &[],
-        }, &make_origin(vec![formal]), &reads)?;
-        origins.iter().map(|origin| replay.exported(&machine, origin)).collect::<Option<Vec<_>>>()
+        let origins = replay.substitute_actuals_with_depth(
+            &machine,
+            &state,
+            DescriptorActualInputs {
+                native_address_arguments: &native_address_arguments,
+                scalar_arguments: &[],
+                arguments: &[],
+                argument_contents: &[],
+            },
+            &make_origin(vec![formal]),
+            &reads,
+        )?;
+        origins
+            .iter()
+            .map(|origin| replay.exported(&machine, origin))
+            .collect::<Option<Vec<_>>>()
     };
     assert!(bind(Some(local.clone()), None, true, Some(scalar)).is_none());
     assert!(matches!(
@@ -884,23 +923,38 @@ fn native_writes_name_only_the_formals_or_storage_backing_the_written_reference(
 
     let scalar = StructuralTypeId::new(1).unwrap();
     let pointer = StructuralTypeId::new(2).unwrap();
-    let types = [scalar_type(1), reference_type(2, scalar, StructuralAccess::MutableBorrow)];
+    let types = [
+        scalar_type(1),
+        reference_type(2, scalar, StructuralAccess::MutableBorrow),
+    ];
     let source = location(1);
     let descriptor = location(2);
     let machine = bare_machine(
         MachineId::new(1).unwrap(),
         vec![
             DescriptorPlace {
-                producer: None, place: source.root, definition: DescriptorDefinition::Parameter {
-                    position: 0, structural_type: scalar, access: StructuralAccess::SharedBorrow,
+                producer: None,
+                place: source.root,
+                definition: DescriptorDefinition::Parameter {
+                    position: 0,
+                    structural_type: scalar,
+                    access: StructuralAccess::SharedBorrow,
                 },
             },
-            DescriptorPlace { producer: None, place: descriptor.root, definition: DescriptorDefinition::Local },
+            DescriptorPlace {
+                producer: None,
+                place: descriptor.root,
+                definition: DescriptorDefinition::Local,
+            },
         ],
         BTreeMap::from([(source.root, scalar), (descriptor.root, pointer)]),
         BTreeSet::new(),
     );
-    let replay = Replay::with_slot_kind(&types, std::slice::from_ref(&machine), DescriptorSlotKind::BorrowedStorage);
+    let replay = Replay::with_slot_kind(
+        &types,
+        std::slice::from_ref(&machine),
+        DescriptorSlotKind::BorrowedStorage,
+    );
     let mut state = replay.initial(&machine).unwrap();
     let address = ValueId::new(1).unwrap();
     let mut written = descriptor.clone();
@@ -909,31 +963,58 @@ fn native_writes_name_only_the_formals_or_storage_backing_the_written_reference(
         (
             DescriptorCallOrigin::NativeAddress {
                 opaque: false,
-                machine: machine.id, operation: OperationId::new(1).unwrap(), place: descriptor.root,
-                carrier: pointer, projection: Projection::new(&[]), parameters: vec![address], exact_parameters: true,
+                machine: machine.id,
+                operation: OperationId::new(1).unwrap(),
+                place: descriptor.root,
+                carrier: pointer,
+                projection: Projection::new(&[]),
+                parameters: vec![address],
+                exact_parameters: true,
             },
             StorageWriteTarget::NativeAddress(address),
         ),
         (
-            DescriptorCallOrigin::Argument { source: source.root, projection: Projection::upgraded() },
+            DescriptorCallOrigin::Argument {
+                source: source.root,
+                projection: Projection::upgraded(),
+            },
             StorageWriteTarget::Storage(source.clone()),
         ),
     ] {
-        state.slots_mut().insert(descriptor.clone(), Some(BTreeSet::from([Origin::Backing(origin)])));
-        assert_eq!(replay.native_write_targets(&machine, &state, &written), Some(vec![target]));
+        state.slots_mut().insert(
+            descriptor.clone(),
+            Some(BTreeSet::from([Origin::Backing(origin)])),
+        );
+        assert_eq!(
+            replay.native_write_targets(&machine, &state, &written),
+            Some(vec![target])
+        );
     }
-    state.slots_mut().insert(descriptor.clone(), Some(BTreeSet::from([
-        Origin::Backing(DescriptorCallOrigin::NativeAddress {
-            opaque: true, exact_parameters: false, parameters: Vec::new(), machine: machine.id,
-            operation: OperationId::new(1).unwrap(), place: descriptor.root,
-            carrier: pointer, projection: Projection::new(&[]),
-        }),
-        Origin::Backing(DescriptorCallOrigin::Argument {
-            source: source.root, projection: Projection::new(&[]).as_native_enclosing_storage(),
-        }),
-    ])));
-    assert!(replay.native_write_targets(&machine, &state, &written).unwrap().contains(&StorageWriteTarget::Unlocated));
-
+    state.slots_mut().insert(
+        descriptor.clone(),
+        Some(BTreeSet::from([
+            Origin::Backing(DescriptorCallOrigin::NativeAddress {
+                opaque: true,
+                exact_parameters: false,
+                parameters: Vec::new(),
+                machine: machine.id,
+                operation: OperationId::new(1).unwrap(),
+                place: descriptor.root,
+                carrier: pointer,
+                projection: Projection::new(&[]),
+            }),
+            Origin::Backing(DescriptorCallOrigin::Argument {
+                source: source.root,
+                projection: Projection::new(&[]).as_native_enclosing_storage(),
+            }),
+        ])),
+    );
+    assert!(
+        replay
+            .native_write_targets(&machine, &state, &written)
+            .unwrap()
+            .contains(&StorageWriteTarget::Unlocated)
+    );
 }
 
 #[test]
@@ -944,28 +1025,58 @@ fn native_subobjects_and_header_only_calls_publish_their_checked_reference_type(
     let base = StructuralTypeId::new(3).unwrap();
     let element = StructuralTypeId::new(4).unwrap();
     let mut array_row = scalar_type(2);
-    array_row.shape = StructuralTypeShape::FixedArray { element: scalar, length: terminal_psi::ArrayExtent::Literal(2) };
-    let types = [scalar_type(1), array_row, reference_type(3, array, StructuralAccess::SharedBorrow),
-        reference_type(4, scalar, StructuralAccess::SharedBorrow)];
-    let result = terminal_psi::StructuralResultDeclaration {
-        place: location(1).root, structural_type: element,
-        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-        qualifications: Vec::new(), projected_qualifications: Vec::new(), reference_sources: Vec::new(),
+    array_row.shape = StructuralTypeShape::FixedArray {
+        element: scalar,
+        length: terminal_psi::ArrayExtent::Literal(2),
     };
-    let publish = |origin| crate::reference_result_contents(&types, &[], &result, &DescriptorResultContents {
-        slots: vec![DescriptorResultSlot { path: Vec::new(), origins: vec![origin] }],
-        unknown_contents: Vec::new(), unresolved_slots: Vec::new(), case_facts: Default::default(),
-    });
+    let types = [
+        scalar_type(1),
+        array_row,
+        reference_type(3, array, StructuralAccess::SharedBorrow),
+        reference_type(4, scalar, StructuralAccess::SharedBorrow),
+    ];
+    let result = terminal_psi::StructuralResultDeclaration {
+        place: location(1).root,
+        structural_type: element,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        reference_sources: Vec::new(),
+    };
+    let publish = |origin| {
+        crate::reference_result_contents(
+            &types,
+            &[],
+            &result,
+            &DescriptorResultContents {
+                slots: vec![DescriptorResultSlot {
+                    path: Vec::new(),
+                    origins: vec![origin],
+                }],
+                unknown_contents: Vec::new(),
+                unresolved_slots: Vec::new(),
+                case_facts: Default::default(),
+            },
+        )
+    };
     let native = |path| DescriptorStoredOrigin::NativeAddress {
         opaque: false,
-        parameters: Vec::new(), exact_parameters: true, machine: MachineId::new(1).unwrap(),
-        operation: OperationId::new(1).unwrap(), place: location(2).root, carrier: base, projection: Projection::new(path),
+        parameters: Vec::new(),
+        exact_parameters: true,
+        machine: MachineId::new(1).unwrap(),
+        operation: OperationId::new(1).unwrap(),
+        place: location(2).root,
+        carrier: base,
+        projection: Projection::new(path),
     };
     assert!(publish(native(&[StructuralPathSegment::FixedIndex(1)])).is_ok());
     assert!(publish(native(&[])).is_err());
     let public = |carrier_type| {
         let projection = Projection::declared_reference_region(&[StructuralPathSegment::Referent]);
-        DescriptorStoredOrigin::Invocation { carrier_type, projection }
+        DescriptorStoredOrigin::Invocation {
+            carrier_type,
+            projection,
+        }
     };
     assert!(publish(public(element)).is_ok());
     assert!(publish(public(base)).is_err());

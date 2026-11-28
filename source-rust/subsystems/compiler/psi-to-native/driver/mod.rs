@@ -83,10 +83,9 @@ fn produce(
     // components, and component emission compiles native code.
     let contained = retained.authorization().is_contained();
     if stop == NativeProductionStop::Image && !contained {
-        request.policy_source.admit_native_emission(
-            &artifact,
-            execution.scope().reach().machines(),
-        )?;
+        request
+            .policy_source
+            .admit_native_emission(&artifact, execution.scope().reach().machines())?;
     }
     if contained && (!exports.is_empty() || !request.suppliers.is_empty()) {
         return Err(vec![Diagnostic::error(

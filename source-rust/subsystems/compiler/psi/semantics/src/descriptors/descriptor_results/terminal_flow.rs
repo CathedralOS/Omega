@@ -150,8 +150,11 @@ pub(crate) fn residence_rules(
             let position = (block.id, u32::try_from(ordinal).ok()?);
             let capture = |source: &StructuralArgument, at| {
                 let (location, _, backing) = captured_storage_source(
-                    &module.types.structural_types, source.place, &source.path,
-                    machine.structural_place_type(source.place)?, at,
+                    &module.types.structural_types,
+                    source.place,
+                    &source.path,
+                    machine.structural_place_type(source.place)?,
+                    at,
                 )?;
                 Some((backing == CapturedBacking::StorageAddress).then_some(location))
             };
@@ -160,15 +163,22 @@ pub(crate) fn residence_rules(
                 | OperationKind::EstablishAccessReference { source, .. }
                 | OperationKind::EstablishReference { source, .. } => {
                     if let Some(source) = capture(source, position)? {
-                        let destination = DescriptorLocation::whole(operation.result.structural()?.place);
+                        let destination =
+                            DescriptorLocation::whole(operation.result.structural()?.place);
                         rules.captures.insert((position, source, destination));
                     }
                 }
                 OperationKind::BorrowAt { address } => {
-                    let destination = DescriptorLocation::whole(operation.result.structural()?.place);
-                    for (at, source) in crate::storage::native_borrows::address_origin(machine, *address).observed_sources() {
+                    let destination =
+                        DescriptorLocation::whole(operation.result.structural()?.place);
+                    for (at, source) in
+                        crate::storage::native_borrows::address_origin(machine, *address)
+                            .observed_sources()
+                    {
                         if let Some(source) = capture(source, at)? {
-                            rules.observations.push((position, at, source, destination.clone()));
+                            rules
+                                .observations
+                                .push((position, at, source, destination.clone()));
                         }
                     }
                 }
@@ -1612,8 +1622,13 @@ fn adapt_flow(
                     if let Some(selected) = effects_machine {
                         graph.bind_terminal_native_addresses(
                             tracks_native_addresses,
-                            &mut call, module, machine, terminal_graph_machine(machines, selected)?,
-                            position, arguments, result,
+                            &mut call,
+                            module,
+                            machine,
+                            terminal_graph_machine(machines, selected)?,
+                            position,
+                            arguments,
+                            result,
                         )?;
                     }
                     if let DescriptorInvocationTarget::Public {
@@ -1720,8 +1735,13 @@ fn adapt_flow(
                             };
                             graph.bind_terminal_native_addresses(
                                 tracks_native_addresses,
-                                &mut call, module, machine, terminal_graph_machine(machines, callee)?,
-                                position, arguments, result,
+                                &mut call,
+                                module,
+                                machine,
+                                terminal_graph_machine(machines, callee)?,
+                                position,
+                                arguments,
+                                result,
                             )?;
                         }
                         call.retain_whole_scalar_result_address(module, &public);
@@ -2598,20 +2618,33 @@ impl DescriptorMachine {
         opaque: bool,
     ) -> Option<NativeAddressActual> {
         Some(NativeAddressActual {
-            parameter, exact, parameters, opaque,
-            sources: sources.into_iter().map(|(at, source)| self.native_observation(types, at, source))
+            parameter,
+            exact,
+            parameters,
+            opaque,
+            sources: sources
+                .into_iter()
+                .map(|(at, source)| self.native_observation(types, at, source))
                 .collect::<Option<Vec<_>>>()?,
         })
     }
 
     fn native_observation(
-        &self, types: &[StructuralTypeDeclaration], at: DescriptorPosition, source: &StructuralArgument,
+        &self,
+        types: &[StructuralTypeDeclaration],
+        at: DescriptorPosition,
+        source: &StructuralArgument,
     ) -> Option<NativeAddressObservation> {
         let root = *self.place_types.get(&source.place)?;
-        let (location, projection, capture) = captured_storage_source(types, source.place, &source.path, root, at)?;
+        let (location, projection, capture) =
+            captured_storage_source(types, source.place, &source.path, root, at)?;
         Some(NativeAddressObservation {
-            at, location, projection, storage_address: capture == CapturedBacking::StorageAddress,
-            pointee: crate::runtime_structural_path_tip(types.iter(), root, &source.path).map(|row| row.id),
+            at,
+            location,
+            projection,
+            storage_address: capture == CapturedBacking::StorageAddress,
+            pointee: crate::runtime_structural_path_tip(types.iter(), root, &source.path)
+                .map(|row| row.id),
         })
     }
 
@@ -2645,7 +2678,12 @@ impl DescriptorMachine {
             let enclosing = !exact || observed.pointee != Some(referent);
             needs_native_formation |= enclosing;
             if enclosing {
-                observed.projection = Some(observed.projection.unwrap_or_else(|| Projection::new(&[])).as_native_enclosing_storage());
+                observed.projection = Some(
+                    observed
+                        .projection
+                        .unwrap_or_else(|| Projection::new(&[]))
+                        .as_native_enclosing_storage(),
+                );
             }
             reads.push(observed);
         }
@@ -2655,16 +2693,19 @@ impl DescriptorMachine {
         let origins = self.originations.entry(position).or_default();
         origins.retain(|(location, _)| location != &destination);
         if !known || opaque || needs_native_formation || !parameters.is_empty() {
-            origins.push((destination, DescriptorCallOrigin::NativeAddress {
-                opaque,
-                exact_parameters: exact,
-                parameters,
-                machine: self.id,
-                operation,
-                place: result.place,
-                carrier: result.structural_type,
-                projection: Projection::new(&[]),
-            }));
+            origins.push((
+                destination,
+                DescriptorCallOrigin::NativeAddress {
+                    opaque,
+                    exact_parameters: exact,
+                    parameters,
+                    machine: self.id,
+                    operation,
+                    place: result.place,
+                    carrier: result.structural_type,
+                    projection: Projection::new(&[]),
+                },
+            ));
         }
         Some(())
     }

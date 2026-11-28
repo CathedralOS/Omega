@@ -63,7 +63,9 @@ pub fn carried_writable_referents(
         };
         match &declaration.shape {
             StructuralTypeShape::Reference { referent, access } => match access {
-                StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow if upgrade || *access == StructuralAccess::MutableBorrow => {
+                StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+                    if upgrade || *access == StructuralAccess::MutableBorrow =>
+                {
                     found.push(vec![Segment::Referent]);
                     let paths = walk(types, *referent, active, upgrade)?;
                     beneath(&[Segment::Referent], paths, &mut found);
@@ -90,7 +92,11 @@ pub fn carried_writable_referents(
             StructuralTypeShape::ElementView {
                 element,
                 access: Some(access),
-            } if (upgrade || *access == StructuralAccess::MutableBorrow) && !walk(types, *element, active, upgrade)?.is_empty() => return None,
+            } if (upgrade || *access == StructuralAccess::MutableBorrow)
+                && !walk(types, *element, active, upgrade)?.is_empty() =>
+            {
+                return None;
+            }
             _ => {}
         }
         for (case, field) in declaration.shape.fields_with_case() {
@@ -112,7 +118,11 @@ pub fn carried_writable_referents(
     }
 
     match access {
-        StructuralAccess::MutableBorrow | StructuralAccess::Owned | StructuralAccess::SharedBorrow if upgrade || access != StructuralAccess::SharedBorrow => {
+        StructuralAccess::MutableBorrow
+        | StructuralAccess::Owned
+        | StructuralAccess::SharedBorrow
+            if upgrade || access != StructuralAccess::SharedBorrow =>
+        {
             walk(types, structural_type, &mut Vec::new(), upgrade)
         }
         _ => Some(Vec::new()),
@@ -148,13 +158,18 @@ pub fn call_write_regions(
     }
     let mut regions = Vec::with_capacity(frame.len());
     for (ordinal, fields) in frame {
-        let (kind, parameter) = callee.contract.write_formal(*ordinal)
+        let (kind, parameter) = callee
+            .contract
+            .write_formal(*ordinal)
             .ok_or("write frame names a missing formal")?;
         if kind == terminal_psi::BoundaryParameterKind::Scalar {
             if !fields.is_empty() {
                 return Err("native address write frame cannot carry structural fields".to_owned());
             }
-            let actual = call.arguments.get(parameter).ok_or("write frame has no scalar actual")?;
+            let actual = call
+                .arguments
+                .get(parameter)
+                .ok_or("write frame has no scalar actual")?;
             let address = crate::storage::native_borrows::address_origin(caller, *actual);
             if address.opaque || address.sources.is_empty() || !address.parameters.is_empty() {
                 return Ok(None);
@@ -164,7 +179,10 @@ pub fn call_write_regions(
                 // even if its temporary descriptor has since been released.
                 let mut projection = Projection::new(&source.path);
                 projection.captured_at = Some(at);
-                regions.push(Region { root: Some(source.place), projection });
+                regions.push(Region {
+                    root: Some(source.place),
+                    projection,
+                });
             }
             continue;
         }

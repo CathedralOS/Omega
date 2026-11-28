@@ -1019,10 +1019,17 @@ fn judge_axes(
     }
     for machine in &module.machines {
         for operation in machine.operations() {
-            let required = terminal_semantics::storage::native_borrows::required_services(module, operation)
-                .map_err(|detail| fault(machine.id, &detail))?;
-            if required.iter().any(|id| machine.published_service_ceiling.binary_search(id).is_err()) {
-                return Err(fault(machine.id, "native reference operation exceeds its published service ceiling"));
+            let required =
+                terminal_semantics::storage::native_borrows::required_services(module, operation)
+                    .map_err(|detail| fault(machine.id, &detail))?;
+            if required
+                .iter()
+                .any(|id| machine.published_service_ceiling.binary_search(id).is_err())
+            {
+                return Err(fault(
+                    machine.id,
+                    "native reference operation exceeds its published service ceiling",
+                ));
             }
         }
         let envelope = machine_envelope(elaboration, machine.id)?;
@@ -1477,8 +1484,12 @@ fn fixed_refinement_reach(
                     }
                 }
                 for operation in body.operations() {
-                    fixed.extend(terminal_semantics::storage::native_borrows::required_services(module, operation)
-                        .map_err(|detail| fault(from, &detail))?);
+                    fixed.extend(
+                        terminal_semantics::storage::native_borrows::required_services(
+                            module, operation,
+                        )
+                        .map_err(|detail| fault(from, &detail))?,
+                    );
                     let service = match &operation.kind {
                         terminal_psi::OperationKind::PortWrite { service, .. } => Some(*service),
                         terminal_psi::OperationKind::RegisterAccess { service, .. } => *service,

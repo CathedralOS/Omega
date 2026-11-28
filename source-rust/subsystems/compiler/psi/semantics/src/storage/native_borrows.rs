@@ -17,8 +17,12 @@ pub struct NativeAddressOrigin<S> {
 
 /// The scalar definition visible at this stage of the compiler.
 impl<S> NativeAddressOrigin<S> {
-    pub fn observed_sources(&self) -> impl Iterator<Item = ((semantic_vocabulary::BlockId, u32), &S)> {
-        self.observations.iter().map(|(at, index)| (*at, &self.sources[*index]))
+    pub fn observed_sources(
+        &self,
+    ) -> impl Iterator<Item = ((semantic_vocabulary::BlockId, u32), &S)> {
+        self.observations
+            .iter()
+            .map(|(at, index)| (*at, &self.sources[*index]))
     }
 }
 
@@ -52,10 +56,13 @@ pub fn trace_address<S: PartialEq>(
         }
         match definition(value) {
             AddressDefinition::Storage(source, at) => {
-                let index = sources.iter().position(|known| known == &source).unwrap_or_else(|| {
-                    sources.push(source);
-                    sources.len() - 1
-                });
+                let index = sources
+                    .iter()
+                    .position(|known| known == &source)
+                    .unwrap_or_else(|| {
+                        sources.push(source);
+                        sources.len() - 1
+                    });
                 observations.push((at, index));
             }
             AddressDefinition::Parameter => parameters.push(value),
@@ -117,10 +124,17 @@ pub fn address_origin(
 ) -> NativeAddressOrigin<&StructuralArgument> {
     trace_address(value, |value| {
         if let Some((operation, at)) = machine.blocks.iter().find_map(|block| {
-            block.operations.iter().enumerate().find_map(|(index, operation)| {
-                operation.result.as_scalar().filter(|result| result.id == value)?;
-                Some((operation, (block.id, u32::try_from(index).ok()?)))
-            })
+            block
+                .operations
+                .iter()
+                .enumerate()
+                .find_map(|(index, operation)| {
+                    operation
+                        .result
+                        .as_scalar()
+                        .filter(|result| result.id == value)?;
+                    Some((operation, (block.id, u32::try_from(index).ok()?)))
+                })
         }) {
             return match &operation.kind {
                 OperationKind::StorageAddress { source } => AddressDefinition::Storage(source, at),

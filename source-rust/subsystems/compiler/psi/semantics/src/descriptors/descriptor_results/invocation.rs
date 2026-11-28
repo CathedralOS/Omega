@@ -127,16 +127,19 @@ impl DescriptorMachine {
         if returns_reference || writes_reference || tracks_native_addresses {
             for (formal, actual) in scalar_bindings {
                 let origin = address_origin(actual);
-                call.native_address_arguments
-                    .push(self.native_address_actual(
+                call.native_address_arguments.push(
+                    self.native_address_actual(
                         types,
                         position,
                         formal,
-                        origin.observed_sources().map(|(at, source)| (at, source.borrow())),
+                        origin
+                            .observed_sources()
+                            .map(|(at, source)| (at, source.borrow())),
                         origin.exact,
                         origin.parameters.clone(),
                         origin.opaque,
-                    )?);
+                    )?,
+                );
             }
         }
         Some(())
@@ -229,7 +232,14 @@ impl DescriptorMachine {
             )?
         };
         self.bind_terminal_native_addresses(
-            tracks_native_addresses, &mut call, module, caller, callee, position, inputs.arguments, result,
+            tracks_native_addresses,
+            &mut call,
+            module,
+            caller,
+            callee,
+            position,
+            inputs.arguments,
+            result,
         )?;
         call.scalar_arguments = descriptor_scalar_arguments(
             callee

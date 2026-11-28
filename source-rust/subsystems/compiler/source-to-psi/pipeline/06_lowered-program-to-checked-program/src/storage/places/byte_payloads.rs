@@ -50,14 +50,18 @@ impl<'a> Storage<'a> {
                 } else if crate::call_contracts::operation_inputs(operation).is_some() {
                     let (may_upgrade, _) = self.native_write_ceiling(operation, concerns)?;
                     // A checked upgrade can turn a shared byte window into a writable one.
-                    for argument in operation
-                        .kind
-                        .structural_arguments()
-                        .iter()
-                        .filter(|argument| may_upgrade || argument.access != StructuralAccess::SharedBorrow)
+                    for argument in
+                        operation
+                            .kind
+                            .structural_arguments()
+                            .iter()
+                            .filter(|argument| {
+                                may_upgrade || argument.access != StructuralAccess::SharedBorrow
+                            })
                     {
                         let actual = self.argument(argument, concerns)?;
-                        let actual = self.byte_payload_descriptors(&actual, may_upgrade, concerns)?;
+                        let actual =
+                            self.byte_payload_descriptors(&actual, may_upgrade, concerns)?;
                         inventory.descriptors.extend(actual.descriptors);
                         inventory.unknown_contents.extend(actual.unknown_contents);
                     }
@@ -71,7 +75,9 @@ impl<'a> Storage<'a> {
                     )
                     .map_err(|detail| self.foreign(concerns, &detail))?
                     {
-                        if regions.is_empty() { continue; }
+                        if regions.is_empty() {
+                            continue;
+                        }
                         let affected = regions
                             .into_iter()
                             .map(|region| {
@@ -81,30 +87,61 @@ impl<'a> Storage<'a> {
                                         "payload write frame lost its actual root",
                                     )
                                 })?;
-                                let target = self.stored_at(root, &region.written_storage_path(), concerns)?;
-                                let (owner, ordinal) = region.projection.captured_at
-                                    .unwrap_or((block.id, u32::try_from(position).map_err(|_| self.foreign(concerns, "payload call position exceeds its block"))?));
+                                let target =
+                                    self.stored_at(root, &region.written_storage_path(), concerns)?;
+                                let (owner, ordinal) = region.projection.captured_at.unwrap_or((
+                                    block.id,
+                                    u32::try_from(position).map_err(|_| {
+                                        self.foreign(
+                                            concerns,
+                                            "payload call position exceeds its block",
+                                        )
+                                    })?,
+                                ));
                                 self.backing(references, &target, owner, ordinal as usize, concerns)
                             })
                             .collect::<Checked<Vec<_>>>()?;
                         let mut descriptors = Vec::new();
-                        let at = (block.id, u32::try_from(position).map_err(|_| self.foreign(concerns, "payload call exceeds its block"))?);
+                        let at = (
+                            block.id,
+                            u32::try_from(position).map_err(|_| {
+                                self.foreign(concerns, "payload call exceeds its block")
+                            })?,
+                        );
                         for descriptor in inventory.descriptors {
-                            let home = self.backing(references, &descriptor, block.id, position, concerns)?;
+                            let home = self.backing(
+                                references,
+                                &descriptor,
+                                block.id,
+                                position,
+                                concerns,
+                            )?;
                             if affected.iter().any(|region| super::overlap(region, &home)) {
                                 descriptors.push(descriptor);
                                 continue;
                             }
-                            let backing = self.byte_payload_backings(references, &descriptor, at, concerns)?;
-                            if affected.iter().any(|region| backing.iter().any(|source| super::overlap(region, source))) {
+                            let backing =
+                                self.byte_payload_backings(references, &descriptor, at, concerns)?;
+                            if affected.iter().any(|region| {
+                                backing.iter().any(|source| super::overlap(region, source))
+                            }) {
                                 descriptors.push(descriptor);
                             }
                         }
                         inventory.descriptors = descriptors;
                         let mut written = Vec::new();
                         for pending in inventory.unknown_contents {
-                            let carrier = self.backing(references, &pending.carrier, block.id, position, concerns)?;
-                            if affected.iter().any(|region| super::overlap(region, &carrier)) {
+                            let carrier = self.backing(
+                                references,
+                                &pending.carrier,
+                                block.id,
+                                position,
+                                concerns,
+                            )?;
+                            if affected
+                                .iter()
+                                .any(|region| super::overlap(region, &carrier))
+                            {
                                 written.push(pending);
                             }
                         }

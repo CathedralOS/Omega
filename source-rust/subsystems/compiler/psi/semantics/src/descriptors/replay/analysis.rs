@@ -642,7 +642,9 @@ impl<'a> DescriptorAnalysis<'a> {
             .iter()
             .cloned()
             .map(|mut target| {
-                let StorageWriteTarget::Storage(write) = &mut target else { return target; };
+                let StorageWriteTarget::Storage(write) = &mut target else {
+                    return target;
+                };
                 write.path.truncate(
                     write
                         .path
@@ -1074,26 +1076,54 @@ impl<'a> DescriptorAnalysis<'a> {
     /// Explain a failed return using the same completed exit states that
     /// supplied its descriptor summary. A missing observation stays unknown.
     pub fn result_exposes_local_storage(&self, identity: MachineId) -> bool {
-        let Some(machine) = self.replay.machine(identity) else { return false; };
-        let Some(returns) = &machine.returns else { return false; };
-        let Some(states) = self.replay.snapshots.get(&identity).and_then(|entry| entry.ready()) else {
+        let Some(machine) = self.replay.machine(identity) else {
+            return false;
+        };
+        let Some(returns) = &machine.returns else {
+            return false;
+        };
+        let Some(states) = self
+            .replay
+            .snapshots
+            .get(&identity)
+            .and_then(|entry| entry.ready())
+        else {
             return false;
         };
         returns.iter().any(|(position, result)| {
-            let Some(state) = states.normal_exits.get(position) else { return false; };
-            let Some(ty) = machine.place_types.get(&result.root) else { return false; };
-            let Some(slots) = self.replay.slot_kind.slots(self.replay.types, result.root, *ty) else { return false; };
-            slots.iter().any(|slot| self.replay.read(machine, state, slot).is_some_and(|origins| {
-                origins.iter().any(|origin| {
-                    let place = match origin {
-                        Origin::Storage(location) => location.root,
-                        Origin::Backing(DescriptorCallOrigin::Argument { source, projection })
-                            if projection.is_native_enclosing_storage() => *source,
-                        _ => return false,
-                    };
-                    machine.places.iter().any(|row| row.place == place && matches!(row.definition, DescriptorDefinition::Local))
-                })
-            }))
+            let Some(state) = states.normal_exits.get(position) else {
+                return false;
+            };
+            let Some(ty) = machine.place_types.get(&result.root) else {
+                return false;
+            };
+            let Some(slots) = self
+                .replay
+                .slot_kind
+                .slots(self.replay.types, result.root, *ty)
+            else {
+                return false;
+            };
+            slots.iter().any(|slot| {
+                self.replay
+                    .read(machine, state, slot)
+                    .is_some_and(|origins| {
+                        origins.iter().any(|origin| {
+                            let place = match origin {
+                                Origin::Storage(location) => location.root,
+                                Origin::Backing(DescriptorCallOrigin::Argument {
+                                    source,
+                                    projection,
+                                }) if projection.is_native_enclosing_storage() => *source,
+                                _ => return false,
+                            };
+                            machine.places.iter().any(|row| {
+                                row.place == place
+                                    && matches!(row.definition, DescriptorDefinition::Local)
+                            })
+                        })
+                    })
+            })
         })
     }
 
@@ -1300,8 +1330,11 @@ impl<'a> DescriptorAnalysis<'a> {
         rules: &mut crate::descriptors::descriptor_lifetimes::DescriptorResidenceRules,
     ) -> Result<BTreeMap<DescriptorPosition, DescriptorFlowStep>, DescriptorGraphError> {
         let mut formations = std::mem::take(&mut rules.observations);
-        formations.extend(std::mem::take(&mut rules.captures).into_iter()
-            .map(|(at, source, destination)| (at, at, source, destination)));
+        formations.extend(
+            std::mem::take(&mut rules.captures)
+                .into_iter()
+                .map(|(at, source, destination)| (at, at, source, destination)),
+        );
         let mut flow = self.prepare_flow(identity, Some(rules))?;
         for (position, observed_at, source, destination) in formations {
             let failed = |detail| DescriptorGraphError::IncompleteMachine {
@@ -1315,7 +1348,9 @@ impl<'a> DescriptorAnalysis<'a> {
                 .ok_or_else(|| failed("captured reference has no local destination"))?;
             if let Some(source) = self.location(identity, observed_at, &source) {
                 let edge = (source.clone(), destination.clone());
-                let step = flow.get_mut(&position).ok_or_else(|| failed("captured residence has no flow step"))?;
+                let step = flow
+                    .get_mut(&position)
+                    .ok_or_else(|| failed("captured residence has no flow step"))?;
                 if !step.derivations.contains(&edge) {
                     step.derivations.push(edge);
                 }
@@ -1334,7 +1369,9 @@ impl<'a> DescriptorAnalysis<'a> {
                 .ok_or(DescriptorGraphError::MissingOrAmbiguousMachine(identity))?;
             for origin in origins {
                 // An independently admitted native address has no local home to retain.
-                if matches!(origin, DescriptorCallOrigin::NativeAddress { .. }) { continue; }
+                if matches!(origin, DescriptorCallOrigin::NativeAddress { .. }) {
+                    continue;
+                }
                 let DescriptorCallOrigin::Argument { source, projection } = origin else {
                     return Err(failed("captured residence has no input-relative storage"));
                 };

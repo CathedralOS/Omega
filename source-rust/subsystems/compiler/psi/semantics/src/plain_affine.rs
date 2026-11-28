@@ -4768,7 +4768,10 @@ impl<'a> Analysis<'a> {
                 // An opaque native address names live external storage. It has
                 // no local affine vacancy to update. Known address_of origins
                 // still resolve to their actual storage through the normal path.
-                if matches!(origin, crate::descriptor_results::DescriptorCallOrigin::NativeAddress { .. }) {
+                if matches!(
+                    origin,
+                    crate::descriptor_results::DescriptorCallOrigin::NativeAddress { .. }
+                ) {
                     return None;
                 }
                 let crate::descriptor_results::DescriptorCallOrigin::Argument {

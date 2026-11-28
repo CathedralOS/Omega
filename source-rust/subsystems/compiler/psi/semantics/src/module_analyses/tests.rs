@@ -314,7 +314,10 @@ fn rows_before_the_bundle(
     let zeroed_cases = ZeroedCases::new(&module.types.structural_types);
     let adapt = |body: &TerminalMachine, closure: Option<&[DescriptorMachine]>| {
         terminal_flow::adapt(
-            module.machines.iter().any(|body| body.operations().any(|op| matches!(op.kind, terminal_psi::OperationKind::BorrowAt { .. }))),
+            module.machines.iter().any(|body| {
+                body.operations()
+                    .any(|op| matches!(op.kind, terminal_psi::OperationKind::BorrowAt { .. }))
+            }),
             module,
             &machines,
             body,

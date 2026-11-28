@@ -268,13 +268,8 @@ impl<'a> Storage<'a> {
                     "native address formation has no captured result row",
                 )
             })?;
-        let raw = self.native_address_loan_region(
-            references,
-            address,
-            &descriptor,
-            referent,
-            concerns,
-        )?;
+        let raw =
+            self.native_address_loan_region(references, address, &descriptor, referent, concerns)?;
         Ok(Formation {
             captured,
             access,

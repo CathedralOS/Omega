@@ -80,7 +80,10 @@ impl Backing {
             // The nearest referent boundary begins a distinct allocation.
             // A computed native offset can select another field of that
             // allocation, without reaching the storage holding its descriptor.
-            let boundary = region.place.segments.iter()
+            let boundary = region
+                .place
+                .segments
+                .iter()
                 .rposition(|step| *step == Segment::Referent)
                 .map_or(0, |index| index + 1);
             region.place.segments.truncate(boundary);
@@ -121,7 +124,13 @@ impl Backing {
         mut regions: Vec<CapturedRegion>,
         owner: Option<BlockId>,
     ) -> Result<Self, &'static str> {
-        regions.sort_by(|left, right| (left.place.root, left.native_storage, &left.place.segments).cmp(&(right.place.root, right.native_storage, &right.place.segments)));
+        regions.sort_by(|left, right| {
+            (left.place.root, left.native_storage, &left.place.segments).cmp(&(
+                right.place.root,
+                right.native_storage,
+                &right.place.segments,
+            ))
+        });
         let first = regions
             .first()
             .ok_or("captured storage has no actual address")?;
@@ -161,7 +170,8 @@ impl Backing {
     pub(super) fn same_single_region(&self, other: &Self) -> bool {
         match (self.regions.as_slice(), other.regions.as_slice()) {
             ([left], [right]) if left.place_is_exact && right.place_is_exact => {
-                left.native_storage == right.native_storage && left.place == right.place
+                left.native_storage == right.native_storage
+                    && left.place == right.place
                     && (left
                         .place
                         .segments
@@ -212,7 +222,8 @@ impl Backing {
         };
         let families = self.regions.len() > 1 || selected.regions.len() > 1;
         if !self.regions.iter().all(|parent| {
-            parent.native_storage == deepest.native_storage && parent.place.root == deepest.place.root
+            parent.native_storage == deepest.native_storage
+                && parent.place.root == deepest.place.root
                 && deepest.place.segments.starts_with(&parent.place.segments)
                 && (!families
                     || parent
@@ -221,7 +232,8 @@ impl Backing {
                         .iter()
                         .all(|segment| !matches!(segment, Segment::RuntimeIndex { .. })))
         }) || !selected.regions.iter().all(|child| {
-            deepest.native_storage == child.native_storage && deepest.place.root == child.place.root
+            deepest.native_storage == child.native_storage
+                && deepest.place.root == child.place.root
                 && child.place.segments.starts_with(&deepest.place.segments)
         }) {
             return false;
@@ -963,15 +975,31 @@ impl<'a> Storage<'a> {
                 "reference backing has no complete descriptor coordinate",
             )
         })?;
-        let addresses = match references.captured_storage_family_if_active(self.machine, (block, before), &location) {
-            Ok(Some(addresses)) if addresses.iter().any(|source| matches!(source, DescriptorCallOrigin::NativeAddress { .. })) => {
-                return self.native_referent_backing(references, place, (block, before), concerns)?
-                    .map(Some).ok_or_else(|| self.unsupported(concerns, "native reference has no current typed referent"));
+        let addresses = match references.captured_storage_family_if_active(
+            self.machine,
+            (block, before),
+            &location,
+        ) {
+            Ok(Some(addresses))
+                if addresses
+                    .iter()
+                    .any(|source| matches!(source, DescriptorCallOrigin::NativeAddress { .. })) =>
+            {
+                return self
+                    .native_referent_backing(references, place, (block, before), concerns)?
+                    .map(Some)
+                    .ok_or_else(|| {
+                        self.unsupported(concerns, "native reference has no current typed referent")
+                    });
             }
             Ok(Some(addresses)) => addresses,
             Ok(None) => return Ok(None),
-            Err(detail) => return self.native_referent_backing(references, place, (block, before), concerns)?
-                .map(Some).ok_or_else(|| self.unsupported(concerns, detail)),
+            Err(detail) => {
+                return self
+                    .native_referent_backing(references, place, (block, before), concerns)?
+                    .map(Some)
+                    .ok_or_else(|| self.unsupported(concerns, detail));
+            }
         };
         let owner = if borrowed_arrival && !place.segments.contains(&Segment::Referent) {
             match self.root_kind(place.root, concerns)? {

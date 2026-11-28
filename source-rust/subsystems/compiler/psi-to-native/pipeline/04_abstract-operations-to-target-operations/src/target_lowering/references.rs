@@ -1696,13 +1696,19 @@ mod stored_calls {
                         else {
                             continue;
                         };
-                        let location = terminal_semantics::descriptor_lifetimes::DescriptorLocation::whole(result.place);
+                        let location =
+                            terminal_semantics::descriptor_lifetimes::DescriptorLocation::whole(
+                                result.place,
+                            );
                         let origins = analysis
                             .symbolic_source_origins(machine.id, (block.block, next), &location)
                             .and_then(|origins| {
-                                origins.into_iter().map(|origin| {
-                                    native_root(types, machine, &effects, result.place, origin)
-                                }).collect::<Option<Vec<_>>>()
+                                origins
+                                    .into_iter()
+                                    .map(|origin| {
+                                        native_root(types, machine, &effects, result.place, origin)
+                                    })
+                                    .collect::<Option<Vec<_>>>()
                             });
                         if let Some(mut origins) = origins.filter(|origins| !origins.is_empty()) {
                             origins.sort_unstable();

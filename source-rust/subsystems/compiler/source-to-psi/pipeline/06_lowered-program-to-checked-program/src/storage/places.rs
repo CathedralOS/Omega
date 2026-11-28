@@ -132,7 +132,9 @@ pub(crate) struct Lineage {
 /// A complete storage-address family, sorted by root and then path.
 /// Unknown or empty captured families are refused before this interface.
 pub(crate) trait StorageAddresses {
-    fn native_storage(&self, _index: usize) -> bool { false }
+    fn native_storage(&self, _index: usize) -> bool {
+        false
+    }
     fn address_count(&self) -> usize;
     fn address(&self, index: usize) -> &Lineage;
 }
@@ -300,8 +302,14 @@ pub(crate) fn overlap(left: &impl StorageAddresses, right: &impl StorageAddresse
     let mut left_index = 0;
     let mut right_index = 0;
     while left_index < left.address_count() && right_index < right.address_count() {
-        let a = (left.address(left_index).root, left.native_storage(left_index));
-        let b = (right.address(right_index).root, right.native_storage(right_index));
+        let a = (
+            left.address(left_index).root,
+            left.native_storage(left_index),
+        );
+        let b = (
+            right.address(right_index).root,
+            right.native_storage(right_index),
+        );
         let left_end = partition(left, left_index..left.address_count(), |place, i| {
             (place.root, left.native_storage(i)) == a
         });
@@ -1422,10 +1430,15 @@ impl<'a> Storage<'a> {
                 {
                     return Ok(None);
                 }
-                let backing = if let Stored::MayChange { exposed_at: Some((block, cut)) } = row.stored {
+                let backing = if let Stored::MayChange {
+                    exposed_at: Some((block, cut)),
+                } = row.stored
+                {
                     // A scalar write frame identifies the allocation, without
                     // promising a byte offset or a particular access width.
-                    storage.backing(references, &row.destination, block, cut as usize, concerns)?.enclosing_allocation()
+                    storage
+                        .backing(references, &row.destination, block, cut as usize, concerns)?
+                        .enclosing_allocation()
                 } else if call_write {
                     let Some(backing) = storage.optional_backing(
                         references,
@@ -3292,8 +3305,16 @@ impl<'a> Storage<'a> {
         loop {
             let row = &self.log[row_index];
             if matches!(row.stored, Stored::MayChange { .. }) {
-                let prior = self.reaching_backing_supply(references, tables, asked, watched,
-                    (row.block, row.position - 1), 0, budget, concerns)?;
+                let prior = self.reaching_backing_supply(
+                    references,
+                    tables,
+                    asked,
+                    watched,
+                    (row.block, row.position - 1),
+                    0,
+                    budget,
+                    concerns,
+                )?;
                 return Ok(prior.without_identity());
             }
             if budget.initialization == Initialization::WholeArray {
@@ -3467,7 +3488,9 @@ impl<'a> Storage<'a> {
                     .without_identity());
             };
             let reached = match (&row.stored, asked) {
-                (Stored::MayChange { .. } | Stored::UnknownPayloadWrite { .. }, _) => Reached::Unknown,
+                (Stored::MayChange { .. } | Stored::UnknownPayloadWrite { .. }, _) => {
+                    Reached::Unknown
+                }
                 (Stored::Vacated, Asked::Contents(_)) => Reached::Unestablished,
                 (Stored::Vacated, Asked::Case(..)) => Reached::Unknown,
                 (Stored::Vacated, Asked::Window { .. }) => {
@@ -4188,7 +4211,8 @@ impl<'a> Storage<'a> {
             )
             && (up_to != usize::MAX || budget.used.is_some())
             && let Some(at) = self.descriptor_position((block, up_to))
-            && let Some((referent, _, _)) = self.external_referent(references, original, at, concerns)?
+            && let Some((referent, _, _)) =
+                self.external_referent(references, original, at, concerns)?
         {
             let declaration = self.declaration(referent, concerns)?;
             let depth = if original.segments.last() == Some(&Segment::Referent)
@@ -5537,8 +5561,16 @@ impl<'a> Storage<'a> {
             .iter()
             .filter(|row| row.operation == operation.id)
             .map(|row| {
-                if matches!(row.stored, Stored::MayChange { exposed_at: Some(_) }) {
-                    return StorageEffect::NativeWrite(row.destination.clone(), row.backing.clone());
+                if matches!(
+                    row.stored,
+                    Stored::MayChange {
+                        exposed_at: Some(_)
+                    }
+                ) {
+                    return StorageEffect::NativeWrite(
+                        row.destination.clone(),
+                        row.backing.clone(),
+                    );
                 }
                 if payloads.iter().any(|payload| {
                     row.destination.root == payload.root

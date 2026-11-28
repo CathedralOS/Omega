@@ -92,8 +92,11 @@ impl MachineContract {
         }
         let scalar = index - self.structural_parameters.len();
         let parameter = self.parameters.get(scalar)?;
-        matches!(parameter.scalar_type, semantic_vocabulary::ScalarType::Integer(_))
-            .then_some((crate::BoundaryParameterKind::Scalar, scalar))
+        matches!(
+            parameter.scalar_type,
+            semantic_vocabulary::ScalarType::Integer(_)
+        )
+        .then_some((crate::BoundaryParameterKind::Scalar, scalar))
     }
 
     pub fn validate_parameter_order(&self) -> Result<(), &'static str> {

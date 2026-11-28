@@ -917,7 +917,8 @@ fn mutation(
     header.validate_parameter_order().map_err(unavailable)?;
     let mut paths = Vec::with_capacity(written.len());
     for (ordinal, fields) in written {
-        let (kind, position) = header.write_formal(*ordinal)
+        let (kind, position) = header
+            .write_formal(*ordinal)
             .ok_or_else(|| unavailable("a write frame's formal ordinal"))?;
         let authored_position = header
             .parameter_order
@@ -936,7 +937,9 @@ fn mutation(
         .map_err(|_| unavailable("a write frame's parameter identity"))?;
         if kind == terminal_psi::BoundaryParameterKind::Scalar {
             if !fields.is_empty() {
-                return Err(unavailable("a native write frame containing structural fields"));
+                return Err(unavailable(
+                    "a native write frame containing structural fields",
+                ));
             }
             review_evidence::record::write_framed_identity(&mut path, "native-address", [])
                 .map_err(|_| unavailable("a native write frame's target identity"))?;

@@ -482,9 +482,11 @@ impl<'m> ModuleAnalyses<'m> {
             .map(|(_, slot)| &module.machines[*slot])
             .collect();
         Ok(Self {
-            tracks_native_addresses: module.machines.iter().any(|body| body.operations().any(|operation| {
-                matches!(operation.kind, terminal_psi::OperationKind::BorrowAt { .. })
-            })),
+            tracks_native_addresses: module.machines.iter().any(|body| {
+                body.operations().any(|operation| {
+                    matches!(operation.kind, terminal_psi::OperationKind::BorrowAt { .. })
+                })
+            }),
             module,
             machine_slots,
             roster,

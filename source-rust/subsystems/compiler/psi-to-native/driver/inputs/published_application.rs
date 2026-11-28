@@ -25,12 +25,16 @@ impl ProductPolicySource {
         let module = artifact.semantic_module();
         for &machine in reached {
             let body = module.machine(machine).ok_or_else(|| {
-                vec![Diagnostic::error("native reach names a missing Psi machine")]
+                vec![Diagnostic::error(
+                    "native reach names a missing Psi machine",
+                )]
             })?;
             for operation in body.operations() {
                 let Some((name, atoms)) =
-                    terminal_semantics::storage::native_borrows::required_authority(module, operation)
-                        .map_err(|reason| vec![Diagnostic::error(reason)])?
+                    terminal_semantics::storage::native_borrows::required_authority(
+                        module, operation,
+                    )
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?
                 else {
                     continue;
                 };
@@ -38,7 +42,8 @@ impl ProductPolicySource {
                     .chain(atoms.iter().map(|atom| atom.name()))
                     .collect::<Vec<_>>()
                     .join(" + ");
-                let caller = artifact.publication_metadata()
+                let caller = artifact
+                    .publication_metadata()
                     .map(|metadata| metadata.machine_provenance().label(machine))
                     .unwrap_or_else(|| format!("Psi machine {machine}"));
                 return Err(vec![Diagnostic::error(format!(
