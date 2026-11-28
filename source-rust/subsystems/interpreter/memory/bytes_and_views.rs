@@ -3050,21 +3050,37 @@ pub(crate) mod byte_sequences {
             }
 
             pub(crate) fn write_retained_byte(
-                &mut self, binding: &ByteSequenceBinding, index: usize, value: u8,
+                &mut self,
+                binding: &ByteSequenceBinding,
+                index: usize,
+                value: u8,
             ) -> Result<(), TerminalInterpretError> {
                 match binding {
-                    ByteSequenceBinding::MutableArray { array, offset, length, .. } => {
+                    ByteSequenceBinding::MutableArray {
+                        array,
+                        offset,
+                        length,
+                        ..
+                    } => {
                         if u64::try_from(index).map_err(|_| malformed())? >= *length {
                             return Err(malformed());
                         }
                         let offset = usize::try_from(*offset).map_err(|_| malformed())?;
-                        self.stored_byte_array_write(array, offset.checked_add(index).ok_or(malformed())?, value)
+                        self.stored_byte_array_write(
+                            array,
+                            offset.checked_add(index).ok_or(malformed())?,
+                            value,
+                        )
                     }
                     ByteSequenceBinding::MutableOwner { home, .. } => {
                         self.byte_owner_bytes_mut(home)?.replace_byte(index, value)
                     }
                     ByteSequenceBinding::MutableField { field, .. } => {
-                        self.structural_byte_sequence_fields.get_mut(field).ok_or(malformed())?.immutable_mut()?.replace_byte(index, value)?;
+                        self.structural_byte_sequence_fields
+                            .get_mut(field)
+                            .ok_or(malformed())?
+                            .immutable_mut()?
+                            .replace_byte(index, value)?;
                         self.invalidate_stored_provenance(&field.parent);
                         Ok(())
                     }
@@ -5046,8 +5062,11 @@ pub(crate) mod element_views {
         }
 
         pub(crate) fn write_element_view_scalar(
-            &mut self, view: &ElementView, index: usize,
-            path: &[StructuralPathSegment], element: TerminalScalarValue,
+            &mut self,
+            view: &ElementView,
+            index: usize,
+            path: &[StructuralPathSegment],
+            element: TerminalScalarValue,
         ) -> Result<(), TerminalInterpretError> {
             if view.access != StructuralAccess::MutableBorrow || index >= view.len() {
                 return Err(malformed());

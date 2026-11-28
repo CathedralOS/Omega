@@ -1792,7 +1792,10 @@ pub(crate) mod completion {
             }
         }
 
-        pub(crate) fn restore_return_caller(&mut self, caller: SuspendedCall) -> SuspendedCallResult {
+        pub(crate) fn restore_return_caller(
+            &mut self,
+            caller: SuspendedCall,
+        ) -> SuspendedCallResult {
             self.retired_structural_homes = caller.retired_structural_homes;
             self.access_view_occurrences = caller.access_view_occurrences;
             self.values = caller.values;
@@ -2138,6 +2141,14 @@ pub(crate) mod structural_return {
     use terminal_semantics::normal_completion::structural_return_carrier_matches;
 
     impl TerminalExecution<'_> {
+        // A prepared worker returns into its ActivationStep case, while
+        // ordinary nested calls retain their own declared return destinations.
+        fn ordinary_return_caller(&self) -> Option<&SuspendedCall> {
+            self.call_stack
+                .last()
+                .filter(|_| !self.returning_owned_activation())
+        }
+
         pub(crate) fn settle_return_structural(
             &mut self,
             terminator: &Terminator,
@@ -2172,7 +2183,7 @@ pub(crate) mod structural_return {
             {
                 return Err(malformed());
             }
-            let destination = match self.call_stack.last().filter(|_| !self.returning_owned_activation()) {
+            let destination = match self.ordinary_return_caller() {
                 Some(SuspendedCall {
                     structural_values,
                     scalar_array_values,
@@ -2267,7 +2278,7 @@ pub(crate) mod structural_return {
                             ..
                         },
                     ..
-                }) = self.call_stack.last().filter(|_| !self.returning_owned_activation())
+                }) = self.ordinary_return_caller()
                 {
                     for row in preserved_projected_qualifications {
                         if crate::boundary::structural_inputs::case_membership::case_projection_in_value_is_active(
@@ -2287,7 +2298,7 @@ pub(crate) mod structural_return {
                             ..
                         },
                     ..
-                }) = self.call_stack.last().filter(|_| !self.returning_owned_activation())
+                }) = self.ordinary_return_caller()
                 {
                     let mut receiving = Vec::new();
                     for row in &result.projected_qualifications {
@@ -2425,7 +2436,7 @@ pub(crate) mod structural_return {
                         },
                     );
                 }
-                let rebound_claims = match self.call_stack.last().filter(|_| !self.returning_owned_activation()) {
+                let rebound_claims = match self.ordinary_return_caller() {
                     Some(SuspendedCall {
                         live_claims,
                         result:
@@ -2462,7 +2473,7 @@ pub(crate) mod structural_return {
                             ..
                         },
                     ..
-                }) = self.call_stack.last().filter(|_| !self.returning_owned_activation())
+                }) = self.ordinary_return_caller()
                 {
                     let mut active = Vec::new();
                     for row in &result.projected_qualifications {

@@ -433,9 +433,11 @@ impl ActivationCase {
         }
         let retirement =
             exec.prepare_constructor_operands(self.frontier, &self.consumed, claims)?;
+        let loans = exec.loan_completions_for_operation(op.id)?;
         self.storage.publish(exec)?;
         exec.structural_values.insert(result.place, self.value)?;
-        retirement.commit(exec)
+        retirement.commit(exec)?;
+        exec.complete_loan_custody(&loans)
     }
 }
 
@@ -701,6 +703,26 @@ impl TerminalExecution<'_> {
                         path: live.path.clone(),
                     })
                     .collect();
+                // A descriptor returned as the whole reply also needs its normal
+                // local binding when the stopped park installs its result.
+                let (bytes, view) = match (&self.structural_declaration(ty)?.shape, &child) {
+                    (StructuralTypeShape::ByteSequence(_), ConstructorValue::Access(value)) => (
+                        Some(
+                            self.byte_descriptor_binding(arg, value)?
+                                .with_descriptor_home(retained.value.clone()),
+                        ),
+                        None,
+                    ),
+                    (StructuralTypeShape::ElementView { .. }, ConstructorValue::Access(value)) => (
+                        None,
+                        Some(
+                            self.element_view_argument(arg, value)?
+                                .clone()
+                                .with_descriptor_home(retained.value.clone()),
+                        ),
+                    ),
+                    _ => (None, None),
+                };
                 let mut completed = CompletedReturn::plain(TerminalExecutionResult::Structural(
                     crate::TerminalStructuralResult::new(
                         retained.value,
@@ -708,6 +730,8 @@ impl TerminalExecution<'_> {
                     ),
                 ));
                 completed.returned_claims = bindings;
+                completed.byte_sequence = bytes;
+                completed.element_view = view;
                 if !claims.is_empty() {
                     source_claims = Some(ReplyClaims {
                         place: arg.place,

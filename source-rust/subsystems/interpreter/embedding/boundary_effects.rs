@@ -2128,16 +2128,14 @@ pub(crate) mod byte_buffers {
                     &self.structural_values,
                     &self.byte_sequence_values,
                 ))
-                .chain(self.call_stack.stored().map(
-                    |(depth, frame)| {
-                        (
-                            depth,
-                            frame.current_machine,
-                            &frame.structural_values,
-                            &frame.byte_sequence_values,
-                        )
-                    },
-                ));
+                .chain(self.call_stack.stored().map(|(depth, frame)| {
+                    (
+                        depth,
+                        frame.current_machine,
+                        &frame.structural_values,
+                        &frame.byte_sequence_values,
+                    )
+                }));
                 let mut selected_home = None;
                 for (depth, machine, values, bindings) in frames {
                     for (place, value) in values {

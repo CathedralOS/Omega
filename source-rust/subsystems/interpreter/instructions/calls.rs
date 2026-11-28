@@ -1014,7 +1014,10 @@ pub(crate) mod frames {
             assert!(inner.iter().all(|id| !outer.contains(id)));
             for (place, id) in [literal, local].into_iter().zip(outer) {
                 assert_eq!(
-                    execution.call_stack.get(0).unwrap()
+                    execution
+                        .call_stack
+                        .get(0)
+                        .unwrap()
                         .structural_values
                         .get(&place)
                         .unwrap()

@@ -47,14 +47,12 @@ mod layout_target;
 mod suspension;
 pub use call_observations::{ObservedTerminalCall, TerminalCallObservation};
 pub use suspension::TerminalSuspension;
+#[path = "instructions/activation.rs"]
+mod activation;
 #[path = "memory/component_byte_loans.rs"]
 mod component_byte_loans;
 #[path = "embedding/program.rs"]
 mod embedding;
-#[path = "instructions/frame_store.rs"]
-mod frame_store;
-#[path = "instructions/activation.rs"]
-mod activation;
 #[path = "instructions/calls.rs"]
 mod engine_calls;
 #[path = "memory/custody.rs"]
@@ -67,6 +65,8 @@ mod engine_structural;
 mod engine_terminators;
 #[path = "memory/extents/mod.rs"]
 pub mod extents;
+#[path = "instructions/frame_store.rs"]
+mod frame_store;
 #[path = "memory/storage-access/mod.rs"]
 pub mod storage_access;
 #[path = "memory/bytes_and_views.rs"]
