@@ -14,8 +14,12 @@ use {system}/console.omg;
 
 machine field(value:f64) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput invokes |console|::Console {
  let scaled:f64=value*1000000000000.0;
- transition scaled == scaled && scaled >= -900000000000000000.0 && scaled <= 900000000000000000.0 {
-  true -> emit(scaled), false -> failure()
+ transition scaled == scaled { true -> lower(scaled), false -> failure() }
+ machine lower(scaled:f64) requires scaled == scaled {
+  transition scaled >= -900000000000000000.0 { true -> upper(scaled), false -> failure() }
+ }
+ machine upper(scaled:f64) requires scaled == scaled && scaled >= -900000000000000000.0 {
+  transition scaled <= 900000000000000000.0 { true -> emit(scaled), false -> failure() }
  }
  machine emit(scaled:f64) requires scaled == scaled && scaled >= -900000000000000000.0 && scaled <= 900000000000000000.0 {
   let integer:i64=|float_operations|::I64::from_f64(scaled);
@@ -25,7 +29,7 @@ machine field(value:f64) reaches |process_exit|::ProcessExit + |process_authorit
 }
 machine count(value:u64 in Saturating) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput invokes |console|::Console {
  transition value <= 1000 { true -> bounded(value), false -> failure() }
- machine bounded(value:u64 in Saturating) requires value <= 1000 { |decimal|::number(value as i64 +Wrapping); }
+ machine bounded(value:u64 in Saturating) requires value <= 1000 { |decimal|::number(value as -Saturating as i64 +Wrapping); }
  machine failure() { |console|::Console::write_line("REJECT report count"); |process_exit|::ProcessExit::exit_process(70); }
 }
 data Main { }
@@ -40,13 +44,13 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process
   let zero:f64=0.0;
   let one:f64=1.0;
   let mutable grid:|grid|::Grid;
-  grid.n=4;
+  grid.n=4u64 as +Saturating;
   grid.diffusion=1.0;
   grid.reaction=0.0;
   grid.linear=false;
   grid.kind[0]=0; grid.kind[1]=0; grid.kind[2]=0; grid.kind[3]=0;
   grid.boundary_count=4;
-  grid.maximum=400;
+  grid.maximum=400u64 as +Saturating;
   grid.tolerance=0.0000000001;
   transition value {
    48 -> check(@mutable grid),
@@ -58,8 +62,8 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process
    54 -> coefficient(@mutable grid,-1.0),
    55 -> malformed(@mutable grid),
    56 -> singular(@mutable grid),
-   57 -> limited(@mutable grid,1),
-   97 -> limited(@mutable grid,0),
+   57 -> limited(@mutable grid,1u64 as +Saturating),
+   97 -> limited(@mutable grid,0u64 as +Saturating),
    98 -> negative_reaction(@mutable grid),
    99 -> missing(@mutable grid),
    100 -> coefficient(@mutable grid,zero/zero),
@@ -68,10 +72,10 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process
    _ -> input_error()
   }
  }
- machine eight(grid:@mutable |grid|::Grid) { grid.n=8; transition { _ -> check(grid) } }
- machine twelve(grid:@mutable |grid|::Grid) { grid.n=12; transition { _ -> check(grid) } }
- machine mixed(grid:@mutable |grid|::Grid) { grid.n=8; grid.linear=true; grid.kind[1]=1; grid.kind[2]=1; grid.kind[3]=1; transition { _ -> check(grid) } }
- machine reaction(grid:@mutable |grid|::Grid) { grid.n=8; grid.diffusion=2.0; grid.reaction=3.0; transition { _ -> check(grid) } }
+ machine eight(grid:@mutable |grid|::Grid) { grid.n=8u64 as +Saturating; transition { _ -> check(grid) } }
+ machine twelve(grid:@mutable |grid|::Grid) { grid.n=12u64 as +Saturating; transition { _ -> check(grid) } }
+ machine mixed(grid:@mutable |grid|::Grid) { grid.n=8u64 as +Saturating; grid.linear=true; grid.kind[1]=1; grid.kind[2]=1; grid.kind[3]=1; transition { _ -> check(grid) } }
+ machine reaction(grid:@mutable |grid|::Grid) { grid.n=8u64 as +Saturating; grid.diffusion=2.0; grid.reaction=3.0; transition { _ -> check(grid) } }
  machine coefficient(grid:@mutable |grid|::Grid,value:f64) { grid.diffusion=value; transition { _ -> check(grid) } }
  machine malformed(grid:@mutable |grid|::Grid) { grid.kind[2]=9; transition { _ -> check(grid) } }
  machine singular(grid:@mutable |grid|::Grid) { grid.kind[0]=1; grid.kind[1]=1; grid.kind[2]=1; grid.kind[3]=1; transition { _ -> check(grid) } }
@@ -86,13 +90,13 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process
   let status:i32=|solver|::solve(grid);
   |console|::Console::write("GRID "); count(grid.n); count(grid.count); count(grid.nonzeros); |console|::Console::write_line("");
   |console|::Console::write("CG "); |decimal|::number(status as i64 +Wrapping); count(grid.iterations); field(grid.norm); field(grid.threshold); field(grid.error); |console|::Console::write_line("");
-  transition { _ -> report(grid,status,0) }
+  transition { _ -> report(grid,status,0u64 as +Saturating) }
  }
  machine report(grid:@|grid|::Grid,status:i32,index:u64 in Saturating) {
   transition index < grid.count { true -> cell(grid,status,index), false -> finish(status) }
  }
  machine cell(grid:@|grid|::Grid,status:i32,index:u64 in Saturating) {
-  |console|::Console::write("CELL "); count(index); field(grid.solution[index%144]); |console|::Console::write_line("");
+  |console|::Console::write("CELL "); count(index); field(grid.solution[(index%144) as -Saturating]); |console|::Console::write_line("");
   transition { _ -> report(grid,status,index+1) }
  }
  machine finish(status:i32) { transition status { 0 -> success(), _ -> nonconvergence() } }
