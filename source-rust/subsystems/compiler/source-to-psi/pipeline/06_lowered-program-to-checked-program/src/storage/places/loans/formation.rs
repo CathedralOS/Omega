@@ -235,7 +235,8 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<Formation> {
         let StructuralTypeShape::Reference {
-            access: declared, referent
+            access: declared,
+            referent,
         } = self.declaration(result.structural_type, concerns)?.shape
         else {
             return Err(self.foreign(
@@ -268,8 +269,14 @@ impl<'a> Storage<'a> {
                     "native address formation has no captured result row",
                 )
             })?;
-        let raw =
-            self.native_address_loan_region(references, address, &descriptor, referent, at, concerns)?;
+        let raw = self.native_address_loan_region(
+            references,
+            address,
+            &descriptor,
+            referent,
+            at,
+            concerns,
+        )?;
         Ok(Formation {
             captured,
             access,
@@ -294,8 +301,12 @@ impl<'a> Storage<'a> {
         let mut sources = Vec::new();
         let mut exact = origin.exact && origin.sources.len() == 1;
         for source in origin.sources {
-            exact &= terminal_semantics::runtime_structural_path_tip(self.types.iter(),
-                self.root_type(source.place, concerns)?, &source.path).is_some_and(|ty| ty.id == referent);
+            exact &= terminal_semantics::runtime_structural_path_tip(
+                self.types.iter(),
+                self.root_type(source.place, concerns)?,
+                &source.path,
+            )
+            .is_some_and(|ty| ty.id == referent);
             let place = self.argument(source, concerns)?;
             match self.storage_loan_region(references, &place, at, concerns)? {
                 LoanRegion::Storage(backing) => sources.push(backing),

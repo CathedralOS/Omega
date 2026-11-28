@@ -553,12 +553,12 @@ fn validate_structural_effect_schema(
                     && schema.frontier
                         == StructuralEffectFrontierPolicy::CapturesLoanAndAddsReferenceCarrier
             }
-            StructuralEffectAction::BorrowAt => {
-                schema.result == StructuralEffectResultShape::Structural
-                    && schema.custody == StructuralEffectCustody::NativeAddress
-                    && schema.external_effect == StructuralEffectExternalEffect::None
-                    && schema.frontier == StructuralEffectFrontierPolicy::AssertsNativeBackingAndAddsReferenceCarrier
-            }
+            StructuralEffectAction::BorrowAt => schema.result
+                == StructuralEffectResultShape::Structural
+                && schema.custody == StructuralEffectCustody::NativeAddress
+                && schema.external_effect == StructuralEffectExternalEffect::None
+                && schema.frontier
+                    == StructuralEffectFrontierPolicy::AssertsNativeBackingAndAddsReferenceCarrier,
             StructuralEffectAction::ReleaseReference => {
                 schema.result == StructuralEffectResultShape::Unit
                     && schema.custody == StructuralEffectCustody::ExactReferenceCarrier

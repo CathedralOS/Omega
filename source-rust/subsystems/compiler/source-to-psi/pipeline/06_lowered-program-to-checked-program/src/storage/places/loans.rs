@@ -255,8 +255,12 @@ fn competing_borrows(
     else {
         return None;
     };
-    let same_address = left_place.native_operand.is_some_and(|address| right_place.native_operand == Some(address));
-    if (!same_address && !overlap(left_place, right_place)) || (!left.is_exclusive() && !right.is_exclusive()) {
+    let same_address = left_place
+        .native_operand
+        .is_some_and(|address| right_place.native_operand == Some(address));
+    if (!same_address && !overlap(left_place, right_place))
+        || (!left.is_exclusive() && !right.is_exclusive())
+    {
         None
     } else if left.is_exclusive() && right.is_exclusive() {
         Some(LoanConflict::TwiceExclusive)
@@ -974,7 +978,11 @@ impl<'a> Storage<'a> {
             // The argument's own loan is retained only when the result keeps
             // its whole place; a narrower retained region gets its own row.
             let lifetime = retained
-                .next_if(|loan| !loan.upgraded_mutability && loan.position == structural_position && loan.path == argument.path)
+                .next_if(|loan| {
+                    !loan.upgraded_mutability
+                        && loan.position == structural_position
+                        && loan.path == argument.path
+                })
                 .map(|loan| loan.lifetime);
             let cut = {
                 let (block, before) = self.graph.locate(before)?;
@@ -1136,17 +1144,29 @@ impl<'a> Storage<'a> {
         };
         let concerns = Construct::Operation(operation.id);
         let result = operation.result.as_structural();
-        if !matches!(&operation.kind, OperationKind::EstablishReference { .. }
-            | OperationKind::EstablishElementView { .. }
-            | OperationKind::EstablishMutableElementView { .. }
-            | OperationKind::BorrowAt { .. } | OperationKind::UpgradeMutability { .. }) {
+        if !matches!(
+            &operation.kind,
+            OperationKind::EstablishReference { .. }
+                | OperationKind::EstablishElementView { .. }
+                | OperationKind::EstablishMutableElementView { .. }
+                | OperationKind::BorrowAt { .. }
+                | OperationKind::UpgradeMutability { .. }
+        ) {
             return Ok(());
         }
-        let result = result.ok_or_else(|| self.foreign(concerns, "loan formation has no descriptor result"))?;
+        let result = result
+            .ok_or_else(|| self.foreign(concerns, "loan formation has no descriptor result"))?;
         let at = self.loan_position(before, concerns)?;
         let upgrades_shared = matches!(operation.kind, OperationKind::UpgradeMutability { .. });
-        let formation::Formation { captured, access, lineage, expected_lender, parent, from, permitted } =
-            self.loan_formation(references, tables, operation, result, at, concerns)?;
+        let formation::Formation {
+            captured,
+            access,
+            lineage,
+            expected_lender,
+            parent,
+            from,
+            permitted,
+        } = self.loan_formation(references, tables, operation, result, at, concerns)?;
         let (obligation, row) = tables
             .obligations
             .iter()
@@ -1472,10 +1492,16 @@ impl<'a> Storage<'a> {
         // A shared parent may be suspended by an explicitly upgraded child.
         // Only the child's live exclusive descriptor can perform that write.
         let exclusive_descendant = touch == Touch::Change && !loan.access.is_exclusive();
-        Ok(
-            (!self.authorized_reference(references, loan, place, at, formed, post_loans, exclusive_descendant)?)
-                .then_some(conflict),
-        )
+        Ok((!self.authorized_reference(
+            references,
+            loan,
+            place,
+            at,
+            formed,
+            post_loans,
+            exclusive_descendant,
+        )?)
+        .then_some(conflict))
     }
 
     fn cleanup_cohorts(
@@ -1762,7 +1788,9 @@ impl<'a> Storage<'a> {
         let holding = post_loans.holding_at(at);
         for &candidate_idx in holding {
             let candidate = &formed[candidate_idx];
-            if exclusive_descendant && !candidate.access.is_exclusive() { continue; }
+            if exclusive_descendant && !candidate.access.is_exclusive() {
+                continue;
+            }
             if candidate.lifetime.as_ref().is_some_and(|life| {
                 life.surviving
                     .get(&at)
@@ -1816,7 +1844,9 @@ impl<'a> Storage<'a> {
             {
                 continue;
             }
-            if exclusive_descendant && !candidate.access.is_exclusive() { return Ok(false); }
+            if exclusive_descendant && !candidate.access.is_exclusive() {
+                return Ok(false);
+            }
             relevant = true;
             if candidate.obligation != loan.obligation
                 && !self.descends(candidate, loan, formed, post_loans.by_obligation)?
@@ -1926,9 +1956,9 @@ impl<'a> Storage<'a> {
                             let index = pre_loans.get_or_insert_with(|| {
                                 PostRetentionLoanIndex::build(formed, active_loans.by_obligation())
                             });
-                            if !self
-                                .authorized_reference(references, loan, &raw, at, formed, index, false)?
-                            {
+                            if !self.authorized_reference(
+                                references, loan, &raw, at, formed, index, false,
+                            )? {
                                 return Err(self.successor_conflict(concerns, conflict));
                             }
                         }
@@ -2118,7 +2148,9 @@ impl<'a> Storage<'a> {
                 return Err(self.unsupported(concerns, "a returning view has a distinct initial lender"));
             }
             let compatible = match parent.access {
-                ReferenceAccess::Shared => child.access == ReferenceAccess::Shared || child.upgrades_shared,
+                ReferenceAccess::Shared => {
+                    child.access == ReferenceAccess::Shared || child.upgrades_shared
+                }
                 ReferenceAccess::Mutable => true,
                 ReferenceAccess::WriteOnly => child.access == ReferenceAccess::WriteOnly,
             };
@@ -2473,8 +2505,8 @@ impl<'a> Storage<'a> {
                     matches!(
                         operation.kind,
                         terminal_psi::OperationKind::EstablishReference { .. }
-                        | terminal_psi::OperationKind::BorrowAt { .. }
-                        | terminal_psi::OperationKind::UpgradeMutability { .. }
+                            | terminal_psi::OperationKind::BorrowAt { .. }
+                            | terminal_psi::OperationKind::UpgradeMutability { .. }
                             | terminal_psi::OperationKind::EstablishElementView { .. }
                             | terminal_psi::OperationKind::EstablishMutableElementView { .. }
                     )
@@ -3160,7 +3192,11 @@ impl<'a> Storage<'a> {
             let site = used.map_or(Construct::Obligation(loan.obligation), |(at, _)| at);
             let exclusive = loan.access.is_exclusive();
             let mut found = used.map(|(_, conflict)| (None, conflict));
-            if found.is_none() && exclusive && !loan.upgrades_shared && loan.parent == Some(ReferenceAccess::Shared) {
+            if found.is_none()
+                && exclusive
+                && !loan.upgrades_shared
+                && loan.parent == Some(ReferenceAccess::Shared)
+            {
                 found = Some((None, LoanConflict::ExclusiveOfShared));
             }
             if found.is_none() && !loan.permitted {

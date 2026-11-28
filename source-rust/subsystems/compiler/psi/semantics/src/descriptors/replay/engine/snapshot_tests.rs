@@ -783,21 +783,38 @@ fn native_borrow_results_follow_scalar_address_actuals_back_to_their_storage() {
 
     let scalar = StructuralTypeId::new(1).unwrap();
     let reference = StructuralTypeId::new(2).unwrap();
-    let types = [scalar_type(1), reference_type(2, scalar, StructuralAccess::SharedBorrow)];
+    let types = [
+        scalar_type(1),
+        reference_type(2, scalar, StructuralAccess::SharedBorrow),
+    ];
     let input = location(1);
     let local = location(2);
     let machine = bare_machine(
         MachineId::new(1).unwrap(),
         vec![
-            DescriptorPlace { producer: None, place: input.root, definition: DescriptorDefinition::Parameter {
-                position: 0, access: StructuralAccess::SharedBorrow, structural_type: scalar,
-            } },
-            DescriptorPlace { producer: None, place: local.root, definition: DescriptorDefinition::Local },
+            DescriptorPlace {
+                producer: None,
+                place: input.root,
+                definition: DescriptorDefinition::Parameter {
+                    position: 0,
+                    access: StructuralAccess::SharedBorrow,
+                    structural_type: scalar,
+                },
+            },
+            DescriptorPlace {
+                producer: None,
+                place: local.root,
+                definition: DescriptorDefinition::Local,
+            },
         ],
         BTreeMap::from([(input.root, scalar), (local.root, scalar)]),
         BTreeSet::new(),
     );
-    let replay = Replay::with_slot_kind(&types, std::slice::from_ref(&machine), DescriptorSlotKind::BorrowedStorage);
+    let replay = Replay::with_slot_kind(
+        &types,
+        std::slice::from_ref(&machine),
+        DescriptorSlotKind::BorrowedStorage,
+    );
     let state = replay.initial(&machine).unwrap();
     let formal = ValueId::new(1).unwrap();
     let forwarded = ValueId::new(2).unwrap();
@@ -810,18 +827,34 @@ fn native_borrow_results_follow_scalar_address_actuals_back_to_their_storage() {
         projection: Projection::new(&[]),
         parameters,
     };
-    let bind = |storage: Option<DescriptorLocation>, forwarded: Option<ValueId>, exact: bool, observed_type| {
+    let bind = |storage: Option<DescriptorLocation>,
+                forwarded: Option<ValueId>,
+                exact: bool,
+                observed_type| {
         let native_address_arguments = [NativeAddressActual {
             parameter: formal,
             exact,
-            sources: storage.into_iter().map(|storage| (storage, None, observed_type)).collect(),
+            sources: storage
+                .into_iter()
+                .map(|storage| (storage, None, observed_type))
+                .collect(),
             parameters: forwarded.into_iter().collect(),
         }];
-        let origins = replay.substitute_actuals(&machine, &state, DescriptorActualInputs {
-            native_address_arguments: &native_address_arguments,
-            scalar_arguments: &[], arguments: &[], argument_contents: &[],
-        }, &make_origin(vec![formal]))?;
-        origins.iter().map(|origin| replay.exported(&machine, origin)).collect::<Option<Vec<_>>>()
+        let origins = replay.substitute_actuals(
+            &machine,
+            &state,
+            DescriptorActualInputs {
+                native_address_arguments: &native_address_arguments,
+                scalar_arguments: &[],
+                arguments: &[],
+                argument_contents: &[],
+            },
+            &make_origin(vec![formal]),
+        )?;
+        origins
+            .iter()
+            .map(|origin| replay.exported(&machine, origin))
+            .collect::<Option<Vec<_>>>()
     };
     assert!(bind(Some(local.clone()), None, true, Some(scalar)).is_none());
     assert!(matches!(
@@ -839,12 +872,15 @@ fn native_borrow_results_follow_scalar_address_actuals_back_to_their_storage() {
         assert!(bind(Some(local.clone()), None, exact, observed_type).is_none());
         let origins = bind(Some(input.clone()), None, exact, observed_type).unwrap();
         assert_eq!(origins.len(), 2);
-        assert!(origins.iter().any(|origin| matches!(origin, DescriptorStoredOrigin::NativeAddress { .. })));
+        assert!(
+            origins
+                .iter()
+                .any(|origin| matches!(origin, DescriptorStoredOrigin::NativeAddress { .. }))
+        );
         assert!(origins.iter().any(|origin| matches!(origin,
             DescriptorStoredOrigin::Parameter { position: 0, projection } if projection.is_native_enclosing_storage()
         )));
     }
-
 }
 
 #[test]

@@ -303,20 +303,37 @@ fn reference_sources_for_leaves(
         }
         let mut sources = Vec::with_capacity(slot.origins.len());
         for origin in &slot.origins {
-            if let DescriptorStoredOrigin::NativeAddress { carrier, projection, .. } = origin {
+            if let DescriptorStoredOrigin::NativeAddress {
+                carrier,
+                projection,
+                ..
+            } = origin
+            {
                 if projection != &Projection::new(&[]) && projection != &Projection::upgraded() {
                     return Err("native reference result no longer names its original pointee");
                 }
-                let Some(StructuralTypeShape::Reference { referent: from, access: offered }) =
-                    terminal_psi::find_structural_type(types, *carrier).map(|row| &row.shape)
-                else { return Err("native borrow lost its typed reference"); };
-                let offered = if projection.upgraded_mutability && *offered == StructuralAccess::SharedBorrow { StructuralAccess::MutableBorrow } else { *offered };
+                let Some(StructuralTypeShape::Reference {
+                    referent: from,
+                    access: offered,
+                }) = terminal_psi::find_structural_type(types, *carrier).map(|row| &row.shape)
+                else {
+                    return Err("native borrow lost its typed reference");
+                };
+                let offered = if projection.upgraded_mutability
+                    && *offered == StructuralAccess::SharedBorrow
+                {
+                    StructuralAccess::MutableBorrow
+                } else {
+                    *offered
+                };
                 if *from != referent || !access.admits_referent(offered) {
                     return Err("native reference result changes its original type or access");
                 }
                 sources.push(terminal_psi::StructuralReferenceOrigin::Invocation {
                     carrier_type: leaf.structural_type,
-                    path: vec![ReferenceOriginProjection::Exact(StructuralPathSegment::Referent)],
+                    path: vec![ReferenceOriginProjection::Exact(
+                        StructuralPathSegment::Referent,
+                    )],
                     extent: ReferenceOriginExtent::Projected,
                     access,
                 });
@@ -349,7 +366,9 @@ fn reference_sources_for_leaves(
             let extent = match origin {
                 DescriptorStoredOrigin::Parameter { projection, .. }
                 | DescriptorStoredOrigin::IncomingContents { projection, .. }
-                    if projection.is_native_enclosing_storage() || projection.indirect || projection.window.is_some() =>
+                    if projection.is_native_enclosing_storage()
+                        || projection.indirect
+                        || projection.window.is_some() =>
                 {
                     return Err("reference result needs a static retained input projection");
                 }
@@ -368,11 +387,16 @@ fn reference_sources_for_leaves(
                     return Err("reference result backing needs its actual admitted producer");
                 }
             };
-            let upgraded = access == StructuralAccess::MutableBorrow && matches!(origin,
+            let upgraded = access == StructuralAccess::MutableBorrow
+                && matches!(origin,
                 DescriptorStoredOrigin::Parameter { projection, .. }
                 | DescriptorStoredOrigin::IncomingContents { projection, .. }
                     if projection.upgraded_mutability);
-            let input_access = if upgraded { StructuralAccess::SharedBorrow } else { access };
+            let input_access = if upgraded {
+                StructuralAccess::SharedBorrow
+            } else {
+                access
+            };
             let (position, mut path) = descriptor_input_origin_path(types, parameters, origin)?;
             if path.iter().any(|step| {
                 !matches!(

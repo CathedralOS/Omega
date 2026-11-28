@@ -349,7 +349,10 @@ impl Projection {
     /// An exclusive reborrow of exactly the same storage, formed by the
     /// checked mutability upgrade operation.
     pub fn upgraded() -> Self {
-        Self { upgraded_mutability: true, ..Self::new(&[]) }
+        Self {
+            upgraded_mutability: true,
+            ..Self::new(&[])
+        }
     }
 
     pub(crate) fn as_native_enclosing_storage(mut self) -> Self {

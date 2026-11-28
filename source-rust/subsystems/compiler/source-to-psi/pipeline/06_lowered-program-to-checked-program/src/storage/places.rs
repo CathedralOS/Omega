@@ -4145,12 +4145,18 @@ impl<'a> Storage<'a> {
             )
             && (up_to != usize::MAX || budget.used.is_some())
             && let Some(at) = self.descriptor_position((block, up_to))
-            && let Some(referent) = match self.provider_referent(references, original, at, concerns)? {
-                Some((ty, _)) => Some(ty),
-                None if self.native_referent_backing(references, original, at, concerns)?.is_some() =>
-                    self.reference_parent(original, concerns)?.map(|(_, ty, _)| ty),
-                None => None,
-            }
+            && let Some(referent) =
+                match self.provider_referent(references, original, at, concerns)? {
+                    Some((ty, _)) => Some(ty),
+                    None if self
+                        .native_referent_backing(references, original, at, concerns)?
+                        .is_some() =>
+                    {
+                        self.reference_parent(original, concerns)?
+                            .map(|(_, ty, _)| ty)
+                    }
+                    None => None,
+                }
         {
             let declaration = self.declaration(referent, concerns)?;
             let depth = if original.segments.last() == Some(&Segment::Referent)

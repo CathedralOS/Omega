@@ -156,7 +156,11 @@ impl DescriptorMachine {
             position,
             &callee.structural_parameters,
             result,
-            callee.parameters.iter().map(|formal| formal.id).zip(arguments.iter().copied()),
+            callee
+                .parameters
+                .iter()
+                .map(|formal| formal.id)
+                .zip(arguments.iter().copied()),
             |actual| crate::storage::native_borrows::address_origin(caller, actual),
         )
     }
@@ -220,7 +224,13 @@ impl DescriptorMachine {
             )?
         };
         self.bind_terminal_native_addresses(
-            &mut call, module, caller, callee, position, inputs.arguments, result,
+            &mut call,
+            module,
+            caller,
+            callee,
+            position,
+            inputs.arguments,
+            result,
         )?;
         call.scalar_arguments = descriptor_scalar_arguments(
             callee

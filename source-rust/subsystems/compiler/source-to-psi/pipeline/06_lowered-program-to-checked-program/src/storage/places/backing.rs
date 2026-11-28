@@ -75,8 +75,16 @@ impl Backing {
     /// A native address can have several incoming storage origins. Offset
     /// arithmetic preserves conflicts with that storage without identifying
     /// the resulting byte as an exact field for value or fact lookup.
-    pub(super) fn native_address(address: ValueId, descriptor: &Lineage, sources: Vec<Self>, exact: bool) -> Self {
-        let mut regions = sources.into_iter().flat_map(|source| source.regions).collect::<Vec<_>>();
+    pub(super) fn native_address(
+        address: ValueId,
+        descriptor: &Lineage,
+        sources: Vec<Self>,
+        exact: bool,
+    ) -> Self {
+        let mut regions = sources
+            .into_iter()
+            .flat_map(|source| source.regions)
+            .collect::<Vec<_>>();
         if regions.is_empty() {
             let mut referent = descriptor.clone();
             referent.segments.push(Segment::Referent);
@@ -89,7 +97,8 @@ impl Backing {
                 region.place_is_exact = false;
             }
         }
-        let mut backing = Self::captured(descriptor, regions, None).expect("known native address origins");
+        let mut backing =
+            Self::captured(descriptor, regions, None).expect("known native address origins");
         backing.native_operand = Some(address);
         backing
     }
@@ -818,14 +827,22 @@ impl<'a> Storage<'a> {
         let Some((_, _, descriptor)) = self.reference_parent(subject, concerns)? else {
             return Ok(None);
         };
-        let Some(origins) = references.symbolic_source_origins(self.machine, at, &descriptor) else {
+        let Some(origins) = references.symbolic_source_origins(self.machine, at, &descriptor)
+        else {
             return Ok(None);
         };
-        if !origins.iter().any(|origin| matches!(origin,
-            DescriptorSourceOrigin::Backing(DescriptorCallOrigin::NativeAddress { .. }))) {
+        if !origins.iter().any(|origin| {
+            matches!(
+                origin,
+                DescriptorSourceOrigin::Backing(DescriptorCallOrigin::NativeAddress { .. })
+            )
+        }) {
             return Ok(None);
         }
-        let crossing = subject.segments.iter().rposition(|step| *step == Segment::Referent)
+        let crossing = subject
+            .segments
+            .iter()
+            .rposition(|step| *step == Segment::Referent)
             .ok_or_else(|| self.foreign(concerns, "native borrow has no referent crossing"))?;
         let suffix = &subject.segments[crossing + 1..];
         let mut regions = Vec::with_capacity(origins.len());
@@ -837,23 +854,40 @@ impl<'a> Storage<'a> {
                 // Offset or retyped addresses may touch the enclosing allocation.
                 // A field of the new type is not a field of this storage.
                 let enclosing = projection.is_native_enclosing_storage();
-                let mut backing = self.captured_backing(subject, if enclosing { &[] } else { suffix },
-                    vec![origin], None, concerns)?;
+                let mut backing = self.captured_backing(
+                    subject,
+                    if enclosing { &[] } else { suffix },
+                    vec![origin],
+                    None,
+                    concerns,
+                )?;
                 for region in &mut backing.regions {
                     region.place_is_exact &= !enclosing;
                 }
                 regions.extend(backing.regions);
                 continue;
             }
-            let DescriptorCallOrigin::NativeAddress { machine, place, projection, .. } = &origin else {
+            let DescriptorCallOrigin::NativeAddress {
+                machine,
+                place,
+                projection,
+                ..
+            } = &origin
+            else {
                 return Ok(None);
             };
             let local = *machine == self.machine;
-            let (storage, exact) = if local && let Some(path) = projection.validate_captured_storage_address(|_| true)
-                .map_err(|detail| self.unsupported(concerns, detail))? {
+            let (storage, exact) = if local
+                && let Some(path) = projection
+                    .validate_captured_storage_address(|_| true)
+                    .map_err(|detail| self.unsupported(concerns, detail))?
+            {
                 let mut path_to_value = vec![StructuralPathSegment::Referent];
                 path_to_value.extend(path);
-                (self.stored_beneath(*place, &path_to_value, suffix, concerns)?, true)
+                (
+                    self.stored_beneath(*place, &path_to_value, suffix, concerns)?,
+                    true,
+                )
             } else {
                 (subject.clone(), false)
             };
@@ -864,7 +898,8 @@ impl<'a> Storage<'a> {
                 index_can_change_on_reentry: true,
             });
         }
-        Backing::captured(subject, regions, None).map(Some)
+        Backing::captured(subject, regions, None)
+            .map(Some)
             .map_err(|detail| self.unsupported(concerns, detail))
     }
 
@@ -886,7 +921,9 @@ impl<'a> Storage<'a> {
             before.min(self.block(block)?.operations.len()),
             self.machine,
         )?;
-        if let Some(backing) = self.native_referent_backing(references, place, (block, before), concerns)? {
+        if let Some(backing) =
+            self.native_referent_backing(references, place, (block, before), concerns)?
+        {
             return Ok(Some(backing));
         }
         let split = place

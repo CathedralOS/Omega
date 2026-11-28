@@ -274,15 +274,28 @@ fn selected_target_summary(target: &DescriptorInvocationTarget, body: &Summary) 
     let mut public = direct_target_summary(target)?;
     public.effects = body.effects.clone();
     public.invalidates_contents |= body.invalidates_contents;
-    if let ResultObservations::Observed { slots: Some(declared), .. } = &mut public.result
+    if let ResultObservations::Observed {
+        slots: Some(declared),
+        ..
+    } = &mut public.result
         && let Some(actuals) = body.result.slots()
     {
         for slot in declared {
-            if !slot.origins.iter().any(|origin| matches!(origin, DescriptorStoredOrigin::Invocation { .. })) {
+            if !slot
+                .origins
+                .iter()
+                .any(|origin| matches!(origin, DescriptorStoredOrigin::Invocation { .. }))
+            {
                 continue;
             }
-            let Some(body_slot) = actuals.iter().find(|row| row.path == slot.path) else { continue; };
-            if body_slot.origins.iter().any(|origin| matches!(origin, DescriptorStoredOrigin::NativeAddress { .. })) {
+            let Some(body_slot) = actuals.iter().find(|row| row.path == slot.path) else {
+                continue;
+            };
+            if body_slot
+                .origins
+                .iter()
+                .any(|origin| matches!(origin, DescriptorStoredOrigin::NativeAddress { .. }))
+            {
                 slot.origins.clone_from(&body_slot.origins);
             }
         }
@@ -3407,8 +3420,13 @@ impl<'a> Replay<'a> {
                         // An imprecise native address has both a typed formation and
                         // enclosing storage which constrains that formation's lifetime.
                         // Preserve every captured backing when adding the formation.
-                        let mut values = if matches!(origin, Origin::Backing(DescriptorCallOrigin::NativeAddress { .. }))
-                            && step.derivations.iter().any(|(_, destination)| destination == location)
+                        let mut values = if matches!(
+                            origin,
+                            Origin::Backing(DescriptorCallOrigin::NativeAddress { .. })
+                        ) && step
+                            .derivations
+                            .iter()
+                            .any(|(_, destination)| destination == location)
                         {
                             after.slots.get(location)?.clone()?
                         } else {
@@ -3817,8 +3835,18 @@ impl<'a> Replay<'a> {
                     projection: projection.clone(),
                 },
             )])),
-            DescriptorStoredOrigin::NativeAddress { machine: formed_in, operation, place, carrier, projection, parameters, exact_parameters } => {
-                let StructuralTypeShape::Reference { referent, .. } = self.type_index.find(*carrier)?.shape else {
+            DescriptorStoredOrigin::NativeAddress {
+                machine: formed_in,
+                operation,
+                place,
+                carrier,
+                projection,
+                parameters,
+                exact_parameters,
+            } => {
+                let StructuralTypeShape::Reference { referent, .. } =
+                    self.type_index.find(*carrier)?.shape
+                else {
                     return None;
                 };
                 let mut origins = BTreeSet::new();
@@ -3826,15 +3854,25 @@ impl<'a> Replay<'a> {
                 let mut forwarded_exact = *exact_parameters;
                 let mut needs_formation = false;
                 for parameter in parameters {
-                    let actual = actuals.native_address_arguments.iter().find(|row| row.parameter == *parameter)?;
+                    let actual = actuals
+                        .native_address_arguments
+                        .iter()
+                        .find(|row| row.parameter == *parameter)?;
                     if !actual.parameters.is_empty() {
                         forwarded_exact &= actual.exact;
                     }
                     for (location, offset, pointee) in &actual.sources {
-                        let enclosing = !*exact_parameters || !actual.exact || *pointee != Some(referent);
+                        let enclosing =
+                            !*exact_parameters || !actual.exact || *pointee != Some(referent);
                         needs_formation |= enclosing;
                         let value = if let Some(offset) = offset {
-                            self.captured_source_value(machine, state, location, Some(offset), reads)
+                            self.captured_source_value(
+                                machine,
+                                state,
+                                location,
+                                Some(offset),
+                                reads,
+                            )
                         } else {
                             self.capture_storage(machine, state, location, reads)
                         };

@@ -773,7 +773,11 @@ pub fn descriptor_machine(
 pub struct NativeAddressActual {
     pub parameter: ValueId,
     pub(crate) exact: bool,
-    pub(crate) sources: Vec<(DescriptorLocation, Option<Projection>, Option<StructuralTypeId>)>,
+    pub(crate) sources: Vec<(
+        DescriptorLocation,
+        Option<Projection>,
+        Option<StructuralTypeId>,
+    )>,
     pub(crate) parameters: Vec<ValueId>,
 }
 

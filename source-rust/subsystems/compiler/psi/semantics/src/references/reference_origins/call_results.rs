@@ -105,7 +105,10 @@ pub fn bind_reference_call_results<'types>(
             for mapping in sources {
                 let mut candidates = Vec::with_capacity(mapping.sources.len());
                 for origin in &mapping.sources {
-                    let upgraded_mutability = matches!(origin, terminal_psi::StructuralReferenceOrigin::UpgradedParameter(_));
+                    let upgraded_mutability = matches!(
+                        origin,
+                        terminal_psi::StructuralReferenceOrigin::UpgradedParameter(_)
+                    );
                     let origin = match origin {
                         terminal_psi::StructuralReferenceOrigin::Parameter(origin)
                         | terminal_psi::StructuralReferenceOrigin::UpgradedParameter(origin) => {

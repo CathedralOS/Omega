@@ -111,8 +111,16 @@ pub fn check(
     unsafe_services: &UnsafeServices,
     imported_calls: &DependencyCallOrigins,
 ) -> Result<(), Vec<Diagnostic>> {
-    let check_unsafe = !unsafe_services.is_empty() || module.machines.iter().any(|machine|
-        machine.operations().any(|op| matches!(op.kind, terminal_psi::OperationKind::BorrowAt { .. } | terminal_psi::OperationKind::UpgradeMutability { .. })));
+    let check_unsafe = !unsafe_services.is_empty()
+        || module.machines.iter().any(|machine| {
+            machine.operations().any(|op| {
+                matches!(
+                    op.kind,
+                    terminal_psi::OperationKind::BorrowAt { .. }
+                        | terminal_psi::OperationKind::UpgradeMutability { .. }
+                )
+            })
+        });
     if policy.edges.is_empty() && !check_unsafe {
         return Ok(());
     }
@@ -335,18 +343,31 @@ pub fn check(
             };
             let mut intrinsic = Vec::new();
             if let Callable::Machine(id) = current {
-                let machine = module.machine(id).ok_or_else(|| error("missing reached machine"))?;
+                let machine = module
+                    .machine(id)
+                    .ok_or_else(|| error("missing reached machine"))?;
                 for operation in machine.operations() {
-                    if let Some((name, atoms)) = terminal_semantics::storage::native_borrows::required_authority(module, operation).map_err(error)? {
+                    if let Some((name, atoms)) =
+                        terminal_semantics::storage::native_borrows::required_authority(
+                            module, operation,
+                        )
+                        .map_err(error)?
+                    {
                         for &atom in atoms {
                             let (service, _) = unsafe_services.iter().find(|(_, value)| **value == Some(atom))
                                 .ok_or_else(|| error(format!("native operation `{name}` lacks its installed core {} service", atom.name())))?;
-                            if !intrinsic.contains(&(service, name)) { intrinsic.push((service, name)); }
+                            if !intrinsic.contains(&(service, name)) {
+                                intrinsic.push((service, name));
+                            }
                         }
                     }
                 }
             }
-            let services = intrinsic.iter().map(|(id, _)| id).chain(published.iter()).chain(body);
+            let services = intrinsic
+                .iter()
+                .map(|(id, _)| id)
+                .chain(published.iter())
+                .chain(body);
             // A rejected concrete child explains the operation even if its reporting parent
             // appears earlier in the service table.
             let (specific, other) =
@@ -377,8 +398,12 @@ pub fn check(
                             }
                             (None, None) => "Build of the root Product did not enable".to_owned(),
                         };
-                        let operation = intrinsic.iter().find_map(|(id, name)| (*id == service).then_some(*name));
-                        let detail = operation.map_or_else(String::new, |name| format!("\n  operation: |unsafe|::{name}"));
+                        let operation = intrinsic
+                            .iter()
+                            .find_map(|(id, name)| (*id == service).then_some(*name));
+                        let detail = operation.map_or_else(String::new, |name| {
+                            format!("\n  operation: |unsafe|::{name}")
+                        });
                         return Err(error(format!(
                             "{subject} Unsafe + {} on {path}{detail}\nOmega is designed to be used without Unsafe. Performance is not a valid justification. Use checked Omega or checked inline assembly for performance-sensitive code.\n\nUnsafe exists only for extreme applications. Treat any use of Unsafe in a library as malicious.",
                             required.name()

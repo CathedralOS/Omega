@@ -1936,7 +1936,7 @@ impl<'a> DescriptorAnalysis<'a> {
                     | DescriptorStoredOrigin::Provider(_)
                     | DescriptorStoredOrigin::ProducedContents(_)
                     | DescriptorStoredOrigin::AccessFormation { .. }
-            | DescriptorStoredOrigin::NativeAddress { .. } => {
+                    | DescriptorStoredOrigin::NativeAddress { .. } => {
                         continue;
                     }
                     DescriptorStoredOrigin::IncomingSlot { position, path } => {

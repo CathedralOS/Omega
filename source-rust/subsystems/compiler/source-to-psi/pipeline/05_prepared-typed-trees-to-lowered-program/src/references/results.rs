@@ -322,7 +322,11 @@ fn publish_retained_call_loans(
                                 path: retained.path,
                                 access: argument.access,
                             },
-                            access: if retained.upgraded_mutability { language_core::ReferenceAccess::Mutable } else { access },
+                            access: if retained.upgraded_mutability {
+                                language_core::ReferenceAccess::Mutable
+                            } else {
+                                access
+                            },
                             lender,
                             origin,
                             point,
@@ -1163,7 +1167,8 @@ fn publish_parents(
                         let argument = arguments.get(retained.position).ok_or_else(|| {
                             unavailable(machine.id, "retained call loan lost its argument")
                         })?;
-                        let id = if retained.path == argument.path && !retained.upgraded_mutability {
+                        let id = if retained.path == argument.path && !retained.upgraded_mutability
+                        {
                             own.get(retained.position).copied().flatten()
                         } else {
                             let access = reference_access(argument.access).ok_or_else(|| {
@@ -1180,7 +1185,11 @@ fn publish_parents(
                                 &loan_index,
                                 before,
                                 &region,
-                                if retained.upgraded_mutability { language_core::ReferenceAccess::Mutable } else { access },
+                                if retained.upgraded_mutability {
+                                    language_core::ReferenceAccess::Mutable
+                                } else {
+                                    access
+                                },
                                 &claimed,
                             )
                             .map_err(|reason| unavailable(machine.id, reason))?;

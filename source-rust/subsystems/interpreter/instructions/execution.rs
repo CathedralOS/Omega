@@ -626,7 +626,9 @@ pub(crate) mod capabilities {
                     }
                     let callee = match &operation.kind {
                         OperationKind::BorrowAt { .. } => {
-                            return Err(native_address_borrow_error(program, machine_id, operation));
+                            return Err(native_address_borrow_error(
+                                program, machine_id, operation,
+                            ));
                         }
                         OperationKind::EstablishNativeCodeLayout { machine } => {
                             if installation
