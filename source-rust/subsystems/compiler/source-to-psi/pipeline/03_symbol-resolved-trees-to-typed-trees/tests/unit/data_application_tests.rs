@@ -164,3 +164,75 @@ OtherLayout satisfies Layout<Other> { machine measure(value: Other) -> u64 { 0u6
         );
     }
 }
+
+#[test]
+fn a_specialized_member_prepares_its_nested_domain_before_its_outer_coordinate() {
+    let text = "
+data Word { value: u64; }
+domain<T> T::Placed;
+domain<T> T::Other;
+data Run<P,T> { count: u64; }
+domain<P,T> Run<P,T>::Live<P,T>;
+data Cells<P,T> = Run<P,T> in Run::Live<P,T>;
+data Vec<T> { live: Cells<T in Placed,T>; }
+machine pack<T>(live: Cells<T in Placed,T>) -> Vec<T> { Vec { live: live } }
+machine carry(live: Cells<Word in Placed,Word>) -> Vec<Word> { pack::<Word>(live) }
+machine other(live: Cells<Word in Other,Word>) {}";
+    let resolved = crate::resolve_fixture(text);
+    let program = crate::lower_symbol_resolved_trees(&resolved).unwrap();
+    let mut placements = Vec::new();
+    for applied in program
+        .applied_domain_applications
+        .iter()
+        .filter(|row| row.is_closed)
+    {
+        if program
+            .domain_definition(applied.declaration)
+            .unwrap()
+            .name
+            .as_str()
+            != "Run::Live"
+        {
+            continue;
+        }
+        let TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } = program
+            .type_reference_table
+            .type_reference(applied.arguments[0])
+        else {
+            continue;
+        };
+        if program.display_type_reference_with_constraints(*base_type) != "Word" {
+            continue;
+        }
+        let [typed_trees::types::TypeConstraintNode::Domain(placement)] =
+            program.type_reference_table.constraints(*constraints)
+        else {
+            continue;
+        };
+        let Some([subject]) =
+            program.domain_arguments_for_instance(placement.symbol, placement.semantic_id)
+        else {
+            continue;
+        };
+        assert_eq!(
+            program.normalized_type_identity(*subject),
+            program.normalized_type_identity(*base_type),
+            "a closed placement on Word must retain Word as the domain's carrier"
+        );
+        placements.push(placement.semantic_id);
+    }
+    placements.sort_by_key(|id| id.0);
+    placements.dedup();
+    assert_eq!(
+        placements.len(),
+        2,
+        "both distinct concrete placements are retained"
+    );
+    assert_ne!(
+        placements[0], placements[1],
+        "distinct placement domains keep distinct indices"
+    );
+}

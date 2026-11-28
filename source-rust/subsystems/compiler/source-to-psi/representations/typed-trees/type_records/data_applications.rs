@@ -602,6 +602,7 @@ impl<'source> ApplicationPreparation<'source> {
                 // Instantiating the member's type substitutes its carrier and
                 // written indices. Retain the domain at that same application
                 // before a field or selected case can use its membership.
+                let mut closed = self.reference(base_type)?;
                 let mut changed = None;
                 for position in 0..constraints.len() {
                     let rows = self.source.type_reference_table.constraints(constraints);
@@ -618,6 +619,12 @@ impl<'source> ApplicationPreparation<'source> {
                     }
                     let previous = domain.semantic_id;
                     let mut applied = domain.clone();
+                    // An index can itself be qualified by a domain on this
+                    // declaration's type parameter. Prepare its substituted
+                    // carrier before interning the enclosing domain coordinate.
+                    for &argument in &applied.arguments {
+                        closed &= self.reference(argument)?;
+                    }
                     rebind_domain(self.source, base_type, &mut applied)?;
                     if previous != applied.semantic_id {
                         let rows = changed.get_or_insert_with(|| {
@@ -635,7 +642,7 @@ impl<'source> ApplicationPreparation<'source> {
                         .type_reference_table
                         .set_constraint_span(reference, constraints);
                 }
-                self.reference(base_type)
+                Ok(closed)
             }
             TypeReferenceNode::Callable { contract } => {
                 self.source
