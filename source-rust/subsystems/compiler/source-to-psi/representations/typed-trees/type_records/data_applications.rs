@@ -5,6 +5,7 @@
 
 use crate::source_state::TypedTrees;
 use crate::source_state::data::{DataMember, MachineParameterContract, TypeParameterKind};
+use crate::source_state::expression::ExpressionNode;
 use crate::source_state::types::{
     DomainConstraintSubject, FixedArrayLength, TypeConstraintNode, TypeReferenceHandle,
     TypeReferenceNode,
@@ -153,15 +154,7 @@ pub fn prepare(program: &mut TypedTrees, reference: TypeReferenceHandle) -> Resu
     ApplicationPreparation::new(program).reference(reference)
 }
 
-/// Gives `argument`, a const argument written as an expression to
-/// evaluate (`Buffer<capacity()>`), the value an evaluator computed for
-/// it, as the canonical spelling a literal of that value has.
-///
-/// generics.md, "Transparent type aliases": "A computed const value
-/// retains its declared carrier and canonical value". So the argument
-/// becomes the same node typing writes for a literal argument
-/// (`Buffer<4>`), and every reader of either application reads one form.
-///
+/// Keep the computed scalar as a typed literal at the argument's original handle.
 /// Typing applied the data type before the value existed: an array
 /// length taken from the argument is still that argument
 /// (`FixedArrayLength::Expression`), and the views of the applications
@@ -171,7 +164,7 @@ pub fn prepare(program: &mut TypedTrees, reference: TypeReferenceHandle) -> Resu
 pub fn settle_const_argument(
     program: &mut TypedTrees,
     argument: TypeReferenceHandle,
-    spelling: &str,
+    literal: ExpressionNode,
 ) -> Result<(), String> {
     let TypeReferenceNode::ConstExpression(settled_expression) =
         *program.type_reference_table.type_reference(argument)
@@ -179,6 +172,13 @@ pub fn settle_const_argument(
         return Err("a settled const argument is not an expression to evaluate".into());
     };
 
+    let extent = match &literal {
+        ExpressionNode::Integer(value) => value
+            .value_u64()
+            .and_then(|value| usize::try_from(value).ok()),
+        ExpressionNode::Boolean(_) => None,
+        _ => return Err("the value is neither an integer nor a Boolean".into()),
+    };
     let mut domain_sites = Vec::new();
     let mut extents = Vec::new();
     let mut applications = Vec::new();
@@ -218,18 +218,15 @@ pub fn settle_const_argument(
     let length = if extents.is_empty() {
         None
     } else {
-        Some(spelling.parse::<usize>().map_err(|_| {
-            "an applied array length is not a closed nonnegative integer".to_owned()
-        })?)
+        Some(extent.ok_or("an applied array length is not a closed nonnegative integer")?)
     };
     finalize_const_expression_operators(program, settled_expression);
-    program.type_reference_table.substitute_node(
-        argument,
-        TypeReferenceNode::Named {
-            symbol: SymbolHandle::invalid(),
-            name: crate::source_state::name::Identifier::generated(spelling),
-        },
-    );
+    let span = program.expression_table.source_span(settled_expression);
+    let value = program.expression_table.insert(literal);
+    program.expression_table.set_source_span(value, span);
+    program
+        .type_reference_table
+        .substitute_node(argument, TypeReferenceNode::ConstExpression(value));
     settle_domain_indices(program, argument, &domain_sites)?;
     if let Some(length) = length {
         for (reference, element_type) in extents {
@@ -857,28 +854,6 @@ impl<'source> ApplicationPreparation<'source> {
         let parameters = parameters.to_vec();
         let mut members = self.source.data_members(template).to_vec();
         let mut definition = template.clone();
-        // Only a newly formed view needs canonical integers in its member types.
-        for (parameter, (_, argument)) in parameters.iter().zip(&mut substitutions) {
-            if parameter.kind.is_const_or_value()
-                && let Some(value) = self
-                    .source
-                    .static_const_literal_from_type_reference(*argument)
-                    .and_then(|literal| {
-                        literal
-                            .value_i64()
-                            .map(i128::from)
-                            .or_else(|| literal.value_u64().map(i128::from))
-                    })
-            {
-                *argument = self
-                    .source
-                    .type_reference_table
-                    .insert(TypeReferenceNode::Named {
-                        symbol: SymbolHandle::invalid(),
-                        name: crate::source_state::name::Identifier::generated(value.to_string()),
-                    });
-            }
-        }
         let mut closed = true;
         for (parameter, (_, argument)) in parameters.iter().zip(&substitutions) {
             closed &= match parameter.kind {
@@ -915,22 +890,37 @@ impl<'source> ApplicationPreparation<'source> {
         definition.generic_instance = Some(reference);
         definition.predicate_subject_type = self
             .source
+            .tables
             .type_reference_table
-            .instantiate(definition.predicate_subject_type, &substitutions)
+            .instantiate(
+                definition.predicate_subject_type,
+                &substitutions,
+                &self.source.tables.expression_table,
+            )
             .map_err(str::to_owned)?;
         // A quotient application is the quotient of its carrier at these
         // arguments, by its relation and conformance at them.
         if let Some(quotient) = &mut definition.quotient {
-            let table = &mut self.source.type_reference_table;
+            let table = &mut self.source.tables.type_reference_table;
             quotient.carrier = table
-                .instantiate(quotient.carrier, &substitutions)
+                .instantiate(
+                    quotient.carrier,
+                    &substitutions,
+                    &self.source.tables.expression_table,
+                )
                 .map_err(str::to_owned)?;
             let mut span = |span: HandleSpan<TypeReferenceHandle>| {
                 let applied = table
                     .type_reference_handles(span)
                     .to_vec()
                     .into_iter()
-                    .map(|argument| table.instantiate(argument, &substitutions))
+                    .map(|argument| {
+                        table.instantiate(
+                            argument,
+                            &substitutions,
+                            &self.source.tables.expression_table,
+                        )
+                    })
                     .collect::<Result<Vec<_>, _>>()
                     .map_err(str::to_owned)?;
                 Ok::<_, String>(table.insert_type_reference_handles(applied))
@@ -951,8 +941,13 @@ impl<'source> ApplicationPreparation<'source> {
                 DataMember::Field(field) => {
                     field.type_reference = self
                         .source
+                        .tables
                         .type_reference_table
-                        .instantiate(field.type_reference, &substitutions)
+                        .instantiate(
+                            field.type_reference,
+                            &substitutions,
+                            &self.source.tables.expression_table,
+                        )
                         .map_err(str::to_owned)?;
                     children.push(field.type_reference);
                 }
@@ -961,8 +956,13 @@ impl<'source> ApplicationPreparation<'source> {
                     for field in &mut fields {
                         field.type_reference = self
                             .source
+                            .tables
                             .type_reference_table
-                            .instantiate(field.type_reference, &substitutions)
+                            .instantiate(
+                                field.type_reference,
+                                &substitutions,
+                                &self.source.tables.expression_table,
+                            )
                             .map_err(str::to_owned)?;
                         children.push(field.type_reference);
                     }
