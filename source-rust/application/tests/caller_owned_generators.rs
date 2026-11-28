@@ -1,10 +1,8 @@
-//! Both producer activations run from the same authored program and library on every route.
+//! Run the same caller-owned activations from source and their saved Psi.
 #![cfg(all(target_os = "linux", target_arch = "x86_64"))]
 
-#[path = "support/declared_exit.rs"]
-mod declared_exit;
-
-use declared_exit::project;
+#[path = "support/project.rs"]
+mod project;
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::path::Path;
 
@@ -12,9 +10,15 @@ use std::path::Path;
 fn interleaved_producers_keep_their_publications_locals_and_cleanup() {
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/fixtures/calls/run/caller_owned_generators");
-    declared_exit::assert_declared_exit(&fixture, "build.omg");
-
+    let expected: i32 = std::fs::read_to_string(fixture.join("expected_native_exit.txt"))
+        .unwrap()
+        .trim()
+        .parse()
+        .unwrap();
     let scratch = TemporaryDirectory::create("caller-owned-generators-replay", false).unwrap();
+    let source_run = scratch.path().join("source");
+    assert_psi_exit(&fixture, Path::new("build.omg"), &source_run, expected);
+
     let artifact = scratch.path().join("generators.psi");
     let output = project::omega(
         &fixture,
@@ -32,21 +36,31 @@ fn interleaved_producers_keep_their_publications_locals_and_cleanup() {
     );
     assert!(output.status.success(), "{output:?}");
 
-    let observations = scratch.path().join("observations");
+    let replay = scratch.path().join("replay");
+    assert_psi_exit(scratch.path(), &artifact, &replay, expected);
+    for stream in ["stdout", "stderr"] {
+        assert_eq!(
+            std::fs::read(source_run.join(stream)).unwrap(),
+            std::fs::read(replay.join(stream)).unwrap(),
+            "{stream}"
+        );
+    }
+}
+
+fn assert_psi_exit(directory: &Path, program: &Path, outputs: &Path, expected: i32) {
     let output = project::omega(
-        scratch.path(),
+        directory,
         &[
             "run",
             "--outputs",
-            observations.to_str().unwrap(),
-            artifact.to_str().unwrap(),
+            outputs.to_str().unwrap(),
+            program.to_str().unwrap(),
         ],
     );
     assert!(output.status.success(), "{output:?}");
-    let expected = std::fs::read_to_string(fixture.join("expected_native_exit.txt")).unwrap();
     assert_eq!(
-        std::fs::read_to_string(observations.join("termination.tsv")).unwrap(),
-        format!("psi\texit\t{}\n", expected.trim())
+        std::fs::read_to_string(outputs.join("termination.tsv")).unwrap(),
+        format!("psi\texit\t{expected}\n")
     );
 }
 
