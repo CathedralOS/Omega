@@ -28,31 +28,21 @@ impl ProductPolicySource {
                 vec![Diagnostic::error("native reach names a missing Psi machine")]
             })?;
             for operation in body.operations() {
-                let required = match operation.kind {
-                    terminal_psi::OperationKind::BorrowAt { .. } => {
-                        match operation.result.as_structural()
-                            .and_then(|result| module.structural_type(result.structural_type))
-                            .map(|ty| &ty.shape)
-                        {
-                            Some(terminal_psi::StructuralTypeShape::Reference {
-                                access: terminal_psi::StructuralAccess::SharedBorrow, ..
-                            }) => "borrow_at (Unsafe + RawMemoryRead)",
-                            Some(terminal_psi::StructuralTypeShape::Reference {
-                                access: terminal_psi::StructuralAccess::MutableBorrow, ..
-                            }) => "borrow_mutable_at (Unsafe + RawMemoryRead + RawMemoryWrite)",
-                            _ => return Err(vec![Diagnostic::error("native borrow lost its reference result")]),
-                        }
-                    }
-                    terminal_psi::OperationKind::UpgradeMutability { .. } => {
-                        "upgrade_mutability (Unsafe + BorrowMutabilityUpgrade)"
-                    }
-                    _ => continue,
+                let Some((name, atoms)) =
+                    terminal_semantics::storage::native_borrows::required_authority(module, operation)
+                        .map_err(|reason| vec![Diagnostic::error(reason)])?
+                else {
+                    continue;
                 };
+                let reach = std::iter::once("Unsafe")
+                    .chain(atoms.iter().map(|atom| atom.name()))
+                    .collect::<Vec<_>>()
+                    .join(" + ");
                 let caller = artifact.publication_metadata()
                     .map(|metadata| metadata.machine_provenance().label(machine))
                     .unwrap_or_else(|| format!("Psi machine {machine}"));
                 return Err(vec![Diagnostic::error(format!(
-                    "saved Psi has no source Build policy for {required} in {caller}; build the original source Product to check its unsafe grants and dependency ceilings"
+                    "saved Psi has no source Build policy for {name} ({reach}) in {caller}; build the original source Product to check its unsafe grants and dependency ceilings"
                 ))]);
             }
         }

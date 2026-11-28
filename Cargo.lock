@@ -1480,6 +1480,7 @@ dependencies = [
  "target-operations-to-selected-instructions",
  "terminal-codec",
  "terminal-psi",
+ "terminal-semantics",
  "verified-optimization-input",
  "wire",
 ]
