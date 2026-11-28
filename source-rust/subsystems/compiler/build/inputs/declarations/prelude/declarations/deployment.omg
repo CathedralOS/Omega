@@ -41,6 +41,8 @@ public data PhysicalAuthorityClass [copy] {
     case InterruptEntry;
     case RootMemoryAccess;
     case ProcessInput;
+    case HostNetworkStack;
+    case OffMachineNetworkTransmit;
 }
 public data X86DeploymentFeatures {
     case Baseline;

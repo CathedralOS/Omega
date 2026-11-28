@@ -24,7 +24,7 @@ pub struct TypedTrees {
     pub identity: ProgramIdentity,
     pub package_openings: arena::RootedArena<package_openings::PackageOpening>,
     /// Retained projection results, ordered by expression identity.
-    pub package_projections: Vec<package_openings::PackageProjection>,
+    pub package_projections: Vec<package_openings::OpenedPackageField>,
     /// The entered declaration of a private Build judgment, in this forest's
     /// source table. Its entry file is checked whole for a subject request.
     /// A later request establishes its own selection when reusing typed source.

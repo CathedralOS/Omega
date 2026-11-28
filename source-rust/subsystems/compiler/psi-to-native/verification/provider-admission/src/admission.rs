@@ -19,7 +19,7 @@ retained builtin proposals carry plan-index custody as proposals, never
 replacing independent native admission.
 */
 
-use crate::terminal_authority_policy::darwin_poll;
+use crate::terminal_authority_policy::darwin_imports;
 use crate::terminal_authority_review::reachability::{AuthorityGraph, ReachableAuthorityEdges};
 use crate::{
     AdmissionSource, AdmittedBoundaryExecution, AdmittedBoundarySettlement,
@@ -268,7 +268,7 @@ pub fn admit_native_providers<'request>(
     settlements.extend(run_settlements);
     mechanisms.extend(run_mechanisms);
     if request.profile == target::TargetProfile::MacosArm64 {
-        darwin_poll::classify_checked_waits(
+        darwin_imports::classify_checked_calls(
             artifact,
             input.plan(),
             &settlements,

@@ -66,7 +66,7 @@ pub(crate) fn publish(
             &elaboration.static_schemas,
         )?;
         let module = &elaboration.module;
-        publish_retained_call_loans(
+        let upgraded_views = publish_retained_call_loans(
             module,
             &mut elaboration.tables,
             &mut elaboration.sources,
@@ -80,6 +80,7 @@ pub(crate) fn publish(
             &elaboration.sources,
             &elaboration.names,
             &successor_loans,
+            &upgraded_views,
             &elaboration.static_schemas,
             parallel,
         )
@@ -154,6 +155,13 @@ pub(crate) fn publish_requirements(
     Ok(())
 }
 
+struct UpgradedViewLoan {
+    machine: MachineId,
+    obligation: semantic_vocabulary::ObligationId,
+    point: terminal_check_tables::ProgramPoint,
+    descriptor: terminal_semantics::descriptor_lifetimes::DescriptorLocation,
+}
+
 /// A returned reference keeps only the storage its published origin names
 /// borrowed: `pick(@mutable grid, i)` returning `@mutable grid.cells[i].x` retains
 /// `grid.cells`, not `grid`. The call's own argument loan covers the whole
@@ -167,7 +175,7 @@ fn publish_retained_call_loans(
     tables: &mut terminal_check_tables::CheckTables,
     sources: &mut arena::IdTable<MachineId, terminal_check_tables::program::MachineSources>,
     parallel: bool,
-) -> Checked<()> {
+) -> Checked<Vec<UpgradedViewLoan>> {
     use terminal_check_tables::ProgramPoint;
     use terminal_check_tables::obligations::{Lender, ObligationKind, ObligationRow};
     let contains_borrowed = |ty| {
@@ -200,7 +208,7 @@ fn publish_retained_call_loans(
         .collect();
     callers.sort_unstable();
     if callers.is_empty() {
-        return Ok(());
+        return Ok(Vec::new());
     }
     // A caller's retained regions come from its callees' actual returns, so
     // the one closure covers every body that returns a reference.
@@ -222,6 +230,7 @@ fn publish_retained_call_loans(
         )
         .map_err(|error| graph_unavailable(module, error))?;
     struct RetainedLoanInsert {
+        parent_view: Option<terminal_semantics::descriptor_lifetimes::DescriptorLocation>,
         captured_arg: terminal_psi::StructuralArgument,
         access: language_core::ReferenceAccess,
         lender: Lender,
@@ -317,6 +326,8 @@ fn publish_retained_call_loans(
                                     unavailable("retained call loan has no source origin")
                                 })?;
                         inserts.push(RetainedLoanInsert {
+                            parent_view: retained
+                                .upgraded_view_descriptor(module, machine, argument),
                             captured_arg: terminal_psi::StructuralArgument {
                                 place: argument.place,
                                 path: retained.path,
@@ -352,6 +363,7 @@ fn publish_retained_call_loans(
         } else {
             caller_machines.into_iter().map(solve_caller).collect()
         };
+    let mut upgraded_views = Vec::new();
     for result in per_caller {
         let (machine_id, inserts) = result?;
         if inserts.is_empty() {
@@ -383,6 +395,14 @@ fn publish_retained_call_loans(
                 },
                 created_at: insert.point,
             });
+            if let Some(descriptor) = insert.parent_view {
+                upgraded_views.push(UpgradedViewLoan {
+                    machine: machine_id,
+                    obligation,
+                    point: insert.point,
+                    descriptor,
+                });
+            }
             if machine_sources.obligations.push(insert.origin) != obligation {
                 return Err(unavailable(
                     "retained call loan and source coordinates differ",
@@ -390,7 +410,7 @@ fn publish_retained_call_loans(
             }
         }
     }
-    Ok(())
+    Ok(upgraded_views)
 }
 
 /// A real reborrow on a block edge keeps its exact formation occurrence.
@@ -753,6 +773,7 @@ fn publish_parents(
     sources_ref: &arena::IdTable<MachineId, terminal_check_tables::program::MachineSources>,
     names_ref: &arena::IdTable<MachineId, crate::MachineNames>,
     successor_loans: &[SuccessorLoan],
+    upgraded_views: &[UpgradedViewLoan],
     schemas: &[terminal_check_tables::contracts::StaticSchemaQuestion],
     parallel: bool,
 ) -> Checked<()> {
@@ -867,18 +888,25 @@ fn publish_parents(
             let mut before = ProgramPoint::BlockEntry(block.id);
             for operation in &block.operations {
                 if let terminal_psi::OperationKind::EstablishElementView { source, .. }
-                | terminal_psi::OperationKind::EstablishMutableElementView { source, .. } =
-                    &operation.kind
+                | terminal_psi::OperationKind::EstablishMutableElementView { source, .. }
+                | terminal_psi::OperationKind::UpgradeMutability { source } = &operation.kind
                     && let Some(root) = machine.structural_place_type(source.place)
                     && let Some(tip) = terminal_semantics::runtime_structural_path_tip(
                         module.types.structural_types.iter(),
                         root,
                         &source.path,
                     )
-                    && terminal_semantics::descriptor_results::is_descriptor(
-                        module.types.structural_types.iter(),
-                        tip.id,
-                    )
+                    && if matches!(
+                        operation.kind,
+                        terminal_psi::OperationKind::UpgradeMutability { .. }
+                    ) {
+                        tip.shape.is_view_descriptor()
+                    } else {
+                        terminal_semantics::descriptor_results::is_descriptor(
+                            module.types.structural_types.iter(),
+                            tip.id,
+                        )
+                    }
                 {
                     view_reborrows.push(operation.id);
                 }
@@ -953,6 +981,14 @@ fn publish_parents(
                 })? = Some((row.created_at, descriptor));
             }
         }
+        for view in upgraded_views
+            .iter()
+            .filter(|view| view.machine == machine.id)
+        {
+            *children.get_mut(view.obligation).ok_or_else(|| {
+                unavailable(machine.id, "upgraded call result lost its child row")
+            })? = Some((view.point, view.descriptor.clone()));
+        }
         if view_reborrows.is_empty() && children.iter().all(|(_, child)| child.is_none()) {
             continue;
         }
@@ -1023,7 +1059,9 @@ fn publish_parents(
                         )
                         .map_err(|reason| unavailable(machine.id, reason))?;
                         let access = if matches!(operation.kind, Op::UpgradeMutability { .. }) {
-                            path.push(terminal_check_tables::bindings::Segment::Referent);
+                            if view_reborrows.binary_search(&operation.id).is_err() {
+                                path.push(terminal_check_tables::bindings::Segment::Referent);
+                            }
                             language_core::ReferenceAccess::Mutable
                         } else {
                             reference_access(source.access).ok_or_else(|| {

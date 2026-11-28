@@ -11,18 +11,18 @@ public data Run<P, T> [linear] {
 }
 
 public domain<P, T> Run<P, T>::Live<P, T>
-established by Run::empty, Run::initialize_from_profile, Run::relocate_from_profiles;
+established by empty, Run::initialize_from_profile, Run::relocate_from_profiles;
 
 // An empty authorized partition contains no cells to initialize. The checked
 // route retains its existing backing claim and establishes no element authority.
-public machine Run::empty<P, T>(storage: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant)
+public machine empty<P, T>(storage: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant)
     -> Run<P, T> in Live<P, T>
 requires storage.length == 0
 ensures result.count == 0, result.storage.base == storage.base,
     result.storage.length == storage.length
 {
     let result: Run<P, T> = Run { storage: storage as = |extent|::Extent::Granted - |extent|::Extent::Vacant, count: 0 };
-    result
+    result as +Run::Live<P, T>
 }
 
 // Discharge an empty run without inspecting T, selecting a storage provider,

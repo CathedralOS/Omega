@@ -2178,15 +2178,8 @@ pub(crate) fn establish_trusted(
         } => (*psi_operation, result),
         _ => return Err(invalid()),
     };
-    let StructuralTypeShape::Reference { access, referent } =
-        types.get(result.structural_type).ok_or_else(invalid)?.shape
-    else {
-        return Err(invalid());
-    };
-    if !matches!(
-        access,
-        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-    ) || result.multiplicity != StructuralMultiplicity::Affine
+    let result_shape = &types.get(result.structural_type).ok_or_else(invalid)?.shape;
+    if result.multiplicity != StructuralMultiplicity::Affine
         || !result.claims.is_empty()
         || !result.qualification_establishments.is_empty()
         || live.structural_homes.contains_key(&result.place)
@@ -2196,7 +2189,72 @@ pub(crate) fn establish_trusted(
     }
     let result_home = super::aggregate_results::home(psi_operation, result, types)?;
     let targeted = match operation {
+        AbstractOperation::UpgradeMutability { source, .. }
+            if result_shape.is_view_descriptor() =>
+        {
+            let (selected, indices) =
+                crate::target_lowering::scalar::descriptor_operands::descriptor_projection(
+                    function,
+                    types,
+                    live.element_view_backings(),
+                    source,
+                )?;
+            let formal = function.arrival_parameter(source.place);
+            let formal_access = formal
+                .filter(|_| source.path.is_empty())
+                .map(|param| param.access);
+            let from = &types.get(selected).ok_or_else(invalid)?.shape;
+            let occurrence = formal_access
+                .filter(|access| *access != StructuralAccess::Owned)
+                .or_else(|| {
+                    let multiplicity = formal
+                        .map(|param| param.multiplicity)
+                        .or_else(|| {
+                            live.structural_homes
+                                .get(&source.place)
+                                .map(|home| home.multiplicity())
+                        })
+                        .or_else(|| {
+                            live.view_result(function, source.place)
+                                .map(|result| result.multiplicity)
+                        })?;
+                    terminal_semantics::descriptor_results::descriptor_value_access(
+                        types.values().copied(),
+                        selected,
+                        multiplicity,
+                    )
+                });
+            if source.access != StructuralAccess::SharedBorrow
+                || !calling_conventions::terminal_layout::is_native_view_descriptor_at(
+                    from,
+                    formal_access,
+                )
+                || !calling_conventions::terminal_layout::is_native_view_descriptor(result_shape)
+                || !terminal_semantics::mutability_upgrade_shapes_match(
+                    from,
+                    occurrence,
+                    result_shape,
+                )
+            {
+                return Err(invalid());
+            }
+            TargetUnitOperation::UpgradeMutability {
+                psi_operation,
+                result_home: result_home.clone(),
+                source: source.clone(),
+                indices,
+            }
+        }
         AbstractOperation::BorrowAt { address, .. } => {
+            let StructuralTypeShape::Reference { access, referent } = *result_shape else {
+                return Err(invalid());
+            };
+            if !matches!(
+                access,
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            ) {
+                return Err(invalid());
+            }
             let scalar = super::scalar_sources::source(*address, function, live)?.scalar_type();
             if !terminal_psi::StorageLocationQuery::Address.admits_result(scalar) {
                 return Err(invalid());
@@ -2223,20 +2281,20 @@ pub(crate) fn establish_trusted(
             }
         }
         AbstractOperation::UpgradeMutability { source, .. } => {
-            if source.access != StructuralAccess::SharedBorrow
-                || access != StructuralAccess::MutableBorrow
-            {
+            let StructuralTypeShape::Reference { referent, .. } = *result_shape else {
+                return Err(invalid());
+            };
+            if source.access != StructuralAccess::SharedBorrow {
                 return Err(invalid());
             }
             let from = source_contract(function, live, source.place)
                 .and_then(|root| leaf_type(types, root, &source.path))
                 .ok_or_else(invalid)?;
-            if types.get(from).ok_or_else(invalid)?.shape
-                != (StructuralTypeShape::Reference {
-                    access: StructuralAccess::SharedBorrow,
-                    referent,
-                })
-            {
+            if !terminal_semantics::mutability_upgrade_shapes_match(
+                &types.get(from).ok_or_else(invalid)?.shape,
+                None,
+                result_shape,
+            ) {
                 return Err(invalid());
             }
             // Retain the descriptor's actual backing and storage codec. The

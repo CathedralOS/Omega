@@ -3149,6 +3149,13 @@ impl TerminalExecution<'_> {
     ) -> Result<(), TerminalInterpretError> {
         let result = operation.result.structural().ok_or(malformed())?;
         let descriptor = self.resolve_live_projection(source.place, &source.path, source.access)?;
+        if self
+            .structural_declaration(descriptor.structural_type)?
+            .shape
+            .is_view_descriptor()
+        {
+            return self.upgrade_view_descriptor(operation, source, &descriptor);
+        }
         let (input_type, input_access) = self.reference_contract(descriptor.structural_type)?;
         let (result_type, result_access) = self.reference_contract(result.structural_type)?;
         if source.access != StructuralAccess::SharedBorrow
@@ -3202,6 +3209,66 @@ impl TerminalExecution<'_> {
             prepared,
             self.local_structural_identities.cursor(),
         )
+    }
+
+    fn upgrade_view_descriptor(
+        &mut self,
+        operation: &Operation,
+        source: &StructuralArgument,
+        descriptor: &TerminalStructuralValue,
+    ) -> Result<(), TerminalInterpretError> {
+        let result = operation.result.structural().ok_or(malformed())?;
+        let input = &self
+            .structural_declaration(descriptor.structural_type)?
+            .shape;
+        let output = &self.structural_declaration(result.structural_type)?.shape;
+        if source.access != StructuralAccess::SharedBorrow
+            || !terminal_semantics::mutability_upgrade_shapes_match(
+                input,
+                Some(source.access),
+                output,
+            )
+            || result.multiplicity != StructuralMultiplicity::Affine
+            || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+            || !result.claims.is_empty()
+            || self.structural_values.contains_key(&result.place)
+            || self.live_affine_discard_at(result.place).is_some()
+            || self
+                .program
+                .verified_machine(self.current_machine)?
+                .structural_place(result.place)
+                .and_then(|place| place.kind.as_operation_result())
+                != Some((operation.id, result.structural_type))
+        {
+            return Err(malformed());
+        }
+        self.validate_descriptor_borrow(source, source.access)?;
+        let mut cursor = self.local_structural_identities.cursor();
+        let destination = self.mint_staged(&mut cursor, result.structural_type)?;
+        if input.is_borrowed_byte_carrier() {
+            let binding = self.byte_descriptor_binding(source, descriptor)?;
+            let length = self.byte_descriptor_length(&binding, descriptor)?;
+            if let StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. },
+            ) = output
+                && length != *capacity
+            {
+                return Err(malformed());
+            }
+            let exclusive = binding.exclusive_view_descriptor(self, &destination)?;
+            self.byte_sequence_values.insert(result.place, exclusive)?;
+        } else {
+            let exclusive = self
+                .element_view_argument(source, descriptor)?
+                .exclusive_reborrow()?
+                .with_descriptor_home(destination.clone());
+            self.element_view_values.insert(result.place, exclusive)?;
+        }
+        self.local_structural_identities.commit_cursor(cursor);
+        self.structural_values.insert(result.place, destination)?;
+        self.track_affine_result(result);
+        Ok(())
     }
 
     fn install_formed_reference(

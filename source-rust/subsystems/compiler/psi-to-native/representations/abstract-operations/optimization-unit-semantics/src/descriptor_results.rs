@@ -1940,7 +1940,10 @@ fn adapt(
                         origin.opaque,
                     )?;
                 }
-                O::UpgradeMutability { result, source, .. } if slot_kind.tracks_references() => {
+                O::UpgradeMutability { result, source, .. }
+                    if slot_kind != kernel::DescriptorSlotKind::AccessOrigins
+                        && slot_kind.is_slot(types, result.structural_type) =>
+                {
                     graph.mutability_upgrade(types, position, &mut step, source, result)?;
                 }
                 O::EstablishElementView { result, source, .. }

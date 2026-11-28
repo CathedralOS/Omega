@@ -4,7 +4,6 @@ use crate::lowerer::TypingCohort;
 use crate::source_resolved as resolved;
 use crate::source_state as typed;
 use diagnostics::Diagnostic;
-use std::collections::{HashMap, HashSet};
 use symbols::{SymbolHandle, SymbolKind};
 use typed::expression::{ExpressionHandle, ExpressionNode, MemberSelection, UnaryOperator};
 use typed::package_openings::*;
@@ -12,6 +11,23 @@ use typed::state::State;
 use typed::statement::StatementNode;
 use typed::types::TypeReferenceNode;
 use typed::{SubtreeEdges, TypedTrees};
+
+mod calls;
+use typed::callable_values::RuntimeCallBinding;
+
+#[derive(Clone, Copy)]
+enum Write {
+    Place(ExpressionHandle),
+    StatementCall(
+        Option<RuntimeCallBinding>,
+        arena::HandleSpan<ExpressionHandle>,
+    ),
+    ExpressionCall(
+        Option<RuntimeCallBinding>,
+        arena::HandleSpan<ExpressionHandle>,
+    ),
+    Unknown,
+}
 
 pub(crate) fn open_cohort(
     source: &resolved::SymbolResolvedTrees,
@@ -41,7 +57,7 @@ pub(crate) fn open_cohort(
             named_bindings: program
                 .state_parameters(state)
                 .iter()
-                .filter(|formal| names.0.contains_key(&formal.symbol))
+                .filter(|formal| !names.for_binding(formal.symbol).is_empty())
                 .map(|formal| formal.symbol)
                 .collect(),
             version: 0,
@@ -56,9 +72,24 @@ pub(crate) fn open_cohort(
 /// Authored type names belong to one annotated value. Their positions refer
 /// to the declaration's full parameter telescope, before hiding parameters.
 #[derive(Default)]
-struct NamedOpenings(HashMap<SymbolHandle, Vec<(usize, SymbolHandle)>>);
+struct NamedOpenings(Vec<AnnotatedBinding>);
+
+struct AnnotatedBinding {
+    owner: SymbolHandle,
+    witnesses: Vec<(usize, SymbolHandle)>,
+}
+
+fn symbol_order(symbol: SymbolHandle) -> (u32, u32) {
+    (symbol.arena_index(), symbol.generation())
+}
 
 impl NamedOpenings {
+    fn for_binding(&self, owner: SymbolHandle) -> &[(usize, SymbolHandle)] {
+        self.0
+            .binary_search_by_key(&symbol_order(owner), |binding| symbol_order(binding.owner))
+            .map_or(&[], |index| self.0[index].witnesses.as_slice())
+    }
+
     fn from_source(source: &resolved::SymbolResolvedTrees) -> Result<Self, Diagnostic> {
         let tables = &source.tables.declarations;
         let types = &tables.child_type_references;
@@ -80,26 +111,41 @@ impl NamedOpenings {
                     },
                 ));
         for (owner, ty) in bindings {
+            // Unbound parameter rows carry type syntax for callable signatures.
+            // Only a named value can own a lexical package opening.
+            if !owner.is_valid() {
+                continue;
+            }
             let mut names = Vec::new();
             for binding in types.annotation_openings(ty) {
                 if !source.symbols.symbols().nodes().is_valid(binding.symbol)
                     || source.symbols.get(binding.symbol).parent != owner
                 {
-                    return Err(Diagnostic::error("named opening lost its annotated value"));
+                    return Err(Diagnostic::error("named opening lost its annotated value")
+                        .with_source_span(binding.name.source_span()));
                 }
                 names.push((binding.position as usize, binding.symbol));
             }
-            if !names.is_empty()
-                && result
-                    .0
-                    .insert(owner, names.clone())
-                    .is_some_and(|old| old != names)
-            {
-                return Err(Diagnostic::error(
-                    "one annotated value has conflicting package openings",
-                ));
+            if !names.is_empty() {
+                result.0.push(AnnotatedBinding {
+                    owner,
+                    witnesses: names,
+                });
             }
         }
+        result
+            .0
+            .sort_unstable_by_key(|binding| symbol_order(binding.owner));
+        if result
+            .0
+            .windows(2)
+            .any(|pair| pair[0].owner == pair[1].owner && pair[0].witnesses != pair[1].witnesses)
+        {
+            return Err(Diagnostic::error(
+                "one annotated value has conflicting package openings",
+            ));
+        }
+        result.0.dedup_by_key(|binding| binding.owner);
         Ok(result)
     }
 }
@@ -108,35 +154,53 @@ struct OpeningScope<'a> {
     state: &'a State,
     source: &'a resolved::SymbolResolvedTrees,
     names: &'a NamedOpenings,
-    named_bindings: HashSet<SymbolHandle>,
+    named_bindings: Vec<SymbolHandle>,
     version: u32,
     live: Vec<PackageOpeningHandle>,
     active: Vec<ExpressionHandle>,
 }
 
 impl OpeningScope<'_> {
-    fn invalidate(
-        &mut self,
-        program: &TypedTrees,
-        target: Option<ExpressionHandle>,
-    ) -> Result<(), Diagnostic> {
-        let written = target.and_then(|expression| package_place(program, expression));
+    fn invalidate(&mut self, program: &TypedTrees, write: Write) -> Result<(), Diagnostic> {
+        let call = match write {
+            Write::StatementCall(Some(binding), operands) => Some((
+                binding.callee,
+                program.statement_table.expression_handles(operands),
+            )),
+            Write::ExpressionCall(Some(binding), operands) => Some((
+                binding.callee,
+                program.expression_table.expression_handles(operands),
+            )),
+            _ => None,
+        };
+        let spared = match call {
+            Some((callee, arguments)) => self.reborrowed_opening(program, callee, arguments)?,
+            None => None,
+        }
+        .map(|id| &program.package_opening(id).subject);
+        let written = match write {
+            Write::Place(target) => package_place(program, target),
+            _ => None,
+        };
         self.live.retain(|&handle| {
             let subject = &program.package_opening(handle).subject;
-            written.as_ref().is_some_and(|place| {
-                !write_replaces(program, self.state, place, subject)
-                    && !subject.steps.iter().any(|step| match step {
-                        PackageSubjectStep::IndexBinding(index) => {
-                            write_replaces(program, self.state, place, &bound_subject(*index))
-                        }
-                        _ => false,
-                    })
-            })
+            spared == Some(subject)
+                || written.as_ref().is_some_and(|place| {
+                    !write_replaces(program, self.state, place, subject)
+                        && !subject.steps.iter().any(|step| match step {
+                            PackageSubjectStep::IndexBinding(index) => {
+                                write_replaces(program, self.state, place, &bound_subject(*index))
+                            }
+                            _ => false,
+                        })
+                })
         });
         self.named_bindings.retain(|&symbol| {
-            written.as_ref().is_some_and(|place| {
-                !write_replaces(program, self.state, place, &bound_subject(symbol))
-            })
+            let subject = bound_subject(symbol);
+            spared == Some(&subject)
+                || written
+                    .as_ref()
+                    .is_some_and(|place| !write_replaces(program, self.state, place, &subject))
         });
         self.version = self
             .version
@@ -153,8 +217,11 @@ impl OpeningScope<'_> {
         for handle in statements.handles() {
             let statement = program.statement_table.statement(handle);
             let write = match statement {
-                StatementNode::Assignment(assignment) => Some(Some(assignment.target)),
-                StatementNode::Call(_) | StatementNode::Assembly(_) => Some(None),
+                StatementNode::Assignment(assignment) => Some(Write::Place(assignment.target)),
+                StatementNode::Call(call) => {
+                    Some(Write::StatementCall(call.runtime_call, call.arguments))
+                }
+                StatementNode::Assembly(_) => Some(Write::Unknown),
                 _ => None,
             };
             let inferred_initializer = match statement {
@@ -164,7 +231,9 @@ impl OpeningScope<'_> {
                 _ => None,
             };
             let named_local = match statement {
-                StatementNode::LocalData(local) if self.names.0.contains_key(&local.symbol) => {
+                StatementNode::LocalData(local)
+                    if !self.names.for_binding(local.symbol).is_empty() =>
+                {
                     Some(local.symbol)
                 }
                 _ => None,
@@ -184,8 +253,10 @@ impl OpeningScope<'_> {
                 };
                 local.type_reference = ty;
             }
-            if let Some(local) = named_local {
-                self.named_bindings.insert(local);
+            if let Some(local) = named_local
+                && !self.named_bindings.contains(&local)
+            {
+                self.named_bindings.push(local);
             }
             if let Some(target) = write {
                 self.invalidate(program, target)?;
@@ -217,7 +288,7 @@ impl OpeningScope<'_> {
             // Guard expressions are evaluated in order along the fall-through
             // path. A taken arm cannot invalidate an opening on another arm.
             let arms = program.expression_table.match_arms(dispatch.arms).to_vec();
-            let mut common: Option<(Vec<PackageOpeningHandle>, HashSet<SymbolHandle>)> = None;
+            let mut common: Option<(Vec<PackageOpeningHandle>, Vec<SymbolHandle>)> = None;
             for arm in arms {
                 let operands: Vec<_> = program
                     .expression_table
@@ -247,7 +318,13 @@ impl OpeningScope<'_> {
                 },
                 _ => None,
             };
-            let effect = matches!(node, ExpressionNode::Call(_) | ExpressionNode::Atomic(_));
+            let write = match node {
+                ExpressionNode::Call(call) => {
+                    Some(Write::ExpressionCall(call.runtime_call, call.arguments))
+                }
+                ExpressionNode::Atomic(_) => Some(Write::Unknown),
+                _ => None,
+            };
             let mut children = Vec::new();
             program.subtree_children(node, SubtreeEdges::VALUES, |child| {
                 children.push(child);
@@ -259,8 +336,8 @@ impl OpeningScope<'_> {
             if let Some((field, receiver)) = projection {
                 self.project(program, expression, field, receiver)?;
             }
-            if effect {
-                self.invalidate(program, None)?;
+            if let Some(write) = write {
+                self.invalidate(program, write)?;
             }
         }
         self.active.pop();
@@ -286,8 +363,7 @@ impl OpeningScope<'_> {
             .iter()
             .position(|parameter| parameter.symbol == binder)?;
         self.names
-            .0
-            .get(&owner)?
+            .for_binding(owner)
             .iter()
             .find_map(|(position, symbol)| (*position == ordinal).then_some(*symbol))
     }
@@ -406,7 +482,7 @@ impl OpeningScope<'_> {
             .substitute_type_parameters(field_type, state.symbol, &substitutions)
             .map_err(Diagnostic::error)?;
         program
-            .retain_package_projection(PackageProjection {
+            .retain_package_projection(OpenedPackageField {
                 expression,
                 field,
                 opening,
@@ -513,7 +589,7 @@ fn path_replaces(written: &[PackageSubjectStep], subject: &[PackageSubjectStep])
 
 fn backing(program: &TypedTrees, state: &State, place: &PackageSubject) -> Option<PackageSubject> {
     let mut place = place.clone();
-    let mut visited = HashSet::new();
+    let mut visited = Vec::new();
     while let PackageSubjectRoot::Binding(symbol) = place.root {
         if program.symbols.get(symbol).kind != SymbolKind::Local {
             return Some(place);
@@ -533,9 +609,10 @@ fn backing(program: &TypedTrees, state: &State, place: &PackageSubject) -> Optio
         ) {
             return Some(place);
         }
-        if local.is_mutable || !visited.insert(symbol) {
+        if local.is_mutable || visited.contains(&symbol) {
             return None;
         }
+        visited.push(symbol);
         let initializer = local.ordinary_value_initializer()?;
         let source = match program.expression_table.expression(initializer) {
             ExpressionNode::Borrow(borrow) => borrow.target,
@@ -715,6 +792,57 @@ machine use_openings(left: @mutable Reader<some A>, right: @mutable Reader) -> u
             actual,
             vec![("left".into(), "A".into()), ("local".into(), "B".into())]
         );
+    }
+
+    #[test]
+    fn reborrowing_the_hidden_state_preserves_the_saved_callbacks_opening() {
+        let program = crate::qualified_operator_home_tests::checked(&[(
+            "main.omg",
+            r#"
+data Read<S> = machine(state: @mutable S, output: @mutable [u8]) -> u8 reaches none crashes none;
+data Reader<'a, some S> { state: @'a mutable S; read: Read<S>; }
+machine repeated(reader: @mutable Reader<some S>, output: @mutable [u8]) -> u8 {
+    let read: Read<S> = reader.read;
+    let first: u8 = (read)(reader.state, output);
+    (read)(reader.state, output)
+}
+"#,
+        )])
+        .unwrap();
+        let projections: Vec<_> = program
+            .package_projections
+            .iter()
+            .map(|row| row.opening)
+            .collect();
+        assert_eq!(
+            projections.len(),
+            3,
+            "the saved callback and its two state arguments"
+        );
+        assert!(projections.iter().all(|id| id == &projections[0]));
+    }
+
+    #[test]
+    fn lending_the_whole_reader_to_a_callback_expires_its_opening() {
+        let source = r#"
+data Read<S> = machine(state: @mutable S) -> u8 reaches none crashes none;
+data Reader<'a, some S> { state: @'a mutable S; read: Read<S>; }
+data Replace = machine(holder: @mutable Reader, next: Reader) reaches none crashes none;
+machine observe(reader: @mutable Reader<some S>, next: Reader, replace: Replace) {
+    reader.read;
+    (replace)(reader, next);
+    reader.read;
+}
+"#;
+        let program =
+            crate::qualified_operator_home_tests::checked(&[("main.omg", source)]).unwrap();
+        let projections: Vec<_> = program
+            .package_projections
+            .iter()
+            .map(|row| row.opening)
+            .collect();
+        assert_eq!(projections.len(), 2);
+        assert_ne!(projections[0], projections[1]);
     }
 
     #[test]

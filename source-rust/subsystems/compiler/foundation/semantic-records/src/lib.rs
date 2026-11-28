@@ -145,6 +145,8 @@ mod behavior_policy {
             InterruptEntry = 11,
             RootMemoryAccess = 12,
             ProcessInput = 13,
+            HostNetworkStack = 14,
+            OffMachineNetworkTransmit = 15,
         }
     );
 
@@ -189,10 +191,12 @@ mod behavior_policy {
                 InterruptEntry,
                 RootMemoryAccess,
                 ProcessInput,
+                HostNetworkStack,
+                OffMachineNetworkTransmit,
             ];
             assert_eq!(TerminalAuthorityClass::ALL, expected);
             for (tag, class) in expected.into_iter().enumerate() {
-                let bytes = [u8::try_from(tag).expect("14 canonical tags")];
+                let bytes = [u8::try_from(tag).expect("class tag fits in one byte")];
                 assert_eq!(class.canonical_tag(), bytes[0]);
                 assert_eq!(encode(&class, RecordLimits::default()).unwrap(), bytes);
                 assert_eq!(
@@ -200,7 +204,7 @@ mod behavior_policy {
                     class,
                 );
             }
-            for invalid_tag in [14, 255] {
+            for invalid_tag in [16, 255] {
                 assert!(
                     decode::<TerminalAuthorityClass>(&[invalid_tag], RecordLimits::default(),)
                         .is_err()
