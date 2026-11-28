@@ -200,10 +200,14 @@ ensures result.base == input.storage.base, result.length == input.storage.length
     let (output, report) = inspect(release);
     assert!(output.status.success(), "{report}");
     assert!(report.contains("psi selected_machine=carry"), "{report}");
-    for premise in ["input.count == 0", "input.storage.length == 0"] {
-        let (output, report) = inspect(&release.replace(premise, &premise.replace("== 0", "== 1")));
+    for (premise, nonzero) in [
+        ("input.count == 0", "input.count == 1"),
+        ("input.storage.length == 0", "input.storage.length == 1"),
+    ] {
+        let (output, report) = inspect(&release.replace(premise, nonzero));
         assert!(!output.status.success(), "{report}");
-        assert!(report.contains("requirement") || report.contains("precondition"), "{report}");
+        assert!(report.contains("cannot prove requires contract"), "{report}");
+        assert!(report.contains(premise), "{report}");
     }
 }
 
