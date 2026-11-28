@@ -1016,10 +1016,13 @@ fn add_dependencies(
         captured.path.truncate(crossing);
         vec![captured]
     } else {
+        // A borrow of a generic value retains any loans in its unknown
+        // contents together. The opaque coordinate orders releases without
+        // inventing an addressable descriptor leaf inside the value.
         DescriptorSlotKind::BorrowedStorage
-            .owned_slots(&module.types.structural_types, source.place, source_type)
+            .owned_inventory(&module.types.structural_types, source.place, source_type)
             .ok_or("reference parent has no finite descriptor inventory")?
-            .into_iter()
+            .into_observations()
             .filter(|parent| captured.contains(parent))
             .collect()
     };

@@ -414,6 +414,27 @@ fn each_arm_of_a_reference_join_hands_the_join_its_own_formal() {
 }
 
 #[test]
+fn a_reference_returned_through_a_type_parameter_keeps_its_original_loan() {
+    let source = r"
+data File { byte: u8; }
+machine borrow<'a, T>(state: @'a T) -> @'a T { state }
+machine main() crashes Trap {
+    let mutable file: File = File { byte: 17u8 };
+    let mutable other: File = File { byte: 3u8 };
+    let state: @File = borrow(@file);
+    other.byte = 23u8;
+    transition state.byte == 17u8 { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}";
+
+    Program::of(source).judged(|_| {}).accepted();
+    let overlapping = source.replace("other.byte = 23u8", "file.byte = 23u8");
+    let rejection = Program::of(&overlapping).judged(|_| {}).rejected();
+    assert!(!rejection.conflicts.is_empty());
+}
+
+#[test]
 fn an_indexed_borrow_only_holds_the_owner_through_its_last_use() {
     let source = r#"
         data Item { value: i32; }
