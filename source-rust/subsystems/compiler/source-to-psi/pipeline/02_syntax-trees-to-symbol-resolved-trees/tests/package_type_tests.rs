@@ -54,10 +54,10 @@ fn package_type_arguments_include_only_public_binders() {
 #[test]
 fn named_openings_belong_to_the_formal_or_local_that_lends_the_value() {
     use crate::source_resolved::statement::Statement;
-    let source = "data X = u32; data Z = u16; data Packet<some S> { item: @S; } \
-        machine observe(a: @Packet<some X>, b: @Packet<some Y>) { \
+    let source = "data X = u32; data Z = u16; data Packet<Tag, some S> { tag: Tag; item: @S; } \
+        machine observe(a: @Packet<u8, some X>, b: @Packet<u8, some Y>) { \
             let left: @X = a.item; let right: @Y = b.item; \
-            let local: @Packet<some Z> = b; let value: @Z = local.item; }";
+            let local: @Packet<u8, some Z> = b; let value: @Z = local.item; }";
     let trees = resolve(super::source_request(source)).unwrap();
     let tables = &trees.tables.declarations;
     let types = &tables.child_type_references;
@@ -78,7 +78,7 @@ fn named_openings_belong_to_the_formal_or_local_that_lends_the_value() {
         .chain(locals().map(|l| (l.symbol, &l.type_reference)))
     {
         for opening in types.annotation_openings(reference) {
-            assert_eq!(opening.position, 0);
+            assert_eq!(opening.position, 1);
             assert!(opening.symbol.is_valid(), "{}", opening.name.as_str());
             assert_eq!(trees.symbols.get(opening.symbol).parent, owner);
             openings.insert(opening.name.as_str(), opening.symbol);
