@@ -3,7 +3,10 @@ use super::*;
 use crate::descriptors::descriptor_lifetimes;
 use crate::descriptors::descriptor_lifetimes::DescriptorFlowSource;
 use crate::exactly_one::exactly_one;
+use prepared_worker::prepared_worker_summary;
 use std::sync::Arc;
+
+mod prepared_worker;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Origin {
@@ -12,6 +15,7 @@ pub(crate) enum Origin {
     Incoming(DescriptorLocation),
     IncomingContents(DescriptorContentsQuery, Projection),
     ProducedContents(ProducedContents<Origin>),
+    OwnerBacking(OwnerBacking<Origin>),
     Storage(DescriptorLocation),
     /// A borrowed header captures an address account, not a fresh lookup
     /// through a descriptor that may subsequently be replaced.
@@ -305,7 +309,8 @@ fn selected_target_summary(target: &DescriptorInvocationTarget, body: &Summary) 
 
 fn direct_target_summary(target: &DescriptorInvocationTarget) -> Option<Summary> {
     match target {
-        DescriptorInvocationTarget::Machine(_) => None,
+        DescriptorInvocationTarget::Machine(_)
+        | DescriptorInvocationTarget::PrepareWorker { .. } => None,
         DescriptorInvocationTarget::Provider {
             results,
             effects,
@@ -1017,8 +1022,14 @@ impl<'a> Replay<'a> {
                 }
                 // Public and provider calls need their retained interface
                 // effect owner. A possible private implementation is not it.
-                let Some(callee) = invocation.callee() else {
-                    return Ok(None);
+                use crate::descriptor_lifetimes::ActivationAccess;
+                let callee = match machine.activation_access(position, invocation.owner) {
+                    Some(ActivationAccess::Prepare(_) | ActivationAccess::Resume) => continue,
+                    Some(ActivationAccess::Step(worker)) => worker,
+                    None => match invocation.callee() {
+                        Some(callee) => callee,
+                        None => return Ok(None),
+                    },
                 };
                 self.prepare_access_frame(callee)?;
                 let complete = self
@@ -2287,13 +2298,7 @@ impl<'a> Replay<'a> {
     ) -> Value {
         let _read = depth.enter()?;
         if location.path.last() == Some(&DescriptorPathSegment::UnknownContents) {
-            let ty = self.unknown_contents_type(machine, location)?;
-            if !matches!(
-                self.type_index.find(ty)?.shape,
-                StructuralTypeShape::TypeParameter
-            ) {
-                return None;
-            }
+            self.unknown_contents_type(machine, location)?;
             return state.slots.get(location)?.clone();
         }
         if location.path.is_empty()
@@ -2385,7 +2390,7 @@ impl<'a> Replay<'a> {
             .as_ref()?
             .iter()
             .map(|origin| match origin {
-                Origin::ProducedContents(_) => None,
+                Origin::ProducedContents(_) | Origin::OwnerBacking(_) => None,
                 Origin::CapturedStorage(account) => {
                     let values = self.project(
                         machine,
@@ -2503,6 +2508,10 @@ impl<'a> Replay<'a> {
         value?
             .into_iter()
             .map(|origin| match origin {
+                Origin::OwnerBacking(mut held) => {
+                    held.projection = held.projection.then(projection);
+                    Some(Origin::OwnerBacking(held))
+                }
                 Origin::ProducedContents(_) => None,
                 Origin::CapturedStorage(account) => {
                     let reason = account.unavailable().or_else(|| {
@@ -3359,8 +3368,42 @@ impl<'a> Replay<'a> {
                                 reads,
                             )
                             .ok_or("returned contents do not retain their input loans")?;
+                        let activation_backing = match &produced.activation_backing {
+                            Some(backing) => {
+                                let mut sources = BTreeSet::new();
+                                for source in &backing.sources {
+                                    sources.extend(
+                                        self.substitute_with_depth(
+                                            machine, before, call, source, reads,
+                                        )
+                                        .ok_or("activation lost its private backing")?,
+                                    );
+                                }
+                                let mut worker_result = BTreeMap::new();
+                                for (path, inputs) in &backing.worker_result {
+                                    let mut bound = BTreeSet::new();
+                                    for input in inputs {
+                                        bound.extend(
+                                            self.substitute_with_depth(
+                                                machine, before, call, input, reads,
+                                            )
+                                            .ok_or(
+                                                "activation lost a worker result's input loan",
+                                            )?,
+                                        );
+                                    }
+                                    worker_result.insert(path.clone(), bound.into_iter().collect());
+                                }
+                                Some(ActivationBacking {
+                                    preparation: backing.preparation,
+                                    sources: sources.into_iter().collect(),
+                                    worker_result,
+                                })
+                            }
+                            None => None,
+                        };
                         origins.insert(Origin::ProducedContents(
-                            produced.with_dependencies(dependencies),
+                            produced.with_mapped_sources(dependencies, activation_backing),
                         ));
                         continue;
                     }
@@ -3921,7 +3964,10 @@ impl<'a> Replay<'a> {
             _ => None,
         };
         match &call.target {
-            DescriptorInvocationTarget::Machine(identity) => failed(*identity),
+            DescriptorInvocationTarget::Machine(identity)
+            | DescriptorInvocationTarget::PrepareWorker {
+                worker: identity, ..
+            } => failed(*identity),
             DescriptorInvocationTarget::Public {
                 effects_machine: Some(identity),
                 ..
@@ -3939,6 +3985,10 @@ impl<'a> Replay<'a> {
     ) -> Option<Arc<Summary>> {
         match &call.target {
             DescriptorInvocationTarget::Machine(machine) => self.summary(*machine, depth),
+            target @ DescriptorInvocationTarget::PrepareWorker { worker, .. } => {
+                let body = self.summary(*worker, depth)?;
+                Some(Arc::new(prepared_worker_summary(target, &body)?))
+            }
             target @ DescriptorInvocationTarget::Public {
                 effects_machine: Some(machine),
                 ..
@@ -3969,6 +4019,10 @@ impl<'a> Replay<'a> {
         match &call.target {
             DescriptorInvocationTarget::Machine(machine) => {
                 self.summaries.get(machine)?.clone()
+            }
+            target @ DescriptorInvocationTarget::PrepareWorker { worker, .. } => {
+                let body = self.summaries.get(worker)?.as_ref()?;
+                Some(Arc::new(prepared_worker_summary(target, body)?))
             }
             target @ DescriptorInvocationTarget::Public {
                 effects_machine: Some(machine),
@@ -4099,6 +4153,49 @@ impl<'a> Replay<'a> {
         reads: &DescriptorReadDepth<'_>,
     ) -> Value {
         match origin {
+            DescriptorStoredOrigin::OwnerBacking(query) => {
+                let _read = reads.enter()?;
+                let owners = self.substitute_actuals_with_depth(
+                    machine,
+                    state,
+                    actuals,
+                    &query.owner,
+                    reads,
+                )?;
+                let mut backing = BTreeSet::new();
+                for owner in owners {
+                    match owner {
+                        Origin::ProducedContents(packet) => {
+                            let retained = packet.activation_backing?;
+                            if retained.preparation != query.preparation {
+                                return None;
+                            }
+                            let sources = match &query.worker_result {
+                                None => retained.sources,
+                                Some(path) => retained.worker_result.get(path)?.clone(),
+                            };
+                            if sources.is_empty() {
+                                return None;
+                            }
+                            backing.extend(self.project(
+                                machine,
+                                Some(sources.into_iter().collect()),
+                                Some(&query.projection),
+                            )?);
+                        }
+                        Origin::Incoming(_) | Origin::IncomingContents(_, _) => {
+                            backing.insert(Origin::OwnerBacking(OwnerBacking {
+                                preparation: query.preparation,
+                                owner: Box::new(owner),
+                                worker_result: query.worker_result.clone(),
+                                projection: query.projection.clone(),
+                            }));
+                        }
+                        _ => return None,
+                    }
+                }
+                Some(backing)
+            }
             DescriptorStoredOrigin::Invocation {
                 carrier_type,
                 projection,
@@ -4478,6 +4575,14 @@ impl<'a> Replay<'a> {
         origin: &Origin,
     ) -> Option<DescriptorStoredOrigin> {
         match origin {
+            Origin::OwnerBacking(query) => {
+                Some(DescriptorStoredOrigin::OwnerBacking(OwnerBacking {
+                    preparation: query.preparation,
+                    owner: Box::new(self.exported(machine, &query.owner)?),
+                    worker_result: query.worker_result.clone(),
+                    projection: query.projection.clone().without_runtime_coordinates(),
+                }))
+            }
             Origin::ProducedContents(produced) => {
                 let dependencies = produced
                     .lifetime_dependencies
@@ -4489,8 +4594,32 @@ impl<'a> Replay<'a> {
                         })
                     })
                     .collect::<Option<_>>()?;
+                let backing = match &produced.activation_backing {
+                    Some(backing) => Some(ActivationBacking {
+                        preparation: backing.preparation,
+                        worker_result: backing
+                            .worker_result
+                            .iter()
+                            .map(|(path, sources)| {
+                                Some((
+                                    path.clone(),
+                                    sources
+                                        .iter()
+                                        .map(|origin| self.exported(machine, origin))
+                                        .collect::<Option<Vec<_>>>()?,
+                                ))
+                            })
+                            .collect::<Option<_>>()?,
+                        sources: backing
+                            .sources
+                            .iter()
+                            .map(|origin| self.exported(machine, origin))
+                            .collect::<Option<_>>()?,
+                    }),
+                    None => None,
+                };
                 Some(DescriptorStoredOrigin::ProducedContents(
-                    produced.with_dependencies(dependencies),
+                    produced.with_mapped_sources(dependencies, backing),
                 ))
             }
             Origin::CapturedStorage(account) => {
@@ -4839,6 +4968,11 @@ impl<'a> Replay<'a> {
                     if origins.is_empty() {
                         return None;
                     }
+                    if is_empty_case_slot(&origins)
+                        && cases.excludes_payload(structural_type, &slot.path)
+                    {
+                        continue;
+                    }
                     for origin in origins {
                         slot.merge(self.exported_result(
                             machine,
@@ -4870,6 +5004,17 @@ impl<'a> Replay<'a> {
             }
             let mut slots = slots?;
             slots.retain(|slot| !unknown_results.contains(&slot.path));
+            for slot in &mut slots {
+                if slot.origins.is_empty() {
+                    if !result_type
+                        .zip(result_cases.as_ref())
+                        .is_some_and(|(ty, cases)| cases.excludes_payload(ty, &slot.path))
+                    {
+                        return None;
+                    }
+                    slot.origins.push(DescriptorStoredOrigin::Empty);
+                }
+            }
             DescriptorResultSlot::canonicalize(&mut slots)?;
             Some(slots)
         } else {
@@ -5060,6 +5205,30 @@ impl<'a> Replay<'a> {
                 Origin::IncomingContents(query, projection) => {
                     Some(DescriptorSourceOrigin::IncomingContents { query, projection })
                 }
+                Origin::OwnerBacking(held) => {
+                    let mut query = match *held.owner {
+                        Origin::Incoming(slot) => DescriptorContentsQuery::from_location(&slot),
+                        Origin::IncomingContents(query, projection)
+                            if projection == Projection::new(&[]) =>
+                        {
+                            query
+                        }
+                        _ => return None,
+                    };
+                    // External lifetime observations can name the owner that
+                    // holds the loan. Its hidden contents have no addressable field.
+                    if query.steps.pop()
+                        != Some(DescriptorContentsStep::Address(
+                            DescriptorPathSegment::UnknownContents,
+                        ))
+                    {
+                        return None;
+                    }
+                    Some(DescriptorSourceOrigin::IncomingContents {
+                        query,
+                        projection: held.projection,
+                    })
+                }
                 Origin::ProducedContents(_) => None,
             })
             .collect()
@@ -5148,12 +5317,36 @@ fn merge_state(existing: &mut State, incoming: &State) -> bool {
             changed = true;
         }
     }
+    let prior_cases = before.cases.clone();
     drop(before);
-    changed |= merge_slots(&mut existing.slots, &incoming.slots);
-    changed |= merge_slots(&mut existing.arrival_backing, &incoming.arrival_backing);
+    changed |= merge_slots(
+        &mut existing.slots,
+        &incoming.slots,
+        Some((&prior_cases, &incoming.cases)),
+    );
+    changed |= merge_slots(
+        &mut existing.arrival_backing,
+        &incoming.arrival_backing,
+        None,
+    );
     changed
 }
-fn merge_slots(existing: &mut Arc<Slots>, incoming: &Arc<Slots>) -> bool {
+fn is_empty_case_slot(origins: &BTreeSet<Origin>) -> bool {
+    origins.len() == 1
+        && matches!(
+            origins.first(),
+            Some(Origin::Backing(DescriptorCallOrigin::Empty))
+        )
+}
+
+fn merge_slots(
+    existing: &mut Arc<Slots>,
+    incoming: &Arc<Slots>,
+    cases: Option<(
+        &super::case_flow::CurrentCases,
+        &super::case_flow::CurrentCases,
+    )>,
+) -> bool {
     if Arc::ptr_eq(existing, incoming) {
         return false;
     }
@@ -5193,6 +5386,21 @@ fn merge_slots(existing: &mut Arc<Slots>, incoming: &Arc<Slots>) -> bool {
                 previous.and_then(Option::as_ref),
                 arriving.and_then(Option::as_ref),
             ) {
+                // An inactive sum field holds a placeholder on this edge. Its
+                // sibling edge still has to supply a complete origin of its own.
+                (Some(left), Some(right))
+                    if is_empty_case_slot(left)
+                        && cases.is_some_and(|(before, _)| before.excludes_payload(location)) =>
+                {
+                    Some(right.clone())
+                }
+                (Some(left), Some(right))
+                    if is_empty_case_slot(right)
+                        && cases
+                            .is_some_and(|(_, arriving)| arriving.excludes_payload(location)) =>
+                {
+                    Some(left.clone())
+                }
                 (Some(left), Some(right)) => Some(left.union(right).cloned().collect()),
                 _ => None,
             };

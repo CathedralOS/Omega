@@ -104,6 +104,32 @@ pub(crate) struct RegionVariable {
 /// One substitution: each listed parameter stands for the region beside it.
 pub(crate) type Substitution = Vec<(LifetimeParameterIdentity, Region)>;
 
+/// Two source arguments can have the same lifetime at the first formation of
+/// a shared layout. That parameter can be rebound only if both uses agree.
+fn record_lifetime_bindings(
+    own: &[Region],
+    applied: &[Region],
+) -> Result<Substitution, &'static str> {
+    if own.len() != applied.len() {
+        return Err("record applied at another number of regions than it declares");
+    }
+    let mut bindings = Vec::new();
+    for (&parameter, &actual) in own.iter().zip(applied) {
+        let Region::Parameter(parameter) = parameter else {
+            continue;
+        };
+        if let Some((_, prior)) = bindings.iter().find(|(key, _)| *key == parameter) {
+            if *prior != actual {
+                return Err("one retained record region has distinct occurrence arguments");
+            }
+        } else {
+            bindings.push((parameter, actual));
+        }
+    }
+    bindings.retain(|(parameter, actual)| Region::Parameter(*parameter) != *actual);
+    Ok(bindings)
+}
+
 impl Program<'_> {
     /// A region nothing has decided yet.
     pub(crate) fn fresh_region(&mut self) -> Region {
@@ -237,16 +263,7 @@ impl Program<'_> {
         &self,
         owner: SymbolHandle,
     ) -> impl ExactSizeIterator<Item = LifetimeParameterIdentity> {
-        let declaration = self.typed.lifetime_declaration_owner(owner);
-        let count = crate::source_state::type_identity::declaration_lifetime_parameters(
-            self.typed,
-            declaration,
-        )
-        .map_or(0, <[_]>::len);
-        (0..count).map(move |ordinal| LifetimeParameterIdentity {
-            declaration,
-            ordinal,
-        })
+        self.typed.executable_lifetime_parameters(owner).into_iter()
     }
 
     /// The lifetime parameters `owner` declares, as regions in order.
@@ -349,19 +366,20 @@ impl Program<'_> {
         let source = self.record_source(id, record)?;
         let mut own = self.own_regions(source.declaration);
         if let Some(application) = &source.application {
-            own.extend(
-                application
-                    .substitutions
-                    .iter()
-                    .filter_map(|(_, argument)| {
-                        super::source_records::retained_argument_region(
-                            self.typed,
-                            &application.scope,
-                            *argument,
-                        )
-                        .map(Region::Parameter)
-                    }),
-            );
+            for (_, argument) in &application.substitutions {
+                let parameters = super::source_records::retained_regions(
+                    self.typed,
+                    &application.scope,
+                    *argument,
+                )
+                .ok_or_else(|| {
+                    refuse_at(
+                        id,
+                        Unserved::Typing("record application lost its argument regions"),
+                    )
+                })?;
+                own.extend(parameters.into_iter().map(Region::Parameter));
+            }
         }
         Ok(own)
     }
@@ -388,10 +406,8 @@ impl Program<'_> {
                 .as_ref()
                 .is_some_and(|app| {
                     app.substitutions.iter().any(|(_, arg)| {
-                        super::source_records::retained_argument_region(
-                            self.typed, &app.scope, *arg,
-                        )
-                        .is_some()
+                        super::source_records::retained_regions(self.typed, &app.scope, *arg)
+                            .is_none_or(|parameters| !parameters.is_empty())
                     })
                 })
             {
@@ -404,22 +420,8 @@ impl Program<'_> {
         }
         let own = self.record_region_parameters(id, record)?;
         let applied = self.region_tuple(regions);
-        if own.len() != applied.len() {
-            return Err(refuse_at(
-                id,
-                Unserved::Typing("record applied at another number of regions than it declares"),
-            ));
-        }
-        Ok(own
-            .into_iter()
-            .zip(applied)
-            .filter_map(|(parameter, argument)| match parameter {
-                Region::Parameter(parameter) if Region::Parameter(parameter) != *argument => {
-                    Some((parameter, *argument))
-                }
-                _ => None,
-            })
-            .collect())
+        record_lifetime_bindings(&own, applied)
+            .map_err(|reason| refuse_at(id, Unserved::Typing(reason)))
     }
 
     /// Extends `bound` so that `formal`, with `bound` applied, is `actual`,

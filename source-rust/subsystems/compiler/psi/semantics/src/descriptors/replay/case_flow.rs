@@ -143,6 +143,24 @@ pub(crate) struct CurrentCases {
     copies: values::Copies,
 }
 
+impl CurrentCases {
+    pub(super) fn excludes_payload(&self, location: &DescriptorLocation) -> bool {
+        let mut prefix = DescriptorLocation::whole(location.root);
+        for segment in &location.path {
+            if let DescriptorPathSegment::Case(case) = segment
+                && self
+                    .facts
+                    .get(&prefix)
+                    .is_some_and(|active| !active.is_empty() && !active.contains(case))
+            {
+                return true;
+            }
+            prefix.path.push(*segment);
+        }
+        false
+    }
+}
+
 pub(crate) fn validate_graph(
     replay: &Replay<'_>,
     machine: &DescriptorMachine,
@@ -464,20 +482,25 @@ impl<'writes> Survival<'writes> {
         match writes {
             None => Self::Nothing,
             Some([]) => Self::All,
-            Some(writes) if writes.iter().all(|write| storage.contains(write)) => {
+            Some(writes) if writes.iter().all(|write| storage.owns_location(write)) => {
                 Self::Disjoint(writes)
             }
             Some(_) => Self::Nothing,
         }
     }
 
-    fn keeps(&self, storage: &Storage, subject: &DescriptorLocation) -> bool {
+    fn keeps(
+        &self,
+        storage: &Storage,
+        subject: &DescriptorLocation,
+        invalidates: impl Fn(&DescriptorLocation, &DescriptorLocation) -> bool,
+    ) -> bool {
         match self {
             Self::All => true,
             Self::Nothing => false,
             Self::Disjoint(writes) => {
-                storage.contains(subject)
-                    && writes.iter().all(|write| !values::overlaps(write, subject))
+                storage.owns_location(subject)
+                    && writes.iter().all(|write| !invalidates(write, subject))
             }
         }
     }
@@ -507,13 +530,16 @@ pub(crate) fn transport<'locations>(
         return Some(base.cases.clone());
     }
     let survival = Survival::new(storage, writes.as_deref());
-    let keep = |subject: &DescriptorLocation| survival.keeps(storage, subject);
+    let keep_copy =
+        |subject: &DescriptorLocation| survival.keeps(storage, subject, values::overlaps);
     let mut cases = if writes.is_none() {
         CurrentCases::default()
     } else {
         let mut cases = (*base.cases).clone();
-        cases.facts.retain(|subject, _| keep(subject));
-        cases.copies.retain(keep);
+        cases
+            .facts
+            .retain(|subject, _| survival.keeps(storage, subject, values::overwrites_tag));
+        cases.copies.retain(keep_copy);
         cases
     };
     let derivations = derivations.collect::<Vec<_>>();
@@ -592,7 +618,7 @@ pub(crate) fn transport<'locations>(
     for (_, (old_members, receivers)) in captured {
         let members = old_members
             .into_iter()
-            .filter(|source| Arc::ptr_eq(&before.cases, &base.cases) && keep(source))
+            .filter(|source| Arc::ptr_eq(&before.cases, &base.cases) && keep_copy(source))
             .chain(receivers)
             .collect();
         cases.copies.insert_class(members, storage.limit)?;
@@ -643,10 +669,10 @@ pub(crate) fn retire_query(
     let cases = Arc::make_mut(&mut after.cases);
     cases
         .facts
-        .retain(|subject, _| survival.keeps(storage, subject));
+        .retain(|subject, _| survival.keeps(storage, subject, values::overwrites_tag));
     cases
         .copies
-        .retain(|subject| survival.keeps(storage, subject));
+        .retain(|subject| survival.keeps(storage, subject, values::overlaps));
 }
 
 pub(crate) fn join(left: &CurrentCases, right: &CurrentCases) -> CurrentCases {

@@ -1636,6 +1636,9 @@ mod stored_calls {
             DescriptorStoredOrigin::Carried { .. } => {
                 eprintln!("CHECKSITE stored-reference-origin machine={machine:?} kind=carried")
             }
+            DescriptorStoredOrigin::OwnerBacking(_) => eprintln!(
+                "CHECKSITE stored-reference-origin machine={machine:?} kind=loan-held-by-activation"
+            ),
             DescriptorStoredOrigin::ProducedContents(_) => eprintln!(
                 "CHECKSITE stored-reference-origin machine={machine:?} kind=opaque-call-result"
             ),
@@ -1902,6 +1905,9 @@ mod stored_calls {
                             DescriptorStoredOrigin::Invocation { .. } => return Err("stored-reference invocation origin has no physical metadata conversion"),
                             DescriptorStoredOrigin::IncomingSlot { .. }
                             | DescriptorStoredOrigin::IncomingContents { .. } => return Err("stored-reference captured incoming contents have no physical metadata conversion"),
+                            DescriptorStoredOrigin::OwnerBacking(_) => {
+                                return Err("stored reference selects a loan inside an incoming activation");
+                            }
                             DescriptorStoredOrigin::ProducedContents(_) => return Err("a generic call result has no concrete reference origin"),
                             DescriptorStoredOrigin::Literal { .. } => return Err("stored-reference literal origin has no physical metadata conversion"),
                             DescriptorStoredOrigin::NativeAddress { machine, operation, carrier, projection, .. } => {

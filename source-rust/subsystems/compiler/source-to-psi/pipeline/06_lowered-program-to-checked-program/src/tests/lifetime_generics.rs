@@ -37,6 +37,61 @@ fn refusal(build: &str) -> String {
 
 const HOLDER: &str = "data Holder<'storage> { ready: bool; name: @'storage [u8]; }\n";
 
+#[test]
+fn a_shared_type_specialization_uses_each_callers_borrowed_arguments() {
+    accepted(
+        "data Packet<'storage> { byte: @'storage u8; }
+         data Pair<A, B> { first: A; second: B; }
+         machine pair<A, B>(first: A, second: B) -> Pair<A, B> {
+             Pair { first: move first, second: move second }
+         }
+         machine left_first<'left, 'right>(left: Packet<'left>, right: Packet<'right>) -> Pair<Packet<'left>, Packet<'right>> {
+             pair::<Packet<'left>, Packet<'right>>(move left, move right)
+         }
+         machine right_first<'left, 'right>(left: Packet<'left>, right: Packet<'right>) -> Pair<Packet<'right>, Packet<'left>> {
+             pair::<Packet<'right>, Packet<'left>>(move right, move left)
+         }
+         machine build_entry<'left, 'right>(left: Packet<'left>, right: Packet<'right>) -> Pair<Packet<'right>, Packet<'left>> {
+             let ordered: Pair<Packet<'left>, Packet<'right>> = left_first(move left, move right);
+             right_first(move ordered.first, move ordered.second)
+         }",
+    );
+}
+
+#[test]
+fn an_explicit_borrowed_type_argument_constrains_a_single_runtime_operand() {
+    let reason = refusal(
+        "data Packet<'storage> { byte: @'storage u8; }
+         machine discard<T>(packet: T) {}
+         machine wrong<'left, 'right>(left: @'left u8, right: Packet<'right>) {
+             discard::<Packet<'left>>(move right);
+         }
+         machine build_entry() {}",
+    );
+    assert!(
+        reason.contains("nothing relates two lifetimes of one machine"),
+        "{reason}"
+    );
+}
+
+#[test]
+fn a_borrowed_type_argument_cannot_return_a_local_as_a_caller_region() {
+    let reason = refusal(
+        "data Packet<'storage> { byte: @'storage u8; }
+         machine keep_second<T>(left: T, right: T) -> T { move right }
+         machine wrong<'outside>(outside: @'outside u8) -> Packet<'outside> {
+             let scratch: u8 = 17u8;
+             let first: Packet<'outside> = Packet { byte: outside };
+             keep_second::<Packet<'outside>>(move first, Packet { byte: @scratch })
+         }
+         machine build_entry() {}",
+    );
+    assert!(
+        reason.contains("local storage cannot establish that promise"),
+        "{reason}"
+    );
+}
+
 /// A machine stores a view of its own lifetime into a holder applied at it,
 /// and another builds a holder at the lifetime of the one it is given. The
 /// caller's holder is at the region its local is decided as, the literal

@@ -7,6 +7,138 @@ pub enum TerminalTaskStartOperation {
     TryStart,
 }
 
+/// Who owns execution is separate from the frames that must survive a park.
+/// Only scheduled tasks select a TaskRuntime provider.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TerminalActivationOrigin {
+    TaskRuntime(TerminalTaskRuntimeSelection),
+    Caller(TerminalPreparedActivationEntry),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalTaskRuntimeSelection {
+    pub operation: TerminalTaskStartOperation,
+    pub requirement_callable_identity: TerminalIdentityIndex,
+    pub requirement_owner_path: TerminalIdentityIndex,
+    pub requirement_owner_package: Option<semantic_vocabulary::PackageKeyIdentity>,
+    pub requirement_in_scope: bool,
+    pub authored_requirement_identity: TerminalIdentityIndex,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalPreparedActivationEntry {
+    pub preparation: semantic_vocabulary::BoundaryMachineId,
+    pub entry_machine: semantic_vocabulary::MachineId,
+    pub storage: TerminalActivationStorage,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalActivationStorage {
+    Fixed,
+    Split,
+}
+
+impl TerminalActivationStorage {
+    /// Close the same core enum value the source supplies to the plan binder.
+    /// Neither a display spelling nor a case of another enum selects storage.
+    pub fn from_core_argument(argument: &str) -> Option<Self> {
+        Self::decode_core_argument(argument).map(|(mode, _)| mode)
+    }
+
+    pub fn decode_core_argument(
+        argument: &str,
+    ) -> Option<(Self, application_identity::const_value::CanonicalConstValue)> {
+        [Self::Fixed, Self::Split].into_iter().find_map(|mode| {
+            let value = mode.canonical_value()?;
+            (value.application_identity()?.as_str() == argument).then_some((mode, value))
+        })
+    }
+
+    fn case_name(self) -> &'static str {
+        match self {
+            Self::Fixed => "Fixed",
+            Self::Split => "Split",
+        }
+    }
+
+    fn core_name(path: &str) -> String {
+        use application_identity::type_identity::{
+            encoding::{atom, bare, compound},
+            vocabulary::{Label, NameForm, OwnerForm},
+        };
+        compound(
+            NameForm::Nominal,
+            [bare(OwnerForm::Toolchain), atom(Label::Path, path)],
+        )
+    }
+
+    /// A source type can name the core case directly or carry its evaluated
+    /// value after constant substitution. Both must designate this exact case.
+    pub fn matches_type_operand(self, operand: &str) -> bool {
+        use application_identity::type_identity::{encoding::atom, vocabulary::IndexForm};
+        let case = Self::core_name(&format!("ActivationStorage::{}", self.case_name()));
+        operand == atom(IndexForm::ConstName, &case)
+            || self
+                .canonical_value()
+                .and_then(|value| value.index_identity())
+                .as_deref()
+                == Some(operand)
+    }
+
+    /// The storage binder is a typed enum constant. A commitment to a machine
+    /// application includes its checked carrier and encoded value, not a key
+    /// printed for a requirement's operands.
+    pub fn canonical_value(self) -> Option<application_identity::const_value::CanonicalConstValue> {
+        use application_identity::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+        use application_identity::type_identity::{
+            encoding::{atom, compound},
+            vocabulary::{Label, TypeForm},
+        };
+        let name = Self::core_name("ActivationStorage");
+        let carrier = compound(TypeForm::Named, [atom(Label::Name, &name)]);
+        let value = DecodedCanonicalConstValue::Variant {
+            type_name: "ActivationStorage".into(),
+            case_name: self.case_name().into(),
+            fields: Vec::new(),
+        };
+        CanonicalConstValue::from_decoded_in_type(&carrier, &value, "")
+    }
+}
+
+impl TerminalPreparedActivationEntry {
+    /// The checked prepare application, not a service name or the program's
+    /// root entry, determines which child this code ID is allowed to start.
+    /// This checks the link only; it neither admits a plan nor grants backing.
+    pub fn selected_body(self, module: &crate::TerminalModule) -> Option<&crate::TerminalMachine> {
+        let binding = module
+            .boundary_machine(self.preparation)?
+            .declaration
+            .as_ref()?;
+        if binding.execution
+            != crate::CheckedBoundaryExecution::OwnedActivation(
+                language_core::sealed_intrinsics::ActivationOperation::Prepare,
+            )
+        {
+            return None;
+        }
+        let [
+            crate::ClosedReachArgument::Type(_),
+            crate::ClosedReachArgument::Type(_),
+            entry @ crate::ClosedReachArgument::Machine { .. },
+            crate::ClosedReachArgument::Const(plan),
+        ] = binding.method_arguments.as_slice()
+        else {
+            return None;
+        };
+        if TerminalActivationStorage::from_core_argument(module.identities.text(*plan)?)?
+            != self.storage
+        {
+            return None;
+        }
+        entry.checked_body(module, self.entry_machine)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TerminalTaskValueType {
     Unit,
@@ -87,13 +219,8 @@ pub struct TerminalTaskFrame {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalTaskActivationDemand {
-    pub operation: TerminalTaskStartOperation,
+    pub origin: TerminalActivationOrigin,
     pub report_fingerprint: u64,
-    pub requirement_callable_identity: TerminalIdentityIndex,
-    pub requirement_owner_path: TerminalIdentityIndex,
-    pub requirement_owner_package: Option<semantic_vocabulary::PackageKeyIdentity>,
-    pub requirement_in_scope: bool,
-    pub authored_requirement_identity: TerminalIdentityIndex,
     pub machine_callable_identity: TerminalIdentityIndex,
     pub entry: TerminalIdentityIndex,
     pub entry_report_fingerprint: u64,

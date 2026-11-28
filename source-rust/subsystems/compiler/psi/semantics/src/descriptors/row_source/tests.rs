@@ -267,6 +267,9 @@ fn shape(row: &DescriptorMachine) -> String {
                         DescriptorInvocationTarget::Machine(callee) => {
                             format!("machine {callee:?}")
                         }
+                        DescriptorInvocationTarget::PrepareWorker { worker, .. } => {
+                            format!("prepare {worker:?}")
+                        }
                         DescriptorInvocationTarget::Public {
                             effects_machine,
                             realizations,

@@ -12,7 +12,7 @@ struct Application<'a> {
 
 fn application(text: &str) -> Option<Application<'_>> {
     let mut reader = Reader::new(text);
-    let mut syntax = DeclarationIdentitySyntax { depth: 0 };
+    let mut syntax = DeclarationIdentitySyntax::default();
     reader.expect_tag(TypeForm::Generic).ok()?;
     reader.expect(b'(').ok()?;
     let start = reader.position();

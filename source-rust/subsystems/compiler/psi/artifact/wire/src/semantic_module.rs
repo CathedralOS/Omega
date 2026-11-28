@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 311`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 312`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -2320,8 +2320,11 @@ mod reference_transport_tests {
     #[test]
     fn task_values_use_the_modules_storage_declaration() {
         use super::module_wire::encode_raw;
-        use terminal_psi::{TerminalTaskActivationDemand, TerminalTaskFrame, TerminalTaskFrameState,
-            TerminalTaskResidentValue, TerminalTaskSignatureValue, TerminalTaskStartOperation, TerminalTaskValueType};
+        use terminal_psi::{
+            TerminalTaskActivationDemand, TerminalTaskFrame, TerminalTaskFrameState,
+            TerminalTaskResidentValue, TerminalTaskSignatureValue, TerminalTaskStartOperation,
+            TerminalTaskValueType,
+        };
         let mut module = reference_module(false);
         let callable = TerminalIdentityIndex(3);
         let entry = TerminalIdentityIndex(4);
@@ -2331,61 +2334,98 @@ mod reference_transport_tests {
         frame.string_terminated(module.identities.text(entry).unwrap());
         let frame = frame.finish_or(1);
         let reference = TerminalTaskValueType::Structural(StructuralTypeId::new(2).unwrap());
-        module.execution.task_activation_demands.push(TerminalTaskActivationDemand {
-            operation: TerminalTaskStartOperation::Start,
-            report_fingerprint: 1,
-            requirement_callable_identity: callable,
-            requirement_owner_path: callable,
-            requirement_owner_package: None,
-            requirement_in_scope: true,
-            authored_requirement_identity: callable,
-            machine_callable_identity: callable,
-            entry,
-            entry_report_fingerprint: 2,
-            contract_report_fingerprint: 3,
-            specialization_commitment: [4; 32],
-            specialization_report_fingerprint: 4,
-            may_suspend: false,
-            may_block: false,
-            cancellation_required: false,
-            signature_arguments: Vec::new(),
-            signature_outcome: TerminalTaskSignatureValue {
-                value_type: reference,
-                normalized_identity: TerminalIdentityIndex(2),
-                is_mutable: false,
-            },
-            root_frame: frame,
-            frames: vec![TerminalTaskFrame {
-                identity: frame,
+        module
+            .execution
+            .task_activation_demands
+            .push(TerminalTaskActivationDemand {
+                origin: terminal_psi::TerminalActivationOrigin::TaskRuntime(
+                    terminal_psi::TerminalTaskRuntimeSelection {
+                        operation: TerminalTaskStartOperation::Start,
+                        requirement_callable_identity: callable,
+                        requirement_owner_path: callable,
+                        requirement_owner_package: None,
+                        requirement_in_scope: true,
+                        authored_requirement_identity: callable,
+                    },
+                ),
+                report_fingerprint: 1,
                 machine_callable_identity: callable,
                 entry,
-                states: vec![TerminalTaskFrameState {
-                    state: entry,
-                    resident: Vec::new(),
-                    crossing_arguments: Vec::new(),
+                entry_report_fingerprint: 2,
+                contract_report_fingerprint: 3,
+                specialization_commitment: [4; 32],
+                specialization_report_fingerprint: 4,
+                may_suspend: false,
+                may_block: false,
+                cancellation_required: false,
+                signature_arguments: Vec::new(),
+                signature_outcome: TerminalTaskSignatureValue {
+                    value_type: reference,
+                    normalized_identity: TerminalIdentityIndex(2),
+                    is_mutable: false,
+                },
+                root_frame: frame,
+                frames: vec![TerminalTaskFrame {
+                    identity: frame,
+                    machine_callable_identity: callable,
+                    entry,
+                    states: vec![TerminalTaskFrameState {
+                        state: entry,
+                        resident: Vec::new(),
+                        crossing_arguments: Vec::new(),
+                    }],
+                    calls: Vec::new(),
+                    unresolved_calls: Vec::new(),
                 }],
-                calls: Vec::new(),
-                unresolved_calls: Vec::new(),
-            }],
-            crossings: Vec::new(),
-        });
+                crossings: Vec::new(),
+            });
         let bytes = encode_module(&module).unwrap();
         assert_eq!(decode_module(&bytes).unwrap(), module);
+
+        // A different owner tag cannot turn a scheduled task into a
+        // caller-controlled invocation of a body chosen by its local ID.
+        let mut unbound = module.clone();
+        unbound.execution.task_activation_demands[0].origin =
+            terminal_psi::TerminalActivationOrigin::Caller(
+                terminal_psi::TerminalPreparedActivationEntry {
+                    preparation: semantic_vocabulary::BoundaryMachineId::new(1).unwrap(),
+                    entry_machine: semantic_vocabulary::MachineId::new(1).unwrap(),
+                    storage: terminal_psi::TerminalActivationStorage::Fixed,
+                },
+            );
+        assert!(matches!(
+            decode_module(&encode_raw(&unbound).unwrap()),
+            Err(CodecError::MalformedStructuralFoundation(
+                "prepare selected a different worker or storage plan"
+            ))
+        ));
 
         // ID 1 describes only what a reference points at. Its own storage
         // cannot be used as an activation result or a resident frame value.
         let referent = TerminalTaskValueType::Structural(StructuralTypeId::new(1).unwrap());
-        module.execution.task_activation_demands[0].signature_outcome.value_type = referent;
-        assert!(matches!(decode_module(&encode_raw(&module).unwrap()),
-            Err(CodecError::MalformedStructuralFoundation("task activation value has no storage declaration"))));
+        module.execution.task_activation_demands[0]
+            .signature_outcome
+            .value_type = referent;
+        assert!(matches!(
+            decode_module(&encode_raw(&module).unwrap()),
+            Err(CodecError::MalformedStructuralFoundation(
+                "task activation value has no storage declaration"
+            ))
+        ));
         let demand = &mut module.execution.task_activation_demands[0];
         demand.signature_outcome.value_type = reference;
-        demand.frames[0].states[0].resident.push(TerminalTaskResidentValue {
-            value_type: referent,
-            normalized_identity: TerminalIdentityIndex(1),
-        });
-        assert!(matches!(decode_module(&encode_raw(&module).unwrap()),
-            Err(CodecError::MalformedStructuralFoundation("task activation value has no storage declaration"))));
+        demand.frames[0].states[0]
+            .resident
+            .push(TerminalTaskResidentValue {
+                value_type: referent,
+                normalized_identity: TerminalIdentityIndex(1),
+            });
+        assert!(matches!(
+            decode_module(&encode_raw(&module).unwrap()),
+            Err(CodecError::MalformedStructuralFoundation(
+                "task activation value has no storage declaration"
+            ))
+        ));
     }
 
     #[test]
@@ -4094,6 +4134,7 @@ pub(crate) use wire::{Reader, Writer, decode_canonical};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
+// Marker 312 separates the owner of an activation from its shared frame description.
 // Marker 311 distinguishes nominal preconditions on exact formals from normal results.
 // Marker 310 records the exact route of a nominal callable contract.
 // Marker 309 retains per-value package schemas, openings and checked construction, projection, call and store sites.
@@ -4114,7 +4155,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // at the FloatMeaning carrier and retires proposition tag 19.
 // Marker 295 retires byte-sequence equality proposition tag 12, which only
 // an uncalled producer wrote.
-pub(crate) const FORMAT_MARKER: u16 = 311;
+pub(crate) const FORMAT_MARKER: u16 = 312;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

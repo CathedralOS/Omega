@@ -358,6 +358,10 @@ impl CallableApplication {
                     .collect::<Result<Vec<_>, _>>()?
                 };
                 for lifetime in &lifetimes {
+                    if lifetime.origin == CallableLifetimeOrigin::Specialized {
+                        applied_owner = lifetime.region.declaration;
+                        continue;
+                    }
                     if lifetime.region.declaration.is_valid()
                         && crate::source_state::type_identity::lifetime_parameter_name(
                             program,

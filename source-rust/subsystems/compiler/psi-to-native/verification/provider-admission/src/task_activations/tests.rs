@@ -52,13 +52,17 @@ fn demands() -> (Vec<TerminalTaskActivationDemand>, TerminalIdentityTable) {
         unresolved_calls: vec![],
     };
     let demand = TerminalTaskActivationDemand {
-        operation: TerminalTaskStartOperation::Start,
+        origin: terminal_psi::TerminalActivationOrigin::TaskRuntime(
+            terminal_psi::TerminalTaskRuntimeSelection {
+                operation: TerminalTaskStartOperation::Start,
+                requirement_callable_identity: start,
+                requirement_owner_path: owner,
+                requirement_owner_package: None,
+                requirement_in_scope: true,
+                authored_requirement_identity: start,
+            },
+        ),
         report_fingerprint: 1,
-        requirement_callable_identity: start,
-        requirement_owner_path: owner,
-        requirement_owner_package: None,
-        requirement_in_scope: true,
-        authored_requirement_identity: start,
         machine_callable_identity: job,
         entry: job,
         entry_report_fingerprint: 2,

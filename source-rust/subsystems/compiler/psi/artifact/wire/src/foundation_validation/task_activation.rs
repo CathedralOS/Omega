@@ -24,16 +24,36 @@ pub(crate) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
         identity(row.normalized_identity)?;
         value(row.value_type)
     };
+    let mut owned_preparations = BTreeSet::new();
     for demand in demands {
-        for index in [
-            demand.requirement_callable_identity,
-            demand.requirement_owner_path,
-            demand.authored_requirement_identity,
-            demand.machine_callable_identity,
-            demand.entry,
-        ] {
-            identity(index)?;
+        match &demand.origin {
+            TerminalActivationOrigin::TaskRuntime(runtime) => {
+                for index in [
+                    runtime.requirement_callable_identity,
+                    runtime.requirement_owner_path,
+                    runtime.authored_requirement_identity,
+                ] {
+                    identity(index)?;
+                }
+            }
+            TerminalActivationOrigin::Caller(selection) => {
+                if !owned_preparations.insert(selection.preparation) {
+                    return malformed("one prepare application has more than one activation plan");
+                }
+                // The caller reserves backing from this report. Checking just its
+                // signature would allow an image to omit a live value at a park.
+                let required =
+                    terminal_semantics::calls::owned_activation::caller_demand(module, *selection)
+                        .map_err(CodecError::MalformedStructuralFoundation)?;
+                if *demand != required {
+                    return malformed(
+                        "prepared activation storage demand differs from its selected worker",
+                    );
+                }
+            }
         }
+        identity(demand.machine_callable_identity)?;
+        identity(demand.entry)?;
         if demand.report_fingerprint == 0
             || demand.entry_report_fingerprint == 0
             || demand.contract_report_fingerprint == 0

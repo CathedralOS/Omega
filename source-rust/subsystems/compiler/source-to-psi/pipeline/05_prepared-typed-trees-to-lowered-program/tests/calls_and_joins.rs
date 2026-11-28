@@ -196,6 +196,41 @@ fn a_discard_drops_one_call_result_and_cannot_drop_a_linear_one() {
     );
 }
 
+/// Returning the shared field ends the unused mutable loan in that case.
+/// The other case still owns a linear ticket on every normal return.
+#[test]
+fn returning_a_borrowed_field_disposes_only_the_matched_payload() {
+    const NEVER: &str = include_str!("../../../../../../../source/library/core/never.omg");
+    let source = r#"
+        use {omega}/language/core/never.omg;
+        data Ticket [linear] { marker: u8; }
+        data Outcome<'value, 'back> {
+            case Returned(value: @'value u8, retained: @'back mutable [u8]);
+            case Parked(ticket: Ticket);
+        }
+        machine failed() -> |never|::Never crashes Trap { crash Trap; }
+        machine select<'value, 'back>(outcome: Outcome<'value, 'back>, fallback: @'value u8)
+            -> @'value u8 crashes Trap {
+            match outcome {
+                Outcome::Returned { value, retained } -> value,
+                Outcome::Parked { ticket } -> failed(),
+            }
+        }
+    "#;
+    let check = |text| Program::try_of(&[("core/never.omg", NEVER), ("product/main.omg", text)]);
+    let good = check(source).expect("the selected branch can return its input reference");
+    good.judged(|_| {}).accepted();
+    let leak = source.replace("-> failed(),", "-> fallback,");
+    let refusal = check(&leak)
+        .err()
+        .expect("the parked branch still owns its ticket");
+    assert_eq!(refusal.stage, "lowering");
+    assert!(
+        refusal.message.contains("a linear value is still held"),
+        "{refusal:?}"
+    );
+}
+
 /// A `match` statement whose arms call Unit machines runs only the selected
 /// arm's call, and every arm continues at one join that takes no value,
 /// where `after` is called (`patterns.md`, "Coverage and domain tests": "An

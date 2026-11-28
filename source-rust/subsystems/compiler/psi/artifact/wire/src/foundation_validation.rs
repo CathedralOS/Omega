@@ -2277,6 +2277,7 @@ pub(crate) mod declaration_foundations {
                         && !matches!(
                             declaration.shape,
                             StructuralTypeShape::Opaque
+                                | StructuralTypeShape::BorrowingOpaque { .. }
                                 | StructuralTypeShape::TypeParameter
                                 | StructuralTypeShape::Reference { .. }
                                 | StructuralTypeShape::ElementView { .. }
@@ -2706,8 +2707,10 @@ pub(crate) mod declaration_foundations {
             return malformed("boundary machine has an unknown attachment type");
         }
         validate_structural_parameters(module, &boundary.structural_parameters)?;
-        terminal_semantics::boundary_result_lifetimes(&module.types.structural_types, boundary)
-            .map_err(CodecError::MalformedStructuralFoundation)?;
+        terminal_semantics::closed_conformances::validate_boundary_result_lifetimes(
+            module, boundary,
+        )
+        .map_err(CodecError::MalformedStructuralFoundation)?;
         terminal_semantics::references::validate_declared_boundary_reference_outputs(
             &module.types.structural_types,
             boundary,
@@ -9526,7 +9529,16 @@ pub(crate) mod structural_type_foundations {
                     );
                 }
             }
-            StructuralTypeShape::Opaque => {
+            StructuralTypeShape::Opaque | StructuralTypeShape::BorrowingOpaque { .. } => {
+                if matches!(
+                    declaration.shape,
+                    StructuralTypeShape::BorrowingOpaque { .. }
+                ) && (declaration.is_copyable() || declaration.no_code_affine_cleanup)
+                {
+                    return malformed(
+                        "an opaque borrower cannot duplicate or silently discard its custody",
+                    );
+                }
                 if declaration.quotient_carrier.is_some()
                     || declaration.scalar_restriction.is_some()
                     || !declaration.requires.is_empty()
@@ -12545,7 +12557,12 @@ fn validate_reference_origin_path(
             return malformed("structural case path requires its payload field");
         }
         structural_type = match (segment, &declaration.shape) {
-            (_, StructuralTypeShape::Opaque | StructuralTypeShape::TypeParameter) => {
+            (
+                _,
+                StructuralTypeShape::Opaque
+                | StructuralTypeShape::BorrowingOpaque { .. }
+                | StructuralTypeShape::TypeParameter,
+            ) => {
                 return malformed("opaque contents have no guest-visible storage projection");
             }
             (StructuralPathSegment::AllElements, _) => {

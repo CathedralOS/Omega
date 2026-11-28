@@ -815,7 +815,7 @@ pub(crate) mod byte_sequences {
                             .map(|_| capture(binding))
                     })
                     .or_else(|| {
-                        self.call_stack.iter().find_map(|frame| {
+                        self.call_stack.values().find_map(|frame| {
                             frame
                                 .byte_sequence_values
                                 .iter()
@@ -2925,7 +2925,7 @@ pub(crate) mod byte_sequences {
                 }
                 Ok((
                     MutableByteSequenceStorage::Owned(ByteOwnerHome::Frame {
-                        depth: self.call_stack.len(),
+                        depth: self.call_stack.current(),
                         machine: self.current_machine,
                         place,
                     }),
@@ -3047,6 +3047,45 @@ pub(crate) mod byte_sequences {
                     self.invalidate_stored_provenance(&parent);
                 }
                 Ok(())
+            }
+
+            pub(crate) fn write_retained_byte(
+                &mut self,
+                binding: &ByteSequenceBinding,
+                index: usize,
+                value: u8,
+            ) -> Result<(), TerminalInterpretError> {
+                match binding {
+                    ByteSequenceBinding::MutableArray {
+                        array,
+                        offset,
+                        length,
+                        ..
+                    } => {
+                        if u64::try_from(index).map_err(|_| malformed())? >= *length {
+                            return Err(malformed());
+                        }
+                        let offset = usize::try_from(*offset).map_err(|_| malformed())?;
+                        self.stored_byte_array_write(
+                            array,
+                            offset.checked_add(index).ok_or(malformed())?,
+                            value,
+                        )
+                    }
+                    ByteSequenceBinding::MutableOwner { home, .. } => {
+                        self.byte_owner_bytes_mut(home)?.replace_byte(index, value)
+                    }
+                    ByteSequenceBinding::MutableField { field, .. } => {
+                        self.structural_byte_sequence_fields
+                            .get_mut(field)
+                            .ok_or(malformed())?
+                            .immutable_mut()?
+                            .replace_byte(index, value)?;
+                        self.invalidate_stored_provenance(&field.parent);
+                        Ok(())
+                    }
+                    _ => Err(malformed()),
+                }
             }
 
             fn byte_sequence_unsigned_operand(
@@ -4209,7 +4248,7 @@ pub(crate) mod element_views {
                     })
                 })
                 .or_else(|| {
-                    self.call_stack.iter().find_map(|frame| {
+                    self.call_stack.values().find_map(|frame| {
                         frame.element_view_values.iter().find_map(|(place, view)| {
                             frame
                                 .structural_values
@@ -5018,26 +5057,40 @@ pub(crate) mod element_views {
             {
                 return Err(malformed());
             }
+            self.write_element_view_scalar(&view, index, path, element)?;
+            Ok(OperationFlow::Advance)
+        }
+
+        pub(crate) fn write_element_view_scalar(
+            &mut self,
+            view: &ElementView,
+            index: usize,
+            path: &[StructuralPathSegment],
+            element: TerminalScalarValue,
+        ) -> Result<(), TerminalInterpretError> {
+            if view.access != StructuralAccess::MutableBorrow || index >= view.len() {
+                return Err(malformed());
+            }
             match &view.backing {
                 ElementViewBacking::SharedAggregate(_) => return Err(malformed()),
                 ElementViewBacking::ImmutableSequence(_) => return Err(malformed()),
                 ElementViewBacking::Typed(_) => self
-                    .write_typed_element(&view, index, path, element)
+                    .write_typed_element(view, index, path, element)
                     .map_err(|error| {
                         error.in_argument_preparation("write typed element backing")
                     })?,
                 ElementViewBacking::Structural { .. } => self
-                    .write_structural_element(&view, index, path, element)
+                    .write_structural_element(view, index, path, element)
                     .map_err(|error| {
                         error.in_argument_preparation("write structural element backing")
                     })?,
                 ElementViewBacking::Representation(_) => self
-                    .write_representation_element(&view, index, path, element)
+                    .write_representation_element(view, index, path, element)
                     .map_err(|error| {
                         error.in_argument_preparation("write representation element backing")
                     })?,
             }
-            Ok(OperationFlow::Advance)
+            Ok(())
         }
 
         pub(crate) fn execute_element_view_length(

@@ -250,6 +250,16 @@ pub(crate) mod frames {
             result: SuspendedCallResult,
             loan_completions: Vec<terminal_psi::LoanCompletion>,
         ) -> Result<&mut SuspendedCall, TerminalInterpretError> {
+            let caller = self.take_frame(result, loan_completions)?;
+            self.call_stack.push(caller);
+            self.call_stack.last_mut().ok_or(malformed())
+        }
+
+        pub(crate) fn take_frame(
+            &mut self,
+            result: SuspendedCallResult,
+            loan_completions: Vec<terminal_psi::LoanCompletion>,
+        ) -> Result<SuspendedCall, TerminalInterpretError> {
             let frame_storage = match self
                 .account
                 .as_ref()
@@ -262,7 +272,7 @@ pub(crate) mod frames {
                     return Err(TerminalInterpretError::Storage(error));
                 }
             };
-            self.call_stack.push(SuspendedCall {
+            Ok(SuspendedCall {
                 retired_structural_homes: std::mem::take(&mut self.retired_structural_homes),
                 access_view_occurrences: std::mem::take(&mut self.access_view_occurrences),
                 loan_completions,
@@ -281,8 +291,7 @@ pub(crate) mod frames {
                 next_operation: self.next_operation,
                 result,
                 _frame_storage: frame_storage,
-            });
-            self.call_stack.last_mut().ok_or(malformed())
+            })
         }
 
         pub(crate) fn consume_affine_call_argument(
@@ -480,7 +489,7 @@ pub(crate) mod frames {
             Ok(values)
         }
 
-        fn enter_call(
+        pub(crate) fn enter_call(
             &mut self,
             callee_id: MachineId,
             callee: &terminal_psi::TerminalMachine,
@@ -1094,7 +1103,10 @@ pub(crate) mod frames {
             assert!(inner.iter().all(|id| !outer.contains(id)));
             for (place, id) in [literal, local].into_iter().zip(outer) {
                 assert_eq!(
-                    execution.call_stack[0]
+                    execution
+                        .call_stack
+                        .get(0)
+                        .unwrap()
                         .structural_values
                         .get(&place)
                         .unwrap()
@@ -1403,7 +1415,7 @@ pub(crate) mod component_arguments {
                 namespace: self.local_structural_identities.exposure_namespace,
                 machine: self.current_machine,
                 block: self.current,
-                depth: self.call_stack.len(),
+                depth: self.call_stack.current(),
             }
         }
 
@@ -3550,6 +3562,14 @@ impl<'artifact> TerminalExecution<'artifact> {
         });
         let program = std::sync::Arc::clone(&self.program);
         let boundary_declaration = program.verified_boundary_machine(&boundary)?;
+        if let Some(terminal_psi::CheckedBoundaryExecution::OwnedActivation(control)) =
+            boundary_declaration
+                .declaration
+                .as_ref()
+                .map(|row| row.execution)
+        {
+            return self.execute_activation_call(operation, control, boundary_declaration);
+        }
         if boundary_declaration
             .declaration
             .as_ref()

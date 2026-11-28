@@ -385,11 +385,10 @@ impl DescriptorContentsQuery {
         if path.last() == Some(&DescriptorPathSegment::UnknownContents) {
             path.pop();
             let carrier = location_type(tip, &path, original)??;
-            return matches!(
-                terminal_psi::find_structural_type(types, carrier)?.shape,
-                StructuralTypeShape::TypeParameter
-            )
-            .then_some(Some(carrier));
+            return terminal_psi::find_structural_type(types, carrier)?
+                .shape
+                .carries_hidden_contents()
+                .then_some(Some(carrier));
         }
         location_type(tip, &path, original)
     }

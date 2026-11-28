@@ -104,17 +104,6 @@ impl BoundaryNamespace {
             {
                 return Err(refusal("boundary needs retained erased actual lanes"));
             }
-            let result_lifetimes = declarations
-                .ok_or_else(|| refusal("boundary lost its prepared source lifetime context"))?
-                .declared_result_lifetimes(
-                    context,
-                    &source.signature,
-                    &module.types.structural_types,
-                )
-                .map_err(refusal)?
-                .ok_or_else(|| {
-                    refusal("boundary result has an unresolved declared lifetime frontier")
-                })?;
             let result = match header.result {
                 TerminalMachineResult::Unit => BoundaryMachineResult::Unit,
                 TerminalMachineResult::Scalar(result) => {
@@ -200,6 +189,27 @@ impl BoundaryNamespace {
                 }
                 _ => CheckedBoundaryExecution::Provider,
             };
+            let result_lifetimes =
+                if terminal_semantics::calls::owned_activation::transfers_owner(execution) {
+                    // The checked case transfer preserves the original backing. A
+                    // general provider cannot describe the hidden owner as a result leaf.
+                    None
+                } else {
+                    Some(
+                        reader
+                            .declared_result_lifetimes(
+                                context,
+                                &source.signature,
+                                &module.types.structural_types,
+                            )
+                            .map_err(refusal)?
+                            .ok_or_else(|| {
+                                refusal(
+                                    "boundary result has an unresolved declared lifetime frontier",
+                                )
+                            })?,
+                    )
+                };
             let checked =
                 if execution.compiler_owned() {
                     let mut reach = Vec::new();
@@ -221,6 +231,7 @@ impl BoundaryNamespace {
                     crate::declare::boundary(
                         reader.typed,
                         source.source,
+                        &source.declaration,
                         execution,
                         &source.signature,
                         crate::declare::Published {
@@ -307,7 +318,7 @@ impl BoundaryNamespace {
                 structural_parameters: header.structural_parameters,
                 result,
                 result_reference_regions: Vec::new(),
-                result_lifetimes: Some(result_lifetimes),
+                result_lifetimes,
                 requires,
                 normal_qualifications: Vec::new(),
                 scalar_domain_requirements,

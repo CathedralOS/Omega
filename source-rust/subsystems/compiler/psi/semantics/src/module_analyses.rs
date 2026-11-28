@@ -73,9 +73,17 @@ fn body_calls_dynamically(body: &TerminalMachine) -> bool {
 }
 
 fn push_callees(row: &DescriptorMachine, pending: &mut Vec<MachineId>) {
-    for (_, call) in row.known_invocations() {
+    use crate::descriptor_lifetimes::ActivationAccess;
+    for (position, call) in row.known_invocations() {
+        if let Some(ActivationAccess::Step(worker)) = row.activation_access(*position, call.owner) {
+            pending.push(worker);
+            continue;
+        }
         match &call.target {
-            DescriptorInvocationTarget::Machine(callee) => pending.push(*callee),
+            DescriptorInvocationTarget::Machine(callee)
+            | DescriptorInvocationTarget::PrepareWorker { worker: callee, .. } => {
+                pending.push(*callee)
+            }
             DescriptorInvocationTarget::Public {
                 effects_machine,
                 realizations,

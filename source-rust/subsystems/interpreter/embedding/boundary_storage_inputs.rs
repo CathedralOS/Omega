@@ -1165,7 +1165,7 @@ pub(crate) mod original_residence {
                         stage: "resolve original frame-array identity",
                         detail: format!(
                             "depth {depth}, place {place:?}, type {structural_type:?}, current depth {}: {error:?}",
-                            self.call_stack.len()
+                            self.call_stack.current()
                         ),
                     })?;
                     Ok(TerminalStructuralValue::minted(

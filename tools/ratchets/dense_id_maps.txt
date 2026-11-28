@@ -59,7 +59,7 @@
 1 source-rust/subsystems/compiler/psi/semantics/src/descriptors/descriptor_results/provider_invocation.rs
 1 source-rust/subsystems/compiler/psi/semantics/src/descriptors/descriptor_results/terminal_flow.rs
 3 source-rust/subsystems/compiler/psi/semantics/src/descriptors/replay.rs
-5 source-rust/subsystems/compiler/psi/semantics/src/descriptors/replay/case_flow/values.rs
+4 source-rust/subsystems/compiler/psi/semantics/src/descriptors/replay/case_flow/values.rs
 2 source-rust/subsystems/compiler/psi/semantics/src/descriptors/replay/engine.rs
 1 source-rust/subsystems/compiler/psi/semantics/src/scalars/scalar_leaf_semantics.rs
 10 source-rust/subsystems/compiler/psi/semantics/src/storage/activation_storage/flow.rs
@@ -94,5 +94,5 @@
 2 source-rust/subsystems/interpreter/instructions/calls.rs
 5 source-rust/subsystems/interpreter/instructions/execution.rs
 3 source-rust/subsystems/interpreter/instructions/terminators.rs
-17 source-rust/subsystems/interpreter/memory/custody.rs
+16 source-rust/subsystems/interpreter/memory/custody.rs
 4 source-rust/subsystems/interpreter/memory/records_and_arrays.rs

@@ -575,6 +575,7 @@ impl<'t> Program<'t> {
                         }
                     }
                     StorageShape::Opaque
+                    | StorageShape::BorrowingOpaque { .. }
                     | StorageShape::TypeParameter(_)
                     | StorageShape::ByteSequence(_)
                     | StorageShape::Reference { .. }

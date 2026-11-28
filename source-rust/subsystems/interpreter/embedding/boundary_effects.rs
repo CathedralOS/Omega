@@ -2123,21 +2123,19 @@ pub(crate) mod byte_buffers {
                 crate::storage::byte_sequences::binding::ByteOwnerHome::Storage(coordinate)
             } else {
                 let frames = std::iter::once((
-                    self.call_stack.len(),
+                    self.call_stack.current(),
                     self.current_machine,
                     &self.structural_values,
                     &self.byte_sequence_values,
                 ))
-                .chain(self.call_stack.iter().enumerate().map(
-                    |(depth, frame)| {
-                        (
-                            depth,
-                            frame.current_machine,
-                            &frame.structural_values,
-                            &frame.byte_sequence_values,
-                        )
-                    },
-                ));
+                .chain(self.call_stack.stored().map(|(depth, frame)| {
+                    (
+                        depth,
+                        frame.current_machine,
+                        &frame.structural_values,
+                        &frame.byte_sequence_values,
+                    )
+                }));
                 let mut selected_home = None;
                 for (depth, machine, values, bindings) in frames {
                     for (place, value) in values {
@@ -3278,7 +3276,9 @@ pub(crate) mod results {
                 return true;
             };
             match &declaration.shape {
-                StructuralTypeShape::Reference { .. } | StructuralTypeShape::TypeParameter => {
+                StructuralTypeShape::Reference { .. }
+                | StructuralTypeShape::BorrowingOpaque { .. }
+                | StructuralTypeShape::TypeParameter => {
                     return true;
                 }
                 StructuralTypeShape::ByteSequence(_) | StructuralTypeShape::AtomicCell(_) => {
@@ -4247,7 +4247,7 @@ pub(crate) mod scalar_loans {
             };
             for (machine_id, values) in once((self.current_machine, &self.structural_values)).chain(
                 self.call_stack
-                    .iter()
+                    .values()
                     .map(|frame| (frame.current_machine, &frame.structural_values)),
             ) {
                 let machine = self.program.machine(machine_id)?;

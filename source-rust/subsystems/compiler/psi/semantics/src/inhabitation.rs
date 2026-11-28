@@ -631,6 +631,7 @@ impl TypeContracts for TerminalContracts<'_> {
             | StructuralTypeShape::ElementView { .. }
             | StructuralTypeShape::FixedArray { .. }
             | StructuralTypeShape::Opaque
+            | StructuralTypeShape::BorrowingOpaque { .. }
             | StructuralTypeShape::TypeParameter
             | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::ByteSequence(_)

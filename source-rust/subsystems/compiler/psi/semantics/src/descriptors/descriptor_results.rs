@@ -27,6 +27,7 @@ pub(crate) use semantic_vocabulary::ScalarTerm;
 pub(crate) use semantic_vocabulary::ValueId;
 pub(crate) mod contents;
 pub(crate) mod payload_entry;
+mod prepared_owner;
 pub(crate) use payload_entry::prove as prove_payload_predicate;
 pub(crate) mod payload_history;
 pub(crate) use payload_history::completed_payload_contract;
@@ -812,6 +813,13 @@ pub struct DescriptorInvocation {
 
 pub enum DescriptorInvocationTarget {
     Machine(MachineId),
+    /// Preparing this owner snapshots the sources of the worker's eventual
+    /// structural result. The worker has not run or produced effects at prepare.
+    PrepareWorker {
+        worker: MachineId,
+        results: Vec<DescriptorResultSlot>,
+        contents: Vec<DescriptorResultSlot>,
+    },
     Provider {
         results: Vec<DescriptorResultSlot>,
         effects: Vec<DescriptorStoredEffect>,
@@ -825,6 +833,17 @@ pub enum DescriptorInvocationTarget {
         contents: Vec<DescriptorResultSlot>,
         invalidates_contents: bool,
     },
+}
+
+impl DescriptorMachine {
+    pub(crate) fn activation_access(
+        &self,
+        position: DescriptorPosition,
+        owner: DescriptorInvocationOwner,
+    ) -> Option<crate::descriptor_lifetimes::ActivationAccess> {
+        let (operation, access) = self.flow.get(&position)?.activation_access?;
+        (owner == DescriptorInvocationOwner::Operation(operation)).then_some(access)
+    }
 }
 
 impl DescriptorInvocation {
@@ -911,6 +930,7 @@ impl DescriptorInvocation {
         match self.target {
             DescriptorInvocationTarget::Machine(machine) => Some(machine),
             DescriptorInvocationTarget::Public { .. }
+            | DescriptorInvocationTarget::PrepareWorker { .. }
             | DescriptorInvocationTarget::Provider { .. } => None,
         }
     }

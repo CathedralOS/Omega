@@ -237,16 +237,7 @@ impl Program<'_> {
         }) {
             return self.occurrence_regions(id, data, semantic);
         }
-        if !data.lifetime_parameters.is_empty() {
-            // A reference-valued type argument adds another region to the
-            // named regions. Keep refusing until both are represented.
-            return Err(refuse_at(
-                id,
-                Unserved::Type(
-                    "record occurrence with both declared regions and a borrowed type argument",
-                ),
-            ));
-        }
+        let declared = self.occurrence_regions(id, data, semantic)?;
         // The stored application may have been shared by occurrences at
         // different lifetimes. Read this occurrence's actual arguments.
         let TypeReferenceNode::Generic {
@@ -269,7 +260,7 @@ impl Program<'_> {
                 Unserved::Type("record occurrence lost its borrowed argument tuple"),
             ));
         }
-        let mut tuple = Vec::new();
+        let mut tuple = self.region_tuple(declared).to_vec();
         for ((binder, original), supplied) in application.substitutions.iter().zip(supplied) {
             if typed.symbols.get(*binder).parent != *base_symbol
                 || application.scope.type_identity(typed, *original)
@@ -280,44 +271,29 @@ impl Program<'_> {
                     Unserved::Type("record occurrence changed its template binder"),
                 ));
             }
-            if application
-                .scope
-                .region_free_type_identity(typed, *original)
-                .is_some()
-            {
-                if application
-                    .scope
-                    .region_free_type_identity(typed, *supplied)
-                    .is_none()
-                {
-                    return Err(refuse_at(
-                        id,
-                        Unserved::Type("record occurrence introduced a borrowed argument"),
-                    ));
-                }
-                continue;
-            }
-            // One slot can be substituted simultaneously at every field.
-            // Several region-bearing arguments need independent declaration-local
-            // slots even if their original concrete lifetimes coincide.
-            if !tuple.is_empty() {
+            let regions =
+                super::source_records::retained_regions(typed, &application.scope, *supplied)
+                    .ok_or_else(|| {
+                        refuse_at(
+                            id,
+                            Unserved::Type("record occurrence lost its borrow regions"),
+                        )
+                    })?;
+            let original =
+                super::source_records::retained_regions(typed, &application.scope, *original)
+                    .ok_or_else(|| {
+                        refuse_at(
+                            id,
+                            Unserved::Type("record template lost its borrow regions"),
+                        )
+                    })?;
+            if regions.len() != original.len() {
                 return Err(refuse_at(
                     id,
-                    Unserved::Type("record application with multiple borrowed type arguments"),
+                    Unserved::Type("record occurrence changed its borrowed argument tuple"),
                 ));
             }
-            let actual = super::source_records::retained_argument_region(
-                typed,
-                &application.scope,
-                *supplied,
-            )
-            .ok_or_else(|| {
-                refuse_at(
-                    id,
-                    Unserved::Type("record occurrence lost its borrow region"),
-                )
-            })?;
-            tuple.push(super::regions::Region::Parameter(actual));
+            tuple.extend(regions.into_iter().map(super::regions::Region::Parameter));
         }
         Ok(self.intern_regions(tuple))
     }
@@ -444,6 +420,7 @@ impl Program<'_> {
                 }
             }
             StorageShape::Opaque
+            | StorageShape::BorrowingOpaque { .. }
             | StorageShape::TypeParameter(_)
             | StorageShape::ByteSequence(_)
             | StorageShape::AtomicCell(_)
@@ -810,7 +787,13 @@ impl Program<'_> {
             return Err(unserved("copy data with an owned field"));
         }
         let shape = if data.supply_mode == language_core::DataSupplyMode::BoundaryOpaque {
-            crate::StorageShape::Opaque
+            match std::num::NonZeroU32::new(
+                u32::try_from(data.lifetime_parameters.len())
+                    .map_err(|_| unserved("opaque lifetime binder count exceeds u32"))?,
+            ) {
+                None => crate::StorageShape::Opaque,
+                Some(lifetime_count) => crate::StorageShape::BorrowingOpaque { lifetime_count },
+            }
         } else if case_types.is_empty() {
             crate::StorageShape::Record(declared)
         } else {
@@ -820,7 +803,14 @@ impl Program<'_> {
         // (`Index<Limit>` while `Limit` is rigid) makes the requires name that
         // input, so the record belongs to this checking machine like an array
         // sized by one.
-        let (bound, bound_owner) = self.application_values(id, symbol, application.as_ref())?;
+        // The application already retains and checks every static operand.
+        // Only a declaration predicate needs those operands as proof terms;
+        // a record indexed by an enum need not reinterpret it as an integer.
+        let (bound, bound_owner) = if data.requires_facts.is_empty() {
+            (Vec::new(), None)
+        } else {
+            self.application_values(id, symbol, application.as_ref())?
+        };
         let storage_owner = self.storage_constant_input_owner(id, &shape)?;
         let constant_input_owner = match (storage_owner, bound_owner) {
             (Some(left), Some(right)) if left != right => {
@@ -1861,7 +1851,7 @@ impl Program<'_> {
         };
         if matches!(
             self.data_type(id, record)?.shape,
-            crate::StorageShape::Opaque
+            crate::StorageShape::Opaque | crate::StorageShape::BorrowingOpaque { .. }
         ) {
             return Err(typing(
                 "opaque literal requires its checked representation and supplied contents",
@@ -2496,9 +2486,6 @@ fn record_shape_for(
         return unserved("opaque data with declared members");
     }
     if data.supply_mode == language_core::DataSupplyMode::BoundaryOpaque {
-        if !data.lifetime_parameters.is_empty() {
-            return unserved("opaque data without its retained lifetime obligations");
-        }
         if !data.requires_facts.is_empty() {
             return unserved("opaque data without its checked value predicates");
         }

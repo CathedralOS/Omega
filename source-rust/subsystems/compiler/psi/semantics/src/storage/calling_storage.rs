@@ -34,7 +34,7 @@ pub(crate) fn foreign_storage_extent_dependencies(
                 StructuralTypeShape::TypeParameter => {
                     return Err("a boundary value requires a specialized storage type".into());
                 }
-                StructuralTypeShape::Opaque => {
+                StructuralTypeShape::Opaque | StructuralTypeShape::BorrowingOpaque { .. } => {
                     return Err(
                         "opaque boundary value has no selected storage representation".into(),
                     );

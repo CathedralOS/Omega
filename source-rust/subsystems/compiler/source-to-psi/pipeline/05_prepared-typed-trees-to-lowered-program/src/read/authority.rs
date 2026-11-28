@@ -279,7 +279,7 @@ impl Program<'_> {
                 StorageShape::TypeParameter(_) => {
                     return unserved("zero initialization requires a specialized storage type");
                 }
-                StorageShape::Opaque => {
+                StorageShape::Opaque | StorageShape::BorrowingOpaque { .. } => {
                     return unserved("opaque initialization requires boundary-supplied contents");
                 }
                 StorageShape::Record(fields) => {

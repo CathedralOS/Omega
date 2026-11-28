@@ -670,7 +670,7 @@ pub(crate) mod byte_arrays {
                 depth: usize,
                 place: PlaceId,
             ) -> Option<&PackedScalarArrayValue> {
-                if depth == self.call_stack.len() {
+                if depth == self.call_stack.current() {
                     self.scalar_array_values.backing(&place)
                 } else {
                     self.call_stack
@@ -1199,7 +1199,7 @@ pub(crate) mod byte_arrays {
                 (
                     root,
                     ArrayStorageHome::Frame {
-                        depth: self.call_stack.len(),
+                        depth: self.call_stack.current(),
                         place,
                         structural_type: array.structural_type,
                     },
@@ -3187,6 +3187,7 @@ pub(crate) mod scalar_fields {
                     }
                 }
                 terminal_psi::sum_or_mixed_shape_pattern!()
+                | StructuralTypeShape::BorrowingOpaque { .. }
                 | StructuralTypeShape::TypeParameter
                 | StructuralTypeShape::Reference { .. }
                 | StructuralTypeShape::AtomicCell(_) => {
@@ -3216,6 +3217,7 @@ pub(crate) mod scalar_fields {
                 };
                 match &declaration.shape {
                     StructuralTypeShape::Reference { .. }
+                    | StructuralTypeShape::BorrowingOpaque { .. }
                     | StructuralTypeShape::TypeParameter
                     | StructuralTypeShape::AtomicCell(_) => {
                         return true;

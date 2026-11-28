@@ -145,6 +145,7 @@ impl Storage<'_> {
             // place. Neither grants owned access to hidden backing storage.
             StructuralTypeShape::AtomicCell(_)
             | StructuralTypeShape::Opaque
+            | StructuralTypeShape::BorrowingOpaque { .. }
             | StructuralTypeShape::TypeParameter
             | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::Reference { .. } => {

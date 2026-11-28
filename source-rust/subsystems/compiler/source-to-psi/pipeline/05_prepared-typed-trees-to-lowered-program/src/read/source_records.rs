@@ -63,22 +63,26 @@ enum SelectedMachine {
 
 /// The machine a static machine argument of a record application selects,
 /// when it has exactly the formals and result `required` declares once the
-/// application's arguments `bindings` stand for the declaration's binders.
+/// application's arguments stand for the declaration's binders in their supplying scopes.
 fn selected_sampler(
     typed: &crate::source_state::TypedTrees,
     required: &crate::source_state::signature::StateSignature,
     argument: TypeReferenceHandle,
-    bindings: &[(SymbolHandle, TypeReferenceHandle)],
+    signature_scope: &crate::source_state::SourceTypeScope,
 ) -> Result<SymbolHandle, SelectedMachine> {
     use SelectedMachine::{Rejected, Unserved};
-    let TypeReferenceNode::Named { symbol, .. } =
-        typed.type_reference_table.type_reference(argument)
-    else {
-        return Err(Unserved("record machine argument that names no machine"));
-    };
+    let selected = typed
+        .static_operand_from_type_reference(argument)
+        .map_err(Unserved)?;
+    if selected.application.is_some() || selected.evidence_projection.is_some() {
+        return Err(Unserved(
+            "record machine argument with an unapplied selection",
+        ));
+    }
+    let symbol = selected.symbol;
     let machine = (symbol.is_valid()
-        && typed.symbols.get(*symbol).kind == symbols::SymbolKind::Machine)
-        .then(|| typed.machine_by_symbol(*symbol))
+        && typed.symbols.get(symbol).kind == symbols::SymbolKind::Machine)
+        .then(|| typed.machine_by_symbol(symbol))
         .flatten()
         .ok_or(Unserved("record machine argument that names no machine"))?;
     if !typed.machine_type_parameters(machine).is_empty() {
@@ -89,12 +93,7 @@ fn selected_sampler(
         .first()
         .ok_or(Unserved("record machine argument without its entry"))?;
     let same = |selected: TypeReferenceHandle, declared: TypeReferenceHandle| {
-        let expected = typed.type_identity_with_simultaneous_substitutions(
-            crate::source_state::type_identity::TypeIdentityRequest {
-                substitutions: bindings,
-                ..crate::source_state::type_identity::TypeIdentityRequest::ordinary(declared)
-            },
-        );
+        let expected = signature_scope.type_identity(typed, declared);
         selected.is_valid()
             && declared.is_valid()
             && typed.normalized_type_identity(selected) == expected
@@ -138,6 +137,43 @@ fn selected_sampler(
     Ok(machine.symbol)
 }
 
+/// A supplied operation record must implement the exact trait application at this use.
+fn check_record_operations(
+    typed: &crate::source_state::TypedTrees,
+    mut required: crate::source_state::trait_definition::AppliedTraitScope<'_>,
+    receiving_scope: &crate::source_state::SourceTypeScope,
+    argument: &crate::source_state::SourceTypeApplication,
+) -> crate::source_state::static_operand_binding::Served<()> {
+    use crate::source_state::static_operand_binding::{require_static_record_schema, unserved};
+    let mut outer = Some(receiving_scope);
+    while let Some(frame) = outer {
+        if let Some((binder, _)) = frame.substitutions.first() {
+            let owner = typed.symbols.get(*binder).parent;
+            required = required
+                .under_invocation(typed, owner, owner, &frame.substitutions, &[])
+                .ok_or_else(|| unserved("record operation parameter lost its applied schema"))?;
+        }
+        outer = frame.parent.as_deref();
+    }
+    let TypeReferenceNode::Named { symbol, .. } = typed
+        .type_reference_table
+        .type_reference(argument.reference)
+    else {
+        return Err(unserved(
+            "record operation argument needs its exact named value",
+        ));
+    };
+    require_static_record_schema(typed, &required, *symbol)?;
+    if typed.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter
+        && !argument.scope.admits_argument(typed, argument.reference)
+    {
+        return Err(unserved(
+            "record operation argument has an unresolved supplying binder",
+        ));
+    }
+    Ok(())
+}
+
 pub(super) fn source_application(
     typed: &crate::source_state::TypedTrees,
     data: &DataDefinition,
@@ -157,7 +193,7 @@ pub(super) fn source_application_in_scope(
     checked_source_application(typed, data, reference, machine, scope, false)
 }
 
-/// The storage reader retains the region of a directly substituted type argument.
+/// The storage reader keeps the region of each substituted borrow.
 /// Other callers use the region-free entrance above for nominal equations.
 fn checked_source_application(
     typed: &crate::source_state::TypedTrees,
@@ -278,6 +314,15 @@ fn checked_source_application(
             ));
         }
         let mut binders = Vec::with_capacity(parameters.len());
+        let signature_scope = || crate::source_state::SourceTypeScope {
+            parent: Some(scope.clone()),
+            substitutions: parameters
+                .iter()
+                .zip(arguments)
+                .map(|(parameter, argument)| (parameter.symbol, *argument))
+                .collect(),
+            rigid_parameters: Vec::new(),
+        };
         for (parameter, argument) in parameters.iter().zip(arguments) {
             if !parameter.symbol.is_valid()
                 || typed.symbols.get(parameter.symbol).parent != template.symbol
@@ -331,14 +376,23 @@ fn checked_source_application(
                     contract:
                         crate::source_state::data::MachineParameterContract::Structural(required),
                 } => {
-                    let bindings = parameters
-                        .iter()
-                        .zip(arguments)
-                        .map(|(parameter, argument)| (parameter.symbol, *argument))
-                        .collect::<Vec<_>>();
-                    selected_sampler(typed, required, *argument, &bindings).map_err(|stop| {
-                        match stop {
-                            SelectedMachine::Unserved(what) => unavailable(what),
+                    let supplied = scope
+                        .supplied_type_reference(typed, *argument)
+                        .map_err(|why| malformed(machine, why))?;
+                    selected_sampler(typed, required, supplied.reference, &signature_scope())
+                        .map_err(|stop| match stop {
+                            SelectedMachine::Unserved(what) => {
+                                let mut refusal = unavailable(what);
+                                refusal.detail.push_str(&format!(
+                                    " `{}` for parameter `{}` of `{}`",
+                                    typed.display_type_reference_with_constraints(
+                                        supplied.reference
+                                    ),
+                                    parameter.name.as_str(),
+                                    template.name.as_str(),
+                                ));
+                                refusal
+                            }
                             SelectedMachine::Rejected(rule) => crate::reject(
                                 machine,
                                 crate::SourceOrigin::of(
@@ -349,14 +403,40 @@ fn checked_source_application(
                                 ),
                                 rule,
                             ),
-                        }
-                    })?;
+                        })?;
                     binders.push(parameter.symbol);
                     substitutions.push((parameter.symbol, *argument));
                     continue;
                 }
                 &TypeParameterKind::Const { type_reference }
                 | &TypeParameterKind::Value { type_reference } => {
+                    if matches!(parameter.kind, TypeParameterKind::Const { .. })
+                        && let Some(required) =
+                            typed.static_record_schema(type_reference, template.symbol)
+                    {
+                        let supplied = scope
+                            .supplied_type_reference(typed, *argument)
+                            .map_err(|why| malformed(machine, why))?;
+                        use crate::source_state::static_operand_binding::Stop;
+                        check_record_operations(typed, required, &signature_scope(), &supplied)
+                            .map_err(|stop| match stop {
+                                Stop::Rejected(reason) => crate::reject(
+                                    machine,
+                                    crate::SourceOrigin::of(
+                                        typed
+                                            .symbols
+                                            .symbol_source_span(parameter.symbol)
+                                            .unwrap_or_default(),
+                                    ),
+                                    reason,
+                                ),
+                                Stop::Unserved(reason) => super::unavailable(machine, reason),
+                                Stop::Defect(reason) => malformed(machine, reason),
+                            })?;
+                        binders.push(parameter.symbol);
+                        substitutions.push((parameter.symbol, *argument));
+                        continue;
+                    }
                     let carrier = match typed.type_reference_table.type_reference(type_reference) {
                         TypeReferenceNode::Named { symbol, .. } => {
                             match typed.symbols.builtin_type_atom(*symbol) {
@@ -444,8 +524,7 @@ fn checked_source_application(
                 return Err(refusal);
             }
             if scope.region_free_type_identity(typed, *argument).is_none()
-                && !(borrowed_storage
-                    && retained_argument_region(typed, &scope, *argument).is_some())
+                && !(borrowed_storage && retained_regions(typed, &scope, *argument).is_some())
             {
                 return Err(unavailable(
                     "record application whose reference regions are not retained",
@@ -497,65 +576,8 @@ fn checked_source_application(
     })
 }
 
-/// A type argument can supply one region directly, through a reference or a
-/// named data type. Its other components must be region-free so this slot
-/// accounts for every lifetime that field substitution must preserve.
-pub(super) fn retained_argument_region(
-    typed: &crate::source_state::TypedTrees,
-    scope: &std::sync::Arc<crate::source_state::SourceTypeScope>,
-    reference: TypeReferenceHandle,
-) -> Option<crate::source_state::type_identity::LifetimeParameterIdentity> {
-    use crate::source_state::type_identity::{
-        lifetime_parameter_identity, lifetime_parameter_name,
-    };
-    let table = &typed.type_reference_table;
-    let (tag, children) = match table.type_reference(reference) {
-        TypeReferenceNode::Reference {
-            referee,
-            lifetime: Some(tag),
-            ..
-        } => (tag, std::slice::from_ref(referee)),
-        TypeReferenceNode::Generic {
-            base_symbol,
-            lifetime_arguments,
-            arguments,
-            ..
-        } => {
-            let [tag] = lifetime_arguments.as_slice() else {
-                return None;
-            };
-            let declaration = typed.unique_data_definition_by_symbol(*base_symbol)?;
-            if declaration.lifetime_parameters.len() != 1
-                || typed.data_type_parameters(declaration).len() != arguments.len()
-            {
-                return None;
-            }
-            (tag, table.type_reference_handles(*arguments))
-        }
-        _ => return None,
-    };
-    for child in children {
-        let supplied = scope.supplied_type_reference(typed, *child).ok()?;
-        if !crate::source_state::domain::index_argument_is_closed(typed, supplied.reference) {
-            return None;
-        }
-        supplied
-            .scope
-            .region_free_type_identity(typed, supplied.reference)?;
-    }
-    let owner = table.operand_lifetime_owner(reference);
-    let parameter = match table.operand_lifetimes(reference) {
-        [parameter] if parameter.declaration.is_valid() => *parameter,
-        [] if owner.is_valid() => lifetime_parameter_identity(typed, owner, tag.as_str())?,
-        _ => return None,
-    };
-    if owner.is_valid()
-        && lifetime_parameter_identity(typed, owner, tag.as_str()) != Some(parameter)
-    {
-        return None;
-    }
-    (lifetime_parameter_name(typed, parameter)?.as_str() == tag.as_str()).then_some(parameter)
-}
+mod application_regions;
+pub(super) use application_regions::retained_regions;
 
 fn validate_applied_members(
     typed: &crate::source_state::TypedTrees,
@@ -573,33 +595,30 @@ fn validate_applied_members(
     let has_borrow = substitutions
         .iter()
         .any(|(_, argument)| scope.region_free_type_identity(typed, *argument).is_none());
-    let applied_scope = has_borrow.then(|| crate::source_state::SourceTypeScope {
-        substitutions: substitutions.to_vec(),
-        parent: Some(scope.clone()),
-        rigid_parameters: Vec::new(),
+    let applied_scope = has_borrow.then(|| {
+        std::sync::Arc::new(crate::source_state::SourceTypeScope {
+            substitutions: substitutions.to_vec(),
+            parent: Some(scope.clone()),
+            rigid_parameters: Vec::new(),
+        })
     });
     let same_regions = |expected, actual| {
         let Some(applied_scope) = &applied_scope else {
             return true;
         };
-        if applied_scope
-            .region_free_type_identity(typed, expected)
-            .is_some()
-        {
-            return scope.region_free_type_identity(typed, actual).is_some();
-        }
-        // The selected field must carry the same region as the type argument
-        // substituted for this template parameter.
-        let TypeReferenceNode::Named { symbol, .. } =
-            typed.type_reference_table.type_reference(expected)
-        else {
+        let Some(expected) = retained_regions(typed, applied_scope, expected) else {
             return false;
         };
-        substitutions
-            .iter()
-            .find(|(binder, _)| binder == symbol)
-            .and_then(|(_, argument)| retained_argument_region(typed, scope, *argument))
-            .is_some_and(|region| retained_argument_region(typed, scope, actual) == Some(region))
+        let Some(actual) = retained_regions(typed, scope, actual) else {
+            return false;
+        };
+        expected.len() == actual.len()
+            && expected.iter().zip(actual).all(|(before, after)| {
+                *before == after
+                    || (before.declaration == template.symbol
+                        && after.declaration == selected.symbol
+                        && before.ordinal == after.ordinal)
+            })
     };
     let same_field = |expected: &DataField, actual: &DataField, owner| {
         typed.data_constructor_field(reference, template.symbol, expected.symbol) == Some(actual)
@@ -2010,6 +2029,72 @@ mod tests {
         assert_ne!(
             program.record_at(machine(), first).unwrap(),
             program.record_at(machine(), third).unwrap()
+        );
+    }
+
+    #[test]
+    fn nested_record_application_keeps_the_region_owner_at_each_borrow() {
+        use crate::source_state::type_identity::LifetimeParameterIdentity;
+        use crate::source_symbols::SymbolTableBuilder;
+        use symbols::{SymbolKind, SymbolNameRef};
+        let mut fixture = AppliedFixture::new(Default::default());
+        let typed = &mut fixture.typed;
+        let root = typed.symbols.get(fixture.template.symbol).parent;
+        let mut owners = SymbolTableBuilder::child_handles(typed.symbols.append_children(
+            root,
+            [
+                (SymbolKind::Data, SymbolNameRef::Static("Left")),
+                (SymbolKind::Data, SymbolNameRef::Static("Right")),
+            ],
+        ));
+        let left = owners.next().unwrap();
+        let right = owners.next().unwrap();
+        let mut borrow = |owner| {
+            typed.push_data_definition(DataDefinition {
+                symbol: owner,
+                name: typed.symbols.name(owner).into(),
+                lifetime_parameters: vec!["value".into()],
+                ..Default::default()
+            });
+            let reference = typed
+                .type_reference_table
+                .insert(TypeReferenceNode::Reference {
+                    referee: fixture.u32_type,
+                    access: language_core::ReferenceAccess::Shared,
+                    lifetime: Some("value".into()),
+                });
+            typed
+                .type_reference_table
+                .retain_operand_lifetime_owner(reference, owner)
+                .unwrap();
+            reference
+        };
+        let first = borrow(left);
+        let second = borrow(right);
+        let nested = fixture.apply(first, first);
+        let pair = fixture.apply(nested, nested);
+        let expected = vec![LifetimeParameterIdentity {
+            declaration: left,
+            ordinal: 0,
+        }];
+        assert_eq!(
+            retained_regions(&fixture.typed, &Default::default(), pair),
+            Some(expected)
+        );
+        let wrong = fixture.apply(first, second);
+        let data = fixture.typed.data_application_definition(wrong).unwrap();
+        let refusal = checked_source_application(
+            &fixture.typed,
+            data,
+            wrong,
+            machine(),
+            Default::default(),
+            true,
+        )
+        .unwrap_err();
+        assert!(
+            refusal.detail.contains("substituted member roster"),
+            "{refusal:?}"
         );
     }
 

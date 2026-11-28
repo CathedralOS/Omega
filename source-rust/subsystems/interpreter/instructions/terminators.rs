@@ -1680,6 +1680,17 @@ pub(crate) mod completion {
     use crate::engine::execution::FailedReturn;
     use terminal_psi::TerminalAffineCleanupAction;
 
+    pub(crate) enum ReturnDestination<'a> {
+        Unit,
+        Scalar(ValueId),
+        Structural {
+            result: &'a terminal_psi::StructuralOperationResult,
+            profile_completion:
+                Option<&'a crate::storage::provider_storage::profiles::PendingResourceProfile>,
+            opened_owner: Option<semantic_vocabulary::CallableContractId>,
+        },
+    }
+
     impl TerminalExecution<'_> {
         pub(crate) fn reject_no_normal_return(&self) -> Result<(), TerminalInterpretError> {
             if let Some(SuspendedCall {
@@ -1783,7 +1794,10 @@ pub(crate) mod completion {
             }
         }
 
-        fn restore_return_caller(&mut self, caller: SuspendedCall) -> SuspendedCallResult {
+        pub(crate) fn restore_return_caller(
+            &mut self,
+            caller: SuspendedCall,
+        ) -> SuspendedCallResult {
             self.retired_structural_homes = caller.retired_structural_homes;
             self.access_view_occurrences = caller.access_view_occurrences;
             self.values = caller.values;
@@ -1813,6 +1827,9 @@ pub(crate) mod completion {
                     _loan_completions: Vec::new(),
                 });
                 return Err(error);
+            }
+            if self.returning_owned_activation() {
+                return self.finish_owned_activation(completed);
             }
             let Some(mut caller) = self.call_stack.pop() else {
                 if completed.destination.is_some() {
@@ -1872,53 +1889,65 @@ pub(crate) mod completion {
             expected: &SuspendedCallResult,
             loan_completions: &[terminal_psi::LoanCompletion],
         ) -> Result<(), TerminalInterpretError> {
-            if let SuspendedCallResult::NoNormal { callee, edge } = expected {
-                return Err(TerminalInterpretError::NoNormalInvocationReturned {
-                    callee: *callee,
-                    edge: *edge,
-                });
-            }
-            if let SuspendedCallResult::ExternalCompletion { boundary, edge } = expected {
-                return Err(TerminalInterpretError::ExternalCompletionProviderReturned {
-                    boundary: *boundary,
-                    edge: *edge,
-                });
-            }
-            if let Some(claims) = completed.rebound_claims.take() {
-                self.live_claims = claims;
-            }
-            self.complete_loan_custody(loan_completions)?;
-            match expected {
+            let destination = match expected {
                 SuspendedCallResult::NoNormal { callee, edge } => {
-                    Err(TerminalInterpretError::NoNormalInvocationReturned {
+                    return Err(TerminalInterpretError::NoNormalInvocationReturned {
                         callee: *callee,
                         edge: *edge,
-                    })
+                    });
                 }
                 SuspendedCallResult::ExternalCompletion { boundary, edge } => {
-                    Err(TerminalInterpretError::ExternalCompletionProviderReturned {
+                    return Err(TerminalInterpretError::ExternalCompletionProviderReturned {
                         boundary: *boundary,
                         edge: *edge,
-                    })
+                    });
                 }
                 SuspendedCallResult::Unit | SuspendedCallResult::OwnedCleanups { .. } => {
-                    if completed.value != TerminalExecutionResult::Unit {
-                        return Err(malformed());
-                    }
-                    Ok(())
+                    ReturnDestination::Unit
                 }
-                SuspendedCallResult::Scalar(destination) => {
-                    let TerminalExecutionResult::Scalar(value) = &completed.value else {
-                        return Err(malformed());
-                    };
-                    self.values.insert(*destination, *value)?;
-                    self.observe_completed_entry_result(*destination)
-                }
+                SuspendedCallResult::Scalar(id) => ReturnDestination::Scalar(*id),
                 SuspendedCallResult::Structural {
                     result,
                     profile_completion,
                     opened_owner,
                     ..
+                } => ReturnDestination::Structural {
+                    result,
+                    profile_completion: profile_completion.as_ref(),
+                    opened_owner: *opened_owner,
+                },
+            };
+            self.install_completed_value(completed, destination, loan_completions)
+        }
+
+        pub(crate) fn install_completed_value(
+            &mut self,
+            completed: &mut CompletedReturn,
+            destination: ReturnDestination<'_>,
+            loan_completions: &[terminal_psi::LoanCompletion],
+        ) -> Result<(), TerminalInterpretError> {
+            if let Some(claims) = completed.rebound_claims.take() {
+                self.live_claims = claims;
+            }
+            self.complete_loan_custody(loan_completions)?;
+            match destination {
+                ReturnDestination::Unit => {
+                    if completed.value != TerminalExecutionResult::Unit {
+                        return Err(malformed());
+                    }
+                    Ok(())
+                }
+                ReturnDestination::Scalar(destination) => {
+                    let TerminalExecutionResult::Scalar(value) = &completed.value else {
+                        return Err(malformed());
+                    };
+                    self.values.insert(destination, *value)?;
+                    self.observe_completed_entry_result(destination)
+                }
+                ReturnDestination::Structural {
+                    result,
+                    profile_completion,
+                    opened_owner,
                 } => {
                     if completed.destination.as_ref() != Some(result) {
                         return Err(malformed());
@@ -2160,6 +2189,14 @@ pub(crate) mod structural_return {
     use terminal_semantics::normal_completion::structural_return_carrier_matches;
 
     impl TerminalExecution<'_> {
+        // A prepared worker returns into its ActivationStep case, while
+        // ordinary nested calls retain their own declared return destinations.
+        fn ordinary_return_caller(&self) -> Option<&SuspendedCall> {
+            self.call_stack
+                .last()
+                .filter(|_| !self.returning_owned_activation())
+        }
+
         pub(crate) fn settle_return_structural(
             &mut self,
             terminator: &Terminator,
@@ -2194,7 +2231,7 @@ pub(crate) mod structural_return {
             {
                 return Err(malformed());
             }
-            let destination = match self.call_stack.last() {
+            let destination = match self.ordinary_return_caller() {
                 Some(SuspendedCall {
                     structural_values,
                     scalar_array_values,
@@ -2289,7 +2326,7 @@ pub(crate) mod structural_return {
                             ..
                         },
                     ..
-                }) = self.call_stack.last()
+                }) = self.ordinary_return_caller()
                 {
                     for row in preserved_projected_qualifications {
                         if crate::boundary::structural_inputs::case_membership::case_projection_in_value_is_active(
@@ -2309,7 +2346,7 @@ pub(crate) mod structural_return {
                             ..
                         },
                     ..
-                }) = self.call_stack.last()
+                }) = self.ordinary_return_caller()
                 {
                     let mut receiving = Vec::new();
                     for row in &result.projected_qualifications {
@@ -2447,7 +2484,7 @@ pub(crate) mod structural_return {
                         },
                     );
                 }
-                let rebound_claims = match self.call_stack.last() {
+                let rebound_claims = match self.ordinary_return_caller() {
                     Some(SuspendedCall {
                         live_claims,
                         result:
@@ -2465,7 +2502,7 @@ pub(crate) mod structural_return {
                                 self.active_structural_claims(*source, &result.claims)?;
                             rebind_structural_result_claims(
                                 live_claims,
-                                &self.live_claims,
+                                |id| self.live_claims.get(&id),
                                 *source,
                                 &active_result,
                                 &active_returned_claims,
@@ -2484,7 +2521,7 @@ pub(crate) mod structural_return {
                             ..
                         },
                     ..
-                }) = self.call_stack.last()
+                }) = self.ordinary_return_caller()
                 {
                     let mut active = Vec::new();
                     for row in &result.projected_qualifications {

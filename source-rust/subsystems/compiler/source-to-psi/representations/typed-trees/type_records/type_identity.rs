@@ -582,14 +582,26 @@ pub(crate) mod callable_identity {
             // a captured region absent from the inputs could look universal.
             let lifetime_owner = self.lifetime_declaration_owner(machine.symbol);
             let declared = super::declaration_lifetime_parameters(self, lifetime_owner)?.len();
+            let formals = self.executable_lifetime_parameters(machine.symbol);
+            let mut regions = application.resolved_lifetimes.to_vec();
+            for formal in formals.iter().skip(declared) {
+                regions.push((
+                    *formal,
+                    super::LifetimeParameterIdentity {
+                        declaration: lifetime_owner,
+                        ordinal: formal.ordinal,
+                    },
+                ));
+            }
             self.signature_definition_types(
                 super::callable_type_binders(machine.symbol, self.machine_type_parameters(machine)),
                 (machine.symbol, entry.symbol),
-                &[(lifetime_owner, declared)],
+                &[(lifetime_owner, formals.len())],
                 self.state_parameters(entry),
                 entry.return_type,
                 &super::identity_context::TypeIdentityContext {
                     application_argument_owner: machine.symbol,
+                    resolved_lifetimes: &regions,
                     ..application
                 },
             )
@@ -2212,15 +2224,7 @@ pub(crate) mod identity_context {
         }
     }
 
-    pub(crate) fn schema_region(ordinal: usize) -> String {
-        compound(
-            RegionForm::Region,
-            [
-                atom(Label::Owner, "schema"),
-                atom(Label::Ordinal, &ordinal.to_string()),
-            ],
-        )
-    }
+    use application_identity::type_identity::schema_region;
 
     #[derive(Clone, Copy, Default)]
     pub(crate) enum SubstitutionSemantics {
@@ -3877,6 +3881,17 @@ pub(crate) mod lifetime_parameters {
         name: &str,
     ) -> Option<LifetimeParameterIdentity> {
         let mut owner = program.lifetime_declaration_owner(lexical_owner);
+        if lexical_owner != owner
+            && let Some(machine) = program.machine_by_symbol(lexical_owner)
+            && let Some(declared) = declaration_lifetime_parameters(program, owner)
+            && let Some(extra) = machine.lifetime_parameters.get(declared.len()..)
+            && let Some(slot) = extra.iter().position(|formal| formal.as_str() == name)
+        {
+            return Some(LifetimeParameterIdentity {
+                declaration: lexical_owner,
+                ordinal: declared.len() + slot,
+            });
+        }
         while owner.is_valid() {
             let parameters = declaration_lifetime_parameters(program, owner);
             if let Some(ordinal) = parameters.and_then(|parameters| {

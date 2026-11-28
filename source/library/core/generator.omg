@@ -1,0 +1,69 @@
+use activation.omg;
+use option.omg;
+use reply.omg;
+
+public data Decision [copy] {
+    case Continue;
+    case Stop;
+}
+
+// A transport holds one item until its receiver takes it. Taking from an
+// empty endpoint returns None. Publishing transfers ownership of the item.
+public trait Transport<Endpoint, Item> {
+    machine publish(endpoint: @Endpoint, item: Item) reaches none crashes none;
+    machine take(endpoint: @Endpoint) -> |option|::Optional<Item> reaches none crashes none;
+}
+
+public data Slot<Endpoint> {
+    reply: |reply|::ReplySlot;
+    endpoint: Endpoint;
+}
+
+public data Emitter<'slot, Endpoint, Item, const Ops: Transport<Endpoint, Item>> {
+    endpoint: @'slot Endpoint;
+    request: |reply|::Publication<'slot> in |reply|::Issued<|reply|::RequestRole, Decision>;
+}
+public data Receiver<'slot, Endpoint, Item, const Ops: Transport<Endpoint, Item>> {
+    endpoint: @'slot Endpoint;
+    permit: |reply|::Publication<'slot> in |reply|::Issued<|reply|::AnswerRole, Decision>;
+}
+public data Pair<'slot, Endpoint, Item, const Ops: Transport<Endpoint, Item>> {
+    emitter: Emitter<'slot, Endpoint, Item, Ops>;
+    receiver: Receiver<'slot, Endpoint, Item, Ops>;
+}
+
+// Both ends borrow the same endpoint and select the same transport. The
+// exclusive borrow of the reply slot lasts until both reply halves settle.
+public machine open<'slot, Endpoint, Item, const Ops: Transport<Endpoint, Item>>(
+    slot: @'slot mutable Slot<Endpoint>
+) -> Pair<'slot, Endpoint, Item, Ops> reaches none crashes none {
+    let halves: |reply|::ReplyPair<'slot, Decision> = |reply|::new_reply_pair::<Decision>(@mutable slot.reply);
+    Pair {
+        emitter: Emitter { endpoint: @slot.endpoint, request: move halves.request },
+        receiver: Receiver { endpoint: @slot.endpoint, permit: move halves.permit }
+    }
+}
+
+public machine emit<'slot, Endpoint, Item, const Ops: Transport<Endpoint, Item>>(
+    emitter: Emitter<'slot, Endpoint, Item, Ops>, item: Item
+) -> Decision reaches none crashes none suspends {
+    Ops::publish(emitter.endpoint, move item);
+    suspend |activation|::park::<Decision>(move emitter.request)
+}
+
+public data Reception<'slot, Endpoint, Item, const Ops: Transport<Endpoint, Item>> {
+    case Pending(receiver: Receiver<'slot, Endpoint, Item, Ops>);
+    case Received(item: Item, permit: |reply|::Publication<'slot> in |reply|::Issued<|reply|::AnswerRole, Decision>);
+}
+
+// A worker can park for another reason before it emits. Its receiver keeps
+// the answer permit until this endpoint has actually supplied an item.
+public machine try_receive<'slot, Endpoint, Item, const Ops: Transport<Endpoint, Item>>(
+    receiver: Receiver<'slot, Endpoint, Item, Ops>
+) -> Reception<'slot, Endpoint, Item, Ops> reaches none crashes none {
+    let taken: |option|::Optional<Item> = Ops::take(receiver.endpoint);
+    match taken {
+        |option|::Optional::None -> Reception::Pending { receiver: move receiver },
+        |option|::Optional::Some { value } -> Reception::Received { item: move value, permit: move receiver.permit }
+    }
+}

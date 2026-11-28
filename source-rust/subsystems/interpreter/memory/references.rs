@@ -4468,17 +4468,24 @@ impl TerminalExecution<'_> {
                 Ok(())
             };
         }
-        let expected_reference_backings = match self.call_stack.last() {
-            Some(SuspendedCall {
-                result:
-                    SuspendedCallResult::Structural {
-                        expected_reference_backings,
-                        ..
-                    },
-                ..
-            }) => expected_reference_backings,
-            Some(_) => return Err(malformed()),
-            None => {
+        let owned = self
+            .owned_activations
+            .result_backings(self.call_stack.current());
+        let expected_reference_backings = match (owned, self.call_stack.last()) {
+            (Some(backings), _) => backings,
+            (
+                None,
+                Some(SuspendedCall {
+                    result:
+                        SuspendedCallResult::Structural {
+                            expected_reference_backings,
+                            ..
+                        },
+                    ..
+                }),
+            ) => expected_reference_backings.as_slice(),
+            (None, Some(_)) => return Err(malformed()),
+            (None, None) => {
                 &self
                     .entry_reference_backings
                     .as_ref()

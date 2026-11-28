@@ -396,6 +396,9 @@ pub struct RecordCleanup {
 pub enum StorageShape {
     /// Boundary-supplied contents have nominal identity but no authored fields.
     Opaque,
+    BorrowingOpaque {
+        lifetime_count: std::num::NonZeroU32,
+    },
     /// Runtime storage of a rigid type parameter, not its logical type witness.
     /// Whole transport preserves its unknown contents; no layout follows.
     TypeParameter(terminal_check_tables::values::RigidType),

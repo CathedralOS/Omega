@@ -163,12 +163,23 @@ impl CallableApplication {
     }
 
     pub(super) fn scoped_lifetime(
-        &self,
+        &mut self,
         program: &TypedTrees,
         reference: types::TypeReferenceHandle,
         slot: usize,
         original: &crate::source_state::name::Identifier,
     ) -> Result<ScopedCallableLifetime, &'static str> {
+        if let Some(site) = self.specialized_regions.front()
+            && site.reference == reference
+            && site.slot == slot
+        {
+            let site = self.specialized_regions.pop_front().unwrap();
+            return Ok(ScopedCallableLifetime {
+                name: site.name,
+                region: site.region,
+                origin: CallableLifetimeOrigin::Specialized,
+            });
+        }
         if let Some(region) = program
             .type_reference_table
             .operand_lifetimes(reference)

@@ -880,7 +880,7 @@ pub(crate) mod instance {
             if !execution.access_view_occurrences.is_empty()
                 || execution
                     .call_stack
-                    .iter()
+                    .values()
                     .any(|frame| !frame.access_view_occurrences.is_empty())
             {
                 return Err(
@@ -1225,7 +1225,7 @@ pub(crate) mod instance {
             use terminal_psi::CallSite;
 
             self.execution.iter().flat_map(|frame| {
-                frame.call_stack.iter().rev().filter_map(|caller| {
+                frame.call_stack.callers().filter_map(|caller| {
                     let site = match caller.result {
                         SuspendedCallResult::NoNormal { edge, .. }
                         | SuspendedCallResult::ExternalCompletion { edge, .. } => {
@@ -1859,6 +1859,7 @@ pub(crate) mod program {
         /// The declaration-dependent part of every primitive store, prepared
         /// for the whole program the first time one runs.
         primitive_stores: std::sync::OnceLock<Vec<PreparedPrimitiveStore>>,
+        pub(crate) park_sites: crate::activation::ParkSites,
         /// Which declared types hold claims, prepared for this exact view the
         /// first time an owned value's claims are checked.
         claim_roster: std::sync::OnceLock<
@@ -1953,6 +1954,7 @@ pub(crate) mod program {
                 memberships: std::sync::OnceLock::new(),
                 package_sites: std::sync::OnceLock::new(),
                 primitive_stores: std::sync::OnceLock::new(),
+                park_sites: Default::default(),
                 claim_roster: std::sync::OnceLock::new(),
             }
         }

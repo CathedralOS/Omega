@@ -9,6 +9,7 @@ use crate::descriptors::descriptor_results::*;
 use crate::exactly_one::exactly_one;
 
 mod input_contents;
+pub(crate) use input_contents::{retained_input_debts, retained_parameter_debts};
 mod location_map;
 use location_map::LocationMap;
 
@@ -61,6 +62,26 @@ pub struct DescriptorResultContents {
     pub(crate) case_facts: case_flow::ResultCases,
 }
 
+/// Only a checked preparation associates a private, caller-supplied stack
+/// with an execution owner. Its address becomes available on normal return.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ActivationBacking<Source> {
+    pub(crate) preparation: semantic_vocabulary::BoundaryMachineId,
+    pub(crate) sources: Vec<Source>,
+    pub(crate) worker_result: BTreeMap<Vec<DescriptorPathSegment>, Vec<Source>>,
+}
+
+/// A helper stepping an incoming owner can return its original stack. Keep the
+/// query until the helper's caller supplies that particular preparation packet.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct OwnerBacking<Source> {
+    pub(crate) preparation: semantic_vocabulary::BoundaryMachineId,
+    pub(crate) owner: Box<Source>,
+    /// None selects the retained stack. A path selects an input-backed worker result.
+    pub(crate) worker_result: Option<Vec<DescriptorPathSegment>>,
+    pub(crate) projection: Projection,
+}
+
 /// The owned contents supplied by a completed call whose result type is
 /// still generic. The producing call and field identify the value without
 /// giving the caller a reference to its hidden backing.
@@ -70,18 +91,21 @@ pub struct ProducedContents<Dependency> {
     pub(crate) path: Vec<DescriptorPathSegment>,
     pub(crate) structural_type: StructuralTypeId,
     pub(crate) lifetime_dependencies: Vec<DescriptorLifetimeDebt<Dependency>>,
+    pub(crate) activation_backing: Option<ActivationBacking<Dependency>>,
 }
 
 impl<Dependency> ProducedContents<Dependency> {
-    fn with_dependencies<Mapped>(
+    fn with_mapped_sources<Mapped>(
         &self,
         lifetime_dependencies: Vec<DescriptorLifetimeDebt<Mapped>>,
+        activation_backing: Option<ActivationBacking<Mapped>>,
     ) -> ProducedContents<Mapped> {
         ProducedContents {
             producer: self.producer.clone(),
             path: self.path.clone(),
             structural_type: self.structural_type,
             lifetime_dependencies,
+            activation_backing,
         }
     }
 }
@@ -126,6 +150,7 @@ pub enum DescriptorStoredOrigin {
         projection: Projection,
     },
     ProducedContents(ProducedContents<DescriptorStoredOrigin>),
+    OwnerBacking(OwnerBacking<DescriptorStoredOrigin>),
     Literal {
         machine: MachineId,
         place: PlaceId,
@@ -276,7 +301,7 @@ fn may_contain_descriptor(
         StructuralTypeShape::FixedArray { element, .. } => {
             may_contain_descriptor(kind, scope, types, *element, active)
         }
-        StructuralTypeShape::TypeParameter => true,
+        StructuralTypeShape::TypeParameter | StructuralTypeShape::BorrowingOpaque { .. } => true,
         _ => kind.is_slot(types, ty),
     };
     active.remove(&ty);
@@ -564,7 +589,7 @@ fn indirect_contents_contain_slot(
             fields_contain(fields) || cases.iter().any(|case| fields_contain(&case.fields))
         }
         StructuralTypeShape::Sum { cases } => cases.iter().any(|case| fields_contain(&case.fields)),
-        StructuralTypeShape::TypeParameter => true,
+        StructuralTypeShape::TypeParameter | StructuralTypeShape::BorrowingOpaque { .. } => true,
         _ => false,
     };
     active.remove(&structural_type);
@@ -727,7 +752,7 @@ fn slot_inventory(
             }
         }
         match &declaration.shape {
-            StructuralTypeShape::TypeParameter => {
+            StructuralTypeShape::TypeParameter | StructuralTypeShape::BorrowingOpaque { .. } => {
                 let mut contents = location.clone();
                 contents.path.push(DescriptorPathSegment::UnknownContents);
                 result.unknown_contents.push(UnknownDescriptorContents {

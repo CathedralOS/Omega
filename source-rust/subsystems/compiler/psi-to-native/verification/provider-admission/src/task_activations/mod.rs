@@ -56,7 +56,17 @@ fn check_plans(
 ) -> Result<(), Vec<Diagnostic>> {
     let target = profile.native_target();
     for demand in demands {
-        provider::validate_selected_runtime(identities, selected_provider_plans, demand)?;
+        match &demand.origin {
+            terminal_psi::TerminalActivationOrigin::TaskRuntime(runtime) => {
+                identity_text(identities, runtime.requirement_callable_identity)?;
+                provider::validate_selected_runtime(identities, selected_provider_plans, runtime)?;
+            }
+            terminal_psi::TerminalActivationOrigin::Caller(_) => {
+                return Err(vec![Diagnostic::error(
+                    "caller-controlled activation has no admitted native backing plan",
+                )]);
+            }
+        }
         let shapes = demand
             .signature_arguments
             .iter()
@@ -94,11 +104,7 @@ fn check_plans(
         projection
             .validate(stack_demand.bytes, stack_demand.alignment)
             .map_err(plan_diagnostic)?;
-        for identity in [
-            demand.requirement_callable_identity,
-            demand.machine_callable_identity,
-            demand.entry,
-        ] {
+        for identity in [demand.machine_callable_identity, demand.entry] {
             identity_text(identities, identity)?;
         }
     }

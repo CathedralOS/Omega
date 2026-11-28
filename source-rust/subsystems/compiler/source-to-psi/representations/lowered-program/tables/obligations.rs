@@ -631,6 +631,7 @@ fn width_type_parts(
             }
         }
         StructuralTypeShape::Opaque
+        | StructuralTypeShape::BorrowingOpaque { .. }
         | StructuralTypeShape::TypeParameter
         | StructuralTypeShape::ByteSequence(_) => {}
     }

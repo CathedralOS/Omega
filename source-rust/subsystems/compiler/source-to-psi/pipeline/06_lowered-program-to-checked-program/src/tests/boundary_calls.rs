@@ -157,6 +157,31 @@ fn a_record_index_and_a_machine_argument_name_the_same_enum_case() {
 }
 
 #[test]
+fn a_forwarded_operation_record_keeps_its_complete_schema() {
+    let source = r"
+trait Factory<T> { machine make() -> T reaches none crashes none; }
+Words satisfies Factory<u32> { machine make() -> u32 reaches none crashes none { 7u32 } }
+Flags satisfies Factory<bool> { machine make() -> bool reaches none crashes none { true } }
+data Slot<T, const Ops: Factory<T>> { value: T; }
+data Bundle<T, const Active: Factory<T>> { slot: Slot<T, Active>; }
+machine entry(box: Bundle<u32, Words>) -> u32 { box.slot.value }
+";
+    let prepared = crate::preparation::prepare_typed_trees(typed(source), &[], &[]).unwrap();
+    let verdict = judge(invocation(prepared.into_inner())).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+
+    let wrong = source.replace("Bundle<u32, Words>", "Bundle<u32, Flags>");
+    let error = try_typed(&wrong).expect_err("Flags provides Factory<bool>");
+    assert!(
+        error
+            .message
+            .contains("does not supply the declared `Factory` application of `Bundle`"),
+        "{}",
+        error.message
+    );
+}
+
+#[test]
 fn record_indices_and_static_machine_arguments_require_a_complete_case_of_the_carrier() {
     let declarations = "data Mode [copy] { case Fixed; case Split; case Sized(bytes:u32); }
         data Other [copy] { case Fixed; }
@@ -271,6 +296,36 @@ fn a_boundary_call_selects_its_structural_const_by_value() {
 }
 
 #[test]
+fn a_record_index_retains_a_closed_enum_case_across_a_call() {
+    let source = r#"
+        data Mode [copy] { case Fixed; case Split; }
+        data Slot<const Plan: Mode> { value: u32; }
+        machine observe(value: @Slot<Mode::Fixed>) -> u32 { value.value }
+        machine entry(input: @Slot<Mode::Fixed>) -> u32 { observe(input) }
+    "#;
+    let result = judge_boundary_package(source);
+    assert!(!result.is_empty());
+    assert!(
+        result
+            .iter()
+            .all(|v| matches!(v, Ok(RouteVerdict::Accepted(_)))),
+        "{result:?}"
+    );
+    let wrong = source.replace(
+        "entry(input: @Slot<Mode::Fixed>",
+        "entry(input: @Slot<Mode::Split>",
+    );
+    let negative = judge_boundary_package(&wrong);
+    assert!(
+        negative
+            .iter()
+            .any(|v| matches!(v, Ok(RouteVerdict::FallBack(refusal))
+        if refusal.reason == RefusalReason::Violation)),
+        "{negative:?}"
+    );
+}
+
+#[test]
 fn a_generic_boundary_caller_forwards_its_plan_and_checks_the_worker() {
     let source = r#"
         data Storage [copy] { case Fixed; case Split; }
@@ -372,7 +427,7 @@ fn a_boundary_call_checks_the_requested_machine_at_its_closed_contract() {
         let declaration = boundary.declaration.as_ref().unwrap();
         let [
             terminal_psi::ClosedReachArgument::Type(_),
-            terminal_psi::ClosedReachArgument::Machine {
+            worker @ terminal_psi::ClosedReachArgument::Machine {
                 identity,
                 contract_commitment,
             },
@@ -384,14 +439,46 @@ fn a_boundary_call_checks_the_requested_machine_at_its_closed_contract() {
             )
         };
         assert_eq!(module.identities.text(*identity), Some(expected.as_str()));
-        assert!(
-            module
-                .machines
-                .iter()
-                .filter_map(|machine| machine.declaration.as_ref())
-                .any(|body| body.semantic_declaration == *identity
-                    && body.contract == *contract_commitment)
+        let selected = module
+            .machines
+            .iter()
+            .find(|body| {
+                body.declaration
+                    .as_ref()
+                    .is_some_and(|d| d.semantic_declaration == *identity)
+            })
+            .unwrap();
+        assert_eq!(
+            worker.checked_body(module, selected.id).map(|body| body.id),
+            Some(selected.id)
         );
+        let wrong = module
+            .machines
+            .iter()
+            .find(|body| body.id != selected.id)
+            .unwrap();
+        assert!(worker.checked_body(module, wrong.id).is_none());
+        // Even with the same ID, signature and contract, swapping just the
+        // declaration must not let another producer answer for this worker.
+        let mut replaced = module.clone();
+        replaced
+            .machines
+            .iter_mut()
+            .find(|body| body.id == selected.id)
+            .unwrap()
+            .contract
+            .declaration
+            .as_mut()
+            .unwrap()
+            .semantic_declaration = wrong.declaration.as_ref().unwrap().semantic_declaration;
+        assert!(worker.checked_body(&replaced, selected.id).is_none());
+        let mut changed_contract = *contract_commitment;
+        changed_contract[0] ^= 1;
+        let changed = terminal_psi::ClosedReachArgument::Machine {
+            identity: *identity,
+            contract_commitment: changed_contract,
+        };
+        assert!(changed.checked_body(module, selected.id).is_none());
         declaration
             .source
             .specialization

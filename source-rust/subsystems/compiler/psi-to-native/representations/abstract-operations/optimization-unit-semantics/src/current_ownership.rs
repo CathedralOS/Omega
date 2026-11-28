@@ -86,6 +86,7 @@ mod storage_regions {
             }
             StructuralTypeShape::TypeParameter
             | StructuralTypeShape::Opaque
+            | StructuralTypeShape::BorrowingOpaque { .. }
             | StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::ElementView { .. } => false,
         };

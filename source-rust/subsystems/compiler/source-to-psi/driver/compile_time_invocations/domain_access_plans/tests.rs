@@ -149,12 +149,770 @@ fn typed_source(source: &str) -> crate::source_state::TypedTrees {
 }
 
 #[test]
+fn a_shared_specialization_keeps_each_callers_type_argument_regions() {
+    let typed = typed_source(
+        r"
+        data Packet<'s> { byte: @'s u8; }
+        machine pick_second<A, B>(left: A, right: B) -> B reaches none crashes none { move right }
+        machine first<'same>(left: Packet<'same>, right: Packet<'same>) -> Packet<'same>
+            reaches none crashes none {
+            pick_second::<Packet<'same>, Packet<'same>>(move left, move right)
+        }
+        machine second<'a, 'b>(left: Packet<'a>, right: Packet<'b>) -> Packet<'b>
+            reaches none crashes none {
+            pick_second::<Packet<'a>, Packet<'b>>(move left, move right)
+        }
+    ",
+    );
+    let prepared = preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
+    let typed = prepared.trees();
+    let generated = typed
+        .machines()
+        .iter()
+        .filter(|machine| {
+            typed
+                .machine_specialization(machine.symbol)
+                .is_some_and(|row| typed.symbols.name(row.template) == "pick_second")
+        })
+        .collect::<Vec<_>>();
+    let [machine] = generated.as_slice() else {
+        panic!("both callers must use the same executable")
+    };
+    let (inputs, result) = typed.machine_definition_types(machine).unwrap();
+    assert!(inputs[0].contains("region(owner(schema),ordinal(0))"));
+    assert!(inputs[1].contains("region(owner(schema),ordinal(1))"));
+    assert_eq!(inputs[1], result);
+    for (name, expected_slots) in [("first", [0, 0]), ("second", [0, 1])] {
+        let (caller, handle) = query_call(typed, name);
+        let call = typed.expression_table.call_node(handle).unwrap();
+        let bindings = typed
+            .specialization_type_argument_regions(machine.symbol, call.authored_machine_application)
+            .unwrap();
+        assert_eq!(bindings.len(), 2);
+        for (slot, (formal, supplied)) in bindings.into_iter().enumerate() {
+            assert_eq!(formal.declaration, machine.symbol);
+            assert_eq!(formal.ordinal, slot);
+            assert_eq!(supplied.declaration, caller);
+            assert_eq!(supplied.ordinal, expected_slots[slot]);
+        }
+    }
+}
+
+#[test]
+fn preparing_two_workers_keeps_the_selected_machine_in_each_return_type() {
+    let typed = typed_source(
+        r"
+        use {omega}/language/core/activation.omg;
+        use {omega}/language/core/task.omg;
+        machine read_left(value: u8) -> u8 reaches none crashes none { value }
+        machine read_right(value: u8) -> u8 reaches none crashes none { value }
+        machine make_left<'storage>(backing: @'storage mutable [u8])
+            -> |activation|::ActivationPreparation<'storage, u8, u8, read_left, |task|::ActivationStorage::Fixed>
+            reaches none crashes none {
+            |activation|::prepare::<u8, u8, read_left, |task|::ActivationStorage::Fixed>(0u8, backing)
+        }
+        machine make_right<'storage>(backing: @'storage mutable [u8])
+            -> |activation|::ActivationPreparation<'storage, u8, u8, read_right, |task|::ActivationStorage::Fixed>
+            reaches none crashes none {
+            |activation|::prepare::<u8, u8, read_right, |task|::ActivationStorage::Fixed>(0u8, backing)
+        }
+    ",
+    );
+    let prepared = preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
+    let typed = prepared.trees();
+    let mut workers = Vec::new();
+    for machine in typed.machines() {
+        let Some(specialization) = typed.machine_specialization(machine.symbol) else {
+            continue;
+        };
+        if typed.sealed_callable(specialization.template)
+            != Some(
+                language_core::sealed_intrinsics::SealedIntrinsic::OwnedActivation(
+                    language_core::sealed_intrinsics::ActivationOperation::Prepare,
+                ),
+            )
+        {
+            continue;
+        }
+        let selection = &typed
+            .expression_table
+            .static_machine_application_arguments(specialization.binding_application)[2];
+        let worker = typed
+            .machine_by_symbol(selection.symbol)
+            .or_else(|| typed.machine_holding_state(selection.symbol))
+            .unwrap();
+        let result = typed.machine_states(machine)[0].return_type;
+        let result = typed
+            .data_application_definition(result)
+            .and_then(|data| data.generic_instance)
+            .unwrap_or(result);
+        let crate::source_state::types::TypeReferenceNode::Generic { arguments, .. } =
+            typed.type_reference_table.type_reference(result)
+        else {
+            panic!("prepare returns an applied owner type")
+        };
+        let entry = typed
+            .type_reference_table
+            .type_reference_handles(*arguments)[2];
+        assert_eq!(
+            typed
+                .static_operand_from_type_reference(entry)
+                .unwrap()
+                .symbol,
+            worker.symbol
+        );
+        workers.push(worker.name.as_str());
+    }
+    workers.sort_unstable();
+    assert_eq!(workers, ["read_left", "read_right"]);
+}
+
+#[test]
+fn preparing_a_child_names_its_worker_and_returns_the_rejected_backing() {
+    let mut typed = typed_source(
+        r"
+        use {omega}/language/core/activation.omg;
+        use {omega}/language/core/task.omg;
+        machine worker(input: u8) -> u8 reaches none crashes none { input }
+        machine make<'storage>(input: u8, backing: @'storage mutable [u8])
+            -> |activation|::ActivationPreparation<'storage, u8, u8, worker, |task|::ActivationStorage::Fixed>
+            reaches none crashes none {
+            |activation|::prepare::<u8, u8, worker, |task|::ActivationStorage::Fixed>(input, backing)
+        }
+    ",
+    );
+    let (caller, call) = query_call(&typed, "make");
+    let call = typed.expression_table.call_node(call).unwrap();
+    let declaration = typed
+        .machine_by_symbol(call.target_symbol)
+        .or_else(|| typed.machine_holding_state(call.target_symbol))
+        .unwrap();
+    assert_eq!(
+        typed.sealed_callable(declaration.symbol),
+        Some(
+            language_core::sealed_intrinsics::SealedIntrinsic::OwnedActivation(
+                language_core::sealed_intrinsics::ActivationOperation::Prepare
+            )
+        ),
+        "the source fixture must use the same bundled core revision as the compiler"
+    );
+    let parameters = typed.machine_callable_parameters(declaration);
+    let plan = parameters.last().unwrap();
+    let crate::source_state::data::TypeParameterKind::Const { type_reference } = plan.kind else {
+        panic!("the plan is a structural constant, not an extra runtime argument");
+    };
+    let supplied = typed
+        .expression_table
+        .static_machine_application_arguments(call.authored_machine_application);
+    let key = typed
+        .canonical_aggregate_argument(type_reference, supplied.last().unwrap())
+        .unwrap()
+        .application_identity()
+        .unwrap();
+    assert_eq!(
+        terminal_psi::TerminalActivationStorage::from_core_argument(&key),
+        Some(terminal_psi::TerminalActivationStorage::Fixed),
+        "{key}"
+    );
+    let entries = [caller];
+    let request = production::TerminalSourceCompilation {
+        calling: None,
+        providers: None,
+        declaration_metadata: &[],
+        entries: &entries,
+        subjects: &[],
+        purpose: source_provenance::DependencyScope::Product,
+        selected: &[],
+        bindings: &[],
+        supplies: &[],
+    };
+    evaluate(
+        &mut typed,
+        request,
+        &mut SourceCompletionAccounting::default(),
+    )
+    .unwrap();
+    let prepared = preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
+    let accepted = judge_lowered_source::judge_terminal_source(
+        prepared,
+        request,
+        terminal_codec::TerminalPublication::Portable,
+    )
+    .expect("a caller may prepare this selected worker with an exclusive loan of retained backing");
+    let bytes = terminal_codec::encode_module(accepted.module()).unwrap();
+    let reopened = terminal_codec::decode_module(&bytes).unwrap();
+    let [demand] = reopened.execution.task_activation_demands.as_slice() else {
+        panic!("the preparation must publish its worker's storage demand");
+    };
+    let terminal_psi::TerminalActivationOrigin::Caller(entry) = &demand.origin else {
+        panic!("preparing a child must not select a scheduler");
+    };
+    assert_eq!(
+        entry.storage,
+        terminal_psi::TerminalActivationStorage::Fixed
+    );
+    assert!(entry.selected_body(&reopened).is_some());
+    let mut forged = *entry;
+    forged.storage = terminal_psi::TerminalActivationStorage::Split;
+    assert!(forged.selected_body(&reopened).is_none());
+    // Keep the selected worker and signature intact but understate the
+    // storage needed for its input. The receiver has the body to catch it.
+    let mut understated = reopened;
+    understated.execution.task_activation_demands[0].frames[0].states[0].crossing_arguments[0]
+        .clear();
+    let refused = terminal_codec::encode_module(&understated)
+        .and_then(|bytes| terminal_codec::decode_module(&bytes))
+        .unwrap_err();
+    assert!(
+        refused.to_string().contains("storage demand differs"),
+        "{refused}"
+    );
+}
+
+fn judge_activation(
+    source: &str,
+    roots: &[&str],
+) -> Result<production::AcceptedTerminalSource, Vec<diagnostics::Diagnostic>> {
+    let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0xA1; 32]).unwrap();
+    let mut typed = schema_customer_source::source_with_core(
+        &fixture_repository::root().join("source/library"),
+        source,
+        package,
+        &[],
+    )
+    .map_err(|detail| vec![diagnostics::Diagnostic::error(detail)])?;
+    let entries = roots
+        .iter()
+        .map(|name| {
+            let mut matches = typed.machines().iter().filter(|machine| {
+                machine.target.is_none()
+                    && machine.name.as_str() == *name
+                    && typed.symbols.symbol_package_identity(machine.symbol) == Some(package)
+            });
+            let selected = matches.next().expect("the authored fixture root");
+            assert!(matches.next().is_none(), "ambiguous fixture root {name}");
+            selected.symbol
+        })
+        .collect::<Vec<_>>();
+    let request = production::TerminalSourceCompilation {
+        calling: None,
+        providers: None,
+        declaration_metadata: &[],
+        entries: &entries,
+        subjects: &[],
+        purpose: source_provenance::DependencyScope::Product,
+        selected: &[],
+        bindings: &[],
+        supplies: &[],
+    };
+    evaluate(
+        &mut typed,
+        request,
+        &mut SourceCompletionAccounting::default(),
+    )?;
+    let prepared = preparation::prepare_typed_trees(typed, &[], &[])?;
+    judge_lowered_source::judge_terminal_source(
+        prepared,
+        request,
+        terminal_codec::TerminalPublication::Portable,
+    )
+}
+
+#[test]
+fn park_requires_the_source_revision_of_its_nominal_reply() {
+    use language_core::sealed_intrinsics::ActivationOperation::Park;
+    use terminal_psi::{CheckedBoundaryExecution, ClosedReachArgument};
+    use terminal_semantics::calls::owned_activation::park_shape;
+
+    let source = r"
+        use {omega}/language/core/activation.omg;
+        use {omega}/language/core/generator.omg;
+        use {omega}/language/core/reply.omg;
+        machine await_decision<'slot>(
+            request: |reply|::Publication<'slot> in |reply|::Issued<|reply|::RequestRole, |generator|::Decision>
+        ) -> |generator|::Decision reaches none crashes none suspends {
+            suspend |activation|::park::<|generator|::Decision>(move request)
+        }
+    ";
+    let accepted = judge_activation(source, &["await_decision"]).expect("a checked nominal reply");
+    let bytes = terminal_codec::encode_module(accepted.module()).unwrap();
+    let module = terminal_codec::decode_module(&bytes).unwrap();
+    let boundary = module
+        .interfaces
+        .boundary_machines
+        .iter()
+        .find(|boundary| {
+            boundary
+                .declaration
+                .as_ref()
+                .is_some_and(|d| d.execution == CheckedBoundaryExecution::OwnedActivation(Park))
+        })
+        .unwrap();
+    let park = boundary.id;
+    let shape = park_shape(&module, boundary).unwrap();
+    let domain = boundary.structural_parameters[0].qualifications[0];
+    let generator =
+        std::fs::read(fixture_repository::root().join("source/library/core/generator.omg"))
+            .unwrap();
+    let digest = source_provenance::toolchain_owned_identity_digest(
+        "core",
+        vec!["generator.omg".into()],
+        &generator,
+    )
+    .unwrap();
+    let revision = digest
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    let exact = module.identities.text(shape.reply).unwrap();
+    assert!(
+        exact.contains(&revision),
+        "the engine must match the complete reply owner"
+    );
+
+    // Preserve the name, shape and role, changing only its source revision.
+    for change_binder in [false, true] {
+        let mut wrong = module.clone();
+        let mut ids = std::mem::take(&mut wrong.identities).into_builder();
+        let role = wrong
+            .types
+            .structural_domains
+            .iter_mut()
+            .find(|d| d.id == domain)
+            .unwrap();
+        let issued = ids
+            .text(role.identity)
+            .unwrap()
+            .replace(&revision, &"a".repeat(64));
+        role.identity = ids.intern(&issued);
+        if change_binder {
+            let declaration = wrong
+                .interfaces
+                .boundary_machines
+                .iter_mut()
+                .find(|b| b.id == park)
+                .unwrap()
+                .declaration
+                .as_mut()
+                .unwrap();
+            let substituted = exact.replace(&revision, &"a".repeat(64));
+            declaration.method_arguments[0] = ClosedReachArgument::Type(ids.intern(&substituted));
+        }
+        wrong.identities = ids.build();
+        assert!(park_shape(&wrong, wrong.boundary_machine(park).unwrap()).is_err());
+        assert!(
+            terminal_codec::encode_module(&wrong)
+                .and_then(|bytes| terminal_codec::decode_module(&bytes).map(drop))
+                .is_err()
+        );
+    }
+}
+
+#[test]
+fn fixed_step_and_resume_preserve_the_closed_owner_and_returned_inputs() {
+    use language_core::sealed_intrinsics::ActivationOperation;
+    use terminal_psi::CheckedBoundaryExecution;
+    use terminal_semantics::calls::owned_activation::{preparation_for, resume_shape, step_shape};
+
+    let source = r"
+        use {omega}/language/core/activation.omg;
+        use {omega}/language/core/task.omg;
+        use {omega}/language/core/reply.omg;
+        machine worker(value: u8) -> u8 reaches none crashes none { value }
+        machine make<'storage>(backing: @'storage mutable [u8])
+            -> |activation|::ActivationPreparation<'storage, u8, u8, worker, |task|::ActivationStorage::Fixed>
+            reaches none crashes none {
+            |activation|::prepare::<u8, u8, worker, |task|::ActivationStorage::Fixed>(7u8, backing)
+        }
+        machine advance<'storage>(owner: |activation|::ReadyActivation<'storage, u8, u8, worker, |task|::ActivationStorage::Fixed>)
+            -> |activation|::ActivationStep<'storage, u8, u8, worker, |task|::ActivationStorage::Fixed>
+            blocks crashes Trap crashes Abort {
+            block |activation|::step_fixed::<u8, u8, worker>(move owner)
+        }
+        machine answer<'storage, 'slot>(
+            owner: |activation|::SuspendedActivation<'storage, u8, u8, worker, |task|::ActivationStorage::Fixed>,
+            permit: |reply|::Publication<'slot> in |reply|::Issued<|reply|::AnswerRole, u8>, value: u8
+        ) -> |activation|::ResumeAttempt<'storage, 'slot, u8, u8, u8, worker, |task|::ActivationStorage::Fixed>
+            reaches none crashes none {
+            |activation|::resume::<u8, u8, u8, worker, |task|::ActivationStorage::Fixed>(move owner, move permit, value)
+        }
+    ";
+    let accepted = judge_activation(source, &["make", "advance", "answer"])
+        .expect("the three sealed calls preserve their inputs");
+    let artifact = terminal_codec::encode_module(accepted.module()).unwrap();
+    let reopened = terminal_codec::decode_module(&artifact).unwrap();
+    let operation = |op| {
+        reopened
+            .interfaces
+            .boundary_machines
+            .iter()
+            .find(|boundary| {
+                boundary.declaration.as_ref().is_some_and(|checked| {
+                    checked.execution == CheckedBoundaryExecution::OwnedActivation(op)
+                })
+            })
+            .unwrap()
+    };
+    let make = operation(ActivationOperation::Prepare);
+    let advance = operation(ActivationOperation::StepFixed);
+    let answer = operation(ActivationOperation::Resume);
+    assert_eq!(preparation_for(&reopened, advance), Ok(make.id));
+    assert_eq!(preparation_for(&reopened, answer), Ok(make.id));
+    let step = step_shape(&reopened, advance, make.id).unwrap();
+    let resume = resume_shape(&reopened, answer, make.id).unwrap();
+    assert_eq!(step.ready_owner, resume.ready_owner);
+    assert_eq!(step.suspended_owner, resume.suspended_owner);
+    assert_eq!(step.selected, resume.selected);
+
+    let refused = |module: &terminal_psi::TerminalModule| {
+        terminal_codec::encode_module(module)
+            .and_then(|bytes| terminal_codec::decode_module(&bytes))
+            .unwrap_err()
+    };
+    let permit_domain = answer.structural_parameters[1].qualifications[0];
+    let domain_index = reopened
+        .types
+        .structural_domains
+        .iter()
+        .position(|domain| domain.id == permit_domain)
+        .unwrap();
+    let mut missing_issuer = reopened.clone();
+    missing_issuer.types.structural_domains[domain_index].access_policy = None;
+    assert_eq!(
+        resume_shape(&missing_issuer, answer, make.id),
+        Err("publication lost its issuance policy")
+    );
+    refused(&missing_issuer);
+
+    let worker = reopened
+        .machine(step.selected.entry_machine)
+        .unwrap()
+        .declaration
+        .as_ref()
+        .unwrap();
+    let mut wrong_issuer = reopened.clone();
+    let policy = wrong_issuer.types.structural_domains[domain_index]
+        .access_policy
+        .as_mut()
+        .unwrap();
+    let [(_, issuer)] = policy.issuance.as_mut().unwrap().as_mut_slice() else {
+        panic!("expected the sole checked reply issuer");
+    };
+    *issuer = terminal_psi::StructuralEstablishmentRoute::ExactMachine {
+        declaration: worker.machine.clone(),
+        machine_identity: worker.callable,
+    };
+    assert_eq!(
+        resume_shape(&wrong_issuer, answer, make.id),
+        Err("park request must retain its exact issuer and deny re-targeting the slot")
+    );
+    refused(&wrong_issuer);
+
+    let mut nominal_refund = reopened.clone();
+    let prepared =
+        terminal_semantics::calls::owned_activation::prepare_shape(&reopened, make).unwrap();
+    let raw_bytes = make.structural_parameters.last().unwrap().structural_type;
+    assert_ne!(raw_bytes, prepared.retained_carrier);
+    let foreign = reopened
+        .structural_type(step.ready_owner)
+        .unwrap()
+        .declaration_identity;
+    let refund = nominal_refund
+        .types
+        .structural_types
+        .iter_mut()
+        .find(|row| row.id == prepared.retained_carrier)
+        .unwrap();
+    assert!(refund.declaration_identity.is_absent());
+    // Replacing the common descriptor changes both the prepare refund and the
+    // completed step. Agreement between their layouts cannot mint a nominal value.
+    refund.declaration_identity = foreign;
+    assert_eq!(
+        terminal_semantics::calls::owned_activation::prepare_shape(&nominal_refund, make)
+            .unwrap_err(),
+        "retained backing must return the original exclusive byte slice"
+    );
+    assert!(step_shape(&nominal_refund, advance, make.id).is_err());
+    refused(&nominal_refund);
+
+    let mut missing_demand = reopened.clone();
+    missing_demand.execution.task_activation_demands.clear();
+    // Lowering replays loans against the closed calls before it computes how
+    // many bytes must survive each park. Portable admission needs both.
+    assert_eq!(preparation_for(&missing_demand, advance), Ok(make.id));
+    assert_eq!(preparation_for(&missing_demand, answer), Ok(make.id));
+    assert_eq!(step_shape(&missing_demand, advance, make.id), Ok(step));
+    assert_eq!(resume_shape(&missing_demand, answer, make.id), Ok(resume));
+    let error = refused(&missing_demand);
+    assert!(error.to_string().contains("storage demand"), "{error}");
+
+    let mut wrong_owner = reopened.clone();
+    let boundary = wrong_owner
+        .interfaces
+        .boundary_machines
+        .iter_mut()
+        .find(|b| b.id == answer.id)
+        .unwrap();
+    boundary.structural_parameters[0].structural_type = resume.ready_owner;
+    refused(&wrong_owner);
+
+    let mut wrong_scope = reopened.clone();
+    let owner = wrong_scope
+        .types
+        .structural_types
+        .iter_mut()
+        .find(|ty| ty.id == resume.suspended_owner)
+        .unwrap();
+    owner.shape = terminal_psi::StructuralTypeShape::BorrowingOpaque {
+        lifetime_count: std::num::NonZeroU32::new(2).unwrap(),
+    };
+    refused(&wrong_scope);
+
+    for operation in [make, advance, answer] {
+        let mut unrelated_scope = reopened.clone();
+        let boundary = unrelated_scope
+            .interfaces
+            .boundary_machines
+            .iter_mut()
+            .find(|b| b.id == operation.id)
+            .unwrap();
+        // An empty general frontier would give the recipient no backing obligation.
+        boundary.result_lifetimes = Some(Vec::new());
+        let error = refused(&unrelated_scope);
+        assert!(
+            error.to_string().contains("independent result lifetimes"),
+            "{error}"
+        );
+    }
+
+    let mut wrong_outcome = reopened.clone();
+    let boundary = wrong_outcome
+        .interfaces
+        .boundary_machines
+        .iter_mut()
+        .find(|b| b.id == answer.id)
+        .unwrap();
+    let source = &mut boundary.declaration.as_mut().unwrap().source;
+    source.result_type = source.parameter_types[0];
+    refused(&wrong_outcome);
+}
+
+#[test]
+fn a_prepared_execution_owner_cannot_escape_its_backing() {
+    let source = r"
+        use {omega}/language/core/activation.omg;
+        use {omega}/language/core/task.omg;
+        machine worker(value: u8) -> u8 reaches none crashes none { value }
+        data MaybeOwner<'storage> {
+            case Kept(owner: |activation|::ReadyActivation<'storage, u8, u8, worker, |task|::ActivationStorage::Fixed>);
+            case Empty;
+        }
+        machine keep<'storage>(backing: @'storage mutable [u8]) -> MaybeOwner<'storage>
+        reaches none crashes none {
+            let mutable scratch: [u8; 1] = [0u8];
+            match |activation|::prepare::<u8, u8, worker, |task|::ActivationStorage::Fixed>(7u8, BACKING) {
+                |activation|::ActivationPreparation::Ready { owner } -> MaybeOwner::Kept { owner: owner },
+                |activation|::ActivationPreparation::Rejected { arguments, retained } -> MaybeOwner::Empty,
+            }
+        }
+    ";
+    // Only the successful arm returns the opaque owner. The rejected arm
+    // deliberately returns no reference that could independently catch the escape.
+    for (backing, may_return) in [("backing", true), ("@mutable scratch[..]", false)] {
+        let mut typed = typed_source(&source.replace("BACKING", backing));
+        let entries = [typed.realized_machine_named("keep").unwrap().symbol];
+        let request = production::TerminalSourceCompilation {
+            calling: None,
+            providers: None,
+            declaration_metadata: &[],
+            entries: &entries,
+            subjects: &[],
+            purpose: source_provenance::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        };
+        evaluate(
+            &mut typed,
+            request,
+            &mut SourceCompletionAccounting::default(),
+        )
+        .unwrap();
+        let prepared = preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
+        let judgment = judge_lowered_source::judge_terminal_source(
+            prepared,
+            request,
+            terminal_codec::TerminalPublication::Portable,
+        );
+        if may_return {
+            judgment.expect("the caller's backing can accompany the returned owner");
+        } else {
+            let error = judgment
+                .err()
+                .expect("a local array cannot accompany the returned owner");
+            let detail = format!("{error:?}").to_lowercase();
+            assert!(
+                detail.contains("lifetime")
+                    || detail.contains("local storage")
+                    || detail.contains("outlive"),
+                "must reject the escaping backing, not preparation itself: {error:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn stepping_keeps_the_original_backing_live_in_both_outcomes() {
+    let source = r"
+        use {omega}/language/core/activation.omg;
+        use {omega}/language/core/task.omg;
+        machine worker(value: u8) -> u8 reaches none crashes none { value }
+        data Outcome<'storage> {
+            case Completed(bytes: @'storage mutable [u8]);
+            case Parked(owner: |activation|::SuspendedActivation<'storage, u8, u8, worker, |task|::ActivationStorage::Fixed>);
+            case Rejected;
+        }
+        machine advance<'storage>(backing: @'storage mutable [u8]) -> Outcome<'storage>
+            blocks crashes Trap crashes Abort {
+            let mutable scratch: [u8; 1] = [0u8];
+            match |activation|::prepare::<u8, u8, worker, |task|::ActivationStorage::Fixed>(7u8, BACKING) {
+                |activation|::ActivationPreparation::Ready { owner } ->
+                    match block |activation|::step_fixed::<u8, u8, worker>(move owner) {
+                        |activation|::ActivationStep::Returned { value, retained } -> Outcome::Completed { bytes: retained },
+                        |activation|::ActivationStep::Parked { owner as parked } -> Outcome::Parked { owner: move parked },
+                    },
+                |activation|::ActivationPreparation::Rejected { arguments, retained } -> Outcome::Rejected,
+            }
+        }
+    ";
+    for (backing, may_return) in [("backing", true), ("@mutable scratch[..]", false)] {
+        let judgment = judge_activation(&source.replace("BACKING", backing), &["advance"]);
+        if may_return {
+            let accepted = judgment.expect("caller backing may accompany either step case");
+            let encoded = terminal_codec::encode_module(accepted.module()).unwrap();
+            terminal_codec::decode_module(&encoded).unwrap();
+        } else {
+            let error = judgment
+                .err()
+                .expect("the completed or parked owner cannot export stack backing");
+            let detail = format!("{error:?}").to_lowercase();
+            assert!(
+                detail.contains("lifetime")
+                    || detail.contains("local storage")
+                    || detail.contains("outlive"),
+                "the checked source should identify the escaping backing: {error:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_stepped_worker_returns_its_input_reference_with_the_original_lifetime() {
+    let source = r"
+        use {omega}/language/core/activation.omg;
+        use {omega}/language/core/task.omg;
+        use {omega}/language/core/never.omg;
+
+        data Input<'value> { original: @'value u8; }
+        machine worker<'value>(input: Input<'value>) -> @'value u8
+            reaches none crashes none { input.original }
+        machine failed() -> |never|::Never reaches none crashes Trap { crash Trap; }
+
+        machine borrow_result<'value>(original: @'value u8, backing: @mutable [u8]) -> @'value u8
+            blocks crashes Trap crashes Abort {
+            let local: u8 = 7u8;
+            let input: Input = Input { original: SOURCE };
+            match |activation|::prepare::<Input<'value>, @'value u8, worker, |task|::ActivationStorage::Fixed>(move input, backing) {
+                |activation|::ActivationPreparation::Ready { owner } ->
+                    match block |activation|::step_fixed::<Input<'value>, @'value u8, worker>(move owner) {
+                        |activation|::ActivationStep::Returned { value, retained } -> value,
+                        |activation|::ActivationStep::Parked { owner as parked } -> failed(),
+                    },
+                |activation|::ActivationPreparation::Rejected { arguments, retained } -> failed(),
+            }
+        }
+    ";
+    for (input, may_return) in [("original", true), ("@local", false)] {
+        let judgment = judge_activation(&source.replace("SOURCE", input), &["borrow_result"]);
+        if may_return {
+            let accepted =
+                judgment.expect("the step may restore the worker's original source loan");
+            let encoded = terminal_codec::encode_module(accepted.module()).unwrap();
+            terminal_codec::decode_module(&encoded).unwrap();
+        } else {
+            let error = judgment
+                .err()
+                .expect("a wrapper cannot export its local through the worker");
+            let detail = format!("{error:?}").to_lowercase();
+            assert!(
+                detail.contains("lifetime")
+                    || detail.contains("local storage")
+                    || detail.contains("outlive"),
+                "the rejection must identify the worker input's escaping source: {error:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn two_ready_owners_need_independent_live_backing() {
+    let source = r"
+        use {omega}/language/core/activation.omg;
+        use {omega}/language/core/task.omg;
+        machine worker(value: u8) -> u8 reaches none crashes none { value }
+        data MaybeOwner<'storage> {
+            case Kept(owner: |activation|::ReadyActivation<'storage, u8, u8, worker, |task|::ActivationStorage::Fixed>);
+            case Empty;
+        }
+        data Owners<'storage> { first: MaybeOwner<'storage>; second: MaybeOwner<'storage>; }
+        machine keep<'storage>(backing: @'storage mutable [u8]) -> MaybeOwner<'storage>
+            reaches none crashes none {
+            match |activation|::prepare::<u8, u8, worker, |task|::ActivationStorage::Fixed>(7u8, backing) {
+                |activation|::ActivationPreparation::Ready { owner } -> MaybeOwner::Kept { owner: move owner },
+                |activation|::ActivationPreparation::Rejected { arguments, retained } -> MaybeOwner::Empty,
+            }
+        }
+        machine pair<'storage>(left: @'storage mutable [u8], right: @'storage mutable [u8])
+            -> Owners<'storage> reaches none crashes none {
+            let first: MaybeOwner<'storage> = keep(@mutable left[..]);
+            let second: MaybeOwner<'storage> = keep(@mutable SECOND[..]);
+            Owners { first: move first, second: move second }
+        }
+    ";
+    for (second, independent) in [("right", true), ("left", false)] {
+        let verdict = judge_activation(&source.replace("SECOND", second), &["pair"]);
+        if independent {
+            verdict.expect("separate mutable inputs may fund two owners");
+        } else {
+            let error = verdict
+                .err()
+                .expect("two live ready owners cannot hold the same backing");
+            let detail = format!("{error:?}").to_lowercase();
+            assert!(
+                detail.contains("borrow")
+                    || detail.contains("alias")
+                    || detail.contains("overlap")
+                    || detail.contains("conflict"),
+                "the shared backing must cause the rejection: {error:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn only_the_checked_issuer_can_make_a_pair_of_funded_reply_handles() {
     let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("pipeline/06_lowered-program-to-checked-program/tests/fixtures/owned_activation");
-    for (fixture, permitted) in [
-        ("positive/issue_pair", true),
-        ("negative/forge_pair", false),
+    for (fixture, refusal) in [
+        ("positive/issue_pair", None),
+        (
+            "negative/forge_pair",
+            Some("not one of the domain's establishment routes"),
+        ),
+        (
+            "negative/take_from_protected_record",
+            Some("this function is not allowed to write this value"),
+        ),
     ] {
         let source = std::fs::read_to_string(directory.join(fixture).join("main.omg")).unwrap();
         let mut typed = schema_customer_source::source_with_core(
@@ -165,8 +923,10 @@ fn only_the_checked_issuer_can_make_a_pair_of_funded_reply_handles() {
         )
         .unwrap();
         let mut entries = vec![typed.realized_machine_named("main").unwrap().symbol];
-        if permitted {
-            entries.push(typed.realized_machine_named("await_reply").unwrap().symbol);
+        if refusal.is_none() {
+            for name in ["await_reply", "take_permit", "unpack_permit"] {
+                entries.push(typed.realized_machine_named(name).unwrap().symbol);
+            }
         }
         let request = production::TerminalSourceCompilation {
             calling: None,
@@ -206,7 +966,17 @@ fn only_the_checked_issuer_can_make_a_pair_of_funded_reply_handles() {
             request,
             terminal_codec::TerminalPublication::Portable,
         );
-        if permitted {
+        if let Some(reason) = refusal {
+            let Err(diagnostics) = judged else {
+                panic!("{fixture} must refuse: {reason}");
+            };
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains(reason)),
+                "{diagnostics:?}"
+            );
+        } else {
             let accepted =
                 judged.expect("the checked issuer transfers both borrows of the funded slot");
             let bytes = terminal_codec::encode_module(accepted.module()).unwrap();
@@ -249,16 +1019,6 @@ fn only_the_checked_issuer_can_make_a_pair_of_funded_reply_handles() {
                 terminal_semantics::calls::owned_activation::park_shape(&module, &wrong_role)
                     .is_err(),
                 "changing both the use and its declared prerequisite cannot turn an answer into a request"
-            );
-        } else {
-            let Err(diagnostics) = judged else {
-                panic!("an equally shaped pair from another issuer must reject");
-            };
-            assert!(
-                diagnostics.iter().any(|d| d
-                    .message
-                    .contains("not one of the domain's establishment routes")),
-                "{diagnostics:?}"
             );
         }
     }

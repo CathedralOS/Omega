@@ -55,6 +55,17 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
+Marker 312 starts each section 54 row with its execution owner. Tag 1 carries
+the TaskRuntime start operation, requirement identity, owner path, optional
+package, scope flag and authored requirement identity. Tag 2 carries the
+module-local prepare boundary ID, selected machine ID and storage plan
+(1 Fixed, 2 Split). The report fingerprint and common frame, signature and
+suspension information follow. A machine ID must identify the body selected
+by the closed prepare application; it is not a new source of call authority.
+The owned-activation classification carries Park (0), Prepare (2), StepFixed
+(3), or Resume (4). Tag 1 is not assigned: a saved program cannot issue a
+reply permit without the checked source issuer and caller-funded slot.
+
 Marker 311 records routed memberships on exact formal arguments in machine and
 boundary preconditions. A service method identifies each roster entry as
 normal result or input (with its ordered runtime formal ordinal), followed by the
@@ -1863,7 +1874,7 @@ authority: settlement retains the exact target-table realization and its ISA
 and floating-control obligations, and receiving checks these against the
 authenticated boundary and canonical method schema.
 Tag 12 names the issued layout target snapshot. Tag 13 carries an owned
-activation operation byte (0: park; all other values reject). Publication
+activation operation byte (0 for park, 2 for prepare, 3 for step_fixed and 4 for resume). Other values reject. Publication
 and reply handles are created by checked source, not by a wire operation. A park is a
 checked specialization of core's `activation.omg` park, not an installable host
 import. Its owned request and result share the same closed reply type.
@@ -2387,6 +2398,7 @@ bound strictly ordered.
 | 17 | Record with requires | record storage tag (1, 10, 13, 14 or 15) + that tag's fields + nonempty counted propositions |
 | 18 | Sum with requires | tag 3's fields + nonempty counted propositions |
 | 19 | Opaque | — |
+| 21 | BorrowingOpaque | Nonzero `u32` count of declared lifetime parameters. An owned occurrence retains the loans it receives from its producer; it exposes neither a reference field nor a concrete address. |
 
 Tags 9 and 11 are retired: a decoder rejects them rather than reinterpreting
 them. Checking rejects a boundary trait in every runtime value position, so no
@@ -3437,7 +3449,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 311 | yes |
+| semantic module | `PSITERM\0` | 312 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | published artifact | `PSIART\0\0` | 4 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |

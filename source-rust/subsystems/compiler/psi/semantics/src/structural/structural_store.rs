@@ -202,6 +202,7 @@ fn disposable_storage<'types>(
         // A [copy] binder permits discarding a copy during replacement.
         // The concrete application still checks the type and its loan paths.
         StructuralTypeShape::TypeParameter => declaration.is_copyable(),
+        StructuralTypeShape::BorrowingOpaque { .. } => false,
         StructuralTypeShape::PrimitiveScalar(_) => true,
         StructuralTypeShape::AtomicCell(_) => true,
         StructuralTypeShape::ByteSequence(carrier) => {

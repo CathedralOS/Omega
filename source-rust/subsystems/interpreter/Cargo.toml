@@ -9,6 +9,7 @@ name = "terminal_interpreter"
 path = "interpreter.rs"
 
 [dependencies]
+wire = { path = "../../foundation/wire" }
 build-model = { path = "../compiler/build/model" }
 psi-scalar-applications = { path = "../compiler/psi/execution-inputs/scalar-applications" }
 psi-provider-selections = { path = "../compiler/psi/execution-inputs/providers" }

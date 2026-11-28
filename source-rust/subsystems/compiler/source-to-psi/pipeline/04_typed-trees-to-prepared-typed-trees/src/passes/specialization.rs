@@ -1811,6 +1811,15 @@ fn copy_declarations(
     template_symbol: SymbolHandle,
     operands: &[Operand],
 ) -> Served<CopiedDeclarations> {
+    copy_declarations_with_region_binders(program, template_symbol, operands, None)
+}
+
+fn copy_declarations_with_region_binders(
+    program: &mut TypedTrees,
+    template_symbol: SymbolHandle,
+    operands: &[Operand],
+    region_supplier: Option<SymbolHandle>,
+) -> Served<CopiedDeclarations> {
     let parts = template(program, template_symbol)?;
     let mut bound_parameters = operands
         .iter()
@@ -1940,15 +1949,50 @@ fn copy_declarations(
     }
     let state_symbol = copied_symbol(&renamed, parts[0].1.symbol)?;
     let symbols = renamed.rebinding();
-    let substitutions = operands
-        .iter()
-        .filter_map(|operand| match operand.value {
-            StaticMachineBindingValue::Type(actual) | StaticMachineBindingValue::Const(actual) => {
-                Some((operand.parameter, actual))
+    let mut substitutions = Vec::new();
+    let mut lifetimes = parts[0].0.lifetime_parameters.clone();
+    for operand in operands {
+        let reference = match &operand.value {
+            StaticMachineBindingValue::Type(actual) => match region_supplier {
+                Some(supplier) => program
+                    .generalize_static_type_regions(
+                        *actual,
+                        supplier,
+                        machine_symbol,
+                        &mut lifetimes,
+                    )
+                    .map_err(unserved)?,
+                None => *actual,
+            },
+            StaticMachineBindingValue::Const(actual) => *actual,
+            // A record in the copied signature can carry this machine as a
+            // static argument. Preserve the same selection that its calls use.
+            StaticMachineBindingValue::Machine(selected) => {
+                // Calls select the default entry state; the same source name
+                // in a record selects its owning machine. Only that exact
+                // entry may stand for the machine in a type.
+                if selected.application.is_none()
+                    && let Some(machine) = program.machine_holding_state(selected.symbol)
+                    && program
+                        .machine_states(machine)
+                        .first()
+                        .is_some_and(|state| state.symbol == selected.symbol)
+                {
+                    let entry = TypeReferenceNode::Named {
+                        symbol: machine.symbol,
+                        name: machine.name.clone(),
+                    };
+                    program.type_reference_table.insert(entry)
+                } else {
+                    program
+                        .static_operand_type_reference(selected)
+                        .map_err(unserved)?
+                }
             }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+            _ => continue,
+        };
+        substitutions.push((operand.parameter, reference));
+    }
     let mut copied = Vec::with_capacity(parts.len());
     for ((source, source_state), staged) in parts.iter().zip(staged) {
         let first_expression = program.expression_table.expression_count() + 1;
@@ -1956,6 +2000,7 @@ fn copy_declarations(
         machine.symbol = copied_symbol(&renamed, source.symbol)?;
         if source.symbol == template_symbol {
             machine.name = Identifier::generated(root_name.clone());
+            machine.lifetime_parameters = lifetimes.clone();
         }
         machine.is_public = false;
         copy_progress(program, source, &mut machine, symbols)?;
@@ -2026,7 +2071,7 @@ fn copy_declarations(
     settle_const_expressions(program, type_start, operands)?;
     for (mut machine, state, body) in copied {
         select_requirements(program, &body, &selections);
-        substitute_arguments(program, &body, machine.symbol, operands)?;
+        substitute_arguments(program, &body, machine.symbol, operands, &substitutions)?;
         program.push_machine_state(&mut machine, state);
         program.push_machine(machine);
     }
@@ -2090,7 +2135,12 @@ fn generate(
             None,
         )?;
     }
-    let copied = copy_declarations(program, template_symbol, operands)?;
+    let supplier = program
+        .expression_table
+        .static_machine_application(application)
+        .lexical_owner;
+    let copied =
+        copy_declarations_with_region_binders(program, template_symbol, operands, Some(supplier))?;
     // Each nested declaration is specialized by the actual enclosing
     // application's bindings, not by an invented call or runtime capture.
     for (source, state) in &copied.originals {
@@ -2599,6 +2649,7 @@ fn substitute_arguments(
     body: &CopiedCallableBody,
     holder: SymbolHandle,
     operands: &[Operand],
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Served<()> {
     let replace = |program: &mut TypedTrees, arguments: &mut [StaticMachineArgument]| {
         for argument in arguments {
@@ -2608,6 +2659,13 @@ fn substitute_arguments(
                 .find(|operand| operand.parameter == argument.symbol)
             {
                 *argument = operand.argument.clone();
+                if matches!(operand.value, StaticMachineBindingValue::Type(_))
+                    && let Some((_, applied)) = substitutions
+                        .iter()
+                        .find(|(binder, _)| *binder == operand.parameter)
+                {
+                    argument.type_reference = *applied;
+                }
             } else if argument.type_reference.is_valid()
                 && let TypeReferenceNode::ConstExpression(expression) = *program
                     .type_reference_table

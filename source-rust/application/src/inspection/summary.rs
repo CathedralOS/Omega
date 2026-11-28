@@ -113,6 +113,9 @@ fn format_type_shape(shape: &StructuralTypeShape) -> String {
     match shape {
         StructuralTypeShape::TypeParameter => "unresolved type parameter".into(),
         StructuralTypeShape::Opaque => "opaque".into(),
+        StructuralTypeShape::BorrowingOpaque { lifetime_count } => {
+            format!("opaque ({} retained lifetime parameters)", lifetime_count)
+        }
         StructuralTypeShape::Reference { referent, access } => {
             format!(
                 "reference(referent=type:{},access={access:?})",

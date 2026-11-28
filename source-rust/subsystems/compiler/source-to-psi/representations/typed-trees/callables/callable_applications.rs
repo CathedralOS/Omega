@@ -31,6 +31,9 @@ mod contract_views;
 #[path = "signatures/substitution.rs"]
 pub(crate) mod signatures;
 
+#[path = "specialization_regions.rs"]
+mod specialization_regions;
+
 #[path = "static_callback_contracts.rs"]
 mod static_callback_contracts;
 
@@ -201,6 +204,7 @@ pub struct CopiedCallableBody {
 /// Substitutes the bindings of one declaration while copying typed records.
 /// Reuse the same application for types, facts and static arguments that share a scope.
 pub struct CallableApplication {
+    specialized_regions: std::collections::VecDeque<specialization_regions::RegionUse>,
     owned_signature: SymbolHandle,
     runtime_values: Vec<SymbolHandle>,
     region_scope: SymbolHandle,
@@ -245,6 +249,7 @@ struct CallableLifetimeBinding {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum CallableLifetimeOrigin {
+    Specialized,
     Lexical,
     Rigid,
     Captured,

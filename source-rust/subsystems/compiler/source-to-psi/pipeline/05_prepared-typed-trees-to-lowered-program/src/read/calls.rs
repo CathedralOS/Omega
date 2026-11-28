@@ -3792,6 +3792,52 @@ impl<'t> Program<'t> {
         )
     }
 
+    /// The type in a static argument can itself contain named lifetimes.
+    /// A specialized signature binds those names at the authored occurrence
+    /// before checking the runtime arguments and result.
+    fn declared_call_regions(
+        &self,
+        id: MachineId,
+        target: SymbolHandle,
+        source: SourceOrigin,
+    ) -> Checked<(
+        Vec<crate::source_state::type_identity::LifetimeParameterIdentity>,
+        super::regions::Substitution,
+    )> {
+        use crate::source_state::{SourceNode, statement::StatementNode};
+        let application = match source.node().map(|(_, node)| node) {
+            Some(SourceNode::Expression(expression))
+                if self.typed.expression_table.expression_is_valid(expression) =>
+            {
+                match self.typed.expression_table.expression(expression) {
+                    ExpressionNode::Call(call) => call.authored_machine_application,
+                    _ => StaticMachineApplicationHandle::invalid(),
+                }
+            }
+            Some(SourceNode::Statement(statement))
+                if self.typed.statement_table.statement_is_valid(statement) =>
+            {
+                match self.typed.statement_table.statement(statement) {
+                    StatementNode::Call(call) => call.authored_machine_application,
+                    _ => StaticMachineApplicationHandle::invalid(),
+                }
+            }
+            _ => StaticMachineApplicationHandle::invalid(),
+        };
+        let mut free = self.machine_lifetimes(target);
+        let bound: super::regions::Substitution = self
+            .typed
+            .specialization_type_argument_regions(target, application)
+            .map_err(|reason| refuse_at(id, Unserved::Call(reason)))?
+            .into_iter()
+            .map(|(formal, actual)| (formal, super::regions::Region::Parameter(actual)))
+            .collect();
+        // A static type argument has already fixed these formals. Runtime
+        // operands must have that region, just as for a named parameter.
+        free.retain(|parameter| !bound.iter().any(|(fixed, _)| fixed == parameter));
+        Ok((free, bound))
+    }
+
     fn call_with_signature_values(
         &mut self,
         id: MachineId,
@@ -3804,7 +3850,7 @@ impl<'t> Program<'t> {
         const_values: &[Expression],
         const_sources: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> Checked<Expression> {
-        let free = if let Some(required) = required_contract {
+        let (free, mut bound) = if let Some(required) = required_contract {
             let signature = self
                 .declaration_sources
                 .get(required)
@@ -3815,7 +3861,7 @@ impl<'t> Program<'t> {
                         Unserved::Declaration("selected call lost its public requirement"),
                     )
                 })?;
-            self.machine_lifetimes(signature.symbol)
+            self.declared_call_regions(id, signature.symbol, source)?
         } else {
             match &callee {
                 CallTarget::Machine(machine) => {
@@ -3824,7 +3870,7 @@ impl<'t> Program<'t> {
                         .get(*machine)
                         .copied()
                         .unwrap_or_else(SymbolHandle::invalid);
-                    self.machine_lifetimes(symbol)
+                    self.declared_call_regions(id, symbol, source)?
                 }
                 CallTarget::Boundary { boundary } => {
                     let declaration = self
@@ -3834,20 +3880,16 @@ impl<'t> Program<'t> {
                             refuse_at(id, Unserved::Call("boundary lifetime owner is absent"))
                         })?
                         .source;
-                    self.machine_lifetimes(declaration)
+                    self.declared_call_regions(id, declaration, source)?
                 }
-                CallTarget::Selected { contract, .. } => self
-                    .callables
-                    .contracts
-                    .get(*contract)
-                    .ok_or_else(|| {
+                CallTarget::Selected { contract, .. } => {
+                    let contract = self.callables.contracts.get(*contract).ok_or_else(|| {
                         refuse_at(id, Unserved::Call("callable lifetime contract is absent"))
-                    })?
-                    .lifetimes
-                    .clone(),
+                    })?;
+                    (contract.lifetimes.clone(), Vec::new())
+                }
             }
         };
-        let mut bound = super::regions::Substitution::new();
         let formals: Vec<_> = signature
             .parameters
             .iter()

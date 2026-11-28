@@ -748,9 +748,9 @@ fn resolve_structural_shape(
             StructuralTypeShape::TypeParameter => {
                 Err(TerminalLayoutError::UnclosedTargetLayout(structural_type))
             }
-            StructuralTypeShape::Opaque => Err(TerminalLayoutError::UnclosedOpaqueRepresentation(
-                structural_type,
-            )),
+            StructuralTypeShape::Opaque | StructuralTypeShape::BorrowingOpaque { .. } => Err(
+                TerminalLayoutError::UnclosedOpaqueRepresentation(structural_type),
+            ),
             StructuralTypeShape::Reference { referent, .. } => {
                 declarations
                     .get(*referent)

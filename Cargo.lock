@@ -3592,6 +3592,7 @@ dependencies = [
  "terminal-psi",
  "terminal-semantics",
  "terminal-work",
+ "wire",
 ]
 
 [[package]]

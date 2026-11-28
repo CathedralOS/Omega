@@ -127,7 +127,8 @@ fn write_frame_rows(
                         .chain(realizations)
                         .for_each(&mut check_target);
                 }
-                DescriptorInvocationTarget::Provider { .. } => {}
+                DescriptorInvocationTarget::Provider { .. }
+                | DescriptorInvocationTarget::PrepareWorker { .. } => {}
             }
         }
     }
