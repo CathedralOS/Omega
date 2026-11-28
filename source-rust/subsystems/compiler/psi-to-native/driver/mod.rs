@@ -85,7 +85,7 @@ fn produce(
     if stop == NativeProductionStop::Image && !contained {
         request
             .policy_source
-            .admit_native_emission(&artifact, execution.scope().reach().machines())?;
+            .admit_native_emission(artifact, execution.scope().reach().machines())?;
     }
     if contained && (!exports.is_empty() || !request.suppliers.is_empty()) {
         return Err(vec![Diagnostic::error(
