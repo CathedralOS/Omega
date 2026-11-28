@@ -8,6 +8,10 @@ version.workspace = true
 path = "compiler.rs"
 
 [dependencies]
+language-core = { path = "foundation/language-core" }
+source-admission = { path = "source-to-psi/representations/source-files/custody" }
+source-provenance = { path = "foundation/source-provenance" }
+symbols = { path = "foundation/declaration-identity" }
 build-providers = { path = "build/providers" }
 review-evidence = { path = "../package-manager/review/evidence" }
 provider-correspondence = { path = "psi-to-native/verification/provider-correspondence" }
@@ -20,6 +24,7 @@ product-publication = { path = "build/publication" }
 semantic-vocabulary = { path = "foundation/semantic-records" }
 source-compiler = { path = "source-to-psi" }
 target = { path = "psi-to-native/targets/target" }
+terminal-psi = { path = "psi" }
 psi-authorization = { path = "psi/artifact/authorization" }
 
 [dev-dependencies]

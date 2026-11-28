@@ -161,9 +161,7 @@ enum RowRoute {
     NormalizedForeignCallTemplate,
     ByteLiteralAddress,
     DeferredControlFlow,
-    Ordinary {
-        channel: HostedChannel,
-    },
+    Ordinary { channel: HostedChannel },
 }
 
 fn route_of(kind: SelectedInstructionKind) -> RowRoute {
@@ -1213,6 +1211,11 @@ mod tests {
 
     #[test]
     fn callable_rows_use_indirect_encoding_and_reject_missing_pointer_or_changed_bytes() {
+        check_callable_rows(false);
+        check_callable_rows(true);
+    }
+
+    fn check_callable_rows(lends_owner: bool) {
         let target = NativeTarget::macos_arm64();
         let physical = isa_aarch64::validated_aarch64_physical_register_model();
         let constraints = isa_aarch64::validate_aarch64_register_constraint_catalog(
@@ -1236,12 +1239,27 @@ mod tests {
             .iter()
             .find(|row| row.constraint == key && row.semantic == MachineSemanticKind::CallScalar)
             .expect("the ordinary zero-argument scalar call has its actual catalog row");
-        let declaration = selected_instructions::calls::dynamic::instantiate_declaration(
+        let mut declaration = selected_instructions::calls::dynamic::instantiate_declaration(
             declaration,
             &constraint,
             physical,
         )
         .unwrap();
+        let constraint = if lends_owner {
+            use selected_instructions::calls::private_inputs;
+            for alternative in &mut declaration.alternatives {
+                alternative.encoded =
+                    private_inputs::with_owner_effects(&alternative.encoded).unwrap();
+            }
+            private_inputs::add(
+                &constraint,
+                private_inputs::execution_owner(physical).unwrap(),
+                physical,
+            )
+            .unwrap()
+        } else {
+            constraint
+        };
         let callable = selected_instructions::SelectedCallTarget::Callable {
             contract: semantic_vocabulary::CallableContractId::new(1).unwrap(),
         };

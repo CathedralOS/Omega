@@ -55,8 +55,14 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
-Marker 308 appends section 55 for per-value package evidence. Earlier saved
+Marker 309 appends section 55 for per-value package evidence. Earlier saved
 programs must be rebuilt.
+
+Marker 308 records which callable field of a parameter may run. The callable
+envelope and service schema invocation lists use tag 1 for a whole parameter
+and tag 2 for a service. Tag 3 carries the zero-based parameter position
+(`u32`) and a counted nonempty path: 1 field identity (text), 2 fixed index
+(`u64`), 3 case identity (text), or 4 referent. The path must end at a callable.
 
 Marker 307 adds the terminal alignment observation to scalar-read paths. Readers
 check the marker before decoding the module. Rebuild earlier artifacts for this
@@ -2764,19 +2770,9 @@ presence Boolean followed by a `u32` index; both envelope tables likewise
 use a presence Boolean before each present row. The existing declaration,
 result, claim, proof and certificate encodings apply to the corresponding fields.
 Runtime parameter-order tags are `0` scalar and `1` structural; erased formals
-have no runtime position. The invocation dependency tags are as follows.
-
-| Tag | Payload | Entry |
-| --- | --- | --- |
-| 1 | `u32` parameter position | The callable formal itself |
-| 2 | Service id | The named synchronous service entry |
-| 3 | `u32` parameter position and counted structural path | The callable stored at that path in the formal |
-
-Tag 3 requires a nonempty path of field, case, fixed-index or referent steps.
-It must resolve to a callable in that formal. Forwarding a record substitutes
-the actual record and the same path into the caller's entry obligations.
-
-Termination tag `0` provides no guarantee. Tag `1` precedes counted termination premises.
+have no runtime position. An invocation dependency is tag `1` plus a `u32`
+callable parameter position, or tag `2` plus a service id. Termination tag `0`
+provides no guarantee; tag `1` is followed by counted termination premises.
 Other tags reject.
 
 Receiving checks each opaque scalar's contract association and each descriptor's
@@ -3420,7 +3416,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 308 | yes |
+| semantic module | `PSITERM\0` | 309 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | published artifact | `PSIART\0\0` | 4 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |

@@ -10,69 +10,12 @@ use semantic_vocabulary::ServiceReachId;
 use semantic_vocabulary::{MachineId, ServiceId};
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{
-    ServiceDeclaration, TerminalCallableEnvelope, TerminalCallableInvocation,
-    TerminalCallableTermination, TerminalModule,
+    ServiceDeclaration, TerminalCallableEnvelope, TerminalCallableTermination, TerminalModule,
 };
 
 use crate::{Elaboration, Unserved, refuse};
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum InvocationStep {
-    Field(String),
-    Case(semantic_vocabulary::StructuralCaseId),
-    FixedIndex(u64),
-    Referent,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum SourceInvocation {
-    Parameter(u32),
-    Service(ServiceReachId),
-    ParameterPath {
-        parameter: u32,
-        path: Vec<InvocationStep>,
-    },
-}
-
-impl SourceInvocation {
-    pub(crate) fn parameter(&self) -> Option<(u32, &[InvocationStep])> {
-        match self {
-            Self::Parameter(position) => Some((*position, &[])),
-            Self::ParameterPath { parameter, path } => Some((*parameter, path)),
-            Self::Service(_) => None,
-        }
-    }
-}
-
-impl Ord for SourceInvocation {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        let tag = |target: &Self| match target {
-            Self::Parameter(_) => 0,
-            Self::Service(_) => 1,
-            Self::ParameterPath { .. } => 2,
-        };
-        match (self, other) {
-            (Self::Parameter(a), Self::Parameter(b)) => a.cmp(b),
-            (
-                Self::ParameterPath {
-                    parameter: a,
-                    path: ap,
-                },
-                Self::ParameterPath {
-                    parameter: b,
-                    path: bp,
-                },
-            ) => (a, ap).cmp(&(b, bp)),
-            (Self::Service(a), Self::Service(b)) => a.0.cmp(&b.0),
-            _ => tag(self).cmp(&tag(other)),
-        }
-    }
-}
-impl PartialOrd for SourceInvocation {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
+pub(crate) type SourceInvocation = semantic_vocabulary::SynchronousInvocation<ServiceReachId>;
 
 /// These identities belong to frozen typed trees, not a Terminal namespace.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -213,45 +156,15 @@ impl ServiceMap {
         row.dedup();
         Ok(row)
     }
-    pub(crate) fn invocation(
-        &self,
-        context: MachineId,
-        source: &SourceInvocation,
-        names: &terminal_psi::TerminalIdentityTable,
-    ) -> Checked<TerminalCallableInvocation> {
-        use terminal_psi::StructuralPathSegment as Segment;
-        match source {
-            SourceInvocation::Parameter(position) => {
-                Ok(TerminalCallableInvocation::Parameter(*position))
-            }
-            SourceInvocation::Service(service) => self
-                .service(context, *service)
-                .map(TerminalCallableInvocation::Service),
-            SourceInvocation::ParameterPath { parameter, path } => {
-                let path = path.iter().map(|step| Ok(match step {
-                    InvocationStep::Case(case) => Segment::Case(*case),
-                    InvocationStep::Field(name) => Segment::Field(names.index_of(name)
-                        .ok_or_else(|| unavailable(context, "invoked formal field is absent from its declared identities"))?),
-                    InvocationStep::FixedIndex(index) => Segment::FixedIndex(*index),
-                    InvocationStep::Referent => Segment::Referent,
-                })).collect::<Checked<Vec<_>>>()?;
-                Ok(TerminalCallableInvocation::ParameterPath {
-                    parameter: *parameter,
-                    path,
-                })
-            }
-        }
-    }
     pub(crate) fn envelope(
         &self,
         context: MachineId,
         source: &SourceEnvelope,
-        names: &terminal_psi::TerminalIdentityTable,
     ) -> Checked<TerminalCallableEnvelope> {
         let mut invocations = source
             .invocations
             .iter()
-            .map(|target| self.invocation(context, target, names))
+            .map(|target| target.try_map_service(|id| self.service(context, *id)))
             .collect::<Checked<Vec<_>>>()?;
         invocations.sort();
         invocations.dedup();

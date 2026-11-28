@@ -22,6 +22,10 @@ installations and private references used to build it.
 The target supplies the register model, instruction constraints and register
 reservations. [Incoming register constraints](register_constraints.rs) connect
 each used parameter to the incoming register required by its calling convention.
+At an internal call that may suspend, selection also forwards the execution
+owner in a private callee-saved register. That register is neither a source
+argument nor the register that selects an indirect callee. Foreign calls keep
+their declared ABI.
 
 ## Ordinary selected control flow
 

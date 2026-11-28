@@ -316,13 +316,18 @@ pub fn validate_x86_64_selected_scalar_call_template(
     if alternative != kind.call_alternative_key() {
         return Err(X86_64ScalarCallTemplateError::AlternativeMismatch);
     }
-    let (expected_views, expected) =
-        if matches!(kind, SelectedInstructionKind::InvokeNoNormal { .. }) {
-            expected_no_normal_mechanics(abi, physical, operand_views, effects)?
-        } else {
-            expected_call_mechanics(abi, physical, kind, operand_views)?
-        };
-    if effects != &expected {
+    let (abi_views, abi_effects) = selected_instructions::calls::private_inputs::ordinary_operands(
+        physical,
+        operand_views,
+        effects,
+    )
+    .ok_or(X86_64ScalarCallTemplateError::OperandViewMismatch)?;
+    let (_, expected) = if matches!(kind, SelectedInstructionKind::InvokeNoNormal { .. }) {
+        expected_no_normal_mechanics(abi, physical, &abi_views, &abi_effects)?
+    } else {
+        expected_call_mechanics(abi, physical, kind, &abi_views)?
+    };
+    if *abi_effects != expected {
         return Err(X86_64ScalarCallTemplateError::EffectMismatch);
     }
     let bytes: [u8; X86_64_SCALAR_CALL_TEMPLATE_BYTE_COUNT] = bytes
@@ -337,7 +342,7 @@ pub fn validate_x86_64_selected_scalar_call_template(
     Ok(ValidatedX86_64SelectedScalarCallTemplate {
         kind,
         alternative,
-        operand_views: expected_views,
+        operand_views: operand_views.to_vec(),
         effects: effects.clone(),
         bytes,
         fixup,
@@ -375,7 +380,13 @@ pub fn encode_x86_64_selected_dynamic_call_template(
         .view_named("r11")
         .ok_or(X86_64ScalarCallTemplateError::OperandViewMismatch)?
         .id;
-    let mut ordinary = operand_views.to_vec();
+    let (views, abi_effects) = selected_instructions::calls::private_inputs::ordinary_operands(
+        physical,
+        operand_views,
+        effects,
+    )
+    .ok_or(X86_64ScalarCallTemplateError::OperandViewMismatch)?;
+    let mut ordinary = views.into_owned();
     let pos = ordinary
         .iter()
         .position(|v| *v == selector)
@@ -390,7 +401,7 @@ pub fn encode_x86_64_selected_dynamic_call_template(
         physical.model().architecture,
     )
     .ok_or(X86_64ScalarCallTemplateError::EffectMismatch)?;
-    if *effects != expected {
+    if *abi_effects != expected {
         return Err(X86_64ScalarCallTemplateError::EffectMismatch);
     }
     let mut bytes = Vec::with_capacity(24);
@@ -399,5 +410,5 @@ pub fn encode_x86_64_selected_dynamic_call_template(
     bytes.extend_from_slice(&[
         0x4f, 0x8b, 0x1c, 0x13, 0x4d, 0x85, 0xdb, 0x75, 0x02, 0x0f, 0x0b, 0x41, 0xff, 0xd3,
     ]);
-    Ok((bytes, expected))
+    Ok((bytes, effects.clone()))
 }
