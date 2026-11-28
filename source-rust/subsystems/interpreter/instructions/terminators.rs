@@ -1685,7 +1685,8 @@ pub(crate) mod completion {
         Scalar(ValueId),
         Structural {
             result: &'a terminal_psi::StructuralOperationResult,
-            profile_completion: Option<&'a crate::storage::provider_storage::profiles::PendingResourceProfile>,
+            profile_completion:
+                Option<&'a crate::storage::provider_storage::profiles::PendingResourceProfile>,
             opened_owner: Option<semantic_vocabulary::CallableContractId>,
         },
     }
