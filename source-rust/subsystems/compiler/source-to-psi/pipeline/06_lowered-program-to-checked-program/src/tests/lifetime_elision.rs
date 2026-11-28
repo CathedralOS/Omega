@@ -59,6 +59,44 @@ machine build_entry(session: @mutable Session<'missing>) { session.ready = true;
     );
 }
 
+#[test]
+fn a_type_argument_closes_the_record_without_erasing_its_borrow() {
+    let source = r#"
+data Packet<'storage, T> { anchor: @'storage u8; value: T; }
+machine build_entry<'a>(packet: Packet<'a, u8>) -> u8 { packet.value }
+"#;
+    let verdict = judge_build(source).unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("{verdict:?}")
+    };
+    accepted.publish_invocation().unwrap();
+    assert!(
+        violation(&source.replace("Packet<'a, u8>", "Packet<'other, u8>"))
+            .contains("undeclared lifetime tags reject")
+    );
+}
+
+#[test]
+fn a_domain_on_a_record_describes_the_named_regions_of_its_field() {
+    let source = r#"
+data Label<'place> { point: @'place u8; }
+data Other<'place> { point: @'place u8; }
+domain Label::Marked;
+data Box<'held> { label: Label<'held> in Label::Marked; number: u8; }
+machine build_entry<'a>(box: Box<'a>) -> u8 { box.number }
+"#;
+    let verdict = judge_build(source).unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("{verdict:?}")
+    };
+    accepted.publish_invocation().unwrap();
+    let other = source.replace("label: Label<'held>", "label: Other<'held>");
+    super::callable_contracts::assert_typing_refuses(
+        &other,
+        "domain `Label::Marked` does not qualify carrier `Other<>`",
+    );
+}
+
 /// `Build` itself stores views: `identifier: @'storage [u8]`. The view's
 /// lifetime is a binder of the data declaration the field belongs to.
 #[test]
@@ -297,7 +335,7 @@ machine build_entry(session: @mutable Session) { session.ready = true; }
 /// keep. It is still a record of the judged program, identified by its
 /// declaration. Data with a type parameter is not such a record: it has no
 /// field types until a type applies it, so the declaration is read as
-/// written and gives no row. One that also declares a lifetime is not read.
+/// written and gives no row, including when a field borrows its type argument.
 #[test]
 fn a_declaration_nothing_names_is_a_record_without_an_occurrence() {
     assert_eq!(
@@ -319,13 +357,13 @@ machine build_entry() { }
         []
     );
     assert_eq!(
-        refusal(
+        record_rows(
             r#"
 data Unused<'held, Payload> { count: u32; payload: @'held Payload; }
 machine build_entry() { }
 "#
         ),
-        "type generic data with lifetimes, bounds, cleanup, a quotient or retired members"
+        []
     );
 }
 

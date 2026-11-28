@@ -820,16 +820,20 @@ impl Program<'_> {
         let unserved = |what| refuse_at(entry, Unserved::Type(what));
         if data.generic_instance.is_some()
             || data.supply_mode != language_core::DataSupplyMode::CheckedShape
-            || !data.lifetime_parameters.is_empty()
             || !data.conformance_bounds.is_empty()
             || data.cleanup_selection.is_some()
             || data.quotient.is_some()
             || !data.retired_identities.is_empty()
         {
             return Err(unserved(
-                "generic data with lifetimes, bounds, cleanup, a quotient or retired members",
+                "generic data with bounds, cleanup, a quotient or retired members",
             ));
         }
+        super::places::lifetime_binders(
+            entry,
+            &data.lifetime_parameters,
+            self.declared_at(data.symbol),
+        )?;
         let parameters = typed.data_type_parameters(data);
         for parameter in parameters {
             let served = match parameter.kind {
