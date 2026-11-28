@@ -119,6 +119,31 @@ fn collect_callee_summaries(
     prepared: &crate::publication::PreparedProgram<'_>,
     summaries: &mut crate::CalleeSummaries,
 ) {
+    // A conformance witness checks the actual bodies of every selected
+    // destructor and its callees to establish that automatic cleanup returns.
+    // An ordinary call summary carries no such evidence.
+    let module = &prepared.program.module;
+    let mut pending: Vec<_> = module
+        .types
+        .structural_types
+        .iter()
+        .filter_map(|ty| {
+            ty.nominal_cleanup
+                .as_ref()
+                .map(|cleanup| cleanup.cleanup_machine)
+        })
+        .collect();
+    let mut visited = std::collections::BTreeSet::new();
+    while let Some(id) = pending.pop() {
+        if visited.insert(id)
+            && let Some(machine) = module.machine(id)
+        {
+            if let Some(&symbol) = prepared.program.machines.get(id) {
+                summaries.0.insert(symbol, None);
+            }
+            pending.extend(machine.module_invocations().map(|call| call.inputs.callee));
+        }
+    }
     if prepared.has_type_alternative {
         return;
     }

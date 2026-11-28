@@ -35,6 +35,25 @@ pub enum TerminalScalarValue {
 }
 
 impl TerminalScalarValue {
+    /// The held descriptor, its declared contract and the call site must all
+    /// agree before an indirect call can select a machine.
+    pub fn selected_machine(
+        self,
+        catalog: &terminal_psi::TerminalCallableCatalog,
+        expected: semantic_vocabulary::CallableContractId,
+    ) -> Option<semantic_vocabulary::MachineId> {
+        let Self::Callable {
+            contract,
+            descriptor,
+        } = self
+        else {
+            return None;
+        };
+        catalog.contract(expected)?;
+        let selected = catalog.descriptor(descriptor)?;
+        (contract == expected && selected.contract == expected).then_some(selected.machine)
+    }
+
     pub fn zero(scalar_type: ScalarType) -> Option<Self> {
         match scalar_type {
             ScalarType::Callable(_) => None,

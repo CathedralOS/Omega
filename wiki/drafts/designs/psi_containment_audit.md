@@ -80,7 +80,7 @@ resumption would have consumed.
 | No native lowering or fact-driven optimization | Native lowering and optimization take `AuthorizedTerminalArtifact`, which contained admission never makes. Runtime admission stops before both (see [Contained runtime admission](#contained-runtime-admission)). | `contained_saved_psi_is_admitted_for_the_interpreter_and_refused_native_code` |
 | Bounded storage | A contained program instantiates only with an `EvaluationInvocationAccount`. | `a_contained_guest_needs_an_account_and_contained_adapters` |
 | Bindings enforce dynamically or are unavailable | `TerminalInstance::bind_import` refuses an adapter whose `serves_contained_execution` is false (`UncontainedAdapter`), and component bindings are refused. | `a_contained_guest_needs_an_account_and_contained_adapters` |
-| Runtime host grants | `TerminalRuntimeContainment` runs the named contained artifact under its account. It needs output limits and refuses native providers, native services and filesystem delegation other than standard streams alone. | `an_untrusted_artifact_runs_only_with_containable_grants` |
+| Runtime host grants | `TerminalRuntimeContainment` runs the named contained artifact under its account. It needs output limits and refuses native providers, native services and every filesystem delegation except standard streams alone or mapped directories. | `an_untrusted_artifact_runs_only_with_containable_grants` |
 
 The runtime host's bindings, reviewed one by one:
 
@@ -88,10 +88,11 @@ The runtime host's bindings, reviewed one by one:
 | --- | --- | --- |
 | Numeric, absolute value, affine transform, integer division, integer parsing, network address, descriptor mode | Yes | Safe Rust over copied values and invocation-private state. Nothing outlives the call or reaches the host. |
 | Buffered output | With output limits | Output reaches only the invocation's capped buffers. |
-| Descriptor I/O | Without filesystem delegation or with standard streams alone, with output limits | Finite replay input and capped private output. A standard-streams namespace answers every other descriptor with `EBADF`. Delegated descriptors reach the host kernel. |
+| Descriptor I/O | With output limits, and with no filesystem, standard streams alone or mapped directories | Finite replay input and capped private output. A standard-streams namespace answers every other descriptor with `EBADF`. A mapped namespace reaches only descriptors its own confined opens issued, and never the host's standard streams. Host-namespace descriptors reach the host kernel. |
 | Clock | Snapshot, or live time under a granted wait ceiling | Snapshot time is private and modeled. `TerminalClockEnvironment::HostWithin` refuses any wait past what remains of its ceiling before it sleeps; unbounded `Host` time does not serve. `a_live_wait_ceiling_refuses_waits_past_what_remains` |
 | Allocation emulation | Yes, charged to the invocation account | Each `calloc` reserves one cell and its bytes on the contained guest's account, and returns null when the account cannot cover it. `free` returns the bytes; the cell stays because addresses never recycle. `a_charged_ledger_bounds_live_allocation_by_its_account` |
-| Linux filesystem, filesystem delegation | No | Kernel calls on the host's namespace. |
+| Linux filesystem over mapped directories | Yes | Every path resolves beneath a retained directory handle, component by component, without following symbolic links. A leaf that is a symbolic link is refused, only regular files and directories open, operations outside an allowlist return `EOPNOTSUPP`, renames and links cannot cross mappings, and a read-only mapping refuses every write. Failures return to the guest as Linux errno. `a_readonly_fd_does_not_authorize_metadata_writes_or_symlink_escape`, `a_contained_run_gets_its_working_directory_or_the_explicit_mappings` |
+| Linux filesystem over the host namespace or a host directory | No | Kernel calls on the host's namespace. |
 | Native provider | No | Runs foreign native code. |
 
 ## Contained runtime admission
@@ -109,16 +110,13 @@ producer trust.
 | No optimizer | Stage 04 `admit_abstract_body` refuses a contained artifact with `ProducerTrustRequired`. | `abstract_input.rs` |
 | No image, components or foreign adapters | `produce` refuses exports and suppliers for a contained program, gives it no native foreign adapter, and requires the authorized form before image planning. `compiler::CompileRequest::Native` refuses `Program::ContainedPsi`. | `contained_saved_psi_is_admitted_for_the_interpreter_and_refused_native_code` |
 | Compile-time evaluation stays contained | Calling policies and scalar conditions evaluated during runtime admission use `TerminalProgram::borrow_admitted`, so a contained artifact's own code runs as a contained program under an invocation account. | `a_contained_guest_needs_an_account_and_contained_adapters` |
-| CLI grants | `omega run app.psi` runs with the host's reviewed package bindings, standard streams only, no native provider or services, a live-wait ceiling and output ceilings. Explicit run directory mappings are refused until a confined filesystem binding is audited. | `saved_psi_without_producer_trust_runs_contained` |
+| CLI grants | `omega run app.psi` runs with the host's reviewed package bindings, standard streams, no native provider or services, a live-wait ceiling and output ceilings. The working directory is mounted read/write at `/`, and explicit run directory mappings replace that mount. A host without the mapped namespace gets standard streams alone. Sockets and program launch have no contained adapter, so a program that binds them is refused before it runs. | `saved_psi_without_producer_trust_runs_contained`, `a_contained_run_gets_its_working_directory_or_the_explicit_mappings`, `a_contained_run_gets_no_network`, `a_contained_run_launches_no_program` |
 
 ## Remaining
 
-1. Apply the remaining
-   [standalone Product grants](../../spec/build/command_line.md#runtime-directory-mappings)
-   to bare `omega run app.psi`: the cwd read/write mount at `/` by default,
-   replaced by explicit mappings. Live networking and program launch are
-   already unavailable on the contained route.
-2. Audit a confined filesystem binding for contained execution. Exercise the
-   read/write cwd mount, replacement by explicit mappings, symlink confinement
-   and ordinary filesystem failures. The audited route above refuses filesystem
-   delegation and native providers.
+1. Apply the same standalone grant to a source run. `omega run main.omg`
+   still supplies the host namespace and matching-host adapters when it has no
+   explicit run directory mappings.
+2. Bound what a contained guest writes to its mounts. Output to standard
+   streams is capped, but file writes through a read/write mapping are limited
+   only by the host filesystem.

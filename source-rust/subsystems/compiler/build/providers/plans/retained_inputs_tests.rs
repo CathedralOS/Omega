@@ -53,6 +53,7 @@ fn plan_with_calling_applications(count: usize) -> ProviderPlan {
         CallingOperandKind::Machine,
         CallingOperandKind::Implementation,
         CallingOperandKind::Proposition,
+        CallingOperandKind::Proof,
     ];
     for index in 0..count {
         plan.schema
@@ -91,6 +92,17 @@ fn position(bytes: &[u8], value: &[u8]) -> usize {
         .collect::<Vec<_>>();
     assert_eq!(matches.len(), 1);
     matches[0]
+}
+
+#[test]
+fn retained_plan_reads_the_stack_demand_before_termination_and_calling_rows() {
+    let mut plan = plan_with_calling_applications(1);
+    let method = &mut std::sync::Arc::make_mut(&mut plan.schema.declaration).methods[0];
+    method.admitted_same_stack_bytes = 512;
+    method.terminates_guarantee = true;
+    let bytes = plan.identity_preimage();
+    let received = ProviderPlanInput::read(&bytes, plan.identity_digest().as_bytes()).unwrap();
+    assert_eq!(received.rows.len(), plan.rows.len());
 }
 
 #[test]
@@ -196,7 +208,7 @@ fn calling_application_bytes_reject_malformed_lengths_tags_and_order() {
     let bytes = plan.identity_preimage();
     let operand = position(&bytes, b"static-operand-0");
     let mut changed = bytes.clone();
-    changed[operand - 9] = 6;
+    changed[operand - 9] = u8::MAX;
     assert_eq!(
         read(&changed).unwrap_err(),
         "provider plan input has an unknown tag"

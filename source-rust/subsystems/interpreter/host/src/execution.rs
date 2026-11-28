@@ -286,9 +286,10 @@ fn require_containable(
         request.filesystem,
         TerminalFilesystemDelegation::Unprovided
             | TerminalFilesystemDelegation::StandardStreamsOnly
+            | TerminalFilesystemDelegation::Mapped(_)
     ) {
         return Err(refuse(
-            "a guest admitted without producer trust gets no filesystem delegation",
+            "a guest admitted without producer trust gets only mapped directories",
         ));
     }
     if request.output_limits.is_none() {
@@ -616,6 +617,10 @@ mod containment_tests {
         // A namespace of standard streams alone reaches no host descriptor.
         assert!(!refused(|request| {
             request.filesystem = TerminalFilesystemDelegation::StandardStreamsOnly;
+        }));
+        // Mapped directories confine every path beneath their handles.
+        assert!(!refused(|request| {
+            request.filesystem = TerminalFilesystemDelegation::Mapped(Default::default());
         }));
 
         let observation = execute(request(contained.artifact(), containment)).unwrap();

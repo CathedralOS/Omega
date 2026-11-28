@@ -365,13 +365,14 @@ impl TerminalImportAdapter for DescriptorIoImport<'_> {
         self.contract.signature.clone()
     }
 
-    // Finite replay input and capped private output are contained. Delegated
-    // filesystem descriptors reach the host's kernel and are not; a namespace
-    // of standard streams alone answers every other descriptor with EBADF.
+    // Finite replay input and capped private output are contained. Other
+    // descriptors are contained only through a confined namespace: standard
+    // streams alone answer them with EBADF, and mapped directories reach only
+    // descriptors their confined opens issued.
     fn serves_contained_execution(&self) -> bool {
         self.linux_filesystem
             .as_ref()
-            .is_none_or(super::filesystem::LinuxFilesystemWrite::standard_streams_only)
+            .is_none_or(super::filesystem::LinuxFilesystemWrite::confined)
             && self.output.limits.is_some()
     }
 }

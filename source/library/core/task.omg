@@ -1,3 +1,7 @@
+use access/access.omg;
+use layout.omg;
+use reflect/reflect.omg;
+
 // Core task-lifecycle vocabulary (task runtime TR2).
 //
 // `Task<T>` is the owned lifecycle CLAIM for one provider-held activation. It
@@ -11,6 +15,19 @@
 public data Task<T> [linear] {
     provider: u64;
     activation: u64;
+}
+
+// The bits of a Task can describe a provider and activation. Only a start
+// whose provider accepts custody may issue the matching lifecycle claim.
+public domain<T> Task<T>::Live<T> access TaskClaimAccess;
+
+public TaskClaimAccess satisfies |layout|::AccessPolicy {
+    machine plan(schema: |reflect|::TypeSchema) -> |layout|::AccessPlan
+    reaches none crashes none terminates {
+        |access|::new_plan(@schema, |layout|::Issuance::Only {
+            routes: [|reflect|::callable(TaskRuntime::start), |reflect|::callable(TaskRuntime::try_start)]
+        })
+    }
 }
 
 // Provider/lifecycle failures are ordinary affine records. Concrete providers
@@ -36,7 +53,7 @@ public data TaskOutcome<T> {
 }
 
 public data StartOutcome<T, Arguments> {
-    case Started(task: Task<T>);
+    case Started(task: Task<T> in Live<T>);
     case Rejected(arguments: Arguments, reason: StartRejection);
 }
 
@@ -45,9 +62,9 @@ public data StartOutcome<T, Arguments> {
 // consumes the claim exactly once. The claim is an ordinary explicit argument
 // of both rows.
 public boundary trait TaskLifecycle {
-    machine request_cancel<T>(task: @Task<T>) reaches none crashes Trap crashes Abort;
+    machine request_cancel<T>(task: @Task<T> in Live<T>) reaches none crashes Trap crashes Abort;
 
-    machine finish<T>(task: Task<T>) -> TaskOutcome<T> reaches none suspends blocks crashes Trap crashes Abort;
+    machine finish<T>(task: Task<T> in Live<T>) -> TaskOutcome<T> reaches none suspends blocks crashes Trap crashes Abort;
 }
 
 // A start chooses the backing contract for this activation at compile time.
@@ -65,7 +82,7 @@ public data TaskWorker<Arguments, T> = machine(arguments: Arguments) -> T suspen
 public boundary trait TaskRuntime {
     machine start<T, Arguments, const Target: TaskWorker<Arguments, T>, const Plan: ActivationStorage>(
         arguments: Arguments
-    ) -> Task<T>
+    ) -> Task<T> in Live<T>
     ensures true reaches none
     crashes Trap crashes Abort;
 

@@ -1354,6 +1354,7 @@ impl<'a> DescriptorAnalysis<'a> {
             let Some(before) = states.get(position) else {
                 continue;
             };
+            self.resolve_copied_fields(machine, *position, before, step);
             let incomplete_step = || incomplete(Some(*position));
             let call = machine.direct_call(*position);
             // A projected address need not have a static descriptor location.
@@ -1533,6 +1534,68 @@ impl<'a> DescriptorAnalysis<'a> {
         }
         Ok(flow)
     }
+    /// A copy through a slice preserves the loan stored in each selected
+    /// field. The slice itself borrows the array containing those fields.
+    fn resolve_copied_fields(
+        &self,
+        machine: &DescriptorMachine,
+        position: DescriptorPosition,
+        before: &State,
+        step: &mut DescriptorFlowStep,
+    ) {
+        if !step.may_escape || step.derivations.is_empty() || machine.contents_queries.is_empty() {
+            return;
+        }
+        let mut copied = Vec::new();
+        let mut authority = Vec::new();
+        for (source, destination) in &step.derivations {
+            let key = (position, source.clone(), destination.clone());
+            let Some(query) = machine.contents_queries.get(&key) else {
+                return;
+            };
+            // A subslice or fixed-array reference applies a projection to the
+            // observed value. Neither copies the descriptor unchanged.
+            if machine.storage_derivations.contains(&key)
+                || machine.projections.contains_key(&key)
+                || destination
+                    .path
+                    .contains(&DescriptorPathSegment::UnknownContents)
+            {
+                return;
+            }
+            let Some(targets) = self.replay.contents_targets(machine, before, query) else {
+                return;
+            };
+            if targets.is_empty() {
+                return;
+            }
+            let transports_authority = step
+                .authority_derivations
+                .contains(&(source.clone(), destination.clone()));
+            for target in targets {
+                let DescriptorPayloadTarget::Storage {
+                    location,
+                    completed: None,
+                } = target
+                else {
+                    // Historical values and unlocated input contents keep their
+                    // conservative escape account.
+                    return;
+                };
+                let transfer = (location, destination.clone());
+                if transports_authority {
+                    authority.push(transfer.clone());
+                }
+                copied.push(transfer);
+            }
+        }
+        // Every copied field now transports from all its possible current
+        // slots. Only later uses of those copies need their original loans.
+        step.may_escape = false;
+        step.derivations = copied;
+        step.authority_derivations = authority;
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn append_invocation_flow(
         &self,
