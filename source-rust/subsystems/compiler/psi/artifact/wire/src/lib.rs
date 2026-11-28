@@ -53,6 +53,7 @@ pub use theorem_citations::{
     validate_theorem_evidence, validate_theorem_parameters, validate_theorem_supply_sites,
 };
 mod module_wire;
+mod package_wire;
 mod obligation_evidence;
 mod sections;
 mod semantic_module;
