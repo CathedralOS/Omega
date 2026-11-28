@@ -345,7 +345,7 @@ impl Replay<'_> {
                         origin,
                         Origin::Incoming(_)
                             | Origin::IncomingContents(_, _)
-                            | Origin::Backing(DescriptorCallOrigin::AccessFormation { .. })
+                            | Origin::Backing(DescriptorCallOrigin::AccessFormation { .. } | DescriptorCallOrigin::NativeAddress { .. })
                     )
                 })
             {

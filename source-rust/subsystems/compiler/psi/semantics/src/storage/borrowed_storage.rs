@@ -255,6 +255,8 @@ pub fn call_write_regions(
 pub struct Projection {
     address: Option<Vec<AddressStep>>,
     descriptor: DescriptorPrefix,
+    /// The derivation includes a checked upgrade of this backing.
+    pub(crate) upgraded_mutability: bool,
     pub path: Vec<StructuralPathSegment>,
     pub exact: bool,
     pub indirect: bool,
@@ -321,6 +323,7 @@ impl Projection {
                 )
             ));
         Self {
+            upgraded_mutability: false,
             descriptor: if length == path.len() {
                 DescriptorPrefix::Open(path.to_vec())
             } else {
@@ -337,6 +340,12 @@ impl Projection {
             window: None,
             captured_at: None,
         }
+    }
+
+    /// An exclusive reborrow of exactly the same storage, formed by the
+    /// checked mutability upgrade operation.
+    pub fn upgraded() -> Self {
+        Self { upgraded_mutability: true, ..Self::new(&[]) }
     }
 
     pub fn at(mut self, position: Position) -> Self {
@@ -883,6 +892,7 @@ impl Projection {
 
     pub fn then(&self, suffix: &Self) -> Self {
         let mut composed = self.clone();
+        composed.upgraded_mutability |= suffix.upgraded_mutability;
         composed.descriptor = match (
             self.original_descriptor_path(),
             suffix.original_descriptor_path(),

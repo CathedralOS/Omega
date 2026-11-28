@@ -303,6 +303,24 @@ fn reference_sources_for_leaves(
         }
         let mut sources = Vec::with_capacity(slot.origins.len());
         for origin in &slot.origins {
+            if let DescriptorStoredOrigin::NativeAddress { carrier, projection, .. } = origin {
+                if projection != &Projection::new(&[]) {
+                    return Err("native reference result no longer names its original pointee");
+                }
+                let Some(StructuralTypeShape::Reference { referent: from, access: offered }) =
+                    terminal_psi::find_structural_type(types, *carrier).map(|row| &row.shape)
+                else { return Err("native borrow lost its typed reference"); };
+                if *from != referent || !access.admits_referent(*offered) {
+                    return Err("native reference result changes its original type or access");
+                }
+                sources.push(terminal_psi::StructuralReferenceOrigin::Invocation {
+                    carrier_type: *carrier,
+                    path: vec![ReferenceOriginProjection::Exact(StructuralPathSegment::Referent)],
+                    extent: ReferenceOriginExtent::Projected,
+                    access,
+                });
+                continue;
+            }
             if let DescriptorStoredOrigin::Provider(provider) = origin {
                 // The producing call supplies this reference. Its input loans travel
                 // separately in the provider's replayed lifetime dependencies.
@@ -349,6 +367,11 @@ fn reference_sources_for_leaves(
                     return Err("reference result backing needs its actual admitted producer");
                 }
             };
+            let upgraded = access == StructuralAccess::MutableBorrow && matches!(origin,
+                DescriptorStoredOrigin::Parameter { projection, .. }
+                | DescriptorStoredOrigin::IncomingContents { projection, .. }
+                    if projection.upgraded_mutability);
+            let input_access = if upgraded { StructuralAccess::SharedBorrow } else { access };
             let (position, mut path) = descriptor_input_origin_path(types, parameters, origin)?;
             if path.iter().any(|step| {
                 !matches!(
@@ -384,13 +407,13 @@ fn reference_sources_for_leaves(
                 else {
                     return Err("reference result changes its original referent");
                 };
-                if *stored != referent || !access.admits_referent(*ceiling) {
+                if *stored != referent || !input_access.admits_referent(*ceiling) {
                     return Err("reference result changes its input type or access");
                 }
                 path.push(ReferenceOriginProjection::Exact(
                     StructuralPathSegment::Referent,
                 ));
-            } else if !access.admits(parameter.access) {
+            } else if !input_access.admits(parameter.access) {
                 return Err("reference result exceeds its input storage access");
             }
             if parameter.access == StructuralAccess::Owned
@@ -410,16 +433,20 @@ fn reference_sources_for_leaves(
             // element of one array has the same access, so the first
             // element stands for an unknown one; an empty array has
             // no element and fails closed.
-            if !input_path_accessible(types, parameter, &path, access) {
+            if !input_path_accessible(types, parameter, &path, input_access) {
                 return Err("reference result exceeds an input path's access");
             }
             let source = ReferenceOriginSource {
                 place: parameter.place,
                 path,
                 extent,
-                access,
+                access: input_access,
             };
-            sources.push(terminal_psi::StructuralReferenceOrigin::Parameter(source));
+            sources.push(if upgraded {
+                terminal_psi::StructuralReferenceOrigin::UpgradedParameter(source)
+            } else {
+                terminal_psi::StructuralReferenceOrigin::Parameter(source)
+            });
         }
         sources.sort();
         sources.dedup();

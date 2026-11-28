@@ -2071,7 +2071,7 @@ impl<'a> Replay<'a> {
                     origin,
                     Origin::Incoming(_)
                         | Origin::IncomingContents(_, _)
-                        | Origin::Backing(DescriptorCallOrigin::AccessFormation { .. })
+                        | Origin::Backing(DescriptorCallOrigin::AccessFormation { .. } | DescriptorCallOrigin::NativeAddress { .. })
                 )
             }) {
                 return Some(origins.clone());
@@ -2242,6 +2242,7 @@ impl<'a> Replay<'a> {
                         } => {
                             let composed = prefix.then(projection);
                             if composed.exact
+                                && !composed.upgraded_mutability
                                 && !composed.indirect
                                 && composed.window.is_none()
                                 && composed.captured_at.is_none()
@@ -2291,6 +2292,19 @@ impl<'a> Replay<'a> {
                     carrier,
                     projection: prefix,
                 }) => Some(Origin::Backing(DescriptorCallOrigin::AccessFormation {
+                    machine,
+                    operation,
+                    place,
+                    carrier,
+                    projection: prefix.then(projection),
+                })),
+                Origin::Backing(DescriptorCallOrigin::NativeAddress {
+                    machine,
+                    operation,
+                    place,
+                    carrier,
+                    projection: prefix,
+                }) => Some(Origin::Backing(DescriptorCallOrigin::NativeAddress {
                     machine,
                     operation,
                     place,
@@ -3771,6 +3785,21 @@ impl<'a> Replay<'a> {
                     projection: projection.clone(),
                 },
             )])),
+            DescriptorStoredOrigin::NativeAddress {
+                machine,
+                operation,
+                place,
+                carrier,
+                projection,
+            } => Some(BTreeSet::from([Origin::Backing(
+                DescriptorCallOrigin::NativeAddress {
+                    machine: *machine,
+                    operation: *operation,
+                    place: *place,
+                    carrier: *carrier,
+                    projection: projection.clone(),
+                },
+            )])),
             DescriptorStoredOrigin::Empty => Some(BTreeSet::from([Origin::Backing(
                 DescriptorCallOrigin::Empty,
             )])),
@@ -4103,6 +4132,19 @@ impl<'a> Replay<'a> {
                 carrier,
                 projection,
             }) => Some(DescriptorStoredOrigin::AccessFormation {
+                machine: *machine,
+                operation: *operation,
+                place: *place,
+                carrier: *carrier,
+                projection: projection.clone().without_runtime_coordinates(),
+            }),
+            Origin::Backing(DescriptorCallOrigin::NativeAddress {
+                machine,
+                operation,
+                place,
+                carrier,
+                projection,
+            }) => Some(DescriptorStoredOrigin::NativeAddress {
                 machine: *machine,
                 operation: *operation,
                 place: *place,

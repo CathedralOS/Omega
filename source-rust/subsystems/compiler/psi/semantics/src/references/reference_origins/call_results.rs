@@ -20,6 +20,7 @@ pub enum ReferenceCallOrigin {
     Parameter {
         source: StructuralArgument,
         transfers_existing: bool,
+        upgraded_mutability: bool,
     },
     Invocation {
         carrier_type: StructuralTypeId,
@@ -104,8 +105,10 @@ pub fn bind_reference_call_results<'types>(
             for mapping in sources {
                 let mut candidates = Vec::with_capacity(mapping.sources.len());
                 for origin in &mapping.sources {
+                    let upgraded_mutability = matches!(origin, terminal_psi::StructuralReferenceOrigin::UpgradedParameter(_));
                     let origin = match origin {
-                        terminal_psi::StructuralReferenceOrigin::Parameter(origin) => {
+                        terminal_psi::StructuralReferenceOrigin::Parameter(origin)
+                        | terminal_psi::StructuralReferenceOrigin::UpgradedParameter(origin) => {
                             origin
                         }
                         terminal_psi::StructuralReferenceOrigin::Invocation {
@@ -156,7 +159,8 @@ pub fn bind_reference_call_results<'types>(
                     candidates.push(ReferenceCallSource {
                         origin: ReferenceCallOrigin::Parameter {
                             source,
-                            transfers_existing,
+                            transfers_existing: transfers_existing && !upgraded_mutability,
+                            upgraded_mutability,
                         },
                         suffix: binding.suffix.to_vec(),
                         endpoint: binding.endpoint,
@@ -270,6 +274,7 @@ pub(crate) fn bind_public_reference_call_results<'types>(
                 origin: ReferenceCallOrigin::Parameter {
                     source,
                     transfers_existing: false,
+                    upgraded_mutability: false,
                 },
                 suffix: Vec::new(),
                 endpoint,

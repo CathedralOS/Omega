@@ -987,6 +987,19 @@ impl<'a> DescriptorAnalysis<'a> {
                 carrier: *carrier,
                 projection: projection.clone(),
             },
+            DescriptorSourceOrigin::Backing(DescriptorCallOrigin::NativeAddress {
+                machine,
+                operation,
+                place,
+                carrier,
+                projection,
+            }) => DescriptorStoredOrigin::NativeAddress {
+                machine: *machine,
+                operation: *operation,
+                place: *place,
+                carrier: *carrier,
+                projection: projection.clone(),
+            },
             DescriptorSourceOrigin::IncomingSlot(location) => {
                 let (position, _, ty) = self.replay.parameter(callee, location.root)?;
                 if !self
@@ -1918,7 +1931,8 @@ impl<'a> DescriptorAnalysis<'a> {
                     | DescriptorStoredOrigin::Carried { .. }
                     | DescriptorStoredOrigin::Provider(_)
                     | DescriptorStoredOrigin::ProducedContents(_)
-                    | DescriptorStoredOrigin::AccessFormation { .. } => {
+                    | DescriptorStoredOrigin::AccessFormation { .. }
+            | DescriptorStoredOrigin::NativeAddress { .. } => {
                         continue;
                     }
                     DescriptorStoredOrigin::IncomingSlot { position, path } => {

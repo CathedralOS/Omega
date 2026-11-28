@@ -943,6 +943,23 @@ fn adapt_flow(
                         },
                     ));
                 }
+                OperationKind::BorrowAt { address } => {
+                    let origin = crate::storage::native_borrows::address_origin(machine, *address);
+                    graph.native_address_borrow(
+                        &module.types.structural_types,
+                        position,
+                        &mut step,
+                        operation.id,
+                        result?,
+                        origin.sources,
+                        origin.exact,
+                    )?;
+                }
+                OperationKind::UpgradeMutability { source } => {
+                    graph.mutability_upgrade(
+                        &module.types.structural_types, position, &mut step, source, result?,
+                    )?;
+                }
                 OperationKind::EstablishAccessReference { .. }
                     if slot_kind == DescriptorSlotKind::AccessOrigins =>
                 {
@@ -1952,6 +1969,8 @@ fn adapt_flow(
             if !matches!(
                 operation.kind,
                 OperationKind::EstablishReference { .. }
+                    | OperationKind::BorrowAt { .. }
+                    | OperationKind::UpgradeMutability { .. }
                     | OperationKind::EstablishAccessReference { .. }
                     | OperationKind::EstablishElementView { .. }
                     | OperationKind::EstablishMutableElementView { .. }
@@ -2542,6 +2561,81 @@ pub(crate) fn captured_storage_source(
         capture,
     ))
 }
+impl DescriptorMachine {
+    /// A known address follows the storage that produced it. A native address
+    /// whose backing the caller asserts has its own formation identity.
+    #[allow(clippy::too_many_arguments)]
+    pub fn native_address_borrow<'a>(
+        &mut self,
+        types: &[StructuralTypeDeclaration],
+        position: DescriptorPosition,
+        step: &mut DescriptorFlowStep,
+        operation: semantic_vocabulary::OperationId,
+        result: &terminal_psi::StructuralOperationResult,
+        sources: impl IntoIterator<Item = &'a StructuralArgument>,
+        exact: bool,
+    ) -> Option<()> {
+        let destination = DescriptorLocation::whole(result.place);
+        let mut known = false;
+        for source in sources {
+            known = true;
+            let (location, projection, capture) = captured_storage_source(
+                types,
+                source.place,
+                &source.path,
+                *self.place_types.get(&source.place)?,
+                position,
+            )?;
+            step.derivations.push((location.clone(), destination.clone()));
+            if capture == CapturedBacking::StorageAddress {
+                self.storage_derivations.insert((position, location.clone(), destination.clone()));
+            }
+            if projection.is_some() || !exact {
+                let mut projection = projection.unwrap_or_else(|| Projection::new(&[]));
+                if !exact { projection.forget_address(); }
+                self.projections.insert((position, location, destination.clone()), projection);
+            }
+        }
+        let origins = self.originations.entry(position).or_default();
+        origins.retain(|(location, _)| location != &destination);
+        if !known {
+            origins.push((destination, DescriptorCallOrigin::NativeAddress {
+                machine: self.id,
+                operation,
+                place: result.place,
+                carrier: result.structural_type,
+                projection: Projection::new(&[]),
+            }));
+        }
+        Some(())
+    }
+
+    /// A mutability upgrade derives a new exclusive loan of the same referent.
+    /// The receiver's reference retains its bound and its actual input provenance.
+    pub fn mutability_upgrade(
+        &mut self,
+        types: &[StructuralTypeDeclaration],
+        position: DescriptorPosition,
+        step: &mut DescriptorFlowStep,
+        source: &StructuralArgument,
+        result: &terminal_psi::StructuralOperationResult,
+    ) -> Option<()> {
+        let query = descriptor_contents_query(
+            types, source.place, *self.place_types.get(&source.place)?, &source.path, None,
+        )?;
+        let source = query.observation();
+        let destination = DescriptorLocation::whole(result.place);
+        step.replace_value_inputs([source.clone()]);
+        step.derivations.push((source.clone(), destination.clone()));
+        if let Some(origins) = self.originations.get_mut(&position) {
+            origins.retain(|(location, _)| location != &destination);
+        }
+        self.contents_queries.insert((position, source.clone(), destination.clone()), query);
+        self.projections.insert((position, source, destination), Projection::upgraded());
+        Some(())
+    }
+}
+
 fn destination_root(kind: &OperationKind) -> Option<&PlaceId> {
     match kind {
         OperationKind::EstablishByteSequenceLiteral { destination, .. } => {

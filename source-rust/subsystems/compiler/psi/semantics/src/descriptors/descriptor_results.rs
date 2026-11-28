@@ -108,6 +108,13 @@ pub enum DescriptorCallOrigin {
         carrier: StructuralTypeId,
         projection: Projection,
     },
+    NativeAddress {
+        machine: MachineId,
+        operation: semantic_vocabulary::OperationId,
+        place: PlaceId,
+        carrier: StructuralTypeId,
+        projection: Projection,
+    },
     Empty,
     Argument {
         source: PlaceId,
