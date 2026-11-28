@@ -1,5 +1,5 @@
-//! A write through a byte view changes the storage it points to. Invalidate
-//! facts about those bytes while keeping the view's address and length separate.
+//! Writing through a collection view changes its backing elements. Invalidate
+//! facts about those elements while preserving the descriptor's address and length.
 //! Authenticate the source write log before adding these derived effects.
 
 use super::{Backing, Lineage, Logged, Shape, Storage, Stored};
@@ -34,7 +34,7 @@ struct PayloadWrite {
 }
 
 impl<'a> Storage<'a> {
-    pub(super) fn byte_payload_writes(
+    pub(super) fn record_view_writes(
         &mut self,
         references: &mut super::DescriptorAnalysis<'a>,
         tables: &MachineTables,
@@ -46,10 +46,10 @@ impl<'a> Storage<'a> {
                 let mut inventory = PayloadInventory::default();
                 if let OperationKind::ByteSequenceWrite { destination, .. } = operation.kind {
                     let destination = self.stored_at(destination, &[], concerns)?;
-                    inventory = self.byte_payload_descriptors(&destination, false, concerns)?;
+                    inventory = self.payload_descriptors(&destination, false, concerns)?;
                 } else if crate::call_contracts::operation_inputs(operation).is_some() {
                     let (may_upgrade, _) = self.native_write_ceiling(operation, concerns)?;
-                    // A checked upgrade can turn a shared byte window into a writable one.
+                    // A checked upgrade can turn a shared window into a writable one.
                     for argument in
                         operation
                             .kind
@@ -61,7 +61,7 @@ impl<'a> Storage<'a> {
                     {
                         let actual = self.argument(argument, concerns)?;
                         let actual =
-                            self.byte_payload_descriptors(&actual, may_upgrade, concerns)?;
+                            self.payload_descriptors(&actual, may_upgrade, concerns)?;
                         inventory.descriptors.extend(actual.descriptors);
                         inventory.unknown_contents.extend(actual.unknown_contents);
                     }
@@ -121,7 +121,7 @@ impl<'a> Storage<'a> {
                                 continue;
                             }
                             let backing =
-                                self.byte_payload_backings(references, &descriptor, at, concerns)?;
+                                self.payload_backings(references, &descriptor, at, concerns)?;
                             if affected.iter().any(|region| {
                                 backing.iter().any(|source| super::overlap(region, source))
                             }) {
@@ -210,7 +210,7 @@ impl<'a> Storage<'a> {
                 }
             }
             for descriptor in write.inventory.descriptors {
-                for backing in self.byte_payload_backings(
+                for backing in self.payload_backings(
                     references,
                     &descriptor,
                     (block, position),
@@ -479,7 +479,7 @@ impl<'a> Storage<'a> {
         Ok(possible)
     }
 
-    fn byte_payload_descriptors(
+    fn payload_descriptors(
         &self,
         region: &Lineage,
         may_upgrade: bool,
@@ -546,7 +546,8 @@ impl<'a> Storage<'a> {
                         access,
                         ..
                     }
-                ) if may_upgrade || access.is_none_or(|access| access == StructuralAccess::MutableBorrow)
+                ) | StructuralTypeShape::ElementView { access, .. }
+                    if may_upgrade || access.is_none_or(|access| access == StructuralAccess::MutableBorrow)
             ) {
                 found.descriptors.push(descriptor);
             }
@@ -554,7 +555,7 @@ impl<'a> Storage<'a> {
         Ok(found)
     }
 
-    fn byte_payload_backings(
+    fn payload_backings(
         &self,
         references: &mut super::DescriptorAnalysis<'a>,
         descriptor: &Lineage,
@@ -562,7 +563,7 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<Vec<Lineage>> {
         let location = descriptor.descriptor_location().ok_or_else(|| {
-            self.unsupported(concerns, "byte payload has no exact descriptor location")
+            self.unsupported(concerns, "view payload has no exact descriptor location")
         })?;
         let origins = references
             .symbolic_source_origins(self.machine, at, &location)
@@ -570,7 +571,7 @@ impl<'a> Storage<'a> {
             .ok_or_else(|| {
                 self.unsupported(
                     concerns,
-                    "byte payload write has no captured backing origins",
+                    "view payload write has no captured backing origins",
                 )
             })?;
         let mut backings = Vec::new();
@@ -583,7 +584,7 @@ impl<'a> Storage<'a> {
                     let enclosing = projection.enclosing_storage().ok_or_else(|| {
                         self.unsupported(
                             concerns,
-                            "byte payload write has an unresolved indirect backing",
+                            "view payload write has an unresolved indirect backing",
                         )
                     })?;
                     let backing = self.stored_at(source, &enclosing.path, concerns)?;
@@ -592,7 +593,7 @@ impl<'a> Storage<'a> {
                     // own descriptor or retire its independent extent.
                     if let Shape::Typed(row) = self.shape(&backing, concerns)? {
                         let shape = &self.declaration(row, concerns)?.shape;
-                        if shape.is_borrowed_byte_carrier() {
+                        if shape.is_view_descriptor() {
                             continue;
                         }
                         if matches!(
@@ -621,11 +622,11 @@ impl<'a> Storage<'a> {
                     if !self
                         .declaration(row, concerns)?
                         .shape
-                        .is_borrowed_byte_carrier()
+                        .is_view_descriptor()
                     {
                         return Err(self.unsupported(
                             concerns,
-                            "incoming payload is not an authenticated byte descriptor",
+                            "incoming payload is not an authenticated view descriptor",
                         ));
                     }
                 }
@@ -633,7 +634,7 @@ impl<'a> Storage<'a> {
                 _ => {
                     return Err(self.unsupported(
                         concerns,
-                        "byte payload write has unserved captured backing correspondence",
+                        "view payload write has unserved captured backing correspondence",
                     ));
                 }
             }
