@@ -1663,7 +1663,7 @@ fn copied_parts(
                         && call.private_layout_operation.is_none()
                         && call.installed_interrupt_operation.is_none()
                 }
-                ExpressionNode::Cast(cast) => cast.semantic_domain_arguments.is_empty(),
+                ExpressionNode::Cast(cast) => cast_indices_can_be_copied(program, cast),
                 _ => true,
             };
         });
@@ -1674,6 +1674,42 @@ fn copied_parts(
         ));
     }
     Ok((machine.clone(), state.clone(), types))
+}
+
+/// The copier substitutes both the written indices and the retained domain
+/// instance. They must describe the same application before substitution.
+fn cast_indices_can_be_copied(
+    program: &TypedTrees,
+    cast: &crate::source_state::expression::TableCastExpression,
+) -> bool {
+    use crate::source_state::domain;
+
+    if cast.semantic_domain_arguments.is_empty() {
+        return true;
+    }
+    let symbol = cast.semantic_domain_symbol;
+    let Some(definition) = program.domain_definition(symbol) else {
+        return false;
+    };
+    let Some(retained) = program.domain_arguments_for_instance(symbol, cast.semantic_domain_id)
+    else {
+        return false;
+    };
+    let implicit = usize::from(domain::has_generic_carrier(program, definition));
+    let Some(carrier) = retained.get(..implicit) else {
+        return false;
+    };
+    let written = program
+        .type_reference_table
+        .type_reference_handles(cast.semantic_domain_arguments);
+    let complete = [carrier, written].concat();
+    domain::indexed_domain_instance_name(
+        program,
+        definition,
+        program.domain_type_parameters(definition),
+        &complete,
+    )
+    .is_ok_and(|name| program.semantic_domains.name(cast.semantic_domain_id) == Some(name.as_str()))
 }
 
 /// Copies `expression` into fresh rows of the same program and renames the
