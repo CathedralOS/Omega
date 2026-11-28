@@ -275,13 +275,13 @@ impl Program<'_> {
             }
             let body = terminal_check_tables::row(bodies, id, id, Construct::Machine)?;
             let uses = CallCollector::for_body(id, signature, body, &self.records)?;
-            if uses.iter().any(|call| call.static_binding.is_some())
+            if uses.sites.iter().any(|call| call.static_binding.is_some())
                 && let Some(instance) = self.typed.machine_instantiation(*symbol)
                     .map_err(|reason| unavailable(id, reason))?
             {
                 let bindings = self.typed.expression_table
                     .static_machine_application_bindings(instance.binding_application());
-                for position in uses.iter().filter_map(|call| call.static_binding) {
+                for position in uses.sites.iter().filter_map(|call| call.static_binding) {
                     let Some(bound) = bindings.get(position as usize)
                         .and_then(|binding| self.typed.retained_static_machine_contract(binding.parameter))
                     else { continue };
@@ -310,7 +310,8 @@ impl Program<'_> {
             for (id, uses) in calls.iter() {
                 let mut reached = empty();
                 let mut reached_known = KnownAxes::ALL;
-                for invocation in uses {
+                reached.service_reach.clone_from(&uses.services);
+                for invocation in &uses.sites {
                     if let Some(required) = invocation.required_contract {
                         reached_known.intersect(self.declaration_axes(
                             id,
@@ -1049,6 +1050,7 @@ struct Use<'a> {
 }
 
 struct CallCollector<'a> {
+    services: Vec<ServiceReachId>,
     sites: Vec<Use<'a>>,
     // Which caller parameters supplied the value now in each slot: one, or
     // each formal a `match` joined there. Empty when another value may be
@@ -1062,8 +1064,9 @@ impl<'a> CallCollector<'a> {
         signature: &Signature,
         body: &'a Body,
         records: &IdTable<semantic_vocabulary::StructuralTypeId, RecordType>,
-    ) -> Checked<Vec<Use<'a>>> {
+    ) -> Checked<Self> {
         let mut collector = Self {
+            services: Vec::new(),
             sites: Vec::new(),
             parameters: vec![Vec::new(); body.slots.len()],
         };
@@ -1113,7 +1116,7 @@ impl<'a> CallCollector<'a> {
                 _ => {}
             }
         }
-        Ok(collector.sites)
+        Ok(collector)
     }
 
     /// The caller's formals `expression` may be, or none when some value it
@@ -1254,6 +1257,12 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<
                 required_contract: *required_contract,
                 arguments,
             });
+        }
+        E::NativeBorrow {
+            services, operand, ..
+        } => {
+            union_services(&mut calls.services, services);
+            collect_expression(operand, calls);
         }
         E::OwnedTemporary { value: base, .. }
         | E::Field { base, .. }

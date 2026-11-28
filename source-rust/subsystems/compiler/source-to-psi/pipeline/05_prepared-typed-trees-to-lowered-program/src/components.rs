@@ -769,6 +769,7 @@ fn expression<'body>(value: &'body Expression, terminal: bool, sites: &mut BodyW
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
         | ExpressionKind::Requalify(operand)
+        | ExpressionKind::NativeBorrow { operand, .. }
         | ExpressionKind::Referent(operand)
         | ExpressionKind::Establish { operand, .. }
         | ExpressionKind::CollectionView { base: operand, .. }

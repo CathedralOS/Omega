@@ -90,6 +90,8 @@ fn argument_source(argument: &Expression) -> SourceOrigin {
     }
 }
 
+mod native_borrows;
+
 impl<'t> Program<'t> {
     /// An applied signature can only describe the call that owns its source operands.
     fn owns_call_arguments(
@@ -2441,6 +2443,9 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
     ) -> Checked<CallBinding<'t>> {
         let invocation = self.static_invocation(call);
+        if let Some(formed) = self.native_borrow(id, slots, &invocation, source)? {
+            return Ok(CallBinding::Generic(formed));
+        }
         self.requirement_callbacks(id, invocation.target, invocation.application)?;
         if let Some(application) = self.theorem_application(id, slots, call, invocation, source)? {
             return Ok(CallBinding::Generic(application));
@@ -4881,6 +4886,7 @@ impl Touches<'_> {
             | ExpressionKind::Boolean(_) => Ok(false),
             ExpressionKind::OwnedTemporary { value: operand, .. }
             | ExpressionKind::Not(operand)
+            | ExpressionKind::NativeBorrow { operand, .. }
             | ExpressionKind::BitwiseNot(operand)
             | ExpressionKind::Cast(operand)
             | ExpressionKind::Requalify(operand)

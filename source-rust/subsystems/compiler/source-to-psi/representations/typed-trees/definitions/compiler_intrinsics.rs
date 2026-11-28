@@ -468,13 +468,23 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
         return None;
     }
     let reach = if *service_reach_row == semantic_vocabulary::ServiceReachRowId::NULL {
-        "inferred"
+        String::from("inferred")
     } else if *service_reach_row == crate::source_tables::ServiceReachRowTable::EMPTY_ROW {
-        "none"
+        String::from("none")
     } else {
-        // Nonempty/abstract service rows need their complete declaration-owned
-        // normalization before this query can describe them.
-        return None;
+        let services = program.service_reach_rows.services(*service_reach_row);
+        if services.is_empty() || program.service_reach_rows.is_abstract(*service_reach_row) {
+            return None;
+        }
+        let mut applications = services
+            .iter()
+            .map(|id| {
+                let scope = program.service_reach_scope(*id)?;
+                program.type_identity_text(scope.portable_application_identity(program)?)
+            })
+            .collect::<Option<Vec<_>>>()?;
+        applications.sort();
+        compound(Tag::Envelope, applications)
     };
     let [entry] =
         schema_span(|span| program.machine_states.span(span), machine.states)?.as_array()?;

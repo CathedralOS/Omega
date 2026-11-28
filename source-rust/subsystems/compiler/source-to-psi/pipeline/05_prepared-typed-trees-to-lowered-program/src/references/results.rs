@@ -996,33 +996,80 @@ fn publish_parents(
                 if let Some(after_pos) = pos_u32.checked_add(1) {
                     op_positions.push((operation.id, (block.id, after_pos)));
                 }
-                if let terminal_psi::OperationKind::EstablishReference { source, .. }
-                | terminal_psi::OperationKind::EstablishElementView { source, .. }
-                | terminal_psi::OperationKind::EstablishMutableElementView { source, .. } =
-                    &operation.kind
-                {
+                use terminal_psi::OperationKind as Op;
+                let formation = match &operation.kind {
+                    Op::EstablishReference { source, .. }
+                    | Op::EstablishElementView { source, .. }
+                    | Op::EstablishMutableElementView { source, .. }
+                    | Op::UpgradeMutability { source } => {
+                        let ty = machine.structural_place_type(source.place).ok_or_else(|| {
+                            unavailable(
+                                machine.id,
+                                "reference formation has no source storage type",
+                            )
+                        })?;
+                        let mut path = terminal_semantics::resolved_structural_path(
+                            module.types.structural_types.iter(),
+                            ty,
+                            &source.path,
+                        )
+                        .map_err(|reason| unavailable(machine.id, reason))?;
+                        let access = if matches!(operation.kind, Op::UpgradeMutability { .. }) {
+                            path.push(terminal_check_tables::bindings::Segment::Referent);
+                            language_core::ReferenceAccess::Mutable
+                        } else {
+                            reference_access(source.access).ok_or_else(|| {
+                                unavailable(
+                                    machine.id,
+                                    "reference formation has no borrowed access",
+                                )
+                            })?
+                        };
+                        Some((source.place, path, access))
+                    }
+                    Op::BorrowAt { .. } => {
+                        let result = operation.result.as_structural().ok_or_else(|| {
+                            unavailable(machine.id, "native reference has no result descriptor")
+                        })?;
+                        let ty = module
+                            .types
+                            .structural_types
+                            .iter()
+                            .find(|ty| ty.id == result.structural_type)
+                            .ok_or_else(|| {
+                                unavailable(
+                                    machine.id,
+                                    "native reference result has no structural type",
+                                )
+                            })?;
+                        let terminal_psi::StructuralTypeShape::Reference { access, .. } = ty.shape
+                        else {
+                            return Err(unavailable(
+                                machine.id,
+                                "native borrow result is not a reference",
+                            ));
+                        };
+                        Some((
+                            result.place,
+                            Vec::new(),
+                            reference_access(access).ok_or_else(|| {
+                                unavailable(machine.id, "native reference has no borrowed access")
+                            })?,
+                        ))
+                    }
+                    _ => None,
+                };
+                if let Some((root, source_path, expected_access)) = formation {
                     let result = operation.result.as_structural().ok_or_else(|| {
                         unavailable(
                             machine.id,
                             "reference formation has no actual descriptor result",
                         )
                     })?;
-                    let ty = machine.structural_place_type(source.place).ok_or_else(|| {
-                        unavailable(machine.id, "reference formation has no source storage type")
-                    })?;
-                    let source_path = terminal_semantics::resolved_structural_path(
-                        module.types.structural_types.iter(),
-                        ty,
-                        &source.path,
-                    )
-                    .map_err(|reason| unavailable(machine.id, reason))?;
-                    let expected_access = reference_access(source.access).ok_or_else(|| {
-                        unavailable(machine.id, "reference formation has no borrowed access")
-                    })?;
                     let mut matching = Vec::new();
                     for (_, loan) in loan_index.at(before) {
                         if loan.access == expected_access
-                            && loan.root == source.place
+                            && loan.root == root
                             && loan.path == source_path
                         {
                             matching.push(loan.id);
@@ -1035,13 +1082,13 @@ fn publish_parents(
                         ));
                     };
                     if view_reborrows.binary_search(&operation.id).is_ok() {
-                        let source_location = DescriptorLocation::captured(
-                            source.place,
-                            &source_path,
-                        )
-                        .ok_or_else(|| {
-                            unavailable(machine.id, "view formation has no exact parent descriptor")
-                        })?;
+                        let source_location = DescriptorLocation::captured(root, &source_path)
+                            .ok_or_else(|| {
+                                unavailable(
+                                    machine.id,
+                                    "view formation has no exact parent descriptor",
+                                )
+                            })?;
                         *children.get_mut(*identity).ok_or_else(|| {
                             unavailable(machine.id, "view formation lost its parent child row")
                         })? = Some((before, source_location));

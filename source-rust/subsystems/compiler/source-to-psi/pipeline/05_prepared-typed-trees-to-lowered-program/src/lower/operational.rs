@@ -172,6 +172,7 @@ fn expression(machine: MachineId, value: &Expression) -> Checked<()> {
         ExpressionKind::OwnedTemporary { value: operand, .. }
         | ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
+        | ExpressionKind::NativeBorrow { operand, .. }
         | ExpressionKind::Referent(operand)
         | ExpressionKind::Cast(operand)
         | ExpressionKind::Requalify(operand)

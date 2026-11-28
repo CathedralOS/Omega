@@ -46,6 +46,9 @@ pub(crate) fn require_catalog_signature(
         Some(SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::Collection(operation))) => {
             Some(CatalogFamily::Collection(operation))
         }
+        Some(SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::NativeBorrow(operation))) => {
+            Some(CatalogFamily::NativeBorrow(operation))
+        }
         Some(SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::AtomicFence)) => {
             Some(CatalogFamily::AtomicFence)
         }
@@ -93,7 +96,9 @@ pub(crate) fn require_catalog_signature(
         // The exact bundled declaration proceeds through the complete
         // generic machine owner. Typed schema normalization retains every
         // binder, lifetime relation and contract before a use is served.
-        CatalogFamily::Collection(_) | CatalogFamily::PackedInteger(_) => {}
+        CatalogFamily::Collection(_)
+        | CatalogFamily::PackedInteger(_)
+        | CatalogFamily::NativeBorrow(_) => {}
         CatalogFamily::FloatProjection => {}
         CatalogFamily::ByteObservation(_) => {
             require_exact_byte_observation_row(syntax_trees, machine, entry)?;
@@ -121,6 +126,7 @@ pub(crate) fn require_catalog_signature(
 enum CatalogFamily {
     PackedInteger(language_core::sealed_intrinsics::PackedIntegerPrimitive),
     Collection(CollectionPrimitive),
+    NativeBorrow(language_core::sealed_intrinsics::NativeBorrow),
     ByteObservation(ByteSequencePredicate),
     /* Place-free portable fence (`atomic.omg`). */
     AtomicFence,
@@ -157,6 +163,7 @@ impl CatalogFamily {
         match self {
             Self::PackedInteger(operation) => CompilerPrimitive::PackedInteger(operation),
             Self::Collection(operation) => CompilerPrimitive::Collection(operation),
+            Self::NativeBorrow(operation) => CompilerPrimitive::NativeBorrow(operation),
             Self::ByteObservation(predicate) => CompilerPrimitive::ByteObservation(predicate),
             Self::AtomicFence => CompilerPrimitive::AtomicFence,
             Self::FloatProjection => CompilerPrimitive::FloatProjection,

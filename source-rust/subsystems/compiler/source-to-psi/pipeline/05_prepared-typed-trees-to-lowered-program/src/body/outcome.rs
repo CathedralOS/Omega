@@ -604,6 +604,7 @@ impl<'b> Walk<'b> {
             | ExpressionKind::BitwiseNot(operand)
             | ExpressionKind::Cast(operand)
             | ExpressionKind::Requalify(operand)
+            | ExpressionKind::NativeBorrow { operand, .. }
             | ExpressionKind::Referent(operand)
             | ExpressionKind::Establish { operand, .. } => self.expression(machine, operand),
             ExpressionKind::Field { base, .. }

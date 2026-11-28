@@ -591,13 +591,11 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut GeneratedMachines
         .expression_table
         .static_machine_application_arguments(applied.application)
         .to_vec();
-    if let Some((declaration, _)) = entered_machine(program, applied.target)
+    if entered_machine(program, applied.target).is_some()
         && program
-            .machine_by_symbol(declaration)
-            .is_some_and(|machine| {
-                machine.supply_mode == source_declarations::MachineSupplyMode::Boundary
-                    && machine.has_bodyless_signature()
-            })
+            .preparable_bodyless_declaration(applied.target)
+            .map_err(unserved)?
+            .is_some()
     {
         installed_interrupts::prepare_registrar(program, site, &applied)?;
         program
