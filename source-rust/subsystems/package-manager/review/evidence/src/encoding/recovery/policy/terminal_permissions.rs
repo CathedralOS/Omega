@@ -21,7 +21,7 @@ impl PackagePolicyTerminalPermissions {
         TERMINAL_PERMISSION_POLICY_MAGIC,
         PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION,
         policy,
-        validate, also crate::encoding::TERMINAL_POLICY_WITH_NOMINAL_SERVICES,
+        validate, also crate::encoding::TERMINAL_POLICY_WITH_NOMINAL_SERVICES, also crate::encoding::TERMINAL_POLICY_WITH_APPLIED_SERVICES,
     );
 }
 

@@ -249,8 +249,8 @@ pub struct Evidence {
     pub goal: Proposition,
     /// The knowledge rows passed as the certificate's assumptions, by index.
     pub assumptions: Vec<KnowledgeId>,
-    /// The knowledge rows passed as its semantic axioms (operation result
-    /// equations), by index.
+    /// Program-point semantic axioms, in certificate order. Intrinsic bounds
+    /// of the consumer's formed goal follow these rows during verification.
     pub axioms: Vec<KnowledgeId>,
     pub certificate: CertificateEnvelope,
     /// The kernel's acceptance, including whether the mathematical core
@@ -497,7 +497,8 @@ impl Discharge {
                     obligation,
                     evidence.goal.clone(),
                     resolve(&evidence.assumptions)?,
-                    resolve(&evidence.axioms)?,
+                    formed_observation_axioms(&evidence.goal, resolve(&evidence.axioms)?)
+                        .into_owned(),
                     evidence.certificate.clone(),
                 )
                 .map_err(|error| Refusal {
@@ -3190,7 +3191,7 @@ fn decide(
             obligation,
             &goal,
             &narrowed.assumptions,
-            &narrowed.axioms,
+            &narrowed.axioms_for(&goal),
             unreached,
             activity,
         )
@@ -3204,7 +3205,7 @@ fn decide(
         obligation,
         &goal,
         &hypotheses.assumptions,
-        &hypotheses.axioms,
+        &hypotheses.axioms_for(&goal),
         unreached,
         activity,
     )?;
@@ -3234,7 +3235,7 @@ fn decide_indexed(
                 obligation,
                 &goal,
                 &narrowed.assumptions,
-                &narrowed.axioms,
+                &narrowed.axioms_for(&goal),
                 unreached,
                 activity,
             ) {
@@ -3248,7 +3249,7 @@ fn decide_indexed(
                 obligation,
                 &goal,
                 &full.assumptions,
-                &full.axioms,
+                &full.axioms_for(&goal),
                 unreached,
                 activity,
             )?;
@@ -3262,7 +3263,7 @@ fn decide_indexed(
                 obligation,
                 &goal,
                 &hypotheses.assumptions,
-                &hypotheses.axioms,
+                &hypotheses.axioms_for(&goal),
                 unreached,
                 activity,
             )?;
@@ -4080,6 +4081,27 @@ fn unproved(
     }
 }
 
+/// Kernel axioms for an already formed obligation. Its observations retain
+/// their own bounds regardless of what the enclosing comparison asks for.
+/// Observation facts follow the graph facts in first occurrence order so
+/// explicit proof replay can reconstruct the same positions.
+fn formed_observation_axioms<'a>(
+    goal: &Proposition,
+    graph_axioms: impl Into<std::borrow::Cow<'a, [Proposition]>>,
+) -> std::borrow::Cow<'a, [Proposition]> {
+    let mut axioms = graph_axioms.into();
+    let graph_count = axioms.len();
+    goal.visit_scalar_terms(|subject| {
+        if let ScalarTerm::StructuralRead { path, .. } = subject
+            && let Some(bound) = terminal_semantics::structural_observation_bound(path, subject)
+            && !axioms[graph_count..].contains(&bound)
+        {
+            axioms.to_mut().push(bound);
+        }
+    });
+    axioms
+}
+
 /// The knowledge available where an obligation sits, split as the kernel
 /// takes it: assumptions and semantic axioms, with their rows.
 pub(crate) struct Hypotheses {
@@ -4087,6 +4109,12 @@ pub(crate) struct Hypotheses {
     pub(crate) axiom_rows: Vec<KnowledgeId>,
     pub(crate) assumptions: Vec<Proposition>,
     pub(crate) axioms: Vec<Proposition>,
+}
+
+impl Hypotheses {
+    fn axioms_for(&self, formed_goal: &Proposition) -> std::borrow::Cow<'_, [Proposition]> {
+        formed_observation_axioms(formed_goal, self.axioms.as_slice())
+    }
 }
 
 pub(crate) fn hypotheses(
@@ -4158,7 +4186,7 @@ pub(crate) fn verify(
         obligation,
         &goal,
         &hypotheses.assumptions,
-        &hypotheses.axioms,
+        &hypotheses.axioms_for(&goal),
         &certificate,
     )?;
     Ok(Evidence {

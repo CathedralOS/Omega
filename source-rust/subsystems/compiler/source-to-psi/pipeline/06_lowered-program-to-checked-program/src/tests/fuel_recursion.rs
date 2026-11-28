@@ -319,11 +319,29 @@ machine same_samples(n: |nat|::Nat)
 ensures |proof|::Identity::<|rat|::Rat>(
     repeat(constant(raw(|nat|::one(), |nat|::one())).state, n), apply(generated().state, n))
 {}
-machine same_bound()
+machine same_bound(bound: |nat|::Nat, precision: |nat|::Nat, i: |nat|::Nat, j: |nat|::Nat)
 ensures |proof|::Identity::<|nat|::Nat>(
-    sample_within(repeat(constant(raw(|nat|::one(), |nat|::one())).state, |nat|::five()),
-                  apply(generated().state, |nat|::five()), |nat|::four(), |nat|::five()), |nat|::Nat::Zero)
-{}";
+    sample_within(repeat(constant(raw(|nat|::one(), |nat|::one())).state, i),
+                  apply(generated().state, j), bound, precision), |nat|::Nat::Zero)
+{
+    sample_within_reflexive(raw(|nat|::one(), |nat|::one()), bound, precision);
+}
+machine constant_one_regular(i: |nat|::Nat, j: |nat|::Nat)
+ensures |proof|::Identity::<|nat|::Nat>(
+    sample_within(repeat(constant(raw(|nat|::one(), |nat|::one())).state, i),
+                  repeat(constant(raw(|nat|::one(), |nat|::one())).state, j),
+                  |nat|::add(i,j), |nat|::mul(i,j)), |nat|::Nat::Zero)
+{ same_bound(|nat|::add(i,j), |nat|::mul(i,j), i,j); }
+machine generated_ones_regular(i: |nat|::Nat, j: |nat|::Nat)
+ensures |proof|::Identity::<|nat|::Nat>(
+    sample_within(apply(generated().state, i), apply(generated().state, j),
+                  |nat|::add(i,j), |nat|::mul(i,j)), |nat|::Nat::Zero)
+{ same_bound(|nat|::add(i,j), |nat|::mul(i,j), i,j); }
+machine both_converge(n: |nat|::Nat)
+ensures |proof|::Identity::<|nat|::Nat>(
+    sample_within(repeat(constant(raw(|nat|::one(), |nat|::one())).state, n),
+                  apply(generated().state, n), |nat|::four(), n), |nat|::Nat::Zero)
+{ same_bound(|nat|::four(), n,n,n); }";
 
 #[test]
 fn every_law_of_cauchy_is_judged() {
@@ -379,7 +397,14 @@ fn every_law_of_cauchy_is_judged() {
         assert!(proof.certificate.context.is_empty());
         proof
     };
-    for name in ["function_sample", "same_samples", "same_bound"] {
+    for name in [
+        "function_sample",
+        "same_samples",
+        "same_bound",
+        "constant_one_regular",
+        "generated_ones_regular",
+        "both_converge",
+    ] {
         checked(name);
     }
     let assumptions = |proof: &terminal_codec::DecodedMathematicalCertificate| {
@@ -421,6 +446,13 @@ ensures |proof|::Identity::<|nat|::Nat>(
     sample_within(repeat(constant(raw(|nat|::Nat::Zero, |nat|::Nat::Zero)).state, |nat|::five()),
                   apply(generated().state, |nat|::five()),
                   |nat|::four(), |nat|::five()), |nat|::Nat::Zero)
+{}
+
+machine bad_right_denominator()
+ensures |proof|::Identity::<|nat|::Nat>(
+    sample_within(apply(generated().state, |nat|::five()),
+                  repeat(constant(raw(|nat|::Nat::Zero, |nat|::Nat::Zero)).state, |nat|::five()),
+                  |nat|::four(), |nat|::five()), |nat|::Nat::Zero)
 {}"
     );
     let verdicts = judged_cauchy(&source);
@@ -435,7 +467,10 @@ ensures |proof|::Identity::<|nat|::Nat>(
         }
     }
     unproved.sort_unstable();
-    assert_eq!(unproved, ["bad_denominator", "separated"]);
+    assert_eq!(
+        unproved,
+        ["bad_denominator", "bad_right_denominator", "separated"]
+    );
 }
 
 /// Natural order over local data, decided as `core/nat.omg` decides it: by

@@ -48,7 +48,7 @@ by the presence of this first witness.
 
 The ratified
 [`typed-run-cell-transfer-surface`](../../../../wiki/spec/resources/typed_runs.md#split-and-merge-contracts)
-uses total compiler-realized `Run::split` and `Run::merge`. Implement their exact
+uses total compiler-realized `|run|::split` and `|run|::merge`. Implement their exact
 catalog entries and retained custody through both engines under
 **EXTENT-LIBRARY-TRANSFORMS** in [TASKS.md](../../../../TASKS.md).
 The integrated Vec witness must also cover spare-tail restoration when
@@ -56,8 +56,6 @@ initialization rejects, alongside linear elements, zero-sized cleanup, contained
 loans and failed growth. Each split/merge must perform constant runtime descriptor
 work. Existing singleton witnesses do not establish that acceptance; geometry and
 count equations alone still cannot admit a cell transfer.
-
-The [open declaration-identity question](../../../../OWNER_QUESTIONS.md#run-partition-declarations) records how the specified carrier-qualified names conflict with the language rule that data cannot own machines.
 
 Remaining implementation includes `RunParts<P, T>`, both public primitive
 declarations and `Live` establishment routes, exact sealed-catalog admission,

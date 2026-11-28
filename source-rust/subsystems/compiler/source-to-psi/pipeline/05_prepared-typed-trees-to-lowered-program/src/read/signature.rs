@@ -44,9 +44,9 @@ use mathematical_kernel::{
     Level, PlainData, PlainField, Sort, Term, TermHandle, instantiate, shift,
 };
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, ClauseCarrier, ClauseIdentity, ClauseOperand, ClauseValue,
-    IntegerMathTerm, IntegerValue, MachineId, Proposition, ScalarTerm, ScalarType,
-    StructuralCaseId, StructuralCaseSubject, StructuralFieldId, StructuralTypeId,
+    CanonicalStructuralPathSegment, ClauseCarrier, ClauseOperand, ClauseValue, IntegerMathTerm,
+    IntegerValue, MachineId, Proposition, ScalarTerm, ScalarType, StructuralCaseId,
+    StructuralCaseSubject, StructuralFieldId, StructuralTypeId,
 };
 use symbols::SymbolHandle;
 use terminal_check_tables::mathematics::{
@@ -192,7 +192,6 @@ impl Program<'_> {
             unfolding: None,
             within: None,
             result_as: None,
-            family_inputs: Vec::new(),
             callable_scope: Vec::new(),
             bound_values: Vec::new(),
             generic_premises: Vec::new(),
@@ -756,10 +755,6 @@ struct Converter<'p, 't> {
     /// While a law is read for its induction on fuel: the machine and the
     /// term its clauses' `result` stands for.
     result_as: Option<(MachineId, TermHandle)>,
-    /// While a clause over a family indexed by data is read: the term each
-    /// input that names an index or a payload value stands for
-    /// (`families::index_place`).
-    family_inputs: Vec<(StructuralCaseSubject, TermHandle)>,
     /// The machine parameters of the generic machine being read, each as
     /// the variable it is under that machine's formals.
     callable_scope: Vec<(SymbolHandle, TermHandle)>,
@@ -3010,10 +3005,7 @@ impl<'p> Converter<'p, '_> {
             // An Identity over data, read as a law's is, with each index
             // and payload value the term it stands for.
             Proposition::DeclarationIdentity(_) => {
-                let saved = std::mem::replace(&mut self.family_inputs, scope.inputs.to_vec());
-                let term = self.equality(id, proposition, &[], None);
-                self.family_inputs = saved;
-                components.push(term?);
+                components.push(self.equality_at(id, proposition, &[], None, scope.inputs)?);
                 return Ok(());
             }
             _ => {}
@@ -6934,6 +6926,54 @@ impl<'p> Converter<'p, '_> {
         }
     }
 
+    /// Check a mathematical record constructor's default domain on the values
+    /// it actually stores. A condition on a bare field denotes that field of
+    /// this record, including under a quantified index.
+    fn record_domain(
+        &mut self,
+        id: MachineId,
+        record: StructuralTypeId,
+        term: TermHandle,
+        operands: &[TermHandle],
+        scope: &Scope<'_>,
+    ) -> Checked<()> {
+        let declared = self.program.record_type(id, record)?;
+        if declared.requires.is_empty() {
+            return Ok(());
+        }
+        let root = crate::body::self_place().ok_or_else(|| unserved(id, "self place identity"))?;
+        let mut inputs = vec![(StructuralCaseSubject::new(root, Vec::new()), term)];
+        inputs.extend(
+            declared
+                .fields()
+                .iter()
+                .zip(operands)
+                .map(|(field, &value)| {
+                    let path = vec![CanonicalStructuralPathSegment::Field(field.id)];
+                    (StructuralCaseSubject::new(root, path), value)
+                }),
+        );
+        let name = self.name(self.program.record_source(id, record)?.declaration);
+        for clause in &declared.requires {
+            let goal = self.equality_at(id, clause, &[], None, &inputs)?;
+            let Some(valuing) = scope.value else {
+                return Err(unserved(id, "record domain outside a checked definition"));
+            };
+            let source = self
+                .program
+                .machine_context(valuing.owner)
+                .and_then(|row| row.names.declared);
+            self.owe_statement(
+                id,
+                valuing,
+                goal,
+                format!("the declared domain of `{name}` at construction"),
+                source,
+            )?;
+        }
+        Ok(())
+    }
+
     /// A value expression of a mathematical body as a term.
     fn expression(
         &mut self,
@@ -7014,16 +7054,18 @@ impl<'p> Converter<'p, '_> {
                     .into_iter()
                     .collect::<Option<_>>()
                     .ok_or_else(|| unserved(id, "mathematical record misses a field"))?;
-                let (&last, before) = operands
-                    .split_last()
+                let term = self
+                    .signature
+                    .arena
+                    .tuple(&operands)
                     .ok_or_else(|| unserved(id, "mathematical record with no field"))?;
-                let mut term = last;
-                for &first in before.iter().rev() {
-                    term = self.signature.arena.insert(Term::Pair {
-                        first,
-                        second: term,
-                    });
-                }
+                let Some(ValueType::Record(record, ..)) = expression.result else {
+                    return Err(unserved(
+                        id,
+                        "mathematical record constructor lost its data",
+                    ));
+                };
+                self.record_domain(id, record, term, &operands, scope)?;
                 Ok(plain(term))
             }
             ExpressionKind::Case { case, fields, .. } => {
@@ -7652,8 +7694,19 @@ impl<'p> Converter<'p, '_> {
         formals: &[TermHandle],
         satisfaction: Option<&Satisfaction>,
     ) -> Checked<TermHandle> {
+        self.equality_at(id, proposition, formals, satisfaction, &[])
+    }
+
+    fn equality_at(
+        &mut self,
+        id: MachineId,
+        proposition: &Proposition,
+        formals: &[TermHandle],
+        satisfaction: Option<&Satisfaction>,
+        inputs: &[(StructuralCaseSubject, TermHandle)],
+    ) -> Checked<TermHandle> {
         if let Proposition::IsMere(inner) = proposition {
-            let prop = self.equality(id, inner, formals, satisfaction)?;
+            let prop = self.equality_at(id, inner, formals, satisfaction, inputs)?;
             let arena = &mut self.signature.arena;
             let prop_1 = mathematical_kernel::shift(arena, prop, 0, 1);
             let prop_2 = mathematical_kernel::shift(arena, prop, 0, 2);
@@ -7676,7 +7729,7 @@ impl<'p> Converter<'p, '_> {
         // The squash of a proposition and the box of a strict one are the
         // kernel's own type formers over the inner statement.
         if let Proposition::Squash(inner) | Proposition::Boxed(inner) = proposition {
-            let ty = self.equality(id, inner, formals, satisfaction)?;
+            let ty = self.equality_at(id, inner, formals, satisfaction, inputs)?;
             let term = match proposition {
                 Proposition::Squash(_) => Term::Squash { ty },
                 _ => Term::Box { ty },
@@ -7702,6 +7755,10 @@ impl<'p> Converter<'p, '_> {
                 .iter()
                 .map(|&(symbol, term)| (symbol, lift(term)))
                 .collect();
+            let subjects: Vec<_> = inputs
+                .iter()
+                .map(|(subject, term)| (subject.clone(), lift(*term)))
+                .collect();
             let mut bound: Vec<_> = self
                 .bound_values
                 .iter()
@@ -7718,7 +7775,7 @@ impl<'p> Converter<'p, '_> {
                 std::mem::replace(&mut self.held, held),
                 std::mem::replace(&mut self.result_as, result_as),
             );
-            let codomain = self.equality(id, body, &inner, satisfaction);
+            let codomain = self.equality_at(id, body, &inner, satisfaction, &subjects);
             (
                 self.callable_scope,
                 self.bound_values,
@@ -7734,20 +7791,11 @@ impl<'p> Converter<'p, '_> {
         if clause.is_float_meaning() {
             return Err(unserved(id, "law guarantee other than an Identity"));
         }
-        self.identity(id, clause, formals, satisfaction)
-    }
-
-    fn identity(
-        &mut self,
-        id: MachineId,
-        clause: &ClauseIdentity,
-        formals: &[TermHandle],
-        satisfaction: Option<&Satisfaction>,
-    ) -> Checked<TermHandle> {
         clause
             .validate()
             .map_err(|_| unserved(id, "malformed declaration Identity"))?;
-        let (terms, carriers) = self.operands(id, &clause.values, formals, satisfaction)?;
+        let (terms, carriers) =
+            self.operands_at(id, &clause.values, formals, satisfaction, inputs)?;
         let ty = self.constant(carriers[clause.left as usize]);
         Ok(self.signature.arena.insert(Term::Id {
             ty,
@@ -7915,6 +7963,17 @@ impl<'p> Converter<'p, '_> {
         formals: &[TermHandle],
         satisfaction: Option<&Satisfaction>,
     ) -> Checked<(Vec<TermHandle>, Vec<u32>)> {
+        self.operands_at(id, values, formals, satisfaction, &[])
+    }
+
+    fn operands_at(
+        &mut self,
+        id: MachineId,
+        values: &[ClauseValue],
+        formals: &[TermHandle],
+        satisfaction: Option<&Satisfaction>,
+        inputs: &[(StructuralCaseSubject, TermHandle)],
+    ) -> Checked<(Vec<TermHandle>, Vec<u32>)> {
         let mut terms = Vec::<TermHandle>::with_capacity(values.len());
         let mut carriers = Vec::with_capacity(values.len());
         for value in values {
@@ -7936,10 +7995,7 @@ impl<'p> Converter<'p, '_> {
             let term = match &value.operand {
                 // An index or payload value of a family, in its clause.
                 ClauseOperand::Input(subject)
-                    if let Some(&(_, term)) = self
-                        .family_inputs
-                        .iter()
-                        .find(|(input, _)| input == subject) =>
+                    if let Some(&(_, term)) = inputs.iter().find(|(input, _)| input == subject) =>
                 {
                     term
                 }
