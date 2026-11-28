@@ -3183,36 +3183,7 @@ impl TerminalExecution<'_> {
             *view = view.exclusive_reborrow()?;
         }
         if let Some(binding) = &mut referent.byte_owner {
-            use crate::storage::byte_sequences::binding::ByteSequenceBinding;
-            if let ByteSequenceBinding::Immutable(bytes) = binding {
-                let window = bytes.original_array().ok_or(
-                    TerminalInterpretError::UnsupportedSemanticVariant(
-                        "upgrade_mutability requires writable backing for the byte window",
-                    ),
-                )?;
-                let end = window
-                    .offset
-                    .checked_add(window.length)
-                    .ok_or(malformed())?;
-                if bytes.len() != window.length
-                    || end > self.stored_byte_array_length(&window.array)?
-                {
-                    return Err(malformed());
-                }
-                *binding = ByteSequenceBinding::MutableArray {
-                    array: window.array.clone(),
-                    array_type: window.array_type,
-                    offset: u64::try_from(window.offset).map_err(|_| malformed())?,
-                    length: u64::try_from(window.length).map_err(|_| malformed())?,
-                    referent: referent.view.clone(),
-                    descriptor_home: None,
-                };
-            }
-            if binding.access() != StructuralAccess::MutableBorrow {
-                return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                    "upgrade_mutability requires a writable byte descriptor",
-                ));
-            }
+            *binding = binding.exclusive_reborrow(self, &referent.view)?;
         }
         if let Some(placed) = &referent.placed {
             self.validate_access_backing(placed)?;
