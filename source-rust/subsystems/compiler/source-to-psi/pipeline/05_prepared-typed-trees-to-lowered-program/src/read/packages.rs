@@ -87,6 +87,9 @@ pub(super) fn check_construction(
             "package construction has an unresolved type argument",
         ));
     }
+    if package.witnesses.iter().any(|&witness| typed.package_witness_is_unsized(witness)) {
+        return Err(invalid("package construction has an unsized witness"));
+    }
     let fields: HashMap<_, _> = package
         .fields
         .iter()
