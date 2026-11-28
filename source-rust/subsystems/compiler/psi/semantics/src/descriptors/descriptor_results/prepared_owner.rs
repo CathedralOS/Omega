@@ -13,6 +13,33 @@ enum Transfer {
     Resume(ResumeShape),
 }
 
+impl Transfer {
+    fn checked(
+        module: &TerminalModule,
+        boundary: &BoundaryMachineDeclaration,
+        control: ActivationOperation,
+    ) -> Result<Self, &'static str> {
+        match control {
+            ActivationOperation::Prepare => {
+                owned_activation::prepare_shape(module, boundary).map(Self::Prepare)
+            }
+            ActivationOperation::StepFixed => owned_activation::step_shape(
+                module,
+                boundary,
+                owned_activation::preparation_for(module, boundary)?,
+            )
+            .map(Self::Step),
+            ActivationOperation::Resume => owned_activation::resume_shape(
+                module,
+                boundary,
+                owned_activation::preparation_for(module, boundary)?,
+            )
+            .map(Self::Resume),
+            ActivationOperation::Park => Err("park does not return an execution owner"),
+        }
+    }
+}
+
 fn field(case: StructuralCaseId, member: StructuralFieldId) -> Vec<DescriptorPathSegment> {
     vec![
         DescriptorPathSegment::Case(case),
@@ -42,29 +69,11 @@ pub(super) fn invocation(
     boundary: &BoundaryMachineDeclaration,
     control: ActivationOperation,
     kind: DescriptorSlotKind,
+    failure_detail: &mut Option<&'static str>,
 ) -> Option<DescriptorInvocation> {
-    let transfer = match control {
-        ActivationOperation::Prepare => {
-            Transfer::Prepare(owned_activation::prepare_shape(module, boundary).ok()?)
-        }
-        ActivationOperation::StepFixed => Transfer::Step(
-            owned_activation::step_shape(
-                module,
-                boundary,
-                owned_activation::preparation_for(module, boundary).ok()?,
-            )
-            .ok()?,
-        ),
-        ActivationOperation::Resume => Transfer::Resume(
-            owned_activation::resume_shape(
-                module,
-                boundary,
-                owned_activation::preparation_for(module, boundary).ok()?,
-            )
-            .ok()?,
-        ),
-        ActivationOperation::Park => return None,
-    };
+    let transfer = Transfer::checked(module, boundary, control)
+        .inspect_err(|detail| *failure_detail = Some(*detail))
+        .ok()?;
     let terminal_psi::OperationResult::Structural(out) = &operation.result else {
         return None;
     };
