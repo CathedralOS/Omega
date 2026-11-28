@@ -2,10 +2,7 @@ use super::engine::{EffectObservations, Replay, ResultObservations, StorageFrame
 use super::*;
 
 impl Replay<'_> {
-    pub(crate) fn empty_interface_summary(
-        &self,
-        machine: &DescriptorMachine,
-    ) -> Option<Summary> {
+    pub(crate) fn empty_interface_summary(&self, machine: &DescriptorMachine) -> Option<Summary> {
         if machine.returns.is_some() {
             return None;
         }
@@ -49,6 +46,7 @@ impl Replay<'_> {
                 invalidates_contents |= call.argument_contents.iter().any(Option::is_none);
                 match &call.target {
                     DescriptorInvocationTarget::Machine(callee) => pending.push(*callee),
+                    DescriptorInvocationTarget::PrepareWorker { .. } => {}
                     DescriptorInvocationTarget::Provider {
                         invalidates_contents: effect,
                         ..

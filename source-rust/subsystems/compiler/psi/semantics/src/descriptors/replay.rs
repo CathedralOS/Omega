@@ -63,6 +63,7 @@ pub struct DescriptorResultContents {
 pub struct ActivationBacking<Source> {
     pub(crate) preparation: semantic_vocabulary::BoundaryMachineId,
     pub(crate) sources: Vec<Source>,
+    pub(crate) worker_result: BTreeMap<Vec<DescriptorPathSegment>, Vec<Source>>,
 }
 
 /// A helper stepping an incoming owner can return its original stack. Keep the
@@ -71,6 +72,8 @@ pub struct ActivationBacking<Source> {
 pub struct OwnerBacking<Source> {
     pub(crate) preparation: semantic_vocabulary::BoundaryMachineId,
     pub(crate) owner: Box<Source>,
+    /// None selects the retained stack. A path selects an input-backed worker result.
+    pub(crate) worker_result: Option<Vec<DescriptorPathSegment>>,
     pub(crate) projection: Projection,
 }
 

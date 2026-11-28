@@ -3,7 +3,10 @@ use super::*;
 use crate::descriptors::descriptor_lifetimes;
 use crate::descriptors::descriptor_lifetimes::DescriptorFlowSource;
 use crate::exactly_one::exactly_one;
+use prepared_worker::prepared_worker_summary;
 use std::sync::Arc;
+
+mod prepared_worker;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Origin {
@@ -306,7 +309,7 @@ fn selected_target_summary(target: &DescriptorInvocationTarget, body: &Summary) 
 
 fn direct_target_summary(target: &DescriptorInvocationTarget) -> Option<Summary> {
     match target {
-        DescriptorInvocationTarget::Machine(_) => None,
+        DescriptorInvocationTarget::Machine(_) | DescriptorInvocationTarget::PrepareWorker { .. } => None,
         DescriptorInvocationTarget::Provider {
             results,
             effects,
@@ -3364,9 +3367,19 @@ impl<'a> Replay<'a> {
                                         machine, before, call, source, reads,
                                     ).ok_or("activation lost its private backing")?);
                                 }
+                                let mut worker_result = BTreeMap::new();
+                                for (path, inputs) in &backing.worker_result {
+                                    let mut bound = BTreeSet::new();
+                                    for input in inputs {
+                                        bound.extend(self.substitute_with_depth(machine, before, call, input, reads)
+                                            .ok_or("activation lost a worker result's input loan")?);
+                                    }
+                                    worker_result.insert(path.clone(), bound.into_iter().collect());
+                                }
                                 Some(ActivationBacking {
                                     preparation: backing.preparation,
                                     sources: sources.into_iter().collect(),
+                                    worker_result,
                                 })
                             }
                             None => None,
@@ -3933,7 +3946,7 @@ impl<'a> Replay<'a> {
             _ => None,
         };
         match &call.target {
-            DescriptorInvocationTarget::Machine(identity) => failed(*identity),
+            DescriptorInvocationTarget::Machine(identity) | DescriptorInvocationTarget::PrepareWorker { worker: identity, .. } => failed(*identity),
             DescriptorInvocationTarget::Public {
                 effects_machine: Some(identity),
                 ..
@@ -3951,6 +3964,10 @@ impl<'a> Replay<'a> {
     ) -> Option<Arc<Summary>> {
         match &call.target {
             DescriptorInvocationTarget::Machine(machine) => self.summary(*machine, depth),
+            target @ DescriptorInvocationTarget::PrepareWorker { worker, .. } => {
+                let body = self.summary(*worker, depth)?;
+                Some(Arc::new(prepared_worker_summary(target, &body)?))
+            }
             target @ DescriptorInvocationTarget::Public {
                 effects_machine: Some(machine),
                 ..
@@ -3981,6 +3998,10 @@ impl<'a> Replay<'a> {
         match &call.target {
             DescriptorInvocationTarget::Machine(machine) => {
                 self.summaries.get(machine)?.clone()
+            }
+            target @ DescriptorInvocationTarget::PrepareWorker { worker, .. } => {
+                let body = self.summaries.get(worker)?.as_ref()?;
+                Some(Arc::new(prepared_worker_summary(target, body)?))
             }
             target @ DescriptorInvocationTarget::Public {
                 effects_machine: Some(machine),
@@ -4121,13 +4142,21 @@ impl<'a> Replay<'a> {
                         Origin::ProducedContents(packet) => {
                             let retained = packet.activation_backing?;
                             if retained.preparation != query.preparation { return None; }
-                            backing.extend(self.project(machine, Some(retained.sources.into_iter().collect()),
+                            let sources = match &query.worker_result {
+                                None => retained.sources,
+                                Some(path) => retained.worker_result.get(path)?.clone(),
+                            };
+                            if sources.is_empty() {
+                                return None;
+                            }
+                            backing.extend(self.project(machine, Some(sources.into_iter().collect()),
                                 Some(&query.projection))?);
                         }
                         Origin::Incoming(_) | Origin::IncomingContents(_, _) => {
                             backing.insert(Origin::OwnerBacking(OwnerBacking {
                                 preparation: query.preparation,
                                 owner: Box::new(owner),
+                                worker_result: query.worker_result.clone(),
                                 projection: query.projection.clone(),
                             }));
                         }
@@ -4518,6 +4547,7 @@ impl<'a> Replay<'a> {
             Origin::OwnerBacking(query) => Some(DescriptorStoredOrigin::OwnerBacking(OwnerBacking {
                 preparation: query.preparation,
                 owner: Box::new(self.exported(machine, &query.owner)?),
+                worker_result: query.worker_result.clone(),
                 projection: query.projection.clone().without_runtime_coordinates(),
             })),
             Origin::ProducedContents(produced) => {
@@ -4534,6 +4564,9 @@ impl<'a> Replay<'a> {
                 let backing = match &produced.activation_backing {
                     Some(backing) => Some(ActivationBacking {
                         preparation: backing.preparation,
+                        worker_result: backing.worker_result.iter().map(|(path, sources)| Some((path.clone(),
+                            sources.iter().map(|origin| self.exported(machine, origin)).collect::<Option<Vec<_>>>()?)))
+                            .collect::<Option<_>>()?,
                         sources: backing.sources.iter()
                             .map(|origin| self.exported(machine, origin))
                             .collect::<Option<_>>()?,
@@ -5112,11 +5145,16 @@ impl<'a> Replay<'a> {
                     Some(DescriptorSourceOrigin::IncomingContents { query, projection })
                 }
                 Origin::OwnerBacking(held) => {
-                    let query = match *held.owner {
+                    let mut query = match *held.owner {
                         Origin::Incoming(slot) => DescriptorContentsQuery::from_location(&slot),
                         Origin::IncomingContents(query, projection) if projection == Projection::new(&[]) => query,
                         _ => return None,
                     };
+                    // External lifetime observations can name the owner that
+                    // holds the loan. Its hidden contents have no addressable field.
+                    if query.steps.pop() != Some(DescriptorContentsStep::Address(DescriptorPathSegment::UnknownContents)) {
+                        return None;
+                    }
                     Some(DescriptorSourceOrigin::IncomingContents { query, projection: held.projection })
                 }
                 Origin::ProducedContents(_) => None,
