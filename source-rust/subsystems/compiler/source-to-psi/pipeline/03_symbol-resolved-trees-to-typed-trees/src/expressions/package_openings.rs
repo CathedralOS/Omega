@@ -170,7 +170,7 @@ impl OpeningScope<'_> {
         &mut self,
         program: &TypedTrees,
         write: Write,
-        copied: Option<(PackageSubject, PackageSubject)>,
+        copied: Option<copies::Assignment>,
     ) -> Result<(), Diagnostic> {
         let call = match write {
             Write::StatementCall(Some(binding), operands) => Some((
@@ -207,12 +207,9 @@ impl OpeningScope<'_> {
         self.facts
             .openings
             .retain(|&handle| survives(&program.package_opening(handle).subject));
-        self.facts.copies = match copied {
-            Some((source, destination)) => {
-                self.copies.transfer(self.facts.copies, source, destination)
-            }
-            None => self.copies.written(self.facts.copies, written.as_ref()),
-        };
+        let assignment = copied.or_else(|| written.clone().map(copies::Assignment::replacement));
+        self.facts.copies =
+            assignment.and_then(|value| self.copies.assign(self.facts.copies, value));
         self.facts.names.retain(|&symbol| {
             let subject = bound_subject(symbol);
             spared == Some(&subject)
@@ -256,6 +253,7 @@ impl OpeningScope<'_> {
                 }
                 _ => None,
             };
+            let before_evaluation = self.version;
             for (_, root) in program.expression_roots(statement) {
                 self.visit(program, root)?;
             }
@@ -276,15 +274,21 @@ impl OpeningScope<'_> {
             {
                 self.facts.names.push(local);
             }
-            let copied = copies::value_copy(
-                program,
-                self.state,
-                program.statement_table.statement(handle),
-            );
+            // All copied fields of a literal are read before the assignment.
+            // A write or call inside its initializer can change an earlier input.
+            let copied = (before_evaluation == self.version)
+                .then(|| {
+                    copies::value_copy(
+                        program,
+                        self.state,
+                        program.statement_table.statement(handle),
+                    )
+                })
+                .flatten();
             if let Some(target) = write {
                 self.invalidate(program, target, copied)?;
-            } else if let Some((source, destination)) = copied {
-                self.facts.copies = self.copies.transfer(self.facts.copies, source, destination);
+            } else if let Some(value) = copied {
+                self.facts.copies = self.copies.assign(self.facts.copies, value);
             }
         }
         Ok(())

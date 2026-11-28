@@ -13,11 +13,7 @@ struct Change {
 }
 
 enum ChangeKind {
-    Transfer {
-        source: PackageSubject,
-        destination: PackageSubject,
-    },
-    Write(PackageSubject),
+    Assign(Assignment),
     Join(usize),
 }
 
@@ -28,31 +24,11 @@ impl CopyHistory {
         Some(point)
     }
 
-    pub(crate) fn transfer(
-        &mut self,
-        previous: CopyPoint,
-        source: PackageSubject,
-        destination: PackageSubject,
-    ) -> CopyPoint {
-        if source == destination {
-            return previous;
+    pub(crate) fn assign(&mut self, previous: CopyPoint, assignment: Assignment) -> CopyPoint {
+        if previous.is_none() && assignment.sources.is_empty() {
+            return None;
         }
-        self.push(
-            previous,
-            ChangeKind::Transfer {
-                source,
-                destination,
-            },
-        )
-    }
-
-    pub(crate) fn written(
-        &mut self,
-        previous: CopyPoint,
-        place: Option<&PackageSubject>,
-    ) -> CopyPoint {
-        previous?;
-        self.push(previous, ChangeKind::Write(place?.clone()))
+        self.push(previous, ChangeKind::Assign(assignment))
     }
 
     pub(crate) fn join(&mut self, left: CopyPoint, right: CopyPoint) -> CopyPoint {
@@ -80,21 +56,11 @@ impl CopyHistory {
                 let Some(index) = point else { return false };
                 let change = &self.0[index];
                 match &change.kind {
-                    ChangeKind::Transfer {
-                        source,
-                        destination,
-                    } => {
+                    ChangeKind::Assign(assignment) => {
                         for place in [&mut left, &mut right] {
-                            if !before_transfer(program, state, place, source, destination) {
+                            if !assignment.before(program, state, place) {
                                 return false;
                             }
-                        }
-                    }
-                    ChangeKind::Write(place) => {
-                        if write_replaces(program, state, place, &left)
-                            || write_replaces(program, state, place, &right)
-                        {
-                            return false;
                         }
                     }
                     ChangeKind::Join(other) => {
@@ -114,24 +80,4 @@ impl CopyHistory {
         }
         true
     }
-}
-
-/// Translate a read of a copied field to the same field of the input.
-/// An uncertain overlapping assignment cannot establish a common origin.
-fn before_transfer(
-    program: &TypedTrees,
-    state: &State,
-    place: &mut PackageSubject,
-    source: &PackageSubject,
-    destination: &PackageSubject,
-) -> bool {
-    if place.root == destination.root
-        && let Some(suffix) = place.steps.strip_prefix(destination.steps.as_slice())
-    {
-        let mut origin = source.clone();
-        origin.steps.extend_from_slice(suffix);
-        *place = origin;
-        return true;
-    }
-    !write_replaces(program, state, destination, place)
 }

@@ -1,7 +1,9 @@
 //! Storage openings and witness equalities that hold on the current control path.
 use super::*;
 
+mod assignment;
 mod history;
+pub(super) use assignment::Assignment;
 pub(super) use history::CopyHistory;
 use history::CopyPoint;
 
@@ -39,7 +41,7 @@ pub(super) fn value_copy(
     program: &TypedTrees,
     state: &State,
     statement: &StatementNode,
-) -> Option<(PackageSubject, PackageSubject)> {
+) -> Option<Assignment> {
     let (ty, value, destination) = match statement {
         StatementNode::LocalData(local) => (
             local.type_reference,
@@ -76,8 +78,7 @@ pub(super) fn value_copy(
     {
         return None;
     }
-    let source = stable_subject(program, state, &package_place(program, value)?)?;
-    Some((source, destination))
+    Assignment::from_value(program, state, value, destination)
 }
 
 #[cfg(test)]
