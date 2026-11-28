@@ -1,10 +1,13 @@
 //! Source-owned provider selection inputs retain the exact authored origin.
 //! Native planning receives the closed canonical selections instead.
+#![forbid(unsafe_code)]
+
 use semantic_vocabulary::PackageKeyIdentity;
 use semantic_vocabulary::source_selections::{
     CompositionMode, NativeBindingProducer, ProductTarget,
 };
 use symbols::SymbolHandle;
+use typed_trees::source_state;
 
 /// Exact prepared application coordinate. Only the source owner can join it
 /// to its private arena; native consumers use the full canonical identity.
@@ -73,7 +76,7 @@ impl NativeBuildSupply {
 
     pub fn materialization_for(
         &self,
-        typed: &crate::source_state::TypedTrees,
+        typed: &source_state::TypedTrees,
         requirement: SymbolHandle,
     ) -> Result<Option<build_model::receipts::NativeBindingMaterialization>, String> {
         let Some(identity) = self
@@ -94,7 +97,7 @@ impl NativeBindingSelection {
     /// The original Build occurrence and evaluation remain the binding's origin.
     pub fn requirement_identity_for(
         &self,
-        typed: &crate::source_state::TypedTrees,
+        typed: &source_state::TypedTrees,
         requirement: SymbolHandle,
     ) -> Result<Option<String>, String> {
         if requirement != self.requirement {
@@ -118,8 +121,7 @@ impl NativeBindingSelection {
             return Err("native binding lost its checked requirement identity".into());
         }
         if requirement != self.requirement {
-            let scope =
-                crate::source_state::trait_definition::AppliedTraitScope::abstract_scope(owner);
+            let scope = source_state::trait_definition::AppliedTraitScope::abstract_scope(owner);
             if !typed.requirement_application_matches_contract_scope(requirement, &scope) {
                 return Err("native binding application changed its declaring trait scope".into());
             }
@@ -172,7 +174,7 @@ pub struct ProviderSelection {
     pub subject: ProviderSelectionSubject,
     pub provider_type: ProviderSelectionIdentity,
     pub composition_mode: CompositionMode,
-    pub origin: crate::declaration_selection::BuildSelectionOrigin,
+    pub origin: source_declarations::declaration_selection::BuildSelectionOrigin,
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetProviderDefaults {
@@ -255,14 +257,14 @@ impl ProviderSelectionSubject {
 }
 
 pub fn application_id(
-    handle: arena::Handle<crate::source_state::product_operand::ProductOperandApplication>,
+    handle: arena::Handle<source_state::product_operand::ProductOperandApplication>,
 ) -> ProviderApplicationId {
     ProviderApplicationId::from_parts(handle.arena_index(), handle.generation())
 }
 
 pub fn source_application(
     id: ProviderApplicationId,
-) -> arena::Handle<crate::source_state::product_operand::ProductOperandApplication> {
+) -> arena::Handle<source_state::product_operand::ProductOperandApplication> {
     arena::Handle::from_parts(id.arena_index(), id.generation())
 }
 
@@ -270,7 +272,7 @@ pub fn source_application(
 /// selected. The evaluation receipt separately authenticates the locator.
 pub fn require_canonical_requirement(
     selection: &NativeBindingSelection,
-    typed: &crate::source_state::TypedTrees,
+    typed: &source_state::TypedTrees,
 ) -> Result<(), String> {
     let (subject, requirement) = requirement_owner(typed, selection.requirement)?;
     if subject != selection.subject {
@@ -290,7 +292,7 @@ pub fn require_canonical_requirement(
 /// The boundary trait that declares `symbol` as one of its requirements. A
 /// boundary with static parameters is bound only as a complete application.
 pub fn requirement_owner(
-    typed: &crate::source_state::TypedTrees,
+    typed: &source_state::TypedTrees,
     symbol: SymbolHandle,
 ) -> Result<(SymbolHandle, SymbolHandle), String> {
     let (owner, _) = typed

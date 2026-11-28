@@ -8,6 +8,9 @@ autoexamples = false
 autobenches = false
 
 [dependencies]
+provider-choice-inputs = { path = "../../representations/provider-choice-inputs" }
+published-source-invocation = { path = "../../representations/published-source-invocation" }
+source-invocation-issuer = { path = "../../representations/published-source-invocation/issuer" }
 build-model = { path = "../../../build/model" }
 application-identity = { path = "../../../psi/identities/applications" }
 artifacts = { path = "../../../foundation/measurements" }
@@ -17,7 +20,6 @@ psi-authorization = { path = "../../../psi/artifact/authorization" }
 psi-provider-selections = { path = "../../../psi/execution-inputs/providers" }
 service-surface = { path = "../../../psi/interfaces/service-surface" }
 declaration-scope = { path = "../../../foundation/declaration-scope" }
-numeric-literals = { path = "../../../foundation/numeric-literals" }
 lowered-source-publication = { path = "../../representations/lowered-source-publication" }
 checked-program = { path = "../../representations/checked-program" }
 source-declarations = { path = "../../representations/symbol-resolved-trees/declarations" }

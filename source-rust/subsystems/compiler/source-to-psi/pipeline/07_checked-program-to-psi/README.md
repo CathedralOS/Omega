@@ -38,7 +38,11 @@ independent of these private implementation groups:
 | [Production](src/production/mod.rs) | Receive the checked source judgment, publish its code and evidence, retain custody, and authenticate compile-time invocation sites. Start at [accepted.rs](src/production/accepted.rs). |
 | [Build](src/build/mod.rs) | Publish companion rows for accepted Build calls and identify the checked host receiver. [bindings.rs](src/build/bindings.rs) defines the retained records; [companions.rs](src/build/companions.rs) fills them. |
 | [Source](src/source/mod.rs) | Retain source selections, publish one shared source artifact, issue entry metadata, and record the source's numeric review requirements. |
-| [Provider supply](src/provider_supply/mod.rs) | Close and publish the checked demand for a deployment target using the existing [provider choice inputs](src/provider_choice_inputs.rs). |
+| [Provider supply](src/provider_supply/mod.rs) | Close and publish the checked demand for a deployment target using the existing [provider choice inputs](../../representations/provider-choice-inputs/provider_choice_inputs.rs). |
+
+For compile-time calls, publication checks the generated caller against the emitted invocation
+and issues the checked source site together with its executable. Receipt accounting verifies
+execution, admission and arguments using this [published invocation](../../representations/published-source-invocation/invocation.rs).
 
 Selection checking and publication use the same source occurrences from the accepted judgment.
 The factory groups folded calls by emitted machine while preserving their order within each machine.

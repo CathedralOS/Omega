@@ -241,12 +241,13 @@ dependencies = [
  "build-declarations",
  "build-model",
  "build-output",
- "checked-program-to-psi",
  "diagnostics",
  "language-core",
  "normalized-build-settings",
  "optimization-requests",
  "package-compilation",
+ "prepared-source",
+ "provider-choice-inputs",
  "source-admission",
  "source-completion-accounting",
  "source-declarations",
@@ -502,19 +503,21 @@ dependencies = [
  "language-core",
  "lowered-program-to-checked-program",
  "lowered-source-publication",
- "numeric-literals",
  "numerics",
  "optimization",
  "prepared-source",
  "prepared-typed-trees-to-lowered-program",
+ "provider-choice-inputs",
  "psi-authorization",
  "psi-provider-selections",
  "psi-publication-records",
+ "published-source-invocation",
  "record-storage",
  "semantic-vocabulary",
  "service-surface",
  "source-admission",
  "source-declarations",
+ "source-invocation-issuer",
  "source-lexer",
  "source-parser",
  "source-provenance",
@@ -2014,8 +2017,12 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "diagnostics",
+ "numeric-literals",
  "prepared-source-issuer",
  "semantic-vocabulary",
+ "source-admission",
+ "source-provenance",
+ "source-symbol-table",
  "symbols",
  "typed-trees",
 ]
@@ -2216,6 +2223,19 @@ dependencies = [
  "terminal-psi",
  "terminal-semantics",
  "wire",
+]
+
+[[package]]
+name = "provider-choice-inputs"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "build-model",
+ "semantic-vocabulary",
+ "source-declarations",
+ "source-text",
+ "symbols",
+ "typed-trees",
 ]
 
 [[package]]
@@ -2433,6 +2453,17 @@ dependencies = [
  "terminal-codec",
  "terminal-psi",
  "verified-optimization-input",
+]
+
+[[package]]
+name = "published-source-invocation"
+version = "0.1.0"
+dependencies = [
+ "semantic-vocabulary",
+ "source-invocation-issuer",
+ "symbols",
+ "terminal-codec",
+ "typed-trees",
 ]
 
 [[package]]
@@ -2959,8 +2990,8 @@ version = "0.1.0"
 dependencies = [
  "build-model",
  "build-time-evaluation",
- "checked-program-to-psi",
  "diagnostics",
+ "published-source-invocation",
  "semantic-vocabulary",
  "symbols",
  "terminal-work",
@@ -2992,6 +3023,10 @@ dependencies = [
  "source-provenance",
  "source-text",
 ]
+
+[[package]]
+name = "source-invocation-issuer"
+version = "0.1.0"
 
 [[package]]
 name = "source-lexer"
