@@ -182,8 +182,9 @@ impl<'read> Transfer<'read> {
 }
 
 pub(crate) struct Storage {
-    roots: BTreeSet<PlaceId>,
-    owned_homes: BTreeSet<PlaceId>,
+    // Each owned place records whether all of its storage has ordinary value shape.
+    // Size this table by the declared places, including for sparse input identities.
+    roots: Vec<(PlaceId, bool)>,
     case_types: BTreeSet<StructuralTypeId>,
     pub(crate) limit: usize,
 }
@@ -191,8 +192,7 @@ pub(crate) struct Storage {
 impl Storage {
     pub(crate) fn new(replay: &Replay<'_>, machine: &DescriptorMachine) -> Self {
         let produced: BTreeSet<_> = machine.payload_producers.values().copied().collect();
-        let mut roots = BTreeSet::new();
-        let mut owned_homes = BTreeSet::new();
+        let mut roots = Vec::with_capacity(machine.places.len());
         let mut ordinary_types = BTreeMap::new();
         let mut case_types = BTreeMap::new();
         for row in &machine.places {
@@ -209,13 +209,13 @@ impl Storage {
                 }
                 DescriptorDefinition::Literal => true,
             };
-            if owned {
-                owned_homes.insert(row.place);
-            }
-            if !*ordinary_types
+            let ordinary = *ordinary_types
                 .entry(*structural_type)
-                .or_insert_with(|| ordinary_type(replay, *structural_type, &mut BTreeSet::new()))
-            {
+                .or_insert_with(|| ordinary_type(replay, *structural_type, &mut BTreeSet::new()));
+            if owned {
+                roots.push((row.place, ordinary));
+            }
+            if !ordinary {
                 continue;
             }
             contains_case(
@@ -224,13 +224,10 @@ impl Storage {
                 &mut case_types,
                 &mut BTreeSet::new(),
             );
-            if owned {
-                roots.insert(row.place);
-            }
         }
+        roots.sort_unstable_by_key(|(place, _)| *place);
         Self {
             roots,
-            owned_homes,
             case_types: case_types
                 .into_iter()
                 .filter_map(|(identity, tagged)| tagged.then_some(identity))
@@ -239,21 +236,31 @@ impl Storage {
         }
     }
 
+    fn ordinary_owned_root(&self, place: PlaceId) -> Option<bool> {
+        let index = self
+            .roots
+            .binary_search_by_key(&place, |(id, _)| *id)
+            .ok()?;
+        Some(self.roots[index].1)
+    }
+
     /// Owned fields occupy their own home even when they hold references.
     /// An index into a view or a dereference can instead name other storage.
     pub(crate) fn owns_location(&self, location: &DescriptorLocation) -> bool {
-        self.contains(location)
-            || self.owned_homes.contains(&location.root)
-                && location.path.iter().all(|segment| {
-                    matches!(
-                        segment,
-                        DescriptorPathSegment::Field(_) | DescriptorPathSegment::Case(_)
-                    )
-                })
+        match self.ordinary_owned_root(location.root) {
+            Some(true) => !location.path.contains(&DescriptorPathSegment::Referent),
+            Some(false) => location.path.iter().all(|segment| {
+                matches!(
+                    segment,
+                    DescriptorPathSegment::Field(_) | DescriptorPathSegment::Case(_)
+                )
+            }),
+            None => false,
+        }
     }
 
     pub(crate) fn contains(&self, location: &DescriptorLocation) -> bool {
-        self.roots.contains(&location.root)
+        self.ordinary_owned_root(location.root) == Some(true)
             && !location.path.contains(&DescriptorPathSegment::Referent)
     }
 
