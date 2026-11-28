@@ -12,11 +12,10 @@ Goal: make omega-prism's PNG `decode_into` competitive with zlib + FFmpeg
 
 ## In flight
 
-- **PR #6644**, branch `claude/project-thread-xijdvs`: lets
+- **PR #6644 (merged as 87f7bfe9d)**: lets
   `@mutable row[a..b] as @mutable [u8; N]` lend a mutable fixed-array
   reference on Psi and native. Rebased on main d5252ba6f, fmt and
-  check-rules clean, assigned to Smotto. Waiting on the `admission` check;
-  Jarod authorized squash-merging once `admission` passes.
+  merged after admission passed.
   - Still refused with errors: whole-view `row as @mutable [u8; N]`,
     `@mutable row[..] as ...`.
   - Known failures that also fail on main (not ours):
@@ -40,7 +39,7 @@ Goal: make omega-prism's PNG `decode_into` competitive with zlib + FFmpeg
 
 ## Next steps
 
-1. Merge #6644 when `admission` is green, then restart the branch from main.
+1. (#6644 is merged; work branch `claude/project-thread-xijdvs` was reset to main.)
 2. Look at the native code for `put16` (disassemble with
    `objdump -D -b binary -m i386:x86-64 -M intel --adjust-vma=0x400000`):
    check the `u8x16` load/add/store become `movdqu`/`paddb`, and that the
