@@ -4056,6 +4056,13 @@ fn search_certificate(
             UnprovedCause::GoalStepsExhausted {
                 limit: prover.step_limit(),
             }
+        } else if prover.establishes_opposite_boolean(goal) {
+            return unproved(
+                id,
+                obligation,
+                UnprovedCause::NoDerivation,
+                "the established Boolean value is the opposite of the required value".to_owned(),
+            );
         } else if prover.has_rules_for(goal) && !prover.beyond_rules(goal, unreached) {
             UnprovedCause::NoDerivation
         } else {
