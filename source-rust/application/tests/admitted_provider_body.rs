@@ -121,11 +121,15 @@ fn a_dependency_call_runs_the_body_its_provider_supplies() {
 /// `provider` as the dependency's `main.omg`: the exit status and report.
 fn checked(scratch: &Path, name: &str, build: &str, provider: &str) -> (bool, String) {
     let root = scratch.join(name);
+    // An executable application needs its selected ProgramEntry
+    // (build/configuration.md), and `entry` returns a value, so the consumer
+    // is checked as a package: every body is still checked, with no entry.
+    let build = build.replace("BuildProduct::Application", "BuildProduct::Package");
     project::write(
         &root,
         &[
             ("main.omg", CONSUMER),
-            ("build.omg", build),
+            ("build.omg", &build),
             ("dep/main.omg", provider),
             ("dep/build.omg", PROVIDER_BUILD),
         ],
