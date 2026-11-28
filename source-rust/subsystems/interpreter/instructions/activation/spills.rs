@@ -24,6 +24,7 @@ pub(super) struct ScalarSpills {
     start: usize,
     homes: Vec<ScalarHome>,
     commitment: [u8; 32],
+    lease: Option<build_model::accounting::EvaluationStorageLease>,
 }
 
 fn commitment() -> DomainDigestEncoder {
@@ -110,26 +111,41 @@ impl ScalarSpills {
                 });
             }
         }
+        let entries = u64::try_from(homes.len()).map_err(|_| malformed())?;
+        let lease = execution
+            .account
+            .as_ref()
+            .map(|account| account.reserve_storage(entries, 0))
+            .transpose()
+            .map_err(TerminalInterpretError::Storage)?;
         Ok(Self {
             start,
             homes,
             commitment: digest.finish(),
+            lease,
         })
     }
 
     pub(super) fn restore(
-        &self,
+        mut self,
         execution: &mut TerminalExecution<'_>,
         backing: &RetainedBacking,
     ) -> Result<(), TerminalInterpretError> {
         let mut offset = self.start;
         let mut digest = commitment();
-        for home in &self.homes {
+        for (position, home) in self.homes.iter().enumerate() {
             let width = usize::from(home.width);
             let mut bytes = [0; 16];
             backing.read_storage(execution, offset, &mut bytes[..width])?;
             digest.raw(&bytes[..width]);
             let value = decode(home.ty, &bytes[..width])?;
+            if let Some(lease) = &mut self.lease {
+                // Move this live cell back to its register table before that
+                // table charges it. A parked value still costs one live cell.
+                lease.truncate_cells(
+                    u64::try_from(self.homes.len() - position - 1).map_err(|_| malformed())?,
+                );
+            }
             execution
                 .call_stack
                 .get_mut(home.frame)

@@ -125,3 +125,49 @@ machine main() crashes Trap {
         "{message}"
     );
 }
+
+#[test]
+fn borrowing_a_fresh_reference_keeps_both_layers_until_the_last_use() {
+    for formation in ["@@owned", "@share(@owned)"] {
+        let program = Program::new(
+            &format!(
+                r#"
+machine share<'a>(source: @'a u8) -> @'a u8 {{ source }}
+machine main() crashes Trap {{
+    let owned: u8 = 37u8;
+    let outer: @@u8 = {formation};
+    let inner: @u8 = $outer;
+    transition $inner == 37u8 {{ true -> done(), _ -> wrong() }}
+    machine done() {{}}
+    machine wrong() {{ crash Trap; }}
+}}"#
+            ),
+            &[],
+        );
+        program.assert_native_returns();
+        program.assert_psi_returns();
+    }
+}
+
+#[test]
+fn a_reference_to_a_temporary_descriptor_cannot_escape() {
+    let program = Program::new(
+        r#"
+machine escape<'a>(source: @'a u8) -> @'a @'a u8 { @@$source }
+machine main() crashes Trap {
+    let owned: u8 = 37u8;
+    let outer: @@u8 = escape(@owned);
+    let inner: @u8 = $outer;
+    transition $inner == 37u8 { true -> done(), _ -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}"#,
+        &[],
+    );
+    let output = program.check();
+    let message = super::report(&output);
+    assert!(
+        !output.status.success() && message.contains("local storage cannot establish"),
+        "{message}"
+    );
+}

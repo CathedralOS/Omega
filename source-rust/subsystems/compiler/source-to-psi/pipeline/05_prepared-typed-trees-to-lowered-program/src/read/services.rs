@@ -409,16 +409,11 @@ impl Program<'_> {
                                     union(&mut reached.invocations, &forwarded);
                                     continue;
                                 }
-                                let Some(ValueType::Scalar(
-                                    semantic_vocabulary::ScalarType::Callable(contract),
-                                    _,
-                                )) = actual.result
-                                else {
-                                    return Err(unavailable(
+                                let contract = callable_at(&self.records, actual.result, suffix)
+                                    .ok_or_else(|| unavailable(
                                         id,
-                                        "invocation permission actual has no retained callable type",
-                                    ));
-                                };
+                                        "invocation permission selects no callable in its actual",
+                                    ))?;
                                 let actual =
                                     self.callables.contracts.get(contract).ok_or_else(|| {
                                         unavailable(
@@ -1040,6 +1035,75 @@ fn union<T: Clone + Ord>(to: &mut Vec<T>, from: &[T]) {
     to.extend_from_slice(from);
     to.sort();
     to.dedup();
+}
+/// A local record can be supplied by any constructor of its type. Read the
+/// contract at the invoked field even when its specific machine is unknown.
+fn callable_at(
+    records: &IdTable<semantic_vocabulary::StructuralTypeId, RecordType>,
+    actual: Option<ValueType>,
+    path: &[semantic_vocabulary::InvocationPathSegment],
+) -> Option<semantic_vocabulary::CallableContractId> {
+    use semantic_vocabulary::{InvocationPathSegment as Step, ScalarType};
+
+    let mut ty = actual?;
+    let mut path = path.iter();
+    while let Some(step) = path.next() {
+        let ValueType::Record(id, _, _) = ty else {
+            return None;
+        };
+        let owner = records.get(id)?;
+        ty = match step {
+            Step::Field(name) => {
+                owner
+                    .fields()
+                    .iter()
+                    .find(|field| field.identity == *name)?
+                    .value_type
+            }
+            Step::Case(name) => {
+                let case = owner.cases().iter().find(|case| case.identity == *name)?;
+                let Step::Field(name) = path.next()? else {
+                    return None;
+                };
+                case.fields
+                    .iter()
+                    .find(|field| field.identity == *name)?
+                    .value_type
+            }
+            Step::FixedIndex(index) => {
+                let StorageShape::FixedArray {
+                    element, length, ..
+                } = owner.shape
+                else {
+                    return None;
+                };
+                if *index >= length.literal()? {
+                    return None;
+                }
+                ValueType::record(element)
+            }
+            Step::Referent => {
+                let StorageShape::Reference { referent, .. } = owner.shape else {
+                    return None;
+                };
+                ValueType::record(referent)
+            }
+        };
+    }
+    let scalar = match ty {
+        ValueType::Scalar(scalar, _) => scalar,
+        ValueType::Record(id, _, _) => {
+            let StorageShape::PrimitiveScalar { scalar_type, .. } = records.get(id)?.shape else {
+                return None;
+            };
+            scalar_type
+        }
+        ValueType::Rigid(_) => return None,
+    };
+    match scalar {
+        ScalarType::Callable(contract) => Some(contract),
+        _ => None,
+    }
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct FormalSelection {

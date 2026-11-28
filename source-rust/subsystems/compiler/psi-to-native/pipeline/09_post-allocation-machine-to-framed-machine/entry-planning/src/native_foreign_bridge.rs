@@ -227,6 +227,9 @@ pub(crate) fn plan_call(
         .as_ref()
         .map(|value| value_storage(value, extent(value.shape)))
         .transpose()?;
+    if retained.is_some() && result.as_ref().is_some_and(ValueStorage::is_indirect) {
+        return Err(Error::UnsupportedValueTransport);
+    }
     let output_pointer = result
         .as_ref()
         .filter(|_| retained.is_none())

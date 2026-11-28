@@ -51,10 +51,10 @@ pub(crate) struct TransferredReply {
 
 pub(crate) struct ReplyClaims {
     pub(crate) place: semantic_vocabulary::PlaceId,
-    pub(crate) held: std::collections::BTreeMap<
+    pub(crate) held: Vec<(
         semantic_vocabulary::ClaimId,
         crate::engine::execution::LiveClaim,
-    >,
+    )>,
 }
 
 /// A qualified request and permit both borrow the publication's anchor.
@@ -286,7 +286,13 @@ impl crate::engine::execution::TerminalExecution<'_> {
                     reply.completed.rebound_claims =
                         Some(crate::engine::custody::rebind_structural_result_claims(
                             &remaining,
-                            &source.held,
+                            |claim| {
+                                source
+                                    .held
+                                    .binary_search_by_key(&claim, |row| row.0)
+                                    .ok()
+                                    .map(|index| &source.held[index].1)
+                            },
                             source.place,
                             &destination,
                             &reply.completed.returned_claims,

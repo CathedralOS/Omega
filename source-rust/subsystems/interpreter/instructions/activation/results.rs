@@ -553,11 +553,6 @@ impl TerminalExecution<'_> {
                     vec![],
                 );
                 child.path.clone_from(&member.path);
-                if let Some(case) = returned.result_case {
-                    output
-                        .storage
-                        .stage_case(member.clone(), returned.structural_type, case)?;
-                }
                 self.stage_structural_result_contents(
                     result.place,
                     &child,
@@ -735,7 +730,7 @@ impl TerminalExecution<'_> {
                 if !claims.is_empty() {
                     source_claims = Some(ReplyClaims {
                         place: arg.place,
-                        held: claims.into_iter().collect(),
+                        held: claims,
                     });
                 }
                 retained.storage.publish(self)?;

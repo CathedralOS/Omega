@@ -1185,8 +1185,14 @@ mod assignment {
         let attached = scopes::attached_machines(program);
         let roles = scopes::BinderRoles::of(program, &program.symbols);
         for (owner, target, arguments) in applications {
-            let local = runtime_callable_types::owner_parameters(program, &captured, &Default::default(), owner, Vec::new())
-                .map_err(|diagnostic| vec![diagnostic])?;
+            let local = runtime_callable_types::owner_parameters(
+                program,
+                &captured,
+                &Default::default(),
+                owner,
+                Vec::new(),
+            )
+            .map_err(|diagnostic| vec![diagnostic])?;
             if program.trait_definition(target).is_none() {
                 continue;
             }

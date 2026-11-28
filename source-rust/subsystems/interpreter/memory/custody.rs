@@ -2349,9 +2349,9 @@ pub(crate) fn transfer_claims(
     Ok((remaining, callee_claims))
 }
 
-pub(crate) fn rebind_structural_result_claims(
+pub(crate) fn rebind_structural_result_claims<'a>(
     caller_claims: &BTreeMap<ClaimId, LiveClaim>,
-    callee_claims: &BTreeMap<ClaimId, LiveClaim>,
+    held_at: impl Fn(ClaimId) -> Option<&'a LiveClaim>,
     source: PlaceId,
     result: &StructuralOperationResult,
     returned_claims: &[StructuralResultClaimBinding],
@@ -2369,8 +2369,7 @@ pub(crate) fn rebind_structural_result_claims(
             LiveClaim::path_multiplicity(&binding.path, result.multiplicity);
         let mut held = returned_claims.iter().filter(|returned| {
             returned.path == binding.path
-                && callee_claims
-                    .get(&returned.claim)
+                && held_at(returned.claim)
                     .is_some_and(|live| live.place == Some(source) && live.path == returned.path)
         });
         let Some(callee_claim) = held.next() else {
@@ -2378,8 +2377,7 @@ pub(crate) fn rebind_structural_result_claims(
         };
         if held.next().is_some()
             || !unmatched.remove(&callee_claim.claim)
-            || callee_claims
-                .get(&callee_claim.claim)
+            || held_at(callee_claim.claim)
                 .is_none_or(|live| live.multiplicity != Some(expected_multiplicity))
             || rebound
                 .insert(
