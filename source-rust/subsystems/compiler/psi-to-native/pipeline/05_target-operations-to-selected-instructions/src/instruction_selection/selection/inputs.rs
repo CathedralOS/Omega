@@ -5424,6 +5424,28 @@ pub(crate) mod reference_input {
             // The record contains an eight-byte prefix and a sixteen-byte reference.
             assert_eq!(address.pointer_slots[0].byte_offset, 24 + 8);
             assert_eq!(address.referent_offset, 0);
+            assert!(
+                super::reference_projection(
+                    type_id(4),
+                    &semantic.path,
+                    semantic.access,
+                    Some(type_id(5)),
+                    &geometry,
+                )
+                .is_none()
+            );
+            let mut hidden_field = semantic.path.clone();
+            hidden_field.push(StructuralPathSegment::Field(TerminalIdentityIndex(10)));
+            assert!(
+                super::reference_projection(
+                    type_id(4),
+                    &hidden_field,
+                    semantic.access,
+                    Some(type_id(1)),
+                    &geometry,
+                )
+                .is_none()
+            );
             argument.opened_referent = Some(type_id(1));
             assert!(super::borrowed_argument(&checked, &semantic, &argument, &[]).is_none());
             argument.opened_referent = None;
