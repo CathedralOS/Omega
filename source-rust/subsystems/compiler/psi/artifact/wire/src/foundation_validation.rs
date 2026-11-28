@@ -5955,39 +5955,14 @@ pub(crate) mod scalar_observations {
                     .map(|v| v.scalar_type)
             })
         };
-        for proposition in machine
-            .contract
-            .requires
+        // Callable clauses use their formal namespace, including bodyless declarations.
+        for invariant in module
+            .proofs
+            .scalar_block_invariants
             .iter()
-            .chain(machine.contract.ensures.iter().map(|row| &row.proposition))
-            .chain(
-                machine
-                    .contract
-                    .outcome_specific_ensures
-                    .iter()
-                    .map(|row| &row.proposition),
-            )
-            .chain(
-                machine
-                    .contract
-                    .crash_routes
-                    .iter()
-                    .flat_map(|row| &row.alternatives)
-                    .filter_map(|guard| match guard {
-                        terminal_psi::CrashRouteGuard::Predicate(p) => Some(p.proposition()),
-                        _ => None,
-                    }),
-            )
-            .chain(
-                module
-                    .proofs
-                    .scalar_block_invariants
-                    .iter()
-                    .filter(|row| row.machine == machine.id)
-                    .map(|row| &row.predicate),
-            )
+            .filter(|row| row.machine == machine.id)
         {
-            validate(module, proposition, &root, &value)?;
+            validate(module, &invariant.predicate, &root, &value)?;
         }
         for operation in machine.operations() {
             use terminal_psi::OperationKind;
@@ -6148,7 +6123,7 @@ pub(crate) mod scalar_observations {
         Ok(())
     }
 
-    fn validate(
+    pub(super) fn validate(
         module: &TerminalModule,
         proposition: &Proposition,
         root_type: &impl Fn(PlaceId) -> Option<StructuralTypeId>,
@@ -8407,13 +8382,13 @@ pub(crate) mod storage_foundations {
         operation: &Operation,
     ) -> Result<(), CodecError> {
         let Some(result) = operation.result.structural() else {
-            return malformed("native borrow requires a structural reference result");
+            return malformed("native borrow requires a structural result");
         };
-        let Some(StructuralTypeShape::Reference { referent, access }) = module
+        let Some(destination) = module
             .structural_type(result.structural_type)
             .map(|ty| &ty.shape)
         else {
-            return malformed("native borrow result must be a reference");
+            return malformed("native borrow result type is undeclared");
         };
         use terminal_psi::StructuralAccess::{MutableBorrow, SharedBorrow};
         if result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
@@ -8424,13 +8399,18 @@ pub(crate) mod storage_foundations {
             || !result.claims.is_empty()
         {
             return malformed(
-                "native borrow requires an affine unqualified reference without claims",
+                "native borrow requires an affine unqualified descriptor without claims",
             );
         }
         match &operation.kind {
             OperationKind::BorrowAt { address } => {
-                if !matches!(access, SharedBorrow | MutableBorrow)
-                    || !matches!(declared_scalar_type(machine, *address), Some(ScalarType::Integer(ty)) if ty.is_address())
+                if !matches!(
+                    destination,
+                    StructuralTypeShape::Reference {
+                        access: SharedBorrow | MutableBorrow,
+                        ..
+                    }
+                ) || !matches!(declared_scalar_type(machine, *address), Some(ScalarType::Integer(ty)) if ty.is_address())
                 {
                     return malformed(
                         "native borrow requires an address and a shared or mutable reference result",
@@ -8438,19 +8418,16 @@ pub(crate) mod storage_foundations {
                 }
             }
             OperationKind::UpgradeMutability { source } => {
-                let input = structural_place_type(machine, source.place).and_then(|root| {
-                    terminal_semantics::runtime_structural_path_tip(
-                        module.types.structural_types.iter(),
-                        root,
-                        &source.path,
-                    )
-                });
-                if *access != MutableBorrow
-                    || source.access != SharedBorrow
-                    || !matches!(input.map(|ty| &ty.shape), Some(StructuralTypeShape::Reference { referent: source, access: SharedBorrow }) if source == referent)
+                if terminal_semantics::mutability_upgrade_source(
+                    machine,
+                    &module.types.structural_types,
+                    source,
+                    destination,
+                )
+                .is_none()
                 {
                     return malformed(
-                        "mutability upgrade requires a shared reference to the same referent",
+                        "mutability upgrade requires a shared borrow of the same referent or view geometry",
                     );
                 }
             }
@@ -9000,6 +8977,42 @@ pub(crate) mod storage_foundations {
                     referent: ty(2),
                     access: MutableBorrow,
                 },
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: Some(SharedBorrow),
+                }),
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: Some(MutableBorrow),
+                }),
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+                    access: Some(SharedBorrow),
+                    capacity: 4,
+                }),
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+                    access: Some(MutableBorrow),
+                    capacity: 4,
+                }),
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+                    access: Some(MutableBorrow),
+                    capacity: 8,
+                }),
+                StructuralTypeShape::ElementView {
+                    element: ty(1),
+                    access: Some(SharedBorrow),
+                },
+                StructuralTypeShape::ElementView {
+                    element: ty(1),
+                    access: Some(MutableBorrow),
+                },
+                StructuralTypeShape::ElementView {
+                    element: ty(2),
+                    access: Some(MutableBorrow),
+                },
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: None,
+                }),
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
+                    capacity: 4,
+                }),
             ];
             for (index, shape) in shapes.into_iter().enumerate() {
                 module
@@ -9069,6 +9082,10 @@ pub(crate) mod storage_foundations {
                 validate_native_borrow(&module, &machine, &operation(at.clone(), ty(1), affine))
                     .is_err()
             );
+            assert!(
+                validate_native_borrow(&module, &machine, &operation(at.clone(), ty(6), affine))
+                    .is_err()
+            );
             machine.parameters[0].scalar_type = byte;
             assert!(
                 validate_native_borrow(&module, &machine, &operation(at, ty(3), affine)).is_err()
@@ -9100,6 +9117,43 @@ pub(crate) mod storage_foundations {
             machine.structural_parameters[0].structural_type = ty(3);
             assert!(
                 validate_native_borrow(&module, &machine, &operation(upgrade, ty(3), affine))
+                    .is_err()
+            );
+
+            let upgrade = || OperationKind::UpgradeMutability {
+                source: StructuralArgument::whole(argument, SharedBorrow),
+            };
+            for (input, output, accepted) in [
+                (5, 6, true),
+                (7, 8, true),
+                (10, 11, true),
+                (7, 9, false),
+                (10, 12, false),
+                (7, 6, false),
+                (14, 8, false),
+                (10, 3, false),
+                (2, 11, false),
+                (5, 5, false),
+                (6, 6, false),
+                (13, 6, true),
+                (5, 13, false),
+            ] {
+                machine.structural_parameters[0].structural_type = ty(input);
+                assert_eq!(
+                    validate_native_borrow(
+                        &module,
+                        &machine,
+                        &operation(upgrade(), ty(output), affine)
+                    )
+                    .is_ok(),
+                    accepted,
+                    "upgrade {input} to {output}",
+                );
+            }
+            machine.structural_parameters[0].structural_type = ty(13);
+            machine.structural_parameters[0].access = MutableBorrow;
+            assert!(
+                validate_native_borrow(&module, &machine, &operation(upgrade(), ty(6), affine))
                     .is_err()
             );
         }
@@ -11697,14 +11751,34 @@ fn validate_contract_formals(
         places.iter().copied(),
     )
     .map_err(CodecError::MalformedProposition)?;
+    let input_root = |place| {
+        terminal_psi::StructuralParameterDeclaration::find_by_place(
+            &contract.structural_parameters,
+            place,
+        )
+        .filter(|p| p.access != StructuralAccess::WriteOnlyBorrow)
+        .map(|p| p.structural_type)
+    };
+    let input_value = |id| {
+        contract
+            .parameters
+            .iter()
+            .chain(&contract.erased_scalar_formals)
+            .find(|p| p.id == id)
+            .map(|p| p.scalar_type)
+    };
+    let validate_input = |proposition: &semantic_vocabulary::Proposition| {
+        requires
+            .validate(proposition)
+            .map_err(CodecError::MalformedProposition)?;
+        scalar_observations::validate(module, proposition, &input_root, &input_value)
+    };
     for proposition in contract
         .requires
         .iter()
         .chain(&contract.source_checked_requires)
     {
-        requires
-            .validate(proposition)
-            .map_err(CodecError::MalformedProposition)?;
+        validate_input(proposition)?;
     }
     let result_place = match &contract.result {
         TerminalMachineResult::Structural(result) => {
@@ -11717,7 +11791,7 @@ fn validate_contract_formals(
                 &result.qualifications,
                 &result.projected_qualifications,
             )?;
-            Some((result.place, StructuralPlaceKind::Result))
+            Some((result.place, result.structural_type))
         }
         _ => None,
     };
@@ -11728,7 +11802,10 @@ fn validate_contract_formals(
             .chain(&contract.erased_scalar_formals)
             .chain(contract.result.scalar_ref())
             .map(|formal| (formal.id, formal.scalar_type)),
-        places.iter().copied().chain(result_place),
+        places
+            .iter()
+            .copied()
+            .chain(result_place.map(|(place, _)| (place, StructuralPlaceKind::Result))),
     )
     .map_err(CodecError::MalformedProposition)?;
     for proposition in contract
@@ -11745,6 +11822,26 @@ fn validate_contract_formals(
         ensures
             .validate(proposition)
             .map_err(CodecError::MalformedProposition)?;
+        scalar_observations::validate(
+            module,
+            proposition,
+            &|place| {
+                input_root(place).or_else(|| {
+                    result_place
+                        .filter(|(id, _)| *id == place)
+                        .map(|(_, ty)| ty)
+                })
+            },
+            &|id| {
+                input_value(id).or_else(|| {
+                    contract
+                        .result
+                        .scalar_ref()
+                        .filter(|result| result.id == id)
+                        .map(|result| result.scalar_type)
+                })
+            },
+        )?;
     }
     for bucket in contract
         .crash_routes
@@ -11753,9 +11850,7 @@ fn validate_contract_formals(
     {
         for guard in &bucket.alternatives {
             if let terminal_psi::CrashRouteGuard::Predicate(predicate) = guard {
-                requires
-                    .validate(predicate.proposition())
-                    .map_err(CodecError::MalformedProposition)?;
+                validate_input(predicate.proposition())?;
             }
         }
     }
@@ -11781,6 +11876,9 @@ fn validate_contract_formals(
     .map_err(CodecError::MalformedStructuralFoundation)?;
     Ok(())
 }
+
+#[cfg(test)]
+mod declaration_observation_tests;
 
 // Bodyless declarations retain descriptive source identities. Their absence
 // of code adds no trust to the promises shared with executable contracts.

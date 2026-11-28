@@ -1069,6 +1069,14 @@ impl<'a> Storage<'a> {
                     );
                 }
                 let source_access = access;
+                let resource = if narrower
+                    .upgraded_view_descriptor(module, self.lowered, argument)
+                    .is_some()
+                {
+                    BorrowedResource::ViewPayload
+                } else {
+                    resource
+                };
                 let access = if narrower.upgraded_mutability {
                     ReferenceAccess::Mutable
                 } else {

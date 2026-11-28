@@ -20,3 +20,11 @@ Three operations can require more source work during one request.
 - A [compile-time invocation](driver/compile_time_invocations.rs) can supply a value required for preparation. Materialized calls, constant arguments and array extents use one [typed caller](driver/compile_time_invocations/typed_invocation.rs). The interpreter receives a checked invocation and returns its value and [evaluation record](representations/evaluation-receipts/accounting.rs).
 
 The [representations](representations/) own source data shared across stages, including [substitution into generic data members](representations/typed-trees/type_records/data_applications.rs). Published Psi goes to the [artifact writer](../psi/artifact/codec/) or stays in memory for native compilation with the [provider choices for its deployment](representations/published-target-providers/publication.rs).
+
+## Native borrows
+
+The Rust frontend accepts a known-size referent for `borrow_at` and
+`borrow_mutable_at`. A fixed array such as `[u8; 4]` supplies its extent
+through the type. A bare address supplies no element count for `[u8]`.
+An existing shared slice carries its bounds, so `upgrade_mutability::<[u8]>`
+can retain them when it produces a mutable slice.

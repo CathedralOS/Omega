@@ -856,6 +856,7 @@ pub(crate) mod suspension_wire {
             1 => Machine(machine: Id),
             2 => Boundary(boundary: Id),
             5 => Dynamic { interface: U32, slot: U32 },
+            6 => Callable { callee: Id, contract: Id },
         }
         Capture: TerminalSuspensionLoanCapture, "TerminalSuspensionLoanCapture" {
             0 => Unresolved,
@@ -1222,6 +1223,21 @@ pub(crate) mod suspension_wire {
                     Err(CodecError::InvalidTag("TerminalSuspensionCallTarget", tag)) if tag == retired
                 ));
             }
+        }
+
+        #[test]
+        fn suspension_target_binds_the_callable_value_and_its_contract() {
+            let target = TerminalSuspensionCallTarget::Callable {
+                callee: ValueId::new(7).unwrap(),
+                contract: semantic_vocabulary::CallableContractId::new(19).unwrap(),
+            };
+            let mut writer = Writer::default();
+            CallTarget::write(&mut writer, &target).unwrap();
+            let bytes = writer.finish();
+            let mut reader = Reader::new(&bytes);
+            assert_eq!(bytes[0], 6);
+            assert_eq!(CallTarget::read(&mut reader).unwrap(), target);
+            assert_eq!(reader.remaining(), 0);
         }
 
         #[test]

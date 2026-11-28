@@ -409,7 +409,7 @@ fn assert_kernel_accepted(
                 class: ObligationClass::Derivable,
             },
             &resolve(&evidence.assumptions),
-            &resolve(&evidence.axioms),
+            &crate::formed_observation_axioms(goal, resolve(&evidence.axioms)),
             EvidenceRoute::CertificateDerived(certificate.as_ref()),
         )
     };

@@ -52,7 +52,7 @@ use diagnostics::Diagnostic;
 use language_core::core_vocabulary::{CoreVocabulary, ReflectionDeclaration};
 use symbols::SymbolHandle;
 
-use super::demanded_values::{DemandedValues, RoundProgram};
+use super::demanded_values::{DemandedValues, JudgedCall, RoundDemand, RoundProgram};
 use crate::compile_time_invocations::{
     InvocationTarget, PlannedCall, PreparedBuildMachineProgram, SourceCompletionAccounting,
 };
@@ -146,18 +146,19 @@ impl DemandedValues for AccessPlans {
     /// Each domain calls its policy's `plan` once, in the round's program.
     fn plan_round(
         &mut self,
-        values: &[usize],
+        values: &mut [RoundDemand],
         round: &RoundProgram,
         _program: &TypedTrees,
-    ) -> Vec<PlannedCall> {
-        values
-            .iter()
-            .filter_map(|&value| {
-                domain_call(round.source(), round.calls(), self.demands[value].domain[0])
-                    .ok()
-                    .map(|call| call.plan)
-            })
-            .collect()
+    ) {
+        for ready in values {
+            ready.call = domain_call(
+                round.source(),
+                round.calls(),
+                self.demands[ready.value].domain[0],
+            )
+            .ok()
+            .map(|call| call.plan);
+        }
     }
 
     /// Evaluates the plan in the round's program and records the checked
@@ -170,6 +171,7 @@ impl DemandedValues for AccessPlans {
         &mut self,
         value: usize,
         round: &RoundProgram,
+        judged: Option<JudgedCall<'_>>,
         program: &mut TypedTrees,
         accounting: &mut SourceCompletionAccounting,
     ) -> Result<(), Vec<Diagnostic>> {
@@ -182,6 +184,7 @@ impl DemandedValues for AccessPlans {
         let judgment = match evaluate_domain(
             round.source(),
             round.calls(),
+            judged,
             &self.descriptions,
             demand.domain[0],
             accounting,
@@ -262,6 +265,7 @@ fn domain_call(
 fn evaluate_domain(
     typed: &TypedTrees,
     prepared: &PreparedBuildMachineProgram,
+    judged: Option<JudgedCall<'_>>,
     descriptions: &[Description],
     domain: SymbolHandle,
     accounting: &mut SourceCompletionAccounting,
@@ -275,7 +279,7 @@ fn evaluate_domain(
         revision,
     } = domain_call(typed, prepared, domain)?;
     let entry = prepared
-        .prepare_planned(&plan)
+        .demand_entry(&plan, judged)
         .map_err(|errors| diagnostics::join_messages(&errors))?;
     let accepted = entry.accepted_source();
     let (selected, member, _) = accepted

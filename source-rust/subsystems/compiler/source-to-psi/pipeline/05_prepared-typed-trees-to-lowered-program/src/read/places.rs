@@ -626,6 +626,24 @@ impl Program<'_> {
                 let template = typed
                     .unique_data_definition_by_symbol(symbol)
                     .ok_or_else(|| unserved("applied data lost its template"))?;
+                // An open descriptor may be forwarded under its original
+                // binders. Read the actual placement when the data application
+                // has been formed at its closed arguments.
+                if typed.core_vocabulary(template.symbol)
+                    == Some(language_core::core_vocabulary::CoreVocabulary::Run)
+                {
+                    let [(_, placement), (_, schema)] = application.substitutions.as_slice() else {
+                        return Err(unserved("run needs its placement and value type"));
+                    };
+                    if application.scope.argument_is_closed(typed, *placement) {
+                        let at = self.declared_at(symbol);
+                        if application.scope.argument_is_closed(typed, *schema) {
+                            self.resident_index(id, at, *placement, *schema)?;
+                        } else {
+                            self.qualified_storage_placement(id, at, *placement)?;
+                        }
+                    }
+                }
                 for (parameter, argument) in typed
                     .data_type_parameters(template)
                     .iter()

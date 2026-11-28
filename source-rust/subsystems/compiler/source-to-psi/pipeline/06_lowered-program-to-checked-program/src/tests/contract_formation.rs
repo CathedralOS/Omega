@@ -150,6 +150,81 @@ fn predicate_definitions_form_without_assuming_their_bodies() {
 }
 
 #[test]
+fn received_alignment_contracts_require_readable_root_storage_and_a_live_case() {
+    use semantic_vocabulary::{CanonicalStructuralPathSegment, ScalarReadProjection};
+    use terminal_psi::{StructuralAccess, StructuralTypeShape};
+
+    let accepted = accepted_source(
+        "data Cell { word: u64; }
+         data Slot { case Full(word: u64); case Empty; }
+         machine inspect(cell: @Cell, slot: @Slot) -> bool { true }
+         machine build_entry() {
+             let cell: Cell = Cell { word: 7u64 };
+             let slot: Slot = Slot::Empty;
+             let checked: bool = inspect(@cell, @slot);
+         }",
+    );
+    let original = &accepted.elaboration.module;
+    let machine = original
+        .machines
+        .iter()
+        .find(|machine| machine.contract.structural_parameters.len() == 2)
+        .expect("inspect has a structural input");
+    let formal = &machine.contract.structural_parameters[0];
+    let StructuralTypeShape::Record { fields, .. } = &original
+        .structural_type(formal.structural_type)
+        .unwrap()
+        .shape
+    else {
+        panic!("expected the Cell input");
+    };
+    let field = ScalarReadProjection::from(CanonicalStructuralPathSegment::Field(fields[0].id));
+    let sum = &machine.contract.structural_parameters[1];
+    let StructuralTypeShape::Sum { cases } =
+        &original.structural_type(sum.structural_type).unwrap().shape
+    else {
+        panic!("expected the Slot input");
+    };
+    let full = cases.iter().find(|case| !case.fields.is_empty()).unwrap();
+    let payload = vec![
+        CanonicalStructuralPathSegment::Case(full.id).into(),
+        CanonicalStructuralPathSegment::Field(full.fields[0].id).into(),
+    ];
+    let ty = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+
+    for (input, mut path, access, detail) in [
+        (
+            formal,
+            vec![],
+            StructuralAccess::WriteOnlyBorrow,
+            "readable storage root",
+        ),
+        (
+            formal,
+            vec![field],
+            StructuralAccess::WriteOnlyBorrow,
+            "readable storage root",
+        ),
+        (sum, payload, StructuralAccess::SharedBorrow, "active case"),
+    ] {
+        path.push(ScalarReadProjection::Alignment);
+        let measured = ScalarTerm::structural_read(input.place, path, ty).unwrap();
+        let requirement = Proposition::LessOrEqual(
+            ScalarTerm::integer(ty.as_integer().unwrap(), IntegerValue::Unsigned(1)).unwrap(),
+            measured,
+        );
+        let mut module = original.clone();
+        let mut bodyless = machine.contract.clone();
+        bodyless.requires = vec![requirement];
+        bodyless.structural_parameters[input.position as usize].access = access;
+        module.execution.declaration_contracts.push(bodyless);
+        let refusal = crate::formation::module(&module, &[], &mut Default::default())
+            .expect_err("a declaration must establish the subject of its observation");
+        assert!(refusal.detail.contains(detail), "{refusal:?}");
+    }
+}
+
+#[test]
 fn byte_predicate_contracts_reject_nonbyte_inputs_under_a_false_precondition() {
     const SOURCE: &str = r#"
 machine observes<'input>(value: @'input u32) -> bool

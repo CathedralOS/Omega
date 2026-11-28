@@ -15,6 +15,7 @@
 //! computation starts from, and how to evaluate it and store the result.
 //! [`settle_in_demand_order`] treats every value alike from there.
 
+use rayon::prelude::*;
 use std::sync::Arc;
 
 use checked_program_to_psi as production;
@@ -26,8 +27,8 @@ use typed_trees_to_prepared_typed_trees::ValueInputs;
 
 use super::demand_order::{DemandOrder, Round};
 use super::{
-    FixedLayoutTargetScope, InvocationSourceConsent, PlannedCall, PreparedBuildMachineProgram,
-    SourceCompletionAccounting,
+    FixedLayoutTargetScope, InvocationSourceConsent, PlannedCall, PreparedBuildMachineEntry,
+    PreparedBuildMachineProgram, SourceCompletionAccounting,
 };
 use crate::source_state::TypedTrees;
 use crate::source_state::references::ComputationDependencyRows;
@@ -80,17 +81,23 @@ pub(super) trait DemandedValues {
     /// Names, before any value of `round` is evaluated, the calls `values`
     /// (this kind's values in the round) will make through `round.calls()`
     /// or `round.layout_policies()`. The round freezes their callers
-    /// together (`calls::round_callers`). A value whose call cannot be named
-    /// yet is left out and judged alone when it is evaluated; naming a call
-    /// never refuses anything. A kind that judges its calls in a program of
-    /// its own may share that program's callers here instead.
+    /// together (`calls::round_callers`). A value that cannot name its call
+    /// yet leaves it empty and judges the actual call when it runs. Values
+    /// that need their own program may freeze their callers there.
     fn plan_round(
         &mut self,
-        _values: &[usize],
+        _values: &mut [RoundDemand],
         _round: &RoundProgram,
         _program: &TypedTrees,
-    ) -> Vec<PlannedCall> {
-        Vec::new()
+    ) {
+    }
+
+    /// The publication mode under which this kind checks its planned calls.
+    fn call_program<'round>(
+        &self,
+        round: &'round RoundProgram,
+    ) -> &'round PreparedBuildMachineProgram {
+        round.calls()
     }
 
     /// Evaluates `value` in `round`'s program and stores the result in
@@ -99,9 +106,39 @@ pub(super) trait DemandedValues {
         &mut self,
         value: usize,
         round: &RoundProgram,
+        judged: Option<JudgedCall<'_>>,
         program: &mut TypedTrees,
         accounting: &mut SourceCompletionAccounting,
     ) -> Result<(), Vec<Diagnostic>>;
+}
+
+/// One ready value, with the call its owner can identify before execution.
+pub(super) struct RoundDemand {
+    position: usize,
+    kind: usize,
+    pub value: usize,
+    pub call: Option<PlannedCall>,
+}
+
+/// A judgment belongs to the exact call named before the round ran. A
+/// value whose actual arguments differ still judges its actual call.
+pub(super) struct JudgedCall<'plan> {
+    program: &'plan PreparedBuildMachineProgram,
+    plan: &'plan PlannedCall,
+    result: Result<PreparedBuildMachineEntry, Vec<Diagnostic>>,
+}
+
+impl PreparedBuildMachineProgram {
+    pub(super) fn demand_entry(
+        &self,
+        plan: &PlannedCall,
+        judged: Option<JudgedCall<'_>>,
+    ) -> Result<PreparedBuildMachineEntry, Vec<Diagnostic>> {
+        match judged {
+            Some(call) if std::ptr::eq(self, call.program) && call.plan == plan => call.result,
+            _ => self.prepare_planned(plan),
+        }
+    }
 }
 
 /// The program every value of one round is judged in.
@@ -161,6 +198,34 @@ impl RoundProgram {
             self.calls.share_round_calls(plans);
             self.layout_policies = self.calls.for_layout_policies();
         }
+    }
+
+    /// Reserve callers in demand order before running the independent
+    /// judgments. Equal plans still receive their own generated caller.
+    fn judge_batch<'round>(
+        &'round self,
+        batch: &'round [RoundDemand],
+        kinds: &[&mut dyn DemandedValues],
+    ) -> Vec<Option<JudgedCall<'round>>> {
+        if batch.len() == 1 {
+            return vec![None];
+        }
+        let jobs: Vec<_> = batch
+            .iter()
+            .map(|demand| {
+                let plan = demand.call.as_ref()?;
+                let program = kinds[demand.kind].call_program(self);
+                let judge = program.planned_judgment(plan);
+                Some(move || JudgedCall {
+                    program,
+                    plan,
+                    result: judge(),
+                })
+            })
+            .collect();
+        jobs.into_par_iter()
+            .map(|job| job.map(|judge| judge()))
+            .collect()
     }
 }
 
@@ -307,26 +372,40 @@ fn settle_in_demand_order(
         let mut judged = RoundProgram::of(program, demand, number)?;
         // Each kind names the calls its values in this round will make
         // before any of them is evaluated.
-        let mut plans = Vec::new();
-        for (kind, values) in kinds.iter_mut().enumerate() {
-            let in_round = round
-                .iter()
-                .filter_map(|&position| {
-                    let (owner, value) = places[position];
-                    (owner == kind).then_some(value)
-                })
-                .collect::<Vec<_>>();
-            if !in_round.is_empty() {
-                plans.extend(values.plan_round(&in_round, &judged, program));
-            }
+        let mut demands: Vec<_> = round
+            .into_iter()
+            .map(|position| {
+                let (kind, value) = places[position];
+                RoundDemand {
+                    position,
+                    kind,
+                    value,
+                    call: None,
+                }
+            })
+            .collect();
+        // DemandOrder returns positions in order, and places groups them by kind.
+        for family in demands.chunk_by_mut(|a, b| a.kind == b.kind) {
+            kinds[family[0].kind].plan_round(family, &judged, program);
         }
-        judged.share_calls(plans);
+        judged.share_calls(
+            demands
+                .iter()
+                .filter_map(|demand| demand.call.clone())
+                .collect(),
+        );
         let mut served = false;
-        for position in round {
-            let (kind, value) = places[position];
-            kinds[kind].evaluate(value, &judged, program, accounting)?;
-            served |= kinds[kind].serves_recorded_requests();
-            order.settle(position);
+        // Keep at most one checked invocation per available worker before
+        // installing results. Each job checks its own entry. Execution and
+        // refusal reporting follow the same order as on a single worker.
+        for batch in demands.chunks(worker_budget::current_workers()) {
+            let results = judged.judge_batch(batch, kinds);
+            for (demand, call) in batch.iter().zip(results) {
+                let (kind, value) = (demand.kind, demand.value);
+                kinds[kind].evaluate(value, &judged, call, program, accounting)?;
+                served |= kinds[kind].serves_recorded_requests();
+                order.settle(demand.position);
+            }
         }
         if served {
             super::frontier::refresh_evaluated_requests(program)?;

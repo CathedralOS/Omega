@@ -441,14 +441,8 @@ fn build_dead_tail_cutoff(
             if let Some(output) = operation.result.as_structural() {
                 record(&mut touches, output.place, block.id, ordinal);
             }
-            match &operation.kind {
-                OperationKind::EstablishReference { source, .. }
-                | OperationKind::EstablishAccessReference { source, .. }
-                | OperationKind::EstablishElementView { source, .. }
-                | OperationKind::EstablishMutableElementView { source, .. } => {
-                    mark_ineligible(&mut touches, source.place);
-                }
-                _ => {}
+            if let Some(source) = retained_loan_source(&operation.kind) {
+                mark_ineligible(&mut touches, source.place);
             }
             for arg in operation.kind.structural_arguments() {
                 record(&mut touches, arg.place, block.id, ordinal);
@@ -608,6 +602,8 @@ fn machine_candidates(
     let mut dead = BTreeMap::<DescriptorPosition, BTreeSet<DescriptorLocation>>::new();
     let mut live = BTreeMap::<DescriptorPosition, BTreeSet<DescriptorLocation>>::new();
     let mut lifetimes = Vec::new();
+    let mut retained_inputs =
+        BTreeMap::<DescriptorPosition, Vec<(DescriptorLocation, usize)>>::new();
     let mut dependencies =
         BTreeMap::<DescriptorPosition, BTreeSet<(DescriptorLocation, DescriptorLocation)>>::new();
     for parameter in machine
@@ -709,7 +705,7 @@ fn machine_candidates(
                         path: retained.path,
                         access: input.access,
                     };
-                    add_dependencies(
+                    let parents = add_dependencies(
                         module,
                         prepared,
                         flow,
@@ -721,6 +717,12 @@ fn machine_candidates(
                         &mut dependencies,
                     )
                     .map_err(|detail| Error::local(machine.id, Some(operation.id), detail))?;
+                    for parent in parents {
+                        retained_inputs
+                            .entry(birth)
+                            .or_default()
+                            .push((parent, lifetimes.len()));
+                    }
                     lifetimes.push(retained.lifetime);
                 }
             }
@@ -733,12 +735,7 @@ fn machine_candidates(
                     &slot,
                     needs_contents,
                 );
-                if let terminal_psi::OperationKind::EstablishReference { source, .. }
-                | terminal_psi::OperationKind::EstablishAccessReference { source, .. }
-                | terminal_psi::OperationKind::EstablishElementView { source, .. }
-                | terminal_psi::OperationKind::EstablishMutableElementView { source, .. } =
-                    &operation.kind
-                {
+                if let Some(source) = retained_loan_source(&operation.kind) {
                     add_dependencies(
                         module,
                         prepared,
@@ -753,6 +750,27 @@ fn machine_candidates(
                     .map_err(|detail| Error::local(machine.id, Some(operation.id), detail))?;
                 }
                 lifetimes.push(lifetime);
+            }
+        }
+    }
+    // A call can finish using its argument descriptor before the returned
+    // permission ends. Track the *loan* that supplied that descriptor at the
+    // call, so its other surviving homes also outlive the result.
+    if !retained_inputs.is_empty() {
+        for parent in &lifetimes {
+            for (at, authorities) in &parent.authorized {
+                let Some(inputs) = retained_inputs.get(at) else {
+                    continue;
+                };
+                for (input, child) in inputs {
+                    if authorities.contains(input) {
+                        record_parent_homes(
+                            &lifetimes[*child],
+                            &parent.authorized,
+                            &mut dependencies,
+                        );
+                    }
+                }
             }
         }
     }
@@ -917,6 +935,22 @@ fn machine_candidates(
     Ok(candidates)
 }
 
+/// A new permission depends on the descriptor that supplied its backing.
+fn retained_loan_source(kind: &terminal_psi::OperationKind) -> Option<&StructuralArgument> {
+    use terminal_psi::OperationKind;
+    match kind {
+        OperationKind::EstablishReference { source, .. }
+        | OperationKind::EstablishAccessReference { source, .. }
+        | OperationKind::EstablishElementView { source, .. }
+        | OperationKind::EstablishMutableElementView { source, .. }
+        | OperationKind::UpgradeMutability { source }
+        | OperationKind::ByteSequenceSubslice { source, .. }
+        | OperationKind::ElementViewSubslice { source, .. }
+        | OperationKind::ElementViewFixedArray { source, .. } => Some(source),
+        _ => None,
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn add_dependencies(
     module: &TerminalModule,
@@ -931,9 +965,9 @@ fn add_dependencies(
         DescriptorPosition,
         BTreeSet<(DescriptorLocation, DescriptorLocation)>,
     >,
-) -> Result<(), String> {
+) -> Result<Vec<DescriptorLocation>, String> {
     if lifetime.authorized.is_empty() {
-        return Ok(());
+        return Ok(Vec::new());
     }
     let same_block_max = if acyclic {
         let mut max_ord = birth.1;
@@ -989,29 +1023,43 @@ fn add_dependencies(
             .filter(|parent| captured.contains(parent))
             .collect()
     };
-    for parent in parents {
+    for parent in &parents {
         let homes = descriptor_continuation_locations_indexed(
             flow,
             predecessors,
             same_block_max,
             birth,
-            &parent,
+            parent,
         );
-        for (at, children) in &lifetime.authorized {
+        record_parent_homes(lifetime, &homes, dependencies);
+    }
+    Ok(parents)
+}
+
+fn record_parent_homes(
+    child: &crate::descriptor_lifetimes::DescriptorLifetime,
+    homes: &BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>>,
+    dependencies: &mut BTreeMap<
+        DescriptorPosition,
+        BTreeSet<(DescriptorLocation, DescriptorLocation)>,
+    >,
+) {
+    for (at, children) in &child.authorized {
+        // A narrowed window carries its parent's authority. Its own moved
+        // or copied homes can therefore occur in both continuations.
+        // Another home of this child is never a parent to release after it.
+        for parent in homes
+            .get(at)
+            .into_iter()
+            .flatten()
+            .filter(|parent| !children.contains(parent))
+        {
             for child in children {
-                for parent in homes
-                    .get(at)
-                    .into_iter()
-                    .flatten()
-                    .filter(|parent| *parent != child)
-                {
-                    dependencies
-                        .entry(*at)
-                        .or_default()
-                        .insert((child.clone(), parent.clone()));
-                }
+                dependencies
+                    .entry(*at)
+                    .or_default()
+                    .insert((child.clone(), parent.clone()));
             }
         }
     }
-    Ok(())
 }
