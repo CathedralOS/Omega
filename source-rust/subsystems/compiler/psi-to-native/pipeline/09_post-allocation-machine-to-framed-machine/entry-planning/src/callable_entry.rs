@@ -42,6 +42,7 @@ pub fn plan_private_function_entry(
 ) -> Result<PlannedPrivateEntry, Error> {
     let transport = plan_entry_transport(
         body,
+        body.instructions.entry,
         installations,
         inbound,
         inbound_ordinals,
@@ -62,11 +63,35 @@ pub fn plan_callable_entry_transport(
     inbound: &BoundaryEntryPlan,
     inbound_ordinals: &[u32],
 ) -> Result<PlannedCallableEntryTransport, Error> {
-    plan_entry_transport(body, installations, inbound, inbound_ordinals, None)
+    plan_entry_transport(body, body.instructions.entry, installations, inbound, inbound_ordinals, None)
+}
+
+/// A prepared worker is an ordinary reached machine in the physical unit.
+/// Its own ABI and CPU footprint govern its entry even when it is not the root.
+pub fn plan_fixed_worker_entry(
+    body: &crate::PhysicalFrameProgram,
+    worker: semantic_vocabulary::MachineId,
+    installations: installation_admission::EntryInstallationResources<'_>,
+) -> Result<PlannedCallableEntryTransport, Error> {
+    let abi = body.instructions.contracts.function_abi(worker)
+        .ok_or(Error::Mismatch("fixed worker has no physical ABI"))?;
+    let signature = calling_conventions::CallSignature {
+        parameters: abi.call_plan.parameters.iter().map(|p| p.shape).collect(),
+        result: abi.call_plan.result.as_ref().map(|r| r.shape),
+    };
+    let inbound = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+        calling_conventions::CallingPolicy::native_for_target(body.instructions.target),
+        &signature,
+    ).map_err(|_| Error::Mismatch("fixed worker has no ordinary entry ABI"))?;
+    let ordinals = (0..signature.parameters.len())
+        .map(|index| u32::try_from(index).map_err(|_| Error::Mismatch("fixed worker parameter ordinal overflows")))
+        .collect::<Result<Vec<_>, _>>()?;
+    plan_entry_transport(body, worker, installations, inbound.plan(), &ordinals, None)
 }
 
 fn plan_entry_transport(
     body: &crate::PhysicalFrameProgram,
+    machine: semantic_vocabulary::MachineId,
     installations: installation_admission::EntryInstallationResources<'_>,
     inbound: &BoundaryEntryPlan,
     inbound_ordinals: &[u32],
@@ -75,9 +100,9 @@ fn plan_entry_transport(
     let source = &body.instructions;
     let abi = source
         .contracts
-        .function_abi(source.entry)
+        .function_abi(machine)
         .ok_or(Error::Mismatch("callable body entry plan missing"))?;
-    let cpu = crate::body_cpu::plan(body, source.entry, inbound.state.preemption)
+    let cpu = crate::body_cpu::plan(body, machine, inbound.state.preemption)
         .map_err(|error| Error::Cpu(error.to_string()))?;
     let request = native_entry_request_from_abi(
         source.machine.target,
@@ -130,7 +155,7 @@ fn plan_entry_transport(
         CallableInstructions {
             context: CallableContext {
                 psi: source.psi,
-                entry: source.entry,
+                entry: machine,
                 inbound: inbound.clone(),
                 ordinals: inbound_ordinals.to_vec(),
                 effects,

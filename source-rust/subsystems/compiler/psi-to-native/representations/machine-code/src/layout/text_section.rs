@@ -133,6 +133,7 @@ pub type NormalizedForeignCallResolutionKind = crate::SelectedFormNormalizedFore
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NormalizedForeignCallResolutionState {
+    UnresolvedFixedActivationFieldV1,
     UnresolvedImportFieldV1, // Canonical zero placeholder awaiting object-level import relocation
 }
 

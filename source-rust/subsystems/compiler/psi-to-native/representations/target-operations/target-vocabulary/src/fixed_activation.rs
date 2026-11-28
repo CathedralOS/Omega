@@ -69,7 +69,29 @@ impl FixedActivationAction {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FixedActivationBinding {
+    pub boundary: BoundaryMachineId,
+    pub operation: ActivationOperation,
+}
+
+impl FixedActivationBinding {
+    pub fn encode(self, bytes: &mut Vec<u8>) {
+        bytes.extend_from_slice(&self.boundary.get().to_le_bytes());
+        bytes.push(match self.operation {
+            ActivationOperation::Prepare => 0,
+            ActivationOperation::StepFixed => 1,
+            ActivationOperation::Park => 2,
+            ActivationOperation::Resume => 3,
+        });
+    }
+}
+
 impl FixedActivationCall {
+    pub const fn binding(self) -> FixedActivationBinding {
+        FixedActivationBinding { boundary: self.boundary, operation: self.action.operation() }
+    }
+
     pub fn encode(&self, bytes: &mut Vec<u8>) {
         use FixedActivationAction as Action;
         fn field(bytes: &mut Vec<u8>, field: FixedField) {

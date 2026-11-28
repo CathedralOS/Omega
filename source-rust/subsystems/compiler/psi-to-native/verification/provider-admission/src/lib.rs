@@ -4,6 +4,7 @@
 #![forbid(unsafe_code)]
 
 mod access_lifecycles;
+mod fixed_activations;
 mod adapters;
 mod admission;
 mod admission_source;

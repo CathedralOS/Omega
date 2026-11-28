@@ -355,3 +355,7 @@ mod tests {
         std::fs::remove_dir_all(work).unwrap();
     }
 }
+
+/// The native encoder alone can issue a new image with this origin.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FixedActivationEncoderOrigin(());

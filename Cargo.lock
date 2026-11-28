@@ -2245,6 +2245,7 @@ dependencies = [
  "function-identity",
  "installation-conditions",
  "language-core",
+ "legalized-operations",
  "layout-plans",
  "native-binding-admission",
  "native-intrinsics",
