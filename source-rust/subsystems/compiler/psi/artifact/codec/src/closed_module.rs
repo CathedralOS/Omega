@@ -230,27 +230,32 @@ mod tests {
         identities.intern("closed_width_test");
         let identity = identities.intern("closed_callable_unit");
         module.identities = identities.build();
-        module.execution.callables.contracts.push(TerminalCallableContract {
-            id: contract,
-            identity,
-            scalar_parameters: Vec::new(),
-            parameter_order: Vec::new(),
-            structural_parameters: Vec::new(),
-            result: BoundaryMachineResult::Unit,
-            proof_result: TerminalMachineResult::Unit,
-            entry_claim_paths: Vec::new(),
-            result_claim_paths: Vec::new(),
-            result_reference_regions: Vec::new(),
-            proof: MachineContract::empty(ContractId::new(1).unwrap()),
-            evidence_contract: Vec::new(),
-            envelope: TerminalCallableEnvelope {
-                service_reach: Vec::new(),
-                invocations: Vec::new(),
-                suspends: false,
-                blocks: false,
-                termination: TerminalCallableTermination::NotGuaranteed,
-            },
-        });
+        module
+            .execution
+            .callables
+            .contracts
+            .push(TerminalCallableContract {
+                id: contract,
+                identity,
+                requirement: None,
+                scalar_parameters: Vec::new(),
+                parameter_order: Vec::new(),
+                structural_parameters: Vec::new(),
+                result: BoundaryMachineResult::Unit,
+                proof_result: TerminalMachineResult::Unit,
+                entry_claim_paths: Vec::new(),
+                result_claim_paths: Vec::new(),
+                result_reference_regions: Vec::new(),
+                proof: MachineContract::empty(ContractId::new(1).unwrap()),
+                evidence_contract: Vec::new(),
+                envelope: TerminalCallableEnvelope {
+                    service_reach: Vec::new(),
+                    invocations: Vec::new(),
+                    suspends: false,
+                    blocks: false,
+                    termination: TerminalCallableTermination::NotGuaranteed,
+                },
+            });
         let closed = ClosedTerminalModule::new(module).unwrap();
         let decoded = ClosedTerminalModule::from_semantic_bytes(closed.semantic_bytes()).unwrap();
         assert_eq!(closed.identity(), decoded.identity());

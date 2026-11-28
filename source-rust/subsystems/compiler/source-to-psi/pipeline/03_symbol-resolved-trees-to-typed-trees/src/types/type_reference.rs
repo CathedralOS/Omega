@@ -4551,6 +4551,22 @@ pub(crate) fn lower_named_type_reference(
         exposure,
         AuthoredDeclarationSelectionKind::TypeReference,
     )?;
+    if source_trees.symbols.symbols().nodes().is_valid(symbol)
+        && source_trees.symbols.get(symbol).kind == symbols::SymbolKind::State
+        && let owner = source_trees.symbols.get(symbol).parent
+        && source_trees.symbols.symbols().nodes().is_valid(owner)
+        && source_trees.symbols.get(owner).kind == symbols::SymbolKind::Trait
+    {
+        let tables = &mut typed_trees.tables;
+        let contract = tables.runtime_callable_lowering.requirement(
+            &mut tables.runtime_callable_contracts,
+            symbol,
+            owner,
+        );
+        return Ok(typed_trees
+            .type_reference_table
+            .insert(typed::types::TypeReferenceNode::Callable { contract }));
+    }
     let reference =
         typed_trees
             .type_reference_table
