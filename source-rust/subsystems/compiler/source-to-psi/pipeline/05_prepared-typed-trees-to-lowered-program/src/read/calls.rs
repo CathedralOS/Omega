@@ -4462,7 +4462,26 @@ impl<'t> Program<'t> {
                     return unserved("exclusive loan of an immutable binding");
                 }
             } else if !(explicit && matches!(root.kind, ExpressionKind::OwnedTemporary { .. })) {
-                return unserved("borrow of a value that is not a place");
+                // A reference produced here (including the inner @ in @@x) has
+                // its own descriptor. Borrowing that complete value gives it
+                // an invocation-owned home, with the normal temporary lifetime.
+                if !explicit
+                    || !std::ptr::eq(root, &place)
+                    || self.reference_referent(id, expected)?.is_none()
+                    || !self.same_type(place.result, expected)
+                {
+                    return unserved("borrow of a value that is not a place");
+                }
+                place = Expression {
+                    call_context: None,
+                    source: place.source,
+                    result: place.result,
+                    kind: ExpressionKind::OwnedTemporary {
+                        occurrence: operand,
+                        value: Box::new(place),
+                        scalar_home: None,
+                    },
+                };
             }
         }
         let lender_text = self.typed.expression_table.display_name(argument);
