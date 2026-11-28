@@ -52,6 +52,7 @@ impl super::Program<'_> {
             ));
         }
         let mut witnesses = Vec::new();
+        let mut rigid_parameters = Vec::new();
         for (_, witness) in &self.typed.package_opening(projection.opening).witnesses {
             let ValueType::Record(record, ..) = self.value_type(id, *witness)? else {
                 return Err(super::refuse_at(
@@ -59,6 +60,15 @@ impl super::Program<'_> {
                     Unserved::Typing("opened witness without a structural carrier"),
                 ));
             };
+            let symbol = self
+                .typed
+                .type_reference_table
+                .type_reference(*witness)
+                .as_named_symbol()
+                .ok_or_else(|| {
+                    crate::reject(id, source, "opened witness lost its nominal binder")
+                })?;
+            rigid_parameters.push(symbol);
             witnesses.push(record);
         }
         let prepared = FieldOpening {
@@ -80,7 +90,18 @@ impl super::Program<'_> {
                 "one projection has two opened field types",
             ));
         }
-        let value_type = self.value_type(id, projection.result_type)?;
+        // A projected Owner<S> carries this subject's fresh S, which is in
+        // scope for the selected field just as a declaration binder is in
+        // scope while reading its schema.
+        let scope = std::sync::Arc::new(crate::source_state::SourceTypeScope {
+            parent: Some(self.source_scope.clone()),
+            substitutions: Vec::new(),
+            rigid_parameters,
+        });
+        let outer = std::mem::replace(&mut self.source_scope, scope);
+        let value_type = self.value_type(id, projection.result_type);
+        self.source_scope = outer;
+        let value_type = value_type?;
         let substitution = self.field_regions(id, record, regions)?;
         Ok(Some(self.substitute(value_type, &substitution)))
     }

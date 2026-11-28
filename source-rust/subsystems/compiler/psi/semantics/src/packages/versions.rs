@@ -15,8 +15,7 @@ pub(super) fn same_storage_version(
     use crate::descriptors::descriptor_lifetimes::descriptor_location;
     use crate::descriptors::descriptor_results::payload_versions::require_preserved_observed_storage;
     use crate::descriptors::descriptor_results::{
-        DescriptorPayloadTarget,
-        terminal_borrowed_storage_graph_from,
+        DescriptorPayloadTarget, terminal_borrowed_storage_graph_from,
     };
     let position = |id| {
         machine.blocks.iter().find_map(|block| {
@@ -78,7 +77,7 @@ pub(super) fn same_storage_version(
                                 arg.access != StructuralAccess::Owned
                                     && formal.access == arg.access
                                     && if opened.witnesses.contains(&formal.structural_type) {
-                                        opening::subject_field(
+                                        opening::subject_reference(
                                             module, machine, operation, opened, arg,
                                         )
                                         .is_some()

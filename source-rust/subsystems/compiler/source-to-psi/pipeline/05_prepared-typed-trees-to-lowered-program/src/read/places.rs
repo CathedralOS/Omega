@@ -1967,26 +1967,24 @@ impl Program<'_> {
                 ));
             }
             if field_type != storage_type && !self.agrees(operand.result, Some(storage_type)) {
-                let admitted = match (storage_type, field_type) {
-                    (
-                        ValueType::Scalar(semantic_vocabulary::ScalarType::Callable(_), public),
-                        ValueType::Scalar(semantic_vocabulary::ScalarType::Callable(_), concrete),
-                    ) => public == concrete && package.is_some(),
-                    (ValueType::Record(public, pq, pr), ValueType::Record(concrete, cq, cr))
-                        if pq == cq && pr == cr =>
-                    {
-                        let public = &self.record_type(id, public)?.shape;
-                        let concrete = &self.record_type(id, concrete)?.shape;
-                        matches!((public, concrete),
-                            (StorageShape::Reference { referent: from, access: public },
-                             StorageShape::Reference { referent: to, access: actual })
-                             if public == actual && self.package_schemas.iter()
-                                 .find(|schema| schema.record == record)
-                                 .is_some_and(|schema| schema.witnesses.iter()
-                                     .zip(&package_witnesses).any(|(a,b)| a == from && b == to)))
-                    }
-                    _ => false,
-                };
+                // check_construction matched this exact field against the declaration
+                // with the package's entire witness tuple substituted. Keep the
+                // same outer permissions as we emit its concrete initializer. The
+                // lowered-form checker checks its physical storage recursively.
+                let admitted = package.is_some()
+                    && match (storage_type, field_type) {
+                        (
+                            ValueType::Scalar(semantic_vocabulary::ScalarType::Callable(_), public),
+                            ValueType::Scalar(
+                                semantic_vocabulary::ScalarType::Callable(_),
+                                concrete,
+                            ),
+                        ) => public == concrete,
+                        (ValueType::Record(_, pq, pr), ValueType::Record(_, cq, cr)) => {
+                            pq == cq && pr == cr
+                        }
+                        _ => false,
+                    };
                 if !admitted {
                     return Err(unserved(
                         "package field has no checked uniform representation",

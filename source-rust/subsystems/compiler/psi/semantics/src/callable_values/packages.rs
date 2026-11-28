@@ -66,12 +66,12 @@ impl PackageCallableSites {
         catalog: &TerminalCallableCatalog,
         operation: OperationId,
         contract: CallableContractId,
+        witnesses: &[StructuralTypeId],
         referents: impl IntoIterator<Item = (usize, StructuralTypeId)>,
     ) -> CallableValueResult<()> {
         let interface = catalog
             .contract(contract)
             .ok_or("package call lacks its opened contract")?;
-        let mut witnesses = Vec::new();
         let mut stored_referents = vec![None; interface.structural_parameters.len()];
         for (i, public) in referents {
             let formal = interface
@@ -83,7 +83,6 @@ impl PackageCallableSites {
             {
                 return Err("package call names an invalid borrowed parameter");
             }
-            insert_ordered(&mut witnesses, formal.structural_type);
         }
         let Err(index) = self
             .calls
@@ -96,7 +95,7 @@ impl PackageCallableSites {
             OpenedCall {
                 operation,
                 contract,
-                witnesses,
+                witnesses: witnesses.to_vec(),
                 stored_referents,
             },
         );
@@ -127,20 +126,20 @@ impl PackageCallableSites {
 
     pub(super) fn admits_descriptor(
         &self,
-        catalog: &TerminalCallableCatalog,
-        types: &[StructuralTypeDeclaration],
+        module: Option<&terminal_psi::TerminalModule>,
         invocation: &CallableInvocation,
         actual: CallableContractId,
     ) -> bool {
-        self.call(invocation).is_some_and(|call| {
-            crate::packages::opened_callable_admits(
-                catalog,
-                types,
-                &call.witnesses,
-                call.contract,
-                actual,
-            )
-        })
+        module
+            .zip(self.call(invocation))
+            .is_some_and(|(module, call)| {
+                crate::packages::opened_callable_admits(
+                    module,
+                    &call.witnesses,
+                    call.contract,
+                    actual,
+                )
+            })
     }
 
     pub(super) fn stored_argument(

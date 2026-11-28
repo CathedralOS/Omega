@@ -226,8 +226,7 @@ impl ReachedSolver<'_, '_> {
                         .ok_or("reached callable descriptor is absent or stale")?;
                     if descriptor.contract != contract
                         && !self.program.body(caller)?.package_sites.admits_descriptor(
-                            self.program.catalog,
-                            self.program.structural_types,
+                            self.program.module,
                             invocation,
                             descriptor.contract,
                         )

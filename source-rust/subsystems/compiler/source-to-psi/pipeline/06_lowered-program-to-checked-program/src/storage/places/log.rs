@@ -49,6 +49,8 @@ use terminal_psi::{
     Operation, OperationKind, RecordFieldValue, StructuralAccess, StructuralTypeShape,
 };
 
+mod package_fields;
+
 use super::{Backing, Lineage, Shape, Storage, StorageAddresses, index};
 use crate::refusal;
 use terminal_check_tables::RefusalReason;
@@ -225,11 +227,12 @@ impl<'a> Storage<'a> {
         value_types: &IdTable<ValueId, ScalarType>,
     ) -> Checked<Vec<Logged>> {
         let mut log = Vec::new();
+        let package_sites = std::cell::OnceCell::new();
         for block in &self.lowered.blocks {
             for (position, operation) in block.operations.iter().enumerate() {
-                for (lineage, stored) in
-                    self.stored_by(references, tables, operation, value_types)?
-                {
+                let mut writes = self.stored_by(references, tables, operation, value_types)?;
+                self.package_field_moves(operation, &package_sites, &mut writes)?;
+                for (lineage, stored) in writes {
                     log.push(Logged {
                         destination: lineage.clone(),
                         backing: Backing::direct(lineage),
