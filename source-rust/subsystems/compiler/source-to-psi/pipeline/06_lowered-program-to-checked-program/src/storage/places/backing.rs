@@ -75,6 +75,20 @@ impl Backing {
         }
     }
 
+    pub(super) fn enclosing_allocation(mut self) -> Self {
+        for region in &mut self.regions {
+            // The nearest referent boundary begins a distinct allocation.
+            // A computed native offset can select another field of that
+            // allocation, without reaching the storage holding its descriptor.
+            let boundary = region.place.segments.iter()
+                .rposition(|step| *step == Segment::Referent)
+                .map_or(0, |index| index + 1);
+            region.place.segments.truncate(boundary);
+            region.place_is_exact = false;
+        }
+        self
+    }
+
     /// A native address can have several incoming storage origins. Offset
     /// arithmetic preserves conflicts with that storage without identifying
     /// the resulting byte as an exact field for value or fact lookup.
@@ -84,9 +98,9 @@ impl Backing {
         sources: Vec<Self>,
         exact: bool,
     ) -> Self {
-        let mut regions = sources
+        let regions = sources
             .into_iter()
-            .flat_map(|source| source.regions)
+            .flat_map(|source| if exact { source } else { source.enclosing_allocation() }.regions)
             .collect::<Vec<_>>();
         if regions.is_empty() {
             let mut referent = descriptor.clone();
@@ -95,11 +109,6 @@ impl Backing {
             backing.regions[0].native_storage = true;
             backing.native_operand = Some(address);
             return backing;
-        }
-        if !exact {
-            for region in &mut regions {
-                region.place_is_exact = false;
-            }
         }
         let mut backing =
             Self::captured(descriptor, regions, None).expect("known native address origins");

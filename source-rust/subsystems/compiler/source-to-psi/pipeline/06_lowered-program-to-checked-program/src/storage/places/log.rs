@@ -59,7 +59,7 @@ pub(super) enum Stored {
     Vacated,
     /// An unsafe call may have mutated an existing value. Its previous
     /// initialization is required independently of the call.
-    MayChange,
+    MayChange { exposed_at: Option<terminal_semantics::descriptor_lifetimes::DescriptorPosition> },
     /// Exactly this scalar value.
     Value(ValueId),
     /// An erased scalar field term recorded in `MachineTables::erased_field_terms`.
@@ -682,7 +682,11 @@ impl<'a> Storage<'a> {
                             self.foreign(concerns, "a known call write region has no root")
                         })?;
                         let path = region.written_storage_path();
-                        rows.push((self.stored_at(root, &path, concerns)?, Stored::Established));
+                        let stored = match region.projection.captured_at {
+                            Some(at) => Stored::MayChange { exposed_at: Some(at) },
+                            None => Stored::Established,
+                        };
+                        rows.push((self.stored_at(root, &path, concerns)?, stored));
                     }
                     return Ok(rows);
                 }
@@ -692,8 +696,9 @@ impl<'a> Storage<'a> {
                         .or_else(|| kind.callable_invocation().map(|call| call.arguments))
                         .ok_or_else(|| self.foreign(concerns, "native write permission has no evaluated call operands"))?;
                     for &value in actuals {
-                        for source in terminal_semantics::storage::native_borrows::address_origin(self.lowered, value).sources {
-                            rows.push((self.argument(source, concerns)?, Stored::MayChange));
+                        let origin = terminal_semantics::storage::native_borrows::address_origin(self.lowered, value);
+                        for (at, source) in origin.observed_sources() {
+                            rows.push((self.argument(source, concerns)?, Stored::MayChange { exposed_at: Some(at) }));
                         }
                     }
                 }
@@ -703,7 +708,7 @@ impl<'a> Storage<'a> {
                             rows.push((self.argument(argument, concerns)?, Stored::Established));
                         }
                         StructuralAccess::SharedBorrow if upgrade => {
-                            rows.push((self.argument(argument, concerns)?, Stored::MayChange));
+                            rows.push((self.argument(argument, concerns)?, Stored::MayChange { exposed_at: None }));
                         }
                         StructuralAccess::Owned | StructuralAccess::SharedBorrow => {}
                     }

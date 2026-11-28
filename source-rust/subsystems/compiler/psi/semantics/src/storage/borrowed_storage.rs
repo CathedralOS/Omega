@@ -159,8 +159,12 @@ pub fn call_write_regions(
             if address.sources.is_empty() || !address.parameters.is_empty() {
                 return Ok(None);
             }
-            for source in address.sources {
-                regions.push(Region { root: Some(source.place), projection: Projection::new(&source.path) });
+            for (at, source) in address.observed_sources() {
+                // A scalar actual retains the storage observed by address_of,
+                // even if its temporary descriptor has since been released.
+                let mut projection = Projection::new(&source.path);
+                projection.captured_at = Some(at);
+                regions.push(Region { root: Some(source.place), projection });
             }
             continue;
         }

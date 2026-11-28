@@ -25,7 +25,7 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<Formation> {
         if let OperationKind::BorrowAt { address } = operation.kind {
-            return self.raw_address_formation(references, tables, result, address, at, concerns);
+            return self.raw_address_formation(references, tables, result, address, concerns);
         }
         let upgrades_shared = matches!(operation.kind, OperationKind::UpgradeMutability { .. });
         let upgraded;
@@ -231,7 +231,6 @@ impl<'a> Storage<'a> {
         tables: &MachineTables,
         result: &terminal_psi::StructuralOperationResult,
         address: semantic_vocabulary::ValueId,
-        at: DescriptorPosition,
         concerns: Construct,
     ) -> Checked<Formation> {
         let StructuralTypeShape::Reference {
@@ -274,7 +273,6 @@ impl<'a> Storage<'a> {
             address,
             &descriptor,
             referent,
-            at,
             concerns,
         )?;
         Ok(Formation {
@@ -293,14 +291,13 @@ impl<'a> Storage<'a> {
         address: semantic_vocabulary::ValueId,
         descriptor: &Lineage,
         referent: semantic_vocabulary::StructuralTypeId,
-        at: DescriptorPosition,
         concerns: Construct,
     ) -> Checked<LoanRegion> {
         let origin =
             terminal_semantics::storage::native_borrows::address_origin(self.lowered, address);
         let mut sources = Vec::new();
         let mut exact = origin.exact && origin.sources.len() == 1;
-        for source in origin.sources {
+        for (at, source) in origin.observed_sources() {
             exact &= terminal_semantics::runtime_structural_path_tip(
                 self.types.iter(),
                 self.root_type(source.place, concerns)?,

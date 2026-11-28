@@ -1391,7 +1391,11 @@ impl<'a> Storage<'a> {
                 {
                     return Ok(None);
                 }
-                let backing = if call_write {
+                let backing = if let Stored::MayChange { exposed_at: Some((block, cut)) } = row.stored {
+                    // A scalar write frame identifies the allocation, without
+                    // promising a byte offset or a particular access width.
+                    storage.backing(references, &row.destination, block, index(u64::from(cut)), concerns)?.enclosing_allocation()
+                } else if call_write {
                     let Some(backing) = storage.optional_backing(
                         references,
                         &row.destination,
@@ -3256,7 +3260,7 @@ impl<'a> Storage<'a> {
         let mut weakened = false;
         loop {
             let row = &self.log[row_index];
-            if matches!(row.stored, Stored::MayChange) {
+            if matches!(row.stored, Stored::MayChange { .. }) {
                 let prior = self.reaching_backing_supply(references, tables, asked, watched,
                     (row.block, row.position - 1), 0, budget, concerns)?;
                 return Ok(prior.without_identity());
@@ -3432,7 +3436,7 @@ impl<'a> Storage<'a> {
                     .without_identity());
             };
             let reached = match (&row.stored, asked) {
-                (Stored::MayChange | Stored::UnknownPayloadWrite { .. }, _) => Reached::Unknown,
+                (Stored::MayChange { .. } | Stored::UnknownPayloadWrite { .. }, _) => Reached::Unknown,
                 (Stored::Vacated, Asked::Contents(_)) => Reached::Unestablished,
                 (Stored::Vacated, Asked::Case(..)) => Reached::Unknown,
                 (Stored::Vacated, Asked::Window { .. }) => {
