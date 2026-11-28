@@ -10,7 +10,9 @@ pub fn assert_declared_exit(project: &std::path::Path, entry: &str) {
         .parse()
         .unwrap();
     let scratch = TemporaryDirectory::create("application-observations", false).unwrap();
-    let directory = scratch.path();
+    // `--outputs` names a directory that `omega run` creates.
+    let observed = scratch.path().join("observed");
+    let directory = observed.as_path();
     let output = project::omega(
         project,
         &["run", "--outputs", directory.to_str().unwrap(), entry],
