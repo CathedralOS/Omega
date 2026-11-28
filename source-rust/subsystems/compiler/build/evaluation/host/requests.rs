@@ -76,7 +76,7 @@ impl BuildValidationRequest {
 
 pub struct TerminalBuildRequestHost {
     network: package_compilation::build_execution::BuildNetworkInvocation,
-    network_sender: Option<package_compilation::build_execution::BuildNetworkPeer>,
+    datagrams: Option<super::network::Datagrams>,
     programs: Arc<super::programs::ProgramInstallation>,
     filesystem: Arc<super::filesystem::TerminalBuildFilesystemHost>,
     inputs: InputBindings,
@@ -136,7 +136,7 @@ impl TerminalBuildRequestHost {
         requests: &TerminalBuildRequests,
         programs: Arc<super::programs::ProgramInstallation>,
         network: package_compilation::build_execution::BuildNetworkInvocation,
-        network_sender: Option<package_compilation::build_execution::BuildNetworkPeer>,
+        datagrams: Option<super::network::Datagrams>,
         filesystem: Arc<super::filesystem::TerminalBuildFilesystemHost>,
         original: TerminalStructuralValue,
         diagnostic_output_bytes: Option<u64>,
@@ -153,7 +153,7 @@ impl TerminalBuildRequestHost {
         };
         Ok(Arc::new(Self {
             network,
-            network_sender,
+            datagrams,
             programs,
             filesystem,
             artifact: artifact.custody_identity(),
@@ -426,16 +426,13 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         storage: &mut [terminal_interpreter::TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
         crate::host::require_effect_owner(effect, &self.host.artifact)?;
-        let launch = self.host.calls.iter().find_map(|call| {
-            if crate::host::is_call_at(effect, call.site)
-                && let Operation::LaunchProgram { program } = call.action
-            {
-                Some(program)
-            } else {
-                None
-            }
-        });
-        if let Some(program) = launch {
+        let action = self
+            .host
+            .calls
+            .iter()
+            .find(|call| crate::host::is_call_at(effect, call.site))
+            .map(|call| call.action);
+        if let Some(Operation::LaunchProgram { program }) = action {
             if !bytes.is_empty() {
                 return Err(TerminalEffectRejection::new(
                     "program arguments may only borrow immutable byte views",
@@ -446,6 +443,22 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 .programs
                 .run(program, storage, &self.host.filesystem)
                 .map_err(TerminalEffectRejection::new);
+        }
+        if action == Some(Operation::ReceiveDatagram) {
+            let [buffer] = bytes else {
+                return Err(TerminalEffectRejection::new(
+                    "datagram receive needs one writable byte window",
+                ));
+            };
+            if !storage.is_empty() || buffer.argument_index() != 0 {
+                return Err(TerminalEffectRejection::new(
+                    "unexpected storage in datagram receive",
+                ));
+            }
+            let peer = self.host.datagrams.as_ref().ok_or_else(|| {
+                TerminalEffectRejection::new("Build receive has no admitted network peer")
+            })?;
+            return peer.receive(buffer.bytes_mut());
         }
         if !bytes.is_empty() || !storage.is_empty() {
             return Err(TerminalEffectRejection::new(
@@ -491,11 +504,11 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             }
             let peer = self
                 .host
-                .network_sender
+                .datagrams
                 .as_ref()
                 .ok_or_else(|| refuse("Build send has no admitted network peer"))?;
             return Ok(TerminalEffectResult::Scalar(TerminalScalarValue::Boolean(
-                super::network::send(peer, bytes)?,
+                peer.send(bytes)?,
             )));
         }
         if call.action == Operation::SandboxWrite {
@@ -639,6 +652,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             | Operation::ConfigureTestFixture
             | Operation::ConfigureTestEngine
             | Operation::SendDatagram
+            | Operation::ReceiveDatagram
             | Operation::SandboxWrite
             | Operation::LogLine
             | Operation::PrepareDependency
@@ -847,6 +861,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             Operation::ConfigureTestFixture
             | Operation::ConfigureTestEngine
             | Operation::SendDatagram
+            | Operation::ReceiveDatagram
             | Operation::SandboxWrite
             | Operation::LogLine
             | Operation::PrepareDependency

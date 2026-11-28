@@ -3,7 +3,10 @@
 //! cannot grant that graph a host operation.
 
 use diagnostics::Diagnostic;
-use package_compilation::build_execution::{BuildNetworkInvocation, BuildNetworkPeer};
+use package_compilation::build_execution::{
+    BuildNetworkInvocation, BuildNetworkPeer, DatagramAccess,
+};
+use source_compiler::publication::TerminalBuildRequestOperation as Action;
 
 #[derive(Clone, PartialEq, Eq, Default)]
 pub(crate) struct BuildProviderScope {
@@ -13,13 +16,24 @@ pub(crate) struct BuildProviderScope {
     reach_policy: semantic_vocabulary::dependency_reach::ExecutionReachPolicy,
 }
 
-pub(crate) struct AdmittedNetworkSend {
+pub(crate) struct AdmittedDatagram {
+    pub(crate) access: DatagramAccess,
+    pub(crate) boundary: semantic_vocabulary::BoundaryMachineId,
     pub(crate) peer: BuildNetworkPeer,
     pub(crate) call_path: String,
 }
 
-impl AdmittedNetworkSend {
+fn datagram_access(action: Action) -> Option<DatagramAccess> {
+    match action {
+        Action::SendDatagram => Some(DatagramAccess::Send),
+        Action::ReceiveDatagram => Some(DatagramAccess::ReceiveReply),
+        _ => None,
+    }
+}
+
+impl AdmittedDatagram {
     fn admit(
+        access: DatagramAccess,
         network: &BuildNetworkInvocation,
         root_path: &std::path::Path,
         module: &terminal_psi::TerminalModule,
@@ -38,12 +52,12 @@ impl AdmittedNetworkSend {
                 .unwrap_or_else(|| format!("{machine:?}"));
             path.push(name);
         }
-        let boundary = module
+        let identity = module
             .boundary_machine(boundary)
             .and_then(|decl| module.identities.text(decl.identity))
             .ok_or_else(|| failure("live network import lost its declaration"))?;
         path.push(
-            application_identity::type_identity::callable_display_path(boundary).into_owned(),
+            application_identity::type_identity::callable_display_path(identity).into_owned(),
         );
         let path = path.join(" -> ");
         let peer = match network {
@@ -62,6 +76,8 @@ impl AdmittedNetworkSend {
             }
         };
         Ok(Self {
+            access,
+            boundary,
             peer,
             call_path: path,
         })
@@ -71,7 +87,7 @@ impl AdmittedNetworkSend {
 pub(crate) struct BuildProviderInstallation {
     pub(crate) imports: Vec<semantic_vocabulary::BoundaryMachineId>,
     pub(crate) diagnostic_output_bytes: Option<u64>,
-    pub(crate) network: Option<AdmittedNetworkSend>,
+    pub(crate) network: Vec<AdmittedDatagram>,
     pub(crate) supplies: terminal_interpreter::TerminalRuntimeSupplies,
     pub(crate) awaited: Vec<semantic_vocabulary::BoundaryMachineId>,
 }
@@ -214,7 +230,6 @@ impl BuildProviderScope {
         awaited.sort_unstable();
         awaited.dedup();
 
-        use source_compiler::publication::TerminalBuildRequestOperation as Action;
         let uses_selected_provider = |boundary| {
             implementations
                 .iter()
@@ -224,7 +239,8 @@ impl BuildProviderScope {
         let mut host_imports = requests
             .iter()
             .filter(|call| {
-                call.action != Action::SendDatagram || !uses_selected_provider(call.site.boundary)
+                datagram_access(call.action).is_none()
+                    || !uses_selected_provider(call.site.boundary)
             })
             .map(|call| call.site.boundary)
             .chain(bindings.iter().map(|call| call.site.boundary))
@@ -260,9 +276,8 @@ impl BuildProviderScope {
         }
         let mut network_calls = requests
             .iter()
-            .filter(|call| {
-                call.action == Action::SendDatagram && !uses_selected_provider(call.site.boundary)
-            })
+            .filter(|call| !uses_selected_provider(call.site.boundary))
+            .filter_map(|call| Some((call, datagram_access(call.action)?)))
             .peekable();
         let (demand, import_paths) = if network_calls.peek().is_some() {
             program.execution_requirements_with_import_paths(Some(&supplies))
@@ -276,21 +291,28 @@ impl BuildProviderScope {
                 "Build selected provider execution closure: {reason:?}"
             ))
         })?;
-        let live_call = network_calls.find(|call| demand.imports.contains(&call.site.boundary));
-        let live_send = if let Some(call) = live_call {
+        let mut live_calls = Vec::new();
+        for (call, access) in
+            network_calls.filter(|(call, _)| demand.imports.contains(&call.site.boundary))
+        {
+            if live_calls
+                .iter()
+                .any(|admitted: &AdmittedDatagram| admitted.boundary == call.site.boundary)
+            {
+                continue;
+            }
             let machines = import_paths
                 .call_path(call.site.boundary)
                 .ok_or_else(|| failure("live network import lost its call path"))?;
-            Some(AdmittedNetworkSend::admit(
+            live_calls.push(AdmittedDatagram::admit(
+                access,
                 network,
                 root_path,
                 module,
                 machines,
                 call.site.boundary,
-            )?)
-        } else {
-            None
-        };
+            )?);
+        }
         if diagnostic_output_bytes.is_none()
             && let Some(call) = requests.iter().find(|row| {
                 row.action == Action::SandboxWrite && demand.imports.contains(&row.site.boundary)
@@ -347,7 +369,7 @@ impl BuildProviderScope {
         }
         Ok(BuildProviderInstallation {
             imports: demand.imports,
-            network: live_send,
+            network: live_calls,
             supplies,
             awaited,
             diagnostic_output_bytes,
