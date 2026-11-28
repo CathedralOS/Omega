@@ -1,0 +1,10 @@
+--- /tmp/claude-0/png-build.omg.orig	2026-11-28 01:56:32.502260813 +0000
++++ build.omg	2026-11-28 01:56:45.574535806 +0000
+@@ -5,4 +5,7 @@
+     let core_dep: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
+         location: "../core"
+     }));
++    let system_dep: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
++        location: "/home/user/Omega/.agents/worktree/worker-1/source/library/system"
++    }));
+ }

@@ -1,0 +1,476 @@
+--- /tmp/claude-0/unfilter.omg.orig	2026-11-28 01:56:32.500796985 +0000
++++ unfilter.omg	2026-11-28 01:58:28.274823383 +0000
+@@ -1,219 +1,254 @@
+-// PNG row reconstruction straight into the output image.
+-//
+-// unfilter_row_into reads one filtered row from `raw` (its filter type byte,
+-// then `n` bytes) and writes the reconstructed row into `out`, predicting from
+-// the previous output row, as FFmpeg's ff_png_filter_row does. Each filter is
+-// its own loop of nested states with the arithmetic written inline: the native
+-// compiler does not inline calls, so a helper call per byte costs more than
+-// the filter itself. Every index is checked against its buffer in the loop's
+-// guard state.
+-
+-// Byte offsets of one row: filtered data at raw[s..], output at out[d..],
+-// previous output row at out[p..].
+-data RowSpan [copy] {
+-    s: u64 in Wrapping;
+-    d: u64 in Wrapping;
+-    p: u64 in Wrapping;
+-    n: u64;
+-    bpp: u64;
+-}
+-
+-public machine unfilter_row_into(
+-    raw: @mutable [u8],
+-    src: u64,
+-    out: @mutable [u8],
+-    dst: u64,
+-    prev: u64,
+-    has_prev: bool,
+-    n: u64,
+-    bpp: u64
+-) -> bool reaches none crashes none {
+-    transition src < raw.length && bpp >= 1u64 && bpp <= 8u64 && n >= bpp {
+-        true -> dispatch(raw, out, raw[src], has_prev, RowSpan {
+-            s: (src as +Wrapping) + 1,
+-            d: dst as +Wrapping,
+-            p: prev as +Wrapping,
+-            n: n,
+-            bpp: bpp,
+-        }),
+-        false -> false,
+-    }
+-
+-    machine dispatch(raw: @mutable [u8], out: @mutable [u8], ftype: u8, has_prev: bool, r: RowSpan) -> bool requires true {
+-        transition ftype {
+-            0u8 -> copy_row(raw, out, r),
+-            1u8 -> sub_row(raw, out, r),
+-            2u8 -> up_or_copy(raw, out, has_prev, r),
+-            3u8 -> avg_row(raw, out, has_prev, r),
+-            4u8 -> paeth_or_sub(raw, out, has_prev, r),
+-            _ -> false,
+-        }
+-    }
+-
+-    machine up_or_copy(raw: @mutable [u8], out: @mutable [u8], has_prev: bool, r: RowSpan) -> bool requires true {
+-        transition has_prev {
+-            true -> up_row(raw, out, r),
+-            false -> copy_row(raw, out, r),
+-        }
+-    }
+-
+-    // Without a previous row Paeth predicts from the left byte only.
+-    machine paeth_or_sub(raw: @mutable [u8], out: @mutable [u8], has_prev: bool, r: RowSpan) -> bool requires true {
+-        transition has_prev {
+-            true -> paeth_row(raw, out, r),
+-            false -> sub_row(raw, out, r),
+-        }
+-    }
+-}
+-
+-// Filter 0, and the first `bpp` bytes of Sub: out = raw.
+-machine copy_row(raw: @mutable [u8], out: @mutable [u8], r: RowSpan) -> bool requires true reaches none crashes none {
+-    transition { _ -> step(raw, out, r, 0u64, r.n) }
+-
+-    machine step(raw: @mutable [u8], out: @mutable [u8], r: RowSpan, i: u64, end: u64) -> bool requires true {
+-        let si: u64 = (r.s + (i as +Wrapping)) as -Wrapping;
+-        let di: u64 = (r.d + (i as +Wrapping)) as -Wrapping;
+-        transition i < end && si < raw.length && di < out.length {
+-            true -> put(raw, out, r, i, end, si, di),
+-            false -> (i >= end),
+-        }
+-    }
+-
+-    machine put(raw: @mutable [u8], out: @mutable [u8], r: RowSpan, i: u64, end: u64, si: u64, di: u64) -> bool
+-    requires i < end && si < raw.length && di < out.length {
+-        out[di] = raw[si];
+-        transition { _ -> step(raw, out, r, i + 1u64, end) }
+-    }
+-}
+-
+-// Filter 1: out = raw + left.
+-machine sub_row(raw: @mutable [u8], out: @mutable [u8], r: RowSpan) -> bool requires true reaches none crashes none {
+-    transition copy_row(raw, out, RowSpan { s: r.s, d: r.d, p: r.p, n: r.bpp, bpp: r.bpp }) {
+-        true -> step(raw, out, r, r.bpp),
+-        false -> false,
+-    }
+-
+-    machine step(raw: @mutable [u8], out: @mutable [u8], r: RowSpan, i: u64) -> bool requires true {
+-        let iw: u64 in Wrapping = i as +Wrapping;
+-        let si: u64 = (r.s + iw) as -Wrapping;
+-        let di: u64 = (r.d + iw) as -Wrapping;
+-        let li: u64 = (r.d + iw - (r.bpp as +Wrapping)) as -Wrapping;
+-        transition i < r.n && si < raw.length && di < out.length && li < out.length {
+-            true -> put(raw, out, r, i, si, di, li),
+-            false -> (i >= r.n),
+-        }
+-    }
+-
+-    machine put(raw: @mutable [u8], out: @mutable [u8], r: RowSpan, i: u64, si: u64, di: u64, li: u64) -> bool
+-    requires i < r.n && si < raw.length && di < out.length && li < out.length {
+-        let v: u8 in Wrapping = (raw[si] as +Wrapping) + (out[li] as +Wrapping);
+-        out[di] = v as -Wrapping;
+-        transition { _ -> step(raw, out, r, i + 1u64) }
+-    }
+-}
+-
+-// Filter 2 with a previous row: out = raw + up.
+-machine up_row(raw: @mutable [u8], out: @mutable [u8], r: RowSpan) -> bool requires true reaches none crashes none {
+-    transition { _ -> step(raw, out, r, 0u64) }
+-
+-    machine step(raw: @mutable [u8], out: @mutable [u8], r: RowSpan, i: u64) -> bool requires true {
+-        let iw: u64 in Wrapping = i as +Wrapping;
+-        let si: u64 = (r.s + iw) as -Wrapping;
+-        let di: u64 = (r.d + iw) as -Wrapping;
+-        let ui: u64 = (r.p + iw) as -Wrapping;
+-        transition i < r.n && si < raw.length && di < out.length && ui < out.length {
+-            true -> put(raw, out, r, i, si, di, ui),
+-            false -> (i >= r.n),
+-        }
+-    }
+-
+-    machine put(raw: @mutable [u8], out: @mutable [u8], r: RowSpan, i: u64, si: u64, di: u64, ui: u64) -> bool
+-    requires i < r.n && si < raw.length && di < out.length && ui < out.length {
+-        let v: u8 in Wrapping = (raw[si] as +Wrapping) + (out[ui] as +Wrapping);
+-        out[di] = v as -Wrapping;
+-        transition { _ -> step(raw, out, r, i + 1u64) }
+-    }
+-}
+-
+-// Filter 3: out = raw + floor((left + up) / 2), with 0 for a missing byte.
+-// floor((a + b) / 2) == (a >> 1) + (b >> 1) + (a & b & 1) never exceeds 255.
+-machine avg_row(raw: @mutable [u8], out: @mutable [u8], has_prev: bool, r: RowSpan) -> bool requires true reaches none crashes none {
+-    transition { _ -> step(raw, out, has_prev, r, 0u64) }
+-
+-    machine step(raw: @mutable [u8], out: @mutable [u8], has_prev: bool, r: RowSpan, i: u64) -> bool requires true {
+-        let iw: u64 in Wrapping = i as +Wrapping;
+-        let si: u64 = (r.s + iw) as -Wrapping;
+-        let di: u64 = (r.d + iw) as -Wrapping;
+-        transition i < r.n && si < raw.length && di < out.length {
+-            true -> neighbors(raw, out, has_prev, r, i, si, di),
+-            false -> (i >= r.n),
+-        }
+-    }
+-
+-    machine neighbors(raw: @mutable [u8], out: @mutable [u8], has_prev: bool, r: RowSpan, i: u64, si: u64, di: u64) -> bool
+-    requires i < r.n && si < raw.length && di < out.length {
+-        let iw: u64 in Wrapping = i as +Wrapping;
+-        let li: u64 = (r.d + iw - (r.bpp as +Wrapping)) as -Wrapping;
+-        let ui: u64 = (r.p + iw) as -Wrapping;
+-        let a: u8 = match i >= r.bpp && li < out.length { true -> out[li], false -> 0u8 };
+-        let b: u8 = match has_prev && ui < out.length { true -> out[ui], false -> 0u8 };
+-        let avg: u8 in Wrapping = ((a >> 1) as +Wrapping) + ((b >> 1) as +Wrapping) + ((a & b & 1u8) as +Wrapping);
+-        let v: u8 in Wrapping = (raw[si] as +Wrapping) + avg;
+-        out[di] = v as -Wrapping;
+-        transition { _ -> step(raw, out, has_prev, r, i + 1u64) }
+-    }
+-}
+-
+-// Filter 4 with a previous row: out = raw + Paeth(left, up, up-left). The first
+-// `bpp` bytes have no left neighbors, so Paeth(0, up, 0) = up.
+-machine paeth_row(raw: @mutable [u8], out: @mutable [u8], r: RowSpan) -> bool requires true reaches none crashes none {
+-    transition up_row(raw, out, RowSpan { s: r.s, d: r.d, p: r.p, n: r.bpp, bpp: r.bpp }) {
+-        true -> step(raw, out, r, r.bpp),
+-        false -> false,
+-    }
+-
+-    machine step(raw: @mutable [u8], out: @mutable [u8], r: RowSpan, i: u64) -> bool requires true {
+-        let iw: u64 in Wrapping = i as +Wrapping;
+-        let bw: u64 in Wrapping = r.bpp as +Wrapping;
+-        let si: u64 = (r.s + iw) as -Wrapping;
+-        let di: u64 = (r.d + iw) as -Wrapping;
+-        let li: u64 = (r.d + iw - bw) as -Wrapping;
+-        let ui: u64 = (r.p + iw) as -Wrapping;
+-        let ci: u64 = (r.p + iw - bw) as -Wrapping;
+-        transition i < r.n && si < raw.length && di < out.length && li < out.length && ui < out.length && ci < out.length {
+-            true -> predict(raw, out, r, i, si, di, out[li], out[ui], out[ci]),
+-            false -> (i >= r.n),
+-        }
+-    }
+-
+-    machine predict(raw: @mutable [u8], out: @mutable [u8], r: RowSpan, i: u64, si: u64, di: u64, a: u8, b: u8, c: u8) -> bool
+-    requires i < r.n && si < raw.length && di < out.length {
+-        let au: u32 = a as u32;
+-        let bu: u32 = b as u32;
+-        let cu: u32 = c as u32;
+-        let pa: u32 = match bu >= cu { true -> bu - cu, false -> cu - bu };
+-        let pb: u32 = match au >= cu { true -> au - cu, false -> cu - au };
+-        let ab: u32 = au + bu;
+-        let cc: u32 = cu + cu;
+-        let pc: u32 = match ab >= cc { true -> ab - cc, false -> cc - ab };
+-        transition pa <= pb && pa <= pc {
+-            true -> put(raw, out, r, i, si, di, a),
+-            false -> pick_bc(raw, out, r, i, si, di, b, c, pb <= pc),
+-        }
+-    }
+-
+-    machine pick_bc(raw: @mutable [u8], out: @mutable [u8], r: RowSpan, i: u64, si: u64, di: u64, b: u8, c: u8, use_b: bool) -> bool
+-    requires i < r.n && si < raw.length && di < out.length {
+-        transition use_b {
+-            true -> put(raw, out, r, i, si, di, b),
+-            false -> put(raw, out, r, i, si, di, c),
+-        }
+-    }
+-
+-    machine put(raw: @mutable [u8], out: @mutable [u8], r: RowSpan, i: u64, si: u64, di: u64, pred: u8) -> bool
+-    requires i < r.n && si < raw.length && di < out.length {
+-        let v: u8 in Wrapping = (raw[si] as +Wrapping) + (pred as +Wrapping);
+-        out[di] = v as -Wrapping;
+-        transition { _ -> step(raw, out, r, i + 1u64) }
+-    }
+-}
++// PNG row reconstruction straight into the output image.
++//
++// unfilter_row_into reads one filtered row from `raw` (its filter type byte,
++// then `n` bytes) and writes the reconstructed row into `out`, predicting from
++// the previous output row, as FFmpeg's ff_png_filter_row does. Each filter is
++// its own loop of nested states with the arithmetic written inline: the native
++// compiler does not inline calls, so a helper call per byte costs more than
++// the filter itself. Every index is checked against its buffer in the loop's
++// guard state.
++
++use {system}/simd/simd.omg as simd;
++use {system}/simd/u8x16.omg as u8x16;
++
++// Byte offsets of one row: filtered data at raw[s..], output at out[d..],
++// previous output row at out[p..].
++data RowSpan [copy] {
++    s: u64 in Wrapping;
++    d: u64 in Wrapping;
++    p: u64 in Wrapping;
++    n: u64;
++    bpp: u64;
++}
++
++public machine unfilter_row_into(
++    raw: @mutable [u8],
++    src: u64,
++    out: @mutable [u8],
++    dst: u64,
++    prev: u64,
++    has_prev: bool,
++    n: u64,
++    bpp: u64
++) -> bool reaches none crashes none {
++    transition src < raw.length && bpp >= 1u64 && bpp <= 8u64 && n >= bpp {
++        true -> dispatch(raw, out, raw[src], has_prev, RowSpan {
++            s: (src as +Wrapping) + 1,
++            d: dst as +Wrapping,
++            p: prev as +Wrapping,
++            n: n,
++            bpp: bpp,
++        }),
++        false -> false,
++    }
++
++    machine dispatch(raw: @mutable [u8], out: @mutable [u8], ftype: u8, has_prev: bool, r: RowSpan) -> bool requires true {
++        transition ftype {
++            0u8 -> copy_row(raw, out, r),
++            1u8 -> sub_row(raw, out, r),
++            2u8 -> up_or_copy(raw, out, has_prev, r),
++            3u8 -> avg_row(raw, out, has_prev, r),
++            4u8 -> paeth_or_sub(raw, out, has_prev, r),
++            _ -> false,
++        }
++    }
++
++    machine up_or_copy(raw: @mutable [u8], out: @mutable [u8], has_prev: bool, r: RowSpan) -> bool requires true {
++        transition has_prev {
++            true -> up_row(raw, out, r),
++            false -> copy_row(raw, out, r),
++        }
++    }
++
++    // Without a previous row Paeth predicts from the left byte only.
++    machine paeth_or_sub(raw: @mutable [u8], out: @mutable [u8], has_prev: bool, r: RowSpan) -> bool requires true {
++        transition has_prev {
++            true -> paeth_row(raw, out, r),
++            false -> sub_row(raw, out, r),
++        }
++    }
++}
++
++// Filter 0, and the first `bpp` bytes of Sub: out = raw.
++machine copy_row(raw: @mutable [u8], out: @mutable [u8], r: RowSpan) -> bool requires true reaches none crashes none {
++    transition { _ -> step(raw, out, r, 0u64, r.n) }
++
++    machine step(raw: @mutable [u8], out: @mutable [u8], r: RowSpan, i: u64, end: u64) -> bool requires true {
++        let si: u64 = (r.s + (i as +Wrapping)) as -Wrapping;
++        let di: u64 = (r.d + (i as +Wrapping)) as -Wrapping;
++        transition i < end && si < raw.length && di < out.length {
++            true -> put(raw, out, r, i, end, si, di),
++            false -> (i >= end),
++        }
++    }
++
++    machine put(raw: @mutable [u8], out: @mutable [u8], r: RowSpan, i: u64, end: u64, si: u64, di: u64) -> bool
++    requires i < end && si < raw.length && di < out.length {
++        out[di] = raw[si];
++        transition { _ -> step(raw, out, r, i + 1u64, end) }
++    }
++}
++
++// Filter 1: out = raw + left.
++machine sub_row(raw: @mutable [u8], out: @mutable [u8], r: RowSpan) -> bool requires true reaches none crashes none {
++    transition copy_row(raw, out, RowSpan { s: r.s, d: r.d, p: r.p, n: r.bpp, bpp: r.bpp }) {
++        true -> step(raw, out, r, r.bpp),
++        false -> false,
++    }
++
++    machine step(raw: @mutable [u8], out: @mutable [u8], r: RowSpan, i: u64) -> bool requires true {
++        let iw: u64 in Wrapping = i as +Wrapping;
++        let si: u64 = (r.s + iw) as -Wrapping;
++        let di: u64 = (r.d + iw) as -Wrapping;
++        let li: u64 = (r.d + iw - (r.bpp as +Wrapping)) as -Wrapping;
++        transition i < r.n && si < raw.length && di < out.length && li < out.length {
++            true -> put(raw, out, r, i, si, di, li),
++            false -> (i >= r.n),
++        }
++    }
++
++    machine put(raw: @mutable [u8], out: @mutable [u8], r: RowSpan, i: u64, si: u64, di: u64, li: u64) -> bool
++    requires i < r.n && si < raw.length && di < out.length && li < out.length {
++        let v: u8 in Wrapping = (raw[si] as +Wrapping) + (out[li] as +Wrapping);
++        out[di] = v as -Wrapping;
++        transition { _ -> step(raw, out, r, i + 1u64) }
++    }
++}
++
++// Filter 2 with a previous row: out = raw + up.
++machine up_row(raw: @mutable [u8], out: @mutable [u8], r: RowSpan) -> bool requires true reaches none crashes none {
++    transition { _ -> step(raw, out, r, 0u64) }
++
++    machine step(raw: @mutable [u8], out: @mutable [u8], r: RowSpan, i: u64) -> bool requires true {
++        let iw: u64 in Wrapping = i as +Wrapping;
++        let si: u64 = (r.s + iw) as -Wrapping;
++        let di: u64 = (r.d + iw) as -Wrapping;
++        let ui: u64 = (r.p + iw) as -Wrapping;
++        let sixteen: u64 in Wrapping = 16 as +Wrapping;
++        let ie: u64 = (iw + sixteen) as -Wrapping;
++        let se: u64 = ((si as +Wrapping) + sixteen) as -Wrapping;
++        let de: u64 = ((di as +Wrapping) + sixteen) as -Wrapping;
++        let ue: u64 = ((ui as +Wrapping) + sixteen) as -Wrapping;
++        transition i < ie && ie <= r.n
++            && si < se && se <= raw.length && se - si == 16u64
++            && di < de && de <= out.length && de - di == 16u64
++            && ui < ue && ue <= out.length && ue - ui == 16u64 {
++            true -> put16(raw, out, r, ie, si, se, di, de, ui, ue),
++            false -> tail(raw, out, r, i, si, di, ui),
++        }
++    }
++
++    // Sixteen bytes at once. The previous row ends at least `n` bytes before
++    // out[d..], so with i + 16 <= n the two out windows never overlap.
++    machine put16(raw: @mutable [u8], out: @mutable [u8], r: RowSpan, ie: u64,
++        si: u64, se: u64, di: u64, de: u64, ui: u64, ue: u64) -> bool
++    requires si < se && se <= raw.length && se - si == 16u64
++        && di < de && de <= out.length && de - di == 16u64
++        && ui < ue && ue <= out.length && ue - ui == 16u64 {
++        let x: @[u8; 16] = @raw[si..se] as @[u8; 16];
++        let a: |simd|::Lanes<u8, 16> = |u8x16|::load(x);
++        let y: @[u8; 16] = @out[ui..ue] as @[u8; 16];
++        let b: |simd|::Lanes<u8, 16> = |u8x16|::load(y);
++        let sum: |simd|::Lanes<u8, 16> = |u8x16|::wrapping_add(@a, @b);
++        let lane: @mutable [u8; 16] = @mutable out[di..de] as @mutable [u8; 16];
++        |u8x16|::store(lane, @sum);
++        transition { _ -> step(raw, out, r, ie) }
++    }
++
++    machine tail(raw: @mutable [u8], out: @mutable [u8], r: RowSpan, i: u64, si: u64, di: u64, ui: u64) -> bool requires true {
++        transition i < r.n && si < raw.length && di < out.length && ui < out.length {
++            true -> put(raw, out, r, i, si, di, ui),
++            false -> (i >= r.n),
++        }
++    }
++
++    machine put(raw: @mutable [u8], out: @mutable [u8], r: RowSpan, i: u64, si: u64, di: u64, ui: u64) -> bool
++    requires i < r.n && si < raw.length && di < out.length && ui < out.length {
++        let v: u8 in Wrapping = (raw[si] as +Wrapping) + (out[ui] as +Wrapping);
++        out[di] = v as -Wrapping;
++        transition { _ -> tail(raw, out, r, i + 1u64, si + 1u64, di + 1u64, ui + 1u64) }
++    }
++}
++
++// Filter 3: out = raw + floor((left + up) / 2), with 0 for a missing byte.
++// floor((a + b) / 2) == (a >> 1) + (b >> 1) + (a & b & 1) never exceeds 255.
++machine avg_row(raw: @mutable [u8], out: @mutable [u8], has_prev: bool, r: RowSpan) -> bool requires true reaches none crashes none {
++    transition { _ -> step(raw, out, has_prev, r, 0u64) }
++
++    machine step(raw: @mutable [u8], out: @mutable [u8], has_prev: bool, r: RowSpan, i: u64) -> bool requires true {
++        let iw: u64 in Wrapping = i as +Wrapping;
++        let si: u64 = (r.s + iw) as -Wrapping;
++        let di: u64 = (r.d + iw) as -Wrapping;
++        transition i < r.n && si < raw.length && di < out.length {
++            true -> neighbors(raw, out, has_prev, r, i, si, di),
++            false -> (i >= r.n),
++        }
++    }
++
++    machine neighbors(raw: @mutable [u8], out: @mutable [u8], has_prev: bool, r: RowSpan, i: u64, si: u64, di: u64) -> bool
++    requires i < r.n && si < raw.length && di < out.length {
++        let iw: u64 in Wrapping = i as +Wrapping;
++        let li: u64 = (r.d + iw - (r.bpp as +Wrapping)) as -Wrapping;
++        let ui: u64 = (r.p + iw) as -Wrapping;
++        let a: u8 = match i >= r.bpp && li < out.length { true -> out[li], false -> 0u8 };
++        let b: u8 = match has_prev && ui < out.length { true -> out[ui], false -> 0u8 };
++        let avg: u8 in Wrapping = ((a >> 1) as +Wrapping) + ((b >> 1) as +Wrapping) + ((a & b & 1u8) as +Wrapping);
++        let v: u8 in Wrapping = (raw[si] as +Wrapping) + avg;
++        out[di] = v as -Wrapping;
++        transition { _ -> step(raw, out, has_prev, r, i + 1u64) }
++    }
++}
++
++// Filter 4 with a previous row: out = raw + Paeth(left, up, up-left). The first
++// `bpp` bytes have no left neighbors, so Paeth(0, up, 0) = up.
++machine paeth_row(raw: @mutable [u8], out: @mutable [u8], r: RowSpan) -> bool requires true reaches none crashes none {
++    transition up_row(raw, out, RowSpan { s: r.s, d: r.d, p: r.p, n: r.bpp, bpp: r.bpp }) {
++        true -> step(raw, out, r, r.bpp),
++        false -> false,
++    }
++
++    machine step(raw: @mutable [u8], out: @mutable [u8], r: RowSpan, i: u64) -> bool requires true {
++        let iw: u64 in Wrapping = i as +Wrapping;
++        let bw: u64 in Wrapping = r.bpp as +Wrapping;
++        let si: u64 = (r.s + iw) as -Wrapping;
++        let di: u64 = (r.d + iw) as -Wrapping;
++        let li: u64 = (r.d + iw - bw) as -Wrapping;
++        let ui: u64 = (r.p + iw) as -Wrapping;
++        let ci: u64 = (r.p + iw - bw) as -Wrapping;
++        transition i < r.n && si < raw.length && di < out.length && li < out.length && ui < out.length && ci < out.length {
++            true -> predict(raw, out, r, i, si, di, out[li], out[ui], out[ci]),
++            false -> (i >= r.n),
++        }
++    }
++
++    machine predict(raw: @mutable [u8], out: @mutable [u8], r: RowSpan, i: u64, si: u64, di: u64, a: u8, b: u8, c: u8) -> bool
++    requires i < r.n && si < raw.length && di < out.length {
++        let au: u32 = a as u32;
++        let bu: u32 = b as u32;
++        let cu: u32 = c as u32;
++        let pa: u32 = match bu >= cu { true -> bu - cu, false -> cu - bu };
++        let pb: u32 = match au >= cu { true -> au - cu, false -> cu - au };
++        let ab: u32 = au + bu;
++        let cc: u32 = cu + cu;
++        let pc: u32 = match ab >= cc { true -> ab - cc, false -> cc - ab };
++        transition pa <= pb && pa <= pc {
++            true -> put(raw, out, r, i, si, di, a),
++            false -> pick_bc(raw, out, r, i, si, di, b, c, pb <= pc),
++        }
++    }
++
++    machine pick_bc(raw: @mutable [u8], out: @mutable [u8], r: RowSpan, i: u64, si: u64, di: u64, b: u8, c: u8, use_b: bool) -> bool
++    requires i < r.n && si < raw.length && di < out.length {
++        transition use_b {
++            true -> put(raw, out, r, i, si, di, b),
++            false -> put(raw, out, r, i, si, di, c),
++        }
++    }
++
++    machine put(raw: @mutable [u8], out: @mutable [u8], r: RowSpan, i: u64, si: u64, di: u64, pred: u8) -> bool
++    requires i < r.n && si < raw.length && di < out.length {
++        let v: u8 in Wrapping = (raw[si] as +Wrapping) + (pred as +Wrapping);
++        out[di] = v as -Wrapping;
++        transition { _ -> step(raw, out, r, i + 1u64) }
++    }
++}
