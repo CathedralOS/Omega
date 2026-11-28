@@ -151,6 +151,9 @@ fn requirement_schema(
             TerminalCallableInvocation::Parameter(position) => {
                 Ok(ServiceSynchronousInvocation::Parameter(*position))
             }
+            TerminalCallableInvocation::ParameterPath { .. } => {
+                Err("the hosted schema cannot identify an invoked callback field".to_owned())
+            }
             TerminalCallableInvocation::Service(service) => service_name(*service)
                 .map(|name| ServiceSynchronousInvocation::Service(name.to_owned())),
         })
