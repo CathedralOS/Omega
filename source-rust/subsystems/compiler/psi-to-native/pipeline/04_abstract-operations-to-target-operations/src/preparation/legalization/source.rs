@@ -1058,6 +1058,7 @@ pub(crate) mod scalar_graph {
                     let legalized_operations::LegalizedScalarInstructionKind::PrimitiveScalarRead {
                         source,
                         path: actual_path,
+                        storage_scalar,
                         indices,
                     } = lowered_read
                     else {

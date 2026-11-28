@@ -422,7 +422,7 @@ pub(crate) mod boundary_call {
                             source_structural_type,
                             &argument.path,
                             argument.access,
-                            Some(parameter.structural_type),
+                            super::structural_layout::ReferenceEndpoint::Storage(Some(parameter.structural_type)),
                             structural_types,
                         )
                         .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;

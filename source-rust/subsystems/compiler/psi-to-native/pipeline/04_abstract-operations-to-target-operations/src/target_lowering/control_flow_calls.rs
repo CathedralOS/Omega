@@ -2170,6 +2170,7 @@ pub(crate) mod selected_boundary_calls {
         let resolved = match (result, &candidate.result) {
             (abstract_operations::AbstractBoundaryResult::Unit, AbstractFunctionResult::Unit) => {
                 AbstractOperation::CallStructural {
+                    opened_referents: Vec::new(),
                     psi_operation: *psi_operation,
                     callee: callee.into(),
                     arguments: arguments.clone(),
@@ -2187,6 +2188,7 @@ pub(crate) mod selected_boundary_calls {
                 && result.multiplicity == candidate_result.multiplicity =>
             {
                 AbstractOperation::CallStructural {
+                    opened_referents: Vec::new(),
                     psi_operation: *psi_operation,
                     result: AbstractStructuralCallResult::Structural {
                         result: result.clone(),
@@ -2216,6 +2218,7 @@ pub(crate) mod selected_boundary_calls {
                     }
                 } else {
                     AbstractOperation::CallStructural {
+                        opened_referents: Vec::new(),
                         psi_operation: *psi_operation,
                         result: AbstractStructuralCallResult::Scalar(*result),
                         callee: callee.into(),
