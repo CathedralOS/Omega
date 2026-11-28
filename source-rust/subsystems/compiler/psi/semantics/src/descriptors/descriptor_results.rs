@@ -808,7 +808,8 @@ pub struct DescriptorInvocation {
     pub result: Option<DescriptorLocation>,
 }
 
-pub enum DescriptorInvocationTarget {    Machine(MachineId),
+pub enum DescriptorInvocationTarget {
+    Machine(MachineId),
     /// Preparing this owner snapshots the sources of the worker's eventual
     /// structural result. The worker has not run or produced effects at prepare.
     PrepareWorker {
