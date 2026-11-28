@@ -510,25 +510,12 @@ fn materialize_argument(
             if elements.len() != length {
                 return Err("array argument differs from its declared extent".into());
             }
-            // A bare integer array filled with zero has an ordinary checked
-            // zero value. A zeroed record can have an invalid invariant.
-            if layout_schema && matches!(program.type_reference_table.type_reference(element_type),
-                TypeReferenceNode::Named { symbol, .. } if matches!(
-                    program.symbols.builtin_type_atom(*symbol),
-                    Some(symbols::BuiltinTypeAtom::Integer(_))
-                )
-            ) && elements.iter().all(|value| matches!(value, BuildTimeValue::Int(0))) {
-                ExpressionNode::ZeroValue(destination)
+            let elements = if layout_schema {
+                fixed_array_elements(program, state, input_values, element_type, elements)?
             } else {
-                let elements = if layout_schema {
-                    fixed_array_elements(program, state, input_values, element_type, elements)?
-                } else {
-                    elements.iter().map(|value| materialize_argument(program, state, input_values, element_type, value, false)).collect::<Result<Vec<_>, _>>()?
-                };
-                ExpressionNode::ArrayLiteral(
-                    program.expression_table.insert_expression_handles(elements),
-                )
-            }
+                elements.iter().map(|value| materialize_argument(program, state, input_values, element_type, value, false)).collect::<Result<Vec<_>, _>>()?
+            };
+            ExpressionNode::ArrayLiteral(program.expression_table.insert_expression_handles(elements))
         }
         TypeReferenceNode::Named { symbol, .. }
             if program.symbols.builtin_type_atom(symbol).is_some() =>
