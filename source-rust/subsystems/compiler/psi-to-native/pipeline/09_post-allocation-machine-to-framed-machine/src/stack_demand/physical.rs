@@ -16,12 +16,21 @@ use terminal_semantics::callable_values::{CallableInvocationSite, CallableInvoca
 pub fn plan_physical_stack_program(
     frame: &PhysicalFrameProgram,
 ) -> Result<PhysicalStackProgram, &'static str> {
+    plan_physical_stack_program_for_entry(frame, frame.instructions.entry)
+}
+
+/// Independently entered workers may call a different set of machine values
+/// from the program entry. Measure their calls under their own prepared roots.
+pub fn plan_physical_stack_program_for_entry(
+    frame: &PhysicalFrameProgram,
+    entry: semantic_vocabulary::MachineId,
+) -> Result<PhysicalStackProgram, &'static str> {
     let program = &frame.instructions;
     let invocations = program
         .contracts
         .execution()
-        .ok_or("current program has no prepared callable invocation context")?
-        .callable_invocations();
+        .and_then(|facts| facts.callable_invocations_from(entry))
+        .ok_or("stack entry has no prepared callable invocation context")?;
     let catalog = program
         .contracts
         .publication()
@@ -101,6 +110,8 @@ pub fn plan_physical_stack_program(
                         {
                             return Err("callable stack demand lost its reached occurrence");
                         }
+                        // This function is unreachable from the measured entry.
+                        // A different entry requires a separately resolved graph.
                         continue;
                     };
                     if invocation.invocation.target
@@ -212,6 +223,7 @@ pub fn plan_physical_stack_program(
     Ok(PhysicalStackProgram {
         psi: program.psi,
         target: program.target,
+        entry,
         functions,
     })
 }
