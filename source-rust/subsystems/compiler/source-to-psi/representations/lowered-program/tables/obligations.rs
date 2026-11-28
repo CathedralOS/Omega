@@ -179,6 +179,9 @@ pub type CrashSite = ExecutionSite;
 /// reconstructs the recurrence from the operation and its carrier flow.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Lender {
+    /// The specific raw-address formation vouches for this loan. The checker
+    /// still resolves any known backing and checks conflicts during its lifetime.
+    NativeAddress,
     /// Lent directly from owned storage at the captured place's root.
     Owner,
     /// Reborrowed from this immediate parent loan.
