@@ -64,7 +64,7 @@ rows so it can independently check the placed bytes. [Placement](pipeline/13_res
 | 04 target operations | 33,812 | `NativeBodyPlan` | 05, driver closure, `TargetOperationCorrespondence` |
 | 05 instruction selection | 47,046 | `StagedOptimizedSelectedInstructions` | 06 only |
 | 06 selected rewrites | 26,880 | `SelectedAllocationInput` (same form plus liveness) | 07, `SelectedInstructionRewriteReplay` |
-| 07 register allocation | 16,292 | `RetainedAllocation` | 08, `FixedFrameCorrespondence` |
+| 07 register allocation | 16,292 | `AllocatedBody`; optional `RetainedAllocation` for replay | 08 reads the body; `FixedFrameCorrespondence` reads replay evidence |
 | 08 post-allocation machine | 2,119 | `StagedOptimizedPostAllocationMachinePlan` | 09, `FixedFrameCorrespondence` |
 | 09 frame and installation binding | 10,630 | `FramedNativeBody`, `PreparedFunctionBody`, then `BoundFunctionBody` | driver entry planning and handler measurement, then 11 |
 | 11 encoding | 23,475 | `EncodedMachineProgram` | 12 and validator replay |

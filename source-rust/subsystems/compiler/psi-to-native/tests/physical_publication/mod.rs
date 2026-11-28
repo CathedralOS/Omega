@@ -1138,12 +1138,10 @@ fn placed_scalar_return_has_the_expected_bytes_on_every_hosted_target() {
             object.text_bytes().to_vec()
         };
         let ordinary = emit(false);
-        // Return 7 in the ABI result register. AArch64 also emits the selected register copy.
+        // Return 7 in the ABI result register, then return to the caller.
         let expected: &[u8] = match profile.native_target().architecture {
             target::Architecture::X86_64 => &[0x48, 0xb8, 7, 0, 0, 0, 0, 0, 0, 0, 0xc3],
-            target::Architecture::Aarch64 => {
-                &[0xe0, 0, 0x80, 0xd2, 0xe0, 3, 0, 0xaa, 0xc0, 3, 0x5f, 0xd6]
-            }
+            target::Architecture::Aarch64 => &[0xe0, 0, 0x80, 0xd2, 0xc0, 3, 0x5f, 0xd6],
         };
         assert_eq!(ordinary, expected, "{profile:?}");
         assert_eq!(ordinary, emit(true), "{profile:?}");
