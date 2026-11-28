@@ -22,6 +22,7 @@ wire_enum! {
         1 => Construct { witnesses: Ids },
         2 => Project { opening: U32, field: Id },
         3 => Invoke { opening: U32 },
+        4 => Store { opening: U32, field: Id },
     }
 }
 
@@ -101,6 +102,13 @@ mod tests {
                     },
                 ),
                 site(3, TerminalPackageEvent::Invoke { opening: 0 }),
+                site(
+                    4,
+                    TerminalPackageEvent::Store {
+                        opening: 0,
+                        field: StructuralFieldId::new(1).unwrap(),
+                    },
+                ),
             ],
         };
         let mut writer = Writer::default();

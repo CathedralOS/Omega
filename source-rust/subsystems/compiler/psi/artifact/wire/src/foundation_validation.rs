@@ -7486,6 +7486,7 @@ pub(crate) mod storage_foundations {
             module: &TerminalModule,
             machine: &TerminalMachine,
             operation: &Operation,
+            package_sites: &terminal_semantics::packages::CheckedPackageSites,
         ) -> Result<(), CodecError> {
             let OperationKind::StoreStructuralField {
                 disposition,
@@ -7545,7 +7546,8 @@ pub(crate) mod storage_foundations {
                     "structural field store requires an owned root or an accessible borrowed window",
                 );
             };
-            let field_type = window_field_type(module, root_type, path, *field)?;
+            let declared = window_field_type(module, root_type, path, *field)?;
+            let field_type = package_sites.stored_type(machine.id, operation.id).unwrap_or(declared);
             if structural_place_type(machine, value.place) != Some(field_type) {
                 return malformed("structural field store value type does not match field");
             }
@@ -12635,7 +12637,7 @@ fn validate_operation_foundation(
             storage_foundations::validate_move_structural_field(module, machine, operation)?
         }
         OperationKind::StoreStructuralField { .. } => {
-            storage_foundations::validate_store_structural_field(module, machine, operation)?
+            storage_foundations::validate_store_structural_field(module, machine, operation, analyses.package_sites().map_err(CodecError::MalformedStructuralFoundation)?)?
         }
         OperationKind::ScalarStructuralField { .. }
         | OperationKind::BooleanStructuralField { .. } => {
