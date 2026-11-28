@@ -1955,7 +1955,12 @@ fn copy_declarations_with_region_binders(
         let reference = match &operand.value {
             StaticMachineBindingValue::Type(actual) => match region_supplier {
                 Some(supplier) => program
-                    .generalize_static_type_regions(*actual, supplier, machine_symbol, &mut lifetimes)
+                    .generalize_static_type_regions(
+                        *actual,
+                        supplier,
+                        machine_symbol,
+                        &mut lifetimes,
+                    )
                     .map_err(unserved)?,
                 None => *actual,
             },
@@ -2651,7 +2656,9 @@ fn substitute_arguments(
             {
                 *argument = operand.argument.clone();
                 if matches!(operand.value, StaticMachineBindingValue::Type(_))
-                    && let Some((_, applied)) = substitutions.iter().find(|(binder, _)| *binder == operand.parameter)
+                    && let Some((_, applied)) = substitutions
+                        .iter()
+                        .find(|(binder, _)| *binder == operand.parameter)
                 {
                     argument.type_reference = *applied;
                 }
