@@ -13,18 +13,24 @@ pub(in crate::read) fn retained_regions(
     reference: TypeReferenceHandle,
 ) -> Option<Vec<LifetimeParameterIdentity>> {
     let mut output = Vec::new();
+    let mut ancestors = Vec::new();
     let mut pending = vec![(scope.clone(), reference, 0usize)];
     let table = &typed.type_reference_table;
     while let Some((scope, reference, depth)) = pending.pop() {
         let supplied = scope.supplied_type_reference(typed, reference).ok()?;
         let scope = supplied.scope;
         let reference = supplied.reference;
+        ancestors.truncate(depth);
+        if ancestors
+            .iter()
+            .any(|(frame, parent)| *parent == reference && Arc::ptr_eq(frame, &scope))
+        {
+            return None;
+        }
         if scope.region_free_type_identity(typed, reference).is_some() {
             continue;
         }
-        if depth >= 256 {
-            return None;
-        }
+        ancestors.push((scope.clone(), reference));
         let (tags, children) = match table.type_reference(reference) {
             TypeReferenceNode::Reference {
                 lifetime: Some(tag),
