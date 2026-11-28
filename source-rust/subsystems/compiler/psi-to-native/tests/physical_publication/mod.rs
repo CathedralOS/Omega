@@ -1150,6 +1150,16 @@ fn fixed_activation_sizes_a_staged_worker_and_does_not_substitute_a_windows_stac
                     &[],
                 )
                 .unwrap();
+                // This unnamed fixture has an ordinary body, but no published
+                // promise that the caller can drop its frames on return.
+                assert_eq!(
+                    entry_planning::retained_call::ReturningWorker::for_body(
+                        frame,
+                        transport.clone()
+                    )
+                    .unwrap_err(),
+                    "returning worker needs its published suspension contract"
+                );
                 let layout = FixedActivationLayout::for_worker(frame, transport);
                 if profile == TargetProfile::WindowsX64 {
                     assert_eq!(
