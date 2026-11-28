@@ -1795,6 +1795,31 @@ pub(crate) mod image_output {
             &self.boundary_settlements
         }
 
+        /// Instruction ranges that implement an explicit process exit in this
+        /// fixed-address executable. The host can attribute an observed system
+        /// call to its Omega operation even when a unit return also exits zero.
+        pub fn linux_x64_process_exit_sites(
+            &self,
+        ) -> impl Iterator<Item = std::ops::Range<u64>> + '_ {
+            self.boundary_settlements.iter().filter_map(|site| {
+                if self.target != NativeTarget::linux_x64()
+                    || !matches!(
+                        site.settlement.realization,
+                        target_vocabulary::BoundaryRealization::HostedExitProcessI32(_)
+                    )
+                {
+                    return None;
+                }
+                let start = self
+                    .output
+                    .final_image_layout
+                    .text_address
+                    .checked_add(u64::try_from(site.text_offset).ok()?)?;
+                let end = start.checked_add(u64::try_from(site.settlement.byte_count).ok()?)?;
+                Some(start..end)
+            })
+        }
+
         pub fn foreign_calls(&self) -> &[crate::ObjectForeignCall] {
             &self.foreign_calls
         }
