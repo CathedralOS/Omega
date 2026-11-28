@@ -867,6 +867,13 @@ pub(crate) mod proof_term_wire {
                 expected: two,
             };
             let bytes = encode_mathematical_certificate(&arena, &certificate).unwrap();
+            let marker = u16::from_le_bytes([bytes[8], bytes[9]]);
+            let row = format!(r"| mathematical certificate | `PSICORE\0` | {marker} | no |");
+            assert!(
+                include_str!("../encoding.md")
+                    .lines()
+                    .any(|line| line == row)
+            );
             let term = ProofTerm::Mathematical {
                 type_identity: "Example<0>".into(),
                 certificate: bytes,

@@ -1,9 +1,8 @@
 //! The selected instructions, register environment and receipt forwarded to stage 06.
 use crate::input::BoundExecutionPlan;
 use optimization_core::{
-    OptimizationIdentityBundleIdentity, OptimizationSelections, OptimizationUnitIdentity,
-    OptimizationWorkBudget, OptimizedAbstractPlanProjectionIdentity,
-    PrePhysicalOptimizationManifestIdentity,
+    OptimizationSelectionIdentity, OptimizationSelections, OptimizationUnitIdentity,
+    OptimizationWorkBudget,
 };
 use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 use terminal_psi::TerminalPsiIdentity;
@@ -92,9 +91,8 @@ pub(crate) fn selection_custody_receipt(
             psi: plan.psi,
             target: plan.target,
             entry: plan.entry,
-            optimization: input.optimization,
-            projection: input.projection,
-            manifest: input.manifest,
+            selection: input.selections.identity(),
+            budget_per_pass: input.budget_per_pass,
             optimization_unit: plan.optimization_unit,
             work_schedule: plan.work_schedule,
             register_environment: register_environment.identity(),

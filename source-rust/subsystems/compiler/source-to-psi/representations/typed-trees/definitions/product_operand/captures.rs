@@ -65,7 +65,7 @@ impl TypedTrees {
             if operand.is_open(self) {
                 return Err(unserved("selected provider still has an open argument"));
             }
-            match (&parameter.kind, &operand.value, &operand.scalar) {
+            match (&parameter.kind, &operand.value, &operand.closed_value) {
                 (TypeParameterKind::Type, StaticMachineBindingValue::Type(reference), None) => {
                     type_arguments.push(self.normalized_type_identity_text(*reference));
                 }
@@ -90,6 +90,7 @@ impl TypedTrees {
                             })?,
                         ),
                         Value::Boolean(value) => CanonicalConstValue::boolean(*value).identity(),
+                        Value::Aggregate { value, .. } => value.identity(),
                     };
                     const_arguments.push(ClosedConformanceConstArgument::Evaluated {
                         parameter_carrier: *type_reference,

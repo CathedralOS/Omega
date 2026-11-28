@@ -590,6 +590,9 @@ pub(crate) fn premise(
         Justification::CallCongruence { .. } => {
             String::from("the value an earlier call of the same operation returned")
         }
+        Justification::RealizationGuarantee { .. } => {
+            String::from("what a member of the same implementation ensures of itself")
+        }
         Justification::BranchCondition { .. } => String::from("an earlier branch condition"),
         Justification::ExcludedDispatchCase { .. } => {
             String::from("the dispatch observes a different case on every arrival")

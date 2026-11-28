@@ -83,17 +83,16 @@ machine main() crashes Trap {
     let psi = compile(project, Product::Runtime);
     let native = compile(project, Product::Native);
 
-    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-        let execution = std::process::Command::new(env!("CARGO_BIN_EXE_omega"))
-            .args(["run", "--engine", engine, "build.omg"])
-            .current_dir(project)
-            .env("OMEGA_LIBRARY_ROOT", &library)
-            .output()
-            .expect("run the selected provider on both engines");
+    for command in ["run", "build"] {
+        let execution = project::observe_command(
+            std::process::Command::new(env!("CARGO_BIN_EXE_omega"))
+                .args([command, "build.omg"])
+                .current_dir(project)
+                .env("OMEGA_LIBRARY_ROOT", &library),
+        );
 
         let report = String::from_utf8_lossy(&execution.stderr);
         assert!(execution.status.success(), "{report}");
-        assert!(report.lines().any(|line| line == expected), "{report}");
     }
 
     let unbound = build

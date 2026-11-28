@@ -440,7 +440,7 @@ impl Elaboration {
         if !module.interfaces.callback_applications.is_empty()
             || !module.interfaces.installed_interrupt_registrations.is_empty()
             || module.execution.dynamic_dispatch != Default::default()
-            || module.execution.task_activation_demands != Default::default()
+            || !module.execution.task_activation_demands.is_empty()
         {
             return None;
         }

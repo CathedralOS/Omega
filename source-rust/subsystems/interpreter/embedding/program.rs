@@ -292,9 +292,9 @@ pub(crate) mod instance {
         use build_model::accounting::EvaluationInvocationAccount;
         use std::collections::BTreeMap;
 
-        use semantic_vocabulary::{BoundaryMachineId, OperationId};
         use psi_provider_selections::AdmittedComponentProvider;
         use psi_scalar_applications::AdmittedScalarApplications;
+        use semantic_vocabulary::{BoundaryMachineId, OperationId};
         use terminal_work::ExecutionMeter;
 
         use super::{ComponentOwnedReturn, TerminalImportBinding, TerminalInstance};
@@ -597,7 +597,7 @@ pub(crate) mod instance {
                     TerminalEffectRejection::new("component invocation lost its live instance")
                 })?;
                 match instance
-                    .invoke(meter)
+                    .invoke_in_scope(meter, self.selected.invocation_scope())
                     .map_err(|error| match error.sponsor_exhaustion() {
                         Some(reason) => TerminalEffectRejection::sponsor_exhausted(format!(
                             "component invocation: {reason}"
@@ -996,6 +996,7 @@ pub(crate) mod instance {
         bindings: BTreeMap<BoundaryMachineId, TerminalImportBinding<'host>>,
         storage_resolver: Option<std::rc::Rc<dyn crate::TerminalProviderStorageResolver + 'host>>,
         components: ComponentBindings<'host, 'artifact>,
+        checked_progress: Option<psi_provider_selections::ProgressScope>,
         invoked: bool,
         closed: bool,
         discard: Option<discard::DiscardCustody>,
@@ -1018,6 +1019,7 @@ pub(crate) mod instance {
                 bindings: BTreeMap::new(),
                 storage_resolver: None,
                 components: BTreeMap::new(),
+                checked_progress: None,
                 invoked: false,
                 closed: false,
                 discard: None,
@@ -1207,6 +1209,7 @@ pub(crate) mod instance {
             binding.require_ready()?;
             execution.boundary_supplies.insert(boundary, expected);
             self.components.insert(boundary, binding);
+            self.checked_progress = None;
             Ok(())
         }
 
@@ -1321,6 +1324,14 @@ pub(crate) mod instance {
             &mut self,
             meter: &mut dyn ExecutionMeter,
         ) -> Result<TerminalExecutionStatus, TerminalInstanceError> {
+            self.invoke_in_scope(meter, psi_provider_selections::ProgressScope::Executable)
+        }
+
+        fn invoke_in_scope(
+            &mut self,
+            meter: &mut dyn ExecutionMeter,
+            scope: psi_provider_selections::ProgressScope,
+        ) -> Result<TerminalExecutionStatus, TerminalInstanceError> {
             if self.closed {
                 return Err(TerminalInstanceError::Closed);
             }
@@ -1347,21 +1358,22 @@ pub(crate) mod instance {
                 .execution
                 .as_mut()
                 .ok_or(TerminalInstanceError::Closed)?;
-            if !self.invoked
-                && !self.components.is_empty()
-                && let Some(stuck) = psi_provider_selections::component_wait_deadlock(
-                    self.program
-                        .program
-                        .catalogs
-                        .execution_view()
-                        .map_err(TerminalInstanceError::Execution)?,
-                    self.entry,
-                    self.components
-                        .values()
-                        .map(TerminalComponentBinding::selected),
-                )
-            {
-                return Err(TerminalInstanceError::ComponentSynchronization(stuck));
+            if self.checked_progress != Some(scope) {
+                if let Some(failure) = self
+                    .program
+                    .invocation_progress_failure(
+                        execution,
+                        self.entry,
+                        scope,
+                        self.components
+                            .values()
+                            .map(TerminalComponentBinding::selected),
+                    )
+                    .map_err(TerminalInstanceError::Execution)?
+                {
+                    return Err(TerminalInstanceError::Synchronization(failure));
+                }
+                self.checked_progress = Some(scope);
             }
             self.invoked = true;
             let status = execution
@@ -1557,7 +1569,8 @@ pub(crate) mod instance {
             &mut self,
             effect: &TerminalEffect,
         ) -> Result<crate::TerminalAbandonedEffect, TerminalEffectRejection> {
-            self.adapter_for(effect)?.request_effect_cancellation(effect)
+            self.adapter_for(effect)?
+                .request_effect_cancellation(effect)
         }
 
         fn settle_abandoned_effect(
@@ -2154,13 +2167,16 @@ pub(crate) mod program {
                 {
                     return Err(TerminalInterpretError::TargetLayoutSelectionIdentityMismatch);
                 }
-            } else if let Some(application) = self.catalogs.layouts.target_layout_applications.first() {
+            } else if let Some(application) =
+                self.catalogs.layouts.target_layout_applications.first()
+            {
                 return Err(TerminalInterpretError::TargetLayoutSelectionMissing(
                     application.id,
                 ));
             } else if self
                 .catalogs
-                .access.access_lifecycle_plans
+                .access
+                .access_lifecycle_plans
                 .iter()
                 .any(|plan| plan.target.is_some())
             {
@@ -2226,11 +2242,10 @@ pub(crate) mod program {
         pub(crate) fn access_lifecycle_plans(
             &self,
         ) -> &[terminal_psi::TerminalAccessLifecyclePlan] {
-            self.target_layouts
-                .as_ref()
-                .map_or(self.catalogs.access.access_lifecycle_plans.as_slice(), |layouts| {
-                    layouts.resolved_lifecycles()
-                })
+            self.target_layouts.as_ref().map_or(
+                self.catalogs.access.access_lifecycle_plans.as_slice(),
+                |layouts| layouts.resolved_lifecycles(),
+            )
         }
 
         pub(crate) fn structural_declaration(
@@ -2248,7 +2263,8 @@ pub(crate) mod program {
 
         pub(crate) fn has_provider(&self, boundary: &BoundaryMachineId) -> bool {
             self.catalogs
-                .interfaces.provider_candidates
+                .interfaces
+                .provider_candidates
                 .binary_search_by_key(boundary, |candidate| candidate.boundary)
                 .is_ok()
         }
@@ -2493,8 +2509,9 @@ pub(crate) mod program {
 
         /// Whether this program runs without producer trust.
         pub fn is_contained(&self) -> bool {
-            self.closed_module()
-                .is_ok_and(terminal_codec::ClosedTerminalModule::admitted_for_contained_interpretation)
+            self.closed_module().is_ok_and(
+                terminal_codec::ClosedTerminalModule::admitted_for_contained_interpretation,
+            )
         }
 
         /// [`Self::admit`] for a program that outlives the borrowed witness.
@@ -2706,8 +2723,7 @@ pub(crate) mod program {
                     "external completion requires separate domain admission",
                 ));
             }
-            if installation.supplies.contains_key(&boundary)
-            {
+            if installation.supplies.contains_key(&boundary) {
                 return Err(rejected(
                     "external supply duplicates or competes with a selected supply",
                 ));
@@ -2871,6 +2887,30 @@ pub(crate) mod program {
             }
         }
 
+        pub(super) fn invocation_progress_failure<'a>(
+            &self,
+            execution: &crate::engine::execution::TerminalExecution<'_>,
+            entry: semantic_vocabulary::MachineId,
+            scope: psi_provider_selections::ProgressScope,
+            components: impl IntoIterator<Item = &'a psi_provider_selections::AdmittedComponentProvider>,
+        ) -> Result<
+            Option<psi_provider_selections::PrivateWaitFailure>,
+            crate::TerminalInterpretError,
+        > {
+            Ok(psi_provider_selections::invocation_progress_failure(
+                self.program.catalogs.execution_view()?,
+                entry,
+                scope,
+                components,
+                |slot| match execution.boundary_supplies.get(&slot) {
+                    Some(crate::boundary::effects::AdmittedBoundarySupply::CheckedProvider(
+                        machine,
+                    )) => Some(*machine),
+                    _ => None,
+                },
+            ))
+        }
+
         pub(crate) fn start_execution(
             &self,
             scalar_arguments: &[TerminalScalarValue],
@@ -2880,17 +2920,31 @@ pub(crate) mod program {
             crate::engine::execution::TerminalExecution<'artifact>,
             TerminalArtifactInterpretError,
         > {
-            self.prepare_execution(TerminalInstantiation {
-                float_evaluation: Default::default(),
-                scalar_arguments,
-                structural_inputs,
-                installation,
-                account: None,
-                entry_results: None,
-                scalar_application: None,
-                scalar_admission: None,
-            }, None)
-            .map(|(execution, _)| execution)
+            let (execution, _) = self.prepare_execution(
+                TerminalInstantiation {
+                    float_evaluation: Default::default(),
+                    scalar_arguments,
+                    structural_inputs,
+                    installation,
+                    account: None,
+                    entry_results: None,
+                    scalar_application: None,
+                    scalar_admission: None,
+                },
+                None,
+            )?;
+            if let Some(failure) = self
+                .invocation_progress_failure(
+                    &execution,
+                    execution.current_machine,
+                    psi_provider_selections::ProgressScope::Executable,
+                    [],
+                )
+                .map_err(TerminalArtifactInterpretError::Execution)?
+            {
+                return Err(TerminalArtifactInterpretError::Synchronization(failure));
+            }
+            Ok(execution)
         }
 
         fn execution_program(
@@ -2960,7 +3014,8 @@ pub(crate) mod program {
                 && !self
                     .program
                     .catalogs
-                    .scalars.scalar_applications
+                    .scalars
+                    .scalar_applications
                     .conditions
                     .is_empty()
             {
@@ -3553,7 +3608,8 @@ pub(crate) mod program {
             };
             let row = artifact
                 .semantic_module()
-                .access.access_view_inputs
+                .access
+                .access_view_inputs
                 .iter()
                 .find(|row| row.machine == entry)
                 .expect("actual direct placed row")

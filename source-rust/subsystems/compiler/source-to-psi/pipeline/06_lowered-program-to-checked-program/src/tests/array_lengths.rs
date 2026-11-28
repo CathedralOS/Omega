@@ -405,6 +405,66 @@ fn a_const_call_cannot_bind_an_array_extent_to_another_static_input() {
 }
 
 #[test]
+fn a_generic_call_preserves_the_selected_case_and_its_payload_guard() {
+    use semantic_vocabulary::Proposition;
+
+    let mut form = rigid_array_form(
+        "data Choice<const N: u64> [copy]
+         requires N >= 1
+         requires (self in Choice::Empty) || ((self in Choice::At) && self.index < N) {
+             case Empty; case At(index: u64);
+         }
+         machine entry<const N: u64>(item: Choice<N>) requires N >= 1 { take::<N>(item); }
+         machine take<const N: u64>(item: Choice<N>) requires N >= 1 {}",
+    );
+    let valid = discharge(&mut form.clone(), &mut Default::default()).unwrap();
+    assert!(
+        valid
+            .machines
+            .iter()
+            .all(|(_, machine)| { machine.verdicts.iter().all(|(_, verdict)| verdict.is_ok()) })
+    );
+
+    let row = form
+        .nominal_calls
+        .iter()
+        .find(|row| row.actual != row.expected)
+        .unwrap();
+    let expected = form
+        .module
+        .types
+        .structural_types
+        .iter_mut()
+        .find(|declaration| declaration.id == row.expected_constructor)
+        .unwrap();
+    let cases = expected.shape.cases();
+    let ids = [cases[0].id, cases[1].id];
+    // Forge only a predicate. Both declarations still have the same cases,
+    // fields, const arguments and representation.
+    let mut clauses = expected.requires.iter_mut().collect::<Vec<_>>();
+    loop {
+        match clauses
+            .pop()
+            .expect("the choice has a case-membership predicate")
+        {
+            Proposition::StructuralCaseMembership { case, .. } => {
+                *case = *ids.iter().find(|id| **id != *case).unwrap();
+                break;
+            }
+            Proposition::Conjunction(children) | Proposition::Disjunction(children) => {
+                clauses.extend(children);
+            }
+            _ => {}
+        }
+    }
+    let error = discharge(&mut form, &mut Default::default()).unwrap_err();
+    assert!(
+        error.detail.contains("nominal call type changed"),
+        "{error:?}"
+    );
+}
+
+#[test]
 fn a_call_preserves_a_const_argument_that_the_record_does_not_store() {
     let source = "
 data Token<const Key: u64> { payload: u16; }

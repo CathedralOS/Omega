@@ -1,7 +1,13 @@
 //! Source-level synchronization judgments and the execution of their accepted twins.
 
+mod finite_branches;
 mod borrowed_cells;
+mod computed_predicates;
+mod indexed_cells;
 mod multiple_cells;
+mod periodic_updates;
+mod provider_returns;
+mod scalar_arguments;
 mod suspending_calls;
 mod threshold_waits;
 
@@ -215,7 +221,12 @@ fn execute_with_input(source: &str, input: u32) {
         panic!("expected a machine entry")
     };
     assert_eq!(
-        terminal_semantics::synchronization::private_wait_failure(module, entry, |_| None),
+        terminal_semantics::synchronization::private_wait_failure(
+            module,
+            entry,
+            terminal_semantics::synchronization::ProgressScope::Executable,
+            |_| None
+        ),
         None
     );
     let semantic_vocabulary::ScalarType::Integer(scalar_type) =
@@ -436,4 +447,109 @@ fn a_returning_provider_with_no_argument_cannot_release_a_private_cell() {
         let verdict = judge_build(&source).unwrap();
         assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
     }
+}
+
+fn requires_an_external_enabler(source: &str, origin: &str) {
+    let RouteVerdict::Rejected {
+        violations,
+        unproved,
+        ..
+    } = judge_build(source).unwrap()
+    else {
+        panic!("expected a progress obligation at the selected entry");
+    };
+    assert!(violations.is_empty(), "{violations:?}");
+    let [progress] = unproved.as_slice() else {
+        panic!("{unproved:?}");
+    };
+    let span = progress.site.authored_span().unwrap();
+    assert!(
+        source[span.span.start..span.span.end].contains(origin),
+        "{span:?}"
+    );
+    assert!(progress.detail.contains("supplied storage"), "{progress:?}");
+}
+
+#[test]
+fn a_selected_entry_that_waits_on_shared_input_owes_an_enabling_action() {
+    let source = format!(
+        "{AWAIT_CHANGE}
+        machine build_entry(signal: @Signal) {{ await_change(signal); }}"
+    );
+    requires_an_external_enabler(&source, "await_change");
+}
+
+#[test]
+fn a_wait_selected_as_the_entry_owes_progress_at_its_own_observation() {
+    requires_an_external_enabler(&AWAIT_CHANGE.replace("await_change", "build_entry"), "load");
+}
+
+#[test]
+fn a_shared_entry_write_cannot_exclude_another_participants_write() {
+    let source = format!(
+        "{AWAIT_CHANGE}
+        machine build_entry(signal: @Signal) {{
+            signal.word.store(0, Publish);
+            await_change(signal);
+        }}"
+    );
+    requires_an_external_enabler(&source, "await_change");
+    let exclusive = source.replace(
+        "build_entry(signal: @Signal)",
+        "build_entry(signal: @mutable Signal)",
+    );
+    assert!(matches!(
+        judge_build(&exclusive).unwrap(),
+        RouteVerdict::Accepted(_)
+    ));
+}
+
+#[test]
+fn a_wait_that_can_enable_its_own_retry_needs_no_external_releaser() {
+    let source = AWAIT_CHANGE.replace("await_change", "build_entry").replace(
+        "signal.word.load(Receive)",
+        "signal.word.swap(0, ReceivePublish)",
+    );
+    assert!(matches!(
+        judge_build(&source).unwrap(),
+        RouteVerdict::Accepted(_)
+    ));
+}
+
+#[test]
+fn a_shared_borrow_of_private_storage_retains_its_known_initial_state() {
+    let source = format!(
+        "{AWAIT_CHANGE}
+        machine supplied(signal: @Signal) {{ await_change(signal); }}
+        machine build_entry() {{ let mutable signal: Signal; supplied(@signal); }}"
+    );
+    execute_unit(&source);
+}
+
+#[test]
+fn an_unselected_public_wait_leaves_its_enabler_to_its_caller() {
+    let source = format!(
+        "{} machine build_entry() {{}}",
+        AWAIT_CHANGE
+            .replace("data Signal", "public data Signal")
+            .replace("machine await_change", "public machine await_change")
+    );
+    assert!(matches!(
+        judge_build(&source).unwrap(),
+        RouteVerdict::Accepted(_)
+    ));
+}
+
+#[test]
+fn an_exclusive_input_needs_its_initial_value_until_a_write_establishes_it() {
+    let source = format!(
+        "{AWAIT_CHANGE}
+        machine build_entry(signal: @mutable Signal) {{ await_change(signal); }}"
+    );
+    requires_an_external_enabler(&source, "await_change");
+    let held = source.replace(
+        "{ await_change(signal); }",
+        "{ signal.word.store(1, Publish); await_change(signal); }",
+    );
+    reject_deadlock(&held);
 }

@@ -16,7 +16,7 @@ with one ordinary implementation, `X86Restore`, selected for `linux_x86_64`,
 (`BUILD-OWNED-TARGET-SELECTION`). The assembly, its `MachineControl` reach,
 the crash route and the exit oracle are unchanged; no AArch64 body exists, so
 no tag check is needed. Observed with the optimized producer at `11bdd2fe41f`
-on macOS x86-64: the positive exits 0 under `omega run --both` (native and
+on macOS x86-64: the positive exits 0 under the native/Psi comparison (native and
 Terminal Psi agree), and the twin still rejects because integer literal `0` is
 outside the saved-flags operand class. No compiler change was needed. The
 other hosted targets were not executed here.

@@ -1,6 +1,6 @@
 # Exact count/address conversion
 
-Run `omega run samples/cli/memory/exact_address_conversion/main.omg --both`.
+Run `mbx xtask sample-gate --filter samples/cli/probes/exact_address_conversion`.
 Expected native and Terminal exit: 0.
 
 This isolates Cathedral's physical-address conversion prerequisite. Counts and

@@ -41,7 +41,12 @@ impl<'a> Arrivals<'a> {
         let mut result = left.clone();
         result.join(right);
         let mut contents = self.left.get(left);
-        contents.join(&self.right.get(right));
+        contents.join_with(
+            &self.right.get(right),
+            &mut Location::join,
+            &self.left.conditions,
+            &self.right.conditions,
+        );
         self.selections.push(Selection {
             left: left.clone(),
             right: right.clone(),
@@ -52,14 +57,22 @@ impl<'a> Arrivals<'a> {
     }
 
     pub(in super::super) fn value(&mut self, left: &mut Stored, right: &Stored) {
-        left.join_with(right, &mut |left, right| self.place(left, right));
+        let (left_facts, right_facts) = (&*self.left.conditions, &*self.right.conditions);
+        left.join_with(
+            right,
+            &mut |left, right| self.place(left, right),
+            left_facts,
+            right_facts,
+        );
     }
 
     pub(super) fn record(self, storage: &mut Storage) {
         let known = std::rc::Rc::make_mut(&mut storage.selected);
         known.extend(self.selections.into_iter().filter_map(|selection| {
-            (selection.result.is_choice() && !matches!(selection.contents, Stored::Unknown))
-                .then_some((selection.result, selection.contents))
+            (selection.result.tracks_selection()
+                && !selection.result.includes_shared()
+                && !matches!(selection.contents, Stored::Unknown))
+            .then_some((selection.result, selection.contents))
         }));
     }
 }

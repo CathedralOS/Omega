@@ -8,7 +8,7 @@ and its load observes the stored Boolean.** Every place copies this sentence.
 This covers the already admitted `AtomicBool` load/store family used by
 `atomic_global_order_operations`. On baseline
 `036605466510d2361fd579cf9fd97b722e070beb`, normal package preparation of
-`local` succeeds, but `omega run --both local/main.omg` refuses native target
+`local` succeeds, but the native/Psi comparison refuses native target
 lowering with `UnsupportedControlFlow { machine: MachineId(1) }`. Target
 production required an integer cell, although source checking and Terminal
 interpretation admit Boolean storage. Logical Boolean operands and results must
@@ -23,7 +23,7 @@ existing nested-state transport spelling during the repository's separate
 nested-machine source migration.
 
 Run each positive with `omega packages update --project <place> --target linux_x86_64`,
-then `omega run --both <place>/main.omg`; both engines must exit 0. Check each
+then `mbx xtask sample-gate --filter samples/cli/facts/atomic_boolean_store/<place>`; both engines must exit 0. Check each
 reject twin through the ordinary public CLI and require its ordering diagnostic.
 The root repeats the local witness. `composition` additionally tests true/false
 replacement, a distinct sibling cell, all three legal store/load ordering pairs,

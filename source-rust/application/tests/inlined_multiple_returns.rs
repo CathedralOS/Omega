@@ -7,7 +7,7 @@ mod program;
 mod support;
 
 #[test]
-fn an_inlined_helper_returns_from_either_arm_on_both_engines() {
+fn an_inlined_helper_returns_from_either_arm_when_interpreted_and_built() {
     let fixture =
         support::repository_root().join("tests/fixtures/calls/run/inlined_multiple_returns");
     program::assert_fixture_silent_return(&fixture);

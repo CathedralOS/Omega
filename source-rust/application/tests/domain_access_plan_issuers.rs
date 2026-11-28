@@ -10,7 +10,7 @@ mod project;
 mod support;
 
 fn invoke(route: &[&str], directory: &std::path::Path, arguments: &[&str]) -> (bool, String) {
-    let output = project::omega(directory, &[route, arguments].concat());
+    let output = project::observe(directory, &[route, arguments].concat());
     let report = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
@@ -21,15 +21,14 @@ fn invoke(route: &[&str], directory: &std::path::Path, arguments: &[&str]) -> (b
 
 #[test]
 fn the_machine_a_domain_plan_lists_may_issue_it() {
-    for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+    for command in ["run", "build"] {
         let (succeeded, report) = invoke(
-            &["run", "--engine", engine],
+            &[command],
             &support::repository_root()
                 .join("source-rust/application/tests/fixtures/domains/run/access_plan_issuer"),
             &["main.omg"],
         );
         assert!(succeeded, "{report}");
-        assert!(report.lines().any(|line| line == receipt), "{report}");
     }
 }
 
@@ -61,10 +60,9 @@ fn an_unrestricted_policy_checks_its_predicates_on_an_unissued_value() {
         "main.omg",
         "build.omg",
     ];
-    for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-        let (succeeded, report) = invoke(&["run", "--engine", engine], project.path(), &arguments);
+    for command in ["run", "build"] {
+        let (succeeded, report) = invoke(&[command], project.path(), &arguments);
         assert!(succeeded, "{report}");
-        assert!(report.lines().any(|line| line == receipt), "{report}");
     }
 
     let unrestricted = "|layout|::Issuance::Unrestricted";
@@ -129,9 +127,9 @@ machine main() crashes Trap {
     ] {
         let program = source.replace("|reflection|::callable(stamp)", route);
         std::fs::write(project.path().join("main.omg"), &program).unwrap();
-        for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        for command in ["run", "build"] {
             let (succeeded, report) = invoke(
-                &["run", "--engine", engine],
+                &[command],
                 project.path(),
                 &[
                     "--build-input",
@@ -142,9 +140,7 @@ machine main() crashes Trap {
                 ],
             );
             assert_eq!(succeeded, allowed, "{report}");
-            if allowed {
-                assert!(report.lines().any(|line| line == receipt), "{report}");
-            } else {
+            if !allowed {
                 assert_denied_cast(&report, &program, "i64::Stamped");
             }
         }
@@ -233,13 +229,9 @@ public StampedProbe satisfies Probe {
         let program = source.replace("PLAN", &plan);
         project::write(project.path(), &[("kit/main/stamps.omg", &program)]);
         if runs {
-            for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-                let (succeeded, report) =
-                    invoke(&["run", "--engine", engine], project.path(), &["build.omg"]);
-                assert!(
-                    succeeded && report.lines().any(|line| line == receipt),
-                    "{report}"
-                );
+            for command in ["run", "build"] {
+                let (succeeded, report) = invoke(&[command], project.path(), &["build.omg"]);
+                assert!(succeeded, "{report}");
             }
         } else {
             let (succeeded, report) = invoke(&["--check"], project.path(), &["build.omg"]);

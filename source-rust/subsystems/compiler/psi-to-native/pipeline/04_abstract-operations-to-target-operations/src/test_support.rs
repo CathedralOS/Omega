@@ -501,10 +501,16 @@ pub fn prepare_fixture_execution_plan(
         installed_interrupts,
         types,
         // These raw-plan unit controls do not model an optimization run.
-        optimization_core::PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(
-            b"standalone native-preparation fixture",
-        ),
+        optimization_core::OptimizationSelections::default().identity(),
+        standalone_budget(),
     )
+}
+
+/// The per-pass budget a hand-built plan is prepared under. Preparation only
+/// binds it into the execution facts; no optimization pass spends it.
+pub fn standalone_budget() -> optimization_core::OptimizationWorkBudget {
+    optimization_core::OptimizationWorkBudget::new(1, 1, 1, 1, 1)
+        .expect("a budget of one unit per counter is valid")
 }
 
 /// A closed module that retains exactly these scalar types, each declared

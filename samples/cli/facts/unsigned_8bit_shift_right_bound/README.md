@@ -86,7 +86,7 @@ Each twin weakens the input bound so the shifted value can be `30u8`; checking t
 
 ## Measured evidence
 
-- `omega run --both` over the root and the nine places: 10/10 report `native exit 0` and
+- the native/Psi comparison over the root and the nine places: 10/10 report `native exit 0` and
   `interp exit: 0`.
 - `omega --check` over the nine twins: 9/9 exit 1 with their authored fragment (table above).
 - Perturbing the root oracle (one token) exits 255 with `native signal 5` and
@@ -119,10 +119,10 @@ Full 8-layer specification and lowering evidence:
   - `target_body`: shifted result is evaluated and verified across target-scoped machine bodies for all four hosted targets (`linux_x86_64`, `linux_arm64`, `windows_x86_64`, `macos_arm64`).
   In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in weakening the input bound to `val >= 120 && val <= 160` (so `val == 120` yields `shifted == 30`), proving that downstream contract verification `requires shifted >= 40 && shifted <= 40` strictly fails closed when the post-shift bound allows values below 40.
 - **Soundness boundaries:** All nine reject twins under `<place>/invalid/` reject during compile-time verification (`omega --check`) with `error: cannot prove ... contract ...: ... >= 40`, confirming that the proof engine soundly detects that when `shifted` can be 30, contract satisfaction cannot be established.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Source constructs lower into canonical `PSITERM\0` target-neutral representations. Shift operations are lowered with verified shift count certificates (`count < 8`), preserving interval arithmetic bounds and erasing proof tags. Both Terminal Psi interpretation and native execution agree (`omega run --both` reports exit 0).
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Source constructs lower into canonical `PSITERM\0` target-neutral representations. Shift operations are lowered with verified shift count certificates (`count < 8`), preserving interval arithmetic bounds and erasing proof tags. Both Terminal Psi interpretation and native execution agree (the native/Psi comparison reports exit 0).
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Target realization joins Build companion rows (`ProgramEntry`) across the four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Target layout plans validate 1-byte `u8` scalar storage and alignment, while calling plans assign 8-bit register homes (`al`/`dil`/`sil` on x86_64, `w0`/`w1` on arm64) for passing values across calling conventions.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA logical right shift instructions: 8-bit `shr r8, imm8` on `x86_64` and zero-extended `lsr w, w, #imm` on `arm64`. Exact unsigned subtraction lowers to 8-bit `sub`, and register allocation assigns register homes and disjoint stack activation frames honoring the `StatePlan` ceiling.
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Direct PE/ELF/Mach-O images are emitted with valid machine-state footprint evidence, executing natively and agreeing with Terminal Psi (`omega run --both` reports `native exit 0` and `interp exit: 0`) across all hosted targets.
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Direct PE/ELF/Mach-O images are emitted with valid machine-state footprint evidence, executing natively and agreeing with Terminal Psi (the native/Psi comparison reports `native exit 0` and `interp exit: 0`) across all hosted targets.
 
 The row itself is closed: its nine places and nine reject twins run, reject and are pinned
 above. Remaining open under `CANONICALIZE-SCALAR-RANGE-CONTRACTS` / `ARITHMETIC-POLICY-REALIZATION`: dynamic runtime shift counts requiring masking certificates, 128-bit wide shifts across register pairs, and vector SIMD packed logical right shifts.

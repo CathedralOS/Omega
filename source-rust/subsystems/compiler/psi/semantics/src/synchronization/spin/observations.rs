@@ -3,10 +3,11 @@
 //! once. The retry must carry the original borrowed resources to its header.
 
 mod predicate;
-use super::{Comparison, Facts, Scalar, SpinCondition, Subject, Subjects, bind, constant};
+mod scalars;
+use super::{Comparison, Facts, Operand, Scalar, SpinCondition, Subject, Subjects, bind, constant};
 use predicate::{ALWAYS, Guard, NEVER};
 pub(in super::super) use predicate::{Observation, Predicate};
-use semantic_vocabulary::{BlockId, ValueId};
+use semantic_vocabulary::{BlockId, OperationId, ValueId};
 use std::collections::{BTreeMap, VecDeque};
 use terminal_psi::{
     AtomicAccessEvent, Block, Operation, OperationKind, StructuralAccess, StructuralArgument,
@@ -16,8 +17,31 @@ use terminal_psi::{
 #[derive(Clone, PartialEq, Eq)]
 enum Word {
     Literal(Scalar),
-    Cell(Subject),
+    Argument(Operand),
+    Cell(Subject, Option<Operand>),
     Boolean(Guard),
+    Computed(usize),
+}
+
+impl Word {
+    fn input(&self) -> Option<scalars::Input> {
+        Some(match self {
+            Self::Computed(index) => scalars::Input::Previous(*index),
+            Self::Argument(value) => scalars::Input::Supplied(*value),
+            Self::Literal(value) => scalars::Input::Supplied(Operand::Literal(*value)),
+            _ => return None,
+        })
+    }
+}
+
+impl From<scalars::Input> for Word {
+    fn from(input: scalars::Input) -> Self {
+        match input {
+            scalars::Input::Previous(index) => Self::Computed(index),
+            scalars::Input::Supplied(Operand::Literal(value)) => Self::Literal(value),
+            scalars::Input::Supplied(value) => Self::Argument(value),
+        }
+    }
 }
 
 struct Analysis<'a> {
@@ -27,17 +51,36 @@ struct Analysis<'a> {
     predicate: Predicate,
     resources: Subjects,
     words: Facts<ValueId, Word>,
+    scalar_types: Option<crate::MachineScalarIndex<'a>>,
     reached: Facts<BlockId, Guard>,
     returned: bool,
-    observations: usize,
+    first_read: Option<OperationId>,
 }
 
 impl Analysis<'_> {
+    fn subject(
+        &self,
+        place: semantic_vocabulary::PlaceId,
+        path: &[terminal_psi::StructuralPathSegment],
+    ) -> Option<Subject> {
+        self.resources
+            .subject(self.module, self.machine, place, path, |id| {
+                match self.words.get(&id)? {
+                    Word::Literal(v) => Some(Operand::Literal(*v)),
+                    Word::Argument(operand) => Some(*operand),
+                    _ => None,
+                }
+            })
+    }
+
     fn boolean(&mut self, word: &Word) -> Option<Guard> {
         match word {
             Word::Boolean(value) => Some(*value),
+            Word::Computed(index) if self.predicate.expressions.reads_cell(*index) => {
+                Some(self.predicate.computed(*index))
+            }
             Word::Literal(Scalar::Boolean(value)) => Some(if *value { ALWAYS } else { NEVER }),
-            Word::Cell(subject) => Some(self.predicate.observe(
+            Word::Cell(subject, None) => Some(self.predicate.observe(
                 subject.clone(),
                 SpinCondition {
                     comparison: Comparison::equal(Scalar::Boolean(true)),
@@ -49,12 +92,46 @@ impl Analysis<'_> {
     }
 
     fn operation(&mut self, operation: &Operation) -> Option<()> {
-        if operation.declared_invocation().is_some() {
-            return super::inert_unit_call(self.module, operation).then_some(());
+        if let Some(call) = operation.declared_invocation() {
+            if super::inert_unit_call(self.module, operation) {
+                return Some(());
+            }
+            self.scalar_types.as_ref()?;
+            let result = operation.result.scalar()?;
+            let args = call
+                .arguments
+                .iter()
+                .map(|id| self.words.get(id)?.input())
+                .collect::<Option<_>>()?;
+            let value = self.predicate.expressions.helper(self.module, call, args);
+            return bind(&mut self.words, result.id, Word::from(value));
         }
         let target = operation.result.scalar()?.id;
         let word = if let Some(value) = constant(operation) {
             Word::Literal(value)
+        } else if let Some(types) = &self.scalar_types {
+            if let OperationKind::AtomicAccess {
+                place,
+                path,
+                event: AtomicAccessEvent::Load { .. },
+                resident_obligation: None,
+            } = &operation.kind
+            {
+                self.first_read.get_or_insert(operation.id);
+                let subject = self.subject(*place, path)?;
+                Word::Computed(
+                    self.predicate
+                        .expressions
+                        .load(subject, operation.result.scalar()?.scalar_type),
+                )
+            } else {
+                let words = &self.words;
+                Word::Computed(
+                    self.predicate
+                        .expressions
+                        .apply(operation, types, |id| words.get(&id)?.input())?,
+                )
+            }
         } else {
             match &operation.kind {
                 OperationKind::AtomicAccess {
@@ -63,8 +140,31 @@ impl Analysis<'_> {
                     event: AtomicAccessEvent::Load { .. },
                     resident_obligation: None,
                 } => {
-                    self.observations += 1;
-                    Word::Cell(self.resources.subject(*place, path)?)
+                    self.first_read.get_or_insert(operation.id);
+                    Word::Cell(self.subject(*place, path)?, None)
+                }
+                OperationKind::IntegerBitwiseAnd { left, right } => {
+                    let left = self.words.get(left)?;
+                    let right = self.words.get(right)?;
+                    let operand = |word: &Word| match word {
+                        Word::Literal(value) => Some(Operand::Literal(*value)),
+                        Word::Argument(formal) => Some(*formal),
+                        _ => None,
+                    };
+                    let (word, mask) = if let Some(mask) = operand(right) {
+                        (left, mask)
+                    } else {
+                        (right, operand(left)?)
+                    };
+                    match word {
+                        Word::Cell(subject, prior) => {
+                            Word::Cell(subject.clone(), Some(mask.intersect(*prior)?))
+                        }
+                        Word::Literal(left) => {
+                            Word::Literal(super::condition::masked(*left, Some(mask.literal()?))?)
+                        }
+                        _ => return None,
+                    }
                 }
                 OperationKind::BooleanNot { operand } => {
                     let word = self.words.get(operand)?.clone();
@@ -75,16 +175,33 @@ impl Analysis<'_> {
                     let left = self.words.get(&a)?.clone();
                     let right = self.words.get(&b)?.clone();
                     let (word, pivot, order) = match (left, right) {
-                        (word, Word::Literal(pivot)) => (word, pivot, order),
-                        (Word::Literal(pivot), word) => (word, pivot, order.reverse()),
+                        (word, Word::Literal(pivot)) => (word, Operand::Literal(pivot), order),
+                        (Word::Literal(pivot), word) => {
+                            (word, Operand::Literal(pivot), order.reverse())
+                        }
+                        (word, Word::Argument(pivot)) => (word, pivot, order),
+                        (Word::Argument(pivot), word) => (word, pivot, order.reverse()),
                         _ => return None,
                     };
                     let condition = SpinCondition {
-                        comparison: Comparison { pivot, order },
+                        comparison: Comparison {
+                            pivot,
+                            order,
+                            mask: None,
+                        },
                         positive,
                     };
                     let result = match word {
-                        Word::Cell(subject) => self.predicate.observe(subject, condition),
+                        Word::Cell(subject, mask) => self.predicate.observe(
+                            subject,
+                            SpinCondition {
+                                comparison: Comparison {
+                                    mask,
+                                    ..condition.comparison
+                                },
+                                ..condition
+                            },
+                        ),
                         Word::Literal(value) => {
                             if condition.matches(value)? {
                                 ALWAYS
@@ -93,7 +210,7 @@ impl Analysis<'_> {
                             }
                         }
                         Word::Boolean(value) if order.is_eq() => {
-                            let Scalar::Boolean(bit) = pivot else {
+                            let Scalar::Boolean(bit) = pivot.literal()? else {
                                 return None;
                             };
                             if positive == bit { value } else { !value }
@@ -125,12 +242,14 @@ impl Analysis<'_> {
             if formal.access != StructuralAccess::SharedBorrow || arg.access != formal.access {
                 return None;
             }
-            let subject = self.resources.subject(arg.place, &arg.path)?;
+            let subject = self.subject(arg.place, &arg.path)?;
             bind(&mut self.resources.places, formal.place, subject)?;
         }
         if repeat && target == self.header {
-            if !scalars.is_empty() {
-                return None;
+            for (formal, actual) in block.parameters.iter().zip(scalars) {
+                if self.words.get(&formal.id)? != self.words.get(actual)? {
+                    return None;
+                }
             }
             self.predicate.retry = self.predicate.either(self.predicate.retry, guard);
             return Some(());
@@ -202,7 +321,29 @@ impl Analysis<'_> {
 pub(super) fn derive(
     module: &terminal_psi::TerminalModule,
     machine: &TerminalMachine,
-) -> Option<Predicate> {
+) -> Option<(OperationId, Predicate)> {
+    derive_with(module, machine, None).or_else(|| {
+        if !machine.operations().any(|op| {
+            matches!(
+                &op.kind,
+                OperationKind::AtomicAccess {
+                    event: AtomicAccessEvent::Load { .. },
+                    ..
+                }
+            )
+        }) {
+            return None;
+        }
+        let types = crate::MachineScalarIndex::new(machine);
+        derive_with(module, machine, Some(types))
+    })
+}
+
+fn derive_with<'a>(
+    module: &'a terminal_psi::TerminalModule,
+    machine: &'a TerminalMachine,
+    scalar_types: Option<crate::MachineScalarIndex<'a>>,
+) -> Option<(OperationId, Predicate)> {
     let entry = machine.block(&machine.entry)?;
     let header = match &entry.terminator {
         Terminator::Jump {
@@ -217,10 +358,11 @@ pub(super) fn derive(
         machine,
         header,
         predicate: Predicate::new(),
+        scalar_types,
         resources: Subjects::at_entry(machine),
-        words: Facts::default(),
+        words: Operand::formals(machine, Word::Argument),
         reached: Facts::default(),
-        observations: 0,
+        first_read: None,
         returned: false,
     };
     if header != machine.entry {
@@ -271,8 +413,7 @@ pub(super) fn derive(
     }
     (done == incoming.len()
         && analysis.returned
-        && analysis.observations > 0
         && analysis.predicate.retry != NEVER
         && analysis.predicate.retry != ALWAYS)
-        .then_some(analysis.predicate)
+        .then_some((analysis.first_read?, analysis.predicate))
 }

@@ -7,9 +7,12 @@ empty. The separate `help_exit.stdin` route has its complete output in
 `expected_help_exit_stdout.txt`. From this folder, run both cases once per engine, using a fresh output directory for each run:
 
 ```sh
-omega run --engine native --input input.txt --input help_exit.stdin --outputs build/acceptance-native build.omg
-omega run --engine psi --input input.txt --input help_exit.stdin --outputs build/acceptance-psi build.omg
+omega run --input input.txt --input help_exit.stdin --outputs build/acceptance-native build.omg
+omega run --input input.txt --input help_exit.stdin --outputs build/acceptance-psi build.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/games/dungeon_crawler_cli` from the repository root.
 
 Both cases must exit zero in both engines. In each output directory, compare `input.stdout` with
 `expected_stdout.txt` and `help_exit.stdout` with
@@ -56,7 +59,7 @@ printf 'help\nexit\n\n' | omega run samples/cli/games/dungeon_crawler_cli/build.
 Both cases should exit 0 after the initial room and goodbye output; the second
 also prints command help.
 
-Verified on 2026-10-16 on macOS ARM64 through `omega run --both` with the
+Verified on 2026-10-16 on macOS ARM64 through the native/Psi comparison with the
 optimized Rust reference compiler (`CARGO_PROFILE_DEV_OPT_LEVEL=1`). Closed
 stdin and scripted `help\nexit\n\n` each returned 0 natively and in the Terminal
 interpreter with identical output. Both printed the authored opening room and
@@ -70,8 +73,7 @@ compiler (`CARGO_PROFILE_DEV_OPT_LEVEL=1`). Closed stdin printed the authored
 opening room and goodbye before exit 0 in 15.80 seconds. Scripted
 `help\nexit\n\n` input repeated the command help and exited 0 in 20.91 seconds.
 These times include compilation and execution; the preceding package refresh
-took 38.67 seconds. Both routes used the public `omega run` command with native
-EOF or a byte pipe as stdin. Other gameplay paths and hosts remain unverified
+took 38.67 seconds. The recorded runs used either closed stdin or a byte pipe. Other gameplay paths and hosts remain unverified
 by this run.
 
 The existing sample gate reads the standalone `Expected exit` and

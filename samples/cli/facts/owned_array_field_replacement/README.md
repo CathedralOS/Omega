@@ -38,7 +38,7 @@ all source inputs, contracts and runtime checks. It must reject install's OWN
 Ensures with `cannot prove ensures contract for exit from install`. A formation,
 access, incoming Requires or consumer failure is not the required falsifier.
 Positive samples and pins expect exit 0 with native/Terminal agreement via
-omega run --both. All four hosted Build entries are authored; execution records identify the
+omega run. All four hosted Build entries are authored; execution records identify the
 actual host and producer below.
 
 ## Places

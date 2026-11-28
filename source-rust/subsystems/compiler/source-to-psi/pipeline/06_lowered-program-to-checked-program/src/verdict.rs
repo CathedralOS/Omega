@@ -69,9 +69,11 @@ the other two as a `ConflictingUse`.
 
 use diagnostics::Diagnostic;
 use semantic_vocabulary::{MachineId, ObligationId};
+use terminal_check_tables::RootPurpose;
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::program::{Branch, Elaboration, SourceOrigin};
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason, UnprovedCause};
+use terminal_semantics::synchronization::ProgressScope;
 
 use crate::{Discharge, ImpossibleArm, describe, refusal};
 
@@ -939,7 +941,7 @@ pub(super) fn judge_owing_with_activity(
         Ok(examined) => conclude(
             examined,
             applied,
-            JudgmentSubject::SelectedClosure,
+            JudgmentSubject::SelectedClosure(RootPurpose::Execution),
             &mut further,
         ),
         Err(decided) => decided,
@@ -1101,18 +1103,18 @@ fn check_affine(
     let mut unsupported = Unsupported::default();
     let reference_ends =
         terminal_semantics::reference_ends::candidates_in(analyses).map_err(|error| {
-        fall_back_or_defect(
-            Roster::of(elaboration).locate(refusal(
-                RefusalReason::Unsupported,
-                error.machine,
-                error
-                    .operation
-                    .map(Construct::Operation)
-                    .unwrap_or(Construct::Machine),
-                &error.detail,
-            )),
-        )
-    })?;
+            fall_back_or_defect(
+                Roster::of(elaboration).locate(refusal(
+                    RefusalReason::Unsupported,
+                    error.machine,
+                    error
+                        .operation
+                        .map(Construct::Operation)
+                        .unwrap_or(Construct::Machine),
+                    &error.detail,
+                )),
+            )
+        })?;
     // Plans are computed on the workers, then read in machine order: the
     // first deciding refusal and the noted machines are those one pass meets.
     let plans = plan_affine_machines(analyses, &reference_ends);
@@ -1270,8 +1272,9 @@ fn plan_affine_machines(
 /// The affine plan of `machine`: its dead stored references each have an
 /// explicit last-use disposition, and its owned values are used affinely.
 /// Beside it, what the claim receiver (`minted::follow_the_lowered_form`)
-/// reads from `MachineAffine::verify_claims` on this same module. All the
-/// walks read `machine`'s borrowed-storage closure from the shared analyses.
+/// reads from `MachineAffine::verify_claims` on this same module. Two walks
+/// answer all three: the reference-end walk and `verify_with_claims`. Both
+/// read `machine`'s borrowed-storage closure from the shared analyses.
 fn affine_plan(
     analyses: &terminal_semantics::ModuleAnalyses<'_>,
     machine: MachineId,
@@ -1305,31 +1308,18 @@ fn affine_plan(
             "a dead stored reference has no explicit last-use disposition",
         ))));
     }
-    let mut plan = walks
-        .verify()
+    // One walk with claims answers both the verified schedule and the claim
+    // rows the receiver reads, on the graph the walk above built.
+    let (plan, received) = walks
+        .verify_with_claims()
         .map_err(|error| AffineRefusal::of(crate::minted::affine_refusal(machine, error)))?;
-    // `verify` walks in claim-verifying mode exactly when the machine has an
-    // owned cleanup, and only that mode yields claim rows. That walk is the
-    // one `verify_claims` runs, over the same module and summaries, so its
-    // answer is read here instead of walked again: the first unavailable
-    // place refuses, else the claim rows stand. Any other machine walks
-    // `verify_claims` itself, on the graph the walks above built.
-    let received = match plan.claims.take() {
-        Some(claims) => match plan.unavailable.first() {
-            Some(unavailable) => Err(terminal_semantics::plain_affine::Error::Unavailable(
-                unavailable.clone(),
-            )),
-            None => Ok(claims),
-        },
-        None => walks.verify_claims(),
-    }
-    .map_err(|error| crate::minted::affine_refusal(machine, error));
+    let received = received.map_err(|error| crate::minted::affine_refusal(machine, error));
     Ok((plan, received))
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum JudgmentSubject {
-    SelectedClosure,
+    SelectedClosure(RootPurpose),
     GenericFormOrWitness,
 }
 
@@ -1582,12 +1572,16 @@ fn conclude(
             exceeded,
         });
     }
-    if subject == JudgmentSubject::SelectedClosure
+    if let JudgmentSubject::SelectedClosure(purpose) = subject
         && let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = elaboration.module.entry
         && let Some(failure) = terminal_semantics::synchronization::private_wait_failure(
             &elaboration.module,
             entry,
-            |_| None,
+            match purpose {
+                RootPurpose::Execution => ProgressScope::Executable,
+                RootPurpose::Inspection => ProgressScope::OpenInterface,
+            },
+            |_| Some(terminal_semantics::synchronization::SelectedCall::PendingProvider),
         )
     {
         use terminal_semantics::synchronization::ProgressFailure;
@@ -1599,11 +1593,14 @@ fn conclude(
                     RefusalReason::Violation,
                     machine,
                     at,
-                    "synchronization deadlock: this call retries on an unchanged private atomic cell; no other participant can release it",
+                    &format!("synchronization deadlock: {}", failure.cause.detail()),
                 );
                 return fall_back_or_defect(Roster::of(&elaboration).locate(violation));
             }
-            ProgressFailure::Unproved => {
+            ProgressFailure::Unproved
+            | ProgressFailure::UnprovedExternal
+            | ProgressFailure::UnprovedImport
+            | ProgressFailure::UnprovedContinuation => {
                 let sources =
                     terminal_check_tables::row(&elaboration.sources, machine, machine, at)?;
                 unproved.push(UnprovedObligation {
@@ -1614,8 +1611,8 @@ fn conclude(
                     },
                     site: source_of(sources, machine, at)?,
                     cause: UnprovedCause::NoDerivation,
-                    detail: "the initial value may keep the call waiting and no other participant can change this private cell".into(),
-                    statement: "cannot prove synchronization progress at this call".into(),
+                    detail: failure.cause.detail().into(),
+                    statement: "cannot prove synchronization progress at this wait".into(),
                     consumed: None,
                 });
             }
@@ -1742,7 +1739,8 @@ fn conclude(
     // Only a published closure carries operation evidence seals. Generic check
     // forms and conformance witnesses are never published (`publication.rs`
     // retains only their elaboration and discharge for advisories).
-    let seals = if subject == JudgmentSubject::SelectedClosure && elaboration.generic_binders.is_empty()
+    let seals = if matches!(subject, JudgmentSubject::SelectedClosure(_))
+        && elaboration.generic_binders.is_empty()
     {
         match discharged.operation_seals(&elaboration) {
             Ok(seals) => seals,
@@ -1892,7 +1890,7 @@ fn judge_compilation_with_activity_and_policy(
                 Ok(examined) => conclude(
                     examined,
                     AppliedContracts::Undecided,
-                    JudgmentSubject::SelectedClosure,
+                    JudgmentSubject::SelectedClosure(prepared.root_purpose),
                     &mut further,
                 ),
                 Err(decided) => decided,

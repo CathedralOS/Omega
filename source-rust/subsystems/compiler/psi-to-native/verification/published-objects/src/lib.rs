@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 
 mod allocation;
+mod backing_geometry;
 
 use image_emission::{FragmentReplay, ObjectArtifact, RetainedTargetOperations};
 
@@ -356,11 +357,9 @@ pub fn verify_retained_target_operations(
         .map_err(|error| diagnostics::Diagnostic::error(format!("target-operation source audit failed: {error:?}")))?;
     // Every access reference native program planning established must land on backing
     // the selected program actually allocates. Ordinary emission builds
-    // from the current program, so this check runs here and in the object
-    // replay, not on the default path.
-    replay
-        .verify_access_geometry()
-        .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))?;
+    // from the current program, so this check runs only on this audit.
+    verify_access_geometry(replay, original)?;
+    verify_function_abis(artifact, current.working_program_for_validation())?;
     // The validator judges the plan published for this object,
     // not a plan prepared again here.
     target_lowering::replay::verify_execution_plan(
@@ -384,8 +383,113 @@ pub fn verify_retained_target_operations(
     Ok(())
 }
 
+/// Prove each access reference stage 04 formed against the backing the retained
+/// selected program allocates for its source.
+fn verify_access_geometry(
+    replay: &FragmentReplay,
+    original: &RetainedTargetOperations,
+) -> Result<(), diagnostics::Diagnostic> {
+    use target_operations::TargetUnitOperation;
+    let current = original.target_for_correspondence();
+    let selected = &replay
+        .original_encoding()
+        .ok_or_else(|| {
+            diagnostics::Diagnostic::error(
+                "original physical instructions were not retained (ReplayUnavailable)",
+            )
+        })?
+        .physical;
+    let abstracted = current.optimized().plan();
+    let targeted = current.working_program_for_validation();
+    let forms_references = targeted.functions.iter().any(|function| {
+        function.graph.operations().any(|operation| {
+            matches!(
+                operation,
+                TargetUnitOperation::EstablishAccessReference { .. }
+            )
+        })
+    });
+    if !forms_references {
+        return Ok(());
+    }
+    let graph = backing_geometry::completed_graph(abstracted, targeted).ok_or_else(|| {
+        diagnostics::Diagnostic::error("placed formation has no complete reference-origin graph")
+    })?;
+    let mut geometry =
+        backing_geometry::BackingGeometry::new(abstracted, selected, targeted, &graph);
+    for function in &targeted.functions {
+        for operation in function.graph.operations() {
+            if let TargetUnitOperation::EstablishAccessReference {
+                psi_operation,
+                result_home,
+                source,
+                correspondence,
+                ..
+            } = operation
+            {
+                geometry
+                    .proves(
+                        function.machine,
+                        result_home.place(),
+                        source,
+                        correspondence,
+                    )
+                    .map_err(|reason| {
+                        diagnostics::Diagnostic::error(format!(
+                            "placed backing geometry at {:?}/{psi_operation:?}: {reason}",
+                            function.machine
+                        ))
+                    })?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Each emitted function keeps the scalar, mixed and parameter calling contract
+/// stage 04 lowered for it.
+fn verify_function_abis(
+    artifact: &ObjectArtifact,
+    targeted: &target_operations::TargetOperationPlan,
+) -> Result<(), diagnostics::Diagnostic> {
+    for function in artifact.functions() {
+        let mut lowered = targeted
+            .functions
+            .iter()
+            .filter(|row| row.machine == function.machine);
+        let (Some(lowered), None) = (lowered.next(), lowered.next()) else {
+            return Err(diagnostics::Diagnostic::error(
+                "shared function has no unique current source",
+            ));
+        };
+        let graph = &lowered.graph;
+        let publishes_parameters = target_operations::function_abi::publishes_parameter_abi(
+            &graph.call_plan,
+            &graph.scalar_parameters,
+            &graph.parameters,
+            lowered.scalar_abi.is_some() || lowered.mixed_structural_scalar_abi.is_some(),
+        );
+        let parameter_matches = match (&function.parameter_abi, publishes_parameters) {
+            (None, false) => true,
+            (Some(actual), true) => {
+                actual.call_plan == graph.call_plan && actual.parameters == graph.scalar_parameters
+            }
+            _ => false,
+        };
+        if function.scalar_abi != lowered.scalar_abi
+            || function.mixed_structural_scalar_abi != lowered.mixed_structural_scalar_abi
+            || !parameter_matches
+        {
+            return Err(diagnostics::Diagnostic::error(
+                "shared object function differs from retained original",
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// The native planning output retained beside this object, joined to it: the current
-/// allocation must name the pre-physical manifest that output carried.
+/// allocation must name the unit, selections and budget that output was lowered under.
 fn retained_target<'replay>(
     replay: &'replay FragmentReplay,
     audit: &str,
@@ -398,15 +502,15 @@ fn retained_target<'replay>(
         .frame_application_for_audit()
         .source()
         .source();
+    let optimized = original.target_for_correspondence().optimized();
+    let allocation = current.post_allocation_manifest().record();
     if !original.belongs_to(&replay.fragment_source().emission_facts().semantic)
-        || current.post_allocation_manifest().record().pre_physical
-            != original
-                .target_for_correspondence()
-                .optimized()
-                .pre_physical_manifest()
+        || allocation.optimization_unit != optimized.unit().identity
+        || allocation.selection != optimized.selections().identity()
+        || allocation.budget_per_pass != optimized.budget_per_pass()
     {
         return Err(diagnostics::Diagnostic::error(format!(
-            "{audit} audit: retained target operations name another pre-physical manifest"
+            "{audit} audit: retained target operations name another unit, selection or budget"
         )));
     }
     Ok(original)

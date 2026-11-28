@@ -2099,11 +2099,11 @@ pub(crate) mod pre_allocation {
             receipt: &StagedPreAllocationOptimizationCustodyReceipt,
         ) -> PreAllocationOptimizationCompletionIdentity {
             let mut canonical = Vec::new();
-            canonical.extend_from_slice(b"omega.pre-allocation-optimization-completion.v8\0");
+            canonical.extend_from_slice(b"omega.pre-allocation-optimization-completion.v9\0");
             let source = receipt.source;
             for identity in [
-                source.optimization().bytes(),
-                source.manifest().bytes(),
+                source.optimization_unit().bytes(),
+                source.selection().bytes(),
                 source.register_environment().bytes(),
                 source.allocator_availability().bytes(),
                 receipt.selections.bytes(),
@@ -2115,6 +2115,7 @@ pub(crate) mod pre_allocation {
                 &mut canonical,
                 receipt.policy.canonical_bits().to_le_bytes(),
             );
+            canonical.extend_from_slice(&source.budget_per_pass().encode());
             canonical.extend_from_slice(&receipt.budget.encode());
             canonical.extend_from_slice(&receipt.usage.encode());
             for count in [

@@ -1,6 +1,6 @@
 # Owned resource handoff
 
-Run `omega run --both samples/cli/memory/owned_resource_handoff/main.omg`.
+Run `mbx xtask sample-gate --filter samples/cli/probes/owned_resource_handoff`.
 The authored exit is 0: resources issued with identities 41 and 73 retain
 their exact Open qualification through state arrivals, including an acquisition
 result payload, and are consumed once after observation.

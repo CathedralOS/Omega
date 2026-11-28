@@ -21,7 +21,7 @@ must reject the required `value <= 60` fact.
 
 ## Historical target-family run record
 
-- All nine positives, `omega run --both <place>/main.omg`: `native exit 0` and
+- All nine positives, the native/Psi comparison: `native exit 0` and
   `interp exit: 0`.
 - All nine twins, `omega --check <place>/invalid/main.omg`: exit 1 with the
   authored `expected.txt` fragments `violates required fact` and
@@ -67,7 +67,7 @@ and [call markers](../../../../wiki/spec/language/effects.md#call-site-acknowled
 - Omega 07–09 and emission: the native image must execute the same branch and
   subtraction result as Terminal Psi. Cross-production is not foreign execution.
 
-Run a positive with `omega run --both <place>/main.omg`; both engines must exit
+Run a positive with `mbx xtask sample-gate --filter samples/cli/facts/target_recursive_bound/<place>`; both engines must exit
 0. Run its twin with `omega --check <place>/invalid/main.omg`; it must reject the
 authored precondition. Host/producer-bound observations belong in the
 qualification and claim records. Windows native execution remains deferred to a
@@ -98,7 +98,7 @@ On macOS arm64, the retained optimized `f6273e83f99c` corpus producer checks
 all nine positives; all nine reject twins refuse the supplied 61 with their
 authored bound diagnostic. Its native/Terminal run builds all nine positives,
 with exit 0 from each engine and agreement. The retained optimized `fbd577583f38`
-CLI separately runs the nine authored sample programs with `--both`, each exit 0;
+CLI separately runs the nine authored sample programs with the native/Psi comparison, each exit 0;
 all nine sample controls reject the same bound. Producer source, effective
 profiles, exact source/oracle inputs and raw observations are retained in
 `build/target-recursive-retirement-20261101` in the working checkout.

@@ -375,10 +375,7 @@ fn check_published_plan(body: &target_lowering::NativeBodyPlan, entry: MachineId
     );
     changed_reach.reached_machines.push(foreign_machine);
     let mut foreign_roots = original_facts.roots();
-    foreign_roots.pre_physical =
-        optimization_core::PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(
-            b"foreign prephysical root",
-        );
+    foreign_roots.selection = optimization_core::OptimizationSelectionIdentity::from_bytes([9; 32]);
     for facts in [
         target_operations::NativeExecutionFacts::seal(
             original_facts.roots(),

@@ -81,9 +81,9 @@ an independently rejected out-of-bounds array access.
 From repository root, with a compiler built from the recorded candidate:
 
 ```sh
-omega packages update --project samples/cli/independent/differential_expression --target linux_x86_64
+omega packages update --project samples/cli/scientific/differential_expression --target linux_x86_64
 # Inspect the exact generated source and capability review, then resume it.
-omega run --keep samples/cli/independent/differential_expression/main.omg < samples/cli/independent/differential_expression/data/realistic.stdin
+omega run --keep samples/cli/scientific/differential_expression/main.omg < samples/cli/scientific/differential_expression/data/realistic.stdin
 ```
 
 The private Rust `validation/terminal-driver` uses the ordinary package manager
@@ -97,5 +97,5 @@ are checked against the same frozen numerical oracle. Receipts live in ignored
 After observing Terminal, the driver publishes that same retained native product
 through the ordinary product API and prints its executable path.
 
-The retained build path is printed by `run --keep`; reuse that unchanged native
-application for all fixture inputs.
+To collect native results, compile with `omega main.omg` and launch the reported
+executable for each fixture input.

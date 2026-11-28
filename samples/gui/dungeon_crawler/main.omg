@@ -7,6 +7,82 @@ use {omega}/language/core/process_exit.omg;
 use {system}/console.omg;
 use {system}/windows_gui_host.omg;
 
+public const SIMULATION_HZ: u64 = 60;
+public const MAX_STEPS_PER_FRAME: u32 = 4;
+
+public data FramePacer
+requires step_ticks >= 1 && step_ticks <= 1_000_000_000, max_delta >= step_ticks && max_delta <= 4_000_000_000, accumulator <= max_delta {
+    step_ticks: u64;
+    max_delta: u64;
+    last_counter: u64;
+    accumulator: u64;
+}
+
+public machine init_pacer(ok: bool, frequency: u64, now: u64) -> FramePacer {
+    transition ok && frequency >= SIMULATION_HZ && frequency <= 60_000_000_000 {
+        true -> from_frequency(frequency, now),
+        _ -> fallback(now)
+    }
+    machine from_frequency(frequency: u64, now: u64) -> FramePacer
+    requires frequency >= SIMULATION_HZ && frequency <= 60_000_000_000 {
+        let step: u64 = frequency / SIMULATION_HZ;
+        transition step >= 1 && step <= 1_000_000_000 {
+            true -> check_limit(step, now),
+            _ -> fallback(now)
+        }
+    }
+    machine check_limit(step: u64, now: u64) -> FramePacer
+    requires step >= 1 && step <= 1_000_000_000 {
+        let limit: u64 = step * 4;
+        transition limit >= step && limit <= 4_000_000_000 {
+            true -> build_pacer(step, limit, now),
+            _ -> fallback(now)
+        }
+    }
+    machine build_pacer(step: u64, limit: u64, now: u64) -> FramePacer
+    requires step >= 1 && step <= 1_000_000_000 && limit >= step && limit <= 4_000_000_000 {
+        FramePacer { step_ticks: step, max_delta: limit, last_counter: now, accumulator: 0 }
+    }
+    machine fallback(now: u64) -> FramePacer {
+        FramePacer { step_ticks: 166_667, max_delta: 666_668, last_counter: now, accumulator: 0 }
+    }
+}
+
+public machine advance_pacer(pacer: @mutable FramePacer, ok: bool, now: u64) {
+    let last: u64 = pacer.last_counter;
+    transition ok && now > last {
+        true -> add_delta(pacer, now, now - last),
+        _ -> reset_counter(pacer, now, ok)
+    }
+    machine add_delta(pacer: @mutable FramePacer, now: u64, raw_delta: u64) {
+        pacer.last_counter = now;
+        transition raw_delta >= pacer.max_delta {
+            true -> clamp_max(pacer),
+            _ -> accumulate(pacer, raw_delta)
+        }
+    }
+    machine accumulate(pacer: @mutable FramePacer, delta: u64) requires delta < pacer.max_delta {
+        let next: u64 = pacer.accumulator + delta;
+        transition next >= pacer.max_delta {
+            true -> clamp_max(pacer),
+            _ -> set_acc(pacer, next)
+        }
+    }
+    machine set_acc(pacer: @mutable FramePacer, next: u64) requires next <= pacer.max_delta {
+        pacer.accumulator = next;
+    }
+    machine clamp_max(pacer: @mutable FramePacer) {
+        pacer.accumulator = pacer.max_delta;
+    }
+    machine reset_counter(pacer: @mutable FramePacer, now: u64, ok: bool) {
+        transition ok { true -> store_now(pacer, now), _ -> done() }
+    }
+    machine store_now(pacer: @mutable FramePacer, now: u64) {
+        pacer.last_counter = now;
+    }
+    machine done() {}
+}
+
 public data Main
 requires cursor <= |configuration|::FRAME_PIXELS, pumped <= |configuration|::EVENT_BUDGET, direction >= -1 && direction < 4 {
     game: |game|::Game;

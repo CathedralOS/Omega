@@ -63,11 +63,8 @@ their lexicographic minimum. This differs from Omega's 10,000-word filter. The
 oracle and 22 fixtures were frozen before any Omega run. Absolute/relative
 tolerances are both zero. Inputs cover flat corridors, forced dips and rises,
 step-limited ascents and descents, tied optima, narrow bounds, exact/infeasible
-ends, EOF, and malformed records. `--route both` compiles once with `omega run
---both --inputs data` and compares each case's real native and Terminal stdout,
-stderr and exit, not only termination. Program stderr must be empty. When executing
-through `omega run`, the native route also requires the CLI's exact native exit
-report; unexpected stderr fails validation.
+ends, EOF, and malformed records. The original driver compared each case’s native and interpreted stdout, stderr
+and exit. Program stderr must be empty.
 
 The separate [intended-invalid source](controls/intended_invalid/main.omg)
 is a complete dependency-free package source that writes index four of a

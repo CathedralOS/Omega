@@ -12,7 +12,7 @@ fn fixture(tier: &str) -> std::path::PathBuf {
 }
 
 #[test]
-fn generic_record_fields_survive_construction_and_calls_in_both_engines() {
+fn generic_record_fields_survive_construction_and_calls_when_interpreted_and_built() {
     program::assert_fixture_silent_return(&fixture("run"));
 }
 

@@ -2,11 +2,15 @@
 
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 use terminal_psi::{
-    BoundaryMachineDeclaration, NominalDeclarationIdentity, StructuralPathSegment,
-    StructuralTypeShape, TerminalIdentityIndex, TerminalModule, find_structural_type,
+    BoundaryMachineDeclaration, NominalDeclarationIdentity, StructuralTypeShape,
+    TerminalIdentityIndex, TerminalModule, find_structural_type,
 };
 
-use super::{SpinWait, selected_spin_wait};
+
+use super::private_cells::normal_effects;
+use super::spin::{Operand, Subject, type_path};
+use super::{NormalEffects, SpinWait, selected_spin_wait};
+use terminal_psi::StructuralPathSegment as Segment;
 
 /// The caller has matched the boundary signature, argument order and exact
 /// provider selection. Read the exported body from that artifact. Every field
@@ -18,21 +22,56 @@ pub fn component_spin_wait(
     candidate: MachineId,
 ) -> Option<SpinWait> {
     let body = producer.machine(candidate)?;
-    selected_spin_wait(producer, candidate, |_| None)?.map_subjects(|subject| {
-        let source = body.structural_parameters.get(subject.parameter)?;
-        let target = receiving.structural_parameters.get(subject.parameter)?;
-        if source.access != target.access {
-            return None;
+    selected_spin_wait(producer, candidate, |_| None)?
+        .map_subjects(|subject| translate_subject(producer, body, receiver, receiving, subject))
+}
+
+/// Translate only events established by the exact selected exported body.
+pub fn component_normal_effects(
+    receiver: &TerminalModule,
+    receiving: &BoundaryMachineDeclaration,
+    producer: &TerminalModule,
+    candidate: MachineId,
+) -> Option<NormalEffects> {
+    let body = producer.machine(candidate)?;
+    let mut effects = normal_effects(producer, candidate, |_| None)?;
+    effects.map_operands(|operand| {
+        if let Operand::Parameter {
+            position,
+            scalar_type,
+        } = operand
+        {
+            (body.parameters.get(position)?.scalar_type == scalar_type
+                && *receiving.scalar_parameters.get(position)? == scalar_type)
+                .then_some(())?;
         }
-        subject.path = translate_cell(
-            producer,
-            source.structural_type,
-            receiver,
-            target.structural_type,
-            &subject.path,
-        )?;
-        Some(())
-    })
+        Some(operand)
+    })?;
+    effects
+        .map_subjects(|subject| translate_subject(producer, body, receiver, receiving, subject))?;
+    Some(effects)
+}
+
+fn translate_subject(
+    producer: &TerminalModule,
+    body: &terminal_psi::TerminalMachine,
+    receiver: &TerminalModule,
+    receiving: &BoundaryMachineDeclaration,
+    subject: &mut Subject,
+) -> Option<()> {
+    let source = body.structural_parameters.get(subject.parameter)?;
+    let target = receiving.structural_parameters.get(subject.parameter)?;
+    if source.access != target.access {
+        return None;
+    }
+    subject.path = translate_cell(
+        producer,
+        source.structural_type,
+        receiver,
+        target.structural_type,
+        &subject.path,
+    )?;
+    Some(())
 }
 
 fn translate_cell(
@@ -40,8 +79,8 @@ fn translate_cell(
     source_root: StructuralTypeId,
     receiver: &TerminalModule,
     target_root: StructuralTypeId,
-    path: &[StructuralPathSegment],
-) -> Option<Vec<StructuralPathSegment>> {
+    path: &[Segment],
+) -> Option<Vec<Segment>> {
     let same_declaration = |left: TerminalIdentityIndex, right: TerminalIdentityIndex| {
         NominalDeclarationIdentity::new(left).same_identity_as(
             &producer.identities,
@@ -56,7 +95,7 @@ fn translate_cell(
         let left = find_structural_type(&producer.types.structural_types, source)?;
         let right = find_structural_type(&receiver.types.structural_types, target)?;
         match segment {
-            StructuralPathSegment::Field(identity) => {
+            Segment::Field(identity) => {
                 if !same_declaration(left.identity, right.identity)
                     || !same_declaration(left.declaration_identity, right.declaration_identity)
                 {
@@ -86,9 +125,9 @@ fn translate_cell(
                         .as_structural()
                         .or(destination.inline_carrier)?;
                 }
-                translated.push(StructuralPathSegment::Field(destination.identity));
+                translated.push(Segment::Field(destination.identity));
             }
-            StructuralPathSegment::FixedIndex(index) => {
+            Segment::FixedIndex(_) | Segment::FixedRange { start: 0, .. } => {
                 let (
                     StructuralTypeShape::FixedArray {
                         element: a,
@@ -103,22 +142,34 @@ fn translate_cell(
                     return None;
                 };
                 let extent = a_len.literal()?;
-                if b_len.literal()? != extent || *index >= extent {
+                if b_len.literal()? != extent
+                    || match segment {
+                        Segment::FixedIndex(index) => *index >= extent,
+                        Segment::FixedRange {
+                            start: 0,
+                            end: expected,
+                        } => *expected != extent || extent == 0,
+                        _ => return None,
+                    }
+                {
                     return None;
                 }
                 source = *a;
                 target = *b;
-                translated.push(StructuralPathSegment::FixedIndex(*index));
+                translated.push(segment.clone());
             }
             _ => return None,
         }
     }
-    let observed =
-        crate::atomic_cell_type(producer.types.structural_types.iter(), source_root, path)?;
+    let observed = crate::atomic_cell_type(
+        producer.types.structural_types.iter(),
+        source_root,
+        &type_path(path),
+    )?;
     let imported = crate::atomic_cell_type(
         receiver.types.structural_types.iter(),
         target_root,
-        &translated,
+        &type_path(&translated),
     )?;
     (observed == imported).then_some(translated)
 }
@@ -135,7 +186,7 @@ mod tests {
     fn signal(
         prior_identity: Option<&str>,
         declaration: &str,
-    ) -> (TerminalModule, StructuralTypeId, Vec<StructuralPathSegment>) {
+    ) -> (TerminalModule, StructuralTypeId, Vec<Segment>) {
         let mut names = TerminalIdentityTableBuilder::default();
         if let Some(identity) = prior_identity {
             names.intern(identity);
@@ -173,7 +224,38 @@ mod tests {
                 requires: Vec::new(),
             });
         module.identities = names.build();
-        (module, root, vec![StructuralPathSegment::Field(word)])
+        (module, root, vec![Segment::Field(word)])
+    }
+
+    #[test]
+    fn imported_array_subjects_require_the_same_extent_and_field_declaration() {
+        let array = |module: &mut TerminalModule, element, length| {
+            let mut declaration = module.structural_type(element).unwrap().clone();
+            declaration.id = StructuralTypeId::new(2).unwrap();
+            declaration.shape = StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            };
+            let id = declaration.id;
+            module.types.structural_types.push(declaration);
+            id
+        };
+        let (mut producer, element, fields) = signal(None, "signals::Signal.word");
+        let root = array(&mut producer, element, 4);
+        let selector = Segment::FixedRange { start: 0, end: 4 };
+        let at = |mut fields: Vec<Segment>| {
+            fields.insert(0, selector.clone());
+            fields
+        };
+        let source = at(fields);
+        for (extent, matches) in [(4, true), (3, false)] {
+            let (mut destination, element, fields) = signal(Some("local"), "signals::Signal.word");
+            let target = array(&mut destination, element, extent);
+            assert_eq!(
+                translate_cell(&producer, root, &destination, target, &source),
+                matches.then(|| at(fields))
+            );
+        }
     }
 
     #[test]

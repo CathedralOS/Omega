@@ -1196,6 +1196,11 @@ impl<'t> Program<'t> {
             .then_some(implementation)
             .or(self.signature_view_owner);
         let outer = std::mem::replace(&mut self.signature_view_owner, owner);
+        let conformance = self
+            .typed
+            .owned_conformance_realization(implementation)
+            .map(|(conformance, _)| conformance.symbol);
+        let outer_conformance = std::mem::replace(&mut self.witness_conformance, conformance);
         let witnessed = if self.rigid {
             let implementation = self
                 .typed
@@ -1203,13 +1208,14 @@ impl<'t> Program<'t> {
                 .ok_or_else(|| {
                     crate::read::unavailable(id, "the refinement check lost its implementation")
                 })?;
-            self.with_method_type_parameters(id, implementation, declared, |program| {
+            self.with_method_parameters(id, implementation, declared, |program| {
                 program.witnessed_signature(declared, arguments, expected)
             })
         } else {
             self.witnessed_signature(declared, arguments, expected)
         };
         self.signature_view_owner = outer;
+        self.witness_conformance = outer_conformance;
         Ok((witnessed?, source))
     }
 
@@ -1232,9 +1238,9 @@ impl<'t> Program<'t> {
         expected: Option<&'t StateSignature>,
     ) -> Checked<MachineRow> {
         let ((signature, names), value_parameters) = if self.rigid && arguments.is_empty() {
-            // The witness receives each unspecialized const as a scalar input,
+            // The witness receives each unspecialized const as a typed input,
             // just like the declaration whose contract it checks.
-            let parameters = self.requirement_binders(id, declared)?.len();
+            let parameters = self.requirement_value_sources(id, declared)?.len();
             let header =
                 self.applied_requirement_signature(id, declared, RequirementValues::Rigid)?;
             (header, parameters)
@@ -1329,6 +1335,32 @@ impl<'t> Program<'t> {
         std::sync::Arc::make_mut(&mut self.source_scope)
             .rigid_parameters
             .extend(parameters.iter().map(|parameter| parameter.symbol));
+        self.rigid_requirement_header(declared)
+    }
+
+    /// Static callables are checked in the receiving type scope in both an
+    /// open declaration and a generic caller's application of that declaration.
+    fn rigid_requirement_header(&mut self, declared: &StateSignature) -> Checked<MachineId> {
+        let context = self.next_identity()?;
+        for parameter in self.typed.state_signature_type_parameters(declared) {
+            if let crate::source_state::data::TypeParameterKind::Machine { contract } =
+                &parameter.kind
+            {
+                let signature = self
+                    .typed
+                    .machine_parameter_contract_view(contract)
+                    .ok_or_else(|| {
+                        refuse_at(
+                            context,
+                            Unserved::Call(
+                                "a requirement callback needs its declared callable contract",
+                            ),
+                        )
+                    })?
+                    .signature();
+                self.binder_requirement(parameter.symbol, signature, &[])?;
+            }
+        }
         self.requirement_form(
             RequirementHeaderOrigin::Declared(declared.symbol),
             declared,
@@ -1362,11 +1394,7 @@ impl<'t> Program<'t> {
         let source = self.extended_source_scope(type_sources);
         let outer_source = std::mem::replace(&mut self.source_scope, source);
         let outer = std::mem::replace(&mut self.scope, binders.into_iter().zip(types).collect());
-        let header = self.requirement_form(
-            RequirementHeaderOrigin::Declared(declared.symbol),
-            declared,
-            RequirementValues::Rigid,
-        );
+        let header = self.rigid_requirement_header(declared);
         self.scope = outer;
         self.source_scope = outer_source;
         header
@@ -1476,7 +1504,7 @@ impl<'t> Program<'t> {
             RequirementValues::Bound(arguments) => (arguments, 0),
             RequirementValues::Rigid => (
                 &[][..],
-                self.requirement_binders(self.next_identity()?, declared)?
+                self.requirement_value_sources(self.next_identity()?, declared)?
                     .len(),
             ),
         };
@@ -2087,10 +2115,12 @@ impl<'t> Program<'t> {
             // Dependent integer carriers are read after their width inputs
             // have been prepared, as before. Array extents currently require
             // a closed carrier, so only direct scalar binders enter this map.
-            if !matches!(
-                typed.type_reference_table.type_reference(*type_reference),
-                TypeReferenceNode::Named { .. }
-            ) {
+            if !shapes[formals.len() + position].declared
+                || !matches!(
+                    typed.type_reference_table.type_reference(*type_reference),
+                    TypeReferenceNode::Named { .. }
+                )
+            {
                 continue;
             }
             let scalar_type = self.scalar_type(id, *type_reference)?;
@@ -2118,6 +2148,38 @@ impl<'t> Program<'t> {
             },
             inputs,
         ))
+    }
+
+    /// Unspecialized machines and requirements receive the same typed input
+    /// for a static value. A structural constant occupies a place of its
+    /// declared carrier just as a closed application does.
+    fn static_value_binder(
+        &mut self,
+        id: MachineId,
+        symbol: SymbolHandle,
+        type_reference: TypeReferenceHandle,
+    ) -> Checked<ValueBinder> {
+        let value_type = self.value_type(id, type_reference)?;
+        if !matches!(
+            value_type.scalar(),
+            Some(
+                semantic_vocabulary::ScalarType::Integer(_)
+                    | semantic_vocabulary::ScalarType::Boolean
+            )
+        ) && !crate::source_state::canonical_const_carrier_is_supported(
+            self.typed,
+            type_reference,
+        ) {
+            return Err(refuse_at(
+                id,
+                Unserved::Parameter("value parameter without a supported static carrier"),
+            ));
+        }
+        Ok(ValueBinder {
+            symbol,
+            name: self.typed.symbols.name(symbol).to_owned(),
+            value_type,
+        })
     }
 
     /// The value parameters of a generic check form's entry, in declaration
@@ -2150,22 +2212,7 @@ impl<'t> Program<'t> {
                 // As `prepare_const_scope` leaves it out.
                 continue;
             }
-            let scalar_type = self.scalar_type(id, type_reference)?;
-            if !matches!(
-                scalar_type,
-                semantic_vocabulary::ScalarType::Integer(_)
-                    | semantic_vocabulary::ScalarType::Boolean
-            ) {
-                return Err(refuse_at(
-                    id,
-                    Unserved::Parameter("value parameter that is not an integer or a Boolean"),
-                ));
-            }
-            binders.push(ValueBinder {
-                symbol: parameter.symbol,
-                name: parameter.name.as_str().to_owned(),
-                scalar_type,
-            });
+            binders.push(self.static_value_binder(id, parameter.symbol, type_reference)?);
         }
         Ok(binders)
     }
@@ -2480,7 +2527,16 @@ impl<'t> Program<'t> {
             && let Some((owner, requirement)) = self.conformer_requirement(id, machine)?
         {
             let arguments = self.conformer_value_arguments(id, machine, requirement)?;
-            let (routed, routed_names) = self.requirement_signature(id, requirement, &arguments)?;
+            // The requirement's clauses name the rows of this member's
+            // implementation, as the member's own clauses do.
+            let conformance = self
+                .typed
+                .owned_conformance_realization(machine.symbol)
+                .map(|(conformance, _)| conformance.symbol);
+            let outer = std::mem::replace(&mut self.witness_conformance, conformance);
+            let routed = self.requirement_signature(id, requirement, &arguments);
+            self.witness_conformance = outer;
+            let (routed, routed_names) = routed?;
             self.same_conformer_shape(id, &signature, &routed, machine.symbol)?;
             self.retain_requirement_policy(id, requirement, machine.symbol)?;
             // There is one executable entry: its caller-facing contract is
@@ -2489,6 +2545,17 @@ impl<'t> Program<'t> {
             // Calls expose the requirement's contracts. The independent
             // witness checks the member under its own contract; abstract
             // reach additionally needs the selected installation below.
+            // The member's own guarantees still reach the other members of
+            // its implementation (`RealizedGuarantee`).
+            if !signature.ensures.is_empty()
+                && !self
+                    .realized_ensures
+                    .iter()
+                    .any(|(member, _)| *member == machine.symbol)
+            {
+                self.realized_ensures
+                    .push((machine.symbol, signature.ensures.clone()));
+            }
             signature.requires = routed.requires;
             signature.ensures = routed.ensures;
             signature.membership_ensures = routed.membership_ensures;
@@ -2780,7 +2847,7 @@ impl<'t> Program<'t> {
                 .then_some(machine.symbol)
                 .or(self.signature_view_owner);
             let outer = std::mem::replace(&mut self.signature_view_owner, owner);
-            let read = self.with_method_type_parameters(id, machine, requirement, |program| {
+            let read = self.with_method_parameters(id, machine, requirement, |program| {
                 program.applied_requirement_signature(id, requirement, RequirementValues::Rigid)
             });
             self.signature_view_owner = outer;
@@ -2940,11 +3007,11 @@ impl<'t> Program<'t> {
 
     /// The value parameters of a trait requirement, in declaration order,
     /// each with its carrier. The type scope holds the type parameters.
-    pub(super) fn requirement_binders(
+    fn requirement_value_sources(
         &self,
         id: MachineId,
         requirement: &StateSignature,
-    ) -> Checked<Vec<(SymbolHandle, semantic_vocabulary::ScalarType)>> {
+    ) -> Checked<Vec<(SymbolHandle, TypeReferenceHandle)>> {
         let unserved = |what| Err(refuse_at(id, Unserved::Machine(what)));
         let parameters = self.requirement_parameters(id, requirement)?;
         let mut binders = Vec::with_capacity(parameters.len());
@@ -2955,6 +3022,17 @@ impl<'t> Program<'t> {
                     .scope
                     .iter()
                     .any(|(binder, _)| *binder == parameter.symbol)
+            {
+                continue;
+            }
+            if self.rigid
+                && matches!(
+                    parameter.kind,
+                    crate::source_state::data::TypeParameterKind::Machine { .. }
+                )
+                && self.requirement_headers.iter().any(|(origin, _)| {
+                    *origin == RequirementHeaderOrigin::CallableParameter(parameter.symbol)
+                })
             {
                 continue;
             }
@@ -2983,20 +3061,44 @@ impl<'t> Program<'t> {
                     Unserved::Spelling("value parameter without a symbol"),
                 ));
             }
-            let scalar_type = self.scalar_type(id, type_reference)?;
-            if !matches!(
-                scalar_type,
-                semantic_vocabulary::ScalarType::Integer(_)
-                    | semantic_vocabulary::ScalarType::Boolean
-            ) {
-                return Err(refuse_at(
-                    id,
-                    Unserved::Parameter("value parameter that is not an integer or a Boolean"),
-                ));
-            }
-            binders.push((parameter.symbol, scalar_type));
+            binders.push((parameter.symbol, type_reference));
         }
         Ok(binders)
+    }
+
+    fn rigid_requirement_binders(
+        &mut self,
+        id: MachineId,
+        requirement: &StateSignature,
+    ) -> Checked<Vec<ValueBinder>> {
+        self.requirement_value_sources(id, requirement)?
+            .into_iter()
+            .map(|(symbol, source)| self.static_value_binder(id, symbol, source))
+            .collect()
+    }
+
+    pub(super) fn requirement_binders(
+        &self,
+        id: MachineId,
+        requirement: &StateSignature,
+    ) -> Checked<Vec<(SymbolHandle, semantic_vocabulary::ScalarType)>> {
+        self.requirement_value_sources(id, requirement)?
+            .into_iter()
+            .map(|(symbol, source)| {
+                let scalar = self.scalar_type(id, source)?;
+                if !matches!(
+                    scalar,
+                    semantic_vocabulary::ScalarType::Integer(_)
+                        | semantic_vocabulary::ScalarType::Boolean
+                ) {
+                    return Err(refuse_at(
+                        id,
+                        Unserved::Parameter("value parameter that is not an integer or a Boolean"),
+                    ));
+                }
+                Ok((symbol, scalar))
+            })
+            .collect()
     }
 
     /// A trait requirement's signature and contract. The typed trees hold a
@@ -3307,7 +3409,7 @@ impl<'t> Program<'t> {
                 rigid.push(ValueBinder {
                     symbol: parameter.symbol,
                     name: program.typed.symbols.name(parameter.symbol).to_owned(),
-                    scalar_type,
+                    value_type: ValueType::Scalar(scalar_type, Qualification::NONE),
                 });
             }
             let elision = std::mem::replace(
@@ -3584,14 +3686,7 @@ impl<'t> Program<'t> {
             ));
         }
         let binders = if abstract_schema {
-            self.requirement_binders(id, signature)?
-                .into_iter()
-                .map(|(symbol, scalar_type)| ValueBinder {
-                    symbol,
-                    name: self.typed.symbols.name(symbol).to_owned(),
-                    scalar_type,
-                })
-                .collect::<Vec<_>>()
+            self.rigid_requirement_binders(id, signature)?
         } else {
             Vec::new()
         };
@@ -3816,9 +3911,9 @@ impl<'t> Program<'t> {
                 requirement.name.as_str(),
             ));
         }
-        let binders = self.requirement_binders(id, requirement)?;
         let (rigid, bound) = match arguments {
             RequirementValues::Bound(arguments) => {
+                let binders = self.requirement_binders(id, requirement)?;
                 if binders.len() != arguments.len()
                     || binders
                         .iter()
@@ -3836,17 +3931,9 @@ impl<'t> Program<'t> {
                         .collect::<Vec<_>>(),
                 )
             }
-            RequirementValues::Rigid => (
-                binders
-                    .iter()
-                    .map(|(symbol, scalar_type)| ValueBinder {
-                        symbol: *symbol,
-                        name: self.typed.symbols.name(*symbol).to_owned(),
-                        scalar_type: *scalar_type,
-                    })
-                    .collect(),
-                Vec::new(),
-            ),
+            RequirementValues::Rigid => {
+                (self.rigid_requirement_binders(id, requirement)?, Vec::new())
+            }
         };
         if !requirement.native_callback_parameters.is_empty()
             || (requirement.is_default
@@ -3973,7 +4060,7 @@ impl<'t> Program<'t> {
             });
         }
         for binder in binders {
-            let value_type = ValueType::Scalar(binder.scalar_type, Qualification::NONE);
+            let value_type = binder.value_type;
             parameters.push(value_type);
             slots.push(Slot {
                 symbol: binder.symbol,
@@ -5394,7 +5481,7 @@ impl PreparedFormalValues {
 pub(super) struct ValueBinder {
     pub(super) symbol: SymbolHandle,
     pub(super) name: String,
-    pub(super) scalar_type: semantic_vocabulary::ScalarType,
+    pub(super) value_type: ValueType,
 }
 
 /// One machine's rows in every machine table, from its read signature

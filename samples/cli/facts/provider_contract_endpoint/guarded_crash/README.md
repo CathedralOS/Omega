@@ -35,7 +35,7 @@ narrow an opaque declaration's contract.
 | Other machine | [program](other_machine/main.omg) | [zero divisor](invalid_other_machine/main.omg) |
 | Selected implementation | [program](target_body/main.omg) | [zero divisor](invalid_target_body/main.omg) |
 
-Each positive must pass `omega run --both` at exit zero. Each twin must reject
+Each positive must pass the native/Psi comparison at exit zero. Each twin must reject
 during source checking with ``constant expression `limit()` can crash with [Trap]``
 and `a build-time value must be formed without an unhandled crash route`.
 An interpreted trap or unrelated lowering failure does not establish admission.

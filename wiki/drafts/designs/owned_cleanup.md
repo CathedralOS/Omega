@@ -135,7 +135,7 @@ change, so that a borrowed-cleanup row never acquires owned-transfer meaning.
 - An owning package with an owner-selected cleanup machine is disposed of
   automatically; one with only a stored operation stays linear.
 
-Acceptance: these pass `omega run --both`, and no selected cleanup machine in
+Acceptance: these pass native and interpreted checks, and no selected cleanup machine in
 `samples` or `tests/fixtures` takes its subject by reference.
 
 ## Left open

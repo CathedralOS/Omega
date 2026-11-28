@@ -54,8 +54,7 @@ unproved inner index. Runtime controls retain the trap oracle.
 
 ```sh
 mbx xtask sample-gate --filter samples/cli/facts/double_indexed_rmw
-omega run --engine native samples/cli/facts/double_indexed_rmw/<place>/main.omg
-omega run --engine psi samples/cli/facts/double_indexed_rmw/<place>/main.omg
+omega run samples/cli/facts/double_indexed_rmw/<place>/main.omg
 ```
 
 On Linux x86-64, optimized producer `bb854b9b5964` (SHA256
@@ -71,7 +70,7 @@ was replayed after child updates completed to obtain a stable source snapshot.
 Historical macOS arm64 qualification used the wave's shared generation omega
 (595562a958b, opt_level 1, sha256
 `5c805564eb160e5714885a302f42b97dc34c85e59d877a96dbe685ec98c20fbd`):
-`omega run --both` reports native exit 0 and interpreter exit 0 for the root
+The native/Psi comparison reports native exit 0 and interpreter exit 0 for the root
 and all nine places (10/10), and a native signal 5 with interpreter
 `crash: Trap` and host presentation agreement for the root and all nine original runtime falsifiers
 (10/10). An earlier Intel macOS x86_64 host measured scratch copies that added
@@ -107,7 +106,7 @@ for the root and its twin at `ff5d57b7c845`.
    instead of reporting exit 0.
 5. **Checked-to-Terminal Psi lowering:** the RMW, both runtime indices, the
    field-between-indices projection, and the exit choice lower into Terminal
-   Psi; `omega run --both` reports interpreter exit 0 for every positive place
+   Psi; the native/Psi comparison reports interpreter exit 0 for every positive place
    and `crash: Trap` for every runtime control.
 6. **Provider settlement and layout:** each positive binds all four hosted
    `ProgramEntry` values. `Row` is a tagged-field record over a two-element

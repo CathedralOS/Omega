@@ -1012,7 +1012,7 @@ fn machine(
         id,
         tables,
         inhabitation,
-        Some(summaries),
+        minted::ClaimRows::Module(summaries),
         |prepared, tables| {
             check_prepared_machine(
                 prepared,
@@ -1818,8 +1818,19 @@ fn fill_knowledge<'a>(
                 .collect::<Vec<_>>(),
             _ => Vec::new(),
         };
+        // What a sibling member of this machine's implementation ensures of
+        // itself (`RealizedGuarantee`).
+        let realized = match row.callee {
+            Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(callee)) => tables
+                .realized_guarantees
+                .iter()
+                .filter(|realized| realized.callee == callee)
+                .map(|realized| (realized.clause, realized.statement.clone()))
+                .collect::<Vec<_>>(),
+            _ => Vec::new(),
+        };
         let mut ensures = contract.ensures.scalar_clauses().peekable();
-        if ensures.peek().is_none() && applied.is_empty() {
+        if ensures.peek().is_none() && applied.is_empty() && realized.is_empty() {
             continue;
         }
         let mut returned = storage.after_call(
@@ -1859,6 +1870,21 @@ fn fill_knowledge<'a>(
                 .ok()
             })
             .collect::<Vec<_>>();
+        // A clause the call's actuals cannot name leaves it unused.
+        let realized = realized
+            .iter()
+            .filter_map(|(clause, statement)| {
+                substitute(
+                    statement,
+                    &mut ErasedTerms {
+                        terms: &erased,
+                        runtime: &mut returned,
+                    },
+                )
+                .ok()
+                .map(|proposition| (*clause, proposition))
+            })
+            .collect::<Vec<_>>();
         for (clause, proposition) in propositions {
             push_knowledge(
                 tables,
@@ -1876,6 +1902,14 @@ fn fill_knowledge<'a>(
                 proposition,
                 ProgramPoint::AfterOperation(operation),
                 Justification::CallCongruence { invocation },
+            );
+        }
+        for (clause, proposition) in realized {
+            push_knowledge(
+                tables,
+                proposition,
+                ProgramPoint::AfterOperation(operation),
+                Justification::RealizationGuarantee { invocation, clause },
             );
         }
     }
@@ -2053,8 +2087,15 @@ pub(crate) fn prepare(
 ) -> Checked<Prepared<'static>> {
     let module = formed.source();
     let inhabitation = prepare_inhabitation(module, id)?;
-    with_prepared_machine(formed, id, tables, &inhabitation, None, |_, _| Ok(()))
-        .map(|(prepared, ())| prepared)
+    with_prepared_machine(
+        formed,
+        id,
+        tables,
+        &inhabitation,
+        minted::ClaimRows::Alone,
+        |_, _| Ok(()),
+    )
+    .map(|(prepared, ())| prepared)
 }
 
 fn prepare_inhabitation(
@@ -2076,14 +2117,17 @@ fn prepare_inhabitation(
 
 /// Keep analysis within one invocation while a caller checks the prepared
 /// machine. The returned values own no borrow of this local working state.
+/// `rows` says where the row check takes the machine's claims from; only a
+/// machine check of the settled module shares the module's replays.
 fn with_prepared_machine<'r, Outcome>(
     formed: formation::FormedModule<'_>,
     id: MachineId,
     tables: &mut MachineTables,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
-    summaries: Option<&ModuleReplays<'r, '_>>,
+    rows: minted::ClaimRows<'_, 'r, '_>,
     check: impl FnOnce(PreparedMachine<'_, '_>, &mut MachineTables) -> Checked<Outcome>,
 ) -> Checked<(Prepared<'r>, Outcome)> {
+    let summaries = rows.replays();
     let module = formed.source();
     let machines = &module.machines;
     let lowered = terminal_machine(machines, id, id)?;
@@ -2093,7 +2137,7 @@ fn with_prepared_machine<'r, Outcome>(
     // owes, at its points, or deciding every row proves nothing (`minted`).
     // A consumer re-checking a saved proof decides rows too, so it checks
     // them the same way.
-    minted::follow_the_lowered_form(id, module, lowered, tables, &types, inhabitation, summaries)?;
+    minted::follow_the_lowered_form(id, module, lowered, tables, &types, inhabitation, rows)?;
     let graph = Graph::new(id, lowered, tables)?;
     theorems::validate(module, lowered, tables, &graph)?;
     // A machine check of the module the replays were built from reads the
@@ -3991,6 +4035,7 @@ pub(crate) fn hypotheses(
             | Justification::TheoremGuarantee { .. }
             | Justification::CalleeGuarantee { .. }
             | Justification::CallCongruence { .. }
+            | Justification::RealizationGuarantee { .. }
             | Justification::BranchCondition { .. }
             | Justification::ExcludedDispatchCase { .. }
             | Justification::DispatchBinding { .. }

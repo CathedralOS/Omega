@@ -73,9 +73,7 @@ SAMPLE=samples/cli/independent/antenna_array_pattern
 "$OMEGA" --check --target linux_x86_64 "$SAMPLE/main.omg"
 ```
 
-Captures and command records are retained under `build/validation/`. `run
---target` is compile-only; matching-host execution uses `run --both` without that
-flag. `--native EXECUTABLE` remains available for native-only replay of an
+Captures and command records are retained under `build/validation/`. `run --target` selects the target environment for interpretation. `--native EXECUTABLE` remains available for native-only replay of an
 already retained artifact. A check-only result cannot establish runtime
 acceptance.
 

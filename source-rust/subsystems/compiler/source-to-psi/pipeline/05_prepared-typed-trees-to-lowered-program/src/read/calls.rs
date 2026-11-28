@@ -1789,7 +1789,20 @@ impl<'t> Program<'t> {
     ) -> Checked<Expression> {
         let (callee, dispatch, operand, operand_owner, value_arguments, static_record) = selection;
         let unserved = |what| Err(refuse_at(id, Unserved::Call(what)));
-        let (required, _) = self.requirement_signature(
+        let machine = *self.symbols.get(callee).ok_or_else(|| {
+            refuse_at(
+                id,
+                Unserved::Call("selected body lost its exact source declaration"),
+            )
+        })?;
+        // The requirement's clauses name rows of the selected body's
+        // implementation, such as the `equals` a law is about.
+        let conformance = self
+            .typed
+            .owned_conformance_realization(machine)
+            .map(|(conformance, _)| conformance.symbol);
+        let outer = std::mem::replace(&mut self.witness_conformance, conformance);
+        let required = self.requirement_signature(
             id,
             required_source,
             if required_source.type_parameters.is_empty() {
@@ -1797,13 +1810,9 @@ impl<'t> Program<'t> {
             } else {
                 &value_arguments
             },
-        )?;
-        let machine = *self.symbols.get(callee).ok_or_else(|| {
-            refuse_at(
-                id,
-                Unserved::Call("selected body lost its exact source declaration"),
-            )
-        })?;
+        );
+        self.witness_conformance = outer;
+        let (required, _) = required?;
         let supplied = self
             .signatures
             .get(callee)
@@ -2232,6 +2241,7 @@ impl<'t> Program<'t> {
                             TypeParameterKind::Type
                                 | TypeParameterKind::Const { .. }
                                 | TypeParameterKind::Value { .. }
+                                | TypeParameterKind::Machine { .. }
                         )
                     })
             {
@@ -2289,6 +2299,7 @@ impl<'t> Program<'t> {
             call.authored_arguments,
         )?;
         let callee = if let Some((owner, requirement)) = boundary {
+            self.require_ordinary_boundary_call(id, requirement.symbol)?;
             self.visible_to(id, target)?;
             self.declared_service(id, owner)?;
             self.require_closed_callable(id, requirement, "boundary requirement")?;
@@ -2328,7 +2339,7 @@ impl<'t> Program<'t> {
             if arguments
                 .values
                 .iter()
-                .all(|term| !matches!(term, semantic_vocabulary::ScalarTerm::Value { .. }))
+                .all(|term| matches!(term, super::applications::ValueArgument::Scalar(value) if !matches!(value, semantic_vocabulary::ScalarTerm::Value { .. })))
             {
                 return Ok(None);
             }
@@ -2377,12 +2388,35 @@ impl<'t> Program<'t> {
         &self,
         id: MachineId,
         slots: &[Slot],
-        values: &[semantic_vocabulary::ScalarTerm],
+        values: &[super::applications::ValueArgument],
         source: SourceOrigin,
     ) -> Checked<Vec<Expression>> {
         use semantic_vocabulary::ScalarTerm;
         let mut operands = Vec::with_capacity(values.len());
-        for value in values {
+        for argument in values {
+            let value = match argument {
+                super::applications::ValueArgument::Scalar(value) => value,
+                super::applications::ValueArgument::Structural { formal, carrier } => {
+                    let index = slots
+                        .iter()
+                        .position(|slot| slot.symbol == *formal && slot.value_type == *carrier)
+                        .ok_or_else(|| {
+                            refuse_at(
+                                id,
+                                Unserved::Call(
+                                    "structural static argument has no matching caller slot",
+                                ),
+                            )
+                        })?;
+                    operands.push(Expression {
+                        call_context: None,
+                        kind: ExpressionKind::Slot(index),
+                        result: Some(*carrier),
+                        source,
+                    });
+                    continue;
+                }
+            };
             let scalar_type = value.scalar_type();
             let kind = match value {
                 ScalarTerm::Value { id: value, .. } => {
@@ -2525,7 +2559,17 @@ impl<'t> Program<'t> {
                         Unserved::Call("packed operation received unexpected generic arguments"),
                     ));
                 }
-                application.values
+                application
+                    .values
+                    .into_iter()
+                    .map(|argument| match argument {
+                        super::applications::ValueArgument::Scalar(term) => Ok(term),
+                        super::applications::ValueArgument::Structural { .. } => Err(refuse_at(
+                            id,
+                            Unserved::Call("packed operation immediate must be a scalar"),
+                        )),
+                    })
+                    .collect::<Checked<Vec<_>>>()?
             };
             let expr = self.packed_integer(
                 id,

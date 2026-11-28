@@ -87,9 +87,10 @@ impl TermEncoding for PropositionTable {
                 premise,
                 conclusion,
             } => children.extend([premise.as_ref(), conclusion.as_ref()]),
-            Proposition::IsMere(inner) | Proposition::Universal { body: inner, .. } => {
-                children.push(inner.as_ref())
-            }
+            Proposition::IsMere(inner)
+            | Proposition::Squash(inner)
+            | Proposition::Boxed(inner)
+            | Proposition::Universal { body: inner, .. } => children.push(inner.as_ref()),
             _ => {}
         }
     }
@@ -334,6 +335,8 @@ fn write_proposition_row(writer: &mut Writer, proposition: &Proposition) -> Resu
             encode_ieee_float_format(writer, *target);
         }
         Proposition::IsMere(_) => writer.u8(24),
+        Proposition::Squash(_) => writer.u8(26),
+        Proposition::Boxed(_) => writer.u8(27),
         Proposition::Universal {
             carrier, binder, ..
         } => {
@@ -426,6 +429,14 @@ fn read_proposition_row(
             match operands.next() {
                 Some(inner) => Proposition::IsMere(Box::new(inner)),
                 None => return Err(CodecError::NonCanonicalTermTable("proposition")),
+            }
+        }
+        tag @ (26 | 27) => {
+            let mut operands = children.take(reader, 1)?.into_iter();
+            match (tag, operands.next()) {
+                (26, Some(inner)) => Proposition::Squash(Box::new(inner)),
+                (_, Some(inner)) => Proposition::Boxed(Box::new(inner)),
+                (_, None) => return Err(CodecError::NonCanonicalTermTable("proposition")),
             }
         }
         25 => {

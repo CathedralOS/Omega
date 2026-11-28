@@ -75,7 +75,7 @@ caller guards.
   Terminal Psi (`PSITERM\0`), preserving the borrowed `@[u8]` view descriptor
   `(ptr, len)`, borrow restoration windows, unsigned modulo operations, and
   bounds-checked projections across all nine places. All 10 positive entries
-  execute in the Terminal Psi interpreter (`omega run --both`), agreeing with native exit 0.
+  execute in the Terminal Psi interpreter, agreeing with native exit 0.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):**
   `ProgramEntry` settles across all four hosted targets (`windows_x86_64`,
   `linux_x86_64`, `macos_arm64`, `linux_arm64`) through companion build
@@ -92,7 +92,7 @@ caller guards.
   Symbolic stack-frame displacements resolve for slice descriptors and local
   variables, basic blocks and conditional branches relax with offset reflow,
   machine-state footprint evidence validates, and direct PE/ELF/Mach-O executables
-  are emitted, agreeing with Terminal Psi (`omega run --both` exit 0) across host
+  are emitted, agreeing with Terminal Psi (exit 0) across host
   targets including `windows_x86_64` and `macos_arm64`.
 
 What remains open: symbolic non-equality divisor upper bounds (`width <= buckets.length as u64` with `width > 0`) and signed remainder indexing bounds.

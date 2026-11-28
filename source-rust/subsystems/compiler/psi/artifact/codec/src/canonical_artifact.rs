@@ -684,6 +684,40 @@ mod tests {
     }
 
     #[test]
+    fn wire_guide_lists_both_artifact_envelopes() {
+        let closed = closed_module(false);
+        let record = optimization_record(&closed);
+        let bare = CanonicalTerminalArtifact::from_closed_parts(closed, record, None).unwrap();
+        let metadata = psi_publication_records::PublishedEntryMetadata::new(
+            Default::default(),
+            false,
+            vec![],
+            Ok(vec![]),
+        );
+        let published = bare
+            .clone()
+            .with_publication(metadata.into(), None)
+            .unwrap();
+        for (name, artifact) in [
+            ("canonical artifact", bare),
+            ("published artifact", published),
+        ] {
+            let bytes = artifact.to_bytes();
+            let marker = u16::from_le_bytes([bytes[8], bytes[9]]);
+            let row = format!(r"| {name} | `PSIART\0\0` | {marker} | no |");
+            assert!(
+                include_str!("../../wire/encoding.md")
+                    .lines()
+                    .any(|line| line == row)
+            );
+            assert_eq!(
+                CanonicalTerminalArtifact::from_bytes(&bytes).unwrap(),
+                artifact
+            );
+        }
+    }
+
+    #[test]
     fn application_checks_view_identity_and_retains_portability_errors_on_the_receipt() {
         use crate::entry_receipt::application::{
             TerminalApplicationCustody, TerminalCompositionRoots,

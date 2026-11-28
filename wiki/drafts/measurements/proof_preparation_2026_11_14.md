@@ -164,7 +164,7 @@ slowdown or a stable whole-route effect. Both runs are retained; the result is
 a smaller, faster measured proving operation, not a whole-compiler claim.
 
 The baseline and candidate also execute the same byte-identical isolated
-scalar-contract project with `omega run --both`: native/Psi agreement, exit 0.
+scalar-contract project both natively and under the interpreter, agreeing on exit 0.
 These single native runs are semantic controls, not a timing comparison. An
 earlier invocation's unsupported `run --build-dir` option was refused with
 exit 64 before compilation; the corrected retained runs omit that option.

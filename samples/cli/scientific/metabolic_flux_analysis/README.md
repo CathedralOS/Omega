@@ -68,12 +68,12 @@ From repository root, using the documented environment setup and its authorized
 execution route:
 
 ```
-omega packages update --project samples/cli/independent/metabolic_flux_analysis --target linux_x86_64
-omega run samples/cli/independent/metabolic_flux_analysis/main.omg < samples/cli/independent/metabolic_flux_analysis/input.txt
+omega packages update --project samples/cli/scientific/metabolic_flux_analysis --target linux_x86_64
+omega run samples/cli/scientific/metabolic_flux_analysis/main.omg < samples/cli/scientific/metabolic_flux_analysis/input.txt
 ```
 
 Frozen expectations predate sample execution. It reads both actual native output
-and `terminal.stdout` retained by `omega run --both --keep` from that run's exact
+and `terminal.stdout` retained by the native/Psi comparison from that run's exact
 Terminal product. It keeps source, compiler and oracle hashes, commands, exits and
 numerical output under `build/validation/all`. The separate
 `controls/reaction_access` project must reject a constant out-of-range access at

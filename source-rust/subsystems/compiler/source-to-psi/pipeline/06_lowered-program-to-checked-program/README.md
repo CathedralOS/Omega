@@ -22,6 +22,11 @@ requirement can prove that the wait returns. When progress remains unproved,
 the diagnostic points to the call. A known permanently blocked call receives
 a deadlock diagnostic. [Synchronization checking](../../../psi/semantics/src/synchronization.rs)
 
+Time the synchronization judgment with
+`mbx test --release -p lowered-program-to-checked-program --lib finite_branch_timing -- --ignored --nocapture`.
+It reports the median for 8 to 256 independent branches, with and without a
+reachable private wait. Source compilation and publication happen before the timer starts.
+
 ## Find the code
 
 Start at [`judge_compilation`](src/verdict.rs) to follow the checks in order. [Publication](src/publication.rs) issues the checked program after acceptance.
@@ -352,7 +357,18 @@ Boolean goal such as `result` or `!result` the arithmetic prover leaves open
 is retried as an Identity at `bool` when a congruence row exists
 ([contracts](../../../../../../wiki/spec/proofs/contracts.md#equality-bridges-and-comparison-facts):
 "Changed argument values or relevant observed referent versions ...
-invalidate that reasoning"). Each row's proposition
+invalidate that reasoning"). A call of another member of the machine's own
+implementation also adds, after the call, each clause that member's own
+written contract ensures beyond its requirement's (`RealizationGuarantee`,
+from `MachineTables::realized_guarantees`): a law is about "the final
+selected implementation of that member", and user comparisons "expose
+consequences through checked contracts". The member's body owes those
+clauses through the conformance witness, and a call from outside the
+implementation keeps the requirement's contract ("Private strengthening
+does not become a public guarantee"). The equality discharge cites a Boolean
+one as an identity, so `ensures result` on an always-true `equals` and a
+repeated call of it prove `equals(@left, @right)` in an
+identity-implies-comparison law. Each row's proposition
 is in `MachineTables::propositions`. The kernel gets a row for an obligation
 only when the row's point dominates the obligation's. Requires and guarantees
 go in as assumptions and result equations as semantic axioms, which is how
@@ -506,6 +522,21 @@ and callee guarantees are stated over it, so a row for a call the machine
 does not make would be a premise nothing established. An edge row must have
 the source and destination of its terminator's edge, because dominance is
 computed from the edge table.
+
+A call's claim transfers must also be the claims the machine holds at that
+call. The ownership walk reconstructs those claims
+(`MachineAffine::verify_claims` in Psi semantics). In a judged closure it
+runs once per machine, after inference has finished editing the module.
+`examine` ([verdict.rs](src/verdict.rs)) builds one `ModuleAnalyses` over the
+settled module. The affine check (`affine_plan`) walks each machine once for
+its reference ends and once more with claims (`verify_with_claims`), and that
+second walk answers both the verified cleanup schedule and the claim rows. The machine checks share
+the same analyses, and `follow_the_lowered_form` reads the claim rows the
+affine check received. Inference (result summaries, input conditions,
+crash routes) replays a machine on a copy of its tables while the module is
+still changing. It checks the same rows but walks no claims
+(`ClaimRows::Deferred`): it reads no claim row, and the machine check of the
+settled module checks every machine's rows again, claims included.
 
 The data `requires` clauses are the goal of every `DataDomain` row and the
 premise a read of an arrived value learns from its type. The checker reads

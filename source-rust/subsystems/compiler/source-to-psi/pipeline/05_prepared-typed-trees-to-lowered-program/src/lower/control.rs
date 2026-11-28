@@ -762,6 +762,29 @@ impl Lowering<'_> {
         })
     }
 
+    /// Both outcomes carry the same sum type through the ordinary structural
+    /// join. The discriminant and payloads are already evaluated SSA values.
+    pub(super) fn select_cases(
+        &mut self,
+        condition: ValueId,
+        record: semantic_vocabulary::StructuralTypeId,
+        when_true: (usize, &[ValueId]),
+        when_false: (usize, &[ValueId]),
+        source: SourceOrigin,
+    ) -> Evaluation<Value> {
+        let before = BeforeArms::capture(self);
+        let yes = self.block(source);
+        let no = self.block(source);
+        self.branch(condition, (yes, vec![]), (no, vec![]), source)?;
+        let mut arrivals = Arrivals::default();
+        for (block, (case, fields)) in [(yes, when_true), (no, when_false)] {
+            self.enter(block);
+            let value = self.scalar_case(record, case, fields, source)?;
+            arrivals.values.push((block, self.here()?, value));
+        }
+        self.join(arrivals, Some(ValueType::record(record)), source, before)
+    }
+
     /// Continuing match arms supply one value to the same block telescope.
     /// Structural values use its ordinary ownership transfer; scalar values
     /// use its scalar lane. An arm that ends at a nonreturning call supplies

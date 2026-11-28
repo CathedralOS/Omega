@@ -46,7 +46,7 @@ fn a_loan_cannot_read_or_write_the_excluded_field() {
             .position(|line| line.contains(changed.trim()))
             .unwrap()
             + 1;
-        let (output, report) = program::invoke(&source, &["run", "--engine", "psi"]);
+        let (output, report) = program::invoke(&source, &["run"]);
         assert!(!output.status.success(), "{report}");
         assert!(
             report.contains("this field is inaccessible")
@@ -88,7 +88,7 @@ machine select(pair: @mutable Storage"#;
         );
     program::assert_silent_return(&source);
     let denied = source.replace("    pair.visible\n", "    pair.hidden\n");
-    let (output, report) = program::invoke(&denied, &["run", "--engine", "psi"]);
+    let (output, report) = program::invoke(&denied, &["run"]);
     assert!(
         !output.status.success() && report.contains("this field is inaccessible"),
         "{report}"
@@ -101,14 +101,18 @@ fn a_positive_observation_reports_the_missing_backing_decision() {
         "|layout|::FieldAccess::Inaccessible",
         "|layout|::FieldAccess::External { read: |layout|::ExternalRead::Read, write: false, exposure: |layout|::Exposure::Exported }",
     );
-    let (output, report) = program::invoke(&source, &["run", "--engine", "psi"]);
+    let (output, report) = program::invoke(&source, &["run"]);
     assert!(!output.status.success(), "{report}");
-    assert!(report.contains("field observation requiring backing supply"), "{report}");
+    assert!(
+        report.contains("field observation requiring backing supply"),
+        "{report}"
+    );
 }
 
 #[test]
 fn a_recast_array_lends_the_reordered_record_bytes_to_a_slice() {
-    program::assert_silent_return(r#"use {omega}/language/core/layout.omg;
+    program::assert_silent_return(
+        r#"use {omega}/language/core/layout.omg;
 data Pair { first: u32; second: u32; }
 data PairStorage = |layout|::LayoutStorage<Pair, Reversed>;
 Reversed satisfies |layout|::FixedLayout<Pair> {
@@ -133,7 +137,8 @@ machine main() crashes Trap {
     machine done() {}
     machine wrong() { crash Trap; }
 }
-"#);
+"#,
+    );
 }
 
 #[test]

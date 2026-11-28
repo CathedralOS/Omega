@@ -1,0 +1,1 @@
+Build import `{support}/configure/configure.omg as configure` has no supplied source

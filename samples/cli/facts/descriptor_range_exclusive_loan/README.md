@@ -46,7 +46,7 @@ same requirements and still replace a source while its selected loan is live.
 
 Every positive place, and the row's root `main.omg`, binds `ProgramEntry` for all four hosted
 targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and declares
-`Expected exit: 0`. `omega run --both` reports Terminal Psi interpreter and native agreement
+`Expected exit: 0`. The native/Psi comparison reports Terminal Psi interpreter and native agreement
 (`interp exit: 0` and `native exit 0`) for each:
 
 ```sh
@@ -144,8 +144,7 @@ Base `4f87c9e08b1` refused the migrated positive at Terminal lowering:
 precondition representation)`. A requirement signature's own case-membership
 precondition (`chosen in Slot::Present`) had no lowering: the case test rejoined
 its scope through a machine state with the same parameters, and a requirement
-has none. Observed on macOS x86-64: the migrated positive exits 0 under `omega
-run --both` (native and Terminal Psi agree) and its twin rejects for the live
+has none. Observed on macOS x86-64: the migrated positive exits 0 under the native/Psi comparison (native and Terminal Psi agree) and its twin rejects for the live
 loan. The other hosted targets keep their authored rows, unexecuted here.
 
 The `other_state` place is red on base and here alike (`machine pick ... cannot prove selected case for payload access`): the nested `pick` machine declares no case precondition of its own. The corpus golden pins it as a regression; it is outside this migration.

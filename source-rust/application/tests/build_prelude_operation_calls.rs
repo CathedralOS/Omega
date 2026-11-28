@@ -6,7 +6,7 @@ mod project;
 
 fn execute(name: &str, build: &str, program: &str, args: &[&str]) -> (bool, String) {
     let scratch = project::stage(name, &[("main.omg", program), ("build.omg", build)]);
-    let output = project::omega(scratch.path(), args);
+    let output = project::observe(scratch.path(), args);
     let report = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
@@ -50,23 +50,20 @@ machine exclude(builder: @mutable BuildPlan, cause: CrashCause) {
 machine main() crashes Trap { selected(); }
 machine selected() crashes Trap { BEHAVIOR }
 "#;
-    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+    for command in ["run", "build"] {
         let (passed, report) = execute(
             "excluded-clean",
             &build,
             &program.replace("BEHAVIOR", ""),
-            &["run", "--engine", engine, "build.omg"],
+            &[command, "build.omg"],
         );
-        assert!(
-            passed && report.lines().any(|line| line == expected),
-            "{report}"
-        );
+        assert!(passed, "{report}");
 
         let (passed, report) = execute(
             "excluded-trap",
             &build,
             &program.replace("BEHAVIOR", "crash Trap;"),
-            &["run", "--engine", engine, "build.omg"],
+            &[command, "build.omg"],
         );
         assert!(
             !passed
@@ -90,17 +87,14 @@ machine build(builder: @mutable BuildPlan) {
 }
 "#
     .replace("HOST", host.target_name());
-    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+    for command in ["run", "build"] {
         let (passed, report) = execute(
             "excluded-output",
             &build,
             "machine main() {}",
-            &["run", "--engine", engine, "build.omg"],
+            &[command, "build.omg"],
         );
-        assert!(
-            passed && report.lines().any(|line| line == expected),
-            "{report}"
-        );
+        assert!(passed, "{report}");
     }
 }
 

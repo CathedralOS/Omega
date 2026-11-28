@@ -1670,9 +1670,18 @@ impl<'source> Declarations<'source> {
 
     fn dictionary_symbol(&self, symbol: SymbolHandle) -> Result<SymbolHandle, Diagnostic> {
         self.valid(symbol, "declaration")?;
-        if self.typed.symbols.get(symbol).kind != SymbolKind::State
-            || self.identities.is_emitted(symbol)
+        let kind = self.typed.symbols.get(symbol).kind;
+        // Applying a signature creates fresh formals so independent applications
+        // cannot capture one another. A query about such a formal selects the
+        // authored binder. The enclosing application carries its argument.
+        if matches!(
+            kind,
+            SymbolKind::Parameter | SymbolKind::TypeParameter | SymbolKind::MachineParameter
+        ) && !self.identities.is_emitted(symbol)
         {
+            return self.written_declaration(symbol, kind);
+        }
+        if kind != SymbolKind::State || self.identities.is_emitted(symbol) {
             return Ok(symbol);
         }
         let Some((machine, _)) = self.typed.unique_machine_by_entry_state_symbol(symbol) else {
@@ -1754,21 +1763,25 @@ impl<'source> Declarations<'source> {
         }
     }
 
-    fn written_callable(&self, mut symbol: SymbolHandle) -> Result<SymbolHandle, Diagnostic> {
-        // Applying a signature creates fresh binders and a fresh contract
-        // symbol. Its derivation points at the exact declaration it copied.
+    fn written_declaration(
+        &self,
+        mut symbol: SymbolHandle,
+        kind: SymbolKind,
+    ) -> Result<SymbolHandle, Diagnostic> {
+        // Walk only copies of the same declaration kind. A generated child
+        // can instead point to the declaration that introduced it.
         loop {
             let origin = self.typed.symbols.get(symbol).generated_from;
             if !origin.is_valid() {
                 return Ok(symbol);
             }
-            self.valid(origin, "applied callable origin")?;
+            self.valid(origin, "applied declaration origin")?;
             if origin.arena_index() >= symbol.arena_index() {
                 return Err(refused(
-                    "applied callable has no earlier declaration origin",
+                    "applied declaration has no earlier declaration origin",
                 ));
             }
-            if self.typed.symbols.get(origin).kind != SymbolKind::CallableContract {
+            if self.typed.symbols.get(origin).kind != kind {
                 return Ok(symbol);
             }
             symbol = origin;
@@ -1786,7 +1799,7 @@ impl<'source> Declarations<'source> {
         }
         let callable_identity = self.callable_identity(symbol)?;
         let written = if callable_identity.is_some() {
-            self.written_callable(symbol)?
+            self.written_declaration(symbol, SymbolKind::CallableContract)?
         } else {
             symbol
         };

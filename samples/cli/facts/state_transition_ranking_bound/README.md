@@ -52,7 +52,7 @@ reported build profile `{"opt_level":"1"}`), built at base `9d9ba4fb625`.
 Host `macos_arm64`; `OMEGA_LIBRARY_ROOT=<worktree>/source/library`.
 
 Root `main.omg` and all nine places report `native exit 0` together with
-`interp exit: 0` under `omega run --both` (`< /dev/null`): Terminal Psi and
+`interp exit: 0` under the native/Psi comparison (`< /dev/null`): Terminal Psi and
 native execution agree at exit 0 in ten of ten positives. All nine
 `<place>/invalid/main.omg` twins reject at
 `omega --check --target macos_arm64` (exit 1) with the pinned diagnostic
@@ -69,12 +69,12 @@ This row establishes that exiting a ranked state-transition countdown loop under
 - **Identity and lifetime:** The loop scalar values (`current`, `c`, `next`, `rem`) maintain distinct, non-aliasing value versions across transitions. Live variable frontiers across cyclic edges are preserved in registers and spill slots across the loop cycle without storage corruption.
 - **Composition:** Across state transitions, contracted calls, match joins, record fields (`LoopResult`), machine parameters, named constants, and target-scoped bodies, the established `remaining <= 60u64` bound composes without loss to justify exact subtraction `60u64 - remaining == 0`.
 - **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins fail closed at compile time: widening the terminal guard and loop-exit bound to `61u64` leaves exact subtraction `60u64 - remaining` unprovable (since `60 - 61 = -1 < 0`), soundly rejecting during checked compilation with `error: exact arithmetic in machine ... may overflow `u64`` (`exact subtraction underflow`).
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** The ranked loop lowers into a strongly connected control component in Terminal Psi (`PSITERM\0`) with typed basic blocks, explicit conditional branch edges, and well-founded termination ranking certificates (`terminates by current` via `Nat::Descending`). Terminal Psi execution agrees identically with native code (`omega run --both`, exit 0).
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** The ranked loop lowers into a strongly connected control component in Terminal Psi (`PSITERM\0`) with typed basic blocks, explicit conditional branch edges, and well-founded termination ranking certificates (`terminates by current` via `Nat::Descending`). Terminal Psi execution agrees identically with native code (exit 0).
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Build companion rows join `ProgramEntry` declarations across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Standard integer parameter and return calling plans (`CallPlan`) assign 64-bit scalar registers (`rcx`/`rax` on Windows x86_64, `rdi`/`rax` on Linux x86_64, `x0` on AArch64).
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** The backend selects target ISA instructions for integer comparison (`cmp`), conditional jumps (`jbe` / `b.ls`), and integer subtraction (`sub`). Register homes are allocated with loop variable lifetimes spanning basic block boundaries, and stack frames with callee-saved preservation are sized to worst-case stack usage (WCSU).
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Relocation fixups resolve symbolic displacements, basic block layout places loop bodies with branch relaxation, and direct PE/ELF/Mach-O images are emitted, passing native execution and Terminal Psi agreement (`omega run --both`, exit 0) across all hosted targets.
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Relocation fixups resolve symbolic displacements, basic block layout places loop bodies with branch relaxation, and direct PE/ELF/Mach-O images are emitted, passing native execution and Terminal Psi agreement (exit 0) across all hosted targets.
 
-The row is verified by `samples/cli/facts/state_transition_ranking_bound` where every positive records native exit 0 and Terminal Psi execution agreement (`omega run --both`), and every invalid twin rejects with `may overflow `u64``.
+The row is verified by `samples/cli/facts/state_transition_ranking_bound` where every positive records native exit 0 and Terminal Psi execution agreement, and every invalid twin rejects with `may overflow `u64``.
 What remains open: Dynamic ranking certificate synthesis for non-monotonic nested multi-induction variable loops.
 
 ## Build-owned target-body migration

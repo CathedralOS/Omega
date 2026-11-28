@@ -203,3 +203,136 @@ fn atomic_read_modify_write_returns_the_old_word_and_installs_the_typed_result()
             .replace("prior == 0", "prior == 1"),
     );
 }
+
+#[test]
+fn a_private_bit_lock_tracks_its_bit_and_ignores_other_status_bits() {
+    let set = include_str!("../../../tests/fixtures/synchronization/run/masked_bit_lock/main.omg");
+    let (acquisition, entry) = set.split_once("machine main()").unwrap();
+    let clear = format!(
+        "{}machine main(){}",
+        acquisition
+            .replace("fetch_or(4,", "fetch_and(4294967291,")
+            .replace("(prior & 4) == 0", "(4 & prior) != 0"),
+        entry
+            .replace("store(2,", "store(6,")
+            .replace("fetch_and(4294967291,", "fetch_or(4,")
+    );
+    // Toggling a held bit enables this loop on its second attempt. Treating
+    // XOR as an idempotent operation would incorrectly report a deadlock.
+    program::assert_silent_return(
+        &set.replace("fetch_or(4,", "fetch_xor(4,")
+            .replace("store(2,", "store(6,"),
+    );
+    for source in [set, &clear] {
+        program::assert_silent_return(source);
+        // Both acquisitions target the original cell. Calling the release
+        // on the sibling cell leaves the original lock held.
+        let (acquire, entry) = source.split_once("machine main()").unwrap();
+        let held = format!(
+            "{acquire}machine main(){}",
+            entry.replace("flags.word.fetch_", "flags.other.fetch_")
+        );
+        let (outcome, diagnostic) = program::invoke(&held, &["--check"]);
+        assert!(!outcome.status.success(), "{diagnostic}");
+        assert!(
+            diagnostic.contains("synchronization deadlock"),
+            "{diagnostic}"
+        );
+    }
+}
+
+#[test]
+fn only_a_mismatch_forever_blocks_a_single_attempt_lock() {
+    for (member, outcome, mismatch, acquired) in [
+        (
+            "compare_exchange_once",
+            "AtomicCompareExchangeOnceOutcome",
+            "observed",
+            "",
+        ),
+        (
+            "try_exchange_once",
+            "AtomicTryExchangeOnceOutcome",
+            "proposed",
+            " { displaced }",
+        ),
+    ] {
+        let source = format!(
+            r#"
+            use {{omega}}/language/core/layout.omg;
+            data Flag {{ held: AtomicU32; }}
+            machine acquire(flag: @Flag, vacant: u32, held: u32) {{
+                let result: |layout|::{outcome}<u32> = flag.held.{member}(vacant, held, ReceivePublish, Receive);
+                transition result {{
+                    |layout|::{outcome}::Mismatched {{ {mismatch} }} -> acquire(flag, vacant, held),
+                    |layout|::{outcome}::Uncommitted {{ {mismatch} }} -> acquire(flag, vacant, held),
+                    |layout|::{outcome}::Exchanged{acquired} -> done()
+                }}
+                machine done() {{}}
+            }}
+            machine main() {{
+                let mutable flag: Flag;
+                acquire(@flag, 0, 1);
+                flag.held.store(0, Publish);
+                acquire(@flag, 0, 1);
+            }}
+        "#
+        );
+        program::assert_silent_return(&source);
+        let held = source.replace("flag.held.store(0, Publish);", "");
+        let (outcome, diagnostics) = program::invoke(&held, &["--check"]);
+        assert!(!outcome.status.success(), "{member}: {diagnostics}");
+        assert!(
+            diagnostics.contains("synchronization deadlock"),
+            "{member}: {diagnostics}"
+        );
+    }
+}
+
+#[test]
+fn the_returned_case_refines_the_resident_until_another_write() {
+    let observing = include_str!(
+        "../../../tests/fixtures/synchronization/run/atomic_attempt_then_wait/main.omg"
+    );
+    let nonobserving = observing
+        .replace(
+            "AtomicCompareExchangeOnceOutcome",
+            "AtomicTryExchangeOnceOutcome",
+        )
+        .replace("compare_exchange_once", "try_exchange_once")
+        .replace("{ observed }", "{ proposed }")
+        .replace("::Exchanged ->", "::Exchanged { displaced } ->");
+    for source in [observing, nonobserving.as_str()] {
+        program::assert_silent_return(source);
+
+        // A known mismatch leaves the held resident untouched. A matched
+        // attempt can also keep it held when either possible case does so.
+        let force_mismatch = source.replace("(1, 0, ReceivePublish", "(0, 0, ReceivePublish");
+        let write = "flag.held.store(1, Publish);";
+        let leave_held = source.replace("flag.held.store(0, Publish);", "");
+        let both_held = leave_held.replace(
+            "machine committed(flag: @Flag) {}",
+            &format!("machine committed(flag: @Flag) {{ {write} }}"),
+        );
+
+        // Matching an old outcome after a separate write cannot restore
+        // the value it observed. The writer receives the cell by borrow.
+        let overwritten = leave_held
+            .replace(
+                "    transition result",
+                "    hold(flag);\n    transition result",
+            )
+            .replace(
+                "    machine committed(",
+                &format!("    machine hold(flag: @Flag) {{ {write} }}\n    machine committed("),
+            );
+        for held in [force_mismatch, both_held, overwritten] {
+            let (outcome, diagnostic) = program::invoke(&held, &["--check"]);
+            assert!(!outcome.status.success(), "{diagnostic}");
+            assert!(
+                diagnostic.contains("synchronization deadlock"),
+                "{diagnostic}"
+            );
+        }
+    }
+}

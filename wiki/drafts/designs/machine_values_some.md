@@ -51,7 +51,7 @@ Carry the same object across all nine ordinary value placements, including
 container insertion from generic helpers and runtime branches. Use focused
 positive/negative controls rather than new frozen facts matrices. Run affected
 `runtime_dyn_*_exit` and other existing customers under migrated syntax on all
-four hosted targets with `omega run --both`, and attribute every pinned pass/fail
+four hosted targets as built executables and under the interpreter, and attribute every pinned pass/fail
 movement. Record clean source identities. Required semantic coverage includes:
 
 - Static `const F: machine ...` direct selection alongside runtime machine fields; rebinding

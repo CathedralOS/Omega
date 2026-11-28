@@ -68,6 +68,8 @@ mod float_meaning;
 mod ieee_float_order;
 #[path = "prove/mathematical_bounds.rs"]
 mod mathematical_bounds;
+#[path = "prove/premise_order.rs"]
+mod premise_order;
 #[path = "prove/ranges.rs"]
 mod ranges;
 #[path = "prove/reach.rs"]
@@ -668,6 +670,7 @@ impl ExactFactWork {
 /// ordinal so both passes retain their first proof when endpoints tie. Other
 /// searches, including contradiction, still read the complete fact context.
 struct BoundFacts {
+    has_mathematical_order: bool,
     by_value: ValueRows<Vec<usize>>,
     fallback: Vec<usize>,
 }
@@ -681,13 +684,13 @@ struct BoundFactCursor {
 impl BoundFacts {
     fn new(facts: &[Fact], declarations: &ValueRows<Option<usize>>) -> Self {
         let mut result = Self {
+            has_mathematical_order: false,
             by_value: declarations.like(Vec::new()),
             fallback: Vec::new(),
         };
         for (index, fact) in facts.iter().enumerate() {
-            // These are the forms read by literal_bound_from_fact,
-            // bound_from_fact and compound_bound_from_fact. A closed false
-            // fact or a disjunction remains available to their own searches.
+            // Bound construction and order chains use these comparisons.
+            // Contradictions and disjunctions keep their own searches.
             if !matches!(
                 fact.proposition(),
                 Proposition::LessOrEqual(..)
@@ -695,9 +698,14 @@ impl BoundFacts {
                     | Proposition::Equal(..)
                     | Proposition::IntegerMathEqual(..)
                     | Proposition::IntegerMathLessOrEqual(..)
+                    | Proposition::IntegerMathLessThan(..)
             ) {
                 continue;
             }
+            result.has_mathematical_order |= matches!(
+                fact.proposition(),
+                Proposition::IntegerMathLessThan(..) | Proposition::IntegerMathLessOrEqual(..)
+            );
             let complete = fact.proposition().visit_value_ids(|value| {
                 if let Some(indices) = result.by_value.get_mut(value)
                     && indices.last() != Some(&index)
@@ -1232,21 +1240,31 @@ fn ends(proof: &ProofNode) -> Option<(&IntegerMathTerm, &IntegerMathTerm)> {
     }
 }
 
-/// `a <= c` from `a <= b` and `b <= c`, both mathematical.
+/// Chain two mathematical order facts, preserving a strict step on either side.
 fn chain_math(first: ProofNode, second: ProofNode) -> Option<ProofNode> {
-    let (low, first_middle) = ends(&first)?;
-    let (second_middle, high) = ends(&second)?;
+    let (left_strict, low, first_middle) = premise_order::math_order(&first.conclusion)?;
+    let (right_strict, second_middle, high) = premise_order::math_order(&second.conclusion)?;
     if first_middle != second_middle {
         return None;
     }
-    let conclusion = Proposition::IntegerMathLessOrEqual(low.clone(), high.clone());
-    Some(node(
-        conclusion,
-        ProofRule::IntegerLessOrEqualTransitivity {
-            left_less_or_equal_middle: Box::new(first),
-            middle_less_or_equal_right: Box::new(second),
-        },
-    ))
+    let (conclusion, rule) = if left_strict || right_strict {
+        (
+            Proposition::IntegerMathLessThan(low.clone(), high.clone()),
+            ProofRule::IntegerStrictOrderTransitivity {
+                left_to_middle: Box::new(first),
+                middle_to_right: Box::new(second),
+            },
+        )
+    } else {
+        (
+            Proposition::IntegerMathLessOrEqual(low.clone(), high.clone()),
+            ProofRule::IntegerLessOrEqualTransitivity {
+                left_less_or_equal_middle: Box::new(first),
+                middle_less_or_equal_right: Box::new(second),
+            },
+        )
+    };
+    Some(node(conclusion, rule))
 }
 
 /// An equality or strict order implies the corresponding non-strict order.
@@ -2532,7 +2550,10 @@ impl<'a> Prover<'a> {
         if let Some(index) = self.exact_fact(&Proposition::Falsehood) {
             return Ok(ex_falso(self.facts[index].proof(&self.facts), goal));
         }
-        if let Some(proof) = self.order_through_cast(goal) {
+        if let Some(proof) = self
+            .premise_order(goal)
+            .or_else(|| self.order_through_cast(goal))
+        {
             return Ok(proof);
         }
         match goal {
@@ -2711,6 +2732,9 @@ impl<'a> Prover<'a> {
             Proposition::IsMere(_) => self
                 .closed(goal.clone())
                 .ok_or("mere-proposition obligation is not established"),
+            Proposition::Squash(_) | Proposition::Boxed(_) => self
+                .closed(goal.clone())
+                .ok_or("a squashed or boxed obligation is not established"),
             Proposition::Universal { .. } => self
                 .closed(goal.clone())
                 .ok_or("a for-every obligation is not established"),

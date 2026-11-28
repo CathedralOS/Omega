@@ -281,6 +281,18 @@ impl crate::source_state::TypedTrees {
         )
     }
 
+    pub(crate) fn is_closed_aggregate_operand(
+        &self,
+        carrier: crate::source_state::types::TypeReferenceHandle,
+        argument: &crate::source_state::expression::StaticMachineArgument,
+    ) -> bool {
+        self.contains_type_reference(carrier)
+            && self.primitive_type_reference(carrier).is_none()
+            && argument.symbol.is_valid()
+            && (self.const_declaration_by_symbol(argument.symbol).is_some()
+                || self.variant_owner(argument.symbol).is_some())
+    }
+
     /// Retain every field of an already evaluated aggregate value. The source
     /// constant's declared carrier, rather than its display name, owns typing.
     pub fn canonical_aggregate_argument(
@@ -288,11 +300,45 @@ impl crate::source_state::TypedTrees {
         declared_type: crate::source_state::types::TypeReferenceHandle,
         argument: &crate::source_state::expression::StaticMachineArgument,
     ) -> Result<application_identity::const_value::CanonicalConstValue, &'static str> {
+        if !self.contains_type_reference(declared_type) {
+            return Err("a static aggregate has no declared carrier");
+        }
         if argument.application.is_some()
             || argument.evidence_projection.is_some()
             || argument.const_literal.is_some()
         {
             return Err("a static aggregate needs its exact closed value operand");
+        }
+        if let Some((owner, case)) = self.variant_owner(argument.symbol) {
+            use application_identity::const_value::{
+                CanonicalConstValue, DecodedCanonicalConstValue,
+            };
+            if self.type_reference_node(declared_type).as_named_symbol() != Some(owner.symbol)
+                || !crate::source_state::canonical_const_carrier_is_supported(self, declared_type)
+                || !owner.type_parameters.is_empty()
+            {
+                return Err("a static case has another or uninstantiated carrier");
+            }
+            if !case.payload.is_empty()
+                || !case.requires_facts.is_empty()
+                || !owner.requires_facts.is_empty()
+            {
+                return Err(
+                    "a static case with fields or requirements needs a checked constructor value",
+                );
+            }
+            let name = owner.name.as_str();
+            let case_name = case.name.as_str();
+            return CanonicalConstValue::from_decoded_in_type(
+                self.normalized_type_identity_text(declared_type),
+                &DecodedCanonicalConstValue::Variant {
+                    type_name: name.to_owned(),
+                    case_name: case_name.to_owned(),
+                    fields: Vec::new(),
+                },
+                format!("{name}::{case_name}"),
+            )
+            .ok_or("a static case has no canonical value");
         }
         let declaration = self
             .const_declaration_by_symbol(argument.symbol)
@@ -4240,6 +4286,26 @@ pub(crate) mod requirement_instances {
             lexical_owner: SymbolHandle,
             ordinal: usize,
         ) -> Option<type_identity::NormalizedTypeIdentity> {
+            if let (
+                data::TypeParameterKind::Const { type_reference }
+                | data::TypeParameterKind::Value { type_reference },
+                static_applications::StaticMachineBindingValue::Const(_),
+            ) = (kind, binding)
+            {
+                let argument = program
+                    .static_operand_from_type_reference(self.type_reference())
+                    .ok()?;
+                if program.is_closed_aggregate_operand(*type_reference, &argument) {
+                    let value = program
+                        .canonical_aggregate_argument(*type_reference, &argument)
+                        .ok()?;
+                    return Some(
+                        program
+                            .type_identities
+                            .intern(&value.application_identity()?),
+                    );
+                }
+            }
             // A selected machine and its entry state invoke the same callable.
             // Keep its complete checked application rather than its type spelling.
             if matches!(
@@ -4431,7 +4497,8 @@ pub(crate) mod requirement_instances {
                     .static_machine_application_bindings(left_application)
                     .iter()
                     .zip(bindings)
-                    .all(|(left, right)| {
+                    .enumerate()
+                    .all(|(ordinal, (left, right))| {
                         let left_parameter = left.parameter;
                         let left_value = &left.value;
                         left.parameter == right.parameter
@@ -4439,10 +4506,6 @@ pub(crate) mod requirement_instances {
                                 (
                                     static_applications::StaticMachineBindingValue::Type(left),
                                     static_applications::StaticMachineBindingValue::Type(right),
-                                )
-                                | (
-                                    static_applications::StaticMachineBindingValue::Const(left),
-                                    static_applications::StaticMachineBindingValue::Const(right),
                                 ) => {
                                     let existing_owner = self
                                         .static_machine_application(left_application)
@@ -4456,6 +4519,39 @@ pub(crate) mod requirement_instances {
                                         ))
                                         .is_some_and(|(left, right)| left == right)
                                 }
+                                (
+                                    static_applications::StaticMachineBindingValue::Const(
+                                        left_reference,
+                                    ),
+                                    static_applications::StaticMachineBindingValue::Const(
+                                        right_reference,
+                                    ),
+                                ) => self
+                                    .data_type_parameter_by_symbol(left_parameter)
+                                    .is_some_and(|parameter| {
+                                        let identity = |reference, bound: &_, owner| {
+                                            RequirementLocalArgument::Static(reference)
+                                                .portable_identity(
+                                                    self,
+                                                    &parameter.kind,
+                                                    bound,
+                                                    owner,
+                                                    ordinal,
+                                                )
+                                        };
+                                        identity(
+                                            *left_reference,
+                                            &left.value,
+                                            self.static_machine_application(left_application)
+                                                .lexical_owner,
+                                        )
+                                        .zip(identity(
+                                            *right_reference,
+                                            &right.value,
+                                            lexical_owner,
+                                        ))
+                                        .is_some_and(|(left, right)| left == right)
+                                    }),
                                 (
                                     static_applications::StaticMachineBindingValue::RuntimeValue {
                                         type_reference: left,
@@ -5727,6 +5823,19 @@ pub(crate) mod selected_operands {
                             let initializer = declaration.materialized_initializer;
                             return Ok(program.expression_table.insert_copy(initializer));
                         }
+                    } else if program.variant_owner(symbol).is_some() {
+                        let argument = expression::StaticMachineArgument {
+                            symbol,
+                            ..Default::default()
+                        };
+                        let value = program.canonical_aggregate_argument(carrier, &argument)?;
+                        let decoded = value
+                            .decode_encoding()
+                            .ok_or("a static case lost its canonical value")?;
+                        let node = program
+                            .materialize_canonical_const_value(carrier, &decoded)
+                            .ok_or("a static case cannot be constructed at the selected carrier")?;
+                        return Ok(program.expression_table.insert(node));
                     } else if let Some(record) = program.conformance_by_symbol(symbol) {
                         if !record.lifetime_parameters.is_empty()
                             || !program.conformance_type_parameters(record).is_empty()
@@ -6265,8 +6374,23 @@ pub(crate) mod signatures {
                 applied.symbol = self.symbol(declared.symbol);
                 let mut applied_parameters = Vec::with_capacity(type_parameters.len());
                 for mut parameter in type_parameters {
-                    parameter.symbol = self.symbol(parameter.symbol);
-                    parameter.kind = self.parameter_kind(program, parameter.kind)?;
+                    let original = parameter.symbol;
+                    parameter.symbol = self.symbol(original);
+                    // A fresh structural callback owns its complete applied signature,
+                    // including the authored distinction between omitted reach and none.
+                    let nested_owner = matches!(
+                        &parameter.kind,
+                        data::TypeParameterKind::Machine {
+                            contract: data::MachineParameterContract::Structural(header)
+                        } if header.symbol == original
+                    ) && self.symbols[previous_symbols..].contains(&(original, parameter.symbol));
+                    let previous_owner = self.owned_signature;
+                    if nested_owner {
+                        self.owned_signature = parameter.symbol;
+                    }
+                    let kind = self.parameter_kind(program, parameter.kind);
+                    self.owned_signature = previous_owner;
+                    parameter.kind = kind?;
                     applied_parameters.push(parameter);
                 }
                 applied.type_parameters =
@@ -8310,7 +8434,7 @@ mod invocation_owner_walk_tests {
                     },
                 });
         }
-        let index = MachineSidecarIndex::build(&program);
+        let index = MachineSidecarIndex::default();
         for (owner, expected) in [
             (inside, vec![types[0], types[1], types[0]]),
             (outside, vec![types[2]]),

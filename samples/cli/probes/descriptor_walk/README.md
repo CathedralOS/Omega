@@ -3,7 +3,7 @@
 Walk three firmware-style records stored in a field of caller-owned storage.
 The runtime `descriptor_size` determines each step; the shared `Desc` view
 reads the original byte buffer, and kinds 4 and 5 contribute 20 + 30 pages.
-`omega run --both main.omg` must report native and Terminal exit 50.
+the native/Psi comparison must report native and Terminal exit 50.
 
 Each nested helper receives its mutable storage loan and offset explicitly.
 Its own contract establishes the recast footprint; the loop transfers control

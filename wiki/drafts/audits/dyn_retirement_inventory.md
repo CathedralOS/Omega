@@ -21,7 +21,7 @@ opt-level 1) rejects the spec's own first example, the `CounterOps` record from
 [machine values](../../spec/language/machine_values.md#callable-types-and-construction),
 at the parser: `main.omg:3:19: expected identifier, found punctuation `(``,
 at the `(` of `clear: machine(counter: &mut Counter) terminates;`. The unmigrated `dyn` original
-of a one-field operations record passed `omega run --both` with the same binary.
+of a one-field operations record passed the interpreted and native checks with the same compiler.
 
 ## Why the migration needs a checked rewrite rule
 
@@ -55,8 +55,7 @@ Proposed rule name: `dyn-operations-records`. Its applicability and
 preservation argument: every rewritten selector carries the same selected
 implementation per member, the same member contracts and the same argument
 order, so each call reaches the same body under the same obligations.
-Program behavior is then re-proved by running each migrated program under
-`omega run --both`; rechecking alone does not prove behavioral equivalence.
+Program behavior is then re-proved by comparing its interpreted results with those of its compiled image; rechecking alone does not prove behavioral equivalence.
 
 ## Compiler work, in order
 
@@ -74,7 +73,7 @@ whole-pipeline slice (`Psi 05 -> 06 -> Native`), not a stage-only task.
 2. **`omega source rewrite` with `dyn-operations-records`.** Implement the
    command's staging, recheck and transactional commit once, with this rule as
    its first customer, then migrate every customer file in one change, re-run every
-   affected program with `omega run --both` on the four hosts, and attribute
+   affected program both from its compiled image and under the interpreter on the four hosts, and attribute
    each pinned diagnostic that names `dyn`.
 3. **Retire `dyn`.** Delete the `dyn` type branch and `as dyn` coercion,
    `TypeReferenceNode::DynamicTrait`, the whole-trait table ownership, and the

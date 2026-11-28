@@ -239,13 +239,6 @@ mod proposal {
                     }
                 }
             };
-            if let Some(stuck) = psi_provider_selections::component_wait_deadlock(
-                artifact.view(),
-                root.semantic_entry(),
-                request.imports.iter().flat_map(|import| import.calls()),
-            ) {
-                return Err(vec![Diagnostic::error(stuck.to_string())]);
-            }
             let scope_source = target_bound_program::NativeScopeSource::admit(
                 &authorization,
                 root,
@@ -297,12 +290,6 @@ mod proposal {
             terminal_module,
         )
         .map_err(|message| vec![Diagnostic::error(message)])?;
-        provider_admission::validate_task_activations(
-            &terminal_module.execution.task_activation_demands,
-            &terminal_module.identities,
-            &selected,
-            target_profile,
-        )?;
         let checked_adapters = crate::component_inputs::local_adapters(
             artifact.view(),
             target_profile,
@@ -534,7 +521,8 @@ mod proposal {
                 continue;
             };
             if let build_providers::plans::ProviderBinding::CheckedAdapter {
-                machine_identity, ..
+                machine_identity,
+                ..
             } = &row.binding
             {
                 let machine = selected

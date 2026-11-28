@@ -22,7 +22,7 @@ The nine places vary the observed byte storage's carrier or executing body: loca
 
 ## Baseline and repair
 
-At `3ddc7d1455f182d54645df101870ea9b441b9019`, `omega run --both` of `local/main.omg` exited 200. Lowering `probe` failed with `InvalidUnitMachinePlan` reason `reference alias changes its referent carrier`. A borrowed destination was treated as an alias whenever its access was a loan, and any carrier change was refused. A shared reborrow of a mutable byte view is a different type identity with the same pointer and extent. That reborrow stays an alias when the borrowed-referent presentation is unchanged and the source access can supply the destination ceiling. Addressing inline backing, and any other carrier change, still uses the shared descriptor producer.
+At `3ddc7d1455f182d54645df101870ea9b441b9019`, the native/Psi comparison of `local/main.omg` exited 200. Lowering `probe` failed with `InvalidUnitMachinePlan` reason `reference alias changes its referent carrier`. A borrowed destination was treated as an alias whenever its access was a loan, and any carrier change was refused. A shared reborrow of a mutable byte view is a different type identity with the same pointer and extent. That reborrow stays an alias when the borrowed-referent presentation is unchanged and the source access can supply the destination ceiling. Addressing inline backing, and any other carrier change, still uses the shared descriptor producer.
 
 On Windows x86-64, all nine positives then return native exit 0 and Terminal
 exit 0. All nine twins reject with `cannot prove requires contract for call
@@ -35,7 +35,7 @@ inspect`.
 - **Composition:** The same consuming contract and write target distinction
   occur in all nine places.
 - **Soundness:** The selected scalar producer, source custody, access, bounds and loan checks remain required. Backing footprints grant no exact identity, access or new callable purity. Unknown origins remain opaque.
-- **Psi 06–08:** Actual `omega run --both` carries the checked Boolean, view and selected transition through Terminal emission and interpretation. The runtime result tests the observed byte.
+- **Psi 06–08:** Actual native/Psi comparison carries the checked Boolean, view and selected transition through Terminal emission and interpretation. The runtime result tests the observed byte.
 - **Omega 00–02:** Each hosted Build companion supplies ProgramEntry; the ordinary view/scalar calling plans and provider settlement carry `inspect` and its result.
 - **Omega 03–06:** Native execution exercises the selected predicate operations, live saved Boolean, mutation, calls, register homes and activation frames.
 - **Omega 07–09 and emission:** The Windows x86-64 image executes with the authored result and agrees with Terminal. The other three hosted targets are authored and were not executed on this host.

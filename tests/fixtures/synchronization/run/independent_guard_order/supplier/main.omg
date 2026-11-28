@@ -1,0 +1,38 @@
+public data Lock { held: AtomicU32; }
+
+machine acquire(lock: @Lock) {
+    let prior: u32 = lock.held.swap(1, ReceivePublish);
+    transition prior == 1 {
+        true -> acquire(lock),
+        _ -> acquired()
+    }
+    machine acquired() {}
+}
+
+data Guard<'storage> dropped by unlock { lock: @'storage Lock; }
+
+machine unlock<'storage>(guard: Guard<'storage>) {
+    let { lock } = move guard;
+    lock.held.store(0, Publish);
+}
+
+machine hold<'storage>(lock: @'storage Lock, home: @'storage Lock) -> Guard<'storage> {
+    acquire(lock);
+    Guard { lock: home }
+}
+
+machine nested(first: @Lock, second: @Lock) {
+    let outer: Guard = hold(first, first);
+    let inner: Guard = hold(second, second);
+    let retained: Guard = move outer;
+}
+
+public boundary trait Protect {
+    machine pair(first: @Lock, second: @Lock) reaches none crashes none;
+}
+
+public GuardedPair satisfies Protect {
+    machine pair(first: @Lock, second: @Lock) {
+        nested(first, second);
+    }
+}

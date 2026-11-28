@@ -938,12 +938,11 @@ dependencies = [
  "installation-admission",
  "installation-conditions",
  "isa-x86_64",
- "legalized-operations",
  "machine-code",
  "native-encoding",
  "native-execution-reach",
  "object-file",
- "optimization-unit-semantics",
+ "operation-operands",
  "physical-program",
  "physical-recipes",
  "post-allocation-machine",
@@ -959,7 +958,6 @@ dependencies = [
  "sha2",
  "target",
  "target-aarch64",
- "target-operations",
  "target-vocabulary",
  "target-x86_64",
  "terminal-psi",
@@ -1401,6 +1399,7 @@ dependencies = [
 name = "native-binding-admission"
 version = "0.1.0"
 dependencies = [
+ "application-identity",
  "build-providers",
  "calling-conventions",
  "layout",
@@ -1717,14 +1716,12 @@ name = "omega"
 version = "0.1.0"
 dependencies = [
  "artifacts",
- "bounded-process",
  "build-declarations",
  "build-execution",
  "build-program-launch",
  "compiler",
  "diagnostics",
  "installation-conditions",
- "libc",
  "mimalloc",
  "native-provider-sponsor",
  "omega-source",
@@ -1736,6 +1733,7 @@ dependencies = [
  "project-build",
  "psi-authorization",
  "psi-entry-memory",
+ "psi-provider-selections",
  "retained-image-runtime",
  "runtime-abi",
  "semantic-vocabulary",
@@ -1743,10 +1741,11 @@ dependencies = [
  "source-acquisition",
  "target",
  "terminal-codec",
+ "terminal-interpreter",
  "terminal-psi",
  "terminal-runtime",
  "terminal-semantics",
- "windows-sys 0.61.2",
+ "terminal-work",
  "worker-budget",
 ]
 
@@ -2402,7 +2401,9 @@ dependencies = [
 name = "published-object-verification"
 version = "0.1.0"
 dependencies = [
+ "abstract-operations",
  "abstract-operations-to-target-operations",
+ "calling-conventions",
  "diagnostics",
  "encoding-admission",
  "frame-admission",
@@ -2411,6 +2412,7 @@ dependencies = [
  "installation-admission",
  "machine-code",
  "optimization-core",
+ "optimization-unit-semantics",
  "post-allocation-machine",
  "post-allocation-machine-to-framed-machine",
  "register-environment",
@@ -2422,6 +2424,9 @@ dependencies = [
  "selected-instructions-to-register-homes",
  "selected-instructions-to-selected-instructions",
  "semantic-vocabulary",
+ "target-operations",
+ "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]

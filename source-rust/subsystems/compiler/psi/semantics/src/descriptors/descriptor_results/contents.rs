@@ -42,6 +42,9 @@ impl DescriptorFlowStep {
         };
         let from = source.observation();
         for slot in inventory.into_observations() {
+            // A copied value can outlive the selection only with the
+            // authorities carried by its own concrete or opaque fields.
+            self.may_escape = true;
             let mut query = source.clone();
             query.steps.extend(
                 slot.path

@@ -10,7 +10,7 @@ exclusive view of the selected payload's descriptor, `selected[0] = 41` writes
 through it, and the successor read observes 41 with `visits == 1`. Root and all
 nine places bind `ProgramEntry` for `windows_x86_64`, `linux_x86_64`,
 `macos_arm64` and `linux_arm64`, declare `Expected exit: 0`, and pass
-`omega run --both` on macOS ARM64 — native exit 0 with the Terminal Psi leg
+the native/Psi comparison on macOS ARM64 — native exit 0 with the Terminal Psi leg
 exiting 0 in agreement.
 
 `f99397375a26b565fb9b493d8cc6f523901e6591` (`psi: record selected descriptors on
@@ -104,8 +104,7 @@ natively with Terminal Psi agreement. Canonical authority:
   while shared views and mutable byte views keep joining under their loan;
   the checked program lowers without loss into canonical target-neutral
   Terminal Psi and executes in the Terminal Psi interpreter with
-  `interp exit: 0` against native exit 0 on all nine places (`omega run
-  --both`, stdout empty, exit 0).
+  `interp exit: 0` against native exit 0 on all nine places (the native/Psi comparison, stdout empty, exit 0).
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega
   00–02`):** `ProgramEntry` settles for all four hosted targets in every
   place's `build.omg`; the payload is `[i64; 2]` inside a case payload whose
@@ -132,7 +131,7 @@ base (`49caaa8c2a21`, `--build-profile` `opt_level 1`): all ten positives
 nine twins exit 1 with their pinned fragment.
 
 ```sh
-omega run --both samples/cli/facts/descriptor_payload_exclusive_loan/local/main.omg   # exit 0, native exit 0, interp exit: 0
+omega run samples/cli/facts/descriptor_payload_exclusive_loan/local/main.omg   # exit 0
 omega --check samples/cli/facts/descriptor_payload_exclusive_loan/invalid_local/main.omg   # exit 1, the loan diagnostic
 ```
 
@@ -145,7 +144,7 @@ records eight `built exit:0` rows with `interpreter-exit:0`,
 
 Known red: `pass/facts/descriptor_payload_exclusive_loan_through_other_state_exit`
 is observed `rejected` in the corpus checked-compile route while the same source
-builds and runs through `omega run --both` (and through plain `omega` for all four
+builds and runs through the native/Psi comparison (and through plain `omega` for all four
 declared targets).
 
 ```
@@ -198,8 +197,7 @@ Base `4f87c9e08b1` refused the migrated positive at Terminal lowering:
 precondition representation)`. A requirement signature's own case-membership
 precondition (`chosen in Slot::Present`) had no lowering: the case test rejoined
 its scope through a machine state with the same parameters, and a requirement
-has none. Observed on macOS x86-64: the migrated positive exits 0 under `omega
-run --both` (native and Terminal Psi agree) and its twin rejects for the live
+has none. Observed on macOS x86-64: the migrated positive exits 0 under the native/Psi comparison (native and Terminal Psi agree) and its twin rejects for the live
 loan. The other hosted targets keep their authored rows, unexecuted here.
 
 The `other_state` place is red on base and here alike (`machine pick ... cannot prove selected case for payload access`): the nested `pick` machine declares no case precondition of its own. The corpus golden pins it as a regression; it is outside this migration.

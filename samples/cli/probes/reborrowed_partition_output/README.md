@@ -8,9 +8,11 @@ partitions decline insertion. Expected native and Terminal exit: 0.
 
 ```sh
 omega packages update --project samples/cli/collections/reborrowed_partition_output --target macos_arm64 --offline --dangerously-accept-all
-omega run --engine native samples/cli/collections/reborrowed_partition_output/main.omg
-omega run --engine psi samples/cli/collections/reborrowed_partition_output/main.omg
+omega run samples/cli/collections/reborrowed_partition_output/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/probes/reborrowed_partition_output` from the repository root.
 
 This exercises live bounds and exact count increments through a full-window
 reborrow. Writes to record contents preserve the sibling count and descriptor

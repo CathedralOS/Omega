@@ -1275,20 +1275,22 @@ pub(crate) fn scalar_clause_value(
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum AtomicOperation {
-    Access {
-        place: Box<Expression>,
-        event: terminal_psi::AtomicAccessEvent<usize>,
-        operands: Vec<Expression>,
-    },
+    Access(AtomicAccess),
     Fence(terminal_psi::FenceOrdering),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct AtomicAccess {
+    pub place: Box<Expression>,
+    pub event: terminal_psi::AtomicAccessEvent<usize>,
+    pub operands: Vec<Expression>,
+    pub result: language_core::atomic::AtomicExpressionResultCustody,
 }
 
 impl AtomicOperation {
     pub(crate) fn inputs(&self) -> impl Iterator<Item = &Expression> {
         let (place, operands) = match self {
-            Self::Access {
-                place, operands, ..
-            } => (Some(place.as_ref()), operands.as_slice()),
+            Self::Access(access) => (Some(access.place.as_ref()), access.operands.as_slice()),
             Self::Fence(_) => (None, &[][..]),
         };
         place.into_iter().chain(operands)

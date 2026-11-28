@@ -196,11 +196,12 @@ integer quotient, not rational `/`. Floats project to
 [FloatMeaning](../terminal-psi/mathematical_values.md#floatmeaning), preserving
 signed zero, infinity, and NaN rather than pretending every float is rational.
 
-`Real` is a proof-side abstraction over ordinary mathematical data and
-equivalence/quotient machinery, not a runtime primitive or float mode. General
-relation expressions and typed index telescopes precede evidence-bearing
-quotients. Approximation theorems must explicitly connect Real specifications
-to executable float implementations.
+Core constructs proof-side `Real` from regular rational sequences. Each
+sequence supplies its state and a named sampling machine. Projection checks
+regularity, and convergence together identifies the resulting reals under
+the [Cauchy quotient](quotients.md#cauchy-sequences-and-the-real-quotient).
+Approximation theorems must explicitly connect Real specifications to
+executable float implementations.
 
 ### Total arithmetic
 

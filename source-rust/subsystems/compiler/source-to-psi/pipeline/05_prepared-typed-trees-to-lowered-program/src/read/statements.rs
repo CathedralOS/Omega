@@ -154,7 +154,15 @@ impl Program<'_> {
             )
         };
         let source = SourceOrigin::of(self.typed.expression_table.source_span(assignment.target));
-        if let ExpressionNode::Atomic(atomic) = self.node(id, assignment.value)? {
+        // Only a store or the synthetic write paired with an observed update
+        // names the atomic cell as its assignment target. An exchange outcome
+        // assigned to an existing local follows the ordinary replacement path.
+        if let ExpressionNode::Atomic(atomic) = self.node(id, assignment.value)?
+            && (matches!(
+                atomic.ordering,
+                language_core::atomic::AtomicOrderingPlan::Store(_)
+            ) || atomic.result.is_valid())
+        {
             return self.atomic_store(id, slots, assignment.target, atomic, source);
         }
         let write_refusal = |slot: &Slot, unsupported| {

@@ -1502,7 +1502,8 @@ pub mod evidence {
                     saved.capture.generation()
                 ),
                 ExpressionNode::Atomic(atomic) => {
-                    format!("atomic[{:?}]({})", atomic.ordering, render(atomic.value)?)
+                    let inputs = atomic.inputs().map(render).collect::<ProofLabelResult<Vec<_>>>()?;
+                    format!("atomic[{:?}]({})", atomic.ordering, inputs.join(", "))
                 }
                 ExpressionNode::ArrayLiteral(values) => format!(
                     "[{}]",
@@ -1750,6 +1751,12 @@ pub mod evidence {
             pub view: source_declarations::RankingViewSelection,
             pub view_arguments: Vec<ExpressionHandle>,
             pub rank_range: Option<ExpressionHandle>,
+        }
+
+        impl source_symbol_table::owner_rows::OwnedRow for RankingExpressionCustody {
+            fn row_owner(&self) -> symbols::SymbolHandle {
+                self.machine
+            }
         }
 
         pub fn resolve_machine_witness_subjects(
