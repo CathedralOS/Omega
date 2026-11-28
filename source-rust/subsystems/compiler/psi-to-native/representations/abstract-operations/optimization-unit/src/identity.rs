@@ -2312,7 +2312,6 @@ pub(crate) mod operation_encoding {
         ObligationId,
         BoundaryMachineId,
         MachineDescriptorId,
-        CallableContractId,
         EdgeId,
         BlockId
     );
