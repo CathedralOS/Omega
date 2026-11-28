@@ -253,7 +253,140 @@ pub(crate) fn components<'a>(
         }
     }
     share_loop_entries(bodies, signatures, &calls, &mut table)?;
+    share_rank_preserving_entries(signatures, &calls, &mut table);
     Ok(table)
+}
+
+/// One receiver keeps the complete loop. An ordinary entry can reach it through
+/// a bounded chain when every internal successor already reaches the receiver.
+/// Each retained call must also preserve its own entry's rank under that entry's
+/// contract. Lowering checks the actual value before choosing the shorter body.
+fn share_rank_preserving_entries(
+    signatures: &IdTable<MachineId, Signature>,
+    calls: &CallGraph<'_>,
+    components: &mut Components,
+) {
+    let mut forwarding = Vec::new();
+    let mut remaining = Vec::new();
+    let mut ready = Vec::new();
+    for (members, cyclic) in components.callee_first() {
+        if !cyclic
+            || members.len() < 2
+            || !members.iter().all(|&id| {
+                components.can_forward(id)
+                    && !calls.has_designated[index(id)]
+                    && signatures.get(id).is_some_and(|signature| {
+                        matches!(
+                            signature.result,
+                            Some(ValueType::Record(_, _, Regions::NONE))
+                        ) && signature.borrowed.is_empty()
+                            && signature.erased.is_empty()
+                            && signature.ensures.is_empty()
+                            && !signature.has_structural_guarantees()
+                            && rank_formal(signature).is_some()
+                    })
+            })
+        {
+            continue;
+        }
+        let mut entries = members.iter().copied().filter(|&member| {
+            components
+                .callers(index(member))
+                .any(|caller| !components.same_component(caller, index(member)))
+        });
+        let Some(receiver) = entries.next() else {
+            continue;
+        };
+        if entries.next().is_some() {
+            continue;
+        }
+        remaining.clear();
+        remaining.extend(members.iter().map(|&member| {
+            calls
+                .calls(index(member))
+                .iter()
+                .filter(|site| components.same_component(index(member), index(site.callee)))
+                .count()
+        }));
+        ready.push(receiver);
+        while let Some(callee) = ready.pop() {
+            for &(caller, _) in components.call_sites(index(callee)) {
+                if caller == index(receiver) || !components.same_component(caller, index(receiver))
+                {
+                    continue;
+                }
+                let id = MachineId::new(caller as u64 + 1).expect("dense caller identity");
+                let position = members
+                    .binary_search(&id)
+                    .expect("caller in this component");
+                remaining[position] -= 1;
+                if remaining[position] == 0 {
+                    ready.push(id);
+                    forwarding.push(id);
+                }
+            }
+        }
+    }
+    for member in forwarding {
+        components.try_rank_preserving_entry(member);
+    }
+}
+
+fn rank_formal(signature: &Signature) -> Option<usize> {
+    let ranking = signature.ranking.as_ref()?;
+    let [measure] = ranking.measures.as_slice() else {
+        return None;
+    };
+    let ExpressionKind::Slot(position) = measure.kind else {
+        return None;
+    };
+    (ranking.range.is_none()
+        && ranking.fixed_bound.is_none()
+        && matches!(
+            signature.parameters.get(position),
+            Some(ValueType::Scalar(
+                semantic_vocabulary::ScalarType::Integer(_),
+                _
+            ))
+        ))
+    .then_some(position)
+}
+
+/// A condition known only at the receiver cannot justify another entry's rank.
+/// Identity of the immutable integer passed to each internal call establishes
+/// preservation even for inputs the receiver never supplies.
+pub(crate) fn preserves_entry_rank(
+    lowered: &crate::lower::Lowered,
+    members: &[MachineId],
+    signatures: &IdTable<MachineId, Signature>,
+) -> bool {
+    use semantic_vocabulary::TargetMachineCallable;
+    use terminal_check_tables::edges::{Actual, Callee};
+    let Some(signature) = signatures.get(lowered.machine.id) else {
+        return false;
+    };
+    let Some(formal) = rank_formal(signature)
+        .and_then(|position| signature.formal_values().get(position).copied().flatten())
+    else {
+        return false;
+    };
+    lowered
+        .tables
+        .invocations
+        .iter()
+        .all(|(_, call)| match call.callee {
+            Callee::Declared(TargetMachineCallable::Machine(callee))
+                if members.binary_search(&callee).is_ok() =>
+            {
+                signatures
+                    .get(callee)
+                    .and_then(rank_formal)
+                    .and_then(|position| call.actuals.get(position))
+                    == Some(&Actual::Value(formal))
+            }
+            Callee::Declared(_) => true,
+            Callee::Selected { .. } => false,
+        })
 }
 
 /// An ordinary invocation can execute its first body and pass its result
