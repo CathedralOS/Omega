@@ -870,8 +870,7 @@ fn package_sites_keep_a_fixed_reader_index_across_a_scalar_output_write() {
     }));
 }
 
-#[test]
-fn stored_callback_keeps_the_destination_packages_current_witness() {
+fn callback_field_assignment() -> TerminalModule {
     let mut program = readers();
     let StructuralTypeShape::Record { fields, .. } =
         &mut program.types.structural_types.last_mut().unwrap().shape
@@ -882,6 +881,16 @@ fn stored_callback_keeps_the_destination_packages_current_witness() {
         3,
         StructuralFieldType::Scalar(ScalarType::Callable(callable(1))),
     ));
+    let machine = &mut program.machines[0];
+    for position in 0..2 {
+        machine
+            .parameter_order
+            .push(BoundaryParameterKind::Structural);
+        machine.structural_places.push(StructuralPlaceDeclaration {
+            id: place(u64::from(position) + 1),
+            kind: StructuralPlaceKind::Parameter { position },
+        });
+    }
     let operations = &mut program.machines[0].blocks[0].operations;
     let O::PrimitiveScalarRead { path, .. } = &mut operations[0].kind else {
         unreachable!()
@@ -907,6 +916,12 @@ fn stored_callback_keeps_the_destination_packages_current_witness() {
         opening: 0,
         field: field(2),
     };
+    program
+}
+
+#[test]
+fn stored_callback_keeps_the_destination_packages_current_witness() {
+    let mut program = callback_field_assignment();
     assert_eq!(
         check_package_sites(&program)
             .unwrap()
@@ -950,4 +965,142 @@ fn stored_callback_keeps_the_destination_packages_current_witness() {
 
     program.execution.packages.sites.pop();
     assert!(check_package_sites(&program).is_err());
+}
+
+#[test]
+fn a_saved_callback_survives_a_field_write_that_preserves_its_package_witness() {
+    let mut program = callback_field_assignment();
+    let final_site = TerminalPackageSite {
+        operation: operation_id(4),
+        ..program.execution.packages.sites[1].clone()
+    };
+    program.execution.packages.sites.push(final_site);
+    let operations = &mut program.machines[0].blocks[0].operations;
+    let mut final_store = operations[1].clone();
+    final_store.id = operation_id(4);
+    operations.push(final_store);
+    check_package_sites(&program).expect("two stores of the same saved callback keep its witness");
+
+    // An evidence-free store may update the independent tag. Reusing that
+    // operation to write a dependent callback without a receipt must fail.
+    let StructuralTypeShape::Record { fields, .. } =
+        &mut program.types.structural_types.last_mut().unwrap().shape
+    else {
+        unreachable!()
+    };
+    fields.push(declaration(
+        4,
+        StructuralFieldType::Scalar(ScalarType::Boolean),
+    ));
+    program.execution.packages.sites.remove(1);
+    let ops = &mut program.machines[0].blocks[0].operations;
+    ops.insert(
+        1,
+        Operation::unsuspended(
+            operation_id(2),
+            OperationResult::Scalar(ValueDeclaration {
+                scalar_type: ScalarType::Boolean,
+                ..value(2)
+            }),
+            O::BooleanConstant { value: true },
+        ),
+    );
+    ops[2] = Operation::unsuspended(
+        operation_id(3),
+        OperationResult::Unit,
+        O::StructuralScalarFieldStore {
+            destination: place(1),
+            path: vec![],
+            field: field(4),
+            value: value(2).id,
+            range_obligation: None,
+        },
+    );
+    check_package_sites(&program).expect("the independent tag cannot replace the package witness");
+    let O::StructuralScalarFieldStore {
+        field: target,
+        value: source,
+        ..
+    } = &mut program.machines[0].blocks[0].operations[2].kind
+    else {
+        unreachable!()
+    };
+    *target = field(2);
+    *source = value(1).id;
+    assert!(check_package_sites(&program).is_err());
+}
+
+#[test]
+fn a_saved_callback_at_a_join_requires_both_paths_to_keep_the_same_package() {
+    let mut program = callback_field_assignment();
+    let machine = &mut program.machines[0];
+    let branch = BlockId::new(2).unwrap();
+    let join = BlockId::new(3).unwrap();
+    let edge = |id, target| terminal_psi::SuccessorEdge {
+        edge: EdgeId::new(id).unwrap(),
+        target,
+        arguments: vec![],
+        erased_arguments: vec![],
+        erased_proof_arguments: vec![],
+        structural_arguments: vec![],
+        cleanup_actions: vec![],
+    };
+    let first_store = machine.blocks[0].operations.pop().unwrap();
+    let mut last_store = first_store.clone();
+    last_store.id = operation_id(4);
+    machine.parameters.push(ValueDeclaration {
+        scalar_type: ScalarType::Boolean,
+        ..value(2)
+    });
+    machine.parameter_order.push(BoundaryParameterKind::Scalar);
+    let returned = std::mem::replace(
+        &mut machine.blocks[0].terminator,
+        Terminator::Conditional {
+            condition: value(2).id,
+            when_true: edge(2, branch),
+            when_false: edge(3, join),
+        },
+    );
+    // A receiver can serialize the join before its predecessor.
+    machine
+        .blocks
+        .push(Block::plain(join, vec![], returned));
+    machine.blocks[1].operations.push(last_store);
+    machine.blocks.push(Block::plain(
+        branch,
+        vec![],
+        Terminator::Jump {
+            edge: EdgeId::new(4).unwrap(),
+            target: join,
+            arguments: vec![],
+            erased_arguments: vec![],
+            erased_proof_arguments: vec![],
+            structural_arguments: vec![],
+            cleanup_actions: vec![],
+        },
+    ));
+    machine.blocks[2].operations.push(first_store);
+    program.execution.packages.sites.push(TerminalPackageSite {
+        operation: operation_id(4),
+        ..program.execution.packages.sites[1].clone()
+    });
+    check_package_sites(&program)
+        .expect("the saved callback survives a checked field update on one path");
+
+    program.machines[0].blocks[2].operations[0].kind = O::StoreStructuralField {
+        destination: place(1),
+        path: vec![],
+        field: None,
+        value: StructuralArgument::whole(place(2), StructuralAccess::Owned),
+        disposition: terminal_psi::StructuralStoreDisposition::ReplaceDiscardable,
+    };
+    assert!(
+        check_package_sites(&program).is_err(),
+        "a whole-package replacement cannot claim the old field Store receipt"
+    );
+    program.execution.packages.sites.remove(1);
+    assert!(
+        check_package_sites(&program).is_err(),
+        "a whole-package write on either path expires the saved callback"
+    );
 }
