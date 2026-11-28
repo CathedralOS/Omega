@@ -1,6 +1,8 @@
 //! Check samples and compare native/Psi execution (`cargo xtask sample-gate`).
 
 mod application;
+#[cfg(target_os = "macos")]
+mod darwin_exit;
 mod file_outputs;
 
 use std::collections::BTreeSet;
@@ -834,6 +836,15 @@ fn failure_report(sample: &str, reason: &str, evidence: &Path) -> String {
 }
 
 pub fn run(args: &[String]) -> Result<(), u8> {
+    #[cfg(target_os = "macos")]
+    if let [mode, artifact, record] = args
+        && mode == darwin_exit::OBSERVER
+    {
+        return darwin_exit::observe(Path::new(artifact), Path::new(record)).map_err(|error| {
+            eprintln!("sample-gate: cannot observe native termination: {error}");
+            1
+        });
+    }
     let repo = repo_root()?;
     let mut filters: Vec<String> = Vec::new();
     let mut facts_only = false;

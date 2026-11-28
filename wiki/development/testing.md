@@ -363,8 +363,12 @@ A Unix wait status exposes only the low byte of the exit code. On Linux x86-64,
 when `strace` is available and the compiler reports the addresses of the
 program's process-exit instructions, the gate records the execution in
 `native-process.trace`. A single process that exits from a reported instruction
-supplies the full signed argument for comparison with Psi. Otherwise a matching
-wait byte leaves an explicit Psi exit unverified. For a unit return, the gate
+supplies the full signed argument for comparison with Psi. On macOS a
+single-child observer reads the signed status from Darwin's child-exit signal
+and checks its low byte against the wait status. A nonzero signed status
+distinguishes process exit from a unit return even when the wait byte is zero.
+A signed zero alone leaves an explicit Psi exit unverified. On hosts with only
+a wait byte, a matching byte also leaves an explicit Psi exit unverified. For a unit return, the gate
 requires native wait status zero and a retained program whose instructions
 exclude process exit. A
 failure caused by this checkout's stale package state (an accepted lock or

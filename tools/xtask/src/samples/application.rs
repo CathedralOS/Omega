@@ -1,6 +1,6 @@
 //! Compare the published host executable with Psi interpretation of the same entry.
 
-mod process_exit;
+pub(super) mod process_exit;
 
 use super::file_outputs;
 use super::{SampleProject, host_target, optional_text, parse_header_oracle, with_source_inputs};
@@ -124,6 +124,7 @@ struct Observation {
     termination: String,
     returned_unit: bool,
     explicit_native_exit: bool,
+    signed_native_zero: bool,
     exit: Option<i32>,
     trap: Option<bool>,
     stdout: Vec<u8>,
@@ -162,6 +163,9 @@ impl Observation {
             ("native", ["explicit-exit", code, _]) if !process_exit_excluded => {
                 (Some(number(code)?), native_trap(&fields)?)
             }
+            ("native", ["signed-zero", _]) if !process_exit_excluded => {
+                (Some(0), native_trap(&fields)?)
+            }
             ("native", ["exit", code, _]) => (Some(number(code)?), native_trap(&fields)?),
             ("native", ["signal", signal, _]) => {
                 number(signal)?;
@@ -182,6 +186,7 @@ impl Observation {
             returned_unit: fields.first() == Some(&"return")
                 || (exit == Some(0) && process_exit_excluded),
             explicit_native_exit: fields.first() == Some(&"explicit-exit"),
+            signed_native_zero: fields.first() == Some(&"signed-zero"),
             exit,
             trap,
             stdout: execution::read_bounded(&directory.join("stdout"))?,
@@ -205,6 +210,12 @@ fn agreement(native: &Observation, psi: &Observation) -> Result<(), String> {
     equal_bytes("stderr", &native.stderr, &psi.stderr)?;
     file_outputs::compare(&native.files, &psi.files)?;
     if let Some(code) = psi.exit {
+        if native.signed_native_zero && code != 0 {
+            return Err(format!(
+                "native signed exit status 0 vs Psi {}",
+                psi.termination
+            ));
+        }
         if native.explicit_native_exit {
             if !psi.returned_unit && native.exit == Some(code) {
                 return Ok(());
@@ -220,7 +231,11 @@ fn agreement(native: &Observation, psi: &Observation) -> Result<(), String> {
         if !psi.returned_unit && native.returned_unit {
             return Err(format!("native returned unit vs explicit Psi exit {code}"));
         }
-        if cfg!(unix) && !psi.returned_unit && native.exit == Some(code & 255) {
+        if cfg!(unix)
+            && !native.signed_native_zero
+            && !psi.returned_unit
+            && native.exit == Some(code & 255)
+        {
             return Err(format!(
                 "unavailable: native wait status {} exposes only the low byte of the process exit; Psi explicitly exited {code}",
                 code & 255
@@ -327,7 +342,9 @@ fn run_artifact(
         "other"
     };
     let termination = match explicit_exit {
-        Some(code) => format!("explicit-exit\t{code}"),
+        Some(process_exit::ExitEvidence::Explicit(code)) => format!("explicit-exit\t{code}"),
+        #[cfg(target_os = "macos")]
+        Some(process_exit::ExitEvidence::SignedZero) => String::from("signed-zero"),
         None => termination.replace(' ', "\t"),
     };
     fs::create_dir(directory)
@@ -481,6 +498,23 @@ mod tests {
                 comparison.unwrap();
             }
         }
+        let signed_zero = read(
+            "native",
+            "native\tsigned-zero\tother\tprocess-exit-possible\n",
+        )
+        .unwrap();
+        let psi_256 = read("psi", "psi\texit\t256\n").unwrap();
+        assert!(
+            agreement(&signed_zero, &psi_256)
+                .unwrap_err()
+                .contains("signed exit status 0")
+        );
+        let psi_0 = read("psi", "psi\texit\t0\n").unwrap();
+        assert!(
+            agreement(&signed_zero, &psi_0)
+                .unwrap_err()
+                .contains("cannot distinguish")
+        );
         let native_trap =
             read("native", "native\tsignal\t4\ttrap\tprocess-exit-excluded\n").unwrap();
         let psi_trap = read("psi", "psi\tcrash\tTrap\n").unwrap();
