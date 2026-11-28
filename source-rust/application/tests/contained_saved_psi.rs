@@ -333,6 +333,37 @@ machine build(builder: @mutable BuildPlan) {
 }
 
 #[test]
+fn a_saved_reader_calls_its_own_state_with_the_output_slice() {
+    const MAIN: &str = include_str!("fixtures/callables/run/some_reader_output/main.omg");
+    const BUILD: &str = include_str!("fixtures/callables/run/some_reader_output/build.omg");
+
+    let initialized = "File { byte: 17u8 }";
+    assert_eq!(MAIN.matches(initialized).count(), 1);
+    let changed = MAIN.replace(initialized, "File { byte: 16u8 }");
+    for (name, source, returns, observation) in [
+        ("saved-reader-length", MAIN, true, "Psi exit 0"),
+        (
+            "saved-reader-empty",
+            changed.as_str(),
+            false,
+            "Psi crash: Trap",
+        ),
+    ] {
+        let saved = Saved::publish(name, source, BUILD);
+        let run = saved.run(&[]);
+        assert_eq!(run.status.success(), returns, "{}", report(&run));
+        assert!(run.stdout.is_empty(), "{}", report(&run));
+        assert!(
+            String::from_utf8_lossy(&run.stderr)
+                .lines()
+                .any(|line| line == observation),
+            "{}",
+            report(&run)
+        );
+    }
+}
+
+#[test]
 fn a_contained_run_gets_its_working_directory_or_the_explicit_mappings() {
     let saved = Saved::publish("contained-saved-files", FILES, FILES_BUILD);
     let outside = saved.consumer.parent().unwrap().join("outside");
