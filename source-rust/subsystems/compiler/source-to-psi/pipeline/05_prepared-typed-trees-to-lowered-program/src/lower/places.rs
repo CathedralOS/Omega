@@ -3329,7 +3329,19 @@ impl<'a> Lowering<'a> {
                             ExecutionSite::Operation(operation),
                             expression.source,
                         )?;
-                        let captured = self.step(at.place, Step::Referent { owner: at.record })?;
+                        let captured = match self.record_type(at.record)?.shape {
+                            StorageShape::Reference { .. } => {
+                                self.step(at.place, Step::Referent { owner: at.record })?
+                            }
+                            StorageShape::ByteSequence(_) | StorageShape::ElementView { .. } => {
+                                at.place
+                            }
+                            _ => {
+                                return Err(self.internal(
+                                    "upgrade operand has no reference or view descriptor",
+                                ));
+                            }
+                        };
                         let lender = if self.borrowed_roots.contains(&at.root) {
                             Lender::Incoming
                         } else {

@@ -8391,13 +8391,13 @@ pub(crate) mod storage_foundations {
         operation: &Operation,
     ) -> Result<(), CodecError> {
         let Some(result) = operation.result.structural() else {
-            return malformed("native borrow requires a structural reference result");
+            return malformed("native borrow requires a structural result");
         };
-        let Some(StructuralTypeShape::Reference { referent, access }) = module
+        let Some(destination) = module
             .structural_type(result.structural_type)
             .map(|ty| &ty.shape)
         else {
-            return malformed("native borrow result must be a reference");
+            return malformed("native borrow result type is undeclared");
         };
         use terminal_psi::StructuralAccess::{MutableBorrow, SharedBorrow};
         if result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
@@ -8408,13 +8408,18 @@ pub(crate) mod storage_foundations {
             || !result.claims.is_empty()
         {
             return malformed(
-                "native borrow requires an affine unqualified reference without claims",
+                "native borrow requires an affine unqualified descriptor without claims",
             );
         }
         match &operation.kind {
             OperationKind::BorrowAt { address } => {
-                if !matches!(access, SharedBorrow | MutableBorrow)
-                    || !matches!(declared_scalar_type(machine, *address), Some(ScalarType::Integer(ty)) if ty.is_address())
+                if !matches!(
+                    destination,
+                    StructuralTypeShape::Reference {
+                        access: SharedBorrow | MutableBorrow,
+                        ..
+                    }
+                ) || !matches!(declared_scalar_type(machine, *address), Some(ScalarType::Integer(ty)) if ty.is_address())
                 {
                     return malformed(
                         "native borrow requires an address and a shared or mutable reference result",
@@ -8422,19 +8427,16 @@ pub(crate) mod storage_foundations {
                 }
             }
             OperationKind::UpgradeMutability { source } => {
-                let input = structural_place_type(machine, source.place).and_then(|root| {
-                    terminal_semantics::runtime_structural_path_tip(
-                        module.types.structural_types.iter(),
-                        root,
-                        &source.path,
-                    )
-                });
-                if *access != MutableBorrow
-                    || source.access != SharedBorrow
-                    || !matches!(input.map(|ty| &ty.shape), Some(StructuralTypeShape::Reference { referent: source, access: SharedBorrow }) if source == referent)
+                if terminal_semantics::mutability_upgrade_source(
+                    machine,
+                    &module.types.structural_types,
+                    source,
+                    destination,
+                )
+                .is_none()
                 {
                     return malformed(
-                        "mutability upgrade requires a shared reference to the same referent",
+                        "mutability upgrade requires a shared borrow of the same referent or view geometry",
                     );
                 }
             }
@@ -8984,6 +8986,42 @@ pub(crate) mod storage_foundations {
                     referent: ty(2),
                     access: MutableBorrow,
                 },
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: Some(SharedBorrow),
+                }),
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: Some(MutableBorrow),
+                }),
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+                    access: Some(SharedBorrow),
+                    capacity: 4,
+                }),
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+                    access: Some(MutableBorrow),
+                    capacity: 4,
+                }),
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+                    access: Some(MutableBorrow),
+                    capacity: 8,
+                }),
+                StructuralTypeShape::ElementView {
+                    element: ty(1),
+                    access: Some(SharedBorrow),
+                },
+                StructuralTypeShape::ElementView {
+                    element: ty(1),
+                    access: Some(MutableBorrow),
+                },
+                StructuralTypeShape::ElementView {
+                    element: ty(2),
+                    access: Some(MutableBorrow),
+                },
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: None,
+                }),
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
+                    capacity: 4,
+                }),
             ];
             for (index, shape) in shapes.into_iter().enumerate() {
                 module
@@ -9053,6 +9091,10 @@ pub(crate) mod storage_foundations {
                 validate_native_borrow(&module, &machine, &operation(at.clone(), ty(1), affine))
                     .is_err()
             );
+            assert!(
+                validate_native_borrow(&module, &machine, &operation(at.clone(), ty(6), affine))
+                    .is_err()
+            );
             machine.parameters[0].scalar_type = byte;
             assert!(
                 validate_native_borrow(&module, &machine, &operation(at, ty(3), affine)).is_err()
@@ -9084,6 +9126,43 @@ pub(crate) mod storage_foundations {
             machine.structural_parameters[0].structural_type = ty(3);
             assert!(
                 validate_native_borrow(&module, &machine, &operation(upgrade, ty(3), affine))
+                    .is_err()
+            );
+
+            let upgrade = || OperationKind::UpgradeMutability {
+                source: StructuralArgument::whole(argument, SharedBorrow),
+            };
+            for (input, output, accepted) in [
+                (5, 6, true),
+                (7, 8, true),
+                (10, 11, true),
+                (7, 9, false),
+                (10, 12, false),
+                (7, 6, false),
+                (14, 8, false),
+                (10, 3, false),
+                (2, 11, false),
+                (5, 5, false),
+                (6, 6, false),
+                (13, 6, true),
+                (5, 13, false),
+            ] {
+                machine.structural_parameters[0].structural_type = ty(input);
+                assert_eq!(
+                    validate_native_borrow(
+                        &module,
+                        &machine,
+                        &operation(upgrade(), ty(output), affine)
+                    )
+                    .is_ok(),
+                    accepted,
+                    "upgrade {input} to {output}",
+                );
+            }
+            machine.structural_parameters[0].structural_type = ty(13);
+            machine.structural_parameters[0].access = MutableBorrow;
+            assert!(
+                validate_native_borrow(&module, &machine, &operation(upgrade(), ty(6), affine))
                     .is_err()
             );
         }

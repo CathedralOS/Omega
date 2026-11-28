@@ -6938,6 +6938,77 @@ pub(crate) mod storage_addresses {
         }
 
         #[test]
+        fn upgraded_view_descriptors_preserve_the_source_array_and_exact_subslice() {
+            let mut execution = execution();
+            let array = array(&mut execution, 19);
+            let source =
+                TerminalStructuralValue::minted(30, StructuralTypeId::new(3).unwrap(), Vec::new());
+            let destination =
+                TerminalStructuralValue::minted(31, source.structural_type, Vec::new());
+            let shared = shared(&execution, &array)
+                .subslice(1, 4)
+                .unwrap()
+                .subslice(1, 2)
+                .unwrap()
+                .with_descriptor_home(source);
+            let binding = ByteSequenceBinding::Immutable(shared);
+            let exclusive = binding
+                .exclusive_view_descriptor(&execution, &destination)
+                .unwrap();
+            assert_eq!(
+                execution
+                    .byte_descriptor_length(&exclusive, &destination)
+                    .unwrap(),
+                1
+            );
+            let ByteSequenceBinding::MutableArray {
+                array: backing,
+                offset,
+                ..
+            } = exclusive
+            else {
+                panic!("an upgraded byte descriptor needs the live array");
+            };
+            assert_eq!(offset, 2);
+            execution.stored_byte_array_write(&backing, 2, 91).unwrap();
+            assert_eq!(
+                (0..4)
+                    .map(|i| execution.stored_byte_array_read(&array, i).unwrap())
+                    .collect::<Vec<_>>(),
+                [1, 2, 91, 4]
+            );
+
+            let original =
+                TerminalStructuralValue::minted(40, StructuralTypeId::new(4).unwrap(), Vec::new());
+            let view = crate::storage::element_views::ElementView::structural(
+                original.clone(),
+                6,
+                StructuralAccess::SharedBorrow,
+                None,
+                semantic_vocabulary::PlaceId::new(1).unwrap(),
+            );
+            let shared = view
+                .subslice(1, 5, StructuralAccess::SharedBorrow)
+                .unwrap()
+                .subslice(1, 3, StructuralAccess::SharedBorrow)
+                .unwrap();
+            let exclusive = shared
+                .exclusive_reborrow()
+                .unwrap()
+                .with_descriptor_home(destination);
+            assert_eq!(exclusive.len(), 2);
+            for index in 0..6 {
+                let mut selected = original.clone();
+                selected.path.push(StructuralPathSegment::FixedIndex(index));
+                assert_eq!(
+                    exclusive.lends_structural_storage(&selected),
+                    (2..4).contains(&index)
+                );
+                assert!(!shared.lends_structural_storage(&selected));
+            }
+        }
+
+        #[test]
         fn shared_reborrow_of_a_mutable_array_window_preserves_its_element_address() {
             let mut execution = execution();
             let original = array(&mut execution, 19);
