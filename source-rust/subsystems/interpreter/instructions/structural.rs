@@ -1014,7 +1014,11 @@ impl TerminalExecution<'_> {
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
         dispatched_operation!(operation => EstablishRecord { ref fields });
-        self.establish_record(operation.result.structural().ok_or(malformed())?, fields)?;
+        self.establish_record(
+            operation.id,
+            operation.result.structural().ok_or(malformed())?,
+            fields,
+        )?;
         Ok(OperationFlow::Advance)
     }
 
@@ -1127,8 +1131,20 @@ impl TerminalExecution<'_> {
         let types = self.structural_types();
         let member = observed_field_declaration(types.values(), declared_parent, &namespace, field)
             .ok_or(malformed())?;
+        let sites = self.program.package_sites()?;
+        let matches_field = if sites
+            .stored_field_type(self.current_machine, operation.id)
+            .is_some()
+        {
+            matches!((member.field_type.scalar_type(), source),
+                (Some(ScalarType::Callable(_)), TerminalScalarValue::Callable { contract, .. })
+                    if source.selected_machine(&module.execution.callables, contract).is_some()
+                        && sites.admits_descriptor(module, self.current_machine, operation.id, contract))
+        } else {
+            member.field_type.scalar_type() == Some(source.scalar_type())
+        };
         if member.relevance.is_erased()
-            || member.field_type.scalar_type() != Some(source.scalar_type())
+            || !matches_field
             || !terminal_scalar_belongs_to_type(source)
         {
             return Err(malformed());
@@ -1619,8 +1635,15 @@ impl TerminalExecution<'_> {
         let publishes_value = reserved.is_none() || initializes_home;
         let child = ConstructorValue::resolve(self, value)
             .map_err(|error| failure("completed source", error))?;
+        // The destination keeps its declared layout. A checked package store
+        // expects the replacement reference at this opening's type.
+        let expected_type = self
+            .program
+            .package_sites()?
+            .stored_type(self.current_machine, operation.id)
+            .unwrap_or(field_type);
         let (qualifications, projected_qualifications) = child.memberships();
-        if child.structural_type() != field_type
+        if child.structural_type() != expected_type
             || required
                 .iter()
                 .any(|domain| !qualifications.contains(domain))
@@ -1631,7 +1654,7 @@ impl TerminalExecution<'_> {
             return Err(TerminalInterpretError::StructuralStorePreparation {
                 stage: "replacement memberships",
                 detail: format!(
-                    "expected_type={field_type:?}, actual_type={:?}, required={required:?}, projected_required={projected_required:?}, actual={qualifications:?}, projected_actual={projected_qualifications:?}",
+                    "expected_type={expected_type:?}, actual_type={:?}, required={required:?}, projected_required={projected_required:?}, actual={qualifications:?}, projected_actual={projected_qualifications:?}",
                     child.structural_type()
                 ),
             });
@@ -2133,19 +2156,38 @@ impl TerminalExecution<'_> {
                 return Ok(OperationFlow::Advance);
             }
         }
-        let (leaf, source, _, copy_path) = match &operation.kind {
+        let sites = self.program.package_sites()?;
+        let opened = sites.projected_field(self.current_machine, operation.id);
+        let (leaf, source, copy_path) = match &operation.kind {
             OperationKind::StructuralLeafCopy { source, path } => {
-                let (leaf, field) =
-                    self.resolve_live_leaf_copy(*source, path, result.structural_type)?;
-                (leaf, *source, field, path.clone())
+                let leaf = if let Some(field) = opened {
+                    if sites
+                        .field_type(self.current_machine, operation.id, field)
+                        .and_then(terminal_psi::StructuralFieldType::as_structural)
+                        != Some(result.structural_type)
+                    {
+                        return Err(malformed());
+                    }
+                    let leaf = self.resolve_live_projection(
+                        *source,
+                        path,
+                        StructuralAccess::SharedBorrow,
+                    )?;
+                    if self.reference_contract(leaf.structural_type)?.1
+                        != StructuralAccess::SharedBorrow
+                    {
+                        return Err(malformed());
+                    }
+                    leaf
+                } else {
+                    self.resolve_live_leaf_copy(*source, path, result.structural_type)?
+                        .0
+                };
+                (leaf, *source, path.clone())
             }
             OperationKind::StructuralCaseLeafCopy { source, path } => {
                 let (leaf, projection) = self.case_payload_projection(*source, path)?;
-                let field = match path.last() {
-                    Some(CanonicalStructuralPathSegment::Field(field)) => Some(*field),
-                    _ => None,
-                };
-                (leaf, *source, field, projection)
+                (leaf, *source, projection)
             }
             _ => return Err(malformed()),
         };
@@ -2169,6 +2211,7 @@ impl TerminalExecution<'_> {
             })
             .flatten();
         if leaf.structural_type != result.structural_type
+            && opened.is_none()
             && !quotient_adaptation
             && !terminal_semantics::shared_descriptor_copy_matches(
                 self.structural_types().values(),
