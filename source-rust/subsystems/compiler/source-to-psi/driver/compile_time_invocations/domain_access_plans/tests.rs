@@ -251,9 +251,9 @@ fn only_the_checked_issuer_can_make_a_pair_of_funded_reply_handles() {
                 "changing both the use and its declared prerequisite cannot turn an answer into a request"
             );
         } else {
-            let diagnostics = judged
-                .err()
-                .expect("an equally shaped pair from another issuer must reject");
+            let Err(diagnostics) = judged else {
+                panic!("an equally shaped pair from another issuer must reject");
+            };
             assert!(
                 diagnostics.iter().any(|d| d
                     .message
