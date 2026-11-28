@@ -87,7 +87,35 @@ fn a_stored_operation_consumes_an_owner_and_repackages_its_custody() {
 #[test]
 fn a_stored_callback_returns_its_owner_to_another_callback_of_the_same_package() {
     let source = include_str!("fixtures/callables/run/some_owned_job/returned_owner.omg");
-    saved_complete(source, 7);
+    let module = saved_complete(source, 7);
+    let mut checked = 0;
+    for operation in module
+        .machines
+        .iter()
+        .flat_map(|machine| machine.operations())
+    {
+        if let terminal_psi::OperationKind::CallMachine { contract, .. } = operation.kind {
+            let mut missing_returned_custody = module.clone();
+            let advertised = missing_returned_custody
+                .execution
+                .callables
+                .contracts
+                .iter_mut()
+                .find(|row| row.id == contract)
+                .unwrap();
+            assert!(!advertised.result_claim_paths.is_empty());
+            advertised.result_claim_paths.clear();
+            assert!(
+                refused(&missing_returned_custody),
+                "the callable must return its advertised custody"
+            );
+            checked += 1;
+        }
+    }
+    assert_eq!(
+        checked, 2,
+        "both the returned owner and receipt carry storage"
+    );
 }
 
 #[test]
