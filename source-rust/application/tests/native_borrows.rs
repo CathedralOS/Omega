@@ -311,3 +311,30 @@ machine main() {
     let retained = Program::new(&disjoint, &[UPGRADE]).check();
     assert!(retained.status.success(), "{}", report(&retained));
 }
+
+#[test]
+fn native_borrows_preserve_a_records_layout_and_field_width() {
+    let source = r#"
+data Counter { first: u8; count: u32; last: u8; }
+machine update(location: address) {
+    let counter: @mutable Counter = |native|::borrow_mutable_at::<Counter>(location);
+    counter.count = 65793u32;
+}
+machine read(location: address) -> u32 {
+    let counter: @Counter = |native|::borrow_at::<Counter>(location);
+    counter.count
+}
+machine main() crashes Trap {
+    let mutable owned: Counter = Counter { first: 11u8, count: 35u32, last: 91u8 };
+    let location: address = address_of(@owned);
+    update(location);
+    transition read(location) == 65793u32 && owned.count == 65793u32
+        && owned.first == 11u8 && owned.last == 91u8 {
+        true -> done(), false -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}
+"#;
+    Program::new(source, &[READ, WRITE]).assert_native_returns();
+}
