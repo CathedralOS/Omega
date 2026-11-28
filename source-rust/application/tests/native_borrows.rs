@@ -905,8 +905,16 @@ fn assert_upgraded_window(element: &str, first: u32, second: u32) {
             "let writable: @mutable [{element}] = upgraded(@items[1..3]);\n    mark(writable);"
         ),
     ] {
-        let source = format!(
-            r#"
+        let source = upgraded_window_source(element, first, second, &change);
+        let program = Program::new(&source, &[UPGRADE]);
+        program.assert_native_returns();
+        program.assert_psi_returns();
+    }
+}
+
+fn upgraded_window_source(element: &str, first: u32, second: u32, change: &str) -> String {
+    format!(
+        r#"
 machine upgraded(shared: @[{element}]) -> @mutable [{element}] {{
     |native|::upgrade_mutability::<[{element}]>(shared)
 }}
@@ -935,10 +943,64 @@ machine main() crashes Trap {{
     machine wrong() crashes Trap {{ crash Trap; }}
 }}
 "#
+    )
+}
+
+#[test]
+fn a_runtime_selected_writer_can_upgrade_its_callers_window() {
+    for (element, first, second) in [("u8", 71, 83), ("u32", 65538, 131075)] {
+        let source = upgraded_window_source(element, first, second, "edit(@items[1..3]);").replace(
+            "machine main() crashes Trap {",
+            "machine main() crashes Trap { run(forward); }\nmachine run(edit: Edit) crashes Trap {",
+        );
+        let source = format!(
+            "data Edit = machine(window: @[{element}]) reaches |native|::BorrowMutabilityUpgrade crashes Trap;\n{source}"
         );
         let program = Program::new(&source, &[UPGRADE]);
         program.assert_native_returns();
         program.assert_psi_returns();
+        let alias = source.replace(
+            "edit(@items[1..3]);",
+            &format!("let held: @[{element}] = @items[1..3]; edit(@items[1..3]); observe(held);"),
+        ) + &format!("\nmachine observe(input: @[{element}]) {{}}\n");
+        let output = Program::new(&alias, &[UPGRADE]).check();
+        let diagnostic = report(&output);
+        assert!(
+            !output.status.success() && diagnostic.contains("conflicting reference remains live"),
+            "{diagnostic}"
+        );
+    }
+}
+
+#[test]
+fn a_helper_upgrading_a_window_excludes_other_loans_and_invalidates_written_values() {
+    for (element, first, second) in [("u8", 71, 83), ("u32", 65538, 131075)] {
+        let stale =
+            upgraded_window_source(
+                element,
+                first,
+                second,
+                "forward(@items[1..3]); old(items[1u64]);",
+            ) + &format!("\nmachine old(input: {element}) requires input == 23{element} {{}}\n");
+        let overlap = upgraded_window_source(
+            element,
+            first,
+            second,
+            &format!(
+                "let held: @[{element}] = @items[1..3]; forward(@items[1..3]); observe(held);"
+            ),
+        ) + &format!("\nmachine observe(input: @[{element}]) {{}}\n");
+        for (source, expected) in [
+            (stale, "cannot prove requires contract for call old"),
+            (overlap, "conflicting reference remains live"),
+        ] {
+            let output = Program::new(&source, &[UPGRADE]).check();
+            let diagnostic = report(&output);
+            assert!(
+                !output.status.success() && diagnostic.contains(expected),
+                "{element}: {diagnostic}"
+            );
+        }
     }
 }
 
