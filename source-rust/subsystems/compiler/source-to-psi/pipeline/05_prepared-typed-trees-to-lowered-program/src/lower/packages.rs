@@ -17,15 +17,12 @@ pub(super) struct PackageUses {
 }
 
 impl Lowering<'_> {
-    pub(super) fn package_projection_site(
+    fn package_opening(
         &mut self,
         source: PreparedProjection,
         subject: StructuralArgument,
         record: StructuralTypeId,
-        field: StructuralFieldId,
-        operation: OperationId,
-        descriptor: Option<ValueId>,
-    ) -> Checked<()> {
+    ) -> Checked<u32> {
         let row = TerminalPackageOpening {
             machine: self.id,
             record,
@@ -51,6 +48,36 @@ impl Lowering<'_> {
             self.package_uses.openings.insert(source.opening, opening);
             opening
         };
+        Ok(opening)
+    }
+
+    pub(super) fn package_store_site(
+        &mut self,
+        source: PreparedProjection,
+        subject: StructuralArgument,
+        record: StructuralTypeId,
+        field: StructuralFieldId,
+        operation: OperationId,
+    ) -> Checked<()> {
+        let opening = self.package_opening(source, subject, record)?;
+        self.packages.sites.push(TerminalPackageSite {
+            machine: self.id,
+            operation,
+            event: TerminalPackageEvent::Store { opening, field },
+        });
+        Ok(())
+    }
+
+    pub(super) fn package_projection_site(
+        &mut self,
+        source: PreparedProjection,
+        subject: StructuralArgument,
+        record: StructuralTypeId,
+        field: StructuralFieldId,
+        operation: OperationId,
+        descriptor: Option<ValueId>,
+    ) -> Checked<()> {
+        let opening = self.package_opening(source, subject, record)?;
         self.packages.sites.push(TerminalPackageSite {
             machine: self.id,
             operation,
