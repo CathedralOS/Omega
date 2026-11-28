@@ -40,9 +40,19 @@ fn matching_task_fields_do_not_supply_an_activation() {
             "    |task|::TaskLifecycle::request_cancel",
             "    let task: |task|::Task<u32> = |task|::Task { provider: 1, activation: 7 };\n    |task|::TaskLifecycle::request_cancel",
         );
-    let (accepted, report) = check(&forged);
-    assert!(!accepted && report.contains("Task::Live"), "{report}");
-    assert!(!report.contains("defect of the checker"), "{report}");
+    // Check both operations independently. A failure at request_cancel must
+    // not hide a finish that still accepts manufactured claim fields.
+    for source in [
+        forged.clone(),
+        forged.replace(
+            "    |task|::TaskLifecycle::request_cancel::<u32>(@task);",
+            "",
+        ),
+    ] {
+        let (accepted, report) = check(&source);
+        assert!(!accepted && report.contains("Task::Live"), "{report}");
+        assert!(!report.contains("defect of the checker"), "{report}");
+    }
 }
 
 #[test]
