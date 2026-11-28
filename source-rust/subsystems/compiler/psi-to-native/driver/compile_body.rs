@@ -240,12 +240,10 @@ pub(crate) fn encode_physical_body(
         .flat_map(|function| &function.normalized_foreign_calls)
     {
         let binding = &call.call.binding;
-        if matches!(
-            binding.mechanism,
-            target_vocabulary::NormalizedForeignCallMechanism::FixedActivation(_)
-        ) && !fixed_activations
-            .iter()
-            .any(|issued| issued.binding() == binding)
+        if binding.fixed_activation().is_some()
+            && !fixed_activations
+                .iter()
+                .any(|issued| issued.binding() == binding)
         {
             let failure =
                 |reason| BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(reason)]);
