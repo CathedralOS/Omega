@@ -5,6 +5,8 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+allocated-body = { path = "../../representations/register-homes/published" }
+allocated-body-issuer = { path = "../../representations/register-homes/published/issuer" }
 operation-evidence = { path = "../../representations/operation-evidence" }
 physical-program = { path = "../../representations/post-allocation-machine/body-facts" }
 selected-rewrites = { package = "selected-instructions-to-selected-instructions", path = "../06_selected-instructions-to-selected-instructions" }
