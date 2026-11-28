@@ -903,6 +903,7 @@ fn native_borrow_result(
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.additional_input_qualifications.is_empty()
+        || !result.qualification_establishments.is_empty()
         || !result.claims.is_empty()
     {
         return Err(OperationSemanticError::StructuralEffectActionShapeMismatch(

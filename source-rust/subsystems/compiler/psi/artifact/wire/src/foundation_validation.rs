@@ -8399,6 +8399,7 @@ pub(crate) mod storage_foundations {
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
             || !result.additional_input_qualifications.is_empty()
+            || !result.qualification_establishments.is_empty()
             || !result.claims.is_empty()
         {
             return malformed(
@@ -9032,6 +9033,7 @@ pub(crate) mod storage_foundations {
                     qualifications: vec![],
                     projected_qualifications: vec![],
                     additional_input_qualifications: vec![],
+                    qualification_establishments: vec![],
                     claims: vec![],
                 }),
                 kind,
