@@ -577,6 +577,18 @@ machine main() -> bool {
     assert_ne!(lenders[0], lenders[1]);
     program.judged(|_| ()).accepted();
 
+    let mixed = source
+        .replace(
+            "read_file(state: @mutable File)",
+            "read_file(state: @mutable u8)",
+        )
+        .replacen("{ state.byte }", "{ $state }", 1)
+        .replace(
+            "let mutable file: File = File { byte: 17u8 };",
+            "let mutable file: u8 = 17u8;",
+        );
+    Program::of(&mixed).judged(|_| ()).accepted();
+
     // Borrow the original File again while its Reader will still invoke it.
     let overlapping = source
         .replace(
