@@ -1,6 +1,7 @@
 //! Known contents of activation-local storage. A by-value copy gets a new
 //! home. References inside the copy still select the original allocation.
 
+mod allocations;
 mod contents;
 mod join;
 mod location;
@@ -8,8 +9,8 @@ pub(super) use join::Arrivals;
 use location::Allocation;
 pub(super) use location::Location;
 
-use super::super::facts::Facts;
 use crate::synchronization::progress::condition::Assumption;
+use allocations::Allocations;
 pub(super) use contents::Stored;
 use semantic_vocabulary::{PlaceId, StructuralCaseId};
 use std::cell::Cell;
@@ -22,7 +23,7 @@ pub(super) struct Storage {
     // from joins and worklist keys; frame/control visitation bounds the calls.
     next_identity: Rc<Cell<usize>>,
     pub(super) conditions: Rc<Vec<Assumption>>,
-    contents: Rc<Facts<Allocation, Stored>>,
+    contents: Allocations,
     /// A write through a selected reference establishes its value even
     /// when the individual candidate allocations only receive weak updates.
     selected: Rc<Vec<(Location, Stored)>>,
@@ -53,18 +54,7 @@ impl Storage {
                 }
             });
         }
-        if !Rc::ptr_eq(&self.contents, &other.contents) {
-            // Each fork allocates distinct homes. A reference to a home
-            // created on just one arm can only have arrived from that arm.
-            let contents = Rc::make_mut(&mut self.contents);
-            for (id, incoming) in other.contents.entries() {
-                if let Some(current) = contents.get_mut(id) {
-                    arrivals.value(current, incoming);
-                } else {
-                    contents.insert(*id, incoming.clone());
-                }
-            }
-        }
+        self.contents.join(&other.contents, &mut arrivals);
         arrivals.record(self);
         if !Rc::ptr_eq(&self.conditions, &other.conditions) {
             Rc::make_mut(&mut self.conditions)
@@ -99,9 +89,9 @@ impl Storage {
     }
 
     fn allocate_with(&mut self, contents: Stored, home: fn(usize) -> Allocation) -> Location {
-        let allocation = home(self.fresh_identity());
-        Rc::make_mut(&mut self.contents).insert(allocation, contents);
-        Location::allocation(allocation)
+        let id = self.fresh_identity();
+        *self.contents.slot(id) = contents;
+        Location::allocation(home(id))
     }
 
     /// The outcome remains usable when moved or copied. Its tag only refines
@@ -233,7 +223,7 @@ impl Storage {
         location.each_home(|allocation, path| {
             let value = self
                 .contents
-                .get(&allocation)
+                .get(allocation)
                 .unwrap_or(&Stored::Unknown)
                 .read(path);
             match &mut result {
@@ -264,7 +254,7 @@ impl Storage {
         location.each_home(|home, path| {
             let value = self
                 .contents
-                .get(&home)
+                .get(home)
                 .unwrap_or(&Stored::Unknown)
                 .read(path);
             match home {
@@ -293,13 +283,10 @@ impl Storage {
         if location.tracks_selection() && !contained && !shared {
             choices.push((location.clone(), new.clone()));
         }
-        let contents = Rc::make_mut(&mut self.contents);
         location.each_home(|allocation, path| {
-            if matches!(allocation, Allocation::SharedInput(_)) {
-                return;
+            if let Some(id) = allocation.local_id() {
+                self.contents.slot(id).write(path, &new, weak);
             }
-            let value = contents.get_or_insert_with(allocation, Stored::default);
-            value.write(path, &new, weak);
         });
     }
 }
