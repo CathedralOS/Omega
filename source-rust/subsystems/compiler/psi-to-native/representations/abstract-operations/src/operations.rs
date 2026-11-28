@@ -18,8 +18,7 @@ certificates.
 use crate::{
     AbstractAtomicEvent, AbstractBoundaryResult, AbstractCallTarget, AbstractResult,
     AbstractStructuralBinding, AbstractStructuralCallResult, AbstractStructuralCaseSuccessor,
-    AbstractSuccessor, AtomicResidencyEdge, CompletionClaimSource, IntegerArithmetic,
-    IntegerArithmeticOperator, ValueBinding,
+    AbstractSuccessor, AtomicResidencyEdge, CompletionClaimSource, IntegerArithmetic, ValueBinding,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType,
@@ -67,7 +66,8 @@ pub struct ModuleInvocation<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AbstractOperation {    EstablishActivationClaim {
+pub enum AbstractOperation {
+    EstablishActivationClaim {
         psi_operation: OperationId,
         result: OperationResult,
         bound: u64,
@@ -1043,10 +1043,6 @@ impl AbstractOperation {
         )
     }
 
-    pub fn successor_target(&self, edge: EdgeId) -> Option<BlockId> {
-        self.owned_transfer(edge).map(|(target, _)| target)
-    }
-
     pub fn owned_transfer(&self, edge: EdgeId) -> Option<(BlockId, &[AbstractStructuralBinding])> {
         match self {
             Self::Jump {
@@ -1324,14 +1320,6 @@ impl AbstractOperation {
         })
     }
 
-    pub fn integer_arithmetic_operands(
-        &self,
-        operator: IntegerArithmeticOperator,
-    ) -> Option<IntegerArithmeticOperands> {
-        let operands = self.integer_arithmetic()?;
-        (operands.arithmetic.operator() == operator).then_some(operands)
-    }
-
     pub fn integer_shift(&self) -> Option<IntegerShiftOperands> {
         let Self::IntegerShift {
             psi_operation,
@@ -1356,21 +1344,6 @@ impl AbstractOperation {
             value: *value,
             count: *count,
         })
-    }
-
-    pub fn operates_on_byte_sequence_storage(&self) -> bool {
-        matches!(
-            self,
-            Self::ByteSequenceRead { .. }
-                | Self::ByteSequencePredicate { .. }
-                | Self::ByteSequenceEqual { .. }
-                | Self::StructuralByteSequenceFieldRead { .. }
-                | Self::ByteSequenceWrite { .. }
-                | Self::ByteSequenceSubslice { .. }
-                | Self::ByteSequenceStore { .. }
-                | Self::StructuralByteSequenceFieldStore { .. }
-                | Self::StructuralByteSequenceFieldByteStore { .. }
-        )
     }
 }
 
