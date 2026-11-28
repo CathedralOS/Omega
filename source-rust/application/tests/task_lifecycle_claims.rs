@@ -47,6 +47,24 @@ fn matching_task_fields_do_not_supply_an_activation() {
 }
 
 #[test]
+fn a_numeric_task_cannot_issue_its_own_membership() {
+    let (accepted, report) = check(
+        r#"
+use {omega}/language/core/task.omg;
+machine mint() -> |task|::Task<u32> in |task|::Task::Live<u32> {
+    let task: |task|::Task<u32> = |task|::Task { provider: 1, activation: 2 };
+    task as +Live<u32>
+}
+machine main() {}
+"#,
+    );
+    assert!(
+        !accepted && report.contains("authorized issuer route"),
+        "{report}"
+    );
+}
+
+#[test]
 fn a_same_spelled_machine_accepts_its_own_argument() {
     let (accepted, report) = check(
         r#"
