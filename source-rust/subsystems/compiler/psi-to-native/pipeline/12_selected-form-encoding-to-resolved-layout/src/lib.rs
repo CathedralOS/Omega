@@ -151,3 +151,8 @@ fn compute(
 
 pub mod entry_layout;
 pub mod program_entry_layout;
+
+/// The immutable local activation routine issued by selected-form encoding.
+pub type IssuedFixedActivationCall = machine_code::fixed_activation::EncodedFixedActivationCall<
+    native_encoding::fixed_activation::FixedActivationEncoderOrigin,
+>;

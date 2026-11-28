@@ -1,14 +1,48 @@
-//! Run the same caller-owned activations from source and their saved Psi.
+//! Run the same caller-owned activations from source, saved Psi and the native executable.
 
-#[path = "support/project.rs"]
-mod project;
+#[path = "support/declared_exit.rs"]
+mod declared_exit;
+
+use declared_exit::project;
 use platform_custody::temporary_directory::TemporaryDirectory;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+fn fixture() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/calls/run/caller_owned_generators")
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[test]
+fn the_physical_linux_process_matches_the_interpreted_producers() {
+    declared_exit::assert_declared_exit(&fixture(), "build.omg");
+}
+
+#[test]
+fn a_target_without_fixed_stack_transfer_rejects_the_native_build() {
+    let fixture = fixture();
+    let source = std::fs::read_to_string(fixture.join("main.omg")).unwrap();
+    let system = "../../../../../source/library/system";
+    let system_path = fixture.join(system).canonicalize().unwrap();
+    let build = std::fs::read_to_string(fixture.join("build.omg"))
+        .unwrap()
+        .replace(system, system_path.to_str().unwrap())
+        .replace("linux_x86_64::ProgramEntry", "linux_arm64::ProgramEntry");
+    let (built, diagnostic) = project::check(
+        "unsupported-native-generator-target",
+        &[("build.omg", &build), ("main.omg", &source)],
+        &["build", "--target", "linux_arm64", "build.omg"],
+    );
+    assert!(!built, "{diagnostic}");
+    assert!(
+        diagnostic.contains("caller-funded activation transfer requires Linux x86-64 System V"),
+        "{diagnostic}"
+    );
+}
 
 #[test]
 fn interleaved_producers_keep_their_publications_locals_and_cleanup() {
-    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/fixtures/calls/run/caller_owned_generators");
+    let fixture = fixture();
     let expected: i32 = std::fs::read_to_string(fixture.join("expected_native_exit.txt"))
         .unwrap()
         .trim()

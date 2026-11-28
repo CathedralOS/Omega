@@ -203,7 +203,17 @@ impl<'a> StructuralLayoutResolver<'a> {
         inputs: StorageLayoutInputs<'a>,
     ) -> Result<Self, NonDenseIdentities> {
         let declarations = IdTable::from_rows(rows.into_iter().map(|row| (row.id, row)))?;
-        let known = declarations.map(|_, _| None);
+        let mut known = declarations.map(|_, _| None);
+        for home in inputs.execution_owners {
+            if let Some(declaration) = declarations.get(home.ty())
+                && matches!(declaration.shape, StructuralTypeShape::BorrowingOpaque { lifetime_count } if lifetime_count.get() == 1)
+                && declaration.owns_linear_claim
+                && declaration.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+                && let Some(slot) = known.get_mut(home.ty())
+            {
+                *slot = Some(ValueShape::integer(home.bytes(), home.alignment()));
+            }
+        }
         let active = declarations.map(|_, _| false);
         Ok(Self {
             declarations,
@@ -648,7 +658,10 @@ pub fn opaque_borrow_transport(
     access: terminal_psi::StructuralAccess,
 ) -> Option<ValueShape> {
     (access != terminal_psi::StructuralAccess::Owned
-        && matches!(shape, StructuralTypeShape::Opaque))
+        && matches!(
+            shape,
+            StructuralTypeShape::Opaque | StructuralTypeShape::BorrowingOpaque { .. }
+        ))
     .then_some(ValueShape::integer(8, 8))
 }
 
@@ -1197,6 +1210,56 @@ mod storage_layout_tests {
         }
     }
 
+    #[test]
+    fn execution_owner_has_one_word_only_for_its_checked_borrowing_declaration() {
+        let mut owner = declaration(
+            1,
+            StructuralTypeShape::BorrowingOpaque {
+                lifetime_count: std::num::NonZeroU32::MIN,
+            },
+        );
+        owner.owns_linear_claim = true;
+        owner.multiplicity = terminal_psi::StructuralMultiplicity::Linear;
+        let mut other = owner.clone();
+        other.id = StructuralTypeId::new(2).unwrap();
+        let mut plain = owner.clone();
+        plain.id = StructuralTypeId::new(3).unwrap();
+        plain.shape = StructuralTypeShape::Opaque;
+        let rows = [owner, other, plain];
+        let target = target::NativeTarget::linux_x64();
+        let homes = [0, 2].map(|index| {
+            runtime_abi::ExecutionOwnerHome::for_target(rows[index].id, target).unwrap()
+        });
+        let storage = StorageLayoutInputs {
+            execution_owners: &homes,
+            ..StorageLayoutInputs::default()
+        };
+        let geometry = NativeGeometry::with_storage_inputs(&rows, storage).unwrap();
+        let layouts = StructuralLayouts::with_storage_inputs(rows.iter(), storage).unwrap();
+        assert!(
+            layouts
+                .required_scalar_extents([rows[0].id])
+                .unwrap()
+                .is_empty()
+        );
+        assert!(layouts.required_scalar_extents([rows[1].id]).is_err());
+        assert_eq!(geometry.shape(rows[0].id), Ok(ValueShape::integer(8, 8)));
+        for foreign in &rows[1..] {
+            assert_eq!(
+                geometry.shape(foreign.id),
+                Err(TerminalLayoutError::UnclosedOpaqueRepresentation(
+                    foreign.id
+                )),
+            );
+        }
+        assert_eq!(
+            NativeGeometry::new(&rows).unwrap().shape(rows[0].id),
+            Err(TerminalLayoutError::UnclosedOpaqueRepresentation(
+                rows[0].id
+            )),
+        );
+    }
+
     fn declarations() -> Vec<StructuralTypeDeclaration> {
         let element = StructuralTypeId::new(1).unwrap();
         vec![
@@ -1251,8 +1314,8 @@ mod storage_layout_tests {
         ];
         let witnesses = [id(1)];
         let inputs = StorageLayoutInputs {
-            owned_sequences: &[],
             package_witnesses: &witnesses,
+            ..StorageLayoutInputs::default()
         };
         let geometry = NativeGeometry::with_storage_inputs(&rows, inputs).unwrap();
         assert_eq!(geometry.shape(id(2)).unwrap(), ValueShape::integer(16, 8));

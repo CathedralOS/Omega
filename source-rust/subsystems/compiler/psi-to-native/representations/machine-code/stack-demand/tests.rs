@@ -176,3 +176,26 @@ fn the_peak_path_follows_the_calls_that_set_the_ceiling() {
     assert_eq!(local.ceiling_bytes(), Some(4096));
     assert_eq!(local.peak_path(), [machine(1)]);
 }
+
+#[test]
+fn a_fixed_step_charges_its_wrapper_to_the_caller_even_with_a_separate_worker_stack() {
+    let mut program = program();
+    let entry = program.entry;
+    let root = &mut program.functions[0];
+    root.foreign_calls.push(PhysicalForeignStackCall {
+        owner: CallSiteOwner::Operation(OperationId::new(7).unwrap()),
+        caller_live_bytes: 72,
+        extent: ForeignStackExtent::FixedActivation {
+            caller_bytes: Some(96),
+        },
+        invoked_callbacks: vec![],
+    });
+    let demand = derive_physical_stack_demand(&program, entry, vec![]).unwrap();
+    assert_eq!(demand.ceiling_bytes(), Some(168));
+    program.functions[0].foreign_calls[0].extent =
+        ForeignStackExtent::FixedActivation { caller_bytes: None };
+    assert_eq!(
+        derive_physical_stack_demand(&program, entry, vec![]),
+        Err(Error::UnaccountedTerminalStack(entry))
+    );
+}

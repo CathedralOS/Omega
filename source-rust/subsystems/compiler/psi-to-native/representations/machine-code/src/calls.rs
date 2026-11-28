@@ -228,6 +228,7 @@ pub mod fixups {
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum SelectedFormNormalizedForeignCallFixupState {
+        UnresolvedFixedActivationFieldV1,
         UnresolvedImportFieldV1,
     }
 

@@ -1932,6 +1932,14 @@ pub(crate) mod unit_encoding {
             unit.structural_types.storage_inputs().package_witnesses,
             |bytes, witness| bytes.id(*witness),
         );
+        bytes.slice(
+            unit.structural_types.storage_inputs().execution_owners,
+            |bytes, home| {
+                bytes.id(home.ty());
+                bytes.u32(home.bytes());
+                bytes.u16(home.alignment());
+            },
+        );
         bytes.slice(&unit.structural_types, encode_structural_type);
         bytes.slice(unit.structural_types.referents(), |bytes, referent| {
             bytes.id(referent.id);

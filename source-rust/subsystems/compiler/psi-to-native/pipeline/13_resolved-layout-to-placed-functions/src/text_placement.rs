@@ -468,7 +468,10 @@ pub(super) fn place_fixed_frame(
         bytes,
         functions,
         resolved_internal_machine_calls: resolved,
-        relocation_requirements: if !unresolved_addresses.is_empty() {
+        relocation_requirements: if !unresolved_addresses.is_empty()
+            || unresolved_foreign.iter().any(|call| {
+                call.state == NormalizedForeignCallResolutionState::UnresolvedFixedActivationFieldV1
+            }) {
             TextSectionRelocationRequirements::UnresolvedObjectSymbolFieldsV1
         } else if unresolved_foreign.is_empty() {
             TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1
@@ -698,7 +701,9 @@ fn resolve_foreign(
     function_bytes: &[u8],
 ) -> Result<PlacedNormalizedForeignCallResolution, RelocationFreeTextSectionPlacementError> {
     if (invocation_site.operation().is_none() && !fixup.callbacks.is_empty())
-        || fixup.state != FunctionFragmentNormalizedForeignCallFixupState::UnresolvedImportFieldV1
+        || (fixup.state
+            == FunctionFragmentNormalizedForeignCallFixupState::UnresolvedFixedActivationFieldV1
+            && (architecture != Architecture::X86_64 || !fixup.callbacks.is_empty()))
         || fixup.opcode_function_offset < instruction_offset
         || fixup.addend != 0
     {
@@ -832,7 +837,7 @@ fn resolve_foreign(
 
     Ok(PlacedNormalizedForeignCallResolution {
         kind,
-        state: NormalizedForeignCallResolutionState::UnresolvedImportFieldV1,
+        state: placed_call_state(fixup.state),
         caller,
         block,
         instruction,
@@ -940,13 +945,27 @@ fn lookup_function_offset(offsets: &[(MachineId, u64)], machine: MachineId) -> O
         .find_map(|&(candidate, offset)| (candidate == machine).then_some(offset))
 }
 
+fn placed_call_state(
+    state: FunctionFragmentNormalizedForeignCallFixupState,
+) -> NormalizedForeignCallResolutionState {
+    match state {
+        FunctionFragmentNormalizedForeignCallFixupState::UnresolvedImportFieldV1 => {
+            NormalizedForeignCallResolutionState::UnresolvedImportFieldV1
+        }
+        FunctionFragmentNormalizedForeignCallFixupState::UnresolvedFixedActivationFieldV1 => {
+            NormalizedForeignCallResolutionState::UnresolvedFixedActivationFieldV1
+        }
+    }
+}
+
 fn expected_requirements(
     fragments: &FunctionFragmentEmissionPlan,
 ) -> TextSectionRelocationRequirements {
     let rows = || fragments.instructions();
     let has_foreign = rows().any(|row| row.normalized_foreign_call_fixup.is_some());
     let has_literals = rows().any(|row| row.image_address_fixup.is_some());
-    if has_literals {
+    let has_fixed = rows().any(|row| row.normalized_foreign_call_fixup.as_ref().is_some_and(|fixup| fixup.state == FunctionFragmentNormalizedForeignCallFixupState::UnresolvedFixedActivationFieldV1));
+    if has_literals || has_fixed {
         TextSectionRelocationRequirements::UnresolvedObjectSymbolFieldsV1
     } else if has_foreign {
         TextSectionRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1
@@ -1408,7 +1427,9 @@ fn check_foreign_call(
 ) -> Result<(), RelocationFreeTextSectionPlacementError> {
     let fixup = call.fixup;
     if (call.invocation_site.operation().is_none() && !fixup.callbacks.is_empty())
-        || fixup.state != FunctionFragmentNormalizedForeignCallFixupState::UnresolvedImportFieldV1
+        || (fixup.state
+            == FunctionFragmentNormalizedForeignCallFixupState::UnresolvedFixedActivationFieldV1
+            && (architecture != Architecture::X86_64 || !fixup.callbacks.is_empty()))
         || fixup.addend != 0
         || fixup.patch_byte_width != 4
     {
@@ -1463,7 +1484,7 @@ fn check_foreign_call(
     };
     let reference = checked_add(section_offset, fixup.reference_function_offset)?;
     if row.kind != kind
-        || row.state != NormalizedForeignCallResolutionState::UnresolvedImportFieldV1
+        || row.state != placed_call_state(fixup.state)
         || row.caller != call.caller
         || row.block != call.block
         || row.instruction != call.instruction

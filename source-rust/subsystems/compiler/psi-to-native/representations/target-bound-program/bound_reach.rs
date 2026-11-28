@@ -2,6 +2,8 @@
 #![forbid(unsafe_code)]
 
 pub mod builtins;
+mod execution_preparation;
+pub use execution_preparation::PreparedWorker;
 mod entry_call;
 pub mod entry_settlement;
 mod native_execution_scope;
@@ -35,6 +37,11 @@ pub struct TargetBoundReach {
     layouts: Arc<AdmittedTargetLayouts>,
     scalar_applications: Arc<[ScalarApplicationId]>,
     owned_sequence_bounds: Vec<(semantic_vocabulary::StructuralTypeId, u64)>,
+    execution_owners: Vec<runtime_abi::ExecutionOwnerHome>,
+    steps: Vec<(
+        BoundaryMachineId,
+        terminal_semantics::calls::owned_activation::StepShape,
+    )>,
     demands: terminal_psi::TerminalBoundaryApplicationDemands,
     selected_candidate_positions: Vec<usize>,
 }
@@ -49,6 +56,7 @@ impl TargetBoundReach {
         entry: MachineId,
         emitted: ExecutionReach,
         mut selected_candidate_positions: Vec<usize>,
+        prepared: &[PreparedWorker],
         parent: Option<&Self>,
     ) -> Result<Self, String> {
         if targets.terminal_psi() != artifact.identity()
@@ -91,9 +99,17 @@ impl TargetBoundReach {
                 .map_err(|error| error.to_string())?;
             Arc::new(layouts)
         };
+        let (execution_owners, steps) = execution_preparation::owner_homes(
+            module,
+            &emitted,
+            profile.native_target(),
+            prepared,
+            parent,
+        )?;
         let scalar_applications = ScalarDemand {
             emitted: Some(&emitted),
             owned_sequence_bounds: &owned_sequence_bounds,
+            execution_owners: &execution_owners,
         }
         .scalar_application_demand(module, &layouts)?;
         Ok(Self {
@@ -103,6 +119,8 @@ impl TargetBoundReach {
             layouts,
             scalar_applications: scalar_applications.into(),
             owned_sequence_bounds,
+            execution_owners,
+            steps,
             demands,
             selected_candidate_positions,
         })
@@ -123,12 +141,27 @@ impl TargetBoundReach {
         ScalarDemand {
             emitted: None,
             owned_sequence_bounds: &bounds,
+            execution_owners: &[],
         }
         .scalar_application_demand(module, layouts)
     }
 
     pub fn owned_sequence_bounds(&self) -> &[(semantic_vocabulary::StructuralTypeId, u64)] {
         &self.owned_sequence_bounds
+    }
+
+    pub fn execution_owners(&self) -> &[runtime_abi::ExecutionOwnerHome] {
+        &self.execution_owners
+    }
+
+    pub fn step(
+        &self,
+        boundary: BoundaryMachineId,
+    ) -> Option<&terminal_semantics::calls::owned_activation::StepShape> {
+        self.steps
+            .binary_search_by_key(&boundary, |(id, _)| *id)
+            .ok()
+            .map(|i| &self.steps[i].1)
     }
 
     pub const fn entry(&self) -> MachineId {

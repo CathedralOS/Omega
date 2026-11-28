@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+legalized-operations = { path = "../../representations/target-operations/legalized-operations" }
 build-providers = { path = "../../../build/providers" }
 target-bound-program = { path = "../../representations/target-bound-program" }
 terminal-authority-receipts = { path = "authority" }

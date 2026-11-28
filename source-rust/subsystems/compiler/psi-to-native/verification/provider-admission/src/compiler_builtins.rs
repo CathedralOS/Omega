@@ -190,6 +190,11 @@ pub(super) fn settle_compiler_builtins<'request>(
             continue;
         }
         let realization = match execution {
+            CompilerBuiltinExecution::FixedActivation(_) => {
+                return Err(vec![Diagnostic::error(
+                    "fixed activation execution must be derived from its sealed source boundary",
+                )]);
+            }
             CompilerBuiltinExecution::StaticInterrupt { .. } => {
                 return Err(vec![Diagnostic::error(
                     "static interrupt execution requires its exact installed occurrence; ordinary provider proposals cannot supply it",
@@ -364,6 +369,7 @@ impl<'a> ResolvedBuiltin<'a> {
         let settled = match mechanism {
             // These mechanisms require private lifecycle or installation evidence.
             Intrinsic::AccessLifecycle(_)
+            | Intrinsic::FixedActivation(_)
             | Intrinsic::EmptyRunRelease
             | Intrinsic::StaticInterrupt(_) => None,
             _ => SettledCompilerBuiltin::from_identity(
@@ -435,6 +441,7 @@ fn compiler_builtin_completion(execution: CompilerBuiltinExecution) -> BoundaryC
         | CompilerBuiltinExecution::ProgramStorageEntry
         | CompilerBuiltinExecution::StaticInterrupt { .. }
         | CompilerBuiltinExecution::AccessLifecycle { .. }
+        | CompilerBuiltinExecution::FixedActivation(_)
         | CompilerBuiltinExecution::EmptyRunRelease
         | CompilerBuiltinExecution::NearestIeeeFloatArithmetic { .. }
         | CompilerBuiltinExecution::AccessorScalarAccess { .. } => BoundaryCompletion::NormalReturn,

@@ -130,6 +130,7 @@ pub mod execution {
     /// coordinates. Completion receipts continue to require ProviderExecutionRecord.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum ExternalExecutionRecord {
+        FixedActivation(target_vocabulary::FixedActivationBinding),
         CompilerImport(target_vocabulary::CompilerImport),
         Provider(ProviderExecutionRecord),
         NativeBinding(NativeBindingExecution),
@@ -138,6 +139,7 @@ pub mod execution {
     impl From<ExternalExecutionBinding> for ExternalExecutionRecord {
         fn from(binding: ExternalExecutionBinding) -> Self {
             match binding {
+                ExternalExecutionBinding::FixedActivation(call) => Self::FixedActivation(call),
                 ExternalExecutionBinding::CompilerImport(import) => Self::CompilerImport(import),
                 ExternalExecutionBinding::Provider(provider) => Self::Provider(provider.into()),
                 ExternalExecutionBinding::NativeBinding(native) => Self::NativeBinding(native),

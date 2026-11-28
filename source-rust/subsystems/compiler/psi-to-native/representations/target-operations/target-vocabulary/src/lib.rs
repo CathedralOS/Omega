@@ -36,6 +36,7 @@ pub use provenance::{
 };
 pub mod boundary;
 mod descriptor_input;
+mod fixed_activation;
 pub use boundary::{
     AccessorScalarAccessRealization, BoundaryByteSequenceArgument, BoundaryExecutionBinding,
     BoundaryRealization, BoundaryScalarArgument, BoundarySettlementBinding,
@@ -53,6 +54,10 @@ pub use boundary::{
     conventional_float_class_layout,
 };
 pub use descriptor_input::DescriptorInputGuard;
+pub use fixed_activation::{
+    FixedActivationAction, FixedActivationBinding, FixedActivationCall, FixedCallFrame, FixedCase,
+    FixedField,
+};
 pub mod operation_records;
 pub use operation_records::{
     NativeCallOrigin, TargetFloatResultPolicy, TargetInstallationCall,

@@ -201,6 +201,7 @@ pub(crate) fn prepare_physical_body(
 }
 
 pub(crate) struct EncodedBody {
+    fixed_activations: Vec<placement::IssuedFixedActivationCall>,
     program: native_encoding::StagedOptimizedSelectedFormEncoding<
         machine_code::layout::EncodedBodyPublication<installation_binding::BoundBodyPublication>,
     >,
@@ -217,6 +218,7 @@ impl EncodedBody {
 }
 
 pub(crate) struct LaidOutBody {
+    fixed_activations: Vec<placement::IssuedFixedActivationCall>,
     originals: Option<Box<published_object_verification::RetainedPhysicalInputs>>,
     placed: function_layout::FunctionPlacement<
         machine_code::layout::EncodedBodyPublication<installation_binding::BoundBodyPublication>,
@@ -229,6 +231,35 @@ pub(crate) fn encode_physical_body(
 ) -> Result<EncodedBody, BodyEmissionError> {
     let BoundPhysicalBody { stage, originals } = prepared;
     observation.enter(NativePipelineStage::SelectedFormEncoding);
+    let mut fixed_activations: Vec<placement::IssuedFixedActivationCall> = Vec::new();
+    let frame = &stage.program().frame;
+    for call in frame
+        .instructions
+        .functions
+        .iter()
+        .flat_map(|function| &function.normalized_foreign_calls)
+    {
+        let binding = &call.call.binding;
+        if binding.fixed_activation().is_some()
+            && !fixed_activations
+                .iter()
+                .any(|issued| issued.binding() == binding)
+        {
+            let failure =
+                |reason| BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(reason)]);
+            let plan = entry_planning::fixed_activation::plan_call(
+                frame,
+                stage.installations().for_entry_planning(),
+                binding,
+            )
+            .map_err(failure)?;
+            fixed_activations.push(
+                native_encoding::fixed_activation::encode_call(&plan).map_err(|_| {
+                    failure("could not encode the checked fixed activation routine")
+                })?,
+            );
+        }
+    }
     let program =
         native_encoding::encode_bound_function_body(stage).map_err(|error| match error {
             native_encoding::FunctionBodyEncodingError::Encoding(error) => {
@@ -246,14 +277,22 @@ pub(crate) fn encode_physical_body(
                 BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(reason)])
             }
         })?;
-    Ok(EncodedBody { program, originals })
+    Ok(EncodedBody {
+        program,
+        originals,
+        fixed_activations,
+    })
 }
 
 pub(crate) fn layout_encoded_body(
     encoded: EncodedBody,
     observation: &NativePipelineObservation,
 ) -> Result<LaidOutBody, BodyEmissionError> {
-    let EncodedBody { program, originals } = encoded;
+    let EncodedBody {
+        program,
+        originals,
+        fixed_activations,
+    } = encoded;
     observation.enter(NativePipelineStage::ResolvedLayout);
     let originals = originals.map(|earlier| (earlier, program.current().clone()));
     let placement::LayoutResolution {
@@ -301,6 +340,7 @@ pub(crate) fn layout_encoded_body(
         error => BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(error.to_string())]),
     })?;
     Ok(LaidOutBody {
+        fixed_activations,
         originals: retained,
         placed,
     })
@@ -313,7 +353,8 @@ pub(crate) struct BodyObject {
 
 pub(crate) fn construct_body_object(body: LaidOutBody) -> Result<BodyObject, BodyEmissionError> {
     let issued =
-        object_file::publish_function_object(body.placed).map_err(object_publication_error)?;
+        object_file::publish_function_object_with_activations(body.placed, body.fixed_activations)
+            .map_err(object_publication_error)?;
     let projection =
         native_artifact::emit_fragment_object(issued).map_err(BodyEmissionError::Object)?;
     Ok(BodyObject {

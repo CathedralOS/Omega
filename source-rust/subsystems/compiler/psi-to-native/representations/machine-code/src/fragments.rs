@@ -138,6 +138,7 @@ pub mod fixups {
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum FunctionFragmentNormalizedForeignCallFixupState {
+        UnresolvedFixedActivationFieldV1,
         UnresolvedImportFieldV1,
     }
 

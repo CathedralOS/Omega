@@ -177,15 +177,22 @@ impl<'a> NativeGeometries<'a> {
     fn key(
         rows: &[StructuralTypeDeclaration],
         inputs: StorageLayoutInputs<'_>,
-    ) -> (usize, usize, usize, usize, usize, usize) {
-        (
-            rows.as_ptr() as usize,
-            rows.len(),
-            inputs.owned_sequences.as_ptr() as usize,
-            inputs.owned_sequences.len(),
-            inputs.package_witnesses.as_ptr() as usize,
-            inputs.package_witnesses.len(),
-        )
+    ) -> [(usize, usize); 4] {
+        [
+            (rows.as_ptr() as usize, rows.len()),
+            (
+                inputs.owned_sequences.as_ptr() as usize,
+                inputs.owned_sequences.len(),
+            ),
+            (
+                inputs.package_witnesses.as_ptr() as usize,
+                inputs.package_witnesses.len(),
+            ),
+            (
+                inputs.execution_owners.as_ptr() as usize,
+                inputs.execution_owners.len(),
+            ),
+        ]
     }
 
     pub fn get(
@@ -272,6 +279,49 @@ mod tests {
             nominal_cleanup: None,
             scalar_restriction: None,
         }
+    }
+
+    #[test]
+    fn a_package_witness_and_an_execution_owner_keep_their_own_layouts() {
+        let target = target::NativeTarget::linux_x64();
+        let witness = declaration(1, StructuralTypeShape::Opaque);
+        let reference = declaration(
+            2,
+            StructuralTypeShape::Reference {
+                referent: witness.id,
+                access: terminal_psi::StructuralAccess::SharedBorrow,
+            },
+        );
+        let mut owner = declaration(
+            3,
+            StructuralTypeShape::BorrowingOpaque {
+                lifetime_count: std::num::NonZeroU32::MIN,
+            },
+        );
+        owner.owns_linear_claim = true;
+        owner.multiplicity = terminal_psi::StructuralMultiplicity::Linear;
+        let witnesses = [witness.id];
+        let homes = [runtime_abi::ExecutionOwnerHome::for_target(owner.id, target).unwrap()];
+        let rows = [witness, reference, owner];
+        let package = StorageLayoutInputs {
+            package_witnesses: &witnesses,
+            ..Default::default()
+        };
+        let both = StorageLayoutInputs {
+            execution_owners: &homes,
+            ..package
+        };
+        let geometries = NativeGeometries::new(
+            [(rows.as_slice(), package), (rows.as_slice(), both)].into_iter(),
+            target,
+        )
+        .unwrap();
+        let package_only = geometries.get(&rows, package).unwrap();
+        let with_owner = geometries.get(&rows, both).unwrap();
+        assert_eq!(package_only.shape(rows[1].id).unwrap().byte_size, 16);
+        assert!(package_only.shape(rows[2].id).is_err());
+        assert_eq!(with_owner.shape(rows[1].id).unwrap().byte_size, 16);
+        assert_eq!(with_owner.shape(rows[2].id).unwrap().byte_size, 8);
     }
 
     #[test]

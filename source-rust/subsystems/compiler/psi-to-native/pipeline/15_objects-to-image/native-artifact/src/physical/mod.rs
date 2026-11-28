@@ -276,6 +276,7 @@ pub struct BoundaryTraitSettlement {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum NativeSelectedSupply {
+    FixedActivation(target_vocabulary::FixedActivationBinding),
     ProviderPlan(NativeSelectedProviderPlanDigest),
     NativeBinding([u8; 32]),
 }

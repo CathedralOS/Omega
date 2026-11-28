@@ -61,7 +61,7 @@ mod target_matrix;
 pub use fragment_container::{
     ObjectPublication, PublishedFunctionObject, RelocationFreeObjectContainerError,
     StagedOptimizedRelocationFreeObjectContainer, publish_function_object,
-    validate_optimized_relocation_free_object_container,
+    publish_function_object_with_activations, validate_optimized_relocation_free_object_container,
 };
 pub use machine_code::{
     InternalMachineCallResolutionKind, InternalMachineCallResolutionState,

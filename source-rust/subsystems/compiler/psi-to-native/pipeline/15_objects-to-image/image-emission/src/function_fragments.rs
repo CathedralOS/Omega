@@ -1625,7 +1625,10 @@ mod imports {
             .iter()
             .filter_map(|call| call.binding.import_locator().map(|locator| (call, locator)))
             .collect::<Vec<_>>();
-        let fields = &source.text_section().unresolved_normalized_foreign_calls;
+        let fields = &source
+            .publication()
+            .object()
+            .unresolved_normalized_foreign_calls;
         let layout = &artifact.object.layout;
         let expected_records = fields.len()
             + calls
@@ -1676,7 +1679,8 @@ mod imports {
                     .map_or(0, |pool| pool.layouts.len()),
         );
         let mut prior_locators = Vec::new();
-        for field in fields {
+        for row in fields {
+            let field = &row.resolution;
             let (_, locator) = call_for_import_field(&import_calls, field)?;
             if prior_locators.contains(&locator) {
                 continue;

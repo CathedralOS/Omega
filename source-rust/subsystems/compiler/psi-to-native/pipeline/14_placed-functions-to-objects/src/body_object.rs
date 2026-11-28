@@ -8,6 +8,7 @@ use crate::{
 use semantic_vocabulary::MachineId;
 pub mod byte_literals;
 pub mod code_descriptors;
+pub mod fixed_activations;
 mod image_addresses;
 pub mod image_residence;
 pub mod imports;
@@ -91,7 +92,6 @@ impl FunctionObjectSections {
     pub(crate) fn assemble(source: &ObjectPublication) -> Result<Self, Error> {
         let text = source.text();
         let mut object = ObjectPlan::with_capacity(text.target, 1, text.functions.len());
-        let mut text_bytes = source.object().text_section.bytes().to_vec();
         let mut functions = Vec::with_capacity(text.functions.len());
         for placed in &text.functions {
             let offset = host(placed.section_offset)?;
@@ -135,6 +135,7 @@ impl FunctionObjectSections {
             source.text(),
         )
         .map_err(Error::ForeignCalls)?;
+        let mut text_bytes = fixed_activations::resolved_text(source, &foreign_calls)?.into_owned();
         let private_identities = private_addresses::identities(
             &foreign_calls,
             &text.unresolved_image_addresses,

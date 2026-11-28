@@ -28,11 +28,14 @@ pub struct StructuralTypeCatalog(
 struct LayoutFacts {
     owned_sequences: Vec<(StructuralTypeId, u64)>,
     package_witnesses: Vec<StructuralTypeId>,
+    execution_owners: Vec<runtime_abi::ExecutionOwnerHome>,
 }
 
 impl LayoutFacts {
     fn is_empty(&self) -> bool {
-        self.owned_sequences.is_empty() && self.package_witnesses.is_empty()
+        self.owned_sequences.is_empty()
+            && self.package_witnesses.is_empty()
+            && self.execution_owners.is_empty()
     }
 }
 
@@ -41,6 +44,7 @@ impl LayoutFacts {
 pub struct StorageLayoutInputs<'a> {
     pub owned_sequences: &'a [(StructuralTypeId, u64)],
     pub package_witnesses: &'a [StructuralTypeId],
+    pub execution_owners: &'a [runtime_abi::ExecutionOwnerHome],
 }
 
 impl StorageLayoutInputs<'_> {
@@ -166,10 +170,16 @@ impl StructuralTypeCatalog {
         self
     }
 
+    pub fn with_execution_owners(mut self, owners: Vec<runtime_abi::ExecutionOwnerHome>) -> Self {
+        Arc::make_mut(&mut self.6).execution_owners = owners;
+        self
+    }
+
     pub fn storage_inputs(&self) -> StorageLayoutInputs<'_> {
         StorageLayoutInputs {
             owned_sequences: &self.6.owned_sequences,
             package_witnesses: &self.6.package_witnesses,
+            execution_owners: &self.6.execution_owners,
         }
     }
 

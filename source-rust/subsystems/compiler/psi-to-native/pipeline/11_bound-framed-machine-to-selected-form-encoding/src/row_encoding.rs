@@ -855,6 +855,9 @@ fn encode_normalized_foreign_call(
                 }
             };
             let state = match target_fixup.state {
+                X86_64NormalizedForeignCallFixupState::UnresolvedFixedActivationFieldV1 => {
+                    SelectedFormNormalizedForeignCallFixupState::UnresolvedFixedActivationFieldV1
+                }
                 X86_64NormalizedForeignCallFixupState::UnresolvedImportFieldV1 => {
                     SelectedFormNormalizedForeignCallFixupState::UnresolvedImportFieldV1
                 }

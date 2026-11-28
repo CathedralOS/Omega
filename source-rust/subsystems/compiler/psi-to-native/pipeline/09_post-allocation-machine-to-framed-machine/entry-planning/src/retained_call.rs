@@ -111,7 +111,13 @@ pub fn plan_returning_job_bridge(
         _ => return Err(Error::UnsupportedValueTransport),
     };
     let homes = ReturningJobHomes::pack(argument, call.result.as_ref().map(|r| r.shape))?;
-    let code = crate::native_foreign_bridge::plan_call(request, Some(homes))?;
+    let code = crate::native_foreign_bridge::plan_call(
+        request,
+        Some(crate::native_foreign_bridge::InlineJob {
+            argument: homes.argument,
+            result: homes.result,
+        }),
+    )?;
     Ok(ReturningJobBridge {
         homes,
         instructions: code.instructions,

@@ -132,7 +132,8 @@ pub(crate) fn hash_boundary_settlement_record(
             digest.byte(compiler_builtin_execution_tag(execution));
             if matches!(
                 execution,
-                CompilerBuiltinExecution::AccessorScalarAccess { .. }
+                CompilerBuiltinExecution::FixedActivation(_)
+                    | CompilerBuiltinExecution::AccessorScalarAccess { .. }
                     | CompilerBuiltinExecution::AccessLifecycle { .. }
                     | CompilerBuiltinExecution::StaticInterrupt { .. }
             ) {
@@ -208,6 +209,7 @@ const fn compiler_builtin_execution_tag(execution: CompilerBuiltinExecution) -> 
     match execution {
         CompilerBuiltinExecution::StaticInterrupt { .. } => 254,
         CompilerBuiltinExecution::AccessLifecycle { .. } => 253,
+        CompilerBuiltinExecution::FixedActivation(_) => 248,
         CompilerBuiltinExecution::EmptyRunRelease => 249,
         CompilerBuiltinExecution::AccessorScalarAccess { .. } => 250,
         CompilerBuiltinExecution::ProgramImageRetainedSuffixStart => 251,
@@ -962,6 +964,13 @@ pub(crate) fn hash_normalized_foreign_mechanism<'a>(
 ) -> Option<&'a provider_stack_contribution::AdmittedSameStackContribution> {
     use target_vocabulary::NormalizedForeignCallMechanism as Mechanism;
     match mechanism {
+        Mechanism::FixedActivation(call) => {
+            digest.byte(7);
+            let mut action = Vec::new();
+            call.encode(&mut action);
+            digest.bytes(&action);
+            None
+        }
         Mechanism::CompilerImport {
             import,
             requirement_identity,

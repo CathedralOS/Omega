@@ -47,6 +47,9 @@ pub(super) fn describe(report: &CompletedProduct) -> Result<String, &'static str
                 BoundarySettlementRealization::Builtin(realization) => format!("{realization:?}"),
                 BoundarySettlementRealization::NormalizedForeignCall(binding) => {
                     match &binding.mechanism {
+                        NormalizedForeignCallMechanism::FixedActivation(call) => {
+                            format!("fixed activation {:?}", call.action.operation())
+                        }
                         NormalizedForeignCallMechanism::SystemCall(call) => {
                             format!("syscall {}", call.number)
                         }

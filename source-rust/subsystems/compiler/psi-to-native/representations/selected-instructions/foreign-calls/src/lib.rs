@@ -161,7 +161,15 @@ pub fn admit(
     };
     if record.call.boundary != boundary
         || record.call.binding.native_target() != Some(target)
-        || record.call.binding.import_locator().is_none()
+        || (record.call.binding.import_locator().is_none()
+            && !record.call.binding.fixed_activation().is_some_and(|fixed| {
+                fixed.boundary == boundary
+                    && record.call.callbacks.is_empty()
+                    && record
+                        .call
+                        .binding
+                        .matches_execution(record.call.provider_execution)
+            }))
     {
         return Err(Error::OperandViewMismatch);
     }

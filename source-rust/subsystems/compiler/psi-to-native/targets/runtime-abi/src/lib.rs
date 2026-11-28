@@ -43,6 +43,8 @@ x86 flags observation (`capture_host_x86_flags`). The domain modules cover:
   frame geometry.
 */
 
+mod activation_owners;
+pub use activation_owners::ExecutionOwnerHome;
 mod borrowed_storage;
 mod descriptor_io;
 mod host_numeric;

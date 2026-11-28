@@ -948,7 +948,8 @@ pub(crate) mod normalized_foreign {
         call: &LegalizedNormalizedForeignCall,
     ) -> register_model::RegisterConstraintFamily {
         match call.binding.mechanism {
-            target_vocabulary::NormalizedForeignCallMechanism::Import { .. }
+            target_vocabulary::NormalizedForeignCallMechanism::FixedActivation(_)
+            | target_vocabulary::NormalizedForeignCallMechanism::Import { .. }
             | target_vocabulary::NormalizedForeignCallMechanism::CompilerImport { .. }
             | target_vocabulary::NormalizedForeignCallMechanism::BuildImport { .. }
             | target_vocabulary::NormalizedForeignCallMechanism::Component { .. }

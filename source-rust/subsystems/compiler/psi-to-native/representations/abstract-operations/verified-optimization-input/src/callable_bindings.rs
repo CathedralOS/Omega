@@ -44,13 +44,18 @@ impl AdmittedLoweringFacts {
         let mut roots = CallableInvocationRoots::new();
         for machine in &module.machines {
             for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
-                if !matches!(
-                    operation.kind,
-                    terminal_psi::OperationKind::BoundaryCall { .. }
-                ) {
+                let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = operation.kind
+                else {
                     continue;
-                }
+                };
                 let mut entries = Vec::new();
+                if let Some(worker) = self
+                    .native_execution_scope
+                    .as_ref()
+                    .and_then(|scope| scope.prepared_worker(boundary))
+                {
+                    entries.push(worker.shape().selected.entry_machine);
+                }
                 // Admission owns which helper operations can execute. Ignore an
                 // unused proposal; retain the admitted helper's exact declarations.
                 if self.installed_interrupts().helpers().iter().any(|helper| {
