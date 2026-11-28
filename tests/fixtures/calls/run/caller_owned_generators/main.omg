@@ -65,6 +65,18 @@ machine prepare<'back, 'slot>(work: Work<'slot>, backing: @'back mutable [u8]) -
         |activation|::ActivationPreparation::Rejected { arguments, retained } -> failed()
     }
 }
+machine recover_work<'slot>(work: Work<'slot>, short: @mutable [u8]) -> Work<'slot> crashes Trap {
+    match |activation|::prepare::<Work<'slot>, u32, produce, |task|::ActivationStorage::Fixed>(move work, short) {
+        |activation|::ActivationPreparation::Ready { owner } -> failed(),
+        |activation|::ActivationPreparation::Rejected { arguments, retained } -> check_rejection(move arguments, retained)
+    }
+    machine check_rejection<'slot>(work: Work<'slot>, retained: @mutable [u8]) -> Work<'slot> crashes Trap {
+        expect(retained.length == 1u64 && retained[0] == 19u8);
+        expect(work.seed == 7u32 && work.audit.starts.load(Receive) == 0u32);
+        retained[0] = 31u8;
+        move work
+    }
+}
 machine until_park<'back, 'slot>(ready: Ready<'back, 'slot>) -> Parked<'back, 'slot> blocks crashes Trap crashes Abort {
     match block |activation|::step_fixed::<Work<'slot>, u32, produce>(move ready) {
         |activation|::ActivationStep::Parked { owner } -> move owner,
@@ -141,7 +153,10 @@ machine interleave<'left, 'right, 'left_back, 'right_back>(
 ) blocks crashes Trap crashes Abort {
     let left: |generator|::Pair<'left, Mailbox, u32, MailboxOps> = |generator|::open::<Mailbox, u32, MailboxOps>(left_slot);
     let right: |generator|::Pair<'right, Mailbox, u32, MailboxOps> = |generator|::open::<Mailbox, u32, MailboxOps>(right_slot);
-    let left_ready: Ready<'left_back, 'left> = prepare(Work { seed: 7u32, emitter: move left.emitter, audit: left_audit }, left_stack);
+    let mutable guard: [u8; 3] = [23u8, 19u8, 41u8];
+    let left_work: Work<'left> = recover_work(Work { seed: 7u32, emitter: move left.emitter, audit: left_audit }, @mutable guard[1..2]);
+    expect(guard[0] == 23u8 && guard[1] == 31u8 && guard[2] == 41u8);
+    let left_ready: Ready<'left_back, 'left> = prepare(move left_work, left_stack);
     let right_ready: Ready<'right_back, 'right> = prepare(Work { seed: 17u32, emitter: move right.emitter, audit: right_audit }, right_stack);
     expect(left_audit.starts.load(Receive) == 0u32 && right_audit.starts.load(Receive) == 0u32);
 
