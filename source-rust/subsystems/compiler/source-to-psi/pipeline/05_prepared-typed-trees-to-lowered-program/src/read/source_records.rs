@@ -155,7 +155,9 @@ fn check_record_operations(
         }
         outer = frame.parent.as_deref();
     }
-    let TypeReferenceNode::Named { symbol, .. } = typed.type_reference_node(argument.reference)
+    let TypeReferenceNode::Named { symbol, .. } = typed
+        .type_reference_table
+        .type_reference(argument.reference)
     else {
         return Err(unserved(
             "record operation argument needs its exact named value",
