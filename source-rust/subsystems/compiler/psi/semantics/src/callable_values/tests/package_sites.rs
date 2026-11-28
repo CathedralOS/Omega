@@ -996,3 +996,5 @@ fn a_consuming_descriptor_replays_its_nominal_owner_and_custody() {
     changed.types.structural_types[concrete].multiplicity = StructuralMultiplicity::Unrestricted;
     assert!(!admitted(&changed));
 }
+
+mod uniform_fields;

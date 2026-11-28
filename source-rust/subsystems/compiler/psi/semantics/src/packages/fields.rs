@@ -27,23 +27,48 @@ pub(super) fn uses_witness(
     field: &StructuralFieldType,
     witness: StructuralTypeId,
 ) -> bool {
-    let dependent = |carrier| carrier == witness || nominal_uses(module, carrier, witness);
-    match field {
-        StructuralFieldType::Scalar(ScalarType::Callable(id)) => module
-            .execution
-            .callables
-            .contract(*id)
-            .is_some_and(|contract| {
-                contract.structural_parameters.iter().any(|p| dependent(p.structural_type))
-                    || contract.proof_result.structural().is_some_and(|r| dependent(r.structural_type))
-            }),
-        StructuralFieldType::Structural(id) => {
-            dependent(*id) || module.structural_type(*id).is_some_and(|row| {
-                matches!(row.shape, StructuralTypeShape::Reference { referent, .. } if referent == witness)
-            })
+    let mut pending = vec![field.clone()];
+    let mut seen = std::collections::BTreeSet::new();
+    while let Some(field) = pending.pop() {
+        if !seen.insert(field.clone()) {
+            continue;
         }
-        _ => false,
+        match field {
+            StructuralFieldType::Scalar(ScalarType::Callable(id)) => {
+                if let Some(contract) = module.execution.callables.contract(id) {
+                    pending.extend(
+                        contract
+                            .structural_parameters
+                            .iter()
+                            .map(|p| StructuralFieldType::Structural(p.structural_type)),
+                    );
+                    if let Some(result) = contract.proof_result.structural() {
+                        pending.push(StructuralFieldType::Structural(result.structural_type));
+                    }
+                }
+            }
+            StructuralFieldType::Structural(id) => {
+                if id == witness || nominal_uses(module, id, witness) {
+                    return true;
+                }
+                if let Some(row) = module.structural_type(id) {
+                    match &row.shape {
+                        StructuralTypeShape::Reference { referent, .. } => {
+                            pending.push(StructuralFieldType::Structural(*referent))
+                        }
+                        StructuralTypeShape::FixedArray { element, .. } => {
+                            pending.push(StructuralFieldType::Structural(*element))
+                        }
+                        shape => {
+                            pending.extend(shape.fields().map(|field| field.field_type.clone()))
+                        }
+                    }
+                }
+            }
+            _ => (),
+        }
     }
+    false
 }
 
 fn field_needs_opening(

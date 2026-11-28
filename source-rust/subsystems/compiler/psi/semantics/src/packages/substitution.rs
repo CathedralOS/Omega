@@ -1,6 +1,14 @@
 //! Instantiate a package signature without weakening its callable contract.
 use super::*;
 
+mod storage;
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Comparison {
+    Storage(StructuralTypeId, StructuralTypeId),
+    Callable(CallableContractId, CallableContractId),
+}
+
 pub(super) struct Substitution<'a> {
     pub(super) public: &'a [StructuralTypeId],
     pub(super) actual: &'a [StructuralTypeId],
@@ -23,105 +31,12 @@ impl Substitution<'_> {
             .map(|index| self.actual[index])
     }
 
-    fn nominal_carrier(
-        &self,
-        module: &TerminalModule,
-        from: StructuralTypeId,
-        to: StructuralTypeId,
-    ) -> bool {
-        use application_identity::type_identity::package_applications;
-        let (Some(public), Some(actual)) =
-            (module.structural_type(from), module.structural_type(to))
-        else {
-            return false;
-        };
-        let (Some(public_name), Some(actual_name)) = (
-            module.identities.text(public.identity),
-            module.identities.text(actual.identity),
-        ) else {
-            return false;
-        };
-        let Some(identities) = self.identities(module) else {
-            return false;
-        };
-        if public.declaration_identity.is_absent()
-            || public.declaration_identity != actual.declaration_identity
-            || !package_applications::substituted(public_name, actual_name, &identities)
-        {
-            return false;
-        }
-        let (
-            StructuralTypeShape::Record {
-                fields: left,
-                storage,
-            },
-            StructuralTypeShape::Record {
-                fields: right,
-                storage: actual_storage,
-            },
-        ) = (&public.shape, &actual.shape)
-        else {
-            return false;
-        };
-        // Custody indices may choose a different application of the exact
-        // same carrier. They cannot change any stored field or cleanup debt.
-        if storage != actual_storage
-            || left.len() != right.len()
-            || !left.iter().zip(right).all(|(field, supplied)| {
-                let mut expected = field.clone();
-                expected.id = supplied.id;
-                !field.declaration_identity.is_absent() && expected == *supplied
-            })
-        {
-            return false;
-        }
-        let mut expected = public.clone();
-        expected.id = actual.id;
-        expected.identity = actual.identity;
-        expected.shape = actual.shape.clone();
-        expected == *actual
-    }
-
-    // A stored reference has fixed representation. Its access and every
-    // declaration property other than the referent and nominal identity stay
-    // identical. Owning an unknown value inline has no such rule.
-    fn reference(
-        &self,
-        module: &TerminalModule,
-        from: StructuralTypeId,
-        to: StructuralTypeId,
-    ) -> bool {
-        let (Some(public), Some(actual)) =
-            (module.structural_type(from), module.structural_type(to))
-        else {
-            return false;
-        };
-        let (
-            StructuralTypeShape::Reference { referent, access },
-            StructuralTypeShape::Reference {
-                referent: target,
-                access: mode,
-            },
-        ) = (&public.shape, &actual.shape)
-        else {
-            return false;
-        };
-        if self.witness(*referent) != Some(*target) || access != mode {
-            return false;
-        }
-        let mut expected = public.clone();
-        expected.id = actual.id;
-        expected.identity = actual.identity;
-        expected.declaration_identity = actual.declaration_identity;
-        expected.shape = actual.shape.clone();
-        expected == *actual
-    }
-
     fn parameters(
         &self,
         module: &TerminalModule,
         parameters: &mut [StructuralParameterDeclaration],
         supplied: &[StructuralParameterDeclaration],
+        nested: &mut Vec<Comparison>,
     ) -> bool {
         if parameters.len() != supplied.len() {
             return false;
@@ -137,10 +52,10 @@ impl Substitution<'_> {
                 .iter()
                 .any(|witness| fields::nominal_uses(module, parameter.structural_type, *witness))
             {
-                if !self.nominal_carrier(module, parameter.structural_type, actual.structural_type)
-                {
-                    return false;
-                }
+                nested.push(Comparison::Storage(
+                    parameter.structural_type,
+                    actual.structural_type,
+                ));
                 if !self.projected_qualifications(
                     module,
                     &parameter.projected_qualifications,
@@ -248,11 +163,12 @@ impl Substitution<'_> {
         expected == *actual
     }
 
-    pub(super) fn callable(
+    fn signature(
         &self,
         module: &TerminalModule,
         from: CallableContractId,
         to: CallableContractId,
+        nested: &mut Vec<Comparison>,
     ) -> bool {
         let catalog = &module.execution.callables;
         let (Some(public), Some(actual)) = (catalog.contract(from), catalog.contract(to)) else {
@@ -272,10 +188,12 @@ impl Substitution<'_> {
             module,
             &mut expected.structural_parameters,
             &actual.structural_parameters,
+            nested,
         ) || !self.parameters(
             module,
             &mut expected.proof.structural_parameters,
             &actual.proof.structural_parameters,
+            nested,
         ) {
             return false;
         }
@@ -284,35 +202,61 @@ impl Substitution<'_> {
         expected == *actual
     }
 
+    fn field(
+        public: &StructuralFieldType,
+        actual: &StructuralFieldType,
+        nested: &mut Vec<Comparison>,
+    ) -> bool {
+        let comparison = match (public, actual) {
+            (StructuralFieldType::Structural(from), StructuralFieldType::Structural(to)) => {
+                Comparison::Storage(*from, *to)
+            }
+            (
+                StructuralFieldType::Scalar(ScalarType::Callable(from)),
+                StructuralFieldType::Scalar(ScalarType::Callable(to)),
+            ) => Comparison::Callable(*from, *to),
+            _ => return public == actual,
+        };
+        nested.push(comparison);
+        true
+    }
+
+    fn check(&self, module: &TerminalModule, mut pending: Vec<Comparison>) -> bool {
+        // Shared subtypes occur in multiple fields and in both contract headers.
+        // Each pair denotes the same comparison throughout this substitution.
+        let mut seen = std::collections::BTreeSet::new();
+        while let Some(pair) = pending.pop() {
+            if !seen.insert(pair) {
+                continue;
+            }
+            let matches = match pair {
+                Comparison::Storage(from, to) => self.storage(module, from, to, &mut pending),
+                Comparison::Callable(from, to) => self.signature(module, from, to, &mut pending),
+            };
+            if !matches {
+                return false;
+            }
+        }
+        true
+    }
+
+    pub(super) fn callable(
+        &self,
+        module: &TerminalModule,
+        from: CallableContractId,
+        to: CallableContractId,
+    ) -> bool {
+        self.check(module, vec![Comparison::Callable(from, to)])
+    }
+
     pub(super) fn admits(
         &self,
         module: &TerminalModule,
         public: &StructuralFieldType,
         actual: &StructuralFieldType,
     ) -> bool {
-        match (public, actual) {
-            (StructuralFieldType::Structural(from), StructuralFieldType::Structural(to)) => {
-                if let Some(StructuralTypeShape::Reference { referent, .. }) =
-                    module.structural_type(*from).map(|ty| &ty.shape)
-                    && self.witness(*referent).is_some()
-                {
-                    self.reference(module, *from, *to)
-                } else if self
-                    .public
-                    .iter()
-                    .any(|witness| fields::nominal_uses(module, *from, *witness))
-                {
-                    self.nominal_carrier(module, *from, *to)
-                } else {
-                    from == to && self.witness(*from).is_none()
-                }
-            }
-            (
-                StructuralFieldType::Scalar(ScalarType::Callable(from)),
-                StructuralFieldType::Scalar(ScalarType::Callable(to)),
-            ) => self.callable(module, *from, *to),
-            _ => public == actual,
-        }
+        let mut pending = Vec::new();
+        Self::field(public, actual, &mut pending) && self.check(module, pending)
     }
 }
 
