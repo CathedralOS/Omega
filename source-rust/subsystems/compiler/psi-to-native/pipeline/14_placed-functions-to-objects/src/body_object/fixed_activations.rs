@@ -48,6 +48,9 @@ pub fn resolved_text<'a>(
         if !fixed_calls
             .iter()
             .any(|physical| &physical.binding == routine.binding())
+            || !source
+                .installation_authority()
+                .matches_frame(routine.physical_identity(), routine.frame())
             || routine.bytes().is_empty()
             || routine.binding().fixed_activation_stack_bytes()
                 != Some(routine.caller_stack_bytes())
