@@ -75,9 +75,11 @@ pub fn publish_function_object(
     {
         return Err(RelocationFreeObjectContainerError::ArtifactMismatch);
     }
-    let object =
-        construct_relocation_free_object_from_text(source.text_section(), source.selections())
-            .map_err(object_error)?;
+    let object = construct_relocation_free_object_from_text(
+        &source.shared_text_section(),
+        source.selections(),
+    )
+    .map_err(object_error)?;
     let target = source.contracts().body.original_for_audit();
     if target.is_some() != frame_application.is_some()
         || target.is_some() != source.contracts().original_encoding().is_some()
@@ -146,7 +148,7 @@ pub fn validate_optimized_relocation_free_object_container(
     validate_optimized_fixed_frame_text_section(&staged.source, &staged.frame_application)
         .map_err(RelocationFreeObjectContainerError::Source)?;
     validate_relocation_free_object_from_text(
-        staged.source.text_section(),
+        &staged.source.shared_text_section(),
         staged.source.selections(),
         staged.object(),
     )

@@ -91,7 +91,7 @@ impl FunctionObjectSections {
     pub(crate) fn assemble(source: &ObjectPublication) -> Result<Self, Error> {
         let text = source.text();
         let mut object = ObjectPlan::with_capacity(text.target, 1, text.functions.len());
-        let mut text_bytes = text.bytes.clone();
+        let mut text_bytes = source.object().text_section.bytes().to_vec();
         let mut functions = Vec::with_capacity(text.functions.len());
         for placed in &text.functions {
             let offset = host(placed.section_offset)?;
