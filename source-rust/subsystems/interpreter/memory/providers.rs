@@ -895,7 +895,6 @@ pub(crate) mod empty_run {
                 &self.live_claims,
                 structural_arguments,
                 completion_receipts,
-                &boundary.structural_parameters,
             )?;
             let [binding] = result.claims.as_slice() else {
                 return Err(TerminalInterpretError::ClaimTransferMismatch);
@@ -903,7 +902,7 @@ pub(crate) mod empty_run {
             if !binding.path.is_empty() {
                 return Err(TerminalInterpretError::ClaimTransferMismatch);
             }
-            bind_result_claim(&mut claims, binding, result.place, result.multiplicity)?;
+            bind_result_claim(&mut claims, binding, result)?;
             let mut value = self.mint_staged(&mut identity_cursor, result.structural_type)?;
             value.qualifications = result.qualifications.clone();
             value.projected_qualifications = backing.projected_qualifications.clone();
@@ -1198,15 +1197,9 @@ pub(crate) mod extraction {
                 &self.live_claims,
                 structural_arguments,
                 completion_receipts,
-                &boundary.structural_parameters,
             )?;
             self.bind_expected_access_claims(result, &mut expected_claims, &selected, |binding| {
-                crate::engine::custody::bind_result_claim(
-                    &mut claims,
-                    binding,
-                    result.place,
-                    result.multiplicity,
-                )
+                crate::engine::custody::bind_result_claim(&mut claims, binding, result)
             })?;
             let mut frontier = self.live_affine_frontier.clone();
             let mut consumed = Vec::new();
@@ -1894,7 +1887,6 @@ pub(crate) mod lifecycle {
                 &self.live_claims,
                 structural_arguments,
                 completion_receipts,
-                &boundary.structural_parameters,
             )?;
             let mut frontier = self.live_affine_frontier.clone();
             let mut consumed = Vec::new();
@@ -1998,12 +1990,7 @@ pub(crate) mod lifecycle {
             };
             let mut expected = BTreeSet::from([destination_path]);
             self.bind_expected_access_claims(result, &mut expected, &selected, |binding| {
-                crate::engine::custody::bind_result_claim(
-                    &mut claims,
-                    binding,
-                    result.place,
-                    result.multiplicity,
-                )
+                crate::engine::custody::bind_result_claim(&mut claims, binding, result)
             })?;
             self.stage_result_affine_frontier(result, &mut frontier, &selected)?;
             let retirement = self.prepare_constructor_operands(frontier, &consumed, claims)?;
@@ -2224,7 +2211,6 @@ pub(crate) mod lifecycle {
                 &self.live_claims,
                 structural_arguments,
                 completion_receipts,
-                &boundary.structural_parameters,
             )?;
             let mut received = BTreeSet::new();
             for binding in &result.claims {
@@ -2237,7 +2223,7 @@ pub(crate) mod lifecycle {
                 if !received.insert(original_identity) {
                     return Err(TerminalInterpretError::ClaimTransferMismatch);
                 }
-                bind_result_claim(&mut claims, binding, result.place, result.multiplicity)?;
+                bind_result_claim(&mut claims, binding, result)?;
             }
             if !transported.is_empty() || received.len() != completion_receipts.len() {
                 return Err(TerminalInterpretError::CompletionReceiptMismatch);
@@ -3097,16 +3083,10 @@ pub(crate) mod relocation {
                 &self.live_claims,
                 structural_arguments,
                 completion_receipts,
-                &boundary.structural_parameters,
             )?;
             let mut expected = BTreeSet::from([run_path, vacated_path]);
             self.bind_expected_access_claims(result, &mut expected, &selected, |binding| {
-                crate::engine::custody::bind_result_claim(
-                    &mut claims,
-                    binding,
-                    result.place,
-                    result.multiplicity,
-                )
+                crate::engine::custody::bind_result_claim(&mut claims, binding, result)
             })?;
             let mut frontier = self.live_affine_frontier.clone();
             let mut consumed = Vec::new();

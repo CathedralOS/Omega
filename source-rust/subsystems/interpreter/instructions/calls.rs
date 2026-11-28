@@ -8,13 +8,13 @@
 
 pub(crate) mod arguments {
     use crate::boundary::errors::{TerminalInterpretError, malformed};
-    use crate::boundary::values::{TerminalScalarValue, TerminalStructuralValue};
+    use crate::boundary::values::TerminalStructuralValue;
     use crate::engine::custody::StructuralArgumentSources;
     use crate::engine::execution::TerminalExecution;
     use crate::storage::byte_sequences::binding::ByteSequenceBinding;
     use crate::storage::runtime_rows::RuntimeRows;
     use crate::storage::scalar_array::ScalarArrayBindings;
-    use semantic_vocabulary::{MachineId, PlaceId, ValueId};
+    use semantic_vocabulary::{MachineId, PlaceId};
     use terminal_psi::{StructuralAccess, StructuralArgument, StructuralParameterDeclaration};
     use terminal_semantics::scalar_array_leaf_shape;
 
@@ -59,21 +59,6 @@ pub(crate) mod arguments {
     }
 
     impl TerminalExecution<'_> {
-        pub(crate) fn resolve_call_arguments(
-            &self,
-            callee: MachineId,
-            arguments: &[ValueId],
-            structural_arguments: &[StructuralArgument],
-        ) -> Result<(Vec<TerminalScalarValue>, StructuralCallArguments), TerminalInterpretError>
-        {
-            let scalar_arguments = self
-                .scalar_values_at(arguments)
-                .map_err(|error| error.in_argument_preparation("read scalar call arguments"))?;
-            let prepared_arguments =
-                self.prepare_structural_call_arguments(callee, structural_arguments)?;
-            Ok((scalar_arguments, prepared_arguments))
-        }
-
         pub(crate) fn prepare_structural_call_arguments(
             &self,
             callee: MachineId,
@@ -1548,7 +1533,6 @@ pub(crate) mod component_arguments {
                 &self.live_claims,
                 arguments,
                 completion_receipts,
-                &receiver.structural_parameters,
             )?;
             let borrowed_mutations = scalar_arguments
                 .iter()
@@ -1861,8 +1845,7 @@ pub(crate) mod component_calls {
                             crate::engine::custody::bind_result_claim(
                                 &mut result_claims,
                                 claim,
-                                result.place,
-                                result.multiplicity,
+                                result,
                             )?;
                         }
                     } else {
@@ -2932,52 +2915,30 @@ fn select_positions<T: Clone>(
 }
 
 impl<'artifact> TerminalExecution<'artifact> {
-    pub(crate) fn execute_call_unit(
+    pub(crate) fn execute_direct_structural_call(
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        dispatched_operation!(operation => CallUnit {
-            callee, arguments: ref scalar_argument_ids, ref structural_arguments,
-            ref claim_transfers, ..
-        });
-        if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
-            return Err(malformed());
+        use terminal_psi::{DirectCallRole, OperationResult};
+        let call = terminal_psi::direct_call_parts(&operation.kind).ok_or_else(malformed)?;
+        match (call.role, &operation.result) {
+            (DirectCallRole::Unit, OperationResult::Unit)
+            | (DirectCallRole::Scalar, OperationResult::Scalar(_))
+            | (DirectCallRole::Structural, OperationResult::Structural(_)) => {}
+            (DirectCallRole::Structural, _) => {
+                return Err(TerminalInterpretError::VerifiedOperationContractInvalid {
+                    reason: "structural call operation has no structural result",
+                });
+            }
+            _ => return Err(malformed()),
         }
-        let scalar_arguments = scalar_argument_ids
-            .iter()
-            .map(|argument| self.scalar_value(*argument))
-            .collect::<Result<Vec<_>, _>>()?;
-        let prepared_arguments =
-            self.prepare_structural_call_arguments(callee, structural_arguments)?;
-        self.begin_unit_call(
-            callee,
-            &scalar_arguments,
-            structural_arguments,
-            prepared_arguments,
-            claim_transfers,
-        )?;
-        Ok(OperationFlow::Redispatch)
-    }
-
-    pub(crate) fn execute_call_structural_scalar(
-        &mut self,
-        operation: &terminal_psi::Operation,
-    ) -> Result<OperationFlow, TerminalInterpretError> {
-        dispatched_operation!(operation => CallStructuralScalar {
-            callee, ref arguments, ref structural_arguments, ref claim_transfers, ..
-        });
-        let result = operation.result.scalar().ok_or(malformed())?;
-        let (scalar_arguments, prepared_arguments) =
-            self.resolve_call_arguments(callee, arguments, structural_arguments)?;
-        self.begin_structural_scalar_call(
-            callee,
-            result,
-            &scalar_arguments,
-            structural_arguments,
-            prepared_arguments,
-            claim_transfers,
-        )?;
-        Ok(OperationFlow::Redispatch)
+        self.execute_selected_call(
+            operation,
+            call.callee,
+            call.arguments,
+            call.structural_arguments,
+            operation.kind.claim_transfers(),
+        )
     }
 
     pub(crate) fn execute_select_implementation(
@@ -3027,36 +2988,13 @@ impl<'artifact> TerminalExecution<'artifact> {
             .scalar_value(operand)?
             .selected_machine(&program.catalogs.execution.callables, contract)
             .ok_or_else(malformed)?;
-        let (scalar_arguments, prepared_arguments) =
-            self.resolve_call_arguments(callee, arguments, structural_arguments)?;
-        match &operation.result {
-            terminal_psi::OperationResult::Unit => self.begin_unit_call(
-                callee,
-                &scalar_arguments,
-                structural_arguments,
-                prepared_arguments,
-                claim_transfers,
-            )?,
-            terminal_psi::OperationResult::Scalar(result) => self.begin_structural_scalar_call(
-                callee,
-                *result,
-                &scalar_arguments,
-                structural_arguments,
-                prepared_arguments,
-                claim_transfers,
-            )?,
-            terminal_psi::OperationResult::Structural(result) => self
-                .begin_structural_result_call(
-                    callee,
-                    result.clone(),
-                    &scalar_arguments,
-                    structural_arguments,
-                    prepared_arguments,
-                    claim_transfers,
-                    crate::engine::execution::ResultClaimOrigin::CalleeReturn,
-                )?,
-        }
-        Ok(OperationFlow::Redispatch)
+        self.execute_selected_call(
+            operation,
+            callee,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+        )
     }
 
     pub(crate) fn execute_call_dynamic(
@@ -3120,9 +3058,33 @@ impl<'artifact> TerminalExecution<'artifact> {
             matched.ok_or(malformed())?
         };
         let callee = catalog.row(table, slot).ok_or(malformed())?;
-        let (scalar_arguments, prepared_arguments) =
-            self.resolve_call_arguments(callee, arguments, structural_arguments)?;
-        match operation.result {
+        self.execute_selected_call(
+            operation,
+            callee,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+        )
+    }
+
+    fn execute_selected_call(
+        &mut self,
+        operation: &terminal_psi::Operation,
+        callee: semantic_vocabulary::MachineId,
+        arguments: &[semantic_vocabulary::ValueId],
+        structural_arguments: &[terminal_psi::StructuralArgument],
+        claim_transfers: &[ClaimTransfer],
+    ) -> Result<OperationFlow, TerminalInterpretError> {
+        let scalar_arguments = self.scalar_values_at(arguments).map_err(|error| {
+            if matches!(operation.kind, OperationKind::CallUnit { .. }) {
+                error
+            } else {
+                error.in_argument_preparation("read scalar call arguments")
+            }
+        })?;
+        let prepared_arguments =
+            self.prepare_structural_call_arguments(callee, structural_arguments)?;
+        match &operation.result {
             terminal_psi::OperationResult::Unit => self.begin_unit_call(
                 callee,
                 &scalar_arguments,
@@ -3132,13 +3094,13 @@ impl<'artifact> TerminalExecution<'artifact> {
             )?,
             terminal_psi::OperationResult::Scalar(result) => self.begin_structural_scalar_call(
                 callee,
-                result,
+                *result,
                 &scalar_arguments,
                 structural_arguments,
                 prepared_arguments,
                 claim_transfers,
             )?,
-            terminal_psi::OperationResult::Structural(ref result) => self
+            terminal_psi::OperationResult::Structural(result) => self
                 .begin_structural_result_call(
                     callee,
                     result.clone(),
@@ -3149,58 +3111,6 @@ impl<'artifact> TerminalExecution<'artifact> {
                     crate::engine::execution::ResultClaimOrigin::CalleeReturn,
                 )?,
         }
-        Ok(OperationFlow::Redispatch)
-    }
-
-    pub(crate) fn execute_call_structural(
-        &mut self,
-        operation: &terminal_psi::Operation,
-    ) -> Result<OperationFlow, TerminalInterpretError> {
-        dispatched_operation!(operation => CallStructural {
-            callee, ref structural_arguments, ref claim_transfers, ..
-        });
-        let result = operation.result.structural().cloned().ok_or(
-            TerminalInterpretError::VerifiedOperationContractInvalid {
-                reason: "structural call operation has no structural result",
-            },
-        )?;
-        let prepared_arguments =
-            self.prepare_structural_call_arguments(callee, structural_arguments)?;
-        self.begin_structural_result_call(
-            callee,
-            result,
-            &[],
-            structural_arguments,
-            prepared_arguments,
-            claim_transfers,
-            crate::engine::execution::ResultClaimOrigin::CalleeReturn,
-        )?;
-        Ok(OperationFlow::Redispatch)
-    }
-
-    pub(crate) fn execute_call_structural_with_scalar_arguments(
-        &mut self,
-        operation: &terminal_psi::Operation,
-    ) -> Result<OperationFlow, TerminalInterpretError> {
-        dispatched_operation!(operation => CallStructuralWithScalarArguments {
-            callee, ref arguments, ref structural_arguments, ref claim_transfers, ..
-        });
-        let result = operation.result.structural().cloned().ok_or(
-            TerminalInterpretError::VerifiedOperationContractInvalid {
-                reason: "structural call operation has no structural result",
-            },
-        )?;
-        let (scalar_arguments, prepared_arguments) =
-            self.resolve_call_arguments(callee, arguments, structural_arguments)?;
-        self.begin_structural_result_call(
-            callee,
-            result,
-            &scalar_arguments,
-            structural_arguments,
-            prepared_arguments,
-            claim_transfers,
-            crate::engine::execution::ResultClaimOrigin::CalleeReturn,
-        )?;
         Ok(OperationFlow::Redispatch)
     }
 
@@ -3545,12 +3455,8 @@ impl<'artifact> TerminalExecution<'artifact> {
             ));
         }
 
-        let remaining_claims = complete_claims(
-            &self.live_claims,
-            structural_arguments,
-            completion_receipts,
-            &boundary_declaration.structural_parameters,
-        )?;
+        let remaining_claims =
+            complete_claims(&self.live_claims, structural_arguments, completion_receipts)?;
         boundary_arguments.capture_reference_inputs(boundary_declaration, structural_arguments)?;
         if reference_result {
             boundary_arguments
@@ -3814,12 +3720,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         self.live_claims = remaining_claims;
         if let terminal_psi::OperationResult::Structural(result) = &operation.result {
             for binding in &result.claims {
-                crate::engine::custody::bind_result_claim(
-                    &mut self.live_claims,
-                    binding,
-                    result.place,
-                    result.multiplicity,
-                )?;
+                crate::engine::custody::bind_result_claim(&mut self.live_claims, binding, result)?;
             }
         }
         boundary_arguments

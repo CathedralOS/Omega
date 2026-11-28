@@ -42,16 +42,8 @@ pub(super) fn prepare<'host, 'artifact>(
     let children = provisions
         .component_dependencies(component)
         .map_err(TerminalRuntimeError::InvalidProvision)?;
-    let mut host_boundaries = host_imports::HostBoundarySelections::default();
-    for provision in runtime.host_provisions().host() {
-        if matches!(&provision.realization,
-            target_vocabulary::BoundarySettlementRealization::NormalizedForeignCall(binding)
-                if matches!(binding.mechanism, target_vocabulary::NormalizedForeignCallMechanism::Component { .. }))
-        {
-            continue;
-        }
-        host_boundaries.add(&program, provision);
-    }
+    let host_boundaries =
+        host_imports::HostBoundarySelections::from_provisions(&program, runtime.host_provisions());
     let mut supplies = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             native_code_layouts: None,
