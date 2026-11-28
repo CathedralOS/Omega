@@ -2013,9 +2013,10 @@ impl<'source> Declarations<'source> {
                     .is_ok_and(|application| application.is_some())
                 && sees_binding(true)?)
             || (kind == SelectionBindingKind::Type
-                && self.contracts.get(&lexical_owner).is_some_and(|row| {
-                    row.package_bindings.contains(&(scope_owner, symbol))
-                }));
+                && self
+                    .contracts
+                    .get(&lexical_owner)
+                    .is_some_and(|row| row.package_bindings.contains(&(scope_owner, symbol))));
         if !visible {
             let description = |symbol: SymbolHandle| {
                 (
