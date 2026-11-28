@@ -2,6 +2,8 @@
 //! actual call, including its borrowed inputs. These tests do not install a
 //! provider or claim native execution.
 
+mod installed_interrupts;
+
 use super::*;
 use std::sync::Arc;
 

@@ -1405,7 +1405,7 @@ pub mod expression {
                 &mut self,
             ) -> impl Iterator<Item = &mut StaticMachineArgument> {
                 if let Some(request) = &mut self.installed_interrupt_operation {
-                    request.invalidate_preparation();
+                    request.prepared = None;
                 }
                 self.native_code_layout
                     .iter_mut()
@@ -1458,7 +1458,7 @@ pub mod expression {
                 &mut self,
             ) -> impl Iterator<Item = &mut StaticMachineArgument> {
                 if let Some(request) = &mut self.installed_interrupt_operation {
-                    request.invalidate_preparation();
+                    request.prepared = None;
                 }
                 self.installed_interrupt_operation
                     .iter_mut()
@@ -5069,10 +5069,7 @@ pub mod expression {
 
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
     pub struct InstalledInterruptOperationRequest {
-        pub registrar_application:
-            crate::source_state::static_applications::StaticMachineApplicationHandle,
-        pub registrar_target: SymbolHandle,
-        pub registrar_receiving_scope: crate::source_state::trait_definition::RetainedTraitScope,
+        pub prepared: Option<Box<PreparedInterruptRegistration>>,
         pub registrar_selection:
             Option<crate::source_selections::AuthoredDeclarationSelectionOccurrenceId>,
         pub registrar_trait: SymbolHandle,
@@ -5080,13 +5077,13 @@ pub mod expression {
         pub timer_slot: StaticMachineArgument,
     }
 
-    impl InstalledInterruptOperationRequest {
-        pub fn invalidate_preparation(&mut self) {
-            self.registrar_application =
-                crate::source_state::static_applications::StaticMachineApplicationHandle::invalid();
-            self.registrar_target = SymbolHandle::invalid();
-            self.registrar_receiving_scope = Default::default();
-        }
+    /// One installation owns its registrar application, receiving scope and private slot.
+    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+    pub struct PreparedInterruptRegistration {
+        pub application: crate::source_state::static_applications::StaticMachineApplicationHandle,
+        pub target: SymbolHandle,
+        pub receiving_scope: crate::source_state::trait_definition::RetainedTraitScope,
+        pub timer_slot: application_identity::callback_declarations::PrivateCallbackSlotSelection,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
