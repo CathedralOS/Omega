@@ -32,16 +32,16 @@ pub(super) fn construction(
     let mut repacked = Vec::new();
     for (&public, &actual) in schema.witnesses.iter().zip(witnesses) {
         if abstract_types.binary_search(&actual).is_ok() {
-            let (index, row) = module
+            if !module
                 .execution
                 .packages
                 .openings
                 .iter()
-                .enumerate()
-                .find(|(_, row)| row.machine == machine.id && row.witnesses.contains(&actual))
-                .ok_or("construction uses an abstract witness outside its opening")?;
-            let index = u32::try_from(index).map_err(|_| "package opening index overflow")?;
-            repacked.push((public, index, row));
+                .any(|row| row.machine == machine.id && row.witnesses.contains(&actual))
+            {
+                return Err("construction uses an abstract witness outside its opening");
+            }
+            repacked.push((public, actual));
         }
     }
     let substitutions = Substitution {
@@ -77,7 +77,7 @@ pub(super) fn construction(
         if !substitutions.admits(module, &declaration.field_type, &actual) {
             return Err("package field differs from the shared witness substitution");
         }
-        for &(public, index, row) in &repacked {
+        for &(public, witness) in &repacked {
             if !fields::uses_witness(module, &declaration.field_type, public) {
                 continue;
             }
@@ -96,8 +96,9 @@ pub(super) fn construction(
                 Projected::Descriptor(_) => None,
             };
             let contributor = opening(module, machine.id, *origin)?;
-            if (*origin != index
-                && !subjects::copied_witness_at(module, machine, operation, row, contributor))
+            // Every projection has already justified its witness at its own
+            // instruction. Only this field's materialized value must still be live.
+            if !contributor.witnesses.contains(&witness)
                 || !versions::same_storage_version(
                     module,
                     machine,

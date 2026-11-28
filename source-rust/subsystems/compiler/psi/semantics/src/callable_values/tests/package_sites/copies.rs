@@ -199,3 +199,46 @@ fn copies_compare_the_value_at_each_read_even_after_replacing_the_original() {
         "package openings reuse a witness without a live copy of the original"
     );
 }
+
+#[test]
+fn the_first_opened_slot_can_be_replaced_while_its_two_copies_survive() {
+    let mut program = original_and_copy();
+    let machine = &mut program.machines[0];
+    select_copy_source(&mut machine.blocks[0].operations[1], 7);
+    insert_copy(machine, 1, 5, 7);
+    replace_pair(machine, 2, 6, 1);
+    // An earlier projection opened the original slot before either copy.
+    let mut first_read = machine.blocks[0].operations[3].clone();
+    first_read.id = operation_id(8);
+    first_read.result = result(9, ty(8));
+    select_copy_source(&mut first_read, 1);
+    machine.blocks[0].operations.insert(0, first_read);
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: place(9),
+        kind: StructuralPlaceKind::OperationResult {
+            producer: operation_id(8),
+            structural_type: ty(8),
+        },
+    });
+    let packages = &mut program.execution.packages;
+    let mut second_copy = packages.openings[0].clone();
+    second_copy.subject = StructuralArgument::whole(place(7), StructuralAccess::Owned);
+    packages.openings.push(second_copy);
+    packages.sites[0].event = TerminalPackageEvent::Project {
+        opening: 2,
+        field: field(1),
+    };
+    packages.sites.push(TerminalPackageSite {
+        machine: machine_id(1),
+        operation: operation_id(8),
+        event: TerminalPackageEvent::Project {
+            opening: 0,
+            field: field(1),
+        },
+    });
+    check_package_sites(&program).expect("the copied witnesses survive their first opening");
+
+    // Move one of the copies until after the replacement.
+    program.machines[0].blocks[0].operations.swap(2, 3);
+    assert!(check_package_sites(&program).is_err());
+}

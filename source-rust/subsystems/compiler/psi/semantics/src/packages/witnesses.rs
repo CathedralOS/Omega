@@ -6,12 +6,13 @@ pub(super) struct WitnessBinders {
     /// Untrusted portable IDs can be sparse, so index by the observed roster.
     pub(super) types: Vec<StructuralTypeId>,
     openings: Vec<OpeningWitness>,
+    observations: Vec<Option<(u32, OperationId)>>,
 }
 
 #[derive(Clone, Copy)]
 enum OpeningWitness {
     Fresh,
-    Copied { original: usize, observed: bool },
+    Shared { group: usize, observed: bool },
 }
 
 impl WitnessBinders {
@@ -42,20 +43,23 @@ impl WitnessBinders {
                 };
                 if anchor == index
                     || repeated_slot != slot
-                    || matches!(openings[index], OpeningWitness::Copied { original, .. } if original != anchor)
+                    || matches!(openings[anchor], OpeningWitness::Shared { group, .. } if group != anchor)
+                    || matches!(openings[index], OpeningWitness::Shared { group, .. } if group != anchor)
                 {
                     return Err("a copied package must retain its complete original witness tuple");
                 }
-                openings[index] = OpeningWitness::Copied {
-                    original: anchor,
+                let shared = OpeningWitness::Shared {
+                    group: anchor,
                     observed: false,
                 };
+                openings[anchor] = shared;
+                openings[index] = shared;
             }
         }
         // Compare each tuple once, independently of its number of binders.
         for (row, owner) in catalog.openings.iter().zip(&openings) {
-            if let OpeningWitness::Copied { original, .. } = owner {
-                let origin = &catalog.openings[*original];
+            if let OpeningWitness::Shared { group, .. } = owner {
+                let origin = &catalog.openings[*group];
                 if row.machine != origin.machine
                     || row.record != origin.record
                     || row.witnesses != origin.witnesses
@@ -64,7 +68,12 @@ impl WitnessBinders {
                 }
             }
         }
-        Ok(Self { types, openings })
+        let observations = vec![None; openings.len()];
+        Ok(Self {
+            types,
+            openings,
+            observations,
+        })
     }
 
     pub(super) fn check_use(
@@ -79,18 +88,18 @@ impl WitnessBinders {
             .openings
             .get_mut(slot)
             .ok_or("package operation names an absent opening")?;
-        let OpeningWitness::Copied { original, observed } = origin else {
+        let OpeningWitness::Shared { group, observed } = origin else {
             return Ok(());
         };
-        let openings = &module.execution.packages.openings;
-        if !subjects::copied_witness_at(
-            module,
-            machine,
-            operation,
-            &openings[*original],
-            &openings[slot],
-        ) {
-            return Err("package openings reuse a witness without a live copy of the original");
+        // Keep the instruction that observed the value. The first catalog
+        // row need not still contain that value when other copies are used.
+        let anchor = &mut self.observations[*group];
+        if let Some(previous) = *anchor {
+            if !subjects::observed_witness(module, machine, operation, index, previous) {
+                return Err("package openings reuse a witness without a live copy of the original");
+            }
+        } else {
+            *anchor = Some((index, operation.id));
         }
         *observed = true;
         Ok(())
@@ -100,7 +109,7 @@ impl WitnessBinders {
         if self.openings.iter().any(|owner| {
             matches!(
                 owner,
-                OpeningWitness::Copied {
+                OpeningWitness::Shared {
                     observed: false,
                     ..
                 }

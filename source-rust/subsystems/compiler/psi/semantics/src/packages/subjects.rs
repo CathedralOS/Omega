@@ -2,7 +2,8 @@
 use super::*;
 use crate::descriptor_results::{
     DescriptorAnalysis, DescriptorMachine, DescriptorPayloadTarget,
-    require_unchanged_observed_storage, terminal_borrowed_storage_graph_from,
+    require_unchanged_between_inputs, require_unchanged_observed_storage,
+    terminal_borrowed_storage_graph_from,
 };
 use crate::descriptors::descriptor_lifetimes::{
     DescriptorLocation, DescriptorPosition, descriptor_location,
@@ -29,25 +30,32 @@ pub(super) fn same_storage_at(
     })
 }
 
-pub(super) fn copied_witness_at(
+/// A witness belongs to the value observed at an opening, even after its
+/// storage is reassigned. Each anchored use names its own instruction.
+pub(super) fn observed_witness(
     module: &TerminalModule,
     machine: &TerminalMachine,
     operation: &Operation,
-    first: &TerminalPackageOpening,
-    second: &TerminalPackageOpening,
+    current: u32,
+    anchor: (u32, OperationId),
 ) -> bool {
-    first.machine == machine.id
-        && second.machine == machine.id
-        && first.record == second.record
-        && first.witnesses == second.witnesses
-        && copies_value_at(
-            module,
-            machine,
-            operation,
-            first,
-            second.subject.place,
-            &second.subject.path,
-        )
+    let rows = &module.execution.packages.openings;
+    let row = &rows[current as usize];
+    let original = &rows[anchor.0 as usize];
+    if !module
+        .structural_type(row.record)
+        .is_some_and(|ty| ty.multiplicity == StructuralMultiplicity::Unrestricted)
+    {
+        return false;
+    }
+    let Some(at) = position(machine, anchor.1) else {
+        return false;
+    };
+    with_history(module, machine, operation, row.record, |history| {
+        let earlier = history.ancestry(original.subject.place, &original.subject.path, at);
+        let current_value = history.ancestry(row.subject.place, &row.subject.path, history.now);
+        history.related(&earlier, &current_value, current != anchor.0)
+    })
 }
 
 /// Compare a borrowed operand's package with the selected callback's package.
@@ -67,15 +75,9 @@ pub(super) fn copies_value_at(
         return false;
     }
     with_history(module, machine, operation, opened.record, |history| {
-        let left = history.ancestry(opened.subject.place, &opened.subject.path);
-        let right = history.ancestry(place, path);
-        // Two labels for one slot do not establish a copy.
-        left.first()
-            .zip(right.first())
-            .is_some_and(|(a, b)| a.home != b.home)
-            && left
-                .iter()
-                .any(|a| right.iter().any(|b| history.same_value(a, b)))
+        let left = history.ancestry(opened.subject.place, &opened.subject.path, history.now);
+        let right = history.ancestry(place, path, history.now);
+        history.related(&left, &right, true)
     })
 }
 
@@ -191,18 +193,50 @@ impl StorageHistory<'_> {
         .is_ok()
     }
 
-    fn same_value(&self, a: &Observation, b: &Observation) -> bool {
-        // Both operands begin at the current prestate. Each older prestate is
-        // a pure StructuralLeafCopy read, so completing it preserves its input.
-        a.home == b.home
-            && (a.at == b.at
-                || self.unchanged(&a.home, a.at, b.at)
-                || self.unchanged(&a.home, b.at, a.at))
+    fn related(
+        &mut self,
+        left: &[Observation],
+        right: &[Observation],
+        requires_copy: bool,
+    ) -> bool {
+        let (Some(a), Some(b)) = (left.first(), right.first()) else {
+            return false;
+        };
+        if requires_copy && a.home == b.home {
+            return false;
+        }
+        left.iter()
+            .any(|a| right.iter().any(|b| self.same_value(a, b)))
     }
 
-    fn ancestry(&mut self, place: PlaceId, path: &[StructuralPathSegment]) -> Vec<Observation> {
+    fn same_value(&mut self, a: &Observation, b: &Observation) -> bool {
+        if a.home != b.home {
+            return false;
+        }
+        let target = DescriptorPayloadTarget::current(a.home.clone());
+        let mut unchanged = |from, to| {
+            require_unchanged_between_inputs(
+                self.types,
+                self.graph,
+                &mut self.replay,
+                self.machine.id,
+                from,
+                to,
+                &target,
+            )
+            .is_ok()
+        };
+        a.at == b.at || unchanged(a.at, b.at) || unchanged(b.at, a.at)
+    }
+
+    fn ancestry(
+        &mut self,
+        place: PlaceId,
+        path: &[StructuralPathSegment],
+        at: DescriptorPosition,
+    ) -> Vec<Observation> {
         let mut chain = Vec::new();
-        let mut next = self.observe(place, path, self.now);
+        let mut next = self.observe(place, path, at);
         while let Some(observed) = next {
             if chain.contains(&observed) {
                 break;
