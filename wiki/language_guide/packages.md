@@ -161,23 +161,46 @@ reads the copy. Its entry is still `machine build(build: @mutable BuildPlan)`.
 
 ## Giving one dependency network access
 
-Suppose only the board package needs to fetch firmware. The caller runs
-`omega build --allow Network release/build.omg`. The release Build chooses
-which child gets its network grant when it registers the dependencies.
+A release Build can give the board package access to a UDP service while its
+assets package stays offline. For a service listening on loopback port 9000,
+supply the peer and the maximum bytes per datagram with the root grant.
+
+```sh
+omega build --allow Network --network-peer 127.0.0.1:9000 --network-max-datagram 64 release/build.omg
+```
+
+Register each dependency and prepare it when the release Build needs its
+result. Only the board registration inherits the peer and its byte limit.
 
 ```omega
-machine build(build: @mutable BuildPlan) {
+machine build(build: @mutable BuildPlan) suspends {
+    let board: DependencyRegistration =
+        Build::dependency(build, Source::Path { location: "board" }, Networking::Inherit);
+    let assets: DependencyRegistration =
+        Build::dependency(build, Source::Path { location: "assets" });
+    suspend Build::prepare_dependency(build, board);
+    suspend Build::prepare_dependency(build, assets);
     build.product = BuildProduct::Package { name: "release" };
-    Build::dependency(build, Source::Path { location: "board" }, Networking::Inherit);
-    Build::dependency(build, Source::Path { location: "assets" });
 }
 ```
 
-The board Build can use the parent's admitted live network provider. The
-assets Build stays offline. If the caller omits the flag, both stay offline
-and a board Build requiring a live fetch fails before entry. To keep it
-offline, an earlier stage can fetch the firmware and supply it in the board
-Build's filesystem view. [Build network grants](../spec/build/scoped_execution.md#live-networking-in-a-build)
+The board Build can send a best-effort announcement. It explicitly discards
+the Boolean result because this package does not depend on the send succeeding.
+
+```omega
+use {omega}/build/network.omg as network;
+
+machine build(build: @mutable BuildPlan) blocks {
+    _ = block |network|::send("board");
+    build.product = BuildProduct::Package { name: "board" };
+}
+```
+
+A reply uses the same activation’s socket and fixed peer. Downloaded code’s restricted requests
+also require project acceptance. Omitting the root grant leaves both children
+offline. A child that requires the live provider then fails before entry.
+An earlier stage can instead fetch the firmware and supply it in the board
+Build’s filesystem view. [Build network grants](../spec/build/scoped_execution.md#live-networking-in-a-build)
 
 ## Running a program in a Build
 

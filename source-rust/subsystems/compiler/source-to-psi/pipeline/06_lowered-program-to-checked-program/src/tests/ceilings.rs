@@ -158,6 +158,31 @@ fn a_call_outside_the_callers_written_ceiling_is_rejected_at_that_call() {
     accepted(&program("reaches Output", "reaches Output"));
 }
 
+#[test]
+fn a_local_records_invoked_field_contributes_its_own_permissions() {
+    const SOURCE: &str = r#"
+        boundary trait Output {}
+        data Quiet = machine() -> u32 reaches none crashes none;
+        data Loud = machine() -> u32 reaches Output crashes none;
+        data Pair { left: Loud; right: Quiet; }
+        machine loud() -> u32 reaches Output crashes none { 3u32 }
+        machine quiet() -> u32 reaches none crashes none { 7u32 }
+        machine forward(pair: @Pair) -> u32 { (pair.right)() }
+        machine entry() -> u32 reaches none crashes none {
+            let pair: Pair = Pair { left: loud, right: quiet };
+            forward(@pair)
+        }
+    "#;
+    accepted(SOURCE);
+    let loud = SOURCE.replace("pair.right", "pair.left");
+    let violations = exceeded(&loud);
+    assert_eq!(violations.len(), 1, "{violations:?}");
+    assert!(
+        violations[0].starts_with("machine `entry` reaches `none` but its call of `forward`"),
+        "{violations:?}"
+    );
+}
+
 /// effects.md: "A boundary call contributes what its requirement declares
 /// and not the called trait's name, so a ceiling that names the slot does
 /// not cover its operations".
