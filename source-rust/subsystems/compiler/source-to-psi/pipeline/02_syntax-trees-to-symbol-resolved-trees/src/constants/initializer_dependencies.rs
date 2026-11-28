@@ -380,6 +380,7 @@ mod types {
                         self.state_parameters(contract.parameters)?;
                     }
                     TypeParameterKind::Type
+                    | TypeParameterKind::SomeType
                     | TypeParameterKind::Implementation
                     | TypeParameterKind::Machine { .. } => {}
                 }

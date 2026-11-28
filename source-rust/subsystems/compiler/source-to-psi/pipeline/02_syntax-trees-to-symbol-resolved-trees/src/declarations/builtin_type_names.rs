@@ -54,7 +54,10 @@ pub(crate) fn validate(syntax: &SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
         binder is checked once wherever it is written.
     */
     for parameter in syntax.items.type_parameter_entries() {
-        if matches!(parameter.kind, TypeParameterKind::Type) {
+        if matches!(
+            parameter.kind,
+            TypeParameterKind::Type | TypeParameterKind::SomeType
+        ) {
             refuse(&parameter.name, "generic type binder");
         }
     }

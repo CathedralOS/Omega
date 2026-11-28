@@ -550,6 +550,12 @@ fn collect_use(
     let mut selections = Vec::new();
     for (formal, actual) in formals.iter().zip(arguments) {
         match formal.kind {
+            TypeParameterKind::SomeType => {
+                return Err(error(
+                    source,
+                    "a callable cannot accept a per-value type witness as a static argument",
+                ));
+            }
             TypeParameterKind::Type => {
                 substitutions.push((formal.symbol, argument_type(program, actual, source)?))
             }

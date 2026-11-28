@@ -30,6 +30,7 @@ use syntax_trees::item::{ConstDefinition, DataDefinition, DataMember, DomainDefi
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum GenericParameterRole {
     Type,
+    PackageWitness,
     Implementation,
     Const,
     Value,
@@ -1017,31 +1018,29 @@ impl<'base> ConstantSelection<'base> {
                     .items
                     .type_parameters(result)
                     .iter()
-                    .filter_map(|parameter| {
-                        Some(match parameter.kind {
-                            syntax_trees::item::TypeParameterKind::SomeType => return None,
-                            syntax_trees::item::TypeParameterKind::Type => {
-                                GenericParameterRole::Type
-                            }
-                            syntax_trees::item::TypeParameterKind::Implementation => {
-                                GenericParameterRole::Implementation
-                            }
-                            syntax_trees::item::TypeParameterKind::Const { .. } => {
-                                GenericParameterRole::Const
-                            }
-                            syntax_trees::item::TypeParameterKind::Value { .. } => {
-                                GenericParameterRole::Value
-                            }
-                            syntax_trees::item::TypeParameterKind::Machine { .. } => {
-                                GenericParameterRole::Machine
-                            }
-                            syntax_trees::item::TypeParameterKind::Proposition { .. } => {
-                                GenericParameterRole::Proposition
-                            }
-                            syntax_trees::item::TypeParameterKind::Proof { .. } => {
-                                GenericParameterRole::Proof
-                            }
-                        })
+                    .map(|parameter| match parameter.kind {
+                        syntax_trees::item::TypeParameterKind::SomeType => {
+                            GenericParameterRole::PackageWitness
+                        }
+                        syntax_trees::item::TypeParameterKind::Type => GenericParameterRole::Type,
+                        syntax_trees::item::TypeParameterKind::Implementation => {
+                            GenericParameterRole::Implementation
+                        }
+                        syntax_trees::item::TypeParameterKind::Const { .. } => {
+                            GenericParameterRole::Const
+                        }
+                        syntax_trees::item::TypeParameterKind::Value { .. } => {
+                            GenericParameterRole::Value
+                        }
+                        syntax_trees::item::TypeParameterKind::Machine { .. } => {
+                            GenericParameterRole::Machine
+                        }
+                        syntax_trees::item::TypeParameterKind::Proposition { .. } => {
+                            GenericParameterRole::Proposition
+                        }
+                        syntax_trees::item::TypeParameterKind::Proof { .. } => {
+                            GenericParameterRole::Proof
+                        }
                     })
                     .collect::<Vec<_>>(),
             );
@@ -1077,6 +1076,7 @@ impl<'base> ConstantSelection<'base> {
                 .iter()
                 .map(|parameter| match parameter.kind {
                     Kind::Type => GenericParameterRole::Type,
+                    Kind::SomeType => GenericParameterRole::PackageWitness,
                     Kind::Implementation => GenericParameterRole::Implementation,
                     Kind::Const { .. } => GenericParameterRole::Const,
                     Kind::Value { .. } => GenericParameterRole::Value,

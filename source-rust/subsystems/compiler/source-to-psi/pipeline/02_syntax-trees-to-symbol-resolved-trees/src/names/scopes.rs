@@ -332,7 +332,7 @@ impl BinderRole {
     pub(super) fn of(kind: &crate::source_resolved::data::TypeParameterKind) -> Self {
         use crate::source_resolved::data::TypeParameterKind;
         match kind {
-            TypeParameterKind::Type => Self::Type,
+            TypeParameterKind::Type | TypeParameterKind::SomeType => Self::Type,
             TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => Self::Value,
             TypeParameterKind::Implementation
             | TypeParameterKind::Machine { .. }
