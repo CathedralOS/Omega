@@ -1741,7 +1741,7 @@ pub(crate) mod roster_arguments {
                 selected_shape,
             ),
         };
-        let projected_argument = move || {            TargetStructuralArgument {
+        let projected_argument = move || TargetStructuralArgument {
             opened_referent: None,
             place: argument.place,
             access: argument.access,
