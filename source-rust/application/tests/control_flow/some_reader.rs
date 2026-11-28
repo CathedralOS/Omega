@@ -23,6 +23,13 @@ fn different_reader_types_share_one_array_and_call_their_own_machines() {
 }
 
 #[test]
+fn scalar_and_record_readers_dispatch_from_adjacent_array_elements() {
+    program::assert_silent_return(include_str!(
+        "../fixtures/callables/run/some_reader_scalar_record/main.omg"
+    ));
+}
+
+#[test]
 fn a_reader_rejects_a_callback_for_a_different_state() {
     assert_refused_at_change("read: read_file", "read: read_socket");
 }
