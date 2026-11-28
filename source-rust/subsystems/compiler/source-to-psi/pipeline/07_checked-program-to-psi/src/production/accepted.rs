@@ -14,9 +14,48 @@ pub struct AcceptedTerminalSource {
     closure: Arc<CheckedProgram>,
     correspondence: lowered_source_publication::SourceCorrespondence,
     requirement_reviews: Vec<lowered_source_publication::RequirementReview>,
-    generic_callables: Vec<(symbols::SymbolHandle, Arc<Elaboration>)>,
+    generic_callables: Vec<GenericCallableForm>,
     publication: terminal_codec::TerminalPublication,
     pub(crate) package_review_numeric: crate::source::package_review::NumericReviewInventory,
+}
+
+/// The checked module and entry facts used to review one generic alternative.
+#[derive(Debug)]
+pub struct GenericCallableForm {
+    declaration: symbols::SymbolHandle,
+    pub module: terminal_psi::TerminalModule,
+    pub entry_owner: Option<symbols::SymbolHandle>,
+    pub entry_has_static_reach_parameters: bool,
+    pub entry_value_parameters: Option<usize>,
+}
+
+impl GenericCallableForm {
+    fn from_checked(declaration: symbols::SymbolHandle, program: Arc<Elaboration>) -> Self {
+        let entry = match program.module.entry {
+            Some(terminal_psi::TargetMachineCallable::Machine(entry)) => Some(entry),
+            _ => None,
+        };
+        let entry_owner = entry.and_then(|entry| program.machines.get(entry).copied());
+        let entry_value_parameters =
+            entry.and_then(|entry| program.value_parameters.get(entry).copied());
+        let entry_has_static_reach_parameters = entry.is_some_and(|entry| {
+            program
+                .static_reach_summaries
+                .iter()
+                .any(|row| row.machine == entry && !row.term.parameters.is_empty())
+        });
+        let module = match Arc::try_unwrap(program) {
+            Ok(program) => program.module,
+            Err(shared) => shared.module.clone(),
+        };
+        Self {
+            declaration,
+            module,
+            entry_owner,
+            entry_has_static_reach_parameters,
+            entry_value_parameters,
+        }
+    }
 }
 
 /// The checked module and the owned declarations, source locations and Build
@@ -332,7 +371,12 @@ impl AcceptedTerminalSource {
         let generic_callables = source.correspondence.forms[1..]
             .iter()
             .zip(further_forms)
-            .filter_map(|(form, program)| Some((form.as_ref()?.generic_callable?, program)))
+            .filter_map(|(form, program)| {
+                Some(GenericCallableForm::from_checked(
+                    form.as_ref()?.generic_callable?,
+                    program,
+                ))
+            })
             .collect();
         let mut requirement_reviews: Vec<_> = source
             .correspondence
@@ -766,10 +810,10 @@ impl AcceptedTerminalSource {
     pub fn generic_callable_forms(
         &self,
         declaration: symbols::SymbolHandle,
-    ) -> impl Iterator<Item = &Elaboration> {
+    ) -> impl Iterator<Item = &GenericCallableForm> {
         self.generic_callables
             .iter()
-            .filter_map(move |(owner, program)| (*owner == declaration).then_some(program.as_ref()))
+            .filter(move |form| form.declaration == declaration)
     }
 
     /// Facts from the requirement's own accepted declaration form. Equal

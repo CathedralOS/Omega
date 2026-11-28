@@ -105,7 +105,7 @@ fn review_candidate(
             target_closure,
             &discovered,
             root_build_snapshot,
-            Some(&preliminary),
+            Some(preliminary),
             source_bindings,
             builds,
         )
@@ -128,7 +128,7 @@ fn review_pass(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
     bindings: &[ConsumerScopedSemanticBindingReviewInput],
     root_build_snapshot: Option<&BuildSnapshotRequest>,
-    prior: Option<&RetainedPackageReviews>,
+    prior: Option<RetainedPackageReviews>,
     source_bindings: &mut PackageSourceBindings,
     builds: &crate::project::PackageReviewBuilds,
 ) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError> {
@@ -159,7 +159,51 @@ fn review_pass(
         &roster,
         &bindings,
         root_build_snapshot,
-        prior,
     )?;
-    plan.review(source_bindings, builds)
+    plan.review(source_bindings, builds, prior)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use platform_custody::temporary_directory::TemporaryDirectory;
+    use std::path::Path;
+
+    #[test]
+    fn bound_pass_moves_an_unchanged_occurrences_canonical_rows() {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        package_compilation::toolchain_library::configure(&repository.join("source/library"))
+            .unwrap();
+        let entry = repository.join("source-rust/subsystems/compiler/tests/fixtures/build/pass/acquired_generator_completed_output_set/generator/main.omg");
+        let profile = target::TargetProfile::host_if_supported().unwrap();
+        let preparation =
+            crate::dependencies::begin_local_project_preparation(&entry, &[profile], true).unwrap();
+        let workspace = TemporaryDirectory::create("carry-package-review", false).unwrap();
+        let mut session = PackageBuildSession::create(workspace.path()).unwrap();
+        let project = crate::project::resolve_build_sources(
+            &mut session,
+            preparation.acquire_root().unwrap(),
+            &mut preparation.source_acquisitions().unwrap(),
+            Default::default(),
+        )
+        .unwrap();
+        let closure = project.sources.into_source_closure();
+        let target = closure.for_exact_target(profile);
+        let mut bindings = PackageSourceBindings::default();
+        bindings.size_for(&closure);
+        let mut pass =
+            |prior| review_pass(&target, &[], None, prior, &mut bindings, &project.builds);
+        let preliminary = pass(None).unwrap();
+        let [review] = preliminary.reviews.reviews() else {
+            panic!("expected one package review");
+        };
+        assert!(!review.policy_rows.is_empty());
+        let rows = review.policy_rows.as_ptr();
+        let charge = preliminary.occurrences[0].policy_canonical_bytes;
+        let bound = pass(Some(preliminary)).unwrap();
+        assert_eq!(bound.carried, 1);
+        assert_eq!(bound.reviews.reviews()[0].policy_rows.as_ptr(), rows);
+        assert_eq!(bound.occurrences[0].policy_canonical_bytes, charge);
+        session.close().unwrap();
+    }
 }
