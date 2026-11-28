@@ -291,7 +291,7 @@ pub(in crate::encoding::recovery) fn request(
             let address = reader.string()?.parse().map_err(|_| Error::InvalidValue)?;
             let maximum = u16::try_from(reader.u32()?).map_err(|_| Error::InvalidValue)?;
             let peer = build_consent::BuildNetworkPeer::new(address, maximum).map_err(|_| Error::InvalidValue)?;
-            PackagePolicyRestrictedBuildOperation::SendDatagram { peer, call_path: reader.string()? }
+            PackagePolicyRestrictedBuildOperation::SendDatagram { peer }
         },
         0 => PackagePolicyRestrictedBuildOperation::ScopedFilesystemExecution,
         1 => PackagePolicyRestrictedBuildOperation::UnscopedFilesystemExecution,

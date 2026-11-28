@@ -447,21 +447,25 @@ fn a_network_review_binds_one_endpoint_and_one_payload_limit() {
     policy.schema_version = crate::encoding::BASELINE_WITH_UNUSED_GENERIC_IMPORTS;
     assert_eq!(recover(&policy), Ok(policy.clone()));
 
-    let request = |peer: &str, maximum| {
+    let request_at = |peer: &str, maximum, path: &str| {
         RestrictedBuildRequest::for_datagram(
             BuildNetworkPeer::new(peer.parse().unwrap(), maximum).unwrap(),
-            "entry -> helper -> send".to_owned(),
+            path.to_owned(),
             RestrictedBuildBounds::from_retained(None, None, vec![], false),
             Some(policy.target),
         )
         .for_target(Some(policy.target))
     };
+    let request = |peer: &str, maximum| request_at(peer, maximum, "entry -> helper -> send");
     let endpoint = "[fe80::1%3]:8080";
     let original = request(endpoint, 512);
     let review = |request: &RestrictedBuildRequest| {
         restricted_build_request_acceptance_text(policy.package, policy.target, request).unwrap()
     };
     let accepted = review(&original);
+    let renamed = request_at(endpoint, 512, "entry -> private_helper -> send");
+    assert_ne!(original.call_path(), renamed.call_path());
+    assert_eq!(accepted, review(&renamed));
     assert_ne!(accepted, review(&request("[fe80::1%4]:8080", 512)));
     assert_ne!(accepted, review(&request("[fe80::1%3]:8081", 512)));
     assert_ne!(accepted, review(&request(endpoint, 513)));

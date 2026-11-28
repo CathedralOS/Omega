@@ -355,8 +355,10 @@ fn build_request(output: &mut Output, request: &RestrictedBuildRequest) -> fmt::
         RestrictedBuildOperation::UnscopedFilesystemExecution => "unscoped-filesystem-execution",
     };
     writeln!(output, "build-request {operation}")?;
-    if let RestrictedBuildOperation::SendDatagram { peer, call_path } = request.operation() {
-        writeln!(output, "call-path {}", call_path.escape_debug())?;
+    if let Some(path) = request.call_path() {
+        writeln!(output, "call-path {}", path.escape_debug())?;
+    }
+    if let RestrictedBuildOperation::SendDatagram { peer } = request.operation() {
         writeln!(
             output,
             "network-peer {} max-datagram-bytes {}",

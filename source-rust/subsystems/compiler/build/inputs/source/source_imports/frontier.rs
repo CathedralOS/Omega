@@ -789,7 +789,10 @@ impl SourceStorage {
 fn core_source_origin(root: &Path, path: &Path) -> SourceOrigin {
     // Build and Product explicitly import installed sandbox protocols.
     let companion = path.strip_prefix(root).ok().and_then(|relative| {
-        language_core::bundled_files::BuildCompanionFile::from_package_path("core".as_ref(), relative)
+        language_core::bundled_files::BuildCompanionFile::from_package_path(
+            "core".as_ref(),
+            relative,
+        )
     });
     if companion.is_some() {
         SourceOrigin::ToolchainLibrary

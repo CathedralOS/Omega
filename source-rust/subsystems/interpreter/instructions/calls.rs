@@ -832,8 +832,9 @@ pub(crate) mod frames {
         use crate::boundary::results::{TerminalExecutionResult, TerminalStructuralResult};
         use crate::embedding::program::AdmittedTerminalProgram;
         use crate::engine::execution::{CleanupContinuation, CompletedReturn};
-        use crate::storage::byte_sequences::ByteSequenceView;
-        use crate::storage::byte_sequences::storage::ByteSequenceStorage;
+        use crate::storage::byte_sequences::{
+            ByteSequenceView, binding::ByteSequenceBinding, storage::ByteSequenceStorage,
+        };
         use build_model::accounting::BuildEvaluationSponsor;
         use build_model::contracts::{
             BuildEvaluationSponsorLimits, EvaluationAccountingError, EvaluationMeasurementIdentity,
@@ -1170,8 +1171,8 @@ pub(crate) mod component_arguments {
     use crate::boundary::errors::{TerminalInterpretError, malformed};
     use crate::boundary::values::{StructuralRuntimePlace, TerminalStructuralValue};
     use crate::embedding::program::TerminalProgram;
-    use crate::storage::byte_sequences::{binding::ByteSequenceBinding, ByteSequenceView};
     use crate::engine::execution::TerminalExecution;
+    use crate::storage::byte_sequences::{ByteSequenceView, binding::ByteSequenceBinding};
 
     pub(crate) struct PreparedComponentArguments {
         pub(crate) custody: ComponentInputCustody,
@@ -1207,8 +1208,13 @@ pub(crate) mod component_arguments {
             for (&index, view) in &self.byte_arguments {
                 let parameter = entry.structural_parameters.get(index).ok_or(malformed())?;
                 let home = child.structural_value(parameter.place)?.clone();
-                let binding = ByteSequenceBinding::Immutable(view.clone().with_descriptor_home(home));
-                if child.byte_sequence_values.insert(parameter.place, binding)?.is_some() {
+                let binding =
+                    ByteSequenceBinding::Immutable(view.clone().with_descriptor_home(home));
+                if child
+                    .byte_sequence_values
+                    .insert(parameter.place, binding)?
+                    .is_some()
+                {
                     return Err(malformed());
                 }
             }
@@ -1314,7 +1320,7 @@ pub(crate) mod component_arguments {
                 self.account.as_ref(),
             )?;
             validate_boundary_requirements(receiver, |index| prepared.values.get(index))?;
-            let byte_arguments =
+            let mut byte_arguments =
                 prepared.take_component_byte_views(self.local_structural_identities.cursor())?;
             let lending = arguments
                 .iter()
@@ -1350,39 +1356,94 @@ pub(crate) mod component_arguments {
                     argument.access,
                     terminal_psi::reading_borrow_pair_pattern!()
                 );
+                let error =
+                    |detail: String| TerminalInterpretError::StructuralArgumentPreparation {
+                        stage: "component input",
+                        detail: format!("argument {argument_index}: {detail}"),
+                    };
                 if argument.access != required.access
                     || required.access != supplied.access
                     || (!owned && !lent)
-                    || required.multiplicity != supplied.multiplicity
-                    || !required.projected_qualifications.is_empty()
-                    || !supplied.projected_qualifications.is_empty()
-                    || !value.projected_qualifications.is_empty()
+                {
+                    return Err(error(format!(
+                        "caller access {:?}, receiving access {:?}, provider access {:?}",
+                        argument.access, required.access, supplied.access
+                    )));
+                }
+                if required.multiplicity != supplied.multiplicity
                     || receiver_type.owns_linear_claim != linear
                     || provider_type.owns_linear_claim != linear
-                    || (!linear
-                        && (!receiver_type.no_code_affine_cleanup
-                            || !provider_type.no_code_affine_cleanup))
-                    || !self
-                        .program
-                        .catalogs
-                        .identities
-                        .text(receiver_type.identity)
-                        .zip(
-                            provider
-                                .program
-                                .catalogs
-                                .identities
-                                .text(provider_type.identity),
-                        )
-                        .is_some_and(|(left, right)| !left.is_empty() && left == right)
-                    || (owned
-                        && crate::engine::custody::has_live_loan(
-                            self.reference_referents.as_map(),
-                            value,
-                        ))
                 {
-                    return Err(reject(
-                        "component input lacks exact owned closed Inert type/custody",
+                    return Err(error(format!(
+                        "multiplicity or linear custody differs: receiver {:?}, provider {:?}",
+                        required.multiplicity, supplied.multiplicity
+                    )));
+                }
+                if !required.projected_qualifications.is_empty()
+                    || !supplied.projected_qualifications.is_empty()
+                    || !value.projected_qualifications.is_empty()
+                {
+                    return Err(error(
+                        "component input has unsupported projected qualifications".into(),
+                    ));
+                }
+                let byte_view = byte_arguments.contains_key(&argument_index);
+                let shared_view = |shape: &terminal_psi::StructuralTypeShape| {
+                    matches!(shape, terminal_psi::StructuralTypeShape::ByteSequence(carrier)
+                        if carrier.is_shared_readable_view())
+                };
+                if byte_view
+                    && (!shared_view(&receiver_type.shape)
+                        || !shared_view(&provider_type.shape)
+                        || required.access != StructuralAccess::SharedBorrow)
+                {
+                    return Err(error(format!(
+                        "shared byte backing requires matching read-only views: receiving {:?} {:?}, provider {:?} {:?}",
+                        required.access, receiver_type.shape, supplied.access, provider_type.shape
+                    )));
+                }
+                // A shared descriptor only lends its checked view and never
+                // transfers ownership of the array. Owned and generic carriers
+                // still need their ordinary no-code cleanup or linear claim.
+                if !linear
+                    && !byte_view
+                    && (!receiver_type.no_code_affine_cleanup
+                        || !provider_type.no_code_affine_cleanup)
+                {
+                    return Err(error(
+                        "component transfer lacks checked no-code cleanup".into(),
+                    ));
+                }
+                let receiving_identity = self
+                    .program
+                    .catalogs
+                    .identities
+                    .text(receiver_type.identity);
+                let supplying_identity = provider
+                    .program
+                    .catalogs
+                    .identities
+                    .text(provider_type.identity);
+                // Provider admission matched the callable contract and result lifetimes.
+                // Each artifact names the shared input region locally. The scoped
+                // view above establishes the same byte element and access in both.
+                if !byte_view
+                    && !receiving_identity
+                        .zip(supplying_identity)
+                        .is_some_and(|(left, right)| !left.is_empty() && left == right)
+                {
+                    return Err(error(format!(
+                        "closed structural types differ: receiver {receiving_identity:?}, provider {supplying_identity:?}"
+                    )));
+                }
+                if owned
+                    && crate::engine::custody::has_live_loan(
+                        self.reference_referents.as_map(),
+                        value,
+                    )
+                {
+                    return Err(error(
+                        "an owned component input still has a live loan".into(),
                     ));
                 }
                 if lent {
@@ -1486,16 +1547,8 @@ pub(crate) mod component_arguments {
                         "component input requires a loan or resource storage transfer carrier",
                     ));
                 }
-                if byte_arguments.contains_key(&argument_index) {
-                    let shared_view = |shape: &terminal_psi::StructuralTypeShape| {
-                        matches!(shape, terminal_psi::StructuralTypeShape::ByteSequence(carrier)
-                            if carrier.is_shared_readable_view())
-                    };
-                    if !shared_view(&receiver_type.shape) || !shared_view(&provider_type.shape)
-                        || !matches!(required.access, StructuralAccess::Owned | StructuralAccess::SharedBorrow)
-                    {
-                        return Err(reject("component byte input requires a shared byte view"));
-                    }
+                if byte_view {
+                    // Its shared backing is installed alongside the child parameter.
                 } else if lent && self.component_borrows_scalar_cells(value)? {
                     scalar_arguments.push(self.prepare_component_scalar_argument(
                         value,
@@ -1571,6 +1624,9 @@ pub(crate) mod component_arguments {
                     )
                 })
                 .collect::<Result<_, _>>()?;
+            for view in byte_arguments.values_mut() {
+                view.lend_array_to_component(self)?;
+            }
             Ok(PreparedComponentArguments {
                 custody: ComponentInputCustody {
                     source: lending.then_some(prepared),

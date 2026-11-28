@@ -603,7 +603,9 @@ pub enum ProjectInput<'a> {
 impl ProjectInput<'_> {
     fn path(&self) -> &Path {
         match self {
-            Self::File(path) | Self::Staged(path) | Self::WithBuildLibraries { file: path, .. } => path,
+            Self::File(path) | Self::Staged(path) | Self::WithBuildLibraries { file: path, .. } => {
+                path
+            }
         }
     }
 }
@@ -738,7 +740,9 @@ fn open_products_with(
                     source, profiles, offline,
                 )
             }
-            _ if staged => crate::operations::LocalProjectPreparation::for_staged_entry(root, profiles, offline),
+            _ if staged => crate::operations::LocalProjectPreparation::for_staged_entry(
+                root, profiles, offline,
+            ),
             _ => begin_local_project_preparation(root, profiles, offline),
         })
         .map_err(|e| error(e.into()))?;

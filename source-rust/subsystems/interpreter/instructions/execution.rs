@@ -175,7 +175,7 @@ pub(crate) mod capabilities {
     use crate::boundary::effects::{AdmittedBoundarySupply, TerminalRuntimeSupplies};
     use crate::boundary::errors::{TerminalInterpretError, malformed};
     use crate::embedding::program::AdmittedTerminalProgram;
-    use semantic_vocabulary::{BoundaryMachineId, ExternalCompletionKind};
+    use semantic_vocabulary::{BoundaryMachineId, ExternalCompletionKind, MachineId};
     use std::collections::BTreeSet;
     use terminal_psi::{BoundaryCompletion, OperationKind, Terminator};
     use terminal_semantics::callable_values::{
@@ -202,23 +202,23 @@ pub(crate) mod capabilities {
     /// capability walk. Only hosts that request diagnostics allocate this map.
     #[derive(Default)]
     pub struct TerminalImportPaths {
-        parents: std::collections::BTreeMap<
-            semantic_vocabulary::MachineId,
-            semantic_vocabulary::MachineId,
-        >,
-        callers: std::collections::BTreeMap<BoundaryMachineId, semantic_vocabulary::MachineId>,
+        // Indices are traversal ordinals, independent of module ID ranges.
+        machines: Vec<(MachineId, Option<usize>)>,
+        imports: Vec<(BoundaryMachineId, usize)>,
     }
 
     impl TerminalImportPaths {
-        pub fn call_path(
-            &self,
-            boundary: BoundaryMachineId,
-        ) -> Option<Vec<semantic_vocabulary::MachineId>> {
-            let mut machine = *self.callers.get(&boundary)?;
-            let mut path = vec![machine];
-            while let Some(parent) = self.parents.get(&machine) {
-                path.push(*parent);
-                machine = *parent;
+        pub fn call_path(&self, boundary: BoundaryMachineId) -> Option<Vec<MachineId>> {
+            let import = self
+                .imports
+                .binary_search_by_key(&boundary, |&(id, _)| id)
+                .ok()?;
+            let mut current = Some(self.imports[import].1);
+            let mut path = Vec::new();
+            while let Some(index) = current {
+                let (machine, parent) = self.machines[index];
+                path.push(machine);
+                current = parent;
             }
             path.reverse();
             Some(path)
@@ -490,12 +490,27 @@ pub(crate) mod capabilities {
         let mut callable_roots = BTreeSet::from([entry]);
         let mut callable_invocations = None;
         let mut pending = vec![entry];
+        // Filled only while collecting witnesses. Each pending callee receives
+        // the ordinal of the machine that scheduled it.
+        let mut pending_parents = Vec::new();
         let mut visited = BTreeSet::new();
         while let Some(machine_id) = pending.pop() {
+            let parent = pending_parents.pop();
             if !visited.insert(machine_id) {
                 continue;
             }
-            let frontier = pending.len();
+            let ordinal = paths.as_deref_mut().map(|paths| {
+                let index = paths.machines.len();
+                paths.machines.push((machine_id, parent));
+                index
+            });
+            let mut record_import = |boundary| {
+                if imports.insert(boundary)
+                    && let (Some(paths), Some(index)) = (paths.as_deref_mut(), ordinal)
+                {
+                    paths.imports.push((boundary, index));
+                }
+            };
             let machine = program.verified_machine(machine_id)?;
             if machine.declaration.is_some()
                 && scalar_scope
@@ -764,10 +779,7 @@ pub(crate) mod capabilities {
                                     | AdmittedBoundarySupply::DeferredComponent
                                     | AdmittedBoundarySupply::ComponentProvider { .. },
                                 ) => {
-                                    imports.insert(*boundary);
-                                    if let Some(paths) = paths.as_deref_mut() {
-                                        paths.callers.entry(*boundary).or_insert(machine_id);
-                                    }
+                                    record_import(*boundary);
                                     None
                                 }
                                 None if declaration.service_reach_is_installation_bound
@@ -777,10 +789,7 @@ pub(crate) mod capabilities {
                                     None
                                 }
                                 None => {
-                                    imports.insert(*boundary);
-                                    if let Some(paths) = paths.as_deref_mut() {
-                                        paths.callers.entry(*boundary).or_insert(machine_id);
-                                    }
+                                    record_import(*boundary);
                                     None
                                 }
                             }
@@ -843,13 +852,14 @@ pub(crate) mod capabilities {
                         .filter_map(|action| action.invoked_machine()),
                 );
             }
-            if let Some(paths) = paths.as_deref_mut() {
-                for &callee in &pending[frontier..] {
-                    if !visited.contains(&callee) {
-                        paths.parents.entry(callee).or_insert(machine_id);
-                    }
-                }
+            if let Some(index) = ordinal {
+                pending_parents.resize(pending.len(), index);
             }
+        }
+        if let Some(paths) = paths {
+            paths
+                .imports
+                .sort_unstable_by_key(|&(boundary, _)| boundary);
         }
         if !access_candidates.is_empty() {
             let graph = terminal_access_origin_graph(&program.catalogs, &[]);
@@ -2303,12 +2313,11 @@ pub(crate) mod capabilities {
                     check_with_import_paths(&program, None, &[], None, None, Some(&mut paths))
                         .unwrap();
                 assert_eq!(requirements.imports, vec![boundary]);
-                assert!(!paths.parents.contains_key(&entry));
-                assert_eq!(paths.parents.get(&left), Some(&entry));
-                assert_eq!(paths.parents.get(&right), Some(&entry));
-                assert!(
-                    matches!(paths.parents.get(&shared), Some(parent) if *parent == left || *parent == right)
-                );
+                assert_eq!(paths.machines.len(), 4);
+                assert_eq!(paths.machines[0], (entry, None));
+                for (index, (_, parent)) in paths.machines.iter().enumerate().skip(1) {
+                    assert!(parent.is_some_and(|parent| parent < index));
+                }
                 paths.call_path(boundary).unwrap()
             };
             let path = witness();

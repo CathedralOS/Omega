@@ -212,17 +212,21 @@ fn root_network_needs_a_peer_and_exact_project_acceptance_before_sending() {
     assert!(fixture.packets().is_empty());
     assert!(!lock.exists());
 
-    let altered_limit = draft.replace("max-datagram-bytes 64", "max-datagram-bytes 65");
-    decide(&phase, &altered_limit, "accept");
-    let tampered = fixture.cli(&["packages", "update", "--resume"], true, Some(peer));
-    assert!(!tampered.status.success());
-    assert!(
-        report(&tampered).contains("findings changed"),
-        "{}",
-        report(&tampered)
-    );
-    assert!(fixture.packets().is_empty());
-    assert!(!lock.exists());
+    for altered in [
+        draft.replace("max-datagram-bytes 64", "max-datagram-bytes 65"),
+        draft.replace("send_marker", "different_helper"),
+    ] {
+        decide(&phase, &altered, "accept");
+        let tampered = fixture.cli(&["packages", "update", "--resume"], true, Some(peer));
+        assert!(!tampered.status.success());
+        assert!(
+            report(&tampered).contains("findings changed"),
+            "{}",
+            report(&tampered)
+        );
+        assert!(fixture.packets().is_empty());
+        assert!(!lock.exists());
+    }
 
     decide(&phase, &draft, "accept");
     let approved = fixture.cli(&["packages", "update", "--resume"], true, Some(peer));
@@ -401,7 +405,17 @@ machine build(builder: @mutable BuildPlan) {
             r#"
 use {omega}/language/core/sandbox/datagram.omg as datagram;
 public RecordedFailure satisfies |datagram|::Datagram {
-    machine send(bytes: @[u8]) -> bool { bytes.length != 8u64 }
+    machine send(bytes: @[u8]) -> bool {
+        transition 0u64 < bytes.length {
+            true -> reply(bytes, 0u64),
+            false -> true
+        }
+        machine reply(bytes: @[u8], index: u64) -> bool
+        requires index < bytes.length
+        {
+            bytes.length != 1u64 || bytes[index] != 82u8
+        }
+    }
 }"#,
         )],
     );
@@ -411,7 +425,8 @@ use {omega}/build/network.omg as network;
 use {omega}/language/core/sandbox/datagram.omg as datagram;
 machine build(builder: @mutable BuildPlan) suspends blocks {
     suspend Build::await_provider::<|datagram|::Datagram, |recording|::RecordedFailure>(builder);
-    let sent: bool = block |network|::send("recorded");
+    let payload: [u8; 3] = [88u8, 82u8, 89u8];
+    let sent: bool = block |network|::send(@payload[1..2]);
     transition sent {
         false -> recorded(builder),
         true -> unexpected(builder)

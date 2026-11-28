@@ -1254,7 +1254,8 @@ pub(crate) mod byte_buffers {
         pub(crate) fn take_component_byte_views(
             &mut self,
             original_identity_cursor: Option<u64>,
-        ) -> Result<std::collections::BTreeMap<usize, ByteSequenceView>, TerminalInterpretError> {
+        ) -> Result<std::collections::BTreeMap<usize, ByteSequenceView>, TerminalInterpretError>
+        {
             if self.local_identity_cursor != original_identity_cursor
                 || self.aggregate_backings.iter().any(Option::is_some)
                 || self.bytes.iter().any(Option::is_some)
@@ -1272,12 +1273,14 @@ pub(crate) mod byte_buffers {
             for (index, binding) in self.byte_sequences.iter_mut().enumerate() {
                 match binding.take() {
                     None => {}
-                    Some(ByteSequenceBinding::Immutable(view)) if view.original_array().is_none() => {
+                    Some(ByteSequenceBinding::Immutable(view)) => {
                         views.insert(index, view);
                     }
-                    Some(_) => return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                        "component byte view requires its original storage backing",
-                    )),
+                    Some(_) => {
+                        return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                            "component byte view requires its original storage backing",
+                        ));
+                    }
                 }
             }
             Ok(views)

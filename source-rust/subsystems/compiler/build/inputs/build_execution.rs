@@ -35,9 +35,9 @@ pub use observation_identity::BuildObservationIdentity;
 pub use observations::*;
 pub use platform_custody::directory_mappings::DirectoryAccess;
 pub use restricted_requests::{
-    BuildNetworkPeer, ProgramDeclarationOwner, RestrictedBuildBounds, RestrictedBuildGrant, RestrictedBuildGrantRoot,
-    RestrictedBuildGrants, RestrictedBuildOperation, RestrictedBuildRequest, RestrictedBuildSite,
-    RestrictedBuildSubject, RestrictedProgramLaunch,
+    BuildNetworkPeer, ProgramDeclarationOwner, RestrictedBuildBounds, RestrictedBuildGrant,
+    RestrictedBuildGrantRoot, RestrictedBuildGrants, RestrictedBuildOperation,
+    RestrictedBuildRequest, RestrictedBuildSite, RestrictedBuildSubject, RestrictedProgramLaunch,
 };
 pub use snapshot_request::{BuildSnapshotCapture, BuildSnapshotRequest};
 

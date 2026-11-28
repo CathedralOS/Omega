@@ -489,7 +489,10 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             if result.scalar_type != semantic_vocabulary::ScalarType::Boolean {
                 return Err(refuse("network send must return a boolean"));
             }
-            let peer = self.host.network_sender.as_ref()
+            let peer = self
+                .host
+                .network_sender
+                .as_ref()
                 .ok_or_else(|| refuse("Build send has no admitted network peer"))?;
             return Ok(TerminalEffectResult::Scalar(TerminalScalarValue::Boolean(
                 super::network::send(peer, bytes)?,
@@ -559,7 +562,10 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             }
             return Ok(TerminalEffectResult::Unit);
         }
-        if matches!(call.action, Operation::InheritNetwork | Operation::ForwardProgram { .. }) {
+        if matches!(
+            call.action,
+            Operation::InheritNetwork | Operation::ForwardProgram { .. }
+        ) {
             let ([], [], [], terminal_psi::BoundaryMachineResult::Structural(result)) = (
                 arguments.as_slice(),
                 structural_arguments.as_slice(),
@@ -730,7 +736,8 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             Default::default()
         };
         let max_reach = options.reach;
-        let programs = options.programs
+        let programs = options
+            .programs
             .into_iter()
             .map(|program| {
                 self.host

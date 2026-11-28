@@ -257,18 +257,25 @@ impl BuildProviderScope {
                 .defer_component(supplies, boundary)
                 .map_err(|error| failure(format!("Build awaited provider: {error:?}")))?;
         }
-        let (demand, import_paths) = program
-            .execution_requirements_with_import_paths(Some(&supplies))
-            .map_err(|reason| {
-                failure(format!(
-                    "Build selected provider execution closure: {reason:?}"
-                ))
-            })?;
-        let live_call = requests.iter().find(|call| {
-            call.action == Action::SendDatagram
-                && !uses_selected_provider(call.site.boundary)
-                && demand.imports.contains(&call.site.boundary)
-        });
+        let mut network_calls = requests
+            .iter()
+            .filter(|call| {
+                call.action == Action::SendDatagram && !uses_selected_provider(call.site.boundary)
+            })
+            .peekable();
+        let (demand, import_paths) = if network_calls.peek().is_some() {
+            program.execution_requirements_with_import_paths(Some(&supplies))
+        } else {
+            program
+                .execution_requirements(Some(&supplies))
+                .map(|demand| (demand, terminal_interpreter::TerminalImportPaths::default()))
+        }
+        .map_err(|reason| {
+            failure(format!(
+                "Build selected provider execution closure: {reason:?}"
+            ))
+        })?;
+        let live_call = network_calls.find(|call| demand.imports.contains(&call.site.boundary));
         let live_send = if let Some(call) = live_call {
             let machines = import_paths
                 .call_path(call.site.boundary)

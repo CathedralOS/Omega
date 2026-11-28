@@ -197,7 +197,7 @@ fn compile_targets(
     let root_inputs = package_manager::project::RootBuildInputs {
         snapshot,
         programs: arguments.programs.clone(),
-        network: arguments.network.clone(),
+        network: arguments.network,
     };
     let subjects: Box<dyn Iterator<Item = (PathBuf, Option<OpenedProduct>)> + '_> =
         if active.is_empty() {

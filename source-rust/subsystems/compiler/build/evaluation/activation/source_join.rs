@@ -94,7 +94,10 @@ impl ReturnedBuild {
             if let BuildRequest::Dependency { purpose, .. } = issued.request() {
                 let ordinal = &mut next[usize::from(purpose.canonical_tag())];
                 let backing = issued.dependency_backing();
-                if backing.frozen.is_some() || !backing.programs.is_empty() || backing.network.is_some() {
+                if backing.frozen.is_some()
+                    || !backing.programs.is_empty()
+                    || backing.network.is_some()
+                {
                     backings.insert((*purpose, *ordinal), backing.clone());
                 }
                 *ordinal += 1;

@@ -25,10 +25,7 @@ pub struct RestrictedBuildSite {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RestrictedBuildOperation {
     ProgramLaunch(Box<RestrictedProgramLaunch>),
-    SendDatagram {
-        peer: BuildNetworkPeer,
-        call_path: String,
-    },
+    SendDatagram { peer: BuildNetworkPeer },
     ScopedFilesystemExecution, // Execute against scoped real filesystem read/write roots.
     UnscopedFilesystemExecution, // Execute against the real filesystem without path grants.
 }
@@ -178,6 +175,9 @@ pub struct RestrictedProgramLaunch {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RestrictedBuildRequest {
+    /// The checked path is evidence for the current proposal. Persistent
+    /// approval compares the operation, resources, bounds and profiles.
+    call_path: Option<String>,
     operation: RestrictedBuildOperation,
     read_grants: Vec<RestrictedBuildGrant>,
     write_grants: Vec<RestrictedBuildGrant>,
@@ -193,6 +193,7 @@ impl RestrictedBuildRequest {
         profile: Option<target::TargetProfile>,
     ) -> Self {
         Self {
+            call_path: None,
             operation: RestrictedBuildOperation::ProgramLaunch(Box::new(program)),
             read_grants: Vec::new(),
             write_grants: Vec::new(),
@@ -208,14 +209,19 @@ impl RestrictedBuildRequest {
         bounds: RestrictedBuildBounds,
         profile: Option<target::TargetProfile>,
     ) -> Self {
-        Self::from_retained(
-            RestrictedBuildOperation::SendDatagram { peer, call_path },
-            Vec::new(),
-            Vec::new(),
+        Self {
+            call_path: Some(call_path),
+            operation: RestrictedBuildOperation::SendDatagram { peer },
+            read_grants: Vec::new(),
+            write_grants: Vec::new(),
             bounds,
-            profile,
-            None,
-        )
+            build_execution_profile: profile,
+            selected_target_profile: None,
+        }
+    }
+
+    pub fn call_path(&self) -> Option<&str> {
+        self.call_path.as_deref()
     }
 
     pub const fn operation(&self) -> &RestrictedBuildOperation {
@@ -252,6 +258,7 @@ impl RestrictedBuildRequest {
         selected_target_profile: Option<target::TargetProfile>,
     ) -> Self {
         Self {
+            call_path: None,
             operation,
             read_grants,
             write_grants,

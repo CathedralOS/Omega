@@ -54,27 +54,8 @@ impl SourceHost<'_, '_> {
             let current = source.build.evaluated();
             let prior = earlier.build.evaluated();
             if source.build.inputs().source_inputs() != earlier.build.inputs().source_inputs()
-                || current.configuration != prior.configuration
-                || current.preparations != prior.preparations
-                || current.restricted_build_requests != prior.restricted_build_requests
-                || current.base_source_consumption_commitment
-                    != prior.base_source_consumption_commitment
-                || current.subject_validation != prior.subject_validation
-                || current.constants != prior.constants
-                || current.interpreter_providers != prior.interpreter_providers
-                || current.dependency_validation != prior.dependency_validation
+                || !current.same_product_and_observations(prior)
             {
-                eprintln!("NETWORK JOIN inputs={} config={} preparations={} usage={} observations={} entry={} restricted={} commitment={} subject={} constants={} providers={} validations={}",
-                    source.build.inputs().source_inputs() == earlier.build.inputs().source_inputs(),
-                    current.configuration == prior.configuration, current.preparations == prior.preparations,
-                    current.configuration.evaluation_usage == prior.configuration.evaluation_usage,
-                    current.configuration.observation_summary == prior.configuration.observation_summary,
-                    current.configuration.executed_entry == prior.configuration.executed_entry,
-                    current.restricted_build_requests == prior.restricted_build_requests,
-                    current.base_source_consumption_commitment == prior.base_source_consumption_commitment,
-                    current.subject_validation == prior.subject_validation, current.constants == prior.constants,
-                    current.interpreter_providers == prior.interpreter_providers,
-                    current.dependency_validation == prior.dependency_validation);
                 return Err(format!(
                     "separate Build executions for package {} produced incompatible results",
                     source.declaration.package_name()
