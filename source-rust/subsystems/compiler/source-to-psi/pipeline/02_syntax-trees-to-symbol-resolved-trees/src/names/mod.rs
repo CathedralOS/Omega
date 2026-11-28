@@ -176,6 +176,24 @@ fn assign_program_symbols(
     runtime_callable_contracts: &[crate::source_resolved::callable_values::RuntimeCallableContractHandle],
 ) -> Vec<Diagnostic> {
     let mut diagnostics = assign_top_level_symbols(program, symbols);
+    // Parameter symbols exist after declaration assignment. A witness is a child of its
+    // exact binding, and becomes visible only to that binding's lexical successors.
+    let symbols_with_openings = if !program
+        .tables
+        .declarations
+        .child_type_references
+        .package_openings
+        .is_empty()
+    {
+        if let Err(error) = symbol_table::bind_package_openings(program) {
+            diagnostics.push(error);
+            return diagnostics;
+        }
+        Some(program.symbols.clone())
+    } else {
+        None
+    };
+    let symbols = symbols_with_openings.as_ref().unwrap_or(symbols);
     if let Err(error) = runtime_callable_scopes.bind_program(program) {
         diagnostics.push(error);
         return diagnostics;
@@ -520,6 +538,8 @@ pub(crate) fn assign_body_symbols(
     selected_machines: &[symbols::SymbolHandle],
 ) -> Result<(), Vec<Diagnostic>> {
     symbol_table::append_body_symbols(&mut lowerer.symbol_resolved_trees, selected_machines)?;
+    symbol_table::bind_package_openings(&mut lowerer.symbol_resolved_trees)
+        .map_err(|error| vec![error])?;
     let runtime_callable_contracts =
         symbol_table::append_runtime_callable_symbols(&mut lowerer.symbol_resolved_trees);
     lowerer

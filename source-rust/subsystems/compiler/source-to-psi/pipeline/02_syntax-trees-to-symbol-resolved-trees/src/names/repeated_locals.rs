@@ -45,6 +45,7 @@ pub(super) fn check_bindings(
                 program.data_type_parameters(data.type_parameters),
             );
         }
+        let type_binders = visible.iter().filter(|p| !super::type_references::introduces_value(&p.kind)).map(|p| p.symbol);
         let mut record_overlap = |name: &DiagnosticName| {
             if let Some(parameter) = visible
                 .iter()
@@ -63,6 +64,11 @@ pub(super) fn check_bindings(
                 continue;
             }
             let state_name = symbols.name(state.symbol);
+            let child_types = &declarations.child_type_references;
+            let mut opened_scope = Vec::new();
+            if !child_types.package_openings.is_empty() {
+                opened_scope.extend(type_binders.clone().filter(|s| s.is_valid()));
+            }
             let mut declared = Vec::new();
             for parameter in declarations
                 .state_parameters
@@ -73,6 +79,9 @@ pub(super) fn check_bindings(
                 }
                 let name = symbols.name(parameter.symbol);
                 record_overlap(&parameter.name);
+                record_opening_names(
+                    symbols, child_types, &parameter.type_reference, &mut opened_scope, &mut diagnostics,
+                );
                 // A use of the name could only ever reach the first of two
                 // parameters that share it, so the second is refused where
                 // it is declared, like a local that repeats a visible name.
@@ -93,6 +102,8 @@ pub(super) fn check_bindings(
                 statements: &declarations.state_statements,
                 symbols,
                 record_overlap: &mut record_overlap,
+                child_types,
+                opened_scope,
                 declared,
                 parameter_count,
                 machine,
@@ -113,12 +124,45 @@ pub(super) fn check_bindings(
     }
 }
 
+/// A witness type may share spelling in disjoint bodies or blocks. Two live
+/// binders for the same type name would make the second subject unreachable.
+fn record_opening_names(
+    symbols: &crate::source_symbols::SymbolTable,
+    types: &crate::source_resolved::types::TypeReferenceArena,
+    reference: &crate::source_resolved::types::TypeReference,
+    scope: &mut Vec<symbols::SymbolHandle>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if types.package_openings.is_empty() {
+        return;
+    }
+    for opening in types.annotation_openings(reference) {
+        if scope
+            .iter()
+            .any(|symbol| symbols.name(*symbol) == opening.name.as_str())
+        {
+            diagnostics.push(
+                Diagnostic::error(format!(
+                    "package opening `{}` conflicts with a type name already in scope",
+                    opening.name.as_str(),
+                ))
+                .with_source_span(opening.name.source_span()),
+            );
+        }
+        if opening.symbol.is_valid() {
+            scope.push(opening.symbol);
+        }
+    }
+}
+
 /// One state's walk over its arm bindings. `declared` holds the names in
 /// scope: parameters, earlier locals, then the bindings of each enclosing
 /// arm, pushed on entry to the arm and popped on exit.
 struct ArmBindings<'walk> {
     expressions: &'walk ExpressionTable,
     statements: &'walk arena::Arena<Statement>,
+    child_types: &'walk crate::source_resolved::types::TypeReferenceArena,
+    opened_scope: Vec<symbols::SymbolHandle>,
     symbols: &'walk crate::source_symbols::SymbolTable,
     record_overlap: &'walk mut dyn FnMut(&DiagnosticName),
     declared: Vec<String>,
@@ -143,6 +187,9 @@ impl ArmBindings<'_> {
             }
             let name = self.symbols.name(local.symbol);
             (self.record_overlap)(&local.name);
+            record_opening_names(
+                self.symbols, self.child_types, &local.type_reference, &mut self.opened_scope, self.diagnostics,
+            );
             let shadowed = self.declared.iter().position(|earlier| earlier == name);
             self.declared.push(name.to_owned());
             if let Some(position) = shadowed {
@@ -230,10 +277,12 @@ impl ArmBindings<'_> {
         match expressions.expression(expression) {
             ExpressionNode::Block(block) => {
                 let scope = self.declared.len();
+                let types = self.opened_scope.len();
                 let statements = self.statements;
                 self.sequence(statements.span_or_empty(block.statements));
                 self.expression(block.tail);
                 self.declared.truncate(scope);
+                self.opened_scope.truncate(types);
             }
             ExpressionNode::Match(dispatch) => {
                 self.expression(dispatch.subject);

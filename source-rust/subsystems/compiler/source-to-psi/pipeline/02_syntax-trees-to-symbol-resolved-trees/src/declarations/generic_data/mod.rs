@@ -180,10 +180,9 @@ pub(crate) fn canonicalize_selected_declared_const_definition(
 pub(crate) fn validate_direct_const_arguments(
     syntax: &SyntaxTrees,
     base_name: &Identifier,
-    arguments: HandleSpan<TypeReferenceHandle>,
+    arguments: &[TypeReferenceHandle],
     selection: Option<&ConstantSelection>,
 ) -> Result<(), Diagnostic> {
-    let arguments = syntax.type_references.type_reference_handles(arguments);
     let has_direct = arguments.iter().any(|argument| {
         syntax_type_references(syntax)
             .const_argument_normalization(*argument)
