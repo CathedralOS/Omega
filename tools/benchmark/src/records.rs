@@ -225,6 +225,7 @@ pub fn validate(directory: &Path) -> Result<VerifiedRun, String> {
                         require_identical_artifacts,
                         target,
                         stage_timings: collect_timings,
+                        cold_client_root,
                         ..
                     } => {
                         let source = plan
@@ -255,10 +256,20 @@ pub fn validate(directory: &Path) -> Result<VerifiedRun, String> {
                         if suffix.len() != 5
                             || suffix[0] != "--build-dir"
                             || suffix[2] != "--target"
-                            || suffix[4] != source.display().to_string()
                             || suffix[3] != *target
                         {
                             return Err("compiler product arguments disagree with plan".into());
+                        }
+                        let recorded_sample = Path::new(&suffix[1])
+                            .parent()
+                            .ok_or("missing recorded sample directory")?;
+                        let source = if let Some(root) = cold_client_root {
+                            crate::cold_client::Client::new(root, recorded_sample).path(source)?
+                        } else {
+                            source.to_owned()
+                        };
+                        if Path::new(&suffix[4]) != source {
+                            return Err("compiler source disagrees with the sample plan".into());
                         }
                         oracle(expected, sample.observations[1].exit_code, &captures[1])?;
                         let relative = Path::new(
