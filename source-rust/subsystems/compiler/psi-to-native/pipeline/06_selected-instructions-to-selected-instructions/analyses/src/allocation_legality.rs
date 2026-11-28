@@ -1032,7 +1032,7 @@ pub(crate) mod validate {
         use crate::AllocationLegalityError;
         use register_homes::FunctionAllocationLegality;
 
-        pub use selected_body::LegalityFunctionCounts as FunctionCounts;
+        pub use selected_analysis_facts::LegalityFunctionCounts as FunctionCounts;
 
         pub(crate) fn count_function(
             function: &FunctionAllocationLegality,
@@ -1144,7 +1144,7 @@ pub fn analyze_allocation_legality(
     validate::admit(plan, &[], &[])
 }
 
-pub use selected_body::AllocationLegalityValidationReceipt;
+pub use selected_analysis_facts::AllocationLegalityValidationReceipt;
 
 shared_plan_carrier!(
     ValidatedAllocationLegality: AllocationLegalityPlan, AllocationLegalityValidationReceipt {

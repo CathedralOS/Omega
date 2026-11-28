@@ -32,11 +32,12 @@ pub(crate) mod optimization_output {
 
     impl SelectedInstructionOptimizationOutput {
         pub(crate) fn new(
-            parts: selected_body::SelectedBodyParts,
+            body: std::sync::Arc<physical_program::NativeBodyFacts>,
+            parts: selected_body::SelectedFactsParts,
             run: Option<CompletedRun>,
             structural: Option<StructuralRewriteRun>,
         ) -> Self {
-            let replay = if parts.body.retains_stage_inputs() {
+            let replay = if body.retains_stage_inputs() {
                 match (run, structural) {
                     (None, None) => None,
                     (run, structural) => Some(SelectedOptimizationReplay { run, structural }),
@@ -47,6 +48,7 @@ pub(crate) mod optimization_output {
             Self {
                 program: selected_body::SelectedBody::new(
                     selected_body_issuer::SELECTED_BODY,
+                    body,
                     parts,
                 ),
                 replay,
@@ -263,7 +265,8 @@ pub fn optimize_selected_instructions(
     let selections = ranges.selections();
     if !has_executed_selections(selections) {
         return Ok(SelectedInstructionOptimizationOutput::new(
-            publish_live_ranges(body, ranges),
+            body,
+            publish_live_ranges(ranges),
             None,
             structural,
         ));
@@ -303,7 +306,8 @@ pub fn optimize_selected_instructions(
             .restage(run.source_legality_stage(), run.record())?,
     };
     Ok(SelectedInstructionOptimizationOutput::new(
-        publish_legality(body, current),
+        body,
+        publish_legality(current),
         Some(run),
         structural,
     ))

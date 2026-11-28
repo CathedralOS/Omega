@@ -32,23 +32,23 @@ use selected_instruction_analyses::{
 /// Allocation consumes the completed rewrite, including an identity rewrite.
 ///
 /// ```compile_fail,E0308
-/// fn bypass(bare: selected_body::SelectedBodyParts) {
+/// fn bypass(bare: selected_body::SelectedFactsParts) {
 ///     let _ = selected_instructions_to_register_homes::stage_register_allocation(bare);
 /// }
 /// ```
 pub fn stage_register_allocation(
     input: selected_body::SelectedBody,
 ) -> Result<crate::allocation::AllocationResult, RegisterAllocationError> {
-    let body = std::sync::Arc::clone(&input.parts().body);
+    let (body, facts) = input.into_parts();
     let recovery = selected_allocation_recovery_entry(
-        &input
+        &facts
             .parts()
             .selections
             .project_phase(OptimizationExecutionPhase::AllocationRecovery),
     )
     .map_err(RegisterAllocationError::RecoveryCatalog)?;
     let legality =
-        prepare_allocation_legality(input, recovery.map(|entry| entry.payload().availability()))
+        prepare_allocation_legality(facts, recovery.map(|entry| entry.payload().availability()))
             .map_err(RegisterAllocationError::Legality)?;
     let staged = match recovery.map(|entry| entry.payload().rule()) {
         None => assign_with_runtime_recovery(legality)?,

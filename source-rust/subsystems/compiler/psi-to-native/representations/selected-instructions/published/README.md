@@ -1,20 +1,25 @@
 # Selected body ready for allocation
 
-`SelectedBody` is the issued stage 06-to-07 handoff. It owns the selected
-program, target register environment, optimization settings and rewrite history,
-plus the completed liveness and live-range records. A rewrite may also publish
-legality for the register views it used.
+`SelectedBody` is the issued stage 06-to-07 handoff. It pairs body publication
+metadata with completed selected-program facts. Only selected optimization may
+issue it; register allocation consumes it.
 
-The records contain shared plans, receipts and per-function counts. Publishing
-moves those records without traversing their plans. There are no callbacks,
-analysis procedures or replay methods in this representation.
+The `facts/` package holds selected instructions, the target register environment,
+optimization settings, rewrite history, and completed liveness and live-range
+records. A rewrite may also publish legality for the register views it used.
+The shared analysis implementation reads this package without importing body
+metadata or the earlier program forms retained for explicit verification.
 
-Only selected optimization may link `issuer/` and issue a body. Allocation
-consumes the body and decides its required register availability. Its analysis
-implementation reuses published legality when that availability matches, or
-derives legality from the published ranges when it differs. The native driver
-keeps optional producer replay evidence outside this product.
+Publishing moves shared plans, receipts and per-function counts without walking
+them. Neither package contains analysis procedures, callbacks or replay methods.
+Allocation chooses its required register availability and asks the analysis
+implementation to reuse matching legality or derive it from the issued ranges
+when absent or different. The native driver keeps optional producer replay
+evidence outside this product.
 
-Start at [`src/lib.rs`](src/lib.rs). [`analysis_records.rs`](src/analysis_records.rs)
-defines completed analysis metadata; [`history.rs`](src/history.rs) records
-which rewrites produced the selected program.
+Start at [`src/lib.rs`](src/lib.rs) for the body handoff and
+[`facts/src/lib.rs`](facts/src/lib.rs) for its analysis input.
+[`facts/src/analysis_records.rs`](facts/src/analysis_records.rs) defines completed
+analysis metadata; [`facts/src/history.rs`](facts/src/history.rs) records which
+rewrites produced the selected program. Both constructors require the capability
+in `issuer/`; dependency rules reserve its use to the producer and these records.

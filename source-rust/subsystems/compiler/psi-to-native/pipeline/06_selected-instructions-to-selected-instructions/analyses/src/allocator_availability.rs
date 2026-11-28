@@ -146,7 +146,7 @@ pub fn materialize_allocator_availability(
     Ok(ValidatedAllocatorAvailability { plan, receipt })
 }
 
-pub use selected_body::AllocatorAvailabilityValidationReceipt;
+pub use selected_analysis_facts::AllocatorAvailabilityValidationReceipt;
 
 validated_plan_carrier!(
     ValidatedAllocatorAvailability: AllocatorAvailabilityPlan,

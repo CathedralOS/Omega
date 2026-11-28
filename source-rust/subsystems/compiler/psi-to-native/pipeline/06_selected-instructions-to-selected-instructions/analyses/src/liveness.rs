@@ -2159,7 +2159,7 @@ pub use staging::{
     admit_optimized_liveness, stage_optimized_liveness,
 };
 
-pub use selected_body::LivenessValidationReceipt;
+pub use selected_analysis_facts::LivenessValidationReceipt;
 
 shared_plan_carrier!(ValidatedLiveness: LivenessPlan, LivenessValidationReceipt {});
 

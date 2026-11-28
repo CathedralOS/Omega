@@ -1,24 +1,19 @@
 //! Move completed analysis records across the stage boundary without walking plans.
-//! Allocation computes legality only when its required register availability differs.
+//! Allocation computes legality when absent or when required register availability differs.
 use crate::{
     AllocatorAvailabilityRequirement, OptimizedAllocationLegalityCustodyError,
     SelectedOptimizationInput, StagedOptimizedAllocationLegality, StagedOptimizedLiveRanges,
     StagedOptimizedLiveness, ValidatedAllocationLegality, ValidatedAllocatorAvailability,
     ValidatedLiveRanges, ValidatedLiveness, stage_optimized_allocation_legality,
 };
-use selected_body::{
-    AllocationLegalityFacts, LiveRangeFacts, LivenessFacts, SelectedBody, SelectedBodyParts,
+use selected_analysis_facts::{
+    AllocationLegalityFacts, LiveRangeFacts, LivenessFacts, SelectedFacts, SelectedFactsParts,
 };
-use std::sync::Arc;
 
-pub fn publish_live_ranges(
-    body: Arc<physical_program::NativeBodyFacts>,
-    ranges: StagedOptimizedLiveRanges,
-) -> SelectedBodyParts {
+pub fn publish_live_ranges(ranges: StagedOptimizedLiveRanges) -> SelectedFactsParts {
     let (liveness, ranges) = ranges.into_parts();
     let (selected, liveness) = liveness.into_parts();
-    SelectedBodyParts {
-        body,
+    SelectedFactsParts {
         selected: selected.program,
         custody: selected.custody,
         environment: selected.register_environment,
@@ -38,12 +33,9 @@ pub fn publish_live_ranges(
     }
 }
 
-pub fn publish_legality(
-    body: Arc<physical_program::NativeBodyFacts>,
-    legality: StagedOptimizedAllocationLegality,
-) -> SelectedBodyParts {
+pub fn publish_legality(legality: StagedOptimizedAllocationLegality) -> SelectedFactsParts {
     let (ranges, availability, legality) = legality.into_parts();
-    let mut parts = publish_live_ranges(body, ranges);
+    let mut parts = publish_live_ranges(ranges);
     parts.legality = Some(AllocationLegalityFacts {
         plan: legality.plan,
         receipt: legality.receipt,
@@ -57,10 +49,10 @@ pub fn publish_legality(
 /// Allocation chooses the availability policy. Reuse issued legality only when
 /// it names that policy; otherwise derive it from the issued live ranges.
 pub fn prepare_allocation_legality(
-    body: SelectedBody,
+    facts: SelectedFacts,
     required: Option<AllocatorAvailabilityRequirement>,
 ) -> Result<StagedOptimizedAllocationLegality, OptimizedAllocationLegalityCustodyError> {
-    let parts = body.into_parts();
+    let parts = facts.into_parts();
     let selected = SelectedOptimizationInput {
         program: parts.selected,
         custody: parts.custody,

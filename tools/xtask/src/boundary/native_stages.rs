@@ -20,6 +20,7 @@ pub(super) const PRODUCT_PUBLICATION: &str = "source-rust/subsystems/compiler/bu
 const BODY_PLAN: &str = native!("/representations/target-operations/body-plan");
 const PLAN_ISSUER: &str = native!("/representations/target-operations/body-plan/issuer");
 const SELECTED_BODY: &str = native!("/representations/selected-instructions/published");
+const SELECTED_FACTS: &str = native!("/representations/selected-instructions/published/facts");
 const SELECTED_BODY_ISSUER: &str =
     native!("/representations/selected-instructions/published/issuer");
 const ALLOCATED_BODY: &str = native!("/representations/register-homes/published");
@@ -146,10 +147,25 @@ pub(super) fn rules() -> Vec<Rule> {
         reason: "only selected optimization may issue the completed allocation input",
         except_package: Some(SELECTED_BODY),
         except_owners: vec![],
-        allowed: vec![Allowance {
-            owner: stages[5],
-            dependency: SELECTED_BODY_ISSUER,
-        }],
+        allowed: vec![
+            Allowance {
+                owner: stages[5],
+                dependency: SELECTED_BODY_ISSUER,
+            },
+            Allowance {
+                owner: SELECTED_FACTS,
+                dependency: SELECTED_BODY_ISSUER,
+            },
+        ],
+    });
+    rules.push(Rule {
+        owners: vec![ANALYSES],
+        forbidden: vec![],
+        forbidden_packages: vec![SELECTED_BODY],
+        reason: "shared selected analyses consume facts without body publication metadata",
+        except_package: None,
+        except_owners: vec![],
+        allowed: vec![],
     });
     // Stage 02's abstract program and stage 04's target operations stop at
     // instruction selection. The requested object audit that rejoins them to an
@@ -209,6 +225,10 @@ mod tests {
             (NATIVE_STAGES[6], SELECTED_BODY_ISSUER, false),
             (DRIVER, SELECTED_BODY_ISSUER, false),
             (ANALYSES, SELECTED_BODY_ISSUER, false),
+            (ANALYSES, SELECTED_BODY, false),
+            (ANALYSES, SELECTED_FACTS, true),
+            (SELECTED_FACTS, SELECTED_BODY_ISSUER, true),
+            (SELECTED_FACTS, ANALYSES, false),
             (NATIVE_STAGES[5], SELECTED_BODY_ISSUER, true),
             (SELECTED_BODY, SELECTED_BODY_ISSUER, true),
             (SELECTED_BODY, ANALYSES, false),

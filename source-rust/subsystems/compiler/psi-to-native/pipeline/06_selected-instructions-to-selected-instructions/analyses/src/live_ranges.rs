@@ -1527,7 +1527,7 @@ pub(crate) mod validate {
 
         use selected_instructions::FunctionLiveRanges;
 
-        pub use selected_body::LiveRangeFunctionCounts as FunctionCounts;
+        pub use selected_analysis_facts::LiveRangeFunctionCounts as FunctionCounts;
 
         pub(crate) fn count_function(function: &FunctionLiveRanges) -> FunctionCounts {
             FunctionCounts {
@@ -1742,7 +1742,7 @@ pub use staging::{
     admit_optimized_live_ranges, stage_optimized_live_ranges,
 };
 
-pub use selected_body::LiveRangeValidationReceipt;
+pub use selected_analysis_facts::LiveRangeValidationReceipt;
 
 shared_plan_carrier!(ValidatedLiveRanges: LiveRangePlan, LiveRangeValidationReceipt {
     pub(crate) function_counts: std::sync::Arc<[validate::FunctionCounts]>,

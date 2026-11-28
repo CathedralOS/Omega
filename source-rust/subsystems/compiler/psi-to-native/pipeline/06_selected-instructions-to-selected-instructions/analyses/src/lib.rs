@@ -494,7 +494,7 @@ pub mod codec_bytes {
     pub use ::wire::codec_bytes::push_encoded;
     pub use ::wire::codec_bytes::{decode_header, encode_header};
 }
-pub use selected_body::SelectedOptimizationRecord;
+pub use selected_analysis_facts::SelectedOptimizationRecord;
 mod handoff;
 pub use ::wire::cursor;
 pub use handoff::{prepare_allocation_legality, publish_legality, publish_live_ranges};

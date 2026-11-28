@@ -2730,17 +2730,25 @@ dependencies = [
 ]
 
 [[package]]
-name = "selected-body"
+name = "selected-analysis-facts"
 version = "0.1.0"
 dependencies = [
  "optimization-core",
- "physical-program",
  "register-environment",
  "register-homes",
  "register-model",
  "selected-body-issuer",
  "selected-instructions",
  "semantic-vocabulary",
+]
+
+[[package]]
+name = "selected-body"
+version = "0.1.0"
+dependencies = [
+ "physical-program",
+ "selected-analysis-facts",
+ "selected-body-issuer",
 ]
 
 [[package]]
@@ -2777,11 +2785,10 @@ dependencies = [
  "calling-conventions",
  "operation-evidence",
  "optimization-core",
- "physical-program",
  "register-environment",
  "register-homes",
  "register-model",
- "selected-body",
+ "selected-analysis-facts",
  "selected-instructions",
  "semantic-vocabulary",
  "target",

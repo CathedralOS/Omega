@@ -124,6 +124,7 @@ members = [
     "source-rust/subsystems/compiler/psi-to-native/representations/register-homes/published/issuer",
     "source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions",
     "source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions/published",
+    "source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions/published/facts",
     "source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions/published/issuer",
     "source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions/foreign-calls",
     "source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions/physical-recipes",

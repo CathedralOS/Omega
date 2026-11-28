@@ -288,7 +288,7 @@ fn reject_changed_entry_literal(
 /// The decisive checks on the plan stage 02 published for a compiled program.
 ///
 /// First the plan is selected with nothing but itself, its bound installations
-/// and the register model selected by the plan’s target. The entry takes no source module,
+/// and the register model selected by the planâ€™s target. The entry takes no source module,
 /// abstract program or optimization-unit table, so none can be consulted.
 /// Then separate corruptions are each refused by the check that owns them: a
 /// changed value type, a width the module does not retain and a dropped
@@ -1177,11 +1177,22 @@ fn selected_rewrite_handoff_preserves_published_bytes_and_replay() {
             &[0xe0, 0, 0x80, 0xd2, 0xc0, 3, 0x5f, 0xd6]
         );
         if retain {
-            published_object_verification::verify_body_fixed_frame(
-                object,
-                body.originals.as_ref().unwrap(),
-            )
-            .unwrap();
+            let mut originals = body.originals.unwrap();
+            assert!(
+                published_object_verification::verify_body_selected_optimization(
+                    object, &originals
+                )
+                .unwrap()
+            );
+            published_object_verification::verify_body_fixed_frame(object, &originals).unwrap();
+            originals.selected_optimization = None;
+            assert!(
+                published_object_verification::verify_body_selected_optimization(
+                    object, &originals
+                )
+                .is_err(),
+                "a rewritten program cannot be replayed after its producer evidence is removed"
+            );
         } else {
             assert!(body.originals.is_none());
         }
