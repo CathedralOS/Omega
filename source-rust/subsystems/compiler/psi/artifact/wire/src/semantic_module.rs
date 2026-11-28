@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 304`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 305`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -3994,6 +3994,7 @@ pub(crate) mod entry_tests {
             content_partition_compositions: Vec::new(),
             entry: block,
             blocks: vec![Block {
+                assembly_exit: None,
                 id: block,
                 parameters: Vec::new(),
                 erased_scalar_formals: Vec::new(),
@@ -4080,6 +4081,8 @@ pub(crate) use wire::{Reader, Writer, decode_canonical};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
+// Marker 305 retains per-value package schemas, openings and checked construction, projection, call and store sites.
+// Marker 304 appends the optional assembly exit constraint to each block.
 // Marker 303 makes task activation storage refer to the ordinary program declarations.
 // Marker 302 adds each theorem application's sum arguments after its scalar
 // subjects.
@@ -4092,8 +4095,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // at the FloatMeaning carrier and retires proposition tag 19.
 // Marker 295 retires byte-sequence equality proposition tag 12, which only
 // an uncalled producer wrote.
-// Marker 304 retains the schema, openings and operation proofs of per-value packages.
-pub(crate) const FORMAT_MARKER: u16 = 304;
+pub(crate) const FORMAT_MARKER: u16 = 305;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

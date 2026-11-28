@@ -1,0 +1,12 @@
+[package]
+name = "native-body-plan"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+native-body-plan-issuer = { path = "issuer" }
+function-identity = { path = "../../function-identity" }
+legalized-operations = { path = "../legalized-operations" }
+optimization-core = { path = "../../optimization-records" }
+verified-optimization-input = { path = "../../abstract-operations/verified-optimization-input" }

@@ -27,6 +27,8 @@ dependencies = [
  "function-identity",
  "language-core",
  "legalized-operations",
+ "native-body-plan",
+ "native-body-plan-issuer",
  "operation-evidence",
  "optimization-core",
  "optimization-unit",
@@ -403,6 +405,7 @@ name = "calling-conventions"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "language-core",
  "layout-planning",
  "layout-plans",
  "runtime-abi",
@@ -1402,6 +1405,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "native-body-plan"
+version = "0.1.0"
+dependencies = [
+ "function-identity",
+ "legalized-operations",
+ "native-body-plan-issuer",
+ "optimization-core",
+ "verified-optimization-input",
+]
+
+[[package]]
+name = "native-body-plan-issuer"
+version = "0.1.0"
+
+[[package]]
 name = "native-compiler"
 version = "0.1.0"
 dependencies = [
@@ -1514,9 +1532,12 @@ dependencies = [
  "diagnostics",
  "function-identity",
  "native-execution-reach",
+ "operation-operands",
  "provider-correspondence",
  "psi-target-layouts",
+ "register-environment",
  "semantic-vocabulary",
+ "target",
  "target-bound-program",
  "terminal-codec",
  "terminal-psi",
@@ -3257,6 +3278,7 @@ dependencies = [
  "direct-boundary-bindings",
  "native-execution-reach",
  "native-intrinsics",
+ "operation-operands",
  "program-entry-contracts",
  "provider-correspondence",
  "psi-authorization",
@@ -3333,6 +3355,7 @@ dependencies = [
  "language-core",
  "layout-plans",
  "legalized-operations",
+ "native-body-plan",
  "operation-evidence",
  "operation-operands",
  "optimization-core",
