@@ -1299,9 +1299,11 @@ impl<'a> DescriptorAnalysis<'a> {
         identity: MachineId,
         rules: &mut crate::descriptors::descriptor_lifetimes::DescriptorResidenceRules,
     ) -> Result<BTreeMap<DescriptorPosition, DescriptorFlowStep>, DescriptorGraphError> {
-        let formations = std::mem::take(&mut rules.captures);
+        let mut formations = std::mem::take(&mut rules.observations);
+        formations.extend(std::mem::take(&mut rules.captures).into_iter()
+            .map(|(at, source, destination)| (at, at, source, destination)));
         let mut flow = self.prepare_flow(identity, Some(rules))?;
-        for (position, source, destination) in formations {
+        for (position, observed_at, source, destination) in formations {
             let failed = |detail| DescriptorGraphError::IncompleteMachine {
                 machine: identity,
                 position: Some(position),
@@ -1311,7 +1313,12 @@ impl<'a> DescriptorAnalysis<'a> {
             let destination = self
                 .location(identity, position, &destination)
                 .ok_or_else(|| failed("captured reference has no local destination"))?;
-            if let Some(source) = self.location(identity, position, &source) {
+            if let Some(source) = self.location(identity, observed_at, &source) {
+                let edge = (source.clone(), destination.clone());
+                let step = flow.get_mut(&position).ok_or_else(|| failed("captured residence has no flow step"))?;
+                if !step.derivations.contains(&edge) {
+                    step.derivations.push(edge);
+                }
                 rules.captures.insert((position, source, destination));
                 continue;
             }
@@ -1319,13 +1326,15 @@ impl<'a> DescriptorAnalysis<'a> {
             // storage home. Keep each possible backing residence live through
             // the new reference. An unknown address cannot supply this edge.
             let origins = self
-                .captured_storage_family(identity, position, &source)
+                .captured_storage_family(identity, observed_at, &source)
                 .map_err(failed)?;
             let machine = self
                 .replay
                 .machine(identity)
                 .ok_or(DescriptorGraphError::MissingOrAmbiguousMachine(identity))?;
             for origin in origins {
+                // An independently admitted native address has no local home to retain.
+                if matches!(origin, DescriptorCallOrigin::NativeAddress { .. }) { continue; }
                 let DescriptorCallOrigin::Argument { source, projection } = origin else {
                     return Err(failed("captured residence has no input-relative storage"));
                 };

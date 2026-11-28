@@ -3,6 +3,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Default)]
 pub(crate) struct DescriptorResidenceRules {
+    /// A native reference created now captures a scalar address observed earlier.
+    pub observations: Vec<(DescriptorPosition, DescriptorPosition, DescriptorLocation, DescriptorLocation)>,
     pub captures: BTreeSet<(DescriptorPosition, DescriptorLocation, DescriptorLocation)>,
 }
 

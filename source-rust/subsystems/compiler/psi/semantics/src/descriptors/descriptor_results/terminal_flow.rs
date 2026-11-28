@@ -148,30 +148,31 @@ pub(crate) fn residence_rules(
     for block in &machine.blocks {
         for (ordinal, operation) in block.operations.iter().enumerate() {
             let position = (block.id, u32::try_from(ordinal).ok()?);
-            let sources = match &operation.kind {
+            let capture = |source: &StructuralArgument, at| {
+                let (location, _, backing) = captured_storage_source(
+                    &module.types.structural_types, source.place, &source.path,
+                    machine.structural_place_type(source.place)?, at,
+                )?;
+                Some((backing == CapturedBacking::StorageAddress).then_some(location))
+            };
+            match &operation.kind {
                 element_view_establish_pair_pattern!(source, ..)
                 | OperationKind::EstablishAccessReference { source, .. }
-                | OperationKind::EstablishReference { source, .. } => vec![source],
+                | OperationKind::EstablishReference { source, .. } => {
+                    if let Some(source) = capture(source, position)? {
+                        let destination = DescriptorLocation::whole(operation.result.structural()?.place);
+                        rules.captures.insert((position, source, destination));
+                    }
+                }
                 OperationKind::BorrowAt { address } => {
-                    crate::storage::native_borrows::address_origin(machine, *address).sources
+                    let destination = DescriptorLocation::whole(operation.result.structural()?.place);
+                    for (at, source) in crate::storage::native_borrows::address_origin(machine, *address).observed_sources() {
+                        if let Some(source) = capture(source, at)? {
+                            rules.observations.push((position, at, source, destination.clone()));
+                        }
+                    }
                 }
-                _ => continue,
-            };
-            for source in sources {
-                let (source, _, capture) = captured_storage_source(
-                    &module.types.structural_types,
-                    source.place,
-                    &source.path,
-                    machine.structural_place_type(source.place)?,
-                    position,
-                )?;
-                if capture == CapturedBacking::StorageAddress {
-                    rules.captures.insert((
-                        position,
-                        source,
-                        DescriptorLocation::whole(operation.result.structural()?.place),
-                    ));
-                }
+                _ => {}
             }
         }
     }

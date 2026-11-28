@@ -80,14 +80,20 @@ impl<'a> Storage<'a> {
                                         "payload write frame lost its actual root",
                                     )
                                 })?;
-                                self.stored_at(root, &region.projection.path, concerns)
+                                let target = self.stored_at(root, &region.written_storage_path(), concerns)?;
+                                let (owner, ordinal) = region.projection.captured_at
+                                    .unwrap_or((block.id, u32::try_from(position).map_err(|_| self.foreign(concerns, "payload call position exceeds its block"))?));
+                                self.backing(references, &target, owner, ordinal as usize, concerns)
                             })
                             .collect::<Checked<Vec<_>>>()?;
-                        inventory.unknown_contents.retain(|pending| {
-                            affected
-                                .iter()
-                                .any(|region| super::overlap(region, &pending.carrier))
-                        });
+                        let mut written = Vec::new();
+                        for pending in inventory.unknown_contents {
+                            let carrier = self.backing(references, &pending.carrier, block.id, position, concerns)?;
+                            if affected.iter().any(|region| super::overlap(region, &carrier)) {
+                                written.push(pending);
+                            }
+                        }
+                        inventory.unknown_contents = written;
                         inventory.descriptors.retain(|descriptor| {
                             affected
                                 .iter()
