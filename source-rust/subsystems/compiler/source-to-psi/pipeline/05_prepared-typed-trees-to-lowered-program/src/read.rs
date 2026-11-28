@@ -129,10 +129,10 @@ pub(crate) struct TypeAlternative {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct ConstBinding {
+pub(crate) struct ConstBinding {
     symbol: SymbolHandle,
     owner: semantic_vocabulary::MachineId,
-    value: semantic_vocabulary::ValueId,
+    pub(crate) value: semantic_vocabulary::ValueId,
     scalar_type: semantic_vocabulary::ScalarType,
 }
 
@@ -1212,12 +1212,7 @@ mod tests {
                 complete_predicate_theory: false,
             }));
         let bodies = arena::IdTable::default();
-        let components = crate::prepare_call_components(
-            &bodies,
-            &mut program.signatures,
-            &program.theorem_parameters,
-        )
-        .unwrap();
+        let components = program.prepare_call_components(&bodies).unwrap();
         program.prepare_domain_predicates(machine()).unwrap();
         let elaboration = crate::lower_program(
             None,

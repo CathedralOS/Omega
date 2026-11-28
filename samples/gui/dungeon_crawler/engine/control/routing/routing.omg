@@ -4,6 +4,7 @@ use control/pursuit/pursuit.omg;
 use control/state/state.omg as control_state;
 use simulation/clock/clock.omg;
 use {omega}/language/core/iteration.omg;
+use {omega}/language/core/nat.omg;
 
 public machine clear_intents<const Actors: u64>(intents: @mutable |control_state|::IntentSet<Actors>)
 terminates
@@ -24,7 +25,7 @@ terminates {
 
 machine route_autonomous_bindings(controls: @|control_state|::ControllerSet<|configuration|::CONTROLLER_CAPACITY, |configuration|::ACTOR_CAPACITY>, actors: @|state_state|::ActorSet<|configuration|::ACTOR_CAPACITY, |configuration|::ROOM_COUNT>, intents: @mutable |control_state|::IntentSet<|configuration|::ACTOR_CAPACITY>, clock: |clock|::FrameClock, index: u64, remaining: u64)
 terminates
-terminates by remaining -> Nat::Descending {
+terminates by remaining -> |nat|::Nat::Descending {
     transition remaining > 0 && index < |configuration|::CONTROLLER_CAPACITY { true -> head(controls, actors, intents, clock, index, remaining), _ -> done() }
     machine head(controls: @|control_state|::ControllerSet<|configuration|::CONTROLLER_CAPACITY, |configuration|::ACTOR_CAPACITY>, actors: @|state_state|::ActorSet<|configuration|::ACTOR_CAPACITY, |configuration|::ROOM_COUNT>, intents: @mutable |control_state|::IntentSet<|configuration|::ACTOR_CAPACITY>, clock: |clock|::FrameClock, index: u64, remaining: u64)
     requires remaining > 0 && index < |configuration|::CONTROLLER_CAPACITY {
@@ -55,38 +56,43 @@ terminates by remaining -> Nat::Descending {
     machine done() {}
 }
 
-public machine route_input(controls: @|control_state|::ControllerSet<|configuration|::CONTROLLER_CAPACITY, |configuration|::ACTOR_CAPACITY>, intents: @mutable |control_state|::IntentSet<|configuration|::ACTOR_CAPACITY>, device: u32, command: |control_state|::Command)
-terminates {
-    route_bindings(controls, intents, device, command, 0, controls.count);
+public machine route_input<const Bindings: u64, const Actors: u64>(controls: @|control_state|::ControllerSet<Bindings, Actors>, intents: @mutable |control_state|::IntentSet<Actors>, device: u32, command: |control_state|::Command)
+terminates
+requires Bindings >= 1 && Actors >= 1 {
+    transition controls.count > 0 {
+        true -> route_bindings::<Actors>(@controls.bindings[..controls.count], intents, device, command),
+        _ -> done()
+    }
+    machine done() {}
 }
 
-machine route_bindings(controls: @|control_state|::ControllerSet<|configuration|::CONTROLLER_CAPACITY, |configuration|::ACTOR_CAPACITY>, intents: @mutable |control_state|::IntentSet<|configuration|::ACTOR_CAPACITY>, device: u32, command: |control_state|::Command, index: u64, remaining: u64)
-terminates by remaining -> Nat::Descending {
-    transition remaining > 0 && index < |configuration|::CONTROLLER_CAPACITY { true -> head(controls, intents, device, command, index, remaining), _ -> done() }
-    machine head(controls: @|control_state|::ControllerSet<|configuration|::CONTROLLER_CAPACITY, |configuration|::ACTOR_CAPACITY>, intents: @mutable |control_state|::IntentSet<|configuration|::ACTOR_CAPACITY>, device: u32, command: |control_state|::Command, index: u64, remaining: u64)
-    requires remaining > 0 && index < |configuration|::CONTROLLER_CAPACITY {
-        let binding: |control_state|::ControllerBinding<|configuration|::ACTOR_CAPACITY> = controls.bindings[index];
-        let source: |control_state|::ControlSource<|configuration|::ACTOR_CAPACITY> = binding.source;
-        transition source {
-            |control_state|::ControlSource::Input { device as selected } -> manual(controls, intents, device, command, index, remaining, binding.actor, selected),
-            |control_state|::ControlSource::Pursuit { target } -> next(controls, intents, device, command, index, remaining)
-        }
+machine route_bindings<const Actors: u64>(bindings: @[|control_state|::ControllerBinding<Actors>], intents: @mutable |control_state|::IntentSet<Actors>, device: u32, command: |control_state|::Command)
+terminates by bindings -> Slice::Length
+requires Actors >= 1 && bindings.length > 0 {
+    let binding: |control_state|::ControllerBinding<Actors> = bindings[0];
+    route_binding::<Actors>(binding, intents, device, command);
+    transition bindings.length > 1 {
+        true -> route_bindings::<Actors>(@bindings[1..], intents, device, command),
+        _ -> done()
     }
-    machine manual(controls: @|control_state|::ControllerSet<|configuration|::CONTROLLER_CAPACITY, |configuration|::ACTOR_CAPACITY>, intents: @mutable |control_state|::IntentSet<|configuration|::ACTOR_CAPACITY>, device: u32, command: |control_state|::Command, index: u64, remaining: u64, actor: u64, selected: u32)
-    requires remaining > 0 && index < |configuration|::CONTROLLER_CAPACITY {
-        transition selected == device && actor < |configuration|::ACTOR_CAPACITY {
-            true -> write(controls, intents, device, command, index, remaining, actor),
-            _ -> next(controls, intents, device, command, index, remaining)
-        }
+    machine done() {}
+}
+
+machine route_binding<const Actors: u64>(binding: |control_state|::ControllerBinding<Actors>, intents: @mutable |control_state|::IntentSet<Actors>, device: u32, command: |control_state|::Command)
+terminates
+requires Actors >= 1 {
+    let source: |control_state|::ControlSource<Actors> = binding.source;
+    transition source {
+        |control_state|::ControlSource::Input { device as selected } -> manual(binding.actor, intents, device, command, selected),
+        |control_state|::ControlSource::Pursuit { target } -> done()
     }
-    machine write(controls: @|control_state|::ControllerSet<|configuration|::CONTROLLER_CAPACITY, |configuration|::ACTOR_CAPACITY>, intents: @mutable |control_state|::IntentSet<|configuration|::ACTOR_CAPACITY>, device: u32, command: |control_state|::Command, index: u64, remaining: u64, actor: u64)
-    requires remaining > 0 && index < |configuration|::CONTROLLER_CAPACITY && actor < |configuration|::ACTOR_CAPACITY {
+    machine manual(actor: u64, intents: @mutable |control_state|::IntentSet<Actors>, device: u32, command: |control_state|::Command, selected: u32)
+    requires Actors >= 1 {
+        transition selected == device && actor < Actors { true -> write(actor, intents, command), _ -> done() }
+    }
+    machine write(actor: u64, intents: @mutable |control_state|::IntentSet<Actors>, command: |control_state|::Command)
+    requires Actors >= 1 && actor < Actors {
         intents.items[actor] = command;
-        transition { _ -> next(controls, intents, device, command, index, remaining) }
-    }
-    machine next(controls: @|control_state|::ControllerSet<|configuration|::CONTROLLER_CAPACITY, |configuration|::ACTOR_CAPACITY>, intents: @mutable |control_state|::IntentSet<|configuration|::ACTOR_CAPACITY>, device: u32, command: |control_state|::Command, index: u64, remaining: u64)
-    requires remaining > 0 && index < |configuration|::CONTROLLER_CAPACITY {
-        transition { _ -> route_bindings(controls, intents, device, command, index + 1, remaining - 1) }
     }
     machine done() {}
 }

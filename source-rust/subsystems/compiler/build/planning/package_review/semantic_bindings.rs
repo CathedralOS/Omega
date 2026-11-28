@@ -1,29 +1,15 @@
 //! Derive host service roles from the checked Product and its selected providers.
 
 use super::input::PolicySource;
-use diagnostics::Diagnostic;
 use build_providers::acceptance::AcceptedSemanticBinding;
 use build_providers::plans::ServiceSchema;
+use diagnostics::Diagnostic;
 use review_evidence::record::SemanticBindingReviewCandidate;
-use source_compiler::representations::source_state::trait_definition::TraitDefinition;
 
 use super::declarations::unavailable;
 use build_providers::acceptance::AcceptedSemanticBindingRole as Role;
 use review_evidence::record::{PackagePolicyBaseline, PackagePolicyCallableRole};
 use std::collections::BTreeSet;
-
-/// A Build may import the same boundary to select its provider. Only the
-/// Product occurrence can supply the declaration a Product role denotes.
-fn product_boundaries<'a>(input: &PolicySource<'a>) -> impl Iterator<Item = &'a TraitDefinition> {
-    let source = input.typed();
-    source.traits().iter().filter(move |slot| {
-        slot.is_boundary
-            && source.symbols.symbol_is_in_dependency_scope(
-                slot.symbol,
-                source_provenance::DependencyScope::Product,
-            )
-    })
-}
 
 /// Retain the declaration that actually supplies a proposed role. ProcessExit
 /// belongs to core, while the reviewed binding names its selected provider.
@@ -32,9 +18,6 @@ pub(super) fn checked_service(
     selected: &compiler::SelectedProviderResult,
     binding: &AcceptedSemanticBinding,
 ) -> Result<(symbols::SymbolHandle, ServiceSchema), Vec<Diagnostic>> {
-    let source = input.typed();
-    let path = binding.declaration_path();
-    let core = binding.role() == Role::ProcessExitExitProcessI32;
     let selected_plan = binding
         .selected_provider_plan_digest()
         .map(|digest| {
@@ -51,18 +34,7 @@ pub(super) fn checked_service(
             }
         })
         .transpose()?;
-    let mut slots = product_boundaries(input).filter(|d| {
-        source.symbols.display_path(d.symbol, "::") == path
-            && if core {
-                source.core_vocabulary(d.symbol)
-                    == Some(language_core::core_vocabulary::CoreVocabulary::ProcessExitService)
-            } else {
-                source.symbols.symbol_package_identity(d.symbol) == Some(binding.package())
-            }
-    });
-    let (Some(slot), None) = (slots.next(), slots.next()) else {
-        return Err(unavailable("the uniquely owned semantic role declaration"));
-    };
+    let slot = compiler::reviewed_service_declaration(input.typed(), binding)?;
     input.nominal(slot.symbol)?;
     let declaration = ServiceSchema::from_declaration(
         input
