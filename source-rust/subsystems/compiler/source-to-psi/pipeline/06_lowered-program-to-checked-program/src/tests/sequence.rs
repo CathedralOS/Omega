@@ -138,6 +138,8 @@ ensures |proof|::Identity::<N>(repeat(s.state, n), N::Z)
     );
 }
 
+const SAMPLER_RULE: &str = "a static machine argument must have its parameter's formals and result";
+
 #[test]
 fn a_sampler_must_take_the_state_and_an_index() {
     // `Sampler<N>` takes a state and an index; a machine of the state
@@ -153,9 +155,7 @@ ensures |proof|::Identity::<N>(repeat(s.state), s.state)
     ));
     let violations = violations(&verdicts);
     assert!(
-        violations
-            .iter()
-            .any(|rule| rule.contains("a static machine argument must have its parameter's formals and result")),
+        violations.iter().any(|rule| rule.contains(SAMPLER_RULE)),
         "{verdicts:?}"
     );
 }
@@ -175,9 +175,7 @@ ensures |proof|::Identity::<N>(N::Z, N::Z)
     ));
     let violations = violations(&verdicts);
     assert!(
-        violations
-            .iter()
-            .any(|rule| rule.contains("a static machine argument must have its parameter's formals and result")),
+        violations.iter().any(|rule| rule.contains(SAMPLER_RULE)),
         "{verdicts:?}"
     );
 }

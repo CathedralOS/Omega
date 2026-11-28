@@ -2190,7 +2190,9 @@ impl Program<'_> {
                     let receiver = if generic {
                         self.clause_receiver_type(id, scope, member.receiver)?
                             .ok_or_else(|| {
-                                unavailable("field of generic data whose receiver has no known type")
+                                unavailable(
+                                    "field of generic data whose receiver has no known type",
+                                )
                             })?
                     } else if selected.is_valid() {
                         self.record(id, owner)?
