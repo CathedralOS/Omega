@@ -428,9 +428,16 @@ impl Frontier<'_, '_> {
             // no field here that a caller may dereference. The origin of the
             // debt must come from its producer, never from an empty frontier.
             StorageShape::BorrowingOpaque { lifetime_count } => {
-                if lifetime_count.get() as usize != regions.len() {
-                    return Err("opaque occurrence has a different number of lifetime arguments");
+                let declaration = self.program.source_declaration(self.machine, record)
+                    .map_err(|_| "opaque occurrence has no source declaration")?;
+                if self.program.own_regions(declaration).len() != lifetime_count.get() as usize {
+                    return Err("opaque declaration has a different number of lifetime parameters");
                 }
+                // The public opaque shape counts the declaration's own binders.
+                // Its occurrence also keeps regions supplied inside type arguments.
+                let own = self.program.record_region_parameters(self.machine, record)
+                    .map_err(|_| "opaque occurrence lost its supplied regions")?;
+                super::record_lifetime_bindings(&own, regions)?;
                 return Ok(false);
             }
             StorageShape::AtomicCell(_)
@@ -452,19 +459,7 @@ impl Frontier<'_, '_> {
                 .program
                 .record_region_parameters(self.machine, record)
                 .map_err(|_| "declared reference frontier lost its record source")?;
-            if own.len() != regions.len() {
-                return Err("declared reference frontier has another region arity");
-            }
-            bound.extend(
-                own.into_iter()
-                    .zip(regions)
-                    .filter_map(|(parameter, region)| match parameter {
-                        Region::Parameter(parameter) if Region::Parameter(parameter) != *region => {
-                            Some((parameter, *region))
-                        }
-                        _ => None,
-                    }),
-            );
+            bound.extend(super::record_lifetime_bindings(&own, regions)?);
         }
         let known = match &source.shape {
             StorageShape::FixedArray {

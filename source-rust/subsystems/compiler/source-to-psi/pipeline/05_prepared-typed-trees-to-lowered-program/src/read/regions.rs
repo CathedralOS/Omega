@@ -104,6 +104,27 @@ pub(crate) struct RegionVariable {
 /// One substitution: each listed parameter stands for the region beside it.
 pub(crate) type Substitution = Vec<(LifetimeParameterIdentity, Region)>;
 
+/// Two source arguments can have the same lifetime at the first formation of
+/// a shared layout. That parameter can be rebound only if both uses agree.
+fn record_lifetime_bindings(own: &[Region], applied: &[Region]) -> Result<Substitution, &'static str> {
+    if own.len() != applied.len() {
+        return Err("record applied at another number of regions than it declares");
+    }
+    let mut bindings = Vec::new();
+    for (&parameter, &actual) in own.iter().zip(applied) {
+        let Region::Parameter(parameter) = parameter else { continue };
+        if let Some((_, prior)) = bindings.iter().find(|(key, _)| *key == parameter) {
+            if *prior != actual {
+                return Err("one retained record region has distinct occurrence arguments");
+            }
+        } else {
+            bindings.push((parameter, actual));
+        }
+    }
+    bindings.retain(|(parameter, actual)| Region::Parameter(*parameter) != *actual);
+    Ok(bindings)
+}
+
 impl Program<'_> {
     /// A region nothing has decided yet.
     pub(crate) fn fresh_region(&mut self) -> Region {
@@ -393,27 +414,8 @@ impl Program<'_> {
         }
         let own = self.record_region_parameters(id, record)?;
         let applied = self.region_tuple(regions);
-        if own.len() != applied.len() {
-            return Err(refuse_at(
-                id,
-                Unserved::Typing("record applied at another number of regions than it declares"),
-            ));
-        }
-        // A shared layout may have first been formed with two coincident
-        // lifetimes. Only rebind that parameter when every occurrence agrees.
-        let mut bindings = Vec::new();
-        for (parameter, actual) in own.into_iter().zip(applied) {
-            let Region::Parameter(parameter) = parameter else { continue };
-            if let Some((_, prior)) = bindings.iter().find(|(key, _)| *key == parameter) {
-                if prior != actual {
-                    return Err(refuse_at(id, Unserved::Typing("one retained record region has distinct occurrence arguments")));
-                }
-            } else {
-                bindings.push((parameter, *actual));
-            }
-        }
-        bindings.retain(|(parameter, actual)| Region::Parameter(*parameter) != *actual);
-        Ok(bindings)
+        record_lifetime_bindings(&own, applied)
+            .map_err(|reason| refuse_at(id, Unserved::Typing(reason)))
     }
 
     /// Extends `bound` so that `formal`, with `bound` applied, is `actual`,
