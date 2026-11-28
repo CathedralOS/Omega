@@ -789,25 +789,17 @@ fn native_borrow_results_follow_scalar_address_actuals_back_to_their_storage() {
     ];
     let input = location(1);
     let local = location(2);
+    let temporary = location(4);
     let machine = bare_machine(
         MachineId::new(1).unwrap(),
         vec![
-            DescriptorPlace {
-                producer: None,
-                place: input.root,
-                definition: DescriptorDefinition::Parameter {
-                    position: 0,
-                    access: StructuralAccess::SharedBorrow,
-                    structural_type: scalar,
-                },
-            },
-            DescriptorPlace {
-                producer: None,
-                place: local.root,
-                definition: DescriptorDefinition::Local,
-            },
+            DescriptorPlace { producer: None, place: input.root, definition: DescriptorDefinition::Parameter {
+                position: 0, access: StructuralAccess::SharedBorrow, structural_type: scalar,
+            } },
+            DescriptorPlace { producer: None, place: local.root, definition: DescriptorDefinition::Local },
+            DescriptorPlace { producer: None, place: temporary.root, definition: DescriptorDefinition::Local },
         ],
-        BTreeMap::from([(input.root, scalar), (local.root, scalar)]),
+        BTreeMap::from([(input.root, scalar), (local.root, scalar), (temporary.root, reference)]),
         BTreeSet::new(),
     );
     let replay = Replay::with_slot_kind(
@@ -816,6 +808,8 @@ fn native_borrow_results_follow_scalar_address_actuals_back_to_their_storage() {
         DescriptorSlotKind::BorrowedStorage,
     );
     let state = replay.initial(&machine).unwrap();
+    let mut observed = state.clone();
+    observed.slots_mut().insert(temporary.clone(), Some(BTreeSet::from([Origin::Storage(input.clone())])));
     let formal = ValueId::new(1).unwrap();
     let forwarded = ValueId::new(2).unwrap();
     let make_origin = |parameters| DescriptorStoredOrigin::NativeAddress {
@@ -834,32 +828,31 @@ fn native_borrow_results_follow_scalar_address_actuals_back_to_their_storage() {
         let native_address_arguments = [NativeAddressActual {
             parameter: formal,
             exact,
-            sources: storage
-                .into_iter()
-                .map(|storage| (storage, None, observed_type))
-                .collect(),
+            sources: storage.into_iter().map(|location| NativeAddressObservation {
+                at: machine.entry, location, projection: None, pointee: observed_type, storage_address: true,
+            }).collect(),
             parameters: forwarded.into_iter().collect(),
         }];
-        let origins = replay.substitute_actuals(
-            &machine,
-            &state,
-            DescriptorActualInputs {
-                native_address_arguments: &native_address_arguments,
-                scalar_arguments: &[],
-                arguments: &[],
-                argument_contents: &[],
-            },
-            &make_origin(vec![formal]),
-        )?;
-        origins
-            .iter()
-            .map(|origin| replay.exported(&machine, origin))
-            .collect::<Option<Vec<_>>>()
+        let history = States::from([(machine.entry, observed.clone())]);
+        let reads = DescriptorReadDepth::at(&machine, &state, Some(&history));
+        let origins = replay.substitute_actuals_with_depth(&machine, &state, DescriptorActualInputs {
+            native_address_arguments: &native_address_arguments,
+            scalar_arguments: &[], arguments: &[], argument_contents: &[],
+        }, &make_origin(vec![formal]), &reads)?;
+        origins.iter().map(|origin| replay.exported(&machine, origin)).collect::<Option<Vec<_>>>()
     };
     assert!(bind(Some(local.clone()), None, true, Some(scalar)).is_none());
     assert!(matches!(
         bind(Some(input.clone()), None, true, Some(scalar)).as_deref(),
         Some([DescriptorStoredOrigin::Parameter { position: 0, projection }]) if projection == &Projection::new(&[])
+    ));
+    // address_of(@input) forms its address through a temporary pointer. By
+    // the time the scalar address is passed, that pointer has been released.
+    let mut referent = temporary;
+    referent.path.push(DescriptorPathSegment::Referent);
+    assert!(matches!(
+        bind(Some(referent), None, true, Some(scalar)).as_deref(),
+        Some([DescriptorStoredOrigin::Parameter { position: 0, .. }])
     ));
     for relayed in [Some(forwarded), None] {
         assert!(matches!(

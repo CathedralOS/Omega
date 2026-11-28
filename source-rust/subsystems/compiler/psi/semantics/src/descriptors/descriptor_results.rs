@@ -770,14 +770,19 @@ pub fn descriptor_machine(
 }
 
 /// Backing of a scalar actual needed when a callee forms a reference from it.
+#[derive(Clone)]
+pub struct NativeAddressObservation {
+    pub(crate) at: DescriptorPosition,
+    pub(crate) location: DescriptorLocation,
+    pub(crate) projection: Option<Projection>,
+    pub(crate) pointee: Option<StructuralTypeId>,
+    pub(crate) storage_address: bool,
+}
+
 pub struct NativeAddressActual {
     pub parameter: ValueId,
     pub(crate) exact: bool,
-    pub(crate) sources: Vec<(
-        DescriptorLocation,
-        Option<Projection>,
-        Option<StructuralTypeId>,
-    )>,
+    pub(crate) sources: Vec<NativeAddressObservation>,
     pub(crate) parameters: Vec<ValueId>,
 }
 

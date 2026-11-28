@@ -797,10 +797,12 @@ impl<'a> Replay<'a> {
                         return Ok(None);
                     };
                     located.extend(actual.parameters.iter().copied().map(StorageWriteTarget::NativeAddress));
-                    for (source, _, _) in &actual.sources {
-                        if let Some(targets) = self.native_write_targets(machine, before, source) {
+                    for observed in &actual.sources {
+                        let Some(captured) = states.get(&observed.at) else { return Ok(None); };
+                        let source = &observed.location;
+                        if let Some(targets) = self.native_write_targets(machine, captured, source) {
                             located.extend(targets);
-                        } else if let Some(storage) = self.canonical_storage(machine, before, source, None) {
+                        } else if let Some(storage) = self.canonical_storage(machine, captured, source, None) {
                             located.push(StorageWriteTarget::Storage(storage));
                         } else {
                             return Ok(None);
@@ -2558,6 +2560,24 @@ impl<'a> Replay<'a> {
         self.project(machine, value, Some(projection))
     }
 
+    fn observed_native_source(
+        &self,
+        machine: &DescriptorMachine,
+        source: &NativeAddressObservation,
+        reads: &DescriptorReadDepth<'_>,
+    ) -> Value {
+        let history = reads.history.filter(|(owner, _)| owner.id == machine.id).map(|(_, rows)| rows)
+            .or_else(|| self.snapshots.get(&machine.id)?.ready().map(|prepared| prepared.before.as_ref()))?;
+        let state = history.get(&source.at)?;
+        let observed = DescriptorReadDepth::at(machine, state, Some(history));
+        if source.storage_address {
+            let value = self.capture_storage(machine, state, &source.location, &observed);
+            self.project(machine, value, source.projection.as_ref())
+        } else {
+            self.captured_source_value(machine, state, &source.location, source.projection.as_ref(), &observed)
+        }
+    }
+
     /// Capture the address that a reference or inline collection view
     /// borrows. Replacing a resident value never changes that address.
     fn capture_storage(
@@ -3558,24 +3578,22 @@ impl<'a> Replay<'a> {
                         } else {
                             Origin::Backing(origin.clone())
                         };
-                        // An imprecise native address has both a typed formation and
-                        // enclosing storage which constrains that formation's lifetime.
-                        // Preserve every captured backing when adding the formation.
-                        let mut values = if matches!(
-                            origin,
-                            Origin::Backing(DescriptorCallOrigin::NativeAddress { .. })
-                        ) && step
-                            .derivations
-                            .iter()
-                            .any(|(_, destination)| destination == location)
-                        {
-                            after.slots.get(location)?.clone()?
-                        } else {
-                            BTreeSet::new()
-                        };
-                        values.insert(origin);
-                        after.slots_mut().insert(location.clone(), Some(values));
+                        after.slots_mut().insert(location.clone(), Some(BTreeSet::from([origin])));
                     }
+                }
+                if let Some(formation) = step.native_borrow.as_deref() {
+                    let (destination, sources) = formation;
+                    let mut values = BTreeSet::new();
+                    if let Some(issued) = machine.originations.get(&position) {
+                        values.extend(issued.iter().filter_map(|(location, origin)| {
+                            (location == destination && matches!(origin, DescriptorCallOrigin::NativeAddress { .. }))
+                                .then(|| Origin::Backing(origin.clone()))
+                        }));
+                    }
+                    for source in sources {
+                        values.extend(self.observed_native_source(machine, source, &reads)?);
+                    }
+                    after.slots_mut().insert(destination.clone(), Some(values));
                 }
                 if let Some(call) = machine.direct_call(position)
                     && call.argument_contents.iter().all(Option::is_some)
@@ -4002,21 +4020,10 @@ impl<'a> Replay<'a> {
                     if !actual.parameters.is_empty() {
                         forwarded_exact &= actual.exact;
                     }
-                    for (location, offset, pointee) in &actual.sources {
-                        let enclosing =
-                            !*exact_parameters || !actual.exact || *pointee != Some(referent);
+                    for source in &actual.sources {
+                        let enclosing = !*exact_parameters || !actual.exact || source.pointee != Some(referent);
                         needs_formation |= enclosing;
-                        let value = if let Some(offset) = offset {
-                            self.captured_source_value(
-                                machine,
-                                state,
-                                location,
-                                Some(offset),
-                                reads,
-                            )
-                        } else {
-                            self.capture_storage(machine, state, location, reads)
-                        };
+                        let value = self.observed_native_source(machine, source, reads);
                         if enclosing {
                             let bound = Projection::new(&[]).as_native_enclosing_storage();
                             origins.extend(self.project(machine, value, Some(&bound))?);

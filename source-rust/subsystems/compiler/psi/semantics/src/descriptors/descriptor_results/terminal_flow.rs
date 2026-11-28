@@ -936,9 +936,9 @@ fn adapt_flow(
                         &mut step,
                         operation.id,
                         result?,
-                        origin.sources,
+                        origin.observed_sources().map(|(at, source)| (at, *source)),
                         origin.exact,
-                        origin.parameters,
+                        origin.parameters.clone(),
                     )?;
                 }
                 OperationKind::UpgradeMutability { source } => {
@@ -2583,33 +2583,32 @@ pub(crate) fn captured_storage_source(
     ))
 }
 impl DescriptorMachine {
-    /// Capture a scalar actual at the ordinary pre-call cut. Remaining scalar
+    /// Bind a scalar actual using the cut where its address was exposed. Remaining scalar
     /// formals are carried to the enclosing caller until backing becomes known.
     pub fn native_address_actual<'a>(
         &self,
         types: &[StructuralTypeDeclaration],
-        position: DescriptorPosition,
+        _position: DescriptorPosition,
         parameter: ValueId,
-        sources: impl IntoIterator<Item = &'a StructuralArgument>,
+        sources: impl IntoIterator<Item = (DescriptorPosition, &'a StructuralArgument)>,
         exact: bool,
         parameters: Vec<ValueId>,
     ) -> Option<NativeAddressActual> {
-        let sources = sources
-            .into_iter()
-            .map(|source| {
-                let root = *self.place_types.get(&source.place)?;
-                let (location, projection, _) =
-                    captured_storage_source(types, source.place, &source.path, root, position)?;
-                let pointee = crate::runtime_structural_path_tip(types.iter(), root, &source.path)
-                    .map(|declaration| declaration.id);
-                Some((location, projection, pointee))
-            })
-            .collect::<Option<Vec<_>>>()?;
         Some(NativeAddressActual {
-            parameter,
-            exact,
-            sources,
-            parameters,
+            parameter, exact, parameters,
+            sources: sources.into_iter().map(|(at, source)| self.native_observation(types, at, source))
+                .collect::<Option<Vec<_>>>()?,
+        })
+    }
+
+    fn native_observation(
+        &self, types: &[StructuralTypeDeclaration], at: DescriptorPosition, source: &StructuralArgument,
+    ) -> Option<NativeAddressObservation> {
+        let root = *self.place_types.get(&source.place)?;
+        let (location, projection, capture) = captured_storage_source(types, source.place, &source.path, root, at)?;
+        Some(NativeAddressObservation {
+            at, location, projection, storage_address: capture == CapturedBacking::StorageAddress,
+            pointee: crate::runtime_structural_path_tip(types.iter(), root, &source.path).map(|row| row.id),
         })
     }
 
@@ -2623,7 +2622,7 @@ impl DescriptorMachine {
         step: &mut DescriptorFlowStep,
         operation: semantic_vocabulary::OperationId,
         result: &terminal_psi::StructuralOperationResult,
-        sources: impl IntoIterator<Item = &'a StructuralArgument>,
+        sources: impl IntoIterator<Item = (DescriptorPosition, &'a StructuralArgument)>,
         exact: bool,
         parameters: Vec<ValueId>,
     ) -> Option<()> {
@@ -2635,41 +2634,19 @@ impl DescriptorMachine {
         };
         let mut known = false;
         let mut needs_native_formation = false;
-        for source in sources {
+        let mut reads = Vec::new();
+        for (at, source) in sources {
             known = true;
-            let pointee = crate::runtime_structural_path_tip(
-                types.iter(),
-                *self.place_types.get(&source.place)?,
-                &source.path,
-            );
-            let enclosing = !exact || pointee.is_none_or(|row| row.id != referent);
+            let mut observed = self.native_observation(types, at, source)?;
+            let enclosing = !exact || observed.pointee != Some(referent);
             needs_native_formation |= enclosing;
-            let (location, projection, capture) = captured_storage_source(
-                types,
-                source.place,
-                &source.path,
-                *self.place_types.get(&source.place)?,
-                position,
-            )?;
-            step.derivations
-                .push((location.clone(), destination.clone()));
-            if capture == CapturedBacking::StorageAddress {
-                self.storage_derivations
-                    .insert((position, location.clone(), destination.clone()));
+            if enclosing {
+                observed.projection = Some(observed.projection.unwrap_or_else(|| Projection::new(&[])).as_native_enclosing_storage());
             }
-            let projection = if enclosing {
-                Some(
-                    projection
-                        .unwrap_or_else(|| Projection::new(&[]))
-                        .as_native_enclosing_storage(),
-                )
-            } else {
-                projection
-            };
-            if let Some(projection) = projection {
-                self.projections
-                    .insert((position, location, destination.clone()), projection);
-            }
+            reads.push(observed);
+        }
+        if known {
+            step.native_borrow = Some(Box::new((destination.clone(), reads)));
         }
         let origins = self.originations.entry(position).or_default();
         origins.retain(|(location, _)| location != &destination);

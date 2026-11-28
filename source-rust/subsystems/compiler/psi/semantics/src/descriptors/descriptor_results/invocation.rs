@@ -132,9 +132,9 @@ impl DescriptorMachine {
                         types,
                         position,
                         formal,
-                        origin.sources.iter().map(std::borrow::Borrow::borrow),
+                        origin.observed_sources().map(|(at, source)| (at, source.borrow())),
                         origin.exact,
-                        origin.parameters,
+                        origin.parameters.clone(),
                     )?);
             }
         }

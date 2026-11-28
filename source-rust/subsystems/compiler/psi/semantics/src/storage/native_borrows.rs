@@ -5,6 +5,8 @@ use terminal_psi::{OperationKind, StructuralArgument, TerminalMachine};
 pub struct NativeAddressOrigin<S> {
     /// Storage whose observed address contributed to this scalar, including at joins.
     pub sources: Vec<S>,
+    /// Each storage observation retains the cut at which its address was read.
+    pub observations: Vec<((semantic_vocabulary::BlockId, u32), usize)>,
     /// Scalar formals whose actual addresses must be resolved at a direct call.
     pub parameters: Vec<ValueId>,
     /// Every route supplies one unmodified storage address or scalar formal.
@@ -12,8 +14,14 @@ pub struct NativeAddressOrigin<S> {
 }
 
 /// The scalar definition visible at this stage of the compiler.
+impl<S> NativeAddressOrigin<S> {
+    pub fn observed_sources(&self) -> impl Iterator<Item = ((semantic_vocabulary::BlockId, u32), &S)> {
+        self.observations.iter().map(|(at, index)| (*at, &self.sources[*index]))
+    }
+}
+
 pub enum AddressDefinition<S> {
-    Storage(S),
+    Storage(S, (semantic_vocabulary::BlockId, u32)),
     Parameter,
     Forward(ValueId),
     Adjust(ValueId, ValueId),
@@ -28,6 +36,7 @@ pub fn trace_address<S: PartialEq>(
     let mut work = vec![value];
     let mut visited = std::collections::HashSet::new();
     let mut parameters = Vec::new();
+    let mut observations = Vec::new();
     let mut sources = Vec::new();
     let mut exact = true;
     while let Some(value) = work.pop() {
@@ -35,10 +44,12 @@ pub fn trace_address<S: PartialEq>(
             continue;
         }
         match definition(value) {
-            AddressDefinition::Storage(source) => {
-                if !sources.contains(&source) {
+            AddressDefinition::Storage(source, at) => {
+                let index = sources.iter().position(|known| known == &source).unwrap_or_else(|| {
                     sources.push(source);
-                }
+                    sources.len() - 1
+                });
+                observations.push((at, index));
             }
             AddressDefinition::Parameter => parameters.push(value),
             AddressDefinition::Forward(operand) => work.push(operand),
@@ -55,7 +66,8 @@ pub fn trace_address<S: PartialEq>(
     }
     parameters.sort_unstable();
     NativeAddressOrigin {
-        exact: exact && sources.len() + parameters.len() == 1,
+        exact: exact && observations.len() + parameters.len() == 1,
+        observations,
         sources,
         parameters,
     }
@@ -66,14 +78,14 @@ pub fn address_origin(
     value: ValueId,
 ) -> NativeAddressOrigin<&StructuralArgument> {
     trace_address(value, |value| {
-        if let Some(operation) = machine.operations().find(|operation| {
-            operation
-                .result
-                .as_scalar()
-                .is_some_and(|result| result.id == value)
+        if let Some((operation, at)) = machine.blocks.iter().find_map(|block| {
+            block.operations.iter().enumerate().find_map(|(index, operation)| {
+                operation.result.as_scalar().filter(|result| result.id == value)?;
+                Some((operation, (block.id, u32::try_from(index).ok()?)))
+            })
         }) {
             return match &operation.kind {
-                OperationKind::StorageAddress { source } => AddressDefinition::Storage(source),
+                OperationKind::StorageAddress { source } => AddressDefinition::Storage(source, at),
                 OperationKind::ScalarRepresentationView { operand, .. }
                 | OperationKind::IntegerWiden { operand }
                 | OperationKind::IntegerExactCast { operand, .. } => {
