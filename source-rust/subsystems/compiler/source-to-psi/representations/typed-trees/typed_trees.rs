@@ -17,7 +17,7 @@ use symbols::SymbolHandle;
 
 #[derive(Debug, Default, PartialEq, Eq, record_storage::Record)]
 #[record(
-    format = b"OmegaTypedTrees1",
+    format = b"OmegaTypedTrees2",
     write_scope = crate::source_state::type_identity::write_under_own_numbering
 )]
 pub struct TypedTrees {

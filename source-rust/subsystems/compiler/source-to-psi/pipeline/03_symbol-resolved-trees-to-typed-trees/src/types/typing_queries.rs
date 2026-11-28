@@ -91,6 +91,14 @@ pub(crate) fn selected_construction_field_type(
     literal: &TableStructLiteral,
     symbol: SymbolHandle,
 ) -> Result<TypeReferenceHandle, Diagnostic> {
+    if let Some(package) = &literal.package {
+        return package
+            .fields
+            .iter()
+            .find(|f| f.symbol == symbol)
+            .map(|f| f.ty)
+            .ok_or_else(|| crate::unavailable_judgment("package constructor field type"));
+    }
     let table = &program.expression_table;
     let application = [
         table.construction_required_type_reference(expression),

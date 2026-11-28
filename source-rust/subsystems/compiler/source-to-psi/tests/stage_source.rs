@@ -1232,16 +1232,18 @@ fn typed_trees_check_their_record_format_before_reading_the_forest() {
             record_storage::decode::<typed_trees::TypedTrees>(&former_header, limits).unwrap_err();
         assert_eq!(error.reason, "unsupported TypedTrees record format");
     }
-    let mut future = bytes;
-    let header = b"OmegaTypedTrees1";
-    assert!(future.starts_with(header));
-    future[header.len() - 1] = b'2';
-    assert_eq!(
-        record_storage::decode::<typed_trees::TypedTrees>(&future, limits)
-            .unwrap_err()
-            .reason,
-        "unsupported TypedTrees record format",
-    );
+    let header = b"OmegaTypedTrees2";
+    assert!(bytes.starts_with(header));
+    for version in [b'1', b'3'] {
+        let mut other_format = bytes.clone();
+        other_format[header.len() - 1] = version;
+        assert_eq!(
+            record_storage::decode::<typed_trees::TypedTrees>(&other_format, limits)
+                .unwrap_err()
+                .reason,
+            "unsupported TypedTrees record format",
+        );
+    }
 }
 
 fn publish_build(
