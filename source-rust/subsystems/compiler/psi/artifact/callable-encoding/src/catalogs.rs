@@ -81,6 +81,7 @@ wire_enum! {
     Invocation: TerminalCallableInvocation, "TerminalCallableInvocation" {
         1 => Parameter(parameter: U32),
         2 => Service(service: Id),
+        3 => ParameterPath { parameter: U32, path: Path },
     }
     Termination: TerminalCallableTermination, "TerminalCallableTermination" {
         0 => NotGuaranteed,
@@ -116,7 +117,15 @@ mod tests {
                 contract: ContractId::new(7).unwrap(),
                 envelope: TerminalCallableEnvelope {
                     service_reach: vec![ServiceId::new(1).unwrap()],
-                    invocations: vec![TerminalCallableInvocation::Parameter(2)],
+                    invocations: vec![
+                        TerminalCallableInvocation::Parameter(2),
+                        TerminalCallableInvocation::ParameterPath {
+                            parameter: 0,
+                            path: vec![terminal_psi::StructuralPathSegment::Field(
+                                terminal_psi::TerminalIdentityIndex(9),
+                            )],
+                        },
+                    ],
                     suspends: false,
                     blocks: true,
                     termination: TerminalCallableTermination::NotGuaranteed,

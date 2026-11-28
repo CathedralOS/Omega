@@ -96,6 +96,9 @@ impl ExternalProviderNamespace {
                 &source.signature,
                 &supplied.proof,
                 &supplied_envelope,
+                &supplied.parameter_order,
+                &supplied.structural_parameters,
+                &module.types.structural_types,
                 services,
                 &mut qualifications.identities,
             )

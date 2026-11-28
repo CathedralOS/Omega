@@ -447,6 +447,20 @@ pub(crate) fn declare(
                             .find(|(service, _)| *service == id)
                             .map(|(_, identity)| identity.as_str())
                     },
+                    |parameter, path| {
+                        let root = terminal_semantics::callable_envelopes::structural_formal(
+                            &machine.parameter_order,
+                            &machine.structural_parameters,
+                            parameter,
+                        )
+                        .ok_or("generic callback field lost its formal")?;
+                        terminal_semantics::callable_envelopes::callback_path_commitment(
+                            &elaboration.module.types.structural_types,
+                            root,
+                            path,
+                            |id| identities.text(id),
+                        )
+                    },
                 )?;
                 Ok(PreparedDeclaration::Generic(
                     terminal_check_tables::contracts::GenericCallableDeclaration {
@@ -2665,6 +2679,9 @@ pub(crate) fn provider_declaration(
     signature: &Signature,
     proof: &terminal_psi::MachineContract,
     envelope: &terminal_psi::TerminalCallableEnvelope,
+    order: &[terminal_psi::BoundaryParameterKind],
+    structures: &[terminal_psi::StructuralParameterDeclaration],
+    types: &[terminal_psi::StructuralTypeDeclaration],
     services: &crate::publication::reach::ServiceMap,
     identities: &mut TerminalIdentityTableBuilder,
 ) -> Result<CheckedMachineDeclaration, &'static str> {
@@ -2687,6 +2704,21 @@ pub(crate) fn provider_declaration(
             terminal_psi::TerminalCallableInvocation::Parameter(position) => {
                 0u8.hash(&mut commitment);
                 position.hash(&mut commitment);
+            }
+            terminal_psi::TerminalCallableInvocation::ParameterPath { parameter, path } => {
+                2u8.hash(&mut commitment);
+                parameter.hash(&mut commitment);
+                let root = terminal_semantics::callable_envelopes::structural_formal(
+                    order, structures, *parameter,
+                )
+                .ok_or("native callback field lost its formal")?;
+                terminal_semantics::callable_envelopes::callback_path_commitment(
+                    types,
+                    root,
+                    path,
+                    |id| identities.text(id),
+                )?
+                .hash(&mut commitment);
             }
             terminal_psi::TerminalCallableInvocation::Service(service) => {
                 1u8.hash(&mut commitment);

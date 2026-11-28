@@ -101,10 +101,22 @@ pub struct TerminalCallableEnvelope {
     pub termination: TerminalCallableTermination,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TerminalCallableInvocation {
     Parameter(u32),
     Service(ServiceId),
+    /// A callback stored beneath a formal. Its ordered path distinguishes
+    /// separate callbacks even when they have the same callable type.
+    ParameterPath {
+        parameter: u32,
+        path: Vec<StructuralPathSegment>,
+    },
+}
+
+impl TerminalCallableInvocation {
+    pub fn is_parameter(&self) -> bool {
+        matches!(self, Self::Parameter(_) | Self::ParameterPath { .. })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

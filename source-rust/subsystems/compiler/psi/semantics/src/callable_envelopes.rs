@@ -3,11 +3,41 @@
 //! Named envelopes belong to the selected declaration, independently of any
 //! descriptor. Compare parameters by their ordered signature positions.
 
+mod parameter_paths;
+pub use parameter_paths::{callback_path_commitment, structural_formal};
+
 use semantic_vocabulary::{ScalarType, ServiceId};
 use terminal_psi::{
     BoundaryParameterKind, StructuralParameterDeclaration, TerminalCallableEnvelope,
     TerminalCallableInvocation, TerminalCallableTermination, TerminalModule, ValueDeclaration,
 };
+
+/// Only stable projections can name a synchronous callback in a public signature.
+pub fn projected_callback(
+    module: &TerminalModule,
+    root: semantic_vocabulary::StructuralTypeId,
+    path: &[terminal_psi::StructuralPathSegment],
+) -> Option<semantic_vocabulary::CallableContractId> {
+    use terminal_psi::StructuralPathSegment as Step;
+    if !path.iter().all(|step| {
+        matches!(
+            step,
+            Step::Field(_) | Step::Case(_) | Step::FixedIndex(_) | Step::Referent
+        )
+    }) {
+        return None;
+    }
+    let ScalarType::Callable(contract) =
+        crate::primitive_read_projection_type(module.types.structural_types.iter(), root, path)?
+    else {
+        return None;
+    };
+    module
+        .execution
+        .callables
+        .contract(contract)
+        .map(|_| contract)
+}
 
 fn validate_envelope(
     module: &TerminalModule,
@@ -95,6 +125,13 @@ fn validate_bounds(
                     && !matches!(scalar_type, Some(ScalarType::Callable(_)))
                 {
                     return Err("callable invocation ceiling names a non-callable scalar formal");
+                }
+            }
+            TerminalCallableInvocation::ParameterPath { parameter, path } => {
+                let formal = structural_formal(order, structures, *parameter)
+                    .ok_or("callback field entry has no structural formal")?;
+                if path.is_empty() || projected_callback(module, formal, path).is_none() {
+                    return Err("callback field entry does not select a callable in its formal");
                 }
             }
             TerminalCallableInvocation::Service(_) => {}
@@ -191,7 +228,8 @@ pub fn validate_callable_operational_refinements(
             .iter()
             .filter_map(|entry| match entry {
                 TerminalCallableInvocation::Service(service) => Some(*service),
-                TerminalCallableInvocation::Parameter(_) => None,
+                TerminalCallableInvocation::Parameter(_)
+                | TerminalCallableInvocation::ParameterPath { .. } => None,
             })
             .collect();
         if entries != contract.published_synchronous_entries
@@ -227,7 +265,8 @@ pub fn validate_callable_operational_refinements(
             .iter()
             .filter_map(|entry| match entry {
                 TerminalCallableInvocation::Service(service) => Some(*service),
-                TerminalCallableInvocation::Parameter(_) => None,
+                TerminalCallableInvocation::Parameter(_)
+                | TerminalCallableInvocation::ParameterPath { .. } => None,
             })
             .collect();
         if entries != machine.published_synchronous_entries {

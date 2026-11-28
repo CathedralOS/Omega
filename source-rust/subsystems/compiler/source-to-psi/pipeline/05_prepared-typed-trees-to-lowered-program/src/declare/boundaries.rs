@@ -140,6 +140,9 @@ impl BoundaryNamespace {
                 &source.signature,
                 &header.proof,
                 &envelope,
+                &header.parameter_order,
+                &header.structural_parameters,
+                &module.types.structural_types,
                 services,
                 &mut qualifications.identities,
             )
