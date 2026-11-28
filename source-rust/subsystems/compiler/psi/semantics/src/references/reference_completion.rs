@@ -891,6 +891,36 @@ pub struct RetainedCallLoan {
     pub lifetime: crate::descriptor_lifetimes::DescriptorLifetime,
 }
 
+impl RetainedCallLoan {
+    /// A checked upgrade of a stored slice lends its payload, including
+    /// when the caller supplied the descriptor inside a record or array.
+    pub fn upgraded_view_descriptor(
+        &self,
+        module: &terminal_psi::TerminalModule,
+        machine: &terminal_psi::TerminalMachine,
+        argument: &terminal_psi::StructuralArgument,
+    ) -> Option<crate::descriptor_lifetimes::DescriptorLocation> {
+        if !self.upgraded_mutability {
+            return None;
+        }
+        let ty = machine.structural_place_type(argument.place)?;
+        let types = &module.types.structural_types;
+        if !crate::runtime_structural_path_tip(types.iter(), ty, &self.path)?
+            .shape
+            .is_view_descriptor()
+        {
+            return None;
+        }
+        crate::descriptor_lifetimes::descriptor_location(
+            types,
+            argument.place,
+            ty,
+            &self.path,
+            None,
+        )
+    }
+}
+
 /// The exact retained region for a bound source beneath `argument`.
 /// A loan row captures fields, cases and fixed indices exactly; a
 /// runtime selector chosen inside the callee, a referent crossing or a
@@ -1627,14 +1657,46 @@ fn reference_call_lifetimes_with_index(
             &mut |path, containing_type, slot| {
                 descriptor_path(&module.types.structural_types, containing_type, &slot.path)
                     .ok_or_else(|| refuse("returned view slot has no typed result leaf"))?;
-                if borrowed_descriptor_shape(module, containing_type, &slot.path).is_none() {
+                let Some(result_shape) = borrowed_descriptor_shape(module, containing_type, &slot.path) else {
                     return Ok(());
-                }
+                };
                 let descriptor = DescriptorLocation {
                     root: result.place,
                     path: path.to_vec(),
                 };
                 for origin in &slot.origins {
+                    let upgraded = crate::stored_reference_access(&result_shape) == Some(StructuralAccess::MutableBorrow)
+                        && matches!(origin,
+                        crate::descriptor_results::DescriptorStoredOrigin::Parameter { projection, .. }
+                            | crate::descriptor_results::DescriptorStoredOrigin::IncomingContents { projection, .. }
+                            if projection.upgraded_mutability
+                    );
+                    if upgraded {
+                        let (position, path) = super::reference_origins::descriptor_regions::descriptor_input_origin_path(
+                            &module.types.structural_types, parameters, origin,
+                        ).map_err(refuse)?;
+                        let argument = arguments.get(position)
+                            .ok_or_else(|| refuse("upgraded view result has no actual input"))?;
+                        let formal = &parameters[position];
+                        let mut input_path = Vec::new();
+                        for step in path {
+                            if crate::runtime_structural_path_tip(module.types.structural_types.iter(), formal.structural_type, &input_path)
+                                .is_some_and(|row| row.shape.is_view_descriptor())
+                            {
+                                break;
+                            }
+                            let terminal_psi::ReferenceOriginProjection::Exact(segment) = step else { break; };
+                            input_path.push(segment);
+                        }
+                        let mut actual_path = argument.path.clone();
+                        actual_path.extend(input_path);
+                        let lifetime = compute_lifetime(&descriptor);
+                        if lifetime.live.contains(&at) {
+                            return Err(refuse("upgraded view result loan crosses its own call formation"));
+                        }
+                        retain_call_lifetime(&mut retained, position, retained_call_path(argument, &actual_path), true, lifetime);
+                        continue;
+                    }
                     let crate::descriptor_results::DescriptorStoredOrigin::Parameter {
                         position,
                         projection,

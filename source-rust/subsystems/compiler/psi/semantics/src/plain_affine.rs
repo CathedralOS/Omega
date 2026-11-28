@@ -2067,10 +2067,16 @@ fn walk(
                 if !place.is_some_and(|place| matches!(place.kind,
                     StructuralPlaceKind::OperationResult { producer, structural_type }
                         if producer == operation.id && structural_type == result.structural_type))
-                    || !declaration.is_some_and(|declaration| matches!(declaration.shape,
+                    || !declaration.is_some_and(|declaration| match &operation.kind {
+                        terminal_psi::OperationKind::UpgradeMutability { source } => {
+                            crate::mutability_upgrade_source(machine, types, source, &declaration.shape).is_some()
+                                && !declaration.is_copyable()
+                        }
+                        _ => matches!(declaration.shape,
                         terminal_psi::StructuralTypeShape::Reference { access, .. }
                             if access != StructuralAccess::Owned
-                                && (!declaration.is_copyable() || access == StructuralAccess::SharedBorrow)))
+                                    && (!declaration.is_copyable() || access == StructuralAccess::SharedBorrow)),
+                    })
                 {
                     return Err(Error::malformed(
                         "permission result has no exact reference producer declaration",

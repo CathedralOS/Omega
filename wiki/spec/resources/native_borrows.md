@@ -62,7 +62,11 @@ placement nor instruction-fetch visibility.
 input's remaining lifetime. The caller vouches for writable backing and
 exclusive access for that interval. Suspend use through the input borrow
 during the exclusive loan and reject known conflicting borrows. A fresh
-variable holding the result still aliases the original storage.
+variable holding the result still aliases the original storage. For a shared
+slice `part: @[u32]`, `|unsafe|::upgrade_mutability::<[u32]>(part)` returns
+a mutable slice with the same start and element count. If `part` covered
+elements 1 and 2 of an array, writing through the result can change those
+two elements.
 
 Writes invalidate value facts about the affected place for the checker and
 optimizer. Disjoint places retain their facts. Ordinary obligations apply

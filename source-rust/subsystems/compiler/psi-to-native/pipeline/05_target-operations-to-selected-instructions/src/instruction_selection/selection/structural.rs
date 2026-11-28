@@ -702,6 +702,76 @@ pub(crate) mod descriptor_operands {
         Ok(Some([backing, length]))
     }
 
+    /// Preserve the current start and extent. A dynamically sized slice carries
+    /// its count in word one; a fixed-capacity byte view carries it in its type.
+    pub(crate) fn upgrade(
+        function: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
+        builder: &mut Builder<'_>,
+        row: &legalized_operations::LegalizedScalarInstruction,
+    ) -> Result<(), SelectedInstructionError> {
+        let legalized_operations::LegalizedScalarInstructionKind::UpgradeMutability {
+            result,
+            source,
+            indices,
+            shape,
+        } = &row.kind
+        else {
+            return Err(invalid());
+        };
+        let (selected, from) = source_geometry(function, source).ok_or_else(invalid)?;
+        let geometry = function.geometry();
+        let to = &geometry
+            .declaration(result.structural_type)
+            .map_err(|_| invalid())?
+            .shape;
+        let formal = crate::instruction_selection::selection::arrival_parameter_input::parameter(
+            function,
+            source.place,
+        );
+        let formal_access = formal
+            .filter(|_| source.path.is_empty())
+            .map(|param| param.access);
+        let occurrence = formal_access.filter(|access| *access != terminal_psi::StructuralAccess::Owned).or_else(|| {
+            let multiplicity = formal.map(|param| param.multiplicity).or_else(|| {
+                crate::instruction_selection::selection::aggregate_result_input::operation_result(function, source.place)
+                    .map(|(_, source)| source.multiplicity)
+            })?;
+            terminal_semantics::descriptor_results::descriptor_value_access(geometry.iter(), selected.selected, multiplicity)
+        });
+        if row.result.is_some()
+            || source.access != terminal_psi::StructuralAccess::SharedBorrow
+            || result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
+            || !result.claims.is_empty()
+            || !result.qualification_establishments.is_empty()
+            || !calling_conventions::terminal_layout::is_native_view_descriptor_at(
+                &from,
+                formal_access,
+            )
+            || !calling_conventions::terminal_layout::is_native_view_descriptor(to)
+            || !terminal_semantics::mutability_upgrade_shapes_match(&from, occurrence, to)
+            || crate::instruction_selection::structural_inputs::shape(
+                result.structural_type,
+                geometry,
+            ) != Some(*shape)
+            || crate::instruction_selection::selection::aggregate_result_input::home(
+                function,
+                result.place,
+            ) != Some((row.operation, result))
+        {
+            return Err(invalid());
+        }
+        let (pointer, length) = match to {
+            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedView {
+                ..
+            }) => (backing(function, builder, row, source, indices)?, None),
+            _ => {
+                let [pointer, length] = view_words(function, builder, row, source, indices)?;
+                (pointer, Some(length))
+            }
+        };
+        super::reference::write_descriptor(builder, row, result, pointer, length)
+    }
+
     pub(crate) fn backing(
         function: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
@@ -3587,20 +3657,20 @@ pub(crate) mod reference {
         write_descriptor(builder, row, result, value, codec)
     }
 
-    fn write_descriptor(
+    pub(super) fn write_descriptor(
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
         result: &terminal_psi::StructuralOperationResult,
         value: super::VirtualRegisterId,
-        codec: Option<super::VirtualRegisterId>,
+        second_word: Option<super::VirtualRegisterId>,
     ) -> Result<(), SelectedInstructionError> {
-        let byte_size = if codec.is_some() { 16 } else { 8 };
+        let byte_size = if second_word.is_some() { 16 } else { 8 };
         let slot =
             builder
                 .transport
                 .push_structural_local_slot(row.operation, result.place, byte_size, 8);
         let home = super::local_storage::address(builder, row, slot, 0, byte_size, true)?;
-        if let Some(codec) = codec {
+        if let Some(second_word) = second_word {
             memory(
                 builder,
                 row,
@@ -3609,7 +3679,7 @@ pub(crate) mod reference {
                 8,
                 SelectedMemoryAccessRole::WritePlace,
             )?;
-            builder.emit_store(8, 8, home, codec, provenance(row))?;
+            builder.emit_store(8, 8, home, second_word, provenance(row))?;
         }
         memory(
             builder,
@@ -6397,6 +6467,14 @@ pub(crate) fn operation(
             element_establishment::establish(source, builder, row)?
         }
         Kind::BorrowAt { .. } => reference::borrow_at(source, row, builder)?,
+        Kind::UpgradeMutability { result, .. }
+            if source
+                .geometry()
+                .declaration(result.structural_type)
+                .is_ok_and(|ty| ty.shape.is_view_descriptor()) =>
+        {
+            descriptor_operands::upgrade(source, builder, row)?
+        }
         Kind::UpgradeMutability { .. }
         | Kind::EstablishReference { .. }
         | Kind::EstablishAccessReference { .. } => reference::establish(source, row, builder)?,

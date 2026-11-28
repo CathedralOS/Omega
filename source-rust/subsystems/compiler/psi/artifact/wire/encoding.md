@@ -1158,7 +1158,7 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 143 | PackedIntegerUnary | selector byte, optional shift count, source structural argument |
 | 144 | ElementViewFixedArray | source structural argument naming a shared element or byte view + length value id + `u64` extent + obligation id; affine shared reference to `[T; extent]` result, immediately after the view's length measurement |
 | 145 | BorrowAt | address value id; affine shared or mutable reference result specifies referent type and access |
-| 146 | UpgradeMutability | structural argument selecting the input shared reference; affine mutable result preserves its referent, extent and lifetime |
+| 146 | UpgradeMutability | structural argument selecting the input shared reference or typed view; the affine mutable result preserves its referent or exact view geometry, extent and lifetime |
 
 Tag 142 selects wrapping 16-bit addition (0), wrapping 16-bit subtraction
 (1), a two-input shuffle (2), wrapping 16-byte unsigned addition (3),
