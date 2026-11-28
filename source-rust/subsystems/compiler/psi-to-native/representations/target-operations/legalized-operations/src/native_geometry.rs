@@ -246,7 +246,7 @@ pub type NativeFunction<'a> = NativeInput<'a, crate::LegalizedScalarFunction>;
 
 #[cfg(test)]
 mod tests {
-    use super::{NativeGeometries, NativeGeometry};
+    use super::{NativeGeometries, NativeGeometry, StorageLayoutInputs};
     use crate::structural_inputs::structural_reference_input as geometry;
     use calling_conventions::ValueShape;
     use semantic_vocabulary::{
