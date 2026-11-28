@@ -1,0 +1,33 @@
+use {omega}/language/core/unsafe.omg as trust;
+
+// The C runtime owns one initialized error number per thread. Each helper
+// finishes using its borrowed slot before the next foreign call.
+boundary trait ThreadError {
+    machine slot() -> address reaches |trust|::ForeignCodeExecution crashes none;
+}
+
+machine read_error(location: address) -> i32 {
+    let cell: @i32 = |trust|::borrow_at::<i32>(location);
+    $cell
+}
+
+machine set_error(location: address, value: i32) {
+    let cell: @mutable i32 = |trust|::borrow_mutable_at::<i32>(location);
+    $cell = value;
+}
+
+machine main()
+reaches |trust|::ForeignCodeExecution, |trust|::RawMemoryRead, |trust|::RawMemoryWrite
+invokes ThreadError
+crashes Trap
+{
+    let initial: i32 = read_error(ThreadError::slot());
+    set_error(ThreadError::slot(), 174i32);
+    let observed: i32 = read_error(ThreadError::slot());
+    set_error(ThreadError::slot(), 93i32);
+    let changed: i32 = read_error(ThreadError::slot());
+    set_error(ThreadError::slot(), initial);
+    let restored: i32 = read_error(ThreadError::slot());
+    transition observed == 174i32 && changed == 93i32 && restored == initial { true -> {}, false -> wrong() }
+    machine wrong() { crash Trap; }
+}
