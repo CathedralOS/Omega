@@ -1,0 +1,46 @@
+use {omega}/language/core/unsafe.omg as trust;
+use {omega}/language/core/external_binding.omg as external;
+use main.omg as app;
+
+machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Application { name: "thread_error" };
+    Build::enable_unsafe::<|trust|::ForeignCodeExecution>(plan);
+    Build::enable_unsafe::<|trust|::RawMemoryRead>(plan);
+    Build::enable_unsafe::<|trust|::RawMemoryWrite>(plan);
+
+    Build::bind(plan, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind_native::<|app|::ThreadError::slot>(plan, linux_x86_64,
+        |external|::ForeignBinding::DllImport {
+            import: |external|::DllImport::ElfVersioned { object: "libc.so.6", symbol: "__errno_location", version: "GLIBC_2.2.5" }
+        });
+
+    Build::bind(plan, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind_native::<|app|::ThreadError::slot>(plan, linux_arm64,
+        |external|::ForeignBinding::DllImport {
+            import: |external|::DllImport::ElfVersioned { object: "libc.so.6", symbol: "__errno_location", version: "GLIBC_2.17" }
+        });
+
+    Build::bind(plan, macos_x86_64::ProgramEntry, |app|::main);
+    Build::bind_native::<|app|::ThreadError::slot>(plan, macos_x86_64,
+        |external|::ForeignBinding::DllImport {
+            import: |external|::DllImport::MachODylibSymbol { install_name: "/usr/lib/libSystem.B.dylib", symbol: "___error" }
+        });
+
+    Build::bind(plan, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind_native::<|app|::ThreadError::slot>(plan, macos_arm64,
+        |external|::ForeignBinding::DllImport {
+            import: |external|::DllImport::MachODylibSymbol { install_name: "/usr/lib/libSystem.B.dylib", symbol: "___error" }
+        });
+
+    Build::bind(plan, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind_native::<|app|::ThreadError::slot>(plan, windows_x86_64,
+        |external|::ForeignBinding::DllImport {
+            import: |external|::DllImport::PeByName { library: "msvcrt.dll", export: "_errno" }
+        });
+
+    Build::bind(plan, windows_arm64::ProgramEntry, |app|::main);
+    Build::bind_native::<|app|::ThreadError::slot>(plan, windows_arm64,
+        |external|::ForeignBinding::DllImport {
+            import: |external|::DllImport::PeByName { library: "msvcrt.dll", export: "_errno" }
+        });
+}

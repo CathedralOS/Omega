@@ -1,5 +1,7 @@
 //! Compare the published host executable with Psi interpretation of the same entry.
 
+mod process_exit;
+
 use super::file_outputs;
 use super::{SampleProject, host_target, optional_text, parse_header_oracle, with_source_inputs};
 use crate::execution;
@@ -121,6 +123,7 @@ fn equal_bytes(channel: &str, left: &[u8], right: &[u8]) -> Result<(), String> {
 struct Observation {
     termination: String,
     returned_unit: bool,
+    explicit_native_exit: bool,
     exit: Option<i32>,
     trap: Option<bool>,
     stdout: Vec<u8>,
@@ -156,6 +159,9 @@ impl Observation {
                 .map_err(|_| format!("invalid process status {text:?}"))
         };
         let (exit, trap) = match (source, fields.as_slice()) {
+            ("native", ["explicit-exit", code, _]) if !process_exit_excluded => {
+                (Some(number(code)?), native_trap(&fields)?)
+            }
             ("native", ["exit", code, _]) => (Some(number(code)?), native_trap(&fields)?),
             ("native", ["signal", signal, _]) => {
                 number(signal)?;
@@ -175,6 +181,7 @@ impl Observation {
             termination: termination.replace('\t', " "),
             returned_unit: fields.first() == Some(&"return")
                 || (exit == Some(0) && process_exit_excluded),
+            explicit_native_exit: fields.first() == Some(&"explicit-exit"),
             exit,
             trap,
             stdout: execution::read_bounded(&directory.join("stdout"))?,
@@ -198,6 +205,15 @@ fn agreement(native: &Observation, psi: &Observation) -> Result<(), String> {
     equal_bytes("stderr", &native.stderr, &psi.stderr)?;
     file_outputs::compare(&native.files, &psi.files)?;
     if let Some(code) = psi.exit {
+        if native.explicit_native_exit {
+            if !psi.returned_unit && native.exit == Some(code) {
+                return Ok(());
+            }
+            return Err(format!(
+                "native {} vs Psi {}",
+                native.termination, psi.termination
+            ));
+        }
         if psi.returned_unit && !native.returned_unit && native.exit == Some(0) {
             return Err("unavailable: the native program can exit the process; wait status 0 cannot establish a unit return".into());
         }
@@ -296,11 +312,7 @@ fn run_artifact(
         return Err(format!("unknown process-exit admission {admission}"));
     }
     let expected_trap = report_value(&report, "trap-presentation: ")?;
-    let output = execution::output(
-        Command::new(artifact).current_dir(scratch).stdin(stdin),
-        evidence,
-        "run-native",
-    )?;
+    let (output, explicit_exit) = process_exit::run(&artifact, scratch, stdin, evidence, &report)?;
     let status = bounded_process::BoundedProcessExitStatus::from(output.status);
     let termination = match (status.code(), status.unix_signal()) {
         (Some(code), _) => format!("exit {code}"),
@@ -314,7 +326,10 @@ fn run_artifact(
     } else {
         "other"
     };
-    let termination = termination.replace(' ', "\t");
+    let termination = match explicit_exit {
+        Some(code) => format!("explicit-exit\t{code}"),
+        None => termination.replace(' ', "\t"),
+    };
     fs::create_dir(directory)
         .and_then(|_| fs::write(directory.join("stdout"), output.stdout))
         .and_then(|_| fs::write(directory.join("stderr"), output.stderr))
@@ -429,6 +444,18 @@ mod tests {
         let native_zero =
             read("native", "native\texit\t0\tother\tprocess-exit-possible\n").unwrap();
         let psi_return = read("psi", "psi\treturn\n").unwrap();
+        for code in [0, 326] {
+            let native = read(
+                "native",
+                &format!("native\texplicit-exit\t{code}\tother\tprocess-exit-possible\n"),
+            )
+            .unwrap();
+            let explicit = read("psi", &format!("psi\texit\t{code}\n")).unwrap();
+            agreement(&native, &explicit).unwrap();
+            assert!(agreement(&native, &psi_return).is_err());
+            let other = read("psi", &format!("psi\texit\t{}\n", code ^ 256)).unwrap();
+            assert!(agreement(&native, &other).is_err());
+        }
         assert!(
             agreement(&native_zero, &psi_return)
                 .unwrap_err()

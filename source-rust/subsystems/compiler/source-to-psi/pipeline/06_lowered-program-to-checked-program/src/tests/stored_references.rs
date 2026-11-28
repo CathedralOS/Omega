@@ -674,6 +674,36 @@ machine entry() crashes Trap {{
     assert_ne!(stale, complete, "{stale:?}");
 }
 
+#[test]
+fn constructing_a_record_transfers_the_copy_of_its_shared_reference_array() {
+    let source = r#"
+data File { byte: u8; }
+data Pair<'a> { slots: [@'a File; 2]; }
+machine observe(file: @File) -> u8 { file.byte }
+machine build_entry() crashes Trap {
+    let mutable file: File = File { byte: 17u8 };
+    let slots: [@File; 2] = [@file, @file];
+    let pair: Pair = Pair { slots: slots };
+    transition observe(slots[0]) == 17u8 { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}
+"#;
+    assert_eq!(verdict(source), "accepted");
+    let write_while_borrowed = source.replace(
+        "    transition observe(",
+        "    file.byte = 42u8;\n    transition observe(",
+    );
+    let Ok(RouteVerdict::Rejected { conflicts, .. }) = judge_build(&write_while_borrowed) else {
+        panic!("the original array still retains the loan");
+    };
+    assert!(
+        conflicts
+            .iter()
+            .any(|conflict| { conflict.conflict == crate::LoanConflict::ChangeWhileBorrowed })
+    );
+}
+
 /// The twin: the reference the record holds still suspends the lent storage
 /// until the record is handed on. Writing that storage by its own name
 /// before then is a conflict (loans.md: a mutable child suspends that branch

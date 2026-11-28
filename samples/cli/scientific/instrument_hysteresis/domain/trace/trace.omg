@@ -25,8 +25,8 @@ public machine identify(trace: @mutable Trace, stimulus: i32 in Wrapping) {
     }
     machine first(trace: @mutable Trace, stimulus: i32 in Wrapping) {
         trace.previous = stimulus;
-        trace.rows = 1;
-        trace.ambiguous = 1;
+        trace.rows = 1 as i32 +Wrapping;
+        trace.ambiguous = 1 as i32 +Wrapping;
     }
     machine compare(trace: @mutable Trace, stimulus: i32 in Wrapping) {
         transition stimulus == trace.previous {
@@ -40,8 +40,8 @@ public machine identify(trace: @mutable Trace, stimulus: i32 in Wrapping) {
     }
     machine movement(trace: @mutable Trace, stimulus: i32 in Wrapping) {
         transition stimulus > trace.previous {
-            true -> direction(trace, stimulus, 1),
-            false -> direction(trace, stimulus, 2)
+            true -> direction(trace, stimulus, 1 as i32 +Wrapping),
+            false -> direction(trace, stimulus, 2 as i32 +Wrapping)
         }
     }
     machine direction(trace: @mutable Trace, stimulus: i32 in Wrapping, branch: i32 in Wrapping) {
@@ -81,11 +81,11 @@ public machine residual_statistics(trace: @mutable Trace, residual: i32 in Wrapp
     machine forward(trace: @mutable Trace, absolute: i32 in Wrapping) {
         trace.forward_count = trace.forward_count + 1;
         trace.forward_sum = trace.forward_sum + absolute;
-        trace.forward_max = |math|::max_i32(trace.forward_max as i32, absolute as i32) as i32 +Wrapping;
+        trace.forward_max = |math|::max_i32(trace.forward_max as -Wrapping, absolute as -Wrapping) as +Wrapping;
     }
     machine reverse(trace: @mutable Trace, absolute: i32 in Wrapping) {
         trace.reverse_count = trace.reverse_count + 1;
         trace.reverse_sum = trace.reverse_sum + absolute;
-        trace.reverse_max = |math|::max_i32(trace.reverse_max as i32, absolute as i32) as i32 +Wrapping;
+        trace.reverse_max = |math|::max_i32(trace.reverse_max as -Wrapping, absolute as -Wrapping) as +Wrapping;
     }
 }

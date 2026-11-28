@@ -271,19 +271,18 @@ fn callable_result_refinements(
             .result
             .structural()
             .ok_or_else(|| refuse(Some(body.id), "runtime value has no structural body result"))?;
-        let contents =
-            analysis
-                .result_contents(body.id)
-                .ok_or_else(|| match analysis.flow(body.id) {
-                    Err(error) => CallableResultRefinementError {
-                        machine: Some(body.id),
-                        detail: error.in_module(module),
-                    },
-                    Ok(_) => refuse(
-                        Some(body.id),
-                        "runtime value has no complete actual result origins",
-                    ),
-                })?;
+        let contents = analysis.result_contents(module, body.id).ok_or_else(|| {
+            match analysis.flow(body.id) {
+                Err(error) => CallableResultRefinementError {
+                    machine: Some(body.id),
+                    detail: error.in_module(module),
+                },
+                Ok(_) => refuse(
+                    Some(body.id),
+                    "runtime value has no complete actual result origins",
+                ),
+            }
+        })?;
         declared
             .validate_actual_result(&body.structural_parameters, result, &contents)
             .map_err(|detail| refuse(Some(body.id), detail))?;

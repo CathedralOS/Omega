@@ -224,6 +224,8 @@ pub fn validate(directory: &Path) -> Result<VerifiedRun, String> {
                         expected,
                         require_identical_artifacts,
                         target,
+                        stage_timings: collect_timings,
+                        cold_client_root,
                         ..
                     } => {
                         let source = plan
@@ -244,14 +246,30 @@ pub fn validate(directory: &Path) -> Result<VerifiedRun, String> {
                             );
                         }
                         let suffix = &subject.arguments[command.arguments.len()..];
-                        if suffix.len() != 6
-                            || suffix[0] != "--timings"
-                            || suffix[1] != "--build-dir"
-                            || suffix[3] != "--target"
-                            || suffix[5] != source.display().to_string()
-                            || suffix[4] != *target
+                        let suffix = if *collect_timings {
+                            suffix.strip_prefix(&[String::from("--timings")]).ok_or(
+                                "compiler stage timings requested but absent from arguments",
+                            )?
+                        } else {
+                            suffix
+                        };
+                        if suffix.len() != 5
+                            || suffix[0] != "--build-dir"
+                            || suffix[2] != "--target"
+                            || suffix[3] != *target
                         {
                             return Err("compiler product arguments disagree with plan".into());
+                        }
+                        let recorded_sample = Path::new(&suffix[1])
+                            .parent()
+                            .ok_or("missing recorded sample directory")?;
+                        let source = if let Some(root) = cold_client_root {
+                            crate::cold_client::Client::new(root, recorded_sample).path(source)?
+                        } else {
+                            source.to_owned()
+                        };
+                        if Path::new(&suffix[4]) != source {
+                            return Err("compiler source disagrees with the sample plan".into());
                         }
                         oracle(expected, sample.observations[1].exit_code, &captures[1])?;
                         let relative = Path::new(
@@ -271,7 +289,7 @@ pub fn validate(directory: &Path) -> Result<VerifiedRun, String> {
                             .lines()
                             .filter_map(|line| line.strip_prefix("published native output to "))
                             .collect();
-                        let recorded_build = Path::new(&suffix[2]);
+                        let recorded_build = Path::new(&suffix[1]);
                         let published_image = recorded_build
                             .parent()
                             .ok_or("missing recorded sample directory")?

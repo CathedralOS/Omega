@@ -87,6 +87,18 @@ fn closed_leaf(
         Proposition::ScalarIeeeFloatComparison { .. } => {
             crate::ieee::ieee_relation(proposition, observe)
         }
+        Proposition::FloatIntegerConversion(clause) => {
+            use numerics::float_semantics::{FloatSemanticEvaluationError, FloatToIntegerError};
+            match crate::closed_float_integer_conversion(clause, observe, 4096) {
+                Ok(truth) => truth,
+                Err(FloatSemanticEvaluationError::IntegerConversion(
+                    FloatToIntegerError::MaterializationLimit { .. },
+                )) => {
+                    return Err(ClosedIntegerEvaluationError::ResourceLimitExceeded);
+                }
+                Err(_) => None,
+            }
+        }
         Proposition::Equal(left, right) if left.scalar_type() == ScalarType::Boolean => left
             .boolean_value()
             .zip(right.boolean_value())

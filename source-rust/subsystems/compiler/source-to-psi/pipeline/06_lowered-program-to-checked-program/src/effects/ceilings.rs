@@ -506,12 +506,11 @@ impl Calls<'_> {
     }
     /// Preserve symbolic formal origins. Concrete descriptors authenticate a
     /// code value; selecting one never inspects its body to narrow the type.
-    fn holder(
-        &self,
-        contract: CallableContractId,
-        values: &CallableValuePossibilities,
-        reached: &mut Contributions,
-    ) -> Checked<()> {
+    fn holder(&self, query: CallableValueQuery, reached: &mut Contributions) -> Checked<()> {
+        // The resolver checks each concrete selection against the contract at
+        // its construction. A checked package read may bridge that stored type
+        // to an opened type at this call without changing the selected code.
+        let values = self.resolve(query)?;
         if values.descriptors.is_empty()
             && values.inputs.is_empty()
             && values.unresolved_ceilings.is_empty()
@@ -527,17 +526,11 @@ impl Calls<'_> {
                 .ok_or_else(|| {
                     self.foreign("invoked value names no exact constructed descriptor")
                 })?;
-            if descriptor.contract != contract || self.module.machine(descriptor.machine).is_none()
-            {
-                return Err(
-                    self.foreign("invoked descriptor changes its contract or selected code")
-                );
+            if self.module.machine(descriptor.machine).is_none() {
+                return Err(self.foreign("invoked descriptor has no selected machine"));
             }
         }
         for input in &values.inputs {
-            if input.contract != contract {
-                return Err(self.foreign("invoked formal changes its retained contract"));
-            }
             union(&mut reached.entries, [self.formal(input)?]);
         }
         for ceiling in &values.unresolved_ceilings {
@@ -791,8 +784,7 @@ impl Calls<'_> {
         query: CallableValueQuery,
         reached: &mut Contributions,
     ) -> Checked<()> {
-        let values = self.resolve(query)?;
-        self.holder(contract, &values, reached)?;
+        self.holder(query, reached)?;
         let envelope = &self.contract(contract)?.envelope;
         self.operational(Envelope::Runtime(envelope), reached)?;
         union(&mut reached.reach, envelope.service_reach.iter().copied());
@@ -1280,12 +1272,14 @@ fn judge_axes(
                     let contract = call.inputs.contract.ok_or_else(|| {
                         context.foreign("selected invocation lost its exact contract")
                     })?;
-                    let origins = context.resolve(CallableValueQuery::Scalar {
-                        machine: caller.id,
-                        value: callable,
-                        contract,
-                    })?;
-                    context.holder(contract, &origins, reached)
+                    context.holder(
+                        CallableValueQuery::Scalar {
+                            machine: caller.id,
+                            value: callable,
+                            contract,
+                        },
+                        reached,
+                    )
                 },
                 (call.inputs.callee, call.inputs.required_contract),
                 &mut found,

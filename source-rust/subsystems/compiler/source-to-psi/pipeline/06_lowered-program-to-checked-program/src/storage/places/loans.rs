@@ -61,7 +61,7 @@ mod formation;
 use super::overlap;
 use language_core::ReferenceAccess;
 use semantic_vocabulary::StructuralPlaceKind;
-use semantic_vocabulary::{EdgeId, InvocationSite, ObligationId, PlaceId};
+use semantic_vocabulary::{EdgeId, InvocationSite, MachineId, ObligationId, PlaceId};
 use std::collections::BTreeMap;
 use terminal_check_tables::edges::{Actual, Fate};
 use terminal_check_tables::obligations::{Lender, ObligationKind};
@@ -177,6 +177,9 @@ pub(super) enum ExternalReferent {
 #[derive(Debug, Clone)]
 enum LoanRegion {
     Storage(Backing),
+    /// The descriptor borrows read-only bytes in the program image. Retiring
+    /// its local home cannot release or overwrite those bytes.
+    ImmutableImageBytes(Box<[(MachineId, PlaceId)]>),
     /// An admitted provider establishes a stable reference permission. Its input
     /// loans are retained separately; its address remains unavailable.
     Provider(StructuralAccess),
@@ -192,6 +195,9 @@ struct PayloadCapture {
 impl LoanRegion {
     fn respects_parent(&self, parent: &Self) -> bool {
         match (self, parent) {
+            (Self::ImmutableImageBytes(child), Self::ImmutableImageBytes(parent)) => child
+                .iter()
+                .all(|origin| parent.binary_search(origin).is_ok()),
             (Self::Storage(child), Self::Storage(parent)) => parent.contains_reborrow(child),
             // Exact parent identity was already checked through descriptor
             // flow. This adds no assertion about where its bytes reside.
@@ -235,11 +241,12 @@ fn competing_borrows(
     // dependencies. No address or disjointness fact follows from this case.
     if matches!(
         left_place,
-        LoanRegion::Provider(StructuralAccess::SharedBorrow)
+        LoanRegion::ImmutableImageBytes(_) | LoanRegion::Provider(StructuralAccess::SharedBorrow)
     ) && left.is_exclusive()
         || matches!(
             right_place,
-            LoanRegion::Provider(StructuralAccess::SharedBorrow)
+            LoanRegion::ImmutableImageBytes(_)
+                | LoanRegion::Provider(StructuralAccess::SharedBorrow)
         ) && right.is_exclusive()
     {
         return Some(LoanConflict::AccessExceedsParent);
@@ -382,6 +389,87 @@ fn graph_refusal(
 }
 
 impl<'a> Storage<'a> {
+    /// During one call, a reference held in a borrowed record may be
+    /// reborrowed through the local descriptor that actually holds its
+    /// exclusive loan. The field still supplies its own checked input loan.
+    fn borrows_stored_input_through(
+        &self,
+        references: &mut super::DescriptorAnalysis<'a>,
+        call: &Formed,
+        carrier: &Formed,
+    ) -> bool {
+        if call.invocation.is_none()
+            || call.lifetime.is_some()
+            || call.returned_by.is_some()
+            || call.lender != Lender::Incoming
+            || !call.permitted
+            || carrier.invocation.is_some()
+            || carrier.access != ReferenceAccess::Mutable
+        {
+            return false;
+        }
+        let (Some(source), Some(live)) = (&call.from, &carrier.lifetime) else {
+            return false;
+        };
+        let [
+            DescriptorPathSegment::Referent,
+            DescriptorPathSegment::Field(field),
+        ] = source.path.as_slice()
+        else {
+            return false;
+        };
+        let local = DescriptorLocation::whole(source.root);
+        if !live
+            .authorized
+            .get(&call.at)
+            .is_some_and(|names| names.contains(&local))
+            || !live
+                .surviving
+                .get(&call.at)
+                .is_some_and(|names| names.contains(&local))
+        {
+            return false;
+        }
+        let (LoanRegion::Storage(parent), LoanRegion::Storage(target)) =
+            (&carrier.lineage, &call.lineage)
+        else {
+            return false;
+        };
+        let slot = super::Lineage {
+            root: source.root,
+            segments: source.path.clone(),
+        };
+        let Ok(slot) = self.backing(
+            references,
+            &slot,
+            call.at.0,
+            call.at.1 as usize,
+            Construct::Obligation(call.obligation),
+        ) else {
+            return false;
+        };
+        let (Some(parent_place), Some(slot_place), Some(target_place)) = (
+            parent.single_place(),
+            slot.single_place(),
+            target.single_place(),
+        ) else {
+            return false;
+        };
+        // The record covers the field containing the reference. The target
+        // crosses that exact slot using the independent permission it holds.
+        parent_place.root == slot_place.root
+            && slot_place.root == target_place.root
+            && slot_place
+                .segments
+                .strip_prefix(parent_place.segments.as_slice())
+                == Some(&[DescriptorPathSegment::Field(*field)][..])
+            && target_place
+                .segments
+                .strip_prefix(slot_place.segments.as_slice())
+                == Some(&[DescriptorPathSegment::Referent][..])
+            && parent.strictly_contains(&slot)
+    }
+
     pub(super) fn borrowed_resource(
         &self,
         parameter: &terminal_psi::StructuralParameterDeclaration,
@@ -468,6 +556,24 @@ impl<'a> Storage<'a> {
             return Err(
                 self.unsupported(concerns, "view loan has no original payload correspondence")
             );
+        }
+        if let Some(mut literals) = origins
+            .iter()
+            .map(|source| match source {
+                DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Literal {
+                    machine,
+                    place,
+                }) => Some((*machine, *place)),
+                _ => None,
+            })
+            .collect::<Option<Vec<_>>>()
+        {
+            literals.sort_unstable();
+            literals.dedup();
+            return Ok(PayloadCapture {
+                region: LoanRegion::ImmutableImageBytes(literals.into_boxed_slice()),
+                exact: false,
+            });
         }
         let mut captured = None;
         let mut exact = true;
@@ -1535,6 +1641,22 @@ impl<'a> Storage<'a> {
             Touch::Change | Touch::NativeWrite => ReferenceAccess::Mutable,
         };
         if competing_borrows(loan.access, &loan.lineage, access, backing).is_none() {
+            return Ok(None);
+        }
+        if matches!(touch, Touch::Read | Touch::Change)
+            && let Some((DescriptorPathSegment::Referent, before)) = place.segments.split_last()
+            && let LoanRegion::Storage(touched) = backing
+            && post_loans.formed_at(at).iter().any(|&idx| {
+                let argument = &formed[idx];
+                argument
+                    .from
+                    .as_ref()
+                    .is_some_and(|slot| slot.root == place.root && slot.path == before)
+                    && self.borrows_stored_input_through(references, argument, loan)
+                    && matches!(&argument.lineage, LoanRegion::Storage(target)
+                        if target.same_single_region(touched))
+            })
+        {
             return Ok(None);
         }
         let conflict = match touch {
@@ -2867,12 +2989,14 @@ impl<'a> Storage<'a> {
             return Ok(());
         };
         let concerns = Construct::Machine;
-        let contents = references.result_contents(self.machine).ok_or_else(|| {
-            self.unsupported(
-                concerns,
-                "reference result has no complete actual return-source correspondence",
-            )
-        })?;
+        let contents = references
+            .result_contents(module, self.machine)
+            .ok_or_else(|| {
+                self.unsupported(
+                    concerns,
+                    "reference result has no complete actual return-source correspondence",
+                )
+            })?;
         let actual = terminal_semantics::reference_result_contents(
             self.types,
             &self.lowered.structural_parameters,
@@ -3018,7 +3142,7 @@ impl<'a> Storage<'a> {
                             "returned reference has no actual result descriptor",
                         )
                     })?;
-                    if let Some(identity) = terminal_semantics::reference_loan_parent(
+                    let sources = terminal_semantics::borrowed_loan_sources(
                         module,
                         self.lowered,
                         references,
@@ -3028,10 +3152,9 @@ impl<'a> Storage<'a> {
                             loan.lifetime.as_ref().map(|life| (loan.obligation, life))
                         }),
                     )
-                    .map_err(|reason| self.unsupported(concerns, reason))?
-                    {
-                        returned.push(identity);
-                    }
+                    .and_then(terminal_semantics::BorrowedLoanSources::returned_loans)
+                    .map_err(|reason| self.unsupported(concerns, reason))?;
+                    returned.extend(sources);
                 }
             }
             if returned.is_empty() {
@@ -3283,6 +3406,11 @@ impl<'a> Storage<'a> {
                         earlier.access,
                         &earlier.lineage,
                     ) {
+                        if self.borrows_stored_input_through(references, loan, earlier)
+                            || self.borrows_stored_input_through(references, earlier, loan)
+                        {
+                            continue;
+                        }
                         found = Some((Some(earlier.position), conflict));
                         break;
                     }
@@ -3814,6 +3942,13 @@ fn resolve_effect<'a>(
     let (place, backing) = match effect {
         super::StorageEffect::NativeWrite(place, backing) => {
             return Ok((place, LoanRegion::Storage(backing), Touch::NativeWrite));
+        }
+        super::StorageEffect::CallWrite(place, backing) => {
+            let region = match storage.provider_referent(references, &place, at, concerns)? {
+                Some((_, access)) => LoanRegion::Provider(access),
+                None => LoanRegion::Storage(backing),
+            };
+            (place, region)
         }
         super::StorageEffect::Payload(place) => {
             let backing = storage.borrow_backing(

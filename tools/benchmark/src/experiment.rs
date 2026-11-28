@@ -82,12 +82,24 @@ pub(crate) fn prepare_plan(plan_path: &Path) -> Result<(Plan, PathBuf, String), 
     if let Measurement::Compiler {
         source,
         candidate_source,
+        cold_client_root,
         library_root,
         target,
         ..
     } = &mut plan.measurement
     {
         *source = resolve(&plan.working_directory, source)?;
+        if let Some(root) = cold_client_root {
+            *root = resolve(&plan.working_directory, root)?;
+            if !plan.working_directory.starts_with(&*root)
+                || plan.inputs.iter().any(|input| !input.starts_with(&*root))
+            {
+                return Err(
+                    "cold_client_root must contain the working directory and every declared input"
+                        .into(),
+                );
+            }
+        }
         if let Some(candidate) = candidate_source {
             *candidate = resolve(&plan.working_directory, candidate)?;
             if file_digest(source)? != file_digest(candidate)? {
@@ -102,6 +114,12 @@ pub(crate) fn prepare_plan(plan_path: &Path) -> Result<(Plan, PathBuf, String), 
             }
         }
         *library_root = resolve(&plan.working_directory, library_root)?;
+        if cold_client_root
+            .as_ref()
+            .is_some_and(|root| !library_root.starts_with(root))
+        {
+            return Err("cold_client_root must contain the compiler library".into());
+        }
         if !library_root.is_dir() {
             return Err("library_root must be a directory".into());
         }
@@ -406,14 +424,37 @@ pub(crate) fn measure(
 ) -> Result<(), String> {
     let mut arguments = command.arguments.clone();
     let build_dir = output.join("build");
-    if let Measurement::Compiler { target, .. } = &plan.measurement {
+    let mut directory = plan.working_directory.clone();
+    let mut environment = command.environment.clone();
+    if let Measurement::Compiler {
+        target,
+        stage_timings,
+        cold_client_root,
+        library_root,
+        ..
+    } = &plan.measurement
+    {
         let source = plan
             .measurement
             .compiler_source(&sample.role)
             .ok_or("missing compiler source")?;
+        let source = if let Some(root) = cold_client_root {
+            let client = crate::cold_client::prepare(root, &plan.inputs, output, &mut environment)?;
+            directory = client.path(&directory)?;
+            fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
+            environment.insert(
+                "OMEGA_LIBRARY_ROOT".into(),
+                client.path(library_root)?.display().to_string(),
+            );
+            client.path(source)?
+        } else {
+            source.to_owned()
+        };
         fs::create_dir(&build_dir).map_err(|error| error.to_string())?;
+        if *stage_timings {
+            arguments.push("--timings".into());
+        }
         arguments.extend([
-            "--timings".into(),
             "--build-dir".into(),
             build_dir.display().to_string(),
             "--target".into(),
@@ -430,8 +471,8 @@ pub(crate) fn measure(
     let (observation, captured) = capture(
         &command.program,
         &arguments,
-        &command.environment,
-        &plan.working_directory,
+        &environment,
+        &directory,
         stdin,
         plan.timeout_ms,
     )?;
@@ -479,8 +520,7 @@ pub(crate) fn measure(
                 String::from_utf8_lossy(&captured.stderr)
             );
             sample.compiler_stage_ms = stage_timings(&compiler_text);
-            let artifact =
-                published_executable(&compiler_text, &plan.working_directory, &build_dir)?;
+            let artifact = published_executable(&compiler_text, &directory, &build_dir)?;
             sample.artifact_sha256 = Some(file_digest(&artifact)?);
             sample.artifact_relative_path = Some(
                 artifact
@@ -498,8 +538,8 @@ pub(crate) fn measure(
             let (runtime, result) = capture(
                 &artifact,
                 &[],
-                &command.environment,
-                &plan.working_directory,
+                &environment,
+                &directory,
                 &[],
                 plan.timeout_ms,
             )?;
@@ -536,7 +576,16 @@ pub(crate) fn stage_timings(text: &str) -> BTreeMap<String, f64> {
             && duration.is_finite()
             && duration >= 0.0
         {
-            *stages.entry(label.trim().to_owned()).or_default() += duration;
+            // Observation counts belong to the measurement, not the stage
+            // identity. Runs with different counts must still compare.
+            let label = label.trim();
+            let label = label
+                .rsplit_once("  [n=")
+                .and_then(|(label, count)| {
+                    count.strip_suffix(']')?.parse::<u64>().ok().map(|_| label)
+                })
+                .unwrap_or(label);
+            *stages.entry(label.to_owned()).or_default() += duration;
         }
     }
     stages
@@ -694,8 +743,9 @@ mod tests {
 
     #[test]
     fn keeps_each_samples_stage_values_and_accumulates_repeated_labels() {
-        let rows =
-            stage_timings("  1.25 ms  Psi 05\n  2.75 ms  Psi 05\n garbage ms  bad\n NaN ms  bad\n");
+        let rows = stage_timings(
+            "  1.25 ms  Psi 05\n  2.75 ms  Psi 05  [n=2]\n garbage ms  bad\n NaN ms  bad\n",
+        );
         assert_eq!(rows.len(), 1);
         assert_eq!(rows["Psi 05"], 4.0);
     }

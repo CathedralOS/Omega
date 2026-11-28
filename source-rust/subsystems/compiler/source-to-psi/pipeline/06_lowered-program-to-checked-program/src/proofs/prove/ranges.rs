@@ -65,8 +65,10 @@ use super::{Bound, Direction, ProofNode, Prover, Unproven, node, primitive};
 fn chain_operands(expression: &ScalarTerm) -> Vec<(&ScalarTerm, &ScalarTerm)> {
     match expression {
         ScalarTerm::ExactIntegerDivide { left, right, .. }
-        | ScalarTerm::ExactIntegerRemainder { left, right, .. } => vec![(left, right)],
-        ScalarTerm::WrappingIntegerSubtract { left, right, .. }
+        | ScalarTerm::WrappingIntegerDivide { left, right, .. }
+        | ScalarTerm::ExactIntegerRemainder { left, right, .. }
+        | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
+        | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
         | ScalarTerm::SaturatingIntegerSubtract { left, right, .. } => vec![(left, right)],
         ScalarTerm::WrappingIntegerAdd { left, right, .. }
         | ScalarTerm::SaturatingIntegerAdd { left, right, .. }

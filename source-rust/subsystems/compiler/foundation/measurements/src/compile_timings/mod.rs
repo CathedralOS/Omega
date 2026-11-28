@@ -43,6 +43,7 @@ pub const CHECKED_TARGET_PREPARATION: StageMeta = StageMeta::new(
 pub struct PhaseTiming {
     pub phase: String,
     pub microseconds: u128,
+    pub measurements: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -88,24 +89,30 @@ impl CompileTimings {
         if !self.enabled {
             return;
         }
-        self.add_phase(stage.label(), microseconds);
+        self.add_phase(stage.label(), microseconds, 1);
     }
 
     pub fn extend(&mut self, shared: &Self) {
         if self.enabled {
             for timing in &shared.phases {
-                self.add_phase(timing.phase.clone(), timing.microseconds);
+                self.add_phase(
+                    timing.phase.clone(),
+                    timing.microseconds,
+                    timing.measurements,
+                );
             }
         }
     }
 
-    fn add_phase(&mut self, phase: String, microseconds: u128) {
+    fn add_phase(&mut self, phase: String, microseconds: u128, measurements: u64) {
         if let Some(existing) = self.phases.iter_mut().find(|timing| timing.phase == phase) {
             existing.microseconds = existing.microseconds.saturating_add(microseconds);
+            existing.measurements = existing.measurements.saturating_add(measurements);
         } else {
             self.phases.push(PhaseTiming {
                 phase,
                 microseconds,
+                measurements,
             });
         }
     }
@@ -126,6 +133,7 @@ mod tests {
         assert_eq!(timings.phases().len(), 2);
         assert_eq!(timings.phases()[0].phase, PARSE_FILES.label());
         assert_eq!(timings.phases()[0].microseconds, 24);
+        assert_eq!(timings.phases()[0].measurements, 2);
         assert_eq!(timings.phases()[1].phase, LOAD_FILES.label());
     }
 
@@ -152,11 +160,13 @@ mod tests {
     fn shared_work_adds_to_local_measurements_without_enabling_collection() {
         let mut shared = CompileTimings::enabled();
         shared.add_completed(LOAD_FILES, 7);
+        shared.add_completed(LOAD_FILES, 3);
         let mut local = CompileTimings::enabled();
         local.add_completed(LOAD_FILES, 3);
         local.extend(&shared);
-        assert_eq!(local.phases()[0].microseconds, 10);
-        assert_eq!(shared.phases()[0].microseconds, 7);
+        assert_eq!(local.phases()[0].microseconds, 13);
+        assert_eq!(local.phases()[0].measurements, 3);
+        assert_eq!(shared.phases()[0].microseconds, 10);
         let mut disabled = CompileTimings::default();
         disabled.extend(&shared);
         assert!(disabled.phases().is_empty());

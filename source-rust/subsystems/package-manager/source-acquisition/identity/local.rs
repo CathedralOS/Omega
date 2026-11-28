@@ -12,6 +12,7 @@ validating the lexical invariant without re-consulting the live filesystem.
 */
 
 use super::{IdentityError, SourceLineage, decode_hex, encode_hex, hash_field};
+use record_storage::{Record, RecordError, RecordReader, RecordWriter};
 use sha2::{Digest, Sha256};
 use std::path::{Component, Path, PathBuf};
 
@@ -74,6 +75,24 @@ fn is_portable_path_byte(byte: u8) -> bool {
 pub struct ExternalLocalLineage {
     pub(super) canonical_path: String,
     pub(super) source_context: ExternalSourceContext,
+}
+
+impl Record for ExternalLocalLineage {
+    fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
+        self.source_context.digest().write(output)?;
+        self.canonical_path.write(output)
+    }
+
+    fn read<Context>(input: &mut RecordReader<'_, Context>) -> Result<Self, RecordError> {
+        let context = ExternalSourceContext(<[u8; 32]>::read(input)?);
+        let path = String::read(input)?;
+        input.allocate(
+            Self::recovery_owned_bytes(&path)
+                .ok_or_else(|| input.error("external-local path recovery allowance overflow"))?,
+        )?;
+        Self::from_canonical_path(path, context)
+            .map_err(|_| input.error("invalid external-local package path"))
+    }
 }
 
 impl ExternalLocalLineage {

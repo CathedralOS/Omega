@@ -73,6 +73,12 @@ impl<'closure> PackageCompilationScope<'closure> {
                 )
                 .with_resolution(custody.resolution())
                 .with_preparing_source(custody.preparing_source().cloned());
+                let binding = match (custody.preparing_source(), custody.key().source_lineage()) {
+                    (None, source_acquisition::SourceLineage::ExternalLocal(lineage)) => {
+                        binding.with_local_lineage(lineage)
+                    }
+                    _ => binding,
+                };
                 if custody.key() == root {
                     if let Some(captured) = root_binding.as_ref().filter(|captured| {
                         captured.can_reuse_for(
