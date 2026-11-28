@@ -507,3 +507,50 @@ machine main() {
     let refused = Program::new(source, &[READ, WRITE]).check();
     assert_loan_refusal(&refused);
 }
+
+#[test]
+fn a_caller_tracks_changes_made_by_a_helper_through_its_shared_input() {
+    for (call, postcondition, provable) in [
+        ("set_one(@pair.changed);", "pair.changed == 0u8", false),
+        ("set_one(@pair.changed);", "pair.untouched == 7u8", true),
+        (
+            "_ = read(@pair.changed);",
+            "pair.changed == 0u8 && pair.untouched == 7u8",
+            true,
+        ),
+    ] {
+        let source = format!(
+            r#"
+data Pair {{ changed: u8; untouched: u8; }}
+machine set_one(byte: @u8) {{
+    let writable: @mutable u8 = |native|::upgrade_mutability::<u8>(byte);
+    $writable = 1u8;
+}}
+machine read(byte: @u8) -> u8 {{ $byte }}
+machine observe(pair: @Pair)
+requires pair.changed == 0u8 && pair.untouched == 7u8
+ensures {postcondition}
+{{
+    {call}
+}}
+machine main() {{
+    let mutable pair: Pair = Pair {{ changed: 0u8, untouched: 7u8 }};
+    observe(@pair);
+}}
+"#
+        );
+        let checked = Program::new(&source, &[UPGRADE]).check();
+        let message = report(&checked);
+        assert_eq!(
+            checked.status.success(),
+            provable,
+            "{call} {postcondition}: {message}"
+        );
+        if !provable {
+            assert!(
+                message.contains("cannot prove ensures") && message.contains("observe"),
+                "{message}"
+            );
+        }
+    }
+}
