@@ -2,6 +2,7 @@
 //! operation, or use one publication to request a different reply.
 mod demand;
 mod preparation;
+mod resume;
 mod step;
 pub use demand::caller_demand;
 use application_identity::{
@@ -13,6 +14,7 @@ use application_identity::{
 };
 use language_core::sealed_intrinsics::ActivationOperation;
 pub use preparation::PreparationShape;
+pub use resume::{ResumeShape, resume_shape};
 pub use step::{StepShape, step_shape};
 use terminal_psi::{
     BoundaryMachineDeclaration, BoundaryParameterKind, StructuralAccess, StructuralMultiplicity,
@@ -102,6 +104,51 @@ pub fn prepare_shape(
         return Err("prepare's argument and result binders differ from the worker's signature");
     }
     preparation::result_shape(module, boundary, *selected)
+}
+
+/// Recover the single published preparation for an operation received without a
+/// live owner. Runtime calls additionally check the preparation held by that owner.
+pub fn preparation_for(
+    module: &TerminalModule,
+    boundary: &BoundaryMachineDeclaration,
+) -> Result<semantic_vocabulary::BoundaryMachineId, &'static str> {
+    let mut candidates = module.execution.task_activation_demands.iter().filter_map(|demand| {
+        let terminal_psi::TerminalActivationOrigin::Caller(candidate) = &demand.origin else {
+            return None;
+        };
+        let preparation = module.boundary_machine(candidate.preparation)?;
+        same_preparation(boundary, preparation, candidate.storage).then_some(candidate.preparation)
+    });
+    let first = candidates.next().ok_or("activation has no matching checked preparation")?;
+    if candidates.next().is_some() {
+        return Err("activation has more than one matching preparation");
+    }
+    Ok(first)
+}
+
+fn same_preparation(
+    operation: &BoundaryMachineDeclaration,
+    preparation: &BoundaryMachineDeclaration,
+    storage: terminal_psi::TerminalActivationStorage,
+) -> bool {
+    use terminal_psi::CheckedBoundaryExecution::OwnedActivation;
+    let (Some(operation), Some(preparation)) = (&operation.declaration, &preparation.declaration) else {
+        return false;
+    };
+    let [args, result, worker, plan] = preparation.method_arguments.as_slice() else {
+        return false;
+    };
+    preparation.execution == OwnedActivation(ActivationOperation::Prepare)
+        && match (operation.execution, operation.method_arguments.as_slice()) {
+            (OwnedActivation(ActivationOperation::StepFixed), [a, r, w]) => {
+                storage == terminal_psi::TerminalActivationStorage::Fixed
+                    && (a, r, w) == (args, result, worker)
+            }
+            (OwnedActivation(ActivationOperation::Resume), [a, r, _, w, p]) => {
+                (a, r, w, p) == (args, result, worker, plan)
+            }
+            _ => false,
+        }
 }
 
 fn worker_application_commitment(

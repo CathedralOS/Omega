@@ -2249,6 +2249,27 @@ pub fn named_application_arguments<'a>(
     description: &'a str,
     expected_name: &str,
 ) -> Result<Option<&'a str>, TypeIdentityVisitError> {
+    visit_named_arguments(description, expected_name, |_| {})
+}
+
+/// Read each complete operand when comparing applications with different
+/// telescopes. Nested operands may themselves contain commas and applications.
+pub fn named_application_operands<'a>(
+    description: &'a str,
+    expected_name: &str,
+) -> Result<Option<Vec<&'a str>>, TypeIdentityVisitError> {
+    let mut operands = Vec::new();
+    let matched = visit_named_arguments(description, expected_name, |argument| {
+        operands.push(argument);
+    })?;
+    Ok(matched.map(|_| operands))
+}
+
+fn visit_named_arguments<'a>(
+    description: &'a str,
+    expected_name: &str,
+    mut visit: impl FnMut(&'a str),
+) -> Result<Option<&'a str>, TypeIdentityVisitError> {
     use vocabulary::{Label, TypeForm};
     let mut reader = framing::Reader::new(description);
     let mut syntax = DeclarationIdentitySyntax { depth: 0 };
@@ -2258,7 +2279,11 @@ pub fn named_application_arguments<'a>(
         let start = reader.position();
         while reader.next(b',') {
             reader.expect(b',')?;
+            let argument = reader.position();
             index::static_argument(reader, syntax)?;
+            if name == expected_name {
+                visit(reader.consumed_since(argument));
+            }
         }
         Ok((name == expected_name && start != reader.position())
             .then(|| reader.consumed_since(start)))
