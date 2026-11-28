@@ -178,6 +178,7 @@ struct Saved {
     consumer: PathBuf,
     lock: PathBuf,
     approval: String,
+    manifest: String,
 }
 
 impl Saved {
@@ -192,6 +193,12 @@ impl Saved {
             &[&["--emit-psi", "app.psi"][..], &TARGET, &["build.omg"]].concat(),
         );
         assert!(emitted.status.success(), "{}", report(&emitted));
+        let manifest = String::from_utf8(emitted.stdout)
+            .unwrap()
+            .lines()
+            .find_map(|line| line.strip_prefix("Psi manifest "))
+            .expect("the source publisher reports its manifest")
+            .to_owned();
         let review = omega(
             &source,
             &[
@@ -217,6 +224,7 @@ impl Saved {
             consumer,
             lock,
             approval,
+            manifest,
         }
     }
 
@@ -302,6 +310,7 @@ machine build(builder: @mutable BuildPlan) {
     let mut command = saved.command(&[
         "build",
         "--trusted-artifact",
+        &saved.manifest,
         "--target",
         "linux_x86_64",
         "app.psi",
