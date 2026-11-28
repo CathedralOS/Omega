@@ -234,8 +234,9 @@ impl FixedCallFrame {
     }
 
     pub fn caller_stack_bytes(&self) -> u64 {
-        // The entry and helper return addresses are live before switching stacks.
-        u64::from(self.frame_bytes) + 16
+        // The ordinary call-site measurement already includes entry linkage.
+        // The helper call adds one return address below the wrapper frame.
+        u64::from(self.frame_bytes) + 8
     }
 }
 impl crate::NormalizedForeignCallBinding {
