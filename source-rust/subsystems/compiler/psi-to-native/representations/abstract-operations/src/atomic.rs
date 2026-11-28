@@ -14,10 +14,7 @@ claimed `AtomicResidencyEdge` (`InitialResidency`, `Write`, `AfterEffect`, or
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use language_core::atomic::{
-    AtomicCompareExchangeOnceResultCustody, AtomicExpressionResultCustody, AtomicOrderingPlan,
-    MemoryOrdering,
-};
+use language_core::atomic::{AtomicCompareExchangeOnceResultCustody, MemoryOrdering};
 use semantic_vocabulary::{
     BlockId, OperationId, PlaceId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
     ValueId,
@@ -340,43 +337,6 @@ impl AbstractAtomicEvent {
         self.location().map(|location| location.root)
     }
 
-    pub const fn ordering_plan(&self) -> Option<AtomicOrderingPlan> {
-        match self {
-            Self::Load { ordering, .. } => Some(AtomicOrderingPlan::Load(*ordering)),
-            Self::Store { ordering, .. } => Some(AtomicOrderingPlan::Store(*ordering)),
-            Self::ReadModifyWrite { ordering, .. } => {
-                Some(AtomicOrderingPlan::ReadModifyWrite(*ordering))
-            }
-            Self::Swap { ordering, .. } => Some(AtomicOrderingPlan::Swap(*ordering)),
-            Self::CompareExchange {
-                success, failure, ..
-            } => Some(AtomicOrderingPlan::CompareExchange {
-                success: *success,
-                failure: *failure,
-            }),
-            Self::CompareExchangeOnce {
-                success, failure, ..
-            } => Some(AtomicOrderingPlan::CompareExchangeOnce {
-                success: *success,
-                failure: *failure,
-            }),
-            Self::Fence { .. } => None,
-        }
-    }
-
-    pub const fn result_custody(&self) -> Option<AtomicExpressionResultCustody> {
-        match self {
-            Self::Load { .. }
-            | Self::ReadModifyWrite { .. }
-            | Self::Swap { .. }
-            | Self::CompareExchange { .. } => Some(AtomicExpressionResultCustody::Scalar),
-            Self::CompareExchangeOnce { custody, .. } => {
-                Some(AtomicExpressionResultCustody::CompareExchangeOnce(*custody))
-            }
-            Self::Store { .. } | Self::Fence { .. } => None,
-        }
-    }
-
     pub const fn ordering_is_legal(&self) -> bool {
         match self {
             Self::Load { ordering, .. } => ordering.valid_for_load(),
@@ -393,10 +353,9 @@ impl AbstractAtomicEvent {
     }
 
     pub const fn custody_is_consistent(&self) -> bool {
-        match (self.ordering_plan(), self.result_custody()) {
-            (Some(plan), Some(custody)) => custody.is_valid_for(plan),
-            (None, None) | (_, None) => true,
-            (None, Some(_)) => false,
+        match self {
+            Self::CompareExchangeOnce { custody, .. } => custody.is_canonical(),
+            _ => true,
         }
     }
 

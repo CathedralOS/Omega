@@ -11,7 +11,7 @@ use terminal_psi::{TargetMachineCallable, TerminalAffineCleanupAction, TerminalM
 
 pub(super) fn unproved(
     module: &TerminalModule,
-    frames: &[Frame<'_>],
+    frames: &[std::rc::Rc<Frame<'_>>],
     boundary: &impl Fn(BoundaryMachineId) -> Option<SelectedCall>,
     computed: &super::computed::Invocations,
     summaries: &mut Summaries,
@@ -53,14 +53,13 @@ pub(super) fn unproved(
         for op in block.operations.iter().skip(first) {
             if let Some(call) = op.kind.callable_invocation() {
                 let targets = computed.site(module, boundary, machine_id, op.id);
-                if let Some(row) = targets {
-                    if let Some(failure) = row
+                if let Some(row) = targets
+                    && let Some(failure) = row
                         .selected_machines
                         .iter()
                         .find_map(|&id| visit(id, op.id))
-                    {
-                        return Some(failure);
-                    }
+                {
+                    return Some(failure);
                 }
                 if imported_obligations && !targets.is_some_and(|row| row.targets_are_resolved()) {
                     let envelope = module
@@ -84,7 +83,7 @@ pub(super) fn unproved(
                 continue;
             };
             match SelectedCall::resolve(call.callee, boundary) {
-                Some(SelectedCall::ImportedWait(_) | SelectedCall::UnresolvedImport) => {
+                Some(call) if call.owes_import_progress() => {
                     return Some(PrivateWaitFailure {
                         machine: machine.id,
                         operation: op.id,
@@ -96,7 +95,7 @@ pub(super) fn unproved(
                         return Some(failure);
                     }
                 }
-                None | Some(SelectedCall::PendingProvider) => {}
+                _ => {}
             }
         }
         if let Some((_, call)) = block.terminator.declared_invocation()

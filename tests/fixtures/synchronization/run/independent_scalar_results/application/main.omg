@@ -1,0 +1,12 @@
+use {signals}/main.omg as signals;
+machine wait(signal: @|signals|::Signal) {
+    let resident: u32 = signal.word.load(Receive);
+    transition resident == 1 { true -> wait(signal), _ -> done() }
+    machine done() {}
+}
+machine main() reaches |signals|::Samples crashes none {
+    let observed: u32 = |signals|::Samples::read(0);
+    let mutable signal: |signals|::Signal;
+    signal.word.store(observed, Publish);
+    wait(@signal);
+}

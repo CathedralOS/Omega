@@ -47,6 +47,9 @@ pub(super) fn prepare<'m>(
                 _ => match frame.selected_arm {
                     Some(arm) => {
                         let value = arm == 0;
+                        if let Some(test) = frame.bindings.predicate(*condition) {
+                            memory.assume(test.selected(value));
+                        }
                         frame
                             .bindings
                             .values

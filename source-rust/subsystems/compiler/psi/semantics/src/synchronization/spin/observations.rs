@@ -3,6 +3,7 @@
 //! once. The retry must carry the original borrowed resources to its header.
 
 mod predicate;
+mod scalars;
 use super::{Comparison, Facts, Operand, Scalar, SpinCondition, Subject, Subjects, bind, constant};
 use predicate::{ALWAYS, Guard, NEVER};
 pub(in super::super) use predicate::{Observation, Predicate};
@@ -19,6 +20,28 @@ enum Word {
     Argument(Operand),
     Cell(Subject, Option<Operand>),
     Boolean(Guard),
+    Computed(usize),
+}
+
+impl Word {
+    fn input(&self) -> Option<scalars::Input> {
+        Some(match self {
+            Self::Computed(index) => scalars::Input::Previous(*index),
+            Self::Argument(value) => scalars::Input::Supplied(*value),
+            Self::Literal(value) => scalars::Input::Supplied(Operand::Literal(*value)),
+            _ => return None,
+        })
+    }
+}
+
+impl From<scalars::Input> for Word {
+    fn from(input: scalars::Input) -> Self {
+        match input {
+            scalars::Input::Previous(index) => Self::Computed(index),
+            scalars::Input::Supplied(Operand::Literal(value)) => Self::Literal(value),
+            scalars::Input::Supplied(value) => Self::Argument(value),
+        }
+    }
 }
 
 struct Analysis<'a> {
@@ -28,6 +51,7 @@ struct Analysis<'a> {
     predicate: Predicate,
     resources: Subjects,
     words: Facts<ValueId, Word>,
+    scalar_types: Option<crate::MachineScalarIndex<'a>>,
     reached: Facts<BlockId, Guard>,
     returned: bool,
     first_read: Option<OperationId>,
@@ -52,6 +76,9 @@ impl Analysis<'_> {
     fn boolean(&mut self, word: &Word) -> Option<Guard> {
         match word {
             Word::Boolean(value) => Some(*value),
+            Word::Computed(index) if self.predicate.expressions.reads_cell(*index) => {
+                Some(self.predicate.computed(*index))
+            }
             Word::Literal(Scalar::Boolean(value)) => Some(if *value { ALWAYS } else { NEVER }),
             Word::Cell(subject, None) => Some(self.predicate.observe(
                 subject.clone(),
@@ -65,12 +92,46 @@ impl Analysis<'_> {
     }
 
     fn operation(&mut self, operation: &Operation) -> Option<()> {
-        if operation.declared_invocation().is_some() {
-            return super::inert_unit_call(self.module, operation).then_some(());
+        if let Some(call) = operation.declared_invocation() {
+            if super::inert_unit_call(self.module, operation) {
+                return Some(());
+            }
+            self.scalar_types.as_ref()?;
+            let result = operation.result.scalar()?;
+            let args = call
+                .arguments
+                .iter()
+                .map(|id| self.words.get(id)?.input())
+                .collect::<Option<_>>()?;
+            let value = self.predicate.expressions.helper(self.module, call, args);
+            return bind(&mut self.words, result.id, Word::from(value));
         }
         let target = operation.result.scalar()?.id;
         let word = if let Some(value) = constant(operation) {
             Word::Literal(value)
+        } else if let Some(types) = &self.scalar_types {
+            if let OperationKind::AtomicAccess {
+                place,
+                path,
+                event: AtomicAccessEvent::Load { .. },
+                resident_obligation: None,
+            } = &operation.kind
+            {
+                self.first_read.get_or_insert(operation.id);
+                let subject = self.subject(*place, path)?;
+                Word::Computed(
+                    self.predicate
+                        .expressions
+                        .load(subject, operation.result.scalar()?.scalar_type),
+                )
+            } else {
+                let words = &self.words;
+                Word::Computed(
+                    self.predicate
+                        .expressions
+                        .apply(operation, types, |id| words.get(&id)?.input())?,
+                )
+            }
         } else {
             match &operation.kind {
                 OperationKind::AtomicAccess {
@@ -261,6 +322,28 @@ pub(super) fn derive(
     module: &terminal_psi::TerminalModule,
     machine: &TerminalMachine,
 ) -> Option<(OperationId, Predicate)> {
+    derive_with(module, machine, None).or_else(|| {
+        if !machine.operations().any(|op| {
+            matches!(
+                &op.kind,
+                OperationKind::AtomicAccess {
+                    event: AtomicAccessEvent::Load { .. },
+                    ..
+                }
+            )
+        }) {
+            return None;
+        }
+        let types = crate::MachineScalarIndex::new(machine);
+        derive_with(module, machine, Some(types))
+    })
+}
+
+fn derive_with<'a>(
+    module: &'a terminal_psi::TerminalModule,
+    machine: &'a TerminalMachine,
+    scalar_types: Option<crate::MachineScalarIndex<'a>>,
+) -> Option<(OperationId, Predicate)> {
     let entry = machine.block(&machine.entry)?;
     let header = match &entry.terminator {
         Terminator::Jump {
@@ -275,6 +358,7 @@ pub(super) fn derive(
         machine,
         header,
         predicate: Predicate::new(),
+        scalar_types,
         resources: Subjects::at_entry(machine),
         words: Operand::formals(machine, Word::Argument),
         reached: Facts::default(),

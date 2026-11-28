@@ -1184,11 +1184,11 @@ pub(crate) mod final_image_validation {
                             "callback registrar call has no exact semantic function in the final image",
                         ))?;
                     let operation = match call.owner {
-                        target_operations::CallSiteOwner::Operation(operation) => operation,
-                        target_operations::CallSiteOwner::InvokeNoNormal(_)
-                        | target_operations::CallSiteOwner::Installation { .. }
-                        | target_operations::CallSiteOwner::CleanupAction { .. }
-                        | target_operations::CallSiteOwner::ExternalCompletion(_) => {
+                        target_vocabulary::CallSiteOwner::Operation(operation) => operation,
+                        target_vocabulary::CallSiteOwner::InvokeNoNormal(_)
+                        | target_vocabulary::CallSiteOwner::Installation { .. }
+                        | target_vocabulary::CallSiteOwner::CleanupAction { .. }
+                        | target_vocabulary::CallSiteOwner::ExternalCompletion(_) => {
                             return Err(Diagnostic::error(
                                 "callback address relocation is not owned by a semantic registrar operation",
                             ));

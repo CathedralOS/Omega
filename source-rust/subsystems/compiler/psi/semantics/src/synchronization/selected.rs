@@ -12,11 +12,20 @@ pub enum SelectedCall {
     /// Source judgment precedes target-specific provider installation.
     PendingProvider,
     ImportedWait(SpinWait),
+    ImportedEffects(std::sync::Arc<super::NormalEffects>),
     /// The supplier has an input obligation that has no checked caller-side projection.
     UnresolvedImport,
 }
 
 impl SelectedCall {
+    pub(super) fn owes_import_progress(&self) -> bool {
+        match self {
+            Self::ImportedEffects(effects) => effects.requires_progress(),
+            Self::ImportedWait(_) | Self::UnresolvedImport => true,
+            Self::Local(_) | Self::PendingProvider => false,
+        }
+    }
+
     pub(super) fn resolve(
         callee: TargetMachineCallable,
         boundary: &impl Fn(BoundaryMachineId) -> Option<Self>,
@@ -64,7 +73,12 @@ impl Summaries {
             match SelectedCall::resolve(callee, boundary) {
                 Some(SelectedCall::Local(id)) => current = id,
                 Some(SelectedCall::ImportedWait(wait)) => break Some(wait),
-                Some(SelectedCall::UnresolvedImport | SelectedCall::PendingProvider) | None => {
+                Some(
+                    SelectedCall::ImportedEffects(_)
+                    | SelectedCall::UnresolvedImport
+                    | SelectedCall::PendingProvider,
+                )
+                | None => {
                     break None;
                 }
             }

@@ -1,6 +1,6 @@
 use super::*;
 use crate::embedding::program::TerminalProgram;
-use crate::engine::calls::frames::tests::empty_program;
+use crate::engine::calls::frames::tests::{empty_program, publish_fixture};
 use crate::{TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue};
 use semantic_vocabulary::{EdgeId, ScalarType, StructuralFieldId, StructuralTypeId};
 use terminal_psi::{
@@ -62,8 +62,9 @@ fn instance(
         returned_claims: Vec::new(),
         cleanup_actions: Vec::new(),
     };
+    let program = publish_fixture(&program);
     let execution = TerminalExecution::start_with_program(
-        program.clone(),
+        program.program.clone(),
         &[],
         crate::TerminalStructuralInputs {
             arguments: &[TerminalStructuralValue::minted(
@@ -80,11 +81,7 @@ fn instance(
         None,
         None,
     )?;
-    Ok(TerminalInstance::new(
-        TerminalProgram { program },
-        execution,
-        Vec::new(),
-    ))
+    Ok(TerminalInstance::new(program, execution, Vec::new()))
 }
 
 fn projected_fixture(
@@ -266,6 +263,7 @@ fn whole_borrowed_marker_copies_keep_the_issued_value_and_distinct_homes() {
             },
         ));
 
+    let program = publish_fixture(&program.program);
     let mut conflict = other.clone();
     conflict
         .value
@@ -351,6 +349,7 @@ fn projected_host_atoms_require_exact_paths_types_memberships_and_fresh_identiti
 #[test]
 fn projected_host_observation_preserves_absence_and_replacement() {
     let (program, atom) = projected_fixture(true);
+    let program = publish_fixture(&program.program);
     let mut instance = projected_instance(&program, std::slice::from_ref(&atom)).unwrap();
     assert!(instance.borrowed_entry_host_atom(0, &atom.path).is_err());
     assert!(matches!(

@@ -637,10 +637,14 @@ pub mod reflection {
             let (requirement, declaration, callable) = if let Some((owner, signature)) =
                 typed.trait_machine_signature(selected.symbol)
             {
+                // A bare path describes the requirement declaration, including its
+                // own binders. An applied path must retain the checked instance:
+                // its argument tuple is distinct even if its value types coincide.
+                let closed = typed.closed_requirement_application(signature.symbol);
                 if selected.application.is_some()
-                    || (typed
-                        .closed_requirement_application(selected.symbol)
-                        .is_none()
+                    || (closed.is_none()
+                        && (selected.authored_machine_application.is_valid()
+                            || selected.type_reference.is_valid())
                         && (!typed.trait_type_parameters(owner).is_empty()
                             || !owner.lifetime_parameters.is_empty()
                             || !typed.state_signature_type_parameters(signature).is_empty()
@@ -651,9 +655,7 @@ pub mod reflection {
                             .into(),
                     );
                 }
-                let declaration = typed
-                    .closed_requirement_application(signature.symbol)
-                    .map_or(signature.symbol, |application| application.template);
+                let declaration = closed.map_or(signature.symbol, |application| application.template);
                 (
                     true,
                     declaration,

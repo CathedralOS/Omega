@@ -1,6 +1,8 @@
 //! Source-level synchronization judgments and the execution of their accepted twins.
 
+mod finite_branches;
 mod borrowed_cells;
+mod computed_predicates;
 mod indexed_cells;
 mod multiple_cells;
 mod periodic_updates;
@@ -167,6 +169,10 @@ fn an_unknown_private_input_owes_progress_at_the_call() {
 }
 
 fn expect_unproved_progress(source: &str) {
+    expect_unproved_progress_at(source, "await_change");
+}
+
+fn expect_unproved_progress_at(source: &str, callee: &str) {
     let verdict = judge_build(source).unwrap();
     let RouteVerdict::Rejected {
         unproved,
@@ -189,7 +195,7 @@ fn expect_unproved_progress(source: &str) {
         .authored_span()
         .expect("the wait is an authored call");
     assert!(
-        source[span.span.start..span.span.end].contains("await_change"),
+        source[span.span.start..span.span.end].contains(callee),
         "{span:?}"
     );
     assert!(

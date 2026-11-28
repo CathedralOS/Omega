@@ -84,6 +84,12 @@ pub(super) fn bind(
 ) -> Result<PreparedNativeExecution, Vec<Diagnostic>> {
     let artifact = authorization.artifact();
     let module = artifact.semantic_module();
+    provider_admission::validate_task_activations(
+        artifact.view(),
+        scope.reach(),
+        &proposal.providers().selection,
+        proposal.scope_source().root().target(),
+    )?;
     let identity = |boundary: &terminal_psi::BoundaryMachineDeclaration| {
         module
             .identities

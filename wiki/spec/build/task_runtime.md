@@ -100,6 +100,9 @@ target calling plan, the selected storage plan with its whole-call-graph WCSU
 `StackPlan<M>`, canonical suspension
 crossings with their live loans and backing,
 and cancellation/operational behavior required by the selected start operation.
+Argument, outcome and resident frame types refer to the same storage declarations
+as the worker body. Native admission uses the target layouts selected for that
+program to compute their sizes and alignments.
 Planning is a generated artifact, not an implicit representation-identical cast.
 
 ### Storage plans

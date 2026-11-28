@@ -1208,7 +1208,7 @@ impl<'t> Program<'t> {
                 .ok_or_else(|| {
                     crate::read::unavailable(id, "the refinement check lost its implementation")
                 })?;
-            self.with_method_type_parameters(id, implementation, declared, |program| {
+            self.with_method_parameters(id, implementation, declared, |program| {
                 program.witnessed_signature(declared, arguments, expected)
             })
         } else {
@@ -2847,7 +2847,7 @@ impl<'t> Program<'t> {
                 .then_some(machine.symbol)
                 .or(self.signature_view_owner);
             let outer = std::mem::replace(&mut self.signature_view_owner, owner);
-            let read = self.with_method_type_parameters(id, machine, requirement, |program| {
+            let read = self.with_method_parameters(id, machine, requirement, |program| {
                 program.applied_requirement_signature(id, requirement, RequirementValues::Rigid)
             });
             self.signature_view_owner = outer;

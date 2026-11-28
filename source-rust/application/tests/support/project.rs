@@ -130,3 +130,22 @@ pub fn build_and_run_command(command: &mut Command) -> BuiltProgram {
         execution: Some(result),
     }
 }
+
+/// A working native supplier must return. Bound the run so a lock regression
+/// fails the test even when both admission and execution would otherwise hang.
+pub fn assert_native_returns(executable: &Path, case: &str) {
+    let mut native = Command::new(executable).spawn().unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    loop {
+        if let Some(status) = native.try_wait().unwrap() {
+            assert!(status.success(), "{case}: {status}");
+            return;
+        }
+        if std::time::Instant::now() >= deadline {
+            native.kill().unwrap();
+            native.wait().unwrap();
+            panic!("{case}: the selected native supplier did not return");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+}

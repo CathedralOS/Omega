@@ -861,6 +861,18 @@ pub(crate) mod frames {
             TerminalMachine, TerminalModule, Terminator,
         };
 
+        pub(crate) fn publish_fixture(
+            program: &AdmittedTerminalProgram<'_>,
+        ) -> crate::TerminalProgram<'static> {
+            let module = (**program.catalogs).clone();
+            let optimization =
+                terminal_codec::build_identity_optimization_execution_record(&module).unwrap();
+            let artifact =
+                terminal_codec::CanonicalTerminalArtifact::from_parts(module, optimization, None)
+                    .unwrap();
+            crate::TerminalProgram::retain(artifact.retain_code()).unwrap()
+        }
+
         pub(crate) fn empty_program() -> Arc<AdmittedTerminalProgram<'static>> {
             let machine = MachineId::new(1).unwrap();
             let entry = BlockId::new(1).unwrap();

@@ -1,15 +1,14 @@
-// FAIL CANARY -- a build-dependency helper borrows the root Build and queries
-// the owner's private `launch` through `builder.declarations.entry`. The query
-// resolves under the helper occurrence's own package, never the caller's:
-// passing Build lends operational capability, not visibility into the
-// owner's product namespace, so the helper cannot enumerate it.
+// FAIL CANARY -- the Build registers `helper` as `support`, waits for it,
+// then calls `|configure|::configure`. The compiler checks the imports a
+// Build needs before it runs; registering or preparing a dependency cannot
+// make its code callable by this Build, so the import has no source.
 use {omega}/build/dependency.omg;
 use {support}/configure/configure.omg;
 
 machine build(builder: @mutable BuildPlan)
 suspends
 {
-    builder.product = BuildProduct::Application { name: "product_entry_query_foreign_helper_private_entry" };
+    builder.product = BuildProduct::Application { name: "build_calls_self_registered_dependency" };
     let mutable support_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "helper" });
     |dependency|::with_alias(@mutable support_dependency, "support");
     let support_registration: DependencyRegistration = Build::build_dependency(builder, support_dependency);
