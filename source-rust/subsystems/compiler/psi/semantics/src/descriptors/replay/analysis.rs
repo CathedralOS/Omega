@@ -992,13 +992,17 @@ impl<'a> DescriptorAnalysis<'a> {
             machine.structural_place_type(location.root)?,
             &location.path,
         )?;
-        let StructuralTypeShape::Reference {
-            access: StructuralAccess::SharedBorrow,
-            ..
-        } = terminal_psi::find_structural_type(types, current)?.shape
+        let StructuralTypeShape::Reference { access, .. } =
+            terminal_psi::find_structural_type(types, current)?.shape
         else {
             return None;
         };
+        if !matches!(
+            access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        ) {
+            return None;
+        }
         let origin = self.storage_projection(machine.id, position, location)?;
         let DescriptorCallOrigin::Argument { source, projection } = &origin else {
             return None;
@@ -1025,7 +1029,7 @@ impl<'a> DescriptorAnalysis<'a> {
             parameter.multiplicity,
             parameter.access,
             &path,
-            StructuralAccess::SharedBorrow,
+            access,
         ) {
             return None;
         }
