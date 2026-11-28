@@ -489,6 +489,34 @@ impl std::fmt::Display for BuildSourceAcquisitionError {
 impl std::error::Error for BuildSourceAcquisitionError {}
 
 impl AcquiredBuildSource {
+    /// Identify a failed registration even when its Build ran from a cache snapshot.
+    pub(crate) fn registration_name<'a>(
+        &'a self,
+        alias: Option<&'a str>,
+    ) -> std::borrow::Cow<'a, str> {
+        if let Some(alias) = alias {
+            return alias.into();
+        }
+        match &self.root_request {
+            PackageRootSourceRequest::ExternalLocal { requested_root, .. } => {
+                requested_root.to_string_lossy()
+            }
+            PackageRootSourceRequest::Bundled { name } => name.as_str().into(),
+            PackageRootSourceRequest::Git(request) => {
+                let mut name = format!(
+                    "{} at {}",
+                    request.requested_locator(),
+                    request.requested_revision()
+                );
+                if let PackageSelection::Named(member) = request.selection() {
+                    name.push_str(" package ");
+                    name.push_str(member.as_str());
+                }
+                name.into()
+            }
+        }
+    }
+
     pub fn same_source(&self, other: &Self) -> bool {
         self.lineage == other.lineage && self.navigation == other.navigation
     }

@@ -13,13 +13,13 @@ data Main {
     other: Player;
 }
 
-machine Main::inspect(player: Player)
+machine inspect(player: Player)
 requires
     player in Player::Alive
 {
 }
 
-machine Main::choose(main: @Main, flag: bool)
+machine choose(main: @Main, flag: bool)
 requires
     main.player in Player::Alive
 {
@@ -27,19 +27,19 @@ requires
         true -> main.player,
         false -> main.other,
     };
-    Main::inspect(copy);
+    inspect(copy);
 }
 
-machine Main::main(main: @mutable Main)
+machine observe_player(main: @mutable Main)
 requires
     main.player in Player::Alive
 {
-    Main::choose(main, true);
+    choose(main, true);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start()
 {
-    let mutable entry_storage: Main;
-    Main::main(@mutable entry_storage);
+    let mutable entry_storage: Main = Main { player: Player { health: 1 }, other: Player { health: 0 } };
+    observe_player(@mutable entry_storage);
 }

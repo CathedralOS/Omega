@@ -7587,6 +7587,9 @@ pub(crate) mod trait_scopes {
         )>,
     );
 
+    /// Signatures requested by a particular set of trait scopes, ready for substitution.
+    pub struct CallableSignatureRequests(Vec<CallableSignatureRequest>);
+
     impl TypedTrees {
         pub fn applied_callable_signature(
             &self,
@@ -7642,120 +7645,6 @@ pub(crate) mod trait_scopes {
             matching.next().is_none().then_some(header)
         }
 
-        /// A concrete conformance supplies its required header even when no
-        /// source call enters the member. Close the same requirement as an
-        /// explicit call using the row's declaring (possibly inherited) scope.
-        pub fn prepare_conformance_requirement_headers(&mut self) -> Result<(), &'static str> {
-            let mut requests = Vec::new();
-            let mut request = |receiver: AppliedTraitScope<'_>,
-                               required: &signature::StateSignature| {
-                if !required.type_parameters.is_empty()
-                    || !required.lifetime_parameters.is_empty()
-                    || receiver.keeps_declared_signatures(self)
-                    || self.require_receiving_trait_operands(&receiver).is_err()
-                {
-                    return;
-                }
-                requests.push((
-                    receiver.environment(),
-                    receiver.argument_owner,
-                    required.symbol,
-                    required.name.clone(),
-                ));
-            };
-            for conformance in self.conformances() {
-                if !conformance.type_parameters.is_empty()
-                    || !conformance.lifetime_parameters.is_empty()
-                {
-                    continue;
-                }
-                let Some(root) = AppliedTraitScope::from_conformance(self, conformance) else {
-                    continue;
-                };
-                for row in &conformance.rows {
-                    let Some(receiver) = root.declaring_scope(self, row.declaring_trait) else {
-                        continue;
-                    };
-                    if let Some((owner, required)) = self.trait_machine_signature(row.requirement)
-                        && owner.symbol == receiver.declaration.symbol
-                        && owner.is_boundary
-                    {
-                        request(receiver, required);
-                    }
-                }
-            }
-            for machine in self.machines() {
-                for edge in self.machine_trait_conformances(machine) {
-                    if edge.arguments.is_empty() && edge.trait_lifetime_arguments.is_empty() {
-                        continue;
-                    }
-                    if let Some((owner, required)) =
-                        self.trait_machine_signature(edge.requirement_symbol)
-                        && owner.symbol == edge.symbol
-                        && let Some(receiver) =
-                            AppliedTraitScope::from_machine_conformance(self, machine, edge)
-                    {
-                        request(receiver, required);
-                    }
-                }
-            }
-            for (environment, supplying_owner, required, name) in requests {
-                let receiver = environment
-                    .scope(self)
-                    .ok_or("conformance lost its declaring receiver")?;
-                if self
-                    .closed_requirement_in_scope(&receiver, required)
-                    .is_some()
-                {
-                    continue;
-                }
-                let operands = self.materialize_trait_application_arguments(&environment)?;
-                let application =
-                    self.expression_table
-                        .retain_static_machine_application(required, name, &[]);
-                let row = self
-                    .expression_table
-                    .static_machine_application_mut(application);
-                row.lexical_owner = supplying_owner;
-                row.binding_declaration = required;
-                self.expression_table
-                    .set_static_machine_application_lifetimes(application, required, &[]);
-                self.instantiate_requirement_application(
-                    &environment,
-                    required,
-                    &operands,
-                    application,
-                )?;
-            }
-            Ok(())
-        }
-
-        pub fn prepare_applied_callable_signatures(
-            &mut self,
-        ) -> Result<Vec<signature::StateSignature>, &'static str> {
-            self.prepare_applied_callable_signatures_reporting_change()
-                .map(|(produced, _)| produced)
-        }
-
-        pub fn prepare_applied_callable_signatures_reporting_change(
-            &mut self,
-        ) -> Result<(Vec<signature::StateSignature>, bool), &'static str> {
-            let (invocation_scopes, unchanged_walk) = self.refinement_invocation_scopes()?;
-            // Reuse the occurrence walk when collecting the scopes changed
-            // nothing it could have seen; otherwise walk the changed program.
-            let mut roots = match unchanged_walk {
-                Some(occurrences) => self.applied_trait_roots_from(occurrences),
-                None => self.applied_trait_roots(),
-            };
-            roots.extend(
-                invocation_scopes
-                    .iter()
-                    .filter_map(|scope| scope.scope(self)),
-            );
-            let pending = self.applied_callable_signature_requests(roots);
-            self.prepare_applied_callable_signature_requests(pending)
-        }
-
         /// Prepare the public signatures of the exact retained application
         /// before constructing its runtime actuals. The ordinary program pass
         /// uses the same request and installation operations; this grants no
@@ -7776,14 +7665,13 @@ pub(crate) mod trait_scopes {
                 .applied_requirement_scope(lexical_owner, application)
                 .ok_or("applied callable lost its complete requirement application")?;
             let pending = self.applied_callable_signature_requests(vec![scope]);
-            self.prepare_applied_callable_signature_requests(pending)?;
-            Ok(())
+            pending.apply(self)
         }
 
-        fn applied_callable_signature_requests<'program>(
+        pub fn applied_callable_signature_requests<'program>(
             &'program self,
             mut roots: Vec<AppliedTraitScope<'program>>,
-        ) -> Vec<CallableSignatureRequest> {
+        ) -> CallableSignatureRequests {
             let mut bound_roots = Vec::new();
             for root in &roots {
                 root.visit(self, &mut |scope| {
@@ -7844,13 +7732,13 @@ pub(crate) mod trait_scopes {
                     }
                 });
             }
-            pending
+            CallableSignatureRequests(pending)
         }
+    }
 
-        fn prepare_applied_callable_signature_requests(
-            &mut self,
-            pending: Vec<CallableSignatureRequest>,
-        ) -> Result<(Vec<signature::StateSignature>, bool), &'static str> {
+    impl CallableSignatureRequests {
+        pub fn apply(self, program: &mut TypedTrees) -> Result<(), &'static str> {
+            let pending = self.0;
             let row_key =
                 |requirement: SymbolHandle,
                  declaration: SymbolHandle,
@@ -7861,7 +7749,7 @@ pub(crate) mod trait_scopes {
                         identity,
                     )
                 };
-            let index_rows = |program: &Self| {
+            let index_rows = |program: &TypedTrees| {
                 let mut rows = program
                     .applied_callable_signatures
                     .iter()
@@ -7877,12 +7765,10 @@ pub(crate) mod trait_scopes {
                 rows.sort_unstable();
                 (rows, program.applied_callable_signatures.revision())
             };
-            let (mut prepared_rows, mut indexed_revision) = index_rows(self);
-            let mut wrote = false;
-            let mut produced = Vec::new();
+            let (mut prepared_rows, mut indexed_revision) = index_rows(program);
             for (trait_symbol, owner, identity, requirement, environment, clauses) in pending {
-                if self.applied_callable_signatures.revision() != indexed_revision {
-                    (prepared_rows, indexed_revision) = index_rows(self);
+                if program.applied_callable_signatures.revision() != indexed_revision {
+                    (prepared_rows, indexed_revision) = index_rows(program);
                 }
                 if prepared_rows
                     .binary_search(&row_key(requirement, owner, identity))
@@ -7890,14 +7776,14 @@ pub(crate) mod trait_scopes {
                 {
                     continue;
                 }
-                wrote = true;
                 let mut applied = if let Some(closed) =
-                    self.closed_requirement_application(requirement)
+                    program.closed_requirement_application(requirement)
                 {
                     closed.signature.clone()
                 } else {
-                    let application = self.materialize_trait_application(&environment)?;
-                    let arguments = self.trait_application_arguments(trait_symbol, &application)?;
+                    let application = program.materialize_trait_application(&environment)?;
+                    let arguments =
+                        program.trait_application_arguments(trait_symbol, &application)?;
                     let Some(applied) = CallableApplication {
                         trait_region_application: Some((
                             environment.clone(),
@@ -7905,18 +7791,18 @@ pub(crate) mod trait_scopes {
                         )),
                         ..CallableApplication::default()
                     }
-                    .nominal(self, trait_symbol, requirement, &arguments)?
+                    .nominal(program, trait_symbol, requirement, &arguments)?
                     else {
                         continue;
                     };
                     applied
                 };
-                self.apply_callable_refinements(&mut applied, &clauses)?;
-                let scope = environment.retain(self)?;
+                program.apply_callable_refinements(&mut applied, &clauses)?;
+                let scope = environment.retain(program)?;
                 let inserted = row_key(applied.symbol, owner, identity);
-                produced.push(applied.clone());
-                let before_insert = self.applied_callable_signatures.revision();
-                self.applied_callable_signatures
+                let before_insert = program.applied_callable_signatures.revision();
+                program
+                    .applied_callable_signatures
                     .insert(AppliedCallableSignature {
                         owner: AppliedCallableOwner::Trait {
                             declaration: owner,
@@ -7925,140 +7811,22 @@ pub(crate) mod trait_scopes {
                         },
                         signature: applied,
                     });
-                let after_insert = self.applied_callable_signatures.revision();
+                let after_insert = program.applied_callable_signatures.revision();
                 if before_insert == indexed_revision && after_insert == before_insert + 1 {
                     if let Err(position) = prepared_rows.binary_search(&inserted) {
                         prepared_rows.insert(position, inserted);
                     }
                     indexed_revision = after_insert;
                 } else {
-                    (prepared_rows, indexed_revision) = index_rows(self);
+                    (prepared_rows, indexed_revision) = index_rows(program);
                 }
             }
-            Ok((produced, wrote))
+            Ok(())
         }
 
-        /// The refined invocation scopes, and the occurrence walk they came
-        /// from when collecting them retained no operand type, so the program
-        /// is still exactly the one that walk read.
-        fn refinement_invocation_scopes(
-            &mut self,
-        ) -> Result<
-            (
-                Vec<crate::source_state::trait_definition::TraitApplicationEnvironment>,
-                Option<crate::source_state::references::ProgramApplicationOccurrences>,
-            ),
-            &'static str,
-        > {
-            use crate::source_state::static_applications::StaticMachineBindingValue;
-            use crate::source_state::trait_definition::{
-                AppliedTraitScope, TraitApplicationArguments,
-            };
-            let occurrences =
-                crate::source_state::references::collect_program_application_occurrences(self);
-            let mut scopes = Vec::new();
-            let mut changed = false;
-            for &invocation in &occurrences.invocation_applications {
-                let record = self.static_machine_application(invocation).clone();
-                let Some(machine) = self.machine_by_symbol(record.binding_declaration) else {
-                    continue;
-                };
-                // Any refinement clause changes the callable the bound supplies:
-                // contracts, termination, suspension, blocking or reach. A
-                // selected requirement call reads its contract from this
-                // invocation scope, so each refined bound needs one prepared.
-                let bounds = machine
-                    .conformance_bounds
-                    .iter()
-                    .filter(|bound| {
-                        self.trait_definition_by_symbol(bound.trait_symbol)
-                            .is_some_and(|declaration| !declaration.refinement_clauses.is_empty())
-                    })
-                    .cloned()
-                    .collect::<Vec<_>>();
-                if bounds.is_empty() {
-                    continue;
-                }
-                let mut bindings = self
-                    .static_machine_application_bindings(invocation)
-                    .to_vec();
-                let mut arguments = Vec::with_capacity(bindings.len());
-                let mut retained_types = false;
-                for binding in &mut bindings {
-                    let actual = match &mut binding.value {
-                        StaticMachineBindingValue::Type(reference)
-                        | StaticMachineBindingValue::Const(reference) => *reference,
-                        StaticMachineBindingValue::Machine(argument) => {
-                            if !argument.type_reference.is_valid() {
-                                argument.type_reference = self
-                                    .static_operand_type_reference_in_scope(
-                                        argument,
-                                        record.lexical_owner,
-                                    )?;
-                                retained_types = true;
-                            }
-                            argument.type_reference
-                        }
-                        StaticMachineBindingValue::Conformance(argument) => {
-                            if !argument.type_reference.is_valid() {
-                                return Err(
-                                    "refinement invocation lost its retained implementation operand",
-                                );
-                            }
-                            argument.type_reference
-                        }
-                        StaticMachineBindingValue::Proof(_) => {
-                            return Err(
-                                "refinement invocation needs its retained logical evidence",
-                            );
-                        }
-                        StaticMachineBindingValue::RuntimeValue { .. } => {
-                            return Err(
-                                "refinement postcondition invocation has an unresolved value argument",
-                            );
-                        }
-                    };
-                    arguments.push((binding.parameter, actual));
-                }
-                if retained_types {
-                    changed = true;
-                    self.expression_table
-                        .set_static_machine_application_bindings(invocation, &bindings);
-                }
-                let lifetimes = self.static_application_lifetimes_for_declaration(
-                    invocation,
-                    record.binding_declaration,
-                )?;
-                for bound in bounds {
-                    let declaration = self
-                        .trait_definition_by_symbol(bound.trait_symbol)
-                        .ok_or("refinement invocation lost its bound declaration")?;
-                    let scope = AppliedTraitScope::new(
-                        self,
-                        declaration,
-                        TraitApplicationArguments {
-                            lexical_owner: record.binding_declaration,
-                            enclosing_data_applications: &[],
-                            arguments: &bound.arguments,
-                            lifetimes: &bound.lifetime_arguments,
-                        },
-                    )
-                    .and_then(|scope| {
-                        scope.under_invocation(
-                            self,
-                            record.binding_declaration,
-                            record.lexical_owner,
-                            &arguments,
-                            &lifetimes,
-                        )
-                    })
-                    .ok_or("refinement invocation lost its complete bound scope")?;
-                    scopes.push(scope.environment());
-                }
-            }
-            Ok((scopes, (!changed).then_some(occurrences)))
-        }
+    }
 
+    impl TypedTrees {
         pub fn materialize_trait_application_arguments(
             &mut self,
             environment: &crate::source_state::trait_definition::TraitApplicationEnvironment,

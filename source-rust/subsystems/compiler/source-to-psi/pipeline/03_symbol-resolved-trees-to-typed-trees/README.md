@@ -91,7 +91,7 @@ declarations. Each then checks that its walk reached every call created since
 the cohort began, and walks the whole program if it did not. Two passes still
 walk the whole program because typed trees has no cohort form of them: static
 argument contexts when a cohort machine has a statement call that needs one,
-and `prepare_applied_callable_signatures` when the cohort adds a declaration,
+and [applied callable signature preparation](src/declarations/applied_callable_signatures.rs) when the cohort adds a declaration,
 scope or application that could need an applied signature. Either may rewrite
 retained declarations, so the second runtime call binding then walks the whole
 program too.

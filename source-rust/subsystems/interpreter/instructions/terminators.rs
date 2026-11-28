@@ -1683,10 +1683,11 @@ pub(crate) mod completion {
     pub(crate) enum ReturnDestination<'a> {
         Unit,
         Scalar(ValueId),
-        Structural(
-            &'a terminal_psi::StructuralOperationResult,
-            Option<&'a crate::storage::provider_storage::profiles::PendingResourceProfile>,
-        ),
+        Structural {
+            result: &'a terminal_psi::StructuralOperationResult,
+            profile_completion: Option<&'a crate::storage::provider_storage::profiles::PendingResourceProfile>,
+            opened_owner: Option<semantic_vocabulary::CallableContractId>,
+        },
     }
 
     impl TerminalExecution<'_> {
@@ -1907,8 +1908,13 @@ pub(crate) mod completion {
                 SuspendedCallResult::Structural {
                     result,
                     profile_completion,
+                    opened_owner,
                     ..
-                } => ReturnDestination::Structural(result, profile_completion.as_ref()),
+                } => ReturnDestination::Structural {
+                    result,
+                    profile_completion: profile_completion.as_ref(),
+                    opened_owner: *opened_owner,
+                },
             };
             self.install_completed_value(completed, destination, loan_completions)
         }
@@ -1937,18 +1943,57 @@ pub(crate) mod completion {
                     self.values.insert(destination, *value)?;
                     self.observe_completed_entry_result(destination)
                 }
-                ReturnDestination::Structural(result, profile_completion) => {
+                ReturnDestination::Structural {
+                    result,
+                    profile_completion,
+                    opened_owner,
+                } => {
                     if completed.destination.as_ref() != Some(result) {
                         return Err(malformed());
                     }
+                    let program = std::sync::Arc::clone(&self.program);
+                    let public_owner = opened_owner
+                        .map(|id| {
+                            program
+                                .catalogs
+                                .execution
+                                .callables
+                                .contract(id)
+                                .and_then(|contract| contract.proof_result.structural())
+                                .ok_or_else(malformed)
+                        })
+                        .transpose()?;
                     match &completed.value {
                         TerminalExecutionResult::Structural(returned) => {
                             if let Some(pending) = profile_completion {
                                 self.complete_resource_profile_call(pending, &returned.value)?;
                             }
+                            let mut value = returned.value.clone();
+                            if let Some(public) = public_owner {
+                                if value.structural_type != result.structural_type
+                                    || value.qualifications != result.qualifications
+                                    || value.projected_qualifications
+                                        != result.projected_qualifications
+                                    || completed.byte_sequence.is_some()
+                                    || completed.element_view.is_some()
+                                {
+                                    return Err(malformed());
+                                }
+                                let home =
+                                    crate::boundary::values::StructuralRuntimePlace::from(&value);
+                                if !self.package_owner_storage.contains_key(&home) {
+                                    self.package_owner_storage
+                                        .insert(home, value.structural_type)?;
+                                }
+                                value.structural_type = public.structural_type;
+                                value.qualifications.clone_from(&public.qualifications);
+                                value
+                                    .projected_qualifications
+                                    .clone_from(&public.projected_qualifications);
+                            }
                             if self
                                 .structural_values
-                                .insert(result.place, returned.value.clone())?
+                                .insert(result.place, value)?
                                 .is_some()
                             {
                                 return Err(malformed());
@@ -1971,7 +2016,8 @@ pub(crate) mod completion {
                     let carried = crate::engine::custody::whole_value_frontier(
                         &self.structural_types(),
                         result.place,
-                        result.structural_type,
+                        public_owner
+                            .map_or(result.structural_type, |public| public.structural_type),
                         result.multiplicity,
                         self.live_claim_paths_at(result.place),
                         &|current| self.stored_case_at_discard(&self.structural_values, current),
@@ -2055,6 +2101,7 @@ pub(crate) mod completion {
                         claim_origin: ResultClaimOrigin::CalleeReturn,
                         expected_reference_backings: Vec::new(),
                         preserved_projected_qualifications: Vec::new(),
+                        opened_owner: None,
                         profile_completion: None,
                     },
                     Vec::new(),

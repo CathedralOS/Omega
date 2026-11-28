@@ -161,7 +161,45 @@ pub struct TargetSupplyRequest<'a> {
 }
 
 impl PreparedTargetSupply {
+    /// Reach on an accepted publication uses the checked provider candidates.
     pub fn prepare(request: TargetSupplyRequest<'_>) -> Result<Self, Vec<Diagnostic>> {
+        let module = request.module;
+        Self::prepare_with_applications(request, |boundary, machine, identity| {
+            module
+                .interfaces
+                .provider_candidates
+                .iter()
+                .any(|candidate| {
+                    candidate.boundary == boundary
+                        && candidate.candidate == machine
+                        && module.identities.text(candidate.provider_identity) == Some(identity)
+                })
+        })
+    }
+
+    /// During discovery the selected provider bodies still owe their refinement
+    /// judgments. Follow the exact body and application that lowering submitted
+    /// for that judgment so its dependencies can enter the same source roster.
+    pub fn prepare_from_lowered(
+        request: TargetSupplyRequest<'_>,
+        questions: &[terminal_check_tables::contracts::StaticConformanceQuestion],
+    ) -> Result<Self, Vec<Diagnostic>> {
+        use terminal_check_tables::contracts::StaticImplementation;
+
+        Self::prepare_with_applications(request, |boundary, machine, identity| {
+            questions.iter().any(|question| {
+                question.implementation == StaticImplementation::Machine(machine)
+                    && question.provider.as_ref().is_some_and(|candidate| {
+                        candidate.boundary == boundary && candidate.provider_identity == identity
+                    })
+            })
+        })
+    }
+
+    fn prepare_with_applications(
+        request: TargetSupplyRequest<'_>,
+        matches_application: impl Fn(BoundaryMachineId, MachineId, &str) -> bool,
+    ) -> Result<Self, Vec<Diagnostic>> {
         let TargetSupplyRequest {
             source,
             module,
@@ -309,16 +347,7 @@ impl PreparedTargetSupply {
                                     .application_identity
                                     .as_ref()
                                     .is_none_or(|identity| {
-                                        module.interfaces.provider_candidates.iter().any(
-                                            |candidate| {
-                                                candidate.boundary == boundary
-                                                    && candidate.candidate == row.machine
-                                                    && module
-                                                        .identities
-                                                        .text(candidate.provider_identity)
-                                                        == Some(identity.as_str())
-                                            },
-                                        )
+                                        matches_application(boundary, row.machine, identity)
                                     })
                         })
                         .map(|row| row.machine)

@@ -187,3 +187,46 @@ fn an_array_extent_written_as_a_call_is_evaluated_with_its_own_operand() {
         .collect();
     assert_eq!(arguments, ["width(7u8)", "width(8u8)"]);
 }
+
+#[test]
+fn an_uncalled_requirement_keeps_its_receivers_argument_in_its_input_and_result() {
+    use typed_trees::data::DataMember;
+    use typed_trees_to_prepared_typed_trees::prepare_typed_trees;
+
+    for argument in ["u8", "u64"] {
+        let source = format!(
+            "data Receipt<T> {{ value: T; }}
+             boundary trait Echo<Unused, T> {{
+                 machine restore(x: Receipt<T>) -> Receipt<T> reaches none crashes none;
+             }}
+             Copy satisfies Echo<bool, {argument}> {{
+                 machine restore(x: Receipt<{argument}>) -> Receipt<{argument}> reaches none crashes none {{ x }}
+             }}"
+        );
+        let typed = package::typed(&[("main.omg", &source)]);
+        let prepared = prepare_typed_trees(typed, &[], &[]).unwrap();
+        let program = prepared.trees();
+        let signature = program
+            .closed_requirement_applications()
+            .find(|applied| program.symbols.name(applied.template) == "restore")
+            .expect("Copy must provide restore even when nothing calls it")
+            .signature;
+        let inputs = program.state_parameters.span(signature.parameters).unwrap();
+        let [input] = inputs.as_array().unwrap();
+        for reference in [input.type_reference, signature.return_type] {
+            let receipt = program
+                .closed_data_definition(reference)
+                .expect("a closed Receipt");
+            let [DataMember::Field(value)] = program.data_members(receipt).as_array().unwrap()
+            else {
+                panic!("Receipt.value");
+            };
+            assert_eq!(
+                program
+                    .type_reference_table
+                    .display_name(value.type_reference),
+                argument
+            );
+        }
+    }
+}

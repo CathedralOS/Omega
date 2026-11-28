@@ -83,6 +83,11 @@ For an ambiguous role or non-`main.omg` entry, add one local `sample.json`:
 }
 ```
 
+Set `"package_workflow": "staged"` for a sample whose Build supplies package
+bindings to its successor stages. The gate runs the authored Build for both
+native and Psi execution. The default `"locked"` workflow prepares the version 4
+package lock with `omega packages update` before running the sample.
+
 `source_inputs`, when supplied, is a nonempty list of source-root-relative files
 or subtrees. The caller captures exactly that inventory before Build execution
 and Product discovery; list the required entry, Build companion, and other

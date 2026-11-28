@@ -36,7 +36,9 @@ use terminal_psi::{
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OpenedPackageCall {
     pub admitted_contracts: Vec<semantic_vocabulary::CallableContractId>,
-    pub stored_referents: Vec<(usize, semantic_vocabulary::StructuralTypeId)>,
+    /// A dependent argument retains its complete owned carrier type or the
+    /// referent type stored behind a borrowed package field.
+    pub stored_arguments: Vec<(usize, semantic_vocabulary::StructuralTypeId)>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

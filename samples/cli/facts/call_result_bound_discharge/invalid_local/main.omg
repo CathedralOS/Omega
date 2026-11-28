@@ -9,8 +9,8 @@ machine nine() -> u64 { 9u64 }
 
 data Main { hits: i32 in Wrapping; }
 
-machine Main::main(main: @mutable Main) {
-    main.hits = 0;
+machine check_result(main: @mutable Main) {
+    main.hits = 0i32 as +Wrapping;
 
     let s: u64 = nine();
     let r: u64 = echo(s);
@@ -18,6 +18,6 @@ machine Main::main(main: @mutable Main) {
         true -> pass(main),
         _ -> fail(main)
     }
-    machine pass(main: @mutable Main) { main.hits = 1; }
-    machine fail(main: @mutable Main) { main.hits = -1; }
+    machine pass(main: @mutable Main) { main.hits = 1i32 as +Wrapping; }
+    machine fail(main: @mutable Main) { main.hits = (-1i32) as +Wrapping; }
 }

@@ -1355,6 +1355,20 @@ fn a_consuming_descriptor_replays_its_nominal_owner_and_custody() {
         crate::packages::opened_callable_admits(module, &[ty(2)], callable(2), callable(4))
     };
     assert!(admitted(&program));
+    let mut calls = PackageCallableSites::default();
+    let mut open = |argument| {
+        calls.opened_call(
+            &program.execution.callables,
+            operation_id(1),
+            callable(2),
+            vec![callable(4)],
+            [(0, argument)],
+        )
+    };
+    // The package argument has the public opened type. A concrete owner's
+    // type is valid only inside the selected descriptor's own telescope.
+    assert!(open(ty(9)).is_err());
+    assert!(open(ty(8)).is_ok());
     // The caller can give the returned owner to another operation of this
     // package. A descriptor with only an output can bind the same witness.
     let mut returning = program.clone();

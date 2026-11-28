@@ -64,6 +64,18 @@ pub(crate) mod arguments {
             callee: MachineId,
             arguments: &[StructuralArgument],
         ) -> Result<StructuralCallArguments, TerminalInterpretError> {
+            self.prepare_structural_call_at(callee, arguments, None)
+        }
+
+        pub(crate) fn prepare_structural_call_at(
+            &self,
+            callee: MachineId,
+            arguments: &[StructuralArgument],
+            opened: Option<(
+                &terminal_psi::Operation,
+                &terminal_psi::TerminalCallableContract,
+            )>,
+        ) -> Result<StructuralCallArguments, TerminalInterpretError> {
             let machine = self.program.verified_machine(callee)?;
             if machine.structural_parameters.len() != arguments.len() {
                 return Err(TerminalInterpretError::StructuralArgumentCount {
@@ -74,7 +86,13 @@ pub(crate) mod arguments {
             let mut scalar_arrays = ScalarArrayBindings::new(self.account.as_ref());
             let mut opaque_parameters = Vec::new();
             let mut opaque_arguments = Vec::new();
-            for (parameter, argument) in machine.structural_parameters.iter().zip(arguments) {
+            let mut opened_owners = Vec::new();
+            for (index, (parameter, argument)) in machine
+                .structural_parameters
+                .iter()
+                .zip(arguments)
+                .enumerate()
+            {
                 if scalar_array_leaf_shape(
                     self.structural_types().values(),
                     parameter.structural_type,
@@ -86,14 +104,52 @@ pub(crate) mod arguments {
                     let value = self.prepare_scalar_array_argument(machine, parameter, argument)?;
                     scalar_arrays.publish(parameter.place, value)?;
                 } else {
+                    if let Some((operation, contract)) = opened
+                        && parameter.access == StructuralAccess::Owned
+                        && let Some(public_type) = self
+                            .program
+                            .package_sites()?
+                            .invocation_argument(self.current_machine, operation.id, index)
+                    {
+                        let public = contract
+                            .structural_parameters
+                            .get(index)
+                            .ok_or_else(malformed)?;
+                        if public.structural_type != public_type
+                            || public.access != argument.access
+                            || argument.access != StructuralAccess::Owned
+                            || !argument.path.is_empty()
+                        {
+                            return Err(malformed());
+                        }
+                        opened_owners.push((opaque_parameters.len(), public));
+                    }
                     opaque_parameters.push(parameter.clone());
                     opaque_arguments.push(argument.clone());
                 }
             }
             let provenance = self.structural_argument_provenance(&opaque_arguments)?;
-            let mut prepared = self
+            let mut boundary = self
                 .prepare_boundary_arguments(&opaque_parameters, &opaque_arguments)
-                .map_err(|error| error.in_argument_preparation("resolve argument carriers"))?
+                .map_err(|error| error.in_argument_preparation("resolve argument carriers"))?;
+            // The dispatch already proved that the stored descriptor instantiates
+            // this exact opening. Change only the public names on the owned value.
+            for (index, public) in opened_owners {
+                let value = boundary.values.get_mut(index).ok_or_else(malformed)?;
+                let concrete = &opaque_parameters[index];
+                if value.structural_type != public.structural_type
+                    || value.qualifications != public.qualifications
+                    || value.projected_qualifications != public.projected_qualifications
+                {
+                    return Err(malformed());
+                }
+                value.structural_type = concrete.structural_type;
+                value.qualifications.clone_from(&concrete.qualifications);
+                value
+                    .projected_qualifications
+                    .clone_from(&concrete.projected_qualifications);
+            }
+            let mut prepared = boundary
                 .into_call_arguments(
                     &opaque_parameters,
                     &self.structural_types(),
@@ -718,9 +774,41 @@ pub(crate) mod frames {
             prepared_arguments: StructuralCallArguments,
             claim_transfers: &[ClaimTransfer],
             claim_origin: crate::engine::execution::ResultClaimOrigin,
+            opened_contract: Option<&terminal_psi::TerminalCallableContract>,
         ) -> Result<(), TerminalInterpretError> {
             let program = std::sync::Arc::clone(&self.program);
             let callee = program.verified_machine(callee_id)?;
+            let mut result = result;
+            let mut opened_owner = None;
+            if let Some(contract) = opened_contract
+                && let Some(public) = contract.proof_result.structural()
+                && let Some(concrete) = callee.result.structural()
+                && public.structural_type != concrete.structural_type
+            {
+                let declaration = self.structural_declaration(public.structural_type)?;
+                if result.structural_type != public.structural_type
+                    || result.multiplicity != public.multiplicity
+                    || result.qualifications != public.qualifications
+                    || result.projected_qualifications != public.projected_qualifications
+                    || !result.qualification_establishments.is_empty()
+                    || declaration.declaration_identity.is_absent()
+                    || declaration.declaration_identity
+                        != self
+                            .structural_declaration(concrete.structural_type)?
+                            .declaration_identity
+                    || !matches!(declaration.shape, StructuralTypeShape::Record { .. })
+                {
+                    return Err(malformed());
+                }
+                // The callee validates its concrete result and transfers its actual
+                // claims before the caller can see the owner's opened type again.
+                opened_owner = Some(contract.id);
+                result.structural_type = concrete.structural_type;
+                result.qualifications.clone_from(&concrete.qualifications);
+                result
+                    .projected_qualifications
+                    .clone_from(&concrete.projected_qualifications);
+            }
             let invalid_result = |reason| TerminalInterpretError::StructuralCallResultContract {
                 callee: callee_id,
                 place: result.place,
@@ -828,6 +916,7 @@ pub(crate) mod frames {
                     claim_origin,
                     expected_reference_backings: Vec::new(),
                     preserved_projected_qualifications,
+                    opened_owner,
                     profile_completion: None,
                 },
             )
@@ -3399,8 +3488,14 @@ impl<'artifact> TerminalExecution<'artifact> {
                 error.in_argument_preparation("read scalar call arguments")
             }
         })?;
+        let program = self.program.clone();
+        let opened = program
+            .package_sites()?
+            .invocation_contract(self.current_machine, operation.id)
+            .and_then(|contract| program.catalogs.execution.callables.contract(contract))
+            .map(|contract| (operation, contract));
         let prepared_arguments =
-            self.prepare_structural_call_arguments(callee, structural_arguments)?;
+            self.prepare_structural_call_at(callee, structural_arguments, opened)?;
         match &operation.result {
             terminal_psi::OperationResult::Unit => self.begin_unit_call(
                 callee,
@@ -3426,6 +3521,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                     prepared_arguments,
                     claim_transfers,
                     crate::engine::execution::ResultClaimOrigin::CalleeReturn,
+                    opened.map(|(_, contract)| contract),
                 )?,
         }
         Ok(OperationFlow::Redispatch)
@@ -3694,6 +3790,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                         prepared_arguments,
                         &claim_transfers,
                         crate::engine::execution::ResultClaimOrigin::CheckedProvider,
+                        None,
                     )?;
                     let Some(SuspendedCall {
                         result:
