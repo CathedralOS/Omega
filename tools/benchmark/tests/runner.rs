@@ -242,6 +242,7 @@ fn compiler_samples_check_native_output_and_retain_every_stage_table() {
     )
     .unwrap();
     plan["measurement"]["candidate_source"] = json!("candidate.txt");
+    plan["measurement"]["cold_client_root"] = json!(".");
     plan["measurement"]["stage_timings"] = json!(false);
     plan["baseline"]["arguments"] = json!(["build"]);
     plan["candidate"]["arguments"] = json!(["build"]);
@@ -266,6 +267,30 @@ fn compiler_samples_check_native_output_and_retain_every_stage_table() {
         "{}",
         String::from_utf8_lossy(&validation.stderr)
     );
+    let staged: Vec<_> = events(copies.path())
+        .into_iter()
+        .filter(|event| event["event"] == "sample")
+        .map(|event| {
+            PathBuf::from(
+                event["sample"]["observations"][0]["arguments"]
+                    .as_array()
+                    .unwrap()
+                    .last()
+                    .unwrap()
+                    .as_str()
+                    .unwrap(),
+            )
+        })
+        .collect();
+    let unique: std::collections::BTreeSet<_> =
+        staged.iter().map(|p| p.parent().unwrap()).collect();
+    assert_eq!(unique.len(), staged.len());
+    for path in &staged {
+        assert_eq!(std::fs::read(path).unwrap(), b"frozen input");
+        let project = path.parent().unwrap();
+        assert!(project.join("library").is_dir());
+        assert!(project.parent().unwrap().join("cache").is_dir());
+    }
     let profile_dir = copies.path().join("stages");
     let profile = Command::new(env!("CARGO_BIN_EXE_omega-bench"))
         .arg("profile")
