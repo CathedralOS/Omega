@@ -354,9 +354,7 @@ mod tests {
         };
         check(owner).expect("owned fields and by-value consuming operations have uniform layout");
         let affine = owner.replace("Job<P, some S> [linear]", "Job<P, some S>");
-        let error = check(&affine)
-            .err()
-            .expect("the owner field requires linearity");
+        let error = check(&affine).expect_err("the owner field requires linearity");
         assert!(
             error.contains("package field 'owner'")
                 && error.contains("requires a [linear] package"),

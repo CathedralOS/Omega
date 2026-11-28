@@ -3806,12 +3806,19 @@ mod scalar_call {
         if alternative != kind.call_alternative_key() {
             return Err(Aarch64ScalarCallTemplateError::AlternativeMismatch);
         }
-        let (expected_views, expected) = if matches!(kind, Kind::InvokeNoNormal { .. }) {
-            expected_no_normal_mechanics(abi, physical, operand_views, effects)?
+        let (abi_views, abi_effects) =
+            selected_instructions::calls::private_inputs::ordinary_operands(
+                physical,
+                operand_views,
+                effects,
+            )
+            .ok_or(Aarch64ScalarCallTemplateError::OperandViewMismatch)?;
+        let (_, expected) = if matches!(kind, Kind::InvokeNoNormal { .. }) {
+            expected_no_normal_mechanics(abi, physical, &abi_views, &abi_effects)?
         } else {
-            expected_call_mechanics(abi, physical, kind, operand_views)?
+            expected_call_mechanics(abi, physical, kind, &abi_views)?
         };
-        if effects != &expected {
+        if *abi_effects != expected {
             return Err(Aarch64ScalarCallTemplateError::EffectMismatch);
         }
         let bytes: [u8; TEMPLATE_LEN] = bytes
@@ -3826,7 +3833,7 @@ mod scalar_call {
         Ok(ValidatedAarch64SelectedScalarCallTemplate {
             kind,
             alternative,
-            operand_views: expected_views,
+            operand_views: operand_views.to_vec(),
             effects: effects.clone(),
             bytes,
             fixup,
@@ -4013,7 +4020,13 @@ mod scalar_call {
             .view_named("x16")
             .ok_or(Aarch64ScalarCallTemplateError::OperandViewMismatch)?
             .id;
-        let mut ordinary = operand_views.to_vec();
+        let (views, abi_effects) = selected_instructions::calls::private_inputs::ordinary_operands(
+            physical,
+            operand_views,
+            effects,
+        )
+        .ok_or(Aarch64ScalarCallTemplateError::OperandViewMismatch)?;
+        let mut ordinary = views.into_owned();
         let pos = ordinary
             .iter()
             .position(|v| *v == selector)
@@ -4028,7 +4041,7 @@ mod scalar_call {
             physical.model().architecture,
         )
         .ok_or(Aarch64ScalarCallTemplateError::EffectMismatch)?;
-        if *effects != expected {
+        if *abi_effects != expected {
             return Err(Aarch64ScalarCallTemplateError::EffectMismatch);
         }
         let words = [
@@ -4042,7 +4055,7 @@ mod scalar_call {
             enc::BRK_0,
             0xd63f_0220,
         ];
-        Ok((enc::to_bytes(&words), expected))
+        Ok((enc::to_bytes(&words), effects.clone()))
     }
 }
 

@@ -35,7 +35,6 @@ impl StaticSourceEnvelope {
         &self,
         context: MachineId,
         services: &ServiceMap,
-        names: &terminal_psi::TerminalIdentityTable,
     ) -> Checked<StaticCallableEnvelope> {
         let service_reach = match &self.service_reach {
             SourceServiceCeiling::Open => StaticServiceCeiling::Open,
@@ -46,7 +45,7 @@ impl StaticSourceEnvelope {
         let mut invocations = self
             .invocations
             .iter()
-            .map(|invocation| services.invocation(context, invocation, names))
+            .map(|invocation| invocation.try_map_service(|id| services.service(context, *id)))
             .collect::<Checked<Vec<_>>>()?;
         invocations.sort();
         invocations.dedup();
@@ -65,10 +64,7 @@ impl StaticSourceEnvelope {
         roots.extend(
             self.invocations
                 .iter()
-                .filter_map(|invocation| match invocation {
-                    SourceInvocation::Service(service) => Some(*service),
-                    SourceInvocation::Parameter(_) | SourceInvocation::ParameterPath { .. } => None,
-                }),
+                .filter_map(|invocation| invocation.service().copied()),
         );
     }
 }
@@ -326,7 +322,7 @@ impl StaticContracts {
                                     .signature
                                     .as_ref()
                                     .map(Signature::static_signature),
-                                envelope: requirement.envelope.publish(context, services, qualifications.identities.as_table())?,
+                                envelope: requirement.envelope.publish(context, services)?,
                             })
                         })
                         .collect::<Checked<Vec<_>>>()?,
@@ -383,11 +379,7 @@ impl StaticContracts {
                 application: source.application.clone(),
                 implementation,
                 required,
-                envelope: source.envelope.publish(
-                    context,
-                    services,
-                    qualifications.identities.as_table(),
-                )?,
+                envelope: source.envelope.publish(context, services)?,
                 provider: source
                     .provider
                     .as_ref()

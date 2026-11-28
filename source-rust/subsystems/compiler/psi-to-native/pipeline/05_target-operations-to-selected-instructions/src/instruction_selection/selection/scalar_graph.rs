@@ -7235,6 +7235,7 @@ pub(crate) fn select_function(
         constraints,
         catalog,
         registers: Vec::new(),
+        activation_owner: None,
         pending_result_origins: Vec::new(),
         instructions: Vec::new(),
         implementation_blocks: Vec::new(),
@@ -7866,6 +7867,7 @@ pub(crate) struct Builder<'a> {
     pub(crate) constraints: &'a SelectedSelectionConstraints,
     pub(crate) catalog: &'a PreparedRegisterConstraintCatalog,
     pub(crate) registers: Vec<VirtualRegister>,
+    pub(crate) activation_owner: Option<VirtualRegisterId>,
     pub(crate) pending_result_origins: Vec<VirtualRegisterId>,
     pub(crate) instructions: Vec<SelectedInstruction>,
     pub(crate) implementation_blocks: Vec<SelectedBlock>,
@@ -8168,6 +8170,64 @@ impl Builder<'_> {
             )
         } else {
             std::borrow::Cow::Borrowed(row(self.catalog, key)?)
+        };
+        let owner_operands;
+        let (constraint, operands) = if kind.call_target().is_some()
+            && self.transport.calls.last().is_some_and(|record| {
+                record.instruction == id && record.call.suspension_crossing.is_some()
+            }) {
+            use selected_instructions::calls::private_inputs;
+            let physical = self.environment.physical();
+            let view = private_inputs::execution_owner(physical)
+                .ok_or_else(SelectedInstructionError::custody)?;
+            let preserved = register_environment::selected_abi_preservation(self.environment)
+                .map_err(|_| SelectedInstructionError::custody())?;
+            if !view
+                .units
+                .iter()
+                .all(|unit| preserved.convention.callee_saved.contains(unit))
+            {
+                return Err(SelectedInstructionError::custody());
+            }
+            let slot = constraint
+                .operands
+                .iter()
+                .take_while(|operand| operand.access == RegisterOperandAccess::Use)
+                .count();
+            let constraint = private_inputs::add(&constraint, view, physical)
+                .ok_or_else(SelectedInstructionError::custody)?;
+            let owner = match self.activation_owner {
+                Some(owner) => owner,
+                None => {
+                    let owner = VirtualRegisterId(next_index(self.registers.len())?);
+                    self.registers.push(VirtualRegister {
+                        id: owner,
+                        scalar_type: private_inputs::owner_pointer_type(view)
+                            .ok_or_else(SelectedInstructionError::custody)?,
+                        class: view.class,
+                        origin: VirtualRegisterOrigin::ActivationOwner,
+                        definition_site: None,
+                        entry_fixed_view: Some(view.id),
+                    });
+                    self.activation_owner = Some(owner);
+                    owner
+                }
+            };
+            let (before, after) = operands
+                .split_at_checked(slot)
+                .ok_or_else(SelectedInstructionError::custody)?;
+            owner_operands = before
+                .iter()
+                .copied()
+                .chain([owner])
+                .chain(after.iter().copied())
+                .collect::<Vec<_>>();
+            (
+                std::borrow::Cow::Owned(constraint),
+                owner_operands.as_slice(),
+            )
+        } else {
+            (constraint, operands)
         };
         if constraint.key != key {
             return Err(SelectedInstructionError::custody());

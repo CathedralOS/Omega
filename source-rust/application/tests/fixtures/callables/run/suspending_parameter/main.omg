@@ -1,0 +1,19 @@
+data Read = machine(value: u64) -> u64 reaches none crashes none suspends;
+
+machine read(value: u64) -> u64 { value }
+
+machine invoke(selected: Read, value: u64) -> u64 invokes selected suspends {
+    let answer: u64 = suspend selected(value);
+    answer
+}
+
+machine main() crashes Trap suspends {
+    let selected: Read = read;
+    let answer: u64 = suspend invoke(selected, 31u64);
+    transition answer == 31u64 {
+        true -> done(),
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}
