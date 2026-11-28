@@ -4,6 +4,7 @@ use super::{
     Bindings, Effect, NormalEffects, ProgressFailure, ProgressScope, NormalReturn, ScalarFact,
     Storage, Stored, Subject,
 };
+use crate::synchronization::progress::comparison::Evidence;
 use semantic_vocabulary::Proposition;
 use terminal_psi::StructuralArgument;
 
@@ -16,8 +17,8 @@ impl NormalEffects {
         scalar: impl Fn(usize) -> Option<ScalarFact>,
         requirements: &[Proposition],
         scope: ProgressScope,
-    ) -> Option<Result<(), ProgressFailure>> {
-        let entry = memory.requirements(requirements);
+    ) -> Option<Result<Option<ScalarFact>, ProgressFailure>> {
+        let entry = Evidence::new(requirements, &memory.conditions);
         let possible = |path: &NormalReturn| {
             let mut inputs = Vec::new();
             for condition in &path.when {
@@ -43,16 +44,21 @@ impl NormalEffects {
             return first.apply(memory, bindings, actuals, &scalar, requirements, scope);
         };
         let mut joined: Option<Storage> = None;
+        let mut returned = None;
         let mut failure = None;
         let mut opaque = false;
         for path in [first, second].into_iter().chain(paths) {
             let mut branch = memory.clone();
             match path.apply(&mut branch, bindings, actuals, &scalar, requirements, scope) {
-                Some(Ok(())) => {
+                Some(Ok(result)) => {
                     if let Some(previous) = &mut joined {
+                        if returned != result {
+                            returned = None;
+                        }
                         let before = previous.clone();
                         previous.join(&branch, Arrivals::new(&before, &branch));
                     } else {
+                        returned = result;
                         joined = Some(branch);
                     }
                 }
@@ -76,7 +82,7 @@ impl NormalEffects {
             return None;
         }
         *memory = joined?;
-        Some(Ok(()))
+        Some(Ok(returned))
     }
 }
 
@@ -89,7 +95,7 @@ impl NormalReturn {
         scalar: &impl Fn(usize) -> Option<ScalarFact>,
         requirements: &[Proposition],
         scope: ProgressScope,
-    ) -> Option<Result<(), ProgressFailure>> {
+    ) -> Option<Result<Option<ScalarFact>, ProgressFailure>> {
         for decision in &self.when {
             if let Some(condition) = decision.selector.actual_inputs(scalar) {
                 memory.assume(condition.selected(decision.answer));
@@ -145,6 +151,6 @@ impl NormalReturn {
                 }
             }
         }
-        Some(Ok(()))
+        Some(Ok(self.scalar_result.and_then(|operand| operand.binding(scalar))))
     }
 }

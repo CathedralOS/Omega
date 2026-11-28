@@ -4,7 +4,7 @@
 use super::super::facts::Facts;
 use super::super::progress::ScalarFact;
 use super::super::spin::{CellUpdate, constant};
-use super::condition::Assumption;
+use crate::synchronization::progress::condition::Assumption;
 use super::storage::{Location, Storage, Stored};
 use crate::entry_values::TerminalScalarValue as Scalar;
 use semantic_vocabulary::{BlockId, EdgeId, PlaceId, ValueId};
@@ -364,6 +364,27 @@ impl<'m> Frame<'m> {
                 resident_obligation: None,
             } => {
                 let location = memory.locate(bindings, *place, path)?;
+                if let AtomicAccessEvent::CompareExchangeOnce {
+                    expected,
+                    replacement,
+                    custody,
+                    ..
+                } = event
+                {
+                    let result = op.result.structural()?;
+                    let declared = module.structural_type(result.structural_type)?;
+                    let home = super::atomic_attempt::evaluate(
+                        memory,
+                        location,
+                        declared,
+                        result,
+                        *custody,
+                        bindings.values.get(expected).copied(),
+                        bindings.values.get(replacement).copied(),
+                    )?;
+                    bindings.places.insert(result.place, home);
+                    return Some(());
+                }
                 let observed = if event.observes_resident() {
                     let result = op.result.scalar()?;
                     let prior = memory.get(&location).scalar(result.scalar_type);

@@ -288,3 +288,51 @@ fn only_a_mismatch_forever_blocks_a_single_attempt_lock() {
         );
     }
 }
+
+#[test]
+fn the_returned_case_refines_the_resident_until_another_write() {
+    let observing = include_str!(
+        "../../../tests/fixtures/synchronization/run/atomic_attempt_then_wait/main.omg"
+    );
+    let nonobserving = observing
+        .replace(
+            "AtomicCompareExchangeOnceOutcome",
+            "AtomicTryExchangeOnceOutcome",
+        )
+        .replace("compare_exchange_once", "try_exchange_once")
+        .replace("{ observed }", "{ proposed }")
+        .replace("::Exchanged ->", "::Exchanged { displaced } ->");
+    for source in [observing, nonobserving.as_str()] {
+        program::assert_silent_return(source);
+
+        // A known mismatch leaves the held resident untouched. A matched
+        // attempt can also keep it held when either possible case does so.
+        let force_mismatch = source.replace("(1, 0, ReceivePublish", "(0, 0, ReceivePublish");
+        let write = "flag.held.store(1, Publish);";
+        let leave_held = source.replace("flag.held.store(0, Publish);", "");
+        let both_held = leave_held.replace(
+            "machine committed(flag: @Flag) {}",
+            &format!("machine committed(flag: @Flag) {{ {write} }}"),
+        );
+
+        // Matching an old outcome after a separate write cannot restore
+        // the value it observed. The writer receives the cell by borrow.
+        let overwritten = leave_held
+            .replace(
+                "    transition result",
+                "    hold(flag);\n    transition result",
+            )
+            .replace(
+                "    machine committed(",
+                &format!("    machine hold(flag: @Flag) {{ {write} }}\n    machine committed("),
+            );
+        for held in [force_mismatch, both_held, overwritten] {
+            let (outcome, diagnostic) = program::invoke(&held, &["--check"]);
+            assert!(!outcome.status.success(), "{diagnostic}");
+            assert!(
+                diagnostic.contains("synchronization deadlock"),
+                "{diagnostic}"
+            );
+        }
+    }
+}

@@ -462,7 +462,8 @@ struct Minted<'a> {
     module: &'a terminal_psi::TerminalModule,
     lowered: &'a TerminalMachine,
     cleanup_catalog: &'a crate::owned_cleanup::Catalog<'a>,
-    claims: &'a terminal_semantics::plain_affine::ClaimsPlan,
+    /// `None` for an inference replay (`ClaimRows::Deferred`).
+    claims: Option<&'a terminal_semantics::plain_affine::ClaimsPlan>,
     tables: &'a MachineTables,
     /// Whether the lowered form has claimed each obligation row, by position.
     obligations: Vec<bool>,
@@ -661,55 +662,59 @@ impl Minted<'_> {
         // The receiving walk reconstructs live identities at the exact call
         // cut. A declaration's original root is not its current storage after
         // construction, extraction, stores or an owned block arrival.
-        if let Some(frontier) = self.claims.call_frontier(site) {
-            let held = frontier
-                .iter()
-                .map(|claim| (claim.identity, claim.place, claim.path.as_slice()));
-            let boundary = matches!(
-                inputs.callee,
-                terminal_check_tables::edges::Callee::Declared(
-                    semantic_vocabulary::TargetMachineCallable::Boundary(_)
-                )
-            );
-            let matched = if boundary {
-                if !inputs.claim_transfers.is_empty() {
-                    return Err(
-                        self.foreign(concerns, "a boundary call carries internal claim transfers")
-                    );
-                }
-                terminal_semantics::owned_structure::validate_claim_transfers(
-                    inputs.structural_arguments,
-                    held,
-                    inputs.completion_receipts.iter().map(|receipt| {
-                        (
-                            receipt.claim,
-                            receipt.argument_index,
-                            receipt.path.as_slice(),
-                        )
-                    }),
-                )
-            } else {
-                if !inputs.completion_receipts.is_empty() {
-                    return Err(self.foreign(
-                        concerns,
-                        "an internal call carries boundary completion receipts",
-                    ));
-                }
-                terminal_semantics::owned_structure::validate_claim_transfers(
-                    inputs.structural_arguments,
-                    held,
-                    inputs.claim_transfers.iter().map(|transfer| {
-                        (
-                            transfer.claim,
-                            transfer.argument_index,
-                            transfer.path.as_slice(),
-                        )
-                    }),
-                )
-            };
-            matched.map_err(|detail| self.foreign(concerns, detail))?;
-        } else if !self.claims.call_is_unreachable(site) {
-            return Err(self.foreign(concerns, "a call has no reconstructed claim frontier"));
+        // An inference replay leaves this to the settled module's check.
+        if let Some(claims) = self.claims {
+            if let Some(frontier) = claims.call_frontier(site) {
+                let held = frontier
+                    .iter()
+                    .map(|claim| (claim.identity, claim.place, claim.path.as_slice()));
+                let boundary = matches!(
+                    inputs.callee,
+                    terminal_check_tables::edges::Callee::Declared(
+                        semantic_vocabulary::TargetMachineCallable::Boundary(_)
+                    )
+                );
+                let matched = if boundary {
+                    if !inputs.claim_transfers.is_empty() {
+                        return Err(self.foreign(
+                            concerns,
+                            "a boundary call carries internal claim transfers",
+                        ));
+                    }
+                    terminal_semantics::owned_structure::validate_claim_transfers(
+                        inputs.structural_arguments,
+                        held,
+                        inputs.completion_receipts.iter().map(|receipt| {
+                            (
+                                receipt.claim,
+                                receipt.argument_index,
+                                receipt.path.as_slice(),
+                            )
+                        }),
+                    )
+                } else {
+                    if !inputs.completion_receipts.is_empty() {
+                        return Err(self.foreign(
+                            concerns,
+                            "an internal call carries boundary completion receipts",
+                        ));
+                    }
+                    terminal_semantics::owned_structure::validate_claim_transfers(
+                        inputs.structural_arguments,
+                        held,
+                        inputs.claim_transfers.iter().map(|transfer| {
+                            (
+                                transfer.claim,
+                                transfer.argument_index,
+                                transfer.path.as_slice(),
+                            )
+                        }),
+                    )
+                };
+                matched.map_err(|detail| self.foreign(concerns, detail))?;
+            } else if !claims.call_is_unreachable(site) {
+                return Err(self.foreign(concerns, "a call has no reconstructed claim frontier"));
+            }
         }
         crate::erased_actuals(&call.contract, inputs, self.machine, invocation)?;
         if inputs.arguments.len() != call.contract.scalar_parameters.len()
@@ -831,6 +836,34 @@ pub(crate) fn affine_refusal(
     refusal(reason, machine, concerns, detail)
 }
 
+/// Where `follow_the_lowered_form` takes a machine's claim rows from.
+#[derive(Clone, Copy)]
+pub(crate) enum ClaimRows<'s, 'r, 'm> {
+    /// A machine check of the module these replays were built from: the
+    /// claims its affine check received, else one walk over the module's
+    /// shared analyses.
+    Module(&'s crate::ModuleReplays<'r, 'm>),
+    /// A preparation of one machine by itself (`crate::prepare`) walks its
+    /// claims alone.
+    #[cfg(any(test, feature = "test-support"))]
+    Alone,
+    /// Inference's replay of one machine on a copy of its tables, over a
+    /// module inference is still editing. Inference reads no claim row, and
+    /// `finish_discharge` follows every machine's rows again on the settled
+    /// module with its claims, so the replay walks no claims and leaves each
+    /// call's claim transfers to that check.
+    Deferred,
+}
+
+impl<'s, 'r, 'm> ClaimRows<'s, 'r, 'm> {
+    pub(crate) fn replays(self) -> Option<&'s crate::ModuleReplays<'r, 'm>> {
+        match self {
+            Self::Module(replays) => Some(replays),
+            _ => None,
+        }
+    }
+}
+
 /// Refuses `tables` unless its obligation rows, invocation rows and edge
 /// rows are the ones `lowered` itself owes and states.
 pub(crate) fn follow_the_lowered_form(
@@ -840,8 +873,9 @@ pub(crate) fn follow_the_lowered_form(
     tables: &MachineTables,
     types: &IdTable<ValueId, ScalarType>,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
-    replays: Option<&crate::ModuleReplays<'_, '_>>,
+    rows: ClaimRows<'_, '_, '_>,
 ) -> Checked<()> {
+    let replays = rows.replays();
     values_are_declared(id, lowered, tables)?;
     let returned =
         terminal_semantics::normal_completion::ReturnSources::new(lowered).map_err(|detail| {
@@ -892,9 +926,11 @@ pub(crate) fn follow_the_lowered_form(
         )
     })?;
     let own_claims;
-    let claims = match replays.and_then(|replays| replays.received_claims(module, id)) {
-        Some(received) => received.as_ref().map_err(Clone::clone)?,
-        None => {
+    let received = replays.and_then(|replays| replays.received_claims(module, id));
+    let claims = match (rows, received) {
+        (ClaimRows::Deferred, _) => None,
+        (_, Some(received)) => Some(received.as_ref().map_err(Clone::clone)?),
+        (_, None) => {
             // A machine check of this module walks the closure the module's
             // analyses share; any other caller's walk builds its own.
             let walks = match replays.and_then(|replays| replays.analyses(module)) {
@@ -904,7 +940,7 @@ pub(crate) fn follow_the_lowered_form(
             own_claims = walks
                 .and_then(|walks| walks.verify_claims())
                 .map_err(|error| affine_refusal(id, error))?;
-            &own_claims
+            Some(&own_claims)
         }
     };
     let mut minted = Minted {

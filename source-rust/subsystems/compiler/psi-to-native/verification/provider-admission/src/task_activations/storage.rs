@@ -3,91 +3,31 @@ use super::stack::{
     task_stack_frame_validation_identity, validate_task_stack_frame_summary,
 };
 use super::{identity_text, nonzero, plan_diagnostic};
+use calling_conventions::terminal_layout::StructuralLayoutResolver;
 use diagnostics::Diagnostic;
-use std::borrow::Cow;
 use terminal_psi::*;
 
-pub(super) struct TaskStorage {
-    shapes: arena::IdTable<
-        semantic_vocabulary::StructuralTypeId,
-        Option<calling_conventions::ValueShape>,
-    >,
+pub(super) struct TaskStorage<'a> {
+    layouts: StructuralLayoutResolver<'a>,
     pointer: (u64, u64),
 }
 
-impl TaskStorage {
+impl<'a> TaskStorage<'a> {
     pub(super) fn new(
-        demands: &TerminalTaskActivationDemands,
+        declarations: impl Iterator<Item = &'a StructuralTypeDeclaration>,
+        owned_sequence_bounds: &'a [(semantic_vocabulary::StructuralTypeId, u64)],
         profile: target::TargetProfile,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let mut declarations = Cow::Borrowed(demands.structural_types.as_slice());
-        if !demands.target_layout_applications.is_empty() {
-            for application in &demands.target_layout_applications {
-                let rows = application
-                    .realizations
-                    .iter()
-                    .filter(|row| row.target == profile.target_name())
-                    .collect::<Vec<_>>();
-                let [row] = rows.as_slice() else {
-                    return Err(vec![Diagnostic::error(
-                        "task layout requires exactly one selected target realization",
-                    )]);
-                };
-                let declaration = declarations
-                    .to_mut()
-                    .iter_mut()
-                    .find(|declaration| declaration.id == application.record)
-                    .ok_or_else(|| vec![Diagnostic::error("task target layout has no record")])?;
-                let StructuralTypeShape::Record { storage, .. } = &mut declaration.shape else {
-                    return Err(vec![Diagnostic::error(
-                        "task target layout does not select a record",
-                    )]);
-                };
-                if *storage != StructuralRecordStorage::TargetLayout(application.id) {
-                    return Err(vec![Diagnostic::error(
-                        "task layout application does not match its record",
-                    )]);
-                }
-                *storage = StructuralRecordStorage::Authored(row.storage);
-            }
-        }
         let layouts =
-            calling_conventions::terminal_layout::StructuralLayouts::new(declarations.iter())
+            StructuralLayoutResolver::with_owned_sequence_bounds(declarations, owned_sequence_bounds)
                 .map_err(|error| {
                     vec![Diagnostic::error(format!(
-                        "task structural types are not one dense identity run: {error:?}"
+                        "task storage declarations: {error:?}"
                     ))]
                 })?;
-        for demand in &demands.demands {
-            let signature = demand
-                .signature_arguments
-                .iter()
-                .chain([&demand.signature_outcome])
-                .map(|value| value.value_type);
-            let frames = demand
-                .frames
-                .iter()
-                .flat_map(|frame| &frame.states)
-                .flat_map(|state| {
-                    state
-                        .resident
-                        .iter()
-                        .chain(state.crossing_arguments.iter().flatten())
-                })
-                .map(|value| value.value_type);
-            for value in signature.chain(frames) {
-                if let TerminalTaskValueType::Structural(identity) = value {
-                    layouts.shape(identity).map_err(|error| {
-                        vec![Diagnostic::error(format!(
-                            "task storage geometry: {error:?}"
-                        ))]
-                    })?;
-                }
-            }
-        }
         let target = profile.native_target();
         Ok(Self {
-            shapes: layouts.map(|identity, _| layouts.shape(identity).ok()),
+            layouts,
             pointer: (target.pointer_size as u64, target.pointer_alignment as u64),
         })
     }
@@ -105,16 +45,13 @@ impl TaskStorage {
                     ))]
                 })?
             }
-            TerminalTaskValueType::Structural(identity) => self
-                .shapes
-                .get(identity)
-                .copied()
-                .flatten()
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "task value is absent from its realized storage catalog",
-                    )]
-                })?,
+            TerminalTaskValueType::Structural(identity) => {
+                self.layouts.shape(identity).map_err(|error| {
+                    vec![Diagnostic::error(format!(
+                        "task storage geometry: {error:?}"
+                    ))]
+                })?
+            }
         };
         Ok((u64::from(shape.byte_size), u64::from(shape.alignment)))
     }

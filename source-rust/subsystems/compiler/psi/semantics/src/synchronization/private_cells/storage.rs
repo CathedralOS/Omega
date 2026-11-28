@@ -1,6 +1,7 @@
 //! Known contents of activation-local storage. A by-value copy gets a new
 //! home. References inside the copy still select the original allocation.
 
+mod allocations;
 mod contents;
 mod join;
 mod location;
@@ -8,10 +9,10 @@ pub(super) use join::Arrivals;
 use location::Allocation;
 pub(super) use location::Location;
 
-use super::super::facts::Facts;
-use super::condition::Assumption;
+use crate::synchronization::progress::condition::Assumption;
+use allocations::Allocations;
 pub(super) use contents::Stored;
-use semantic_vocabulary::PlaceId;
+use semantic_vocabulary::{PlaceId, StructuralCaseId};
 use std::cell::Cell;
 use std::rc::Rc;
 use terminal_psi::StructuralPathSegment as Segment;
@@ -22,26 +23,20 @@ pub(super) struct Storage {
     // from joins and worklist keys; frame/control visitation bounds the calls.
     next_identity: Rc<Cell<usize>>,
     pub(super) conditions: Rc<Vec<Assumption>>,
-    contents: Rc<Facts<Allocation, Stored>>,
+    contents: Allocations,
     /// A write through a selected reference establishes its value even
     /// when the individual candidate allocations only receive weak updates.
     selected: Rc<Vec<(Location, Stored)>>,
 }
 
-impl Storage {
-    pub(super) fn requirements<'a>(
-        &self,
-        prior: &'a [semantic_vocabulary::Proposition],
-    ) -> std::borrow::Cow<'a, [semantic_vocabulary::Proposition]> {
-        let mut result = std::borrow::Cow::Borrowed(prior);
-        if !self.conditions.is_empty() {
-            result
-                .to_mut()
-                .extend(self.conditions.iter().filter_map(|test| test.proposition()));
-        }
-        result
-    }
+#[derive(Clone)]
+struct CaseEffect {
+    identity: usize,
+    target: Location,
+    cases: Vec<(StructuralCaseId, Stored)>,
+}
 
+impl Storage {
     pub(super) fn assume(&mut self, condition: Assumption) {
         if !self.conditions.contains(&condition) {
             Rc::make_mut(&mut self.conditions).push(condition);
@@ -59,18 +54,7 @@ impl Storage {
                 }
             });
         }
-        if !Rc::ptr_eq(&self.contents, &other.contents) {
-            // Each fork allocates distinct homes. A reference to a home
-            // created on just one arm can only have arrived from that arm.
-            let contents = Rc::make_mut(&mut self.contents);
-            for (id, incoming) in other.contents.entries() {
-                if let Some(current) = contents.get_mut(id) {
-                    arrivals.value(current, incoming);
-                } else {
-                    contents.insert(*id, incoming.clone());
-                }
-            }
-        }
+        self.contents.join(&other.contents, &mut arrivals);
         arrivals.record(self);
         if !Rc::ptr_eq(&self.conditions, &other.conditions) {
             Rc::make_mut(&mut self.conditions)
@@ -89,10 +73,12 @@ impl Storage {
     pub(super) fn observation(
         &self,
         scalar_type: semantic_vocabulary::ScalarType,
+        pending_provider: bool,
     ) -> super::super::progress::ScalarFact {
         super::super::progress::ScalarFact::Observation {
             occurrence: self.fresh_identity(),
             scalar_type,
+            pending_provider,
         }
     }
 
@@ -103,9 +89,52 @@ impl Storage {
     }
 
     fn allocate_with(&mut self, contents: Stored, home: fn(usize) -> Allocation) -> Location {
-        let allocation = home(self.fresh_identity());
-        Rc::make_mut(&mut self.contents).insert(allocation, contents);
-        Location::allocation(allocation)
+        let id = self.fresh_identity();
+        *self.contents.slot(id) = contents;
+        Location::allocation(home(id))
+    }
+
+    /// The outcome remains usable when moved or copied. Its tag only refines
+    /// the resident while all incoming paths preserve this exact observation.
+    pub(super) fn allocate_outcome(
+        &mut self,
+        mut outcome: Stored,
+        target: Location,
+        resident: Stored,
+        cases: Vec<(StructuralCaseId, Stored)>,
+    ) -> Location {
+        let identity = self.fresh_identity();
+        self.set(
+            &target,
+            Stored::Observed {
+                identity,
+                value: Rc::new(resident),
+            },
+        );
+        outcome.attach_observation(Rc::new(CaseEffect {
+            identity,
+            target,
+            cases,
+        }));
+        self.allocate(outcome)
+    }
+
+    pub(super) fn select_outcome(&mut self, outcome: &Stored, tag: StructuralCaseId) {
+        let Some(effect) = outcome.observation() else {
+            return;
+        };
+        if let Stored::Observed { identity, .. } = self.get(&effect.target)
+            && identity == effect.identity
+            && let Some((_, value)) = effect.cases.iter().find(|(case, _)| *case == tag)
+        {
+            self.set(
+                &effect.target,
+                Stored::Observed {
+                    identity,
+                    value: Rc::new(value.clone()),
+                },
+            );
+        }
     }
 
     pub(super) fn locate(
@@ -194,7 +223,7 @@ impl Storage {
         location.each_home(|allocation, path| {
             let value = self
                 .contents
-                .get(&allocation)
+                .get(allocation)
                 .unwrap_or(&Stored::Unknown)
                 .read(path);
             match &mut result {
@@ -225,7 +254,7 @@ impl Storage {
         location.each_home(|home, path| {
             let value = self
                 .contents
-                .get(&home)
+                .get(home)
                 .unwrap_or(&Stored::Unknown)
                 .read(path);
             match home {
@@ -254,13 +283,10 @@ impl Storage {
         if location.tracks_selection() && !contained && !shared {
             choices.push((location.clone(), new.clone()));
         }
-        let contents = Rc::make_mut(&mut self.contents);
         location.each_home(|allocation, path| {
-            if matches!(allocation, Allocation::SharedInput(_)) {
-                return;
+            if let Some(id) = allocation.local_id() {
+                self.contents.slot(id).write(path, &new, weak);
             }
-            let value = contents.get_or_insert_with(allocation, Stored::default);
-            value.write(path, &new, weak);
         });
     }
 }

@@ -487,8 +487,8 @@ active SDK breaks), verifies the pinned toolchain resolves, reports mbx and
 cargo-nextest versions, confirms the claims coordination ref answers, and
 checks `pull.rebase`. Exit 1 means a check failed; warnings are degradations
 with the remedy printed beside them. On Linux, `bash tools/agent_setup.sh`
-installs everything doctor checks for; it is also the setup script for Claude
-Code cloud environments (`if [ -d Omega ]; then bash Omega/tools/agent_setup.sh; fi`).
+installs the tools for the checked-out revision. Use the [cloud baseline
+command](#run-a-linux-cloud-baseline-on-current-main) when a measurement needs current main.
 
 Builds need Git, the pinned Rust toolchain, `mbx` at the version in
 `tools/mbx-version`, and
@@ -532,6 +532,46 @@ If small crates each pause for seconds before parsing, inspect `target/` before
 changing test or compiler architecture: a long-lived `target/debug/deps` with
 hundreds of thousands of stale hashed artifacts makes rustc rescan it per
 crate. `cargo clean` fixes it.
+
+### Run a Linux cloud baseline on current main
+
+From the Omega checkout, prefix the measurement command with the launcher.
+
+```sh
+bash tools/cloud_baseline.sh mbx build --locked -p omega
+```
+
+The launcher fetches main from `origin` (or the public Omega repository when
+the snapshot has no origin), then runs the command in a separate checkout of
+that exact commit. It prints the full commit, effective mbx version, host and
+checkout path to stderr before the command starts. With no arguments, it prints
+a shell command for entering the prepared checkout with the qualified mbx on PATH.
+
+For a saved cloud image that predates the launcher, add the following to the
+environment setup script, running from the Omega checkout. It installs the
+launcher from main even when the image has an old checkout and an old mbx.
+
+```bash
+set -e
+remote=origin
+git remote get-url origin >/dev/null 2>&1 || remote=https://github.com/CathedralOS/Omega.git
+git fetch --no-tags --no-write-fetch-head "$remote" +refs/heads/main:refs/omega/cloud-baseline/main
+launcher=$(mktemp)
+git show refs/omega/cloud-baseline/main:tools/cloud_baseline.sh > "$launcher"
+install -Dm755 "$launcher" "$HOME/.local/bin/omega-baseline"
+rm -f "$launcher"
+```
+
+Then run `~/.local/bin/omega-baseline mbx build --locked -p omega` from the
+snapshot. The installed launcher fetches main on every invocation.
+
+Repeated runs at the same commit reuse the checkout. The installer reuses
+its verified binary when the build inputs match. Persist
+`${XDG_CACHE_HOME:-$HOME/.cache}/omega-mbx` (or the directory named by
+`OMEGA_MBX_INSTALL_CACHE`) across cloud sessions to reuse it on a fresh image.
+A cold cache builds mbx once. A newer main gets a new sibling checkout, so an
+ongoing measurement keeps its source and tool. When finished with a revision,
+use `git worktree remove <printed-checkout-path>` to reclaim its space.
 
 ### Warm build for cloud sessions
 

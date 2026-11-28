@@ -3715,29 +3715,20 @@ pub(crate) mod target_layout_wire {
 }
 pub(crate) mod task_activation_wire {
 
-    use super::super::CodecError;
-    use super::super::wire::{Reader, Writer};
     use super::super::wire_fields::{
-        Digest, Field, Flag, Id, Index, List, Referent, Scalar, StructuralType, TaskPackage, Text,
+        Digest, Flag, Id, Index, List, Scalar, TaskPackage,
         U32, U64, wire_enum, wire_record,
     };
-    use semantic_vocabulary::AuthoredRecordStorage;
     use terminal_psi::{
-        LayoutApplicationId, TerminalTaskActivationDemand, TerminalTaskActivationDemands,
+        TerminalTaskActivationDemand,
         TerminalTaskCarryStorage, TerminalTaskFrame, TerminalTaskFrameCall, TerminalTaskFrameState,
-        TerminalTaskLayoutRealization, TerminalTaskLiveCarry, TerminalTaskResidentValue,
+        TerminalTaskLiveCarry, TerminalTaskResidentValue,
         TerminalTaskSignatureValue, TerminalTaskStartOperation, TerminalTaskSuspensionCrossing,
-        TerminalTaskTargetLayout, TerminalTaskUnresolvedCall, TerminalTaskUnresolvedCallKind,
+        TerminalTaskUnresolvedCall, TerminalTaskUnresolvedCallKind,
         TerminalTaskValueType,
     };
 
     wire_record! {
-        Demands: TerminalTaskActivationDemands {
-            demands: List<Demand>,
-            structural_types: List<StructuralType>,
-            structural_referents: List<Referent>,
-            target_layout_applications: List<TargetLayout>,
-        }
         Demand: TerminalTaskActivationDemand {
             operation: StartOperation,
             report_fingerprint: U64,
@@ -3797,13 +3788,6 @@ pub(crate) mod task_activation_wire {
             call_ordinal: U32,
             kind: UnresolvedCallKind,
         }
-        TargetLayout: TerminalTaskTargetLayout {
-            id: ApplicationId,
-            record: Id,
-            realizations: List<LayoutRealization>,
-        }
-        LayoutRealization: TerminalTaskLayoutRealization { target: Text, storage: RecordStorage }
-        RecordStorage: AuthoredRecordStorage { byte_size: U64, byte_alignment: U64 }
     }
 
     wire_enum! {
@@ -3825,17 +3809,6 @@ pub(crate) mod task_activation_wire {
         StartOperation: TerminalTaskStartOperation, "TerminalTaskStartOperation" {
             1 => Start,
             2 => TryStart,
-        }
-    }
-
-    struct ApplicationId;
-    impl Field<LayoutApplicationId> for ApplicationId {
-        fn write(writer: &mut Writer, value: &LayoutApplicationId) -> Result<(), CodecError> {
-            writer.u32(value.0);
-            Ok(())
-        }
-        fn read(reader: &mut Reader<'_>) -> Result<LayoutApplicationId, CodecError> {
-            Ok(LayoutApplicationId(reader.u32()?))
         }
     }
 }
@@ -4039,7 +4012,7 @@ module_wire_record! {
     callback_applications: List<callback_application_wire::Application>,
     installed_interrupt_registrations: List<installed_interrupt_wire::Registration>,
     boundary_application_candidates: List<BoundaryCandidate>,
-    task_activation_demands: task_activation_wire::Demands,
+    task_activation_demands: List<task_activation_wire::Demand>,
 }
 
 wire_record! {

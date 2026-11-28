@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 302`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 303`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -134,30 +134,16 @@ pub(crate) mod canonical_order {
             module.interfaces.boundary_application_candidates.iter(),
             "boundary application candidates"
         );
-        let task = &module.execution.task_activation_demands;
+        let demands = &module.execution.task_activation_demands;
         check_order!(
-            task.demands.iter().map(|d| (
+            demands.iter().map(|d| (
                 d.report_fingerprint,
                 d.machine_callable_identity,
                 d.entry
             )),
             "task activation demands by report fingerprint, machine, and entry"
         );
-        check_order!(
-            task.structural_referents.iter().map(|r| r.id),
-            "task structural referents"
-        );
-        check_order!(
-            task.target_layout_applications.iter().map(|r| r.id),
-            "task target layout applications"
-        );
-        for application in &task.target_layout_applications {
-            check_order!(
-                application.realizations.iter().map(|r| r.target.as_str()),
-                "task target layout alternatives"
-            );
-        }
-        for demand in &task.demands {
+        for demand in demands {
             check_order!(
                 demand.frames.iter().map(|f| f.identity),
                 "task activation frames"
@@ -170,10 +156,6 @@ pub(crate) mod canonical_order {
                 check_order!(all crossing.live_carry, |live| live.claims.iter().copied(), "task activation live carry claims");
             }
         }
-        check_order!(
-            task.structural_types.iter().map(|d| d.id),
-            "task activation structural types by StructuralTypeId"
-        );
         check_order!(
             module
                 .interfaces
@@ -2317,13 +2299,78 @@ mod reference_transport_tests {
                     access: StructuralAccess::SharedBorrow,
                 },
             });
-        module.execution.task_activation_demands.structural_types =
-            module.types.structural_types.clone();
         module
-            .execution
-            .task_activation_demands
-            .structural_referents = module.types.structural_referents.clone();
-        module
+    }
+
+    #[test]
+    fn task_values_use_the_modules_storage_declaration() {
+        use super::module_wire::encode_raw;
+        use terminal_psi::{TerminalTaskActivationDemand, TerminalTaskFrame, TerminalTaskFrameState,
+            TerminalTaskResidentValue, TerminalTaskSignatureValue, TerminalTaskStartOperation, TerminalTaskValueType};
+        let mut module = reference_module(false);
+        let callable = TerminalIdentityIndex(3);
+        let entry = TerminalIdentityIndex(4);
+        let mut frame = wire::fnv1a::Fnv1a::new();
+        frame.byte(0x57);
+        frame.string_terminated(module.identities.text(callable).unwrap());
+        frame.string_terminated(module.identities.text(entry).unwrap());
+        let frame = frame.finish_or(1);
+        let reference = TerminalTaskValueType::Structural(StructuralTypeId::new(2).unwrap());
+        module.execution.task_activation_demands.push(TerminalTaskActivationDemand {
+            operation: TerminalTaskStartOperation::Start,
+            report_fingerprint: 1,
+            requirement_callable_identity: callable,
+            requirement_owner_path: callable,
+            requirement_owner_package: None,
+            requirement_in_scope: true,
+            authored_requirement_identity: callable,
+            machine_callable_identity: callable,
+            entry,
+            entry_report_fingerprint: 2,
+            contract_report_fingerprint: 3,
+            specialization_commitment: [4; 32],
+            specialization_report_fingerprint: 4,
+            may_suspend: false,
+            may_block: false,
+            cancellation_required: false,
+            signature_arguments: Vec::new(),
+            signature_outcome: TerminalTaskSignatureValue {
+                value_type: reference,
+                normalized_identity: TerminalIdentityIndex(2),
+                is_mutable: false,
+            },
+            root_frame: frame,
+            frames: vec![TerminalTaskFrame {
+                identity: frame,
+                machine_callable_identity: callable,
+                entry,
+                states: vec![TerminalTaskFrameState {
+                    state: entry,
+                    resident: Vec::new(),
+                    crossing_arguments: Vec::new(),
+                }],
+                calls: Vec::new(),
+                unresolved_calls: Vec::new(),
+            }],
+            crossings: Vec::new(),
+        });
+        let bytes = encode_module(&module).unwrap();
+        assert_eq!(decode_module(&bytes).unwrap(), module);
+
+        // ID 1 describes only what a reference points at. Its own storage
+        // cannot be used as an activation result or a resident frame value.
+        let referent = TerminalTaskValueType::Structural(StructuralTypeId::new(1).unwrap());
+        module.execution.task_activation_demands[0].signature_outcome.value_type = referent;
+        assert!(matches!(decode_module(&encode_raw(&module).unwrap()),
+            Err(CodecError::MalformedStructuralFoundation("task activation value has no storage declaration"))));
+        let demand = &mut module.execution.task_activation_demands[0];
+        demand.signature_outcome.value_type = reference;
+        demand.frames[0].states[0].resident.push(TerminalTaskResidentValue {
+            value_type: referent,
+            normalized_identity: TerminalIdentityIndex(1),
+        });
+        assert!(matches!(decode_module(&encode_raw(&module).unwrap()),
+            Err(CodecError::MalformedStructuralFoundation("task activation value has no storage declaration"))));
     }
 
     #[test]
@@ -4030,6 +4077,7 @@ pub(crate) use wire::{Reader, Writer, decode_canonical};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
+// Marker 303 makes task activation storage refer to the ordinary program declarations.
 // Marker 302 adds each theorem application's sum arguments after its scalar
 // subjects.
 // Marker 301 adds each theorem contract's sum subjects after its scalar ones.
@@ -4041,7 +4089,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // at the FloatMeaning carrier and retires proposition tag 19.
 // Marker 295 retires byte-sequence equality proposition tag 12, which only
 // an uncalled producer wrote.
-pub(crate) const FORMAT_MARKER: u16 = 302;
+pub(crate) const FORMAT_MARKER: u16 = 303;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

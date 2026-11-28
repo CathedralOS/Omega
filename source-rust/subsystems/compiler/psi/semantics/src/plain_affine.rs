@@ -1342,10 +1342,11 @@ impl<'s> MachineAffine<'s> {
         self.analyze(false, Some(candidates), None)
     }
 
-    /// The receiving checker reconstructs both the exact backing and its schedule.
-    pub fn verify(&self) -> Result<Plan, Error> {
-        let has_owned_cleanup = self
-            .machine
+    /// Whether a normal edge of the machine invokes an owned cleanup. Only a
+    /// walk with claims checks such a cleanup's transfers, so `verify` walks
+    /// this machine with its claims.
+    fn has_owned_cleanup(&self) -> bool {
+        self.machine
             .blocks
             .iter()
             .flat_map(|block| block.terminator.cleanup_rosters())
@@ -1353,15 +1354,64 @@ impl<'s> MachineAffine<'s> {
                 actions
                     .iter()
                     .any(|action| matches!(action, TerminalAffineCleanupAction::InvokeOwned(_)))
-            });
+            })
+    }
+
+    /// The receiving checker reconstructs both the exact backing and its schedule.
+    pub fn verify(&self) -> Result<Plan, Error> {
         verify_schedule(
             self.machine,
             self.analyze(
                 true,
                 None,
-                has_owned_cleanup.then_some(claims::Mode::Verify),
+                self.has_owned_cleanup().then_some(claims::Mode::Verify),
             )?,
         )
+    }
+
+    /// `verify`, and beside its plan what `verify_claims` answers, from one
+    /// walk with claims. `verify_claims` walks the machine exactly as `verify`
+    /// does when it has an owned cleanup. Otherwise `verify` walks without
+    /// claims: the claims change neither the regions the walk tracks nor its
+    /// schedule, only add refusals, so the plan of a walk with claims that
+    /// succeeds is that plan once its claim rows are taken out. A walk
+    /// without claims stops before the blocks of a machine that tracks no
+    /// root (`Walked::stops_without_claims`); its plan then holds only the
+    /// copyable owned roots, and so does this one. When the walk with claims
+    /// refuses, `verify` walks again without them, so its plan or refusal
+    /// stays the one it gives alone.
+    pub fn verify_with_claims(&self) -> Result<(Plan, Result<ClaimsPlan, Error>), Error> {
+        let owned_cleanup = self.has_owned_cleanup();
+        let walked = walk(
+            self.machine,
+            &self.module.types.structural_types,
+            true,
+            Some(self),
+            None,
+            Some(claims::Mode::Verify),
+        );
+        let Walked {
+            mut plan,
+            stops_without_claims,
+        } = match walked {
+            Ok(walked) => walked,
+            Err(error) if owned_cleanup => return Err(error),
+            Err(error) => return Ok((self.verify()?, Err(error))),
+        };
+        // As in `verify_claims`: an unavailable place refuses before the
+        // claim rows are read.
+        let claims = match (plan.unavailable.first(), plan.claims.take()) {
+            (Some(unavailable), _) => Err(Error::Unavailable(unavailable.clone())),
+            (None, Some(claims)) => Ok(claims),
+            (None, None) => Err(Error::malformed("claim receiver lost its plan")),
+        };
+        if stops_without_claims && !owned_cleanup {
+            plan = Plan {
+                copyable_owned_roots: plan.copyable_owned_roots,
+                ..Plan::default()
+            };
+        }
+        Ok((verify_schedule(self.machine, plan)?, claims))
     }
 
     /// Emit logical claim rows from the same ownership walk that plans storage.
@@ -1768,6 +1818,36 @@ fn analyze(
     reference_candidates: Option<&crate::reference_ends::Candidates>,
     claim_mode: Option<claims::Mode>,
 ) -> Result<Plan, Error> {
+    walk(
+        machine,
+        types,
+        bound_output,
+        walks,
+        reference_candidates,
+        claim_mode,
+    )
+    .map(|walked| walked.plan)
+}
+
+/// One ownership walk's plan, and whether the same walk without claims
+/// would have stopped before reaching the blocks.
+struct Walked {
+    plan: Plan,
+    /// The machine has no body, or tracks no root and moves no field: a walk
+    /// without claims answers only its copyable owned roots. A walk with
+    /// claims still walks every block for the claim rows, and may record
+    /// more in the plan's other fields than the walk without claims returns.
+    stops_without_claims: bool,
+}
+
+fn walk(
+    machine: &TerminalMachine,
+    types: &[StructuralTypeDeclaration],
+    bound_output: bool,
+    walks: Option<&MachineAffine<'_>>,
+    reference_candidates: Option<&crate::reference_ends::Candidates>,
+    claim_mode: Option<claims::Mode>,
+) -> Result<Walked, Error> {
     use semantic_vocabulary::StructuralPlaceKind;
     let module = walks.map(|walks| walks.module);
     use terminal_psi::TerminalMachineResult;
@@ -1780,9 +1860,12 @@ fn analyze(
                 flow.finish(machine)
             })
             .transpose()?;
-        return Ok(Plan {
-            claims,
-            ..Plan::default()
+        return Ok(Walked {
+            plan: Plan {
+                claims,
+                ..Plan::default()
+            },
+            stops_without_claims: true,
         });
     }
     match walks {
@@ -2185,10 +2268,14 @@ fn analyze(
         }
     }
     // Copy permission does not erase an explicitly destructive window.
-    if roots.iter().all(Option::is_none) && !has_borrowed_windows && claim_mode.is_none() {
-        return Ok(Plan {
-            copyable_owned_roots,
-            ..Plan::default()
+    let stops_without_claims = roots.iter().all(Option::is_none) && !has_borrowed_windows;
+    if stops_without_claims && claim_mode.is_none() {
+        return Ok(Walked {
+            plan: Plan {
+                copyable_owned_roots,
+                ..Plan::default()
+            },
+            stops_without_claims,
         });
     }
     let mut affine_roots = IdSet::new();
@@ -2435,20 +2522,23 @@ fn analyze(
     cleanup.sort_by_key(|(edge, _)| *edge);
     borrowed_header_ends.sort_unstable();
     analysis.stores.sort_by_key(|(operation, _)| *operation);
-    Ok(Plan {
-        affine_roots,
-        scheduled_roots,
-        copyable_owned_roots,
-        cleanup,
-        stores: analysis.stores,
-        unavailable: analysis.unavailable,
-        reference_ends: analysis.reference_ends,
-        borrowed_header_ends,
-        claims: analysis
-            .claim_flow
-            .map(|flow| flow.finish(machine))
-            .transpose()?,
-        graphed_machines,
+    Ok(Walked {
+        plan: Plan {
+            affine_roots,
+            scheduled_roots,
+            copyable_owned_roots,
+            cleanup,
+            stores: analysis.stores,
+            unavailable: analysis.unavailable,
+            reference_ends: analysis.reference_ends,
+            borrowed_header_ends,
+            claims: analysis
+                .claim_flow
+                .map(|flow| flow.finish(machine))
+                .transpose()?,
+            graphed_machines,
+        },
+        stops_without_claims,
     })
 }
 
