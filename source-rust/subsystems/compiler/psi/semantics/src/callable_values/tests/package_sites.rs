@@ -507,10 +507,14 @@ fn dependent_store_requires_a_projected_reference_from_its_destination_opening()
         Some(ty(8))
     );
     // A saved projected value survives a replacement on another subject only.
-    for (destination, valid) in [(place(2), true), (place(1), false)] {
+    for (destination, replacement_type, valid) in [
+        (place(2), ty(7), true),
+        (place(1), ty(7), false),
+        (place(4), ty(8), false),
+    ] {
         let mut deferred = module.clone();
         let machine = &mut deferred.machines[0];
-        let mut replacement = param(5, ty(7));
+        let mut replacement = param(5, replacement_type);
         replacement.position = 2;
         replacement.access = StructuralAccess::Owned;
         machine.structural_parameters.push(replacement);
