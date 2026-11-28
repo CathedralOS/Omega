@@ -51,13 +51,34 @@ use terminal_psi::{
     TerminalSuspensionValueLoans, TerminalSuspensionValueType,
 };
 
-/// Whether the call `operation` makes may suspend, by the contract its
-/// callee publishes: a selected call's public contract, a machine's own, or
-/// a boundary requirement's. `None` for an operation that is no declared
-/// call, or whose callee the module does not hold.
+/// A call through a machine value uses that value's public contract, not a
+/// guess about the body it selects. A declared call uses its selected,
+/// machine or boundary contract. Returns `None` when no contract is available.
 pub fn call_may_suspend(module: &TerminalModule, operation: &Operation) -> Option<bool> {
+    suspension_call(module, operation).map(|(_, may_suspend)| may_suspend)
+}
+
+fn suspension_call(
+    module: &TerminalModule,
+    operation: &Operation,
+) -> Option<(TerminalSuspensionCallTarget, bool)> {
+    if let Some(call) = operation.kind.callable_invocation() {
+        let may_suspend = module
+            .execution
+            .callables
+            .contract(call.contract)?
+            .envelope
+            .suspends;
+        return Some((
+            TerminalSuspensionCallTarget::Callable {
+                callee: call.callee,
+                contract: call.contract,
+            },
+            may_suspend,
+        ));
+    }
     let inputs = operation.declared_invocation()?;
-    match (inputs.callee, inputs.required_contract) {
+    let may_suspend = match (inputs.callee, inputs.required_contract) {
         (TargetMachineCallable::Machine(body), Some(required)) => module
             .invocation_machine_contract(body, Some(required))
             .map(|contract| contract.published_may_suspend),
@@ -68,7 +89,14 @@ pub fn call_may_suspend(module: &TerminalModule, operation: &Operation) -> Optio
             .boundary_machine(boundary)
             .and_then(|boundary| boundary.declaration.as_ref())
             .map(|declaration| declaration.source.published_may_suspend),
-    }
+    }?;
+    let target = match inputs.callee {
+        TargetMachineCallable::Machine(callee) => TerminalSuspensionCallTarget::Machine(callee),
+        TargetMachineCallable::Boundary(boundary) => {
+            TerminalSuspensionCallTarget::Boundary(boundary)
+        }
+    };
+    Some((target, may_suspend))
 }
 
 /// One thing liveness follows: a scalar value or a whole structural root.
@@ -501,14 +529,10 @@ impl<'a, 'r> MachineFrontiers<'a, 'r> {
             .ok_or("a suspension crossing names no operation of its machine")?;
         let block = &machine.blocks[block_position];
         let call = &block.operations[position];
-        let inputs = call
-            .declared_invocation()
-            .ok_or("a suspension crossing is on an operation that is no declared call")?;
-        let target = match inputs.callee {
-            TargetMachineCallable::Machine(callee) => TerminalSuspensionCallTarget::Machine(callee),
-            TargetMachineCallable::Boundary(boundary) => {
-                TerminalSuspensionCallTarget::Boundary(boundary)
-            }
+        let (target, true) = suspension_call(module, call)
+            .ok_or("a suspension crossing has no call with a published contract")?
+        else {
+            return Err("a suspension crossing is on a call that cannot suspend");
         };
         let entering = &self.entering;
         let mut live_out = BTreeSet::new();
@@ -588,7 +612,7 @@ impl<'a, 'r> MachineFrontiers<'a, 'r> {
             }
         }
         // What the call was lent or given stays with the incomplete callee.
-        for argument in inputs.structural_arguments {
+        for argument in terminal_psi::call_structural_arguments(&call.kind) {
             let root = machine
                 .structural_place_type(argument.place)
                 .ok_or("a call argument names a root with no declared type")?;

@@ -3102,6 +3102,7 @@ sites, then counted call plans.
 | 1 | Machine | machine id |
 | 2 | Boundary | boundary machine id |
 | 5 | Dynamic | `u32` interface + `u32` slot |
+| 6 | Callable | callee value id + callable contract id |
 
 <!-- suspension-place-tags -->
 
