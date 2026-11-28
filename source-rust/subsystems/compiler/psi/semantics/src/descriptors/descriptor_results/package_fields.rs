@@ -21,7 +21,7 @@ impl DescriptorFlowStep {
             return Some(());
         }
         let mut paths = Vec::new();
-        package_field_paths(types, from?, to?, &mut BTreeSet::new(), &mut paths)?;
+        package_field_paths(types, from?, to?, &mut Vec::new(), &mut paths)?;
         for (input, output) in paths {
             let mut from = source.clone();
             from.path.extend(input);
@@ -41,7 +41,7 @@ fn package_field_paths(
     types: &[StructuralTypeDeclaration],
     actual: StructuralTypeId,
     public: StructuralTypeId,
-    active: &mut BTreeSet<StructuralTypeId>,
+    ancestors: &mut Vec<StructuralTypeId>,
     paths: &mut Vec<FieldPathPair>,
 ) -> Option<()> {
     use crate::StructuralDeclarations;
@@ -49,9 +49,10 @@ fn package_field_paths(
         paths.push((Vec::new(), Vec::new()));
         return Some(());
     }
-    if !active.insert(public) {
+    if ancestors.contains(&public) {
         return None;
     }
+    ancestors.push(public);
     let from = types.iter().unique(actual)?;
     let to = types.iter().unique(public)?;
     match (&from.shape, &to.shape) {
@@ -82,7 +83,7 @@ fn package_field_paths(
                     input.field_type.as_structural(),
                     output.field_type.as_structural(),
                 ) {
-                    (Some(a), Some(b)) => package_field_paths(types, a, b, active, paths)?,
+                    (Some(a), Some(b)) => package_field_paths(types, a, b, ancestors, paths)?,
                     (None, None) => paths.push((Vec::new(), Vec::new())),
                     _ => return None,
                 }
@@ -100,7 +101,7 @@ fn package_field_paths(
             },
         ) if length == size => {
             let mut elements = Vec::new();
-            package_field_paths(types, *a, *b, active, &mut elements)?;
+            package_field_paths(types, *a, *b, ancestors, &mut elements)?;
             if elements.iter().all(|(a, b)| a == b) {
                 paths.push((Vec::new(), Vec::new()));
             } else {
@@ -134,6 +135,6 @@ fn package_field_paths(
         }
         _ => return None,
     }
-    active.remove(&public);
+    ancestors.pop();
     Some(())
 }
