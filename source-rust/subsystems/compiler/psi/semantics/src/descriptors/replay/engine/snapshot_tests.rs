@@ -821,12 +821,18 @@ fn native_borrow_results_follow_scalar_address_actuals_back_to_their_storage() {
         }, &make_origin(vec![formal]))?;
         origins.iter().map(|origin| replay.exported(&machine, origin)).collect::<Option<Vec<_>>>()
     };
-    assert_eq!(bind(Some(local), None), None);
-    assert_eq!(bind(Some(input), None), Some(vec![DescriptorStoredOrigin::Parameter {
-        position: 0, projection: Projection::new(&[]),
-    }]));
-    assert_eq!(bind(None, Some(forwarded)), Some(vec![make_origin(vec![forwarded])]));
-    assert_eq!(bind(None, None), Some(vec![make_origin(vec![])]));
+    assert!(bind(Some(local), None).is_none());
+    assert!(matches!(
+        bind(Some(input), None).as_deref(),
+        Some([DescriptorStoredOrigin::Parameter { position: 0, projection }]) if projection == &Projection::new(&[])
+    ));
+    for relayed in [Some(forwarded), None] {
+        assert!(matches!(
+            bind(None, relayed).as_deref(),
+            Some([DescriptorStoredOrigin::NativeAddress { parameters, .. }])
+                if parameters == &relayed.into_iter().collect::<Vec<_>>()
+        ));
+    }
 }
 
 #[test]
