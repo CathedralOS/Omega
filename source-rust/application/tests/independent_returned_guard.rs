@@ -53,6 +53,31 @@ fn returned_borrow_keeps_its_input_lifetime_across_atomic_storage() {
     };
     assert!(matches!(path.as_slice(), [StructuralPathSegment::Field(_)]));
 
+    let [provider] = module.interfaces.provider_candidates.as_slice() else {
+        panic!("one independently published loan provider");
+    };
+    let body = module.machine(provider.candidate).unwrap();
+    let [field] = body
+        .result
+        .structural()
+        .unwrap()
+        .reference_sources
+        .as_slice()
+    else {
+        panic!("one reference field in the checked result");
+    };
+    assert_eq!(&field.path, path);
+    let [origin] = field.sources.as_slice() else {
+        panic!("the returned field has one source");
+    };
+    let input = origin.parameter().unwrap();
+    assert_eq!(input.place, body.structural_parameters[0].place);
+    assert_eq!(input.access, StructuralAccess::SharedBorrow);
+    assert_eq!(
+        input.extent,
+        semantic_vocabulary::ReferenceOriginExtent::Projected
+    );
+
     let bad = SOURCE.replace(
         "BorrowedCell { cell: cell }",
         "let mutable local: Cell; BorrowedCell { cell: @local }",
