@@ -188,18 +188,14 @@ impl Program<'_> {
                     )
                 })?
                 .signature();
-            let scope = self.scopes.get(callee).cloned().ok_or_else(|| {
+            let row = self.machine_context(callee).ok_or_else(|| {
                 refuse_at(
                     caller,
                     Unserved::Call("callable argument lost its receiving type scope"),
                 )
             })?;
-            let source_scope = self.source_scopes.get(callee).cloned().ok_or_else(|| {
-                refuse_at(
-                    caller,
-                    Unserved::Call("callable argument lost its receiving source scope"),
-                )
-            })?;
+            let scope = row.scope.clone();
+            let source_scope = row.source_scope.clone();
             let outer = std::mem::replace(&mut self.scope, scope);
             let outer_source = std::mem::replace(&mut self.source_scope, source_scope);
             let read = self.binder_requirement(parameter, required, &[]);

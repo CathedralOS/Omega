@@ -196,7 +196,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
         "portable provider selection reads the artifact and receiving installation",
     ));
     // Only the source driver runs the full numbered source pipeline. The text reader
-    // owns single-file syntax for the parse command and package edits. The other readers take stage 07 records.
+    // owns single-file syntax for the parse command and package edits.
     rules.push(Rule {
         except_package: Some(SOURCE_DRIVER),
         except_owners: linear_pipeline::PSI_STAGES.to_vec(),
@@ -206,8 +206,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
             (SOURCE_OPERATIONS, linear_pipeline::TEXT_READER),
             (linear_pipeline::TEXT_READER, linear_pipeline::PSI_STAGES[0]),
             (linear_pipeline::TEXT_READER, linear_pipeline::PSI_STAGES[1]),
-            ("source-rust/subsystems/compiler/build/evaluation/result", linear_pipeline::PSI_STAGES[7]),
-        ].into_iter().chain(linear_pipeline::legacy_representation_links_into(&linear_pipeline::PSI_STAGES)).map(|(owner, dependency)| Allowance { owner, dependency }).collect(),
+        ].into_iter().map(|(owner, dependency)| Allowance { owner, dependency }).collect(),
         ..rule(
             vec![""],
             linear_pipeline::PSI_STAGES.to_vec(),

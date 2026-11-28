@@ -6,13 +6,21 @@ use semantic_vocabulary::source_selections::CompositionMode;
 use symbols::SymbolHandle;
 
 #[derive(Debug, Clone)]
+pub enum ProviderUse {
+    Selection {
+        target: String,
+        composition_mode: CompositionMode,
+    },
+    Export,
+}
+
+#[derive(Debug, Clone)]
 pub struct ProviderSelectionInput {
-    pub target: String,
+    pub use_as: ProviderUse,
     pub schema: TraitApplicationEnvironment,
     pub provider: SymbolHandle,
     pub provider_application:
         Option<Handle<crate::source_state::product_operand::ProductOperandApplication>>,
-    pub composition_mode: CompositionMode,
 }
 
 #[derive(Debug, Clone, Copy)]

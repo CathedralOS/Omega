@@ -1814,6 +1814,10 @@ pub(crate) mod declaration_foundations {
                         )
                     })?;
             }
+            for row in &module.interfaces.provider_exports {
+                row.check_members(module)
+                    .map_err(CodecError::MalformedStructuralFoundation)?;
+            }
             for request in &module.interfaces.calling_policy_requests {
                 match &request.declaration {
                     Ok(identity)

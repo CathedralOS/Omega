@@ -52,6 +52,7 @@ rayon = "1.11"
 worker-budget = { path = "../foundation/worker-budget" }
 
 [dev-dependencies]
+component-description = { path = "../psi-to-native/verification/component-description" }
 review-evidence = { path = "../../package-manager/review/evidence", features = ["full-policy-recovery"] }
 psi-provider-selections = { path = "../psi/execution-inputs/providers" }
 artifact-lowering = { package = "target-bound-program-to-abstract-operations", path = "../psi-to-native/pipeline/02_target-bound-program-to-abstract-operations", features = ["test-support"] }

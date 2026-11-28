@@ -602,10 +602,14 @@ fn failed_invocations_and_observation_decoding_retain_the_actual_charge() {
         address_model: None,
     };
     let fail = source.realized_machine_named("fail").unwrap().symbol;
+    let fail_entry = prepared.entry(fail, fail, &[]).unwrap();
+    let other_program = fail_entry.produce_invocation().unwrap();
+    assert!(matches!(
+        fail_entry.accepted().check_invocation(&entry.source_invocation_inputs().site, &produced),
+        Err(reason) if reason == "evaluation receipt has another accepted code owner"
+    ));
     let mut before_execution = SourceCompletionAccounting::default();
-    let refusal = prepared
-        .entry(fail, fail, &[])
-        .unwrap()
+    let refusal = fail_entry
         .invoke_recorded(target, &mut before_execution)
         .unwrap_err();
     assert!(
@@ -643,7 +647,45 @@ fn failed_invocations_and_observation_decoding_retain_the_actual_charge() {
         let [PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
             panic!("expected the actual invocation receipt: {refusal}");
         };
-        receipt.require_program(&produced).unwrap();
+        receipt
+            .require_program(produced.invocation_program())
+            .unwrap();
+
+        let wrong_admission =
+            "compiler-evaluation admission names a different artifact, target or invocation";
+        assert_eq!(
+            receipt
+                .require_program(other_program.invocation_program())
+                .unwrap_err(),
+            wrong_admission
+        );
+        assert_eq!(
+            receipt
+                .admission()
+                .require_invocation(
+                    produced.view(),
+                    Some("windows_x86_64"),
+                    module.entry.unwrap()
+                )
+                .unwrap_err(),
+            wrong_admission
+        );
+
+        let mut current = entry.source_invocation_inputs();
+        let other_arguments = Arc::from(current.arguments.as_ref());
+        current.arguments = &other_arguments;
+        assert_eq!(
+            receipt.require_site(&current).unwrap_err(),
+            "evaluation receipt belongs to another call's inputs"
+        );
+
+        let mut current = entry.source_invocation_inputs();
+        let other_inputs = Arc::from(current.inputs.as_ref());
+        current.inputs = &other_inputs;
+        assert_eq!(
+            receipt.require_site(&current).unwrap_err(),
+            "evaluation receipt belongs to another call's inputs"
+        );
         assert!(
             matches!(receipt.outcome(), PureTerminalEvaluationOutcome::Failed { reason } if *reason == refusal)
         );
