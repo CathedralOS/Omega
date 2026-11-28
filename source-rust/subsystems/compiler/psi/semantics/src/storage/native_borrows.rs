@@ -2,8 +2,8 @@
 mod returned_addresses;
 mod returned_storage;
 pub use super::borrowed_storage::Position;
-pub use returned_storage::{ReturnedStorage, StorageHome};
 pub use returned_addresses::AddressReturnBody;
+pub use returned_storage::{ReturnedStorage, StorageHome};
 use semantic_vocabulary::{MachineId, ValueId};
 use terminal_psi::{OperationKind, StructuralArgument, TerminalMachine};
 

@@ -3,10 +3,10 @@
 //! Only the scalar slice feeding a return is needed for this question.
 use super::returned_storage::StorageInput;
 use super::{AddressCall, AddressDefinition, Position, ReturnedStorage, trace_local};
-use terminal_psi::{StructuralArgument, StructuralPathSegment};
 use arena::IdSet;
 use semantic_vocabulary::{MachineId, ValueId};
 use std::collections::{BTreeSet, VecDeque};
+use terminal_psi::{StructuralArgument, StructuralPathSegment};
 
 pub struct AddressReturnBody {
     formals: Vec<ValueId>,
