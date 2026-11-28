@@ -44,8 +44,16 @@ pub enum TerminalPackageEvent {
     /// EstablishRecord checks every initializer under these concrete types.
     Construct { witnesses: Vec<StructuralTypeId> },
     /// The field operand must come from the subject named by this opening.
-    Project { opening: u32, field: StructuralFieldId },
+    Project {
+        opening: u32,
+        field: StructuralFieldId,
+    },
     /// The selected descriptor and its dependent arguments must have the
     /// abstract contract and types of the same opening.
     Invoke { opening: u32 },
+    /// An existing field takes a value projected from the same live package.
+    Store {
+        opening: u32,
+        field: StructuralFieldId,
+    },
 }

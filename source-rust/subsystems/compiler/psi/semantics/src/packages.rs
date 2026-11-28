@@ -17,6 +17,7 @@ use terminal_psi::{
 mod construction;
 mod fields;
 mod opening;
+mod store;
 mod substitution;
 mod versions;
 
@@ -38,6 +39,7 @@ type ProjectedOrigins = BTreeMap<(MachineId, Projected), (u32, OperationId)>;
 pub struct CheckedPackageSites {
     fields: BTreeMap<(MachineId, OperationId, StructuralFieldId), StructuralFieldType>,
     calls: BTreeMap<Site, CallableContractId>,
+    stored: BTreeMap<Site, StructuralTypeId>,
     repacked_fields: BTreeMap<(MachineId, OperationId, StructuralFieldId), OperationId>,
     projected_fields: BTreeMap<Site, StructuralFieldId>,
     descriptors: BTreeMap<Site, (u32, CallableContractId)>,
@@ -52,6 +54,15 @@ impl CheckedPackageSites {
         field: StructuralFieldId,
     ) -> Option<&StructuralFieldType> {
         self.fields.get(&(machine, operation, field))
+    }
+
+    /// The exact field type after substituting the destination's live witness.
+    pub fn stored_type(
+        &self,
+        machine: MachineId,
+        operation: OperationId,
+    ) -> Option<StructuralTypeId> {
+        self.stored.get(&(machine, operation)).copied()
     }
 
     /// The projection that supplied a dependent operand for this repacking.
@@ -299,7 +310,7 @@ pub fn check_package_sites(module: &TerminalModule) -> Result<CheckedPackageSite
                     return Err("two package fields claim one descriptor result");
                 }
             }
-            TerminalPackageEvent::Invoke { .. } => (),
+            TerminalPackageEvent::Invoke { .. } | TerminalPackageEvent::Store { .. } => (),
         }
     }
     for machine in &module.machines {
@@ -339,6 +350,11 @@ pub fn check_package_sites(module: &TerminalModule) -> Result<CheckedPackageSite
                 checked
                     .descriptors
                     .insert((machine.id, operation.id), (*opening, contract));
+            }
+            if let Some(TerminalPackageEvent::Store { opening, field }) = event {
+                let ty =
+                    store::checked_store(module, machine, operation, *opening, *field, &projected)?;
+                checked.stored.insert((machine.id, operation.id), ty);
             }
             check_field_accesses(module, machine, operation, event, &checked)?;
             if matches!(operation.kind, OperationKind::EstablishRecord { .. })

@@ -312,9 +312,7 @@ fn package_sites_only_retires_a_saved_descriptor_after_its_subject_changes() {
     assert!(check_package_sites(&make(1)).is_err());
 }
 
-#[test]
-fn package_sites_repack_only_references_from_the_same_live_opening() {
-    use terminal_psi::{RecordFieldInitializer, RecordFieldValue, StructuralOperationResult};
+fn shared_pair_projections() -> TerminalModule {
     let mut program = readers();
     let reference = &mut program.types.structural_types[5];
     reference.shape = StructuralTypeShape::Reference {
@@ -352,18 +350,6 @@ fn package_sites_repack_only_references_from_the_same_live_opening() {
             },
         });
     }
-    let result = |slot, ty| {
-        OperationResult::Structural(StructuralOperationResult {
-            place: place(slot),
-            structural_type: ty,
-            multiplicity: StructuralMultiplicity::Unrestricted,
-            qualifications: vec![],
-            projected_qualifications: vec![],
-            additional_input_qualifications: vec![],
-            qualification_establishments: vec![],
-            claims: vec![],
-        })
-    };
     for i in [1, 2] {
         let op = operation_id(i);
         m.blocks[0].operations.push(Operation::unsuspended(
@@ -392,6 +378,28 @@ fn package_sites_repack_only_references_from_the_same_live_opening() {
             },
         });
     }
+    program
+}
+
+fn result(slot: u64, ty: StructuralTypeId) -> OperationResult {
+    use terminal_psi::StructuralOperationResult;
+    OperationResult::Structural(StructuralOperationResult {
+        place: place(slot),
+        structural_type: ty,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        qualifications: vec![],
+        projected_qualifications: vec![],
+        additional_input_qualifications: vec![],
+        qualification_establishments: vec![],
+        claims: vec![],
+    })
+}
+
+#[test]
+fn package_sites_repack_only_references_from_the_same_live_opening() {
+    use terminal_psi::{RecordFieldInitializer, RecordFieldValue};
+    let mut program = shared_pair_projections();
+    let m = &mut program.machines[0];
     let initializers = [1, 2]
         .into_iter()
         .map(|i| RecordFieldInitializer {
@@ -463,4 +471,104 @@ fn package_sites_reborrow_the_same_state_through_a_saved_callback() {
     });
     check_package_sites(&program)
         .expect("fresh reborrows preserve the stored callback and reference");
+}
+
+#[test]
+fn dependent_store_requires_a_projected_reference_from_its_destination_opening() {
+    let mut module = shared_pair_projections();
+    let m = &mut module.machines[0];
+    m.blocks[0].operations.push(Operation::unsuspended(
+        operation_id(3),
+        OperationResult::Unit,
+        O::StoreStructuralField {
+            destination: place(1),
+            path: vec![],
+            field: Some(field(1)),
+            disposition: terminal_psi::StructuralStoreDisposition::ReplaceDiscardable,
+            value: StructuralArgument::whole(place(4), StructuralAccess::Owned),
+        },
+    ));
+    let site = TerminalPackageSite {
+        machine: m.id,
+        operation: operation_id(3),
+        event: TerminalPackageEvent::Store {
+            opening: 0,
+            field: field(1),
+        },
+    };
+    assert!(
+        check_package_sites(&module).is_err(),
+        "a missing receipt is refused"
+    );
+    module.execution.packages.sites.push(site);
+    let checked = check_package_sites(&module).unwrap();
+    assert_eq!(
+        checked.stored_type(machine_id(1), operation_id(3)),
+        Some(ty(8))
+    );
+    // A saved projected value survives a replacement on another subject only.
+    for (destination, valid) in [(place(2), true), (place(1), false)] {
+        let mut deferred = module.clone();
+        let machine = &mut deferred.machines[0];
+        let mut replacement = param(5, ty(7));
+        replacement.position = 2;
+        replacement.access = StructuralAccess::Owned;
+        machine.structural_parameters.push(replacement);
+        machine
+            .parameter_order
+            .push(BoundaryParameterKind::Structural);
+        machine.structural_places.push(StructuralPlaceDeclaration {
+            id: place(5),
+            kind: StructuralPlaceKind::Parameter { position: 2 },
+        });
+        machine.blocks[0].operations[2].id = operation_id(4);
+        deferred.execution.packages.sites[2].operation = operation_id(4);
+        machine.blocks[0].operations.insert(
+            2,
+            Operation::unsuspended(
+                operation_id(3),
+                OperationResult::Unit,
+                O::StoreStructuralField {
+                    destination,
+                    path: vec![],
+                    field: None,
+                    disposition: terminal_psi::StructuralStoreDisposition::ReplaceDiscardable,
+                    value: StructuralArgument::whole(place(5), StructuralAccess::Owned),
+                },
+            ),
+        );
+        assert_eq!(
+            check_package_sites(&deferred).is_ok(),
+            valid,
+            "write to {destination:?}"
+        );
+    }
+    let mut wrong = module.clone();
+    let O::StoreStructuralField { destination, .. } =
+        &mut wrong.machines[0].blocks[0].operations[2].kind
+    else {
+        unreachable!()
+    };
+    *destination = place(2);
+    assert!(check_package_sites(&wrong).is_err());
+    let mut wrong = module;
+    let O::StructuralLeafCopy { source, .. } = &mut wrong.machines[0].blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    *source = place(2);
+    if let OperationResult::Structural(output) =
+        &mut wrong.machines[0].blocks[0].operations[1].result
+    {
+        output.structural_type = ty(9);
+    }
+    wrong.machines[0].structural_places[3].kind = StructuralPlaceKind::OperationResult {
+        producer: operation_id(2),
+        structural_type: ty(9),
+    };
+    wrong.execution.packages.sites[1].event = TerminalPackageEvent::Project {
+        opening: 1,
+        field: field(2),
+    };
+    assert!(check_package_sites(&wrong).is_err());
 }

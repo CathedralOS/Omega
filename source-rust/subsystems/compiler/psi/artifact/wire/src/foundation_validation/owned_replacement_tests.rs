@@ -69,7 +69,7 @@ fn replacing_an_owned_root_requires_its_prior_contents_to_be_discardable() {
         },
     };
     let admitted = |module: &TerminalModule, machine: &TerminalMachine| {
-        validate_store_structural_field(module, machine, &operation).is_ok()
+        validate_store_structural_field(module, machine, &operation, &Default::default()).is_ok()
     };
     assert!(admitted(&module, &machine));
     machine.structural_parameters[0].access = StructuralAccess::SharedBorrow;
