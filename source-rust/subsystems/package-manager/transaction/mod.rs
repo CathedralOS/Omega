@@ -887,10 +887,9 @@ impl PackageCommandError {
             },
         ) = &mut self.cause
         {
+            let context = format!("dependency registration `{name}` failed: ");
             for diagnostic in rows {
-                diagnostic.message.push_str("\n  dependency registration `");
-                diagnostic.message.push_str(name);
-                diagnostic.message.push('`');
+                diagnostic.message.insert_str(0, &context);
             }
         }
         self
