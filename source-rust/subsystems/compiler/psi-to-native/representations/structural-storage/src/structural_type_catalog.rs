@@ -30,6 +30,12 @@ struct LayoutFacts {
     package_witnesses: Vec<StructuralTypeId>,
 }
 
+impl LayoutFacts {
+    fn is_empty(&self) -> bool {
+        self.owned_sequences.is_empty() && self.package_witnesses.is_empty()
+    }
+}
+
 /// Facts that affect native storage beyond a type's declared shape.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct StorageLayoutInputs<'a> {
