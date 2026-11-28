@@ -685,47 +685,7 @@ pub fn require_static_record_schema(
             "a static record operand has no named record declaration",
         ));
     }
-    if program.symbols.get(symbol).kind == SymbolKind::TypeParameter {
-        let declaration = program
-            .data_type_parameter_by_symbol(symbol)
-            .ok_or(unserved("a forwarded static record has no declared binder"))?;
-        let TypeParameterKind::Const { type_reference } = declaration.kind else {
-            return Err(unserved("a forwarded static record is not a const value"));
-        };
-        let actual = program
-            .static_record_schema(type_reference, program.symbols.get(symbol).parent)
-            .ok_or(unserved(
-                "a forwarded static record lost its declared schema",
-            ))?;
-        if !required.same_application(program, &actual) {
-            return Err(Stop::Rejected(
-                "a forwarded static record has another declared schema".into(),
-            ));
-        }
-    } else {
-        let selected = program.conformance_by_symbol(symbol).ok_or(unserved(
-            "a static record operand has no named record declaration",
-        ))?;
-        if !selected.lifetime_parameters.is_empty()
-            || !program.conformance_type_parameters(selected).is_empty()
-        {
-            return Err(unserved(
-                "a static record operand needs its complete closed application",
-            ));
-        }
-        let actual = crate::source_state::trait_definition::AppliedTraitScope::from_conformance(
-            program, selected,
-        )
-        .ok_or(unserved(
-            "a static record operand lost its complete schema application",
-        ))?;
-        if !required.same_application(program, &actual) {
-            return Err(Stop::Rejected(
-                "a static record operand has another declared schema".into(),
-            ));
-        }
-    }
-    Ok(())
+    selected_static_record(program, required, symbol, true).map(|_| ())
 }
 
 fn named_static_record(
@@ -756,7 +716,15 @@ fn named_static_record(
         declared_type,
         &[],
     );
-    let symbol = argument.symbol;
+    selected_static_record(program, &required, argument.symbol, closed_schema)
+}
+
+fn selected_static_record(
+    program: &TypedTrees,
+    required: &crate::source_state::trait_definition::AppliedTraitScope<'_>,
+    symbol: SymbolHandle,
+    closed_schema: bool,
+) -> Served<SymbolHandle> {
     if program.symbols.get(symbol).kind == SymbolKind::TypeParameter {
         let declaration = program
             .data_type_parameter_by_symbol(symbol)

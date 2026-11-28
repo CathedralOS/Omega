@@ -156,7 +156,9 @@ fn check_record_operations(
         outer = frame.parent.as_deref();
     }
     let TypeReferenceNode::Named { symbol, .. } = typed.type_reference_node(argument) else {
-        return Err(unserved("record operation argument needs its exact named value"));
+        return Err(unserved(
+            "record operation argument needs its exact named value",
+        ));
     };
     require_static_record_schema(typed, &required, *symbol)
 }
@@ -398,7 +400,8 @@ fn checked_source_application(
                 &TypeParameterKind::Const { type_reference }
                 | &TypeParameterKind::Value { type_reference } => {
                     if matches!(parameter.kind, TypeParameterKind::Const { .. })
-                        && let Some(required) = typed.static_record_schema(type_reference, template.symbol)
+                        && let Some(required) =
+                            typed.static_record_schema(type_reference, template.symbol)
                     {
                         let supplied = scope
                             .supplied_type_reference(typed, *argument)

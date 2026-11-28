@@ -173,7 +173,9 @@ machine entry(box: Bundle<u32, Words>) -> u32 { box.slot.value }
     let wrong = source.replace("Bundle<u32, Words>", "Bundle<u32, Flags>");
     let error = try_typed(&wrong).expect_err("Flags provides Factory<bool>");
     assert!(
-        error.message.contains("does not supply the declared `Factory` application of `Bundle`"),
+        error
+            .message
+            .contains("does not supply the declared `Factory` application of `Bundle`"),
         "{}",
         error.message
     );

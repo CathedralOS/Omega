@@ -846,7 +846,9 @@ impl Program<'_> {
                             typed,
                             type_reference,
                         ) || (matches!(parameter.kind, TypeParameterKind::Const { .. })
-                            && typed.static_record_schema(type_reference, data.symbol).is_some()))
+                            && typed
+                                .static_record_schema(type_reference, data.symbol)
+                                .is_some()))
                 }
                 _ => false,
             };
