@@ -137,6 +137,26 @@ fn judge_boundary_package(source: &str) -> Vec<Result<RouteVerdict, crate::Compi
 }
 
 #[test]
+fn a_record_index_and_a_machine_argument_name_the_same_enum_case() {
+    let source = include_str!("../../tests/fixtures/enum_case_record_index/pass/matching/main.omg");
+    let check = |source: &str| {
+        let prepared = crate::preparation::prepare_typed_trees(typed(source), &[], &[]).unwrap();
+        judge(invocation(prepared.into_inner()))
+    };
+    let positive = check(source);
+    assert!(
+        matches!(positive, Ok(RouteVerdict::Accepted(_))),
+        "{positive:?}"
+    );
+    let negative = source.replace("read::<Mode::Fixed>", "read::<Mode::Split>");
+    let negative = check(&negative);
+    assert!(
+        matches!(negative, Ok(RouteVerdict::Rejected { .. })),
+        "{negative:?}"
+    );
+}
+
+#[test]
 fn a_boundary_call_selects_its_structural_const_by_value() {
     let source = r#"
         data Storage [copy] { case Fixed; case Split; }
