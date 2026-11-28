@@ -31,31 +31,49 @@ impl PackageCallableSites {
         field: StructuralFieldId,
         actual: &terminal_psi::StructuralFieldType,
     ) -> CallableValueResult<()> {
+        self.stored_field(
+            types,
+            position,
+            (record.place, record.structural_type),
+            (&[], field),
+            actual,
+        )
+    }
+
+    /// Retain the concrete contract only for the exact write whose package
+    /// receipt admitted this callable field. This records a type transition;
+    /// the ordinary storage equations still recover the descriptor itself.
+    pub fn stored_field(
+        &mut self,
+        types: &[StructuralTypeDeclaration],
+        position: DescriptorPosition,
+        (destination, root): (PlaceId, StructuralTypeId),
+        (path, field): (&[terminal_psi::StructuralPathSegment], StructuralFieldId),
+        actual: &terminal_psi::StructuralFieldType,
+    ) -> CallableValueResult<()> {
         let Some(ScalarType::Callable(actual)) = actual.scalar_type() else {
             return Ok(());
         };
-        let declaration = crate::structural_declaration(types.iter(), record.structural_type)
-            .and_then(|record| {
-                record
-                    .shape
-                    .fields()
-                    .find(|candidate| candidate.id == field)
-            })
+        let declaration = crate::projected_field_declaration(types.iter(), root, path, field)
             .ok_or("package callable write names an absent field")?;
         let Some(ScalarType::Callable(public)) = declaration.field_type.scalar_type() else {
             return Err("package callable write names a non-callable field");
         };
         if actual != public {
-            let location = DescriptorLocation {
-                root: record.place,
-                path: vec![DescriptorPathSegment::Field(field)],
-            };
+            let location = crate::descriptor_lifetimes::descriptor_location(
+                types,
+                destination,
+                root,
+                path,
+                Some(field),
+            )
+            .ok_or("package callable write has no storage path")?;
             if self
                 .writes
                 .insert((position, location), (public, actual))
                 .is_some()
             {
-                return Err("package callable field has two writes at one construction");
+                return Err("package callable field has two writes at one site");
             }
         }
         Ok(())
