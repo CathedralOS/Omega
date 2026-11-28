@@ -1,0 +1,14 @@
+use {omega}/build/dependency.omg;
+use main.omg as app;
+use {relay}/main.omg as relay;
+use {signals}/main.omg as signals;
+
+machine build(build: @mutable BuildPlan) {
+    build.product = BuildProduct::Application { name: "viewer" };
+    let dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../supplier" });
+    _ = |dependency|::add(build, dependency);
+    let allowed: [BoundaryServiceReference; 1] = [Build::service::<|signals|::Publisher>(build)];
+    _ = |dependency|::add(build, |dependency|::from_source(Source::Path { location: "../relay" }), @allowed[..]);
+    Build::select_provider::<|relay|::Forward, |relay|::Relay>(build, linux_x86_64, CompositionMode::Independent);
+    Build::bind(build, linux_x86_64::ProgramEntry, |app|::main);
+}

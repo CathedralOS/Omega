@@ -617,3 +617,73 @@ fn a_separately_compiled_publisher_lends_the_same_atomic_cell_to_both_arguments(
     ));
     assert!(ran, "{diagnostic}");
 }
+
+#[cfg(target_os = "linux")]
+#[test]
+fn two_independent_providers_forward_the_callers_atomic_cell() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/synchronization/run/independent_atomic_update");
+    let scratch = TemporaryDirectory::create("forwarded-atomic-publisher", false).unwrap();
+    for directory in ["supplier", "relay", "forwarding"] {
+        let target = scratch.path().join(directory);
+        fs::create_dir(&target).unwrap();
+        for file in ["build.omg", "main.omg"] {
+            fs::copy(fixture.join(directory).join(file), target.join(file)).unwrap();
+        }
+    }
+    let root = scratch.path().join("forwarding");
+    fs::copy(
+        fixture.join("forwarding/configure.omg"),
+        root.join("configure.omg"),
+    )
+    .unwrap();
+    let update = project::omega(
+        &root,
+        &[
+            "packages",
+            "update",
+            "--offline",
+            "--target",
+            "linux_x86_64",
+            "--dangerously-accept-all",
+            "--project",
+            ".",
+        ],
+    );
+    let (reviewed, report) = project::status(&update);
+    assert!(reviewed, "{report}");
+    require_native_suppliers(&root, &scratch.path().join("out"), 2);
+
+    let run = [
+        "run",
+        "--target",
+        "linux_x86_64",
+        "--psi-work-budget",
+        "10000",
+        "build.omg",
+    ];
+    let (ran, report) = project::status(&project::omega(&root, &run));
+    assert!(ran, "{report}");
+
+    let main = root.join("main.omg");
+    let source = fs::read_to_string(&main).unwrap();
+    fs::write(main, source.replace("store(3,", "store(1,")).unwrap();
+    for arguments in [
+        &[
+            "--target",
+            "linux_x86_64",
+            "--build-dir",
+            "held",
+            "build.omg",
+        ][..],
+        &run,
+    ] {
+        let (accepted, report) = project::status(&project::omega(&root, arguments));
+        assert!(
+            !accepted
+                && report.contains("synchronization deadlock")
+                && report.contains("unchanged private atomic"),
+            "{report}"
+        );
+    }
+}
