@@ -489,6 +489,18 @@ impl Program<'_> {
     ) -> Checked<Expression> {
         let value = self.expression(machine, slots, handle, Some(ValueType::plain(scalar)))?;
         if value.result != Some(ValueType::plain(scalar)) {
+            if let Some(ValueType::Scalar(actual, _)) = value.result
+                && actual != scalar
+            {
+                return Err(self.mistyped(
+                    machine,
+                    value.source,
+                    super::rejections::Destination::AtomicOperand,
+                    Some(ValueType::plain(scalar)),
+                    value.result,
+                    "atomic operand carrier",
+                ));
+            }
             return Err(reject(
                 machine,
                 value.source,
