@@ -98,17 +98,18 @@ pub(super) fn result_shape(
         ) != Some(terminal_psi::StructuralAccess::MutableBorrow) {
         return Err("retained backing must be an exclusive byte slice");
     }
-    let matches_type = |field: &StructuralFieldType, ty: StructuralTypeId| {
-        if let StructuralFieldType::Structural(id) = field { return *id == ty; }
-        module.structural_type(ty).is_some_and(|decl| field.canonical_leaf_shape().as_ref() == Some(&decl.shape))
-    };
     let arguments_match = match (argument_kind, boundary.scalar_parameters.as_slice(), rest) {
-        (BoundaryParameterKind::Scalar, [ty], []) =>
-            arguments.field_type.canonical_leaf_shape() == Some(StructuralTypeShape::PrimitiveScalar(*ty)),
-        (BoundaryParameterKind::Structural, [], [arg]) => matches_type(&arguments.field_type, arg.structural_type),
+        (BoundaryParameterKind::Scalar, [ty], []) => {
+            arguments.field_type.canonical_leaf_shape()
+                == Some(StructuralTypeShape::PrimitiveScalar(*ty))
+        }
+        (BoundaryParameterKind::Structural, [], [arg]) => {
+            super::field_matches_carrier(module, arguments, arg.structural_type)
+        }
         _ => false,
     };
-    if !arguments_match || !matches_type(&retained.field_type, backing.structural_type) {
+    if !arguments_match || !super::field_matches_carrier(module, retained, backing.structural_type)
+    {
         return Err("rejection changed an argument or the retained loan's carrier");
     }
     if !super::forwarded_qualifications(

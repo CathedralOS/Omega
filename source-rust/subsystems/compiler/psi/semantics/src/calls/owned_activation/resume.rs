@@ -86,9 +86,7 @@ fn reply_input(
                         ty.multiplicity == value.multiplicity
                             && module.identities.text(ty.identity)
                                 == Some(stored_reply(reply).as_ref())
-                            && (field.field_type.as_structural() == Some(ty.id)
-                                || field.field_type.canonical_leaf_shape().as_ref()
-                                    == Some(&ty.shape))
+                            && super::field_matches_carrier(module, field, ty.id)
                     })
         }
         _ => false,
