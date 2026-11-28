@@ -623,6 +623,7 @@ mod run_custody {
             source.place,
             &path.into(),
             root_type,
+            None,
             site,
         )
     }

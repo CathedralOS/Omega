@@ -61,7 +61,7 @@ mod formation;
 use super::overlap;
 use language_core::ReferenceAccess;
 use semantic_vocabulary::StructuralPlaceKind;
-use semantic_vocabulary::{EdgeId, InvocationSite, ObligationId, PlaceId};
+use semantic_vocabulary::{EdgeId, InvocationSite, MachineId, ObligationId, PlaceId};
 use std::collections::BTreeMap;
 use terminal_check_tables::edges::{Actual, Fate};
 use terminal_check_tables::obligations::{Lender, ObligationKind};
@@ -177,6 +177,9 @@ pub(super) enum ExternalReferent {
 #[derive(Debug, Clone)]
 enum LoanRegion {
     Storage(Backing),
+    /// The descriptor borrows read-only bytes in the program image. Retiring
+    /// its local home cannot release or overwrite those bytes.
+    ImmutableImageBytes(Box<[(MachineId, PlaceId)]>),
     /// An admitted provider establishes a stable reference permission. Its input
     /// loans are retained separately; its address remains unavailable.
     Provider(StructuralAccess),
@@ -192,6 +195,9 @@ struct PayloadCapture {
 impl LoanRegion {
     fn respects_parent(&self, parent: &Self) -> bool {
         match (self, parent) {
+            (Self::ImmutableImageBytes(child), Self::ImmutableImageBytes(parent)) => child
+                .iter()
+                .all(|origin| parent.binary_search(origin).is_ok()),
             (Self::Storage(child), Self::Storage(parent)) => parent.contains_reborrow(child),
             // Exact parent identity was already checked through descriptor
             // flow. This adds no assertion about where its bytes reside.
@@ -235,11 +241,12 @@ fn competing_borrows(
     // dependencies. No address or disjointness fact follows from this case.
     if matches!(
         left_place,
-        LoanRegion::Provider(StructuralAccess::SharedBorrow)
+        LoanRegion::ImmutableImageBytes(_) | LoanRegion::Provider(StructuralAccess::SharedBorrow)
     ) && left.is_exclusive()
         || matches!(
             right_place,
-            LoanRegion::Provider(StructuralAccess::SharedBorrow)
+            LoanRegion::ImmutableImageBytes(_)
+                | LoanRegion::Provider(StructuralAccess::SharedBorrow)
         ) && right.is_exclusive()
     {
         return Some(LoanConflict::AccessExceedsParent);
@@ -468,6 +475,24 @@ impl<'a> Storage<'a> {
             return Err(
                 self.unsupported(concerns, "view loan has no original payload correspondence")
             );
+        }
+        if let Some(mut literals) = origins
+            .iter()
+            .map(|source| match source {
+                DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Literal {
+                    machine,
+                    place,
+                }) => Some((*machine, *place)),
+                _ => None,
+            })
+            .collect::<Option<Vec<_>>>()
+        {
+            literals.sort_unstable();
+            literals.dedup();
+            return Ok(PayloadCapture {
+                region: LoanRegion::ImmutableImageBytes(literals.into_boxed_slice()),
+                exact: false,
+            });
         }
         let mut captured = None;
         let mut exact = true;

@@ -124,3 +124,45 @@ machine main() {
         "{diagnostic}"
     );
 }
+
+#[test]
+fn a_caller_must_supply_live_storage_to_the_parameter_a_helper_borrows() {
+    let source = r#"
+machine local_address() -> address {
+    let local: u8 = 7u8;
+    address_of(@local)
+}
+machine read(location: address) -> u8 {
+    let byte: @u8 = |native|::borrow_at::<u8>(location);
+    $byte
+}
+machine relay(ignored: address, selected: address) -> u8 { read(selected) }
+machine optional(needed: bool, location: address) -> u8 {
+    transition needed { true -> read(location), false -> 31u8 }
+}
+machine main() crashes Trap {
+    let live: u8 = 31u8;
+    let past: address = local_address();
+    let left: u8 = relay(ARGUMENTS);
+    let right: u8 = optional(false, past);
+    transition left == 31u8 && right == 31u8 { true -> {}, _ -> wrong() }
+    machine wrong() { crash Trap; }
+}"#;
+    let refused = Program::new(
+        &source.replace("ARGUMENTS", "address_of(@live), past"),
+        &[READ],
+    )
+    .check();
+    let diagnostic = report(&refused);
+    assert!(
+        !refused.status.success()
+            && diagnostic.contains("already returned")
+            && !diagnostic.contains("not supported yet"),
+        "{diagnostic}"
+    );
+    Program::new(
+        &source.replace("ARGUMENTS", "past, address_of(@live)"),
+        &[READ],
+    )
+    .assert_native_returns();
+}

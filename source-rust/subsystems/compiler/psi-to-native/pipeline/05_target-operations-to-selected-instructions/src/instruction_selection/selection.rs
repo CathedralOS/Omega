@@ -665,17 +665,10 @@ pub(crate) mod construction {
         let catalog = environment.constraints();
         require_key_rows(&constraints.keys, catalog)?;
         let native_geometry = crate::instruction_selection::native_geometry::NativeGeometries::new(
-            target.scalar_functions.iter().map(|source| {
-                source
-                    .structural
-                    .as_ref()
-                    .map_or((&[][..], &[][..]), |contract| {
-                        (
-                            contract.structural_types.as_slice(),
-                            contract.structural_types.owned_sequence_bounds(),
-                        )
-                    })
-            }),
+            target
+                .scalar_functions
+                .iter()
+                .map(|source| source.native_layout_inputs()),
             target.target,
         )
         .map_err(|_| SelectedInstructionError::custody())?;
@@ -689,19 +682,12 @@ pub(crate) mod construction {
             .iter()
             .enumerate()
             .map(|(index, source)| {
+                let (declarations, inputs) = source.native_layout_inputs();
                 scalar_graph::build_with_environment(
                     index,
                     source,
                     native_geometry
-                        .get(
-                            source
-                                .structural
-                                .as_ref()
-                                .map_or(&[][..], |contract| contract.structural_types.as_slice()),
-                            source.structural.as_ref().map_or(&[][..], |contract| {
-                                contract.structural_types.owned_sequence_bounds()
-                            }),
-                        )
+                        .get(declarations, inputs)
                         .ok_or_else(SelectedInstructionError::custody)?,
                     constraints,
                     environment,
@@ -1163,23 +1149,12 @@ pub(crate) mod foreign_scalar_backings {
             while cursor < coordinates.len() {
                 let function_index = coordinates[cursor].function;
                 let function = &self.program.scalar_functions[function_index];
-                let declarations = function
-                    .structural
-                    .as_ref()
-                    .map_or(&[][..], |signature| signature.structural_types.as_slice());
-                let geometry = self
-                    .geometries
-                    .get(
-                        declarations,
-                        function.structural.as_ref().map_or(&[][..], |signature| {
-                            signature.structural_types.owned_sequence_bounds()
-                        }),
+                let (declarations, inputs) = function.native_layout_inputs();
+                let geometry = self.geometries.get(declarations, inputs).ok_or_else(|| {
+                    SelectedInstructionError::custody_because(
+                        "foreign backing query lost its prepared native geometry",
                     )
-                    .ok_or_else(|| {
-                        SelectedInstructionError::custody_because(
-                            "foreign backing query lost its prepared native geometry",
-                        )
-                    })?;
+                })?;
                 let function = &crate::instruction_selection::native_geometry::NativeInput::new(
                     function, geometry,
                 );

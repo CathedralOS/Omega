@@ -1,5 +1,7 @@
 //! Trace exposed storage and scalar formals through the value that supplies a native address.
+mod call_inputs;
 mod returned_addresses;
+pub use call_inputs::receives_expired_address;
 mod returned_storage;
 pub use super::borrowed_storage::Position;
 pub use returned_addresses::AddressReturnBody;
@@ -31,6 +33,10 @@ pub struct NativeAddressOrigin<S> {
 
 /// The scalar definition visible at this stage of the compiler.
 impl<S> NativeAddressOrigin<S> {
+    pub fn only_expired_storage(&self) -> bool {
+        self.expired && !self.opaque && self.sources.is_empty() && self.parameters.is_empty()
+    }
+
     pub fn observed_sources(
         &self,
     ) -> impl Iterator<Item = ((semantic_vocabulary::BlockId, u32), &S)> {

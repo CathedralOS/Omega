@@ -16,6 +16,7 @@ pub(crate) fn local_mutable_field_homes(
     references: &mut DescriptorAnalysis<'_>,
     source: PlaceId,
     path: &[StructuralPathSegment],
+    checked: Option<&CheckedPackageSites>,
 ) -> Option<Vec<(PlaceId, Vec<StructuralPathSegment>)>> {
     let root = machine.structural_place_type(source)?;
     let member = fields::hidden_reference_field(module, root, path)?;
@@ -28,7 +29,14 @@ pub(crate) fn local_mutable_field_homes(
         return None;
     }
     let types = &module.types.structural_types;
-    let checked = check_package_sites(module).ok()?;
+    let replayed;
+    let checked = match checked {
+        Some(checked) => checked,
+        None => {
+            replayed = check_package_sites(module).ok()?;
+            &replayed
+        }
+    };
     let slot = descriptor_location(types, source, root, path, None)?;
     let homes = references.local_reference_homes(machine.id, at, &slot)?;
     let mut pending: BTreeSet<_> = homes.iter().collect();
@@ -117,17 +125,25 @@ pub fn local_call_write_origins(
     if !written_argument {
         return None;
     }
-    local_mutable_field_homes(module, machine, at, references, location.root, carrier)?
-        .into_iter()
-        .map(|(source, path)| {
-            // A runtime index would need its original evaluation point to
-            // identify the same cell after the call.
-            (!path.iter().any(|segment| segment.runtime_index().is_some())).then(|| {
-                DescriptorCallOrigin::Argument {
-                    source,
-                    projection: crate::borrowed_storage::Projection::new(&path),
-                }
-            })
+    local_mutable_field_homes(
+        module,
+        machine,
+        at,
+        references,
+        location.root,
+        carrier,
+        None,
+    )?
+    .into_iter()
+    .map(|(source, path)| {
+        // A runtime index would need its original evaluation point to
+        // identify the same cell after the call.
+        (!path.iter().any(|segment| segment.runtime_index().is_some())).then(|| {
+            DescriptorCallOrigin::Argument {
+                source,
+                projection: crate::borrowed_storage::Projection::new(&path),
+            }
         })
-        .collect()
+    })
+    .collect()
 }

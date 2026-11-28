@@ -2055,15 +2055,25 @@ impl<'a> Prover<'a> {
     /// evaluates the negated comparison and checks the transport back.
     fn refute_closed_relation(&mut self, goal: &Proposition) -> Option<ProofNode> {
         for index in 0..self.facts.len() {
-            if self.facts[index].axiom.is_some()
-                || !matches!(
-                    self.facts[index].proposition(),
-                    Proposition::IntegerMathEqual(..)
-                        | Proposition::IntegerMathLessThan(..)
-                        | Proposition::IntegerMathLessOrEqual(..)
-                        | Proposition::ScalarIeeeFloatComparison { .. }
-                )
+            if self.facts[index].axiom.is_some() {
+                continue;
+            }
+            // Substitution can leave an impossible literal comparison as the
+            // premise of an implication, such as a zero byte equaling 224.
+            // The kernel rechecks the cited premise's denotation in ex_falso.
+            if proof_admission::closed_integer_relation(self.facts[index].proposition())
+                == Some(Proposition::Falsehood)
             {
+                let premise = fact_proof_for_refutation(&self.facts, index, self.activity);
+                return Some(ex_falso(premise, goal));
+            }
+            if !matches!(
+                self.facts[index].proposition(),
+                Proposition::IntegerMathEqual(..)
+                    | Proposition::IntegerMathLessThan(..)
+                    | Proposition::IntegerMathLessOrEqual(..)
+                    | Proposition::ScalarIeeeFloatComparison { .. }
+            ) {
                 continue;
             }
             let negation = Proposition::Implication {

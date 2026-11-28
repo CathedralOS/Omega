@@ -4264,6 +4264,9 @@ impl<'t> Program<'t> {
             }
             _ => (argument, formal.access, false),
         };
+        if explicit {
+            self.require_borrow_layers(id, argument, expected, source)?;
+        }
         // A recast forms its written reference presentation over the same
         // captured storage. Its source still runs once and keeps its type.
         let (mut place, presentation) = match self.node(id, operand)? {

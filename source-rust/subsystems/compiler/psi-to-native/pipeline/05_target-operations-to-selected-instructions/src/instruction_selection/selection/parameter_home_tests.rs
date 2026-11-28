@@ -103,6 +103,7 @@ fn entry_and_dispatch_agree_on_which_parameter_uses_need_storage() {
         semantic: argument(id, access),
         indices: vec![],
         target: TargetStructuralArgument {
+            opened_referent: None,
             place: place(id),
             access,
             path: vec![],

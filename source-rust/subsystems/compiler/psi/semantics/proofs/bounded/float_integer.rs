@@ -7,11 +7,7 @@
 //! In particular, an equality with zero cannot discard a negative zero sign.
 
 use crate::float_meaning::meaning;
-use bignum::BigInt;
-use numerics::float_semantics::{
-    FloatMeaning, FloatSemanticEvaluationError, FloatSemanticOperand, FloatSemanticOperation,
-    FloatSemanticResult, FloatToIntegerError,
-};
+use numerics::float_semantics::{FloatMeaning, FloatSemanticEvaluationError};
 use semantic_vocabulary::{
     IeeeFloatComparisonKind, IeeeFloatValue, IntegerValue, Proposition, PropositionContext,
     PropositionError, ScalarTerm,
@@ -58,36 +54,12 @@ fn closed_with_endpoint_budget(
             }))
         }
         Proposition::FloatIntegerConversion(clause) => {
-            let ScalarTerm::IeeeFloatLiteral(source) = &clause.source else {
-                return Ok(None);
-            };
-            let ScalarTerm::Integer { value, .. } = &clause.result else {
-                return Ok(None);
-            };
-            let expected = match value {
-                IntegerValue::Signed(value) => BigInt::from_i128(*value),
-                IntegerValue::Unsigned(value) => BigInt::from_u128(*value),
-            };
-            let operation = FloatSemanticOperation::for_contract_identity(&clause.operation)
-                .ok_or(FloatIntegerError::Unsupported(
-                    "integer conversion has no authenticated catalog row",
-                ))?;
-            match operation
-                .kernel_discharge(
-                    &[FloatSemanticOperand::Meaning(meaning(*source))],
-                    maximum_endpoint_bits,
-                )
-                .map(|discharge| discharge.result)
-            {
-                Ok(FloatSemanticResult::Integer(actual)) => Ok(Some(actual == expected)),
-                Ok(_) => Err(FloatIntegerError::Unsupported(
-                    "integer conversion catalog returned a different result family",
-                )),
-                Err(FloatSemanticEvaluationError::IntegerConversion(
-                    FloatToIntegerError::NonFinite | FloatToIntegerError::OutOfRange,
-                )) => Ok(Some(false)),
-                Err(error) => Err(FloatIntegerError::Semantic(error)),
-            }
+            closed_predicates::closed_float_integer_conversion(
+                clause,
+                &|_| None,
+                maximum_endpoint_bits,
+            )
+            .map_err(FloatIntegerError::Semantic)
         }
         _ => Ok(None),
     }

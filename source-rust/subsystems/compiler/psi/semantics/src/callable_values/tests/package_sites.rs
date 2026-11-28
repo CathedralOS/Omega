@@ -1452,3 +1452,136 @@ fn a_consuming_descriptor_replays_its_nominal_owner_and_custody() {
 }
 
 mod uniform_fields;
+
+#[test]
+fn a_call_can_change_a_local_readers_lender_without_overwriting_a_neighboring_callback() {
+    let mut program = readers();
+    add_two_constructions(&mut program);
+    let reader = ty(7);
+    let mut examine = machine(2);
+    examine.structural_parameters = vec![param(1, reader)];
+    examine.structural_places.push(StructuralPlaceDeclaration {
+        id: place(1),
+        kind: StructuralPlaceKind::Parameter { position: 0 },
+    });
+    program.machines.push(examine);
+    let envelope = program.execution.callables.contracts[0].envelope.clone();
+    program
+        .execution
+        .callables
+        .machine_envelopes
+        .resize(2, None);
+    program.execution.callables.machine_envelopes[1] =
+        Some(terminal_psi::TerminalMachineEnvelope {
+            machine: machine_id(2),
+            envelope,
+        });
+
+    let entry = &mut program.machines[0];
+    entry.structural_parameters.truncate(2);
+    for parameter in &entry.contract.structural_parameters {
+        entry.structural_places.push(StructuralPlaceDeclaration {
+            id: parameter.place,
+            kind: StructuralPlaceKind::Parameter {
+                position: parameter.position,
+            },
+        });
+    }
+    let mut prepared = Vec::new();
+    for i in 0..2 {
+        let state = 7 + i;
+        let reference = 3 + i;
+        for (slot, id, carrier, kind) in [
+            (
+                state,
+                10 + 2 * i,
+                ty(4 + i),
+                O::EstablishRecord { fields: vec![] },
+            ),
+            (
+                reference,
+                11 + 2 * i,
+                ty(8 + i),
+                O::EstablishReference {
+                    source: StructuralArgument::whole(
+                        place(state),
+                        StructuralAccess::MutableBorrow,
+                    ),
+                    storage: None,
+                },
+            ),
+        ] {
+            prepared.push(Operation::unsuspended(
+                operation_id(id),
+                result(slot, carrier),
+                kind,
+            ));
+            entry.structural_places.push(StructuralPlaceDeclaration {
+                id: place(slot),
+                kind: StructuralPlaceKind::OperationResult {
+                    producer: operation_id(id),
+                    structural_type: carrier,
+                },
+            });
+        }
+        entry.structural_places.push(StructuralPlaceDeclaration {
+            id: place(5 + i),
+            kind: StructuralPlaceKind::OperationResult {
+                producer: operation_id(3 + i),
+                structural_type: reader,
+            },
+        });
+    }
+    entry.blocks[0].operations.splice(2..2, prepared);
+    let mut visit = direct_call(17, 2, vec![]);
+    let O::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut visit.kind
+    else {
+        unreachable!()
+    };
+    structural_arguments.push(StructuralArgument::whole(
+        place(5),
+        StructuralAccess::MutableBorrow,
+    ));
+    entry.blocks[0].operations.push(visit);
+    let cut = (entry.entry, entry.blocks[0].operations.len() as u32);
+    for broad_callback in [false, true] {
+        if broad_callback {
+            for contract in &mut program.execution.callables.contracts {
+                contract.envelope.service_reach = vec![ServiceId::new(1).unwrap()];
+            }
+        }
+        let projected = terminal_callable_values(&program).unwrap();
+        for slot in [5, 6] {
+            let found = resolve_callable_value(
+                &projected,
+                CallableValueQuery::Storage {
+                    machine: machine_id(1),
+                    position: cut,
+                    location: DescriptorLocation {
+                        root: place(slot),
+                        path: vec![DescriptorPathSegment::Field(field(2))],
+                    },
+                    contract: callable(1),
+                },
+            )
+            .unwrap();
+            if slot == 6 && !broad_callback {
+                assert_eq!(
+                    found.inputs,
+                    vec![CallableFormalInput {
+                        machine: machine_id(1),
+                        parameter: CallableParameter::Scalar(1),
+                        contract: callable(5)
+                    }]
+                );
+                assert!(found.unresolved_ceilings.is_empty());
+            } else {
+                assert!(found.inputs.is_empty());
+                assert_eq!(found.unresolved_ceilings, vec![callable(1)]);
+            }
+        }
+    }
+}

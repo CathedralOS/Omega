@@ -57,3 +57,20 @@ pub enum TerminalPackageEvent {
         field: StructuralFieldId,
     },
 }
+
+impl TerminalPackageCatalog {
+    /// The abstract binders whose references must store any admitted witness.
+    /// Concrete witness identities at construction do not change their own layouts.
+    pub fn abstract_witnesses(&self) -> Vec<StructuralTypeId> {
+        let mut types = self
+            .schemas
+            .iter()
+            .flat_map(|row| &row.witnesses)
+            .chain(self.openings.iter().flat_map(|row| &row.witnesses))
+            .copied()
+            .collect::<Vec<_>>();
+        types.sort_unstable();
+        types.dedup();
+        types
+    }
+}

@@ -210,9 +210,13 @@ mod storage {
                     roots.insert(result.structural_type);
                 }
             }
-            calling_conventions::terminal_layout::StructuralLayouts::with_owned_sequence_bounds(
+            let witnesses = module.execution.packages.abstract_witnesses();
+            calling_conventions::terminal_layout::StructuralLayouts::with_storage_inputs(
                 declarations.into_values(),
-                self.owned_sequence_bounds,
+                calling_conventions::terminal_layout::StorageLayoutInputs {
+                    owned_sequences: self.owned_sequence_bounds,
+                    package_witnesses: &witnesses,
+                },
             )
             .map_err(|error| format!("native storage declarations: {error:?}"))?
             .required_scalar_extents(roots)

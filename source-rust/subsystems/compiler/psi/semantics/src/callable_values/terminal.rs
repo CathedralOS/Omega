@@ -1,6 +1,8 @@
 use super::*;
 use terminal_psi::{OperationKind as O, TerminalModule, Terminator};
 
+mod local_call_writes;
+
 /// Follow selected providers through the same actuals and returned code values
 /// as ordinary calls. Making their bodies independent entry roots would lose
 /// that substitution and could activate code the caller never invokes.
@@ -233,9 +235,10 @@ pub(crate) fn terminal_callable_values_in<'m>(
 
 fn project_callable_values<'m>(
     module: &'m TerminalModule,
-    graph: Vec<DescriptorMachine>,
+    mut graph: Vec<DescriptorMachine>,
     packages: &crate::packages::CheckedPackageSites,
 ) -> Result<CallableValueProgram<'m>, CallableValuePreparationError> {
+    local_call_writes::refine_package_writes(module, &mut graph, packages);
     // Each machine and each cleanup caller looks up its row by identity.
     // Sorting (identity, position) pairs keeps the first row for an identity
     // first, which is the row a front-to-back search would return.

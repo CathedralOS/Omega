@@ -714,6 +714,18 @@ fn compile_target(
                     .can_end_the_process()
             })
         });
+        if arguments.report_file.is_some()
+            && let Some(artifact) = product.retained_native_artifact()
+        {
+            for site in artifact.image().linux_x64_process_exit_sites() {
+                writeln!(
+                    process_evidence,
+                    "linux-x64-exit-site {:#x}..{:#x}",
+                    site.start, site.end
+                )
+                .unwrap();
+            }
+        }
         let published = product
             .publish(&arguments.root_path, directory)
             .map_err(output_error)?;

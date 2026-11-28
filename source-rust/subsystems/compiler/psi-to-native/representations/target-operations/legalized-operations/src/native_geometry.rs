@@ -5,7 +5,9 @@
 //! discard preparation by accepting only a slice of declarations.
 
 use arena::NonDenseIdentities;
-use calling_conventions::terminal_layout::NativeGeometry as PhysicalGeometry;
+use calling_conventions::terminal_layout::{
+    NativeGeometry as PhysicalGeometry, StorageLayoutInputs,
+};
 use semantic_vocabulary::{ScalarApplicationId, ScalarType, StructuralTypeId, TargetCarrierLayout};
 use target::NativeTarget;
 use terminal_psi::{StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration};
@@ -24,16 +26,16 @@ impl<'a> NativeGeometry<'a> {
         declarations: &'a [StructuralTypeDeclaration],
         target: NativeTarget,
     ) -> Result<Self, NonDenseIdentities> {
-        Self::with_owned_sequence_bounds(declarations, &[], target)
+        Self::with_storage_inputs(declarations, StorageLayoutInputs::default(), target)
     }
 
-    pub fn with_owned_sequence_bounds(
+    pub fn with_storage_inputs(
         declarations: &'a [StructuralTypeDeclaration],
-        bounds: &'a [(StructuralTypeId, u64)],
+        inputs: StorageLayoutInputs<'a>,
         target: NativeTarget,
     ) -> Result<Self, NonDenseIdentities> {
         Ok(Self {
-            physical: PhysicalGeometry::with_owned_sequence_bounds(declarations, bounds)?,
+            physical: PhysicalGeometry::with_storage_inputs(declarations, inputs)?,
             carriers: runtime_abi::target_carrier_layout(target),
         })
     }
@@ -143,51 +145,59 @@ pub struct NativeGeometries<'a> {
     catalogs: Vec<NativeGeometry<'a>>,
 }
 
+impl crate::LegalizedScalarFunction {
+    pub fn native_layout_inputs(&self) -> (&[StructuralTypeDeclaration], StorageLayoutInputs<'_>) {
+        self.structural
+            .as_ref()
+            .map_or((&[], StorageLayoutInputs::default()), |contract| {
+                (
+                    contract.structural_types.as_slice(),
+                    contract.structural_types.storage_inputs(),
+                )
+            })
+    }
+}
+
 impl<'a> NativeGeometries<'a> {
     pub fn new(
-        declarations: impl Iterator<
-            Item = (
-                &'a [StructuralTypeDeclaration],
-                &'a [(semantic_vocabulary::StructuralTypeId, u64)],
-            ),
-        >,
+        declarations: impl Iterator<Item = (&'a [StructuralTypeDeclaration], StorageLayoutInputs<'a>)>,
         target: NativeTarget,
     ) -> Result<Self, NonDenseIdentities> {
         let mut catalogs = declarations.collect::<Vec<_>>();
-        catalogs.sort_unstable_by_key(|(rows, bounds)| Self::key(rows, bounds));
-        catalogs.dedup_by_key(|(rows, bounds)| Self::key(rows, bounds));
+        catalogs.sort_unstable_by_key(|(rows, bounds)| Self::key(rows, *bounds));
+        catalogs.dedup_by_key(|(rows, bounds)| Self::key(rows, *bounds));
         Ok(Self {
             catalogs: catalogs
                 .into_iter()
-                .map(|(rows, bounds)| {
-                    NativeGeometry::with_owned_sequence_bounds(rows, bounds, target)
-                })
+                .map(|(rows, bounds)| NativeGeometry::with_storage_inputs(rows, bounds, target))
                 .collect::<Result<_, _>>()?,
         })
     }
 
     fn key(
         rows: &[StructuralTypeDeclaration],
-        bounds: &[(semantic_vocabulary::StructuralTypeId, u64)],
-    ) -> (usize, usize, usize, usize) {
+        inputs: StorageLayoutInputs<'_>,
+    ) -> (usize, usize, usize, usize, usize, usize) {
         (
             rows.as_ptr() as usize,
             rows.len(),
-            bounds.as_ptr() as usize,
-            bounds.len(),
+            inputs.owned_sequences.as_ptr() as usize,
+            inputs.owned_sequences.len(),
+            inputs.package_witnesses.as_ptr() as usize,
+            inputs.package_witnesses.len(),
         )
     }
 
     pub fn get(
         &self,
         declarations: &[StructuralTypeDeclaration],
-        bounds: &[(semantic_vocabulary::StructuralTypeId, u64)],
+        inputs: StorageLayoutInputs<'_>,
     ) -> Option<&NativeGeometry<'a>> {
-        let key = Self::key(declarations, bounds);
+        let key = Self::key(declarations, inputs);
         let position = self
             .catalogs
             .binary_search_by_key(&key, |geometry| {
-                Self::key(geometry, geometry.owned_sequence_bounds())
+                Self::key(geometry, geometry.storage_inputs())
             })
             .ok()?;
         self.catalogs.get(position)
@@ -236,7 +246,7 @@ pub type NativeFunction<'a> = NativeInput<'a, crate::LegalizedScalarFunction>;
 
 #[cfg(test)]
 mod tests {
-    use super::{NativeGeometries, NativeGeometry};
+    use super::{NativeGeometries, NativeGeometry, StorageLayoutInputs};
     use crate::structural_inputs::structural_reference_input as geometry;
     use calling_conventions::ValueShape;
     use semantic_vocabulary::{
@@ -265,6 +275,55 @@ mod tests {
     }
 
     #[test]
+    fn copied_declarations_can_have_distinct_package_reference_layouts() {
+        let witness = StructuralTypeId::new(1).unwrap();
+        let reference = StructuralTypeId::new(2).unwrap();
+        let declarations = [
+            declaration(1, StructuralTypeShape::Opaque),
+            declaration(
+                2,
+                StructuralTypeShape::Reference {
+                    referent: witness,
+                    access: terminal_psi::StructuralAccess::SharedBorrow,
+                },
+            ),
+        ];
+        let witnesses = [witness];
+        let raw = StorageLayoutInputs::default();
+        let package = StorageLayoutInputs {
+            package_witnesses: &witnesses,
+            ..raw
+        };
+        let catalogs = NativeGeometries::new(
+            [
+                (declarations.as_slice(), raw),
+                (declarations.as_slice(), package),
+            ]
+            .into_iter(),
+            target::NativeTarget::linux_x64(),
+        )
+        .unwrap();
+        assert_eq!(
+            catalogs
+                .get(&declarations, raw)
+                .unwrap()
+                .shape(reference)
+                .unwrap()
+                .byte_size,
+            8
+        );
+        assert_eq!(
+            catalogs
+                .get(&declarations, package)
+                .unwrap()
+                .shape(reference)
+                .unwrap()
+                .byte_size,
+            16
+        );
+    }
+
+    #[test]
     fn shared_declarations_keep_distinct_owned_storage_bounds() {
         let element = StructuralTypeId::new(1).unwrap();
         let owned = StructuralTypeId::new(2).unwrap();
@@ -285,11 +344,19 @@ mod tests {
         ];
         let small = [(owned, 1)];
         let large = [(owned, 5)];
+        let small = StorageLayoutInputs {
+            owned_sequences: &small,
+            ..Default::default()
+        };
+        let large = StorageLayoutInputs {
+            owned_sequences: &large,
+            ..Default::default()
+        };
         let prepared = NativeGeometries::new(
             [
-                (rows.as_slice(), small.as_slice()),
-                (rows.as_slice(), large.as_slice()),
-                (rows.as_slice(), small.as_slice()),
+                (rows.as_slice(), small),
+                (rows.as_slice(), large),
+                (rows.as_slice(), small),
             ]
             .into_iter(),
             target::NativeTarget::linux_x64(),
@@ -297,16 +364,16 @@ mod tests {
         .unwrap();
         assert_eq!(prepared.catalogs.len(), 2);
         assert_eq!(
-            prepared.get(&rows, &small).unwrap().shape(owned).unwrap(),
+            prepared.get(&rows, small).unwrap().shape(owned).unwrap(),
             ValueShape::integer(16, 8)
         );
         assert_eq!(
-            prepared.get(&rows, &large).unwrap().shape(owned).unwrap(),
+            prepared.get(&rows, large).unwrap().shape(owned).unwrap(),
             ValueShape::integer(32, 8)
         );
         assert_eq!(
             prepared
-                .get(&rows, &small)
+                .get(&rows, small)
                 .unwrap()
                 .storage_region(owned, &[])
                 .unwrap()
@@ -315,14 +382,18 @@ mod tests {
         );
         assert_eq!(
             prepared
-                .get(&rows, &large)
+                .get(&rows, large)
                 .unwrap()
                 .storage_region(owned, &[])
                 .unwrap()
                 .byte_length,
             32
         );
-        assert!(prepared.get(&rows, &[]).is_none());
+        assert!(
+            prepared
+                .get(&rows, StorageLayoutInputs::default())
+                .is_none()
+        );
     }
 
     #[test]
@@ -352,18 +423,22 @@ mod tests {
         ];
         let prepared = NativeGeometries::new(
             [
-                (declarations.as_slice(), &[][..]),
-                (declarations.as_slice(), &[][..]),
+                (declarations.as_slice(), StorageLayoutInputs::default()),
+                (declarations.as_slice(), StorageLayoutInputs::default()),
             ]
             .into_iter(),
             target::NativeTarget::linux_x64(),
         )
         .unwrap();
         assert_eq!(prepared.catalogs.len(), 1);
-        let first = prepared.get(&declarations, &[]).unwrap();
+        let first = prepared
+            .get(&declarations, StorageLayoutInputs::default())
+            .unwrap();
         assert!(std::ptr::eq(
             first,
-            prepared.get(&declarations, &[]).unwrap()
+            prepared
+                .get(&declarations, StorageLayoutInputs::default())
+                .unwrap()
         ));
         assert_eq!(
             geometry::shape(root, first),

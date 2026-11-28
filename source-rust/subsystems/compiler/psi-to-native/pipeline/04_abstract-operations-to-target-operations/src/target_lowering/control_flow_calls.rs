@@ -38,6 +38,7 @@ pub(crate) mod borrowed_calls {
             declaration.structural_type,
         )
         .then(|| TargetStructuralArgument {
+            opened_referent: None,
             place: argument.place,
             access: argument.access,
             path: Vec::new(),
@@ -158,6 +159,7 @@ pub(crate) mod borrowed_calls {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             return Ok(TargetStructuralArgument {
+                opened_referent: None,
                 place: argument.place,
                 access: argument.access,
                 path: argument.path.clone(),
@@ -286,6 +288,7 @@ pub(crate) mod borrowed_calls {
             types,
         )?;
         Ok(TargetStructuralArgument {
+            opened_referent: None,
             place: argument.place,
             access: argument.access,
             path: argument.path.clone(),
@@ -400,6 +403,7 @@ pub(crate) mod borrowed_calls {
             types,
         )?;
         Ok(TargetStructuralArgument {
+            opened_referent: None,
             place: argument.place,
             access: argument.access,
             path: argument.path.clone(),
@@ -777,6 +781,7 @@ pub(crate) mod byte_arguments {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         Ok(Some(TargetStructuralArgument {
+            opened_referent: None,
             place: argument.place,
             access: argument.access,
             path: argument.path.clone(),
@@ -1284,14 +1289,14 @@ pub(crate) mod calls {
             .map(|(position, ((argument, declaration), destination))| {
                 let mut declaration =
                     declaration.ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-                if let Some((_, stored)) =
-                    call.opened_referents.iter().find(|(i, _)| *i == position)
-                {
+                let opened = call.opened_referents.iter().find(|(i, _)| *i == position);
+                let opened_referent = opened.map(|_| declaration.structural_type);
+                if let Some((_, stored)) = opened {
                     // The source projects the stored package field; the destination ABI
                     // was selected using the corresponding opened callable parameter.
                     declaration.structural_type = *stored;
                 }
-                structural_argument(
+                let mut target = structural_argument(
                     argument,
                     &declaration,
                     destination,
@@ -1302,9 +1307,11 @@ pub(crate) mod calls {
                     parameters_by_place,
                     live,
                     operations,
-                )
+                )?;
+                target.opened_referent = opened_referent;
+                Ok(target)
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>, LoweringError>>()?;
         let result = land_result(
             contract,
             &call,
@@ -2103,6 +2110,7 @@ pub(crate) mod owned_arguments {
                 )
             };
         Ok(TargetStructuralArgument {
+            opened_referent: None,
             place: argument.place,
             access: argument.access,
             path: argument.path.clone(),
