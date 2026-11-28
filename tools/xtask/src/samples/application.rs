@@ -404,6 +404,9 @@ pub(super) fn compare(
         } else {
             let mut cmd = Command::new(cli);
             cmd.args(["run", "--outputs"]).arg(&directory);
+            if let Some(budget) = project.psi_work_budget {
+                cmd.arg("--psi-work-budget").arg(budget.to_string());
+            }
             with_source_inputs(&mut cmd, &project.source_inputs);
             cmd.arg(entry).current_dir(&scratch).stdin(stdin);
             let output = execution::output(&mut cmd, evidence, "run-psi")?;

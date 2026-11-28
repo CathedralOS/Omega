@@ -95,6 +95,9 @@ owned source/data inputs. The gate forwards it to checking, package preparation,
 and execution with `--build-input`; a resumed package review retains its recorded
 selection. Standalone `omega` and `omega run` accept the same flags.
 
+Set `psi_work_budget` to a positive integer when a sample needs a specific
+interpreter work allowance. The gate passes it to `omega run --psi-work-budget`.
+
 For a runnable sample with observable file outputs, `output_files` maps a
 guest-working-directory-relative name to a sample-relative fixture with the
 expected bytes. A null fixture expects the file to be absent. For example,

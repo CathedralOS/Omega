@@ -1,0 +1,5 @@
+{
+  "role": "program",
+  "package_workflow": "staged",
+  "psi_work_budget": 100000000
+}
