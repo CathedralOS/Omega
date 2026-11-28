@@ -18,6 +18,16 @@ pub(super) fn projection(
     let (source, path) = match &operation.kind {
         OperationKind::PrimitiveScalarRead { source, path }
         | OperationKind::StructuralLeafCopy { source, path } => (source, path),
+        OperationKind::MoveStructuralValue { source }
+            if source.access == StructuralAccess::Owned =>
+        {
+            (&source.place, &source.path)
+        }
+        OperationKind::MoveStructuralField {
+            source,
+            path,
+            field: None,
+        } => (source, path),
         _ => return Err("package projection requires a typed field read"),
     };
     let Some((StructuralPathSegment::Field(identity), parent)) = path.split_last() else {
@@ -68,6 +78,27 @@ pub(super) fn projection(
                 StructuralFieldType::Structural(value.structural_type),
             )
         }
+        OperationKind::MoveStructuralValue { .. } | OperationKind::MoveStructuralField { .. } => {
+            let public = declaration
+                .field_type
+                .as_structural()
+                .ok_or("moved package field is not structural")?;
+            if !schema
+                .witnesses
+                .iter()
+                .any(|&witness| fields::nominal_uses(module, public, witness))
+            {
+                return Err("a consuming package projection requires a witness-indexed carrier");
+            }
+            let value = operation
+                .result
+                .structural()
+                .ok_or("moved package field has no owner result")?;
+            (
+                Projected::Owner(value.place),
+                StructuralFieldType::Structural(value.structural_type),
+            )
+        }
         _ => unreachable!("checked package projection operation"),
     };
     let substitution = Substitution {
@@ -109,6 +140,26 @@ pub(super) fn subject_field<'a>(
         .ok()?
         .iter()
         .find(|decl| decl.identity == *field && !decl.relevance.is_erased())
+}
+
+/// A returned owner gets the descriptor's opening when the call's complete
+/// public result, including the custody at every field path, matches it.
+pub(super) fn returned_owner(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+    index: u32,
+) -> Option<Projected> {
+    let call = operation.kind.callable_invocation()?;
+    let result = operation.result.structural()?;
+    let opened = opening(module, machine.id, index).ok()?;
+    let contract = module.execution.callables.contract(call.contract)?;
+    (contract.result.matches_operation_result(&operation.result)
+        && opened
+            .witnesses
+            .iter()
+            .any(|&witness| fields::nominal_uses(module, result.structural_type, witness)))
+    .then_some(Projected::Owner(result.place))
 }
 
 pub(super) fn invocation(
@@ -155,6 +206,27 @@ pub(super) fn invocation(
         .zip(structural_arguments)
         .enumerate()
     {
+        if opened
+            .witnesses
+            .iter()
+            .any(|&witness| fields::nominal_uses(module, formal.structural_type, witness))
+        {
+            if arg.access != StructuralAccess::Owned
+                || formal.access != StructuralAccess::Owned
+                || !arg.path.is_empty()
+                || machine.structural_place_type(arg.place) != Some(formal.structural_type)
+            {
+                return Err("package consuming call requires its complete opened owner");
+            }
+            let (origin, _) = owned::origin(module, machine, projected, arg.place, operation.id)
+                .ok_or("package consuming call lacks its owner projection")?;
+            if origin != index {
+                return Err(
+                    "package consuming call uses an owner from a different or stale opening",
+                );
+            }
+            continue;
+        }
         let Some(position) = opened
             .witnesses
             .iter()
