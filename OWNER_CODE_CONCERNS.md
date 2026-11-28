@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Locked package review reconstructs a different source set for a supplied Build library
+- Category: 4. Re-deriving
+- Where: [Build dependency sources](source-rust/subsystems/compiler/build/planning/source.rs#L628), [candidate package review](source-rust/subsystems/package-manager/review/candidate/passes_occurrences.rs#L356) and [library handoff validation](source-rust/subsystems/compiler/build/inputs/source/source_imports/supplied_library.rs#L140).
+- Saw: The successor Build for the binary search visualization received the system library with a digest covering its imported sources. Locked package review supplied a handoff covering all reviewed package sources. With frozen inputs, only the source-consumption digest differed. Opening every module experimentally got past this check, then the version 4 lock refused multiple Build entries for the same package.
+- Cost: A caller that requests a lock cannot complete this staged package review. The reviewer needs to retain which sources the original Build consumed while it checks the complete package.
+- Reported: 2026-11-28, Codex, while running the binary search visualization on macOS ARM64.
+
 ### Selected optimization still obtains its input from the preceding implementation crate
 - Category: 2. Knowledge crossing a boundary
 - Where: [stage 06 entry](source-rust/subsystems/compiler/psi-to-native/pipeline/06_selected-instructions-to-selected-instructions/src/selected_rewrites/selected_optimization.rs#L232), [stage 05 result](source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions/src/selected.rs#L15), and [stage 06 dependency](source-rust/subsystems/compiler/psi-to-native/pipeline/06_selected-instructions-to-selected-instructions/Cargo.toml#L12)
