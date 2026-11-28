@@ -199,17 +199,23 @@ fn the_product_enables_every_atom_reached_by_its_native_operations() {
 
 #[test]
 fn an_address_traced_to_a_local_cannot_promise_the_callers_lifetime() {
-    let address = r#"
+    let wrapper = r#"
 machine choose<'out>(location: address) -> @'out u8 {
     |native|::borrow_at::<u8>(location)
 }
+"#;
+    let address = [
+        wrapper,
+        r#"
 machine main() {
     let local: u8 = 29u8;
     let byte: @u8 = choose(address_of(@local));
     let read: u8 = $byte;
 }
-"#;
-    let accepted = Program::new(address, &[READ]).check();
+"#,
+    ]
+    .concat();
+    let accepted = Program::new(&address, &[READ]).check();
     assert!(accepted.status.success(), "{}", report(&accepted));
     let source = r#"
 machine stale<'out>() -> @'out u8 {
@@ -224,8 +230,15 @@ machine main() {
 "#;
     // Check only. Executing a program that has escaped local storage would
     // violate the caller's lifetime premise.
-    let refused = Program::new(source, &[READ]).check();
-    assert_loan_refusal(&refused);
+    let forwarded = [
+        wrapper,
+        &source.replace("|native|::borrow_at::<u8>(location)", "choose(location)"),
+    ]
+    .concat();
+    for candidate in [source, &forwarded] {
+        let refused = Program::new(candidate, &[READ]).check();
+        assert_loan_refusal(&refused);
+    }
 }
 
 #[test]
