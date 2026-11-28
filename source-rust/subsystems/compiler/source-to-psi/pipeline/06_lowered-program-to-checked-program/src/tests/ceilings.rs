@@ -214,7 +214,7 @@ fn a_local_borrow_of_an_array_element_retains_the_invoked_field() {
         .next()
         .expect("forward publishes its only invocation");
     assert!(forwarded.next().is_none());
-    use semantic_vocabulary::InvocationPathSegment::{Field, FixedIndex};
+    use semantic_vocabulary::CanonicalStructuralPathSegment::{Field, FixedIndex};
     assert_eq!(
         envelope.envelope.invocations,
         vec![
