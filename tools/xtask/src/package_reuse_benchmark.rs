@@ -37,21 +37,6 @@ fn files(dir: &Path) -> Result<Vec<PathBuf>> {
 }
 
 fn cpu_model() -> Option<String> {
-    if cfg!(windows) {
-        let row = Command::new("reg.exe")
-            .args([
-                "query",
-                r"HKLM\HARDWARE\DESCRIPTION\System\CentralProcessor\0",
-                "/v",
-                "ProcessorNameString",
-            ])
-            .output()
-            .ok()?;
-        let text = String::from_utf8_lossy(&row.stdout);
-        return text
-            .lines()
-            .find_map(|line| line.split_once("REG_SZ").map(|(_, v)| v.trim().to_owned()));
-    }
     fs::read_to_string("/proc/cpuinfo")
         .ok()?
         .lines()
@@ -59,6 +44,11 @@ fn cpu_model() -> Option<String> {
         .find_map(|(key, value)| (key.trim() == "model name").then(|| value.trim().to_owned()))
 }
 fn measure(repo: &Path, compiler: &Path, output: &Path) -> Result<()> {
+    if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        return Err(
+            "this benchmark builds and launches Linux x86-64 executables on the host".into(),
+        );
+    }
     let compiler = compiler.canonicalize()?;
     fs::create_dir(output)?;
     let output = output.canonicalize()?;
@@ -136,16 +126,9 @@ impl Benchmark {
         compile
             .current_dir(&cwd)
             .stdin(Stdio::null())
-            .env(
-                if cfg!(windows) {
-                    "LOCALAPPDATA"
-                } else {
-                    "XDG_CACHE_HOME"
-                },
-                &cache,
-            )
+            .env("XDG_CACHE_HOME", &cache)
             .env("OMEGA_LIBRARY_ROOT", &self.library)
-            .args(["build", "--target", "windows_x86_64", "--build-dir"])
+            .args(["build", "--target", "linux_x86_64", "--build-dir"])
             .arg(&product);
         if profile {
             compile.arg("--timings");
@@ -173,46 +156,31 @@ impl Benchmark {
             )
             .into());
         }
-        let images: Vec<_> = files(&product)?
-            .into_iter()
-            .filter(|p| p.extension().is_some_and(|s| s == "exe"))
-            .collect();
-        let [image] = images.as_slice() else {
-            return Err(format!("{label}: expected one PE executable").into());
-        };
-        let bytes = fs::read(image)?;
-        let Some(offset) = bytes.get(60..64) else {
-            return Err("incomplete DOS header".into());
-        };
-        let pe = u32::from_le_bytes(offset.try_into()?) as usize;
-        let header = bytes.get(pe..).ok_or("missing PE header")?;
-        if !bytes.starts_with(b"MZ")
-            || header.get(..6) != Some(b"PE\0\0\x64\x86")
-            || header.get(24..26) != Some(&[0x0b, 0x02])
-        {
-            return Err(format!("{label}: expected x86-64 PE32+").into());
+        let image = product.join("omega-program");
+        let bytes = fs::read(&image)?;
+        if !bytes.starts_with(b"\x7fELF\x02\x01") || bytes.get(18..20) != Some(&[62, 0]) {
+            return Err(
+                format!("{label}: expected a little-endian x86-64 ELF64 executable").into(),
+            );
         }
         row["image"] = json!(image);
         row["image_bytes"] = json!(bytes.len());
-        row["image_sha256"] = json!(digest(image)?);
-        if cfg!(windows) {
-            let native = Command::new(image)
-                .current_dir(&cwd)
-                .stdin(Stdio::null())
-                .output()?;
-            fs::write(run.join("native.stdout"), &native.stdout)?;
-            fs::write(run.join("native.stderr"), &native.stderr)?;
-            row["native_exit"] = json!(native.status.code());
-            write_json(&result, &row)?;
-            if !native.status.success()
-                || !native.stdout.is_empty()
-                || !native.stderr.is_empty()
-                || fs::read_dir(&cwd)?.next().is_some()
-            {
-                return Err(format!("{label}: filesystem program failed its native oracle").into());
-            }
-        }
+        row["image_sha256"] = json!(digest(&image)?);
+        let native = Command::new(&image)
+            .current_dir(&cwd)
+            .stdin(Stdio::null())
+            .output()?;
+        fs::write(run.join("native.stdout"), &native.stdout)?;
+        fs::write(run.join("native.stderr"), &native.stderr)?;
+        row["native_exit"] = json!(native.status.code());
         write_json(&result, &row)?;
+        if !native.status.success()
+            || !native.stdout.is_empty()
+            || !native.stderr.is_empty()
+            || fs::read_dir(&cwd)?.next().is_some()
+        {
+            return Err(format!("{label}: filesystem program failed its native oracle").into());
+        }
         println!(
             "{label} {:.6} s, {} bytes, {}",
             elapsed as f64 / 1e9,

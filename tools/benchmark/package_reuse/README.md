@@ -12,7 +12,7 @@ mbx test --locked --release -p omega --test prechecked_dependency -- --nocapture
 mbx xtask measure-public-values target/release/omega /absolute/path/to/new-results
 ```
 
-On Windows use the corresponding `omega.exe`. Supply a new output directory. The command times the entire compiler process and records argv, exit status, binary and input hashes, PE machine and format, and result paths. On Windows it also launches each executable in a private empty directory and checks exit status, streams and cleanup. Each of the three cold trials uses the original `public_values/build.omg`, an empty resolver cache and a new output directory. This defines compiler/dependency coldness independently of the OS page cache.
+Run on Linux x86-64 and supply a new output directory. The command times the entire compiler process and records argv, exit status, binary and input hashes, ELF machine and format, and result paths. It launches each executable in a private empty directory and checks exit status, streams and cleanup. Each of the three cold trials uses the original `public_values/build.omg`, an empty resolver cache and a new output directory. This defines compiler/dependency coldness independently of the OS page cache.
 
 The edited trials use an independent source copy with the same relative dependency declaration. A preparation build uses a separate resolver cache. Each edited trial changes the copy destination used throughout the root program and builds into a new output directory with that same resolver cache. File counts record what the resolver actually retained. The separate profiling run enables `--timings` and uses another empty cache.
 

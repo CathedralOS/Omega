@@ -75,7 +75,7 @@ verification and gates:
   check-portable-services   Diff system's POSIX and Windows adapters for each portable call against a baseline
   sample-gate               Run differential native + Psi sample verification
   qualify                   Run exact sample selections with retained producer evidence
-  measure-public-values     Measure cold and edited Windows x86-64 filesystem builds
+  measure-public-values     Measure and launch cold and edited Linux x86-64 filesystem builds
   rust-producer-omission    Audit declared bootstrap dependencies (developer-only)
   vm                        Start a heavy job on a LAN VM under vm-heavy and watch its progress
 

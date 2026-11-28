@@ -289,7 +289,7 @@ machine main() reaches |signals|::Samples crashes Trap {{
     let planned_receiver_time = start.elapsed();
     assert!(
         supplied
-            .publish(original.request.package, TargetProfile::WindowsX64)
+            .publish(original.request.package, TargetProfile::LinuxArm64)
             .is_err()
     );
     fs::write(&artifact_path, b"different from the declared publication").unwrap();
