@@ -527,3 +527,98 @@ fn a_reader_package_keeps_its_callbacks_output_bound() {
         "{rejected:?}"
     );
 }
+
+#[test]
+fn reborrow_of_an_input_element_field_needs_the_real_index_bound() {
+    const SOURCE: &str = r#"
+        data File { byte: u8; }
+        data Holder<'a> { state: @'a File; }
+        machine inspect(state: @File) -> u8 { state.byte }
+        machine main(items: @mutable [Holder], i: u64) -> u8
+        requires i < items.length {
+            let item: @Holder = @items[i];
+            inspect(item.state)
+        }
+    "#;
+    for input in [
+        SOURCE.to_owned(),
+        SOURCE.replace("items: @mutable [", "items: @["),
+    ] {
+        let accepted = judge(invocation(&input, "main")).unwrap();
+        assert!(
+            matches!(accepted, RouteVerdict::Accepted(_)),
+            "{accepted:?}"
+        );
+    }
+    let missing = SOURCE.replace("requires i < items.length", "");
+    let rejected = judge(invocation(&missing, "main")).unwrap();
+    assert!(
+        matches!(rejected, RouteVerdict::Rejected { ref unproved, .. } if
+        unproved.iter().any(|failure| matches!(
+            failure.kind, ObligationKind::OperationSafety { .. }
+        ) && failure.statement.contains("cannot prove storage index bounds"))),
+        "{rejected:?}"
+    );
+}
+
+#[test]
+fn a_call_reborrows_the_stored_reference_through_its_live_record_borrow() {
+    const SOURCE: &str = r#"
+        data File { byte: u8; }
+        data Holder<'a> { state: @'a mutable File; }
+        machine inspect(state: @mutable File) -> u8 { state.byte }
+        machine pair(left: @mutable File, right: @mutable File) -> u8 { left.byte }
+        machine main(holder: @mutable Holder) -> u8 {
+            let alias: @mutable Holder = holder;
+            let first: u8 = inspect(alias.state);
+            inspect(alias.state)
+        }
+    "#;
+    assert!(matches!(
+        judge(invocation(SOURCE, "main")).unwrap(),
+        RouteVerdict::Accepted(_)
+    ));
+    let distinct_errors = [
+        (
+            SOURCE.replacen("inspect(alias.state)", "inspect(holder.state)", 1),
+            crate::LoanConflict::ObserveWhileExclusive,
+        ),
+        (
+            SOURCE.replacen("inspect(alias.state)", "pair(alias.state, alias.state)", 1),
+            crate::LoanConflict::TwiceExclusive,
+        ),
+    ];
+    for (source, expected) in distinct_errors {
+        let rejected = judge(invocation(&source, "main")).unwrap();
+        assert!(
+            matches!(rejected, RouteVerdict::Rejected { ref conflicts, .. } if
+                conflicts.iter().any(|reported| reported.conflict == expected)),
+            "{rejected:?}"
+        );
+    }
+}
+
+#[test]
+fn mutable_input_reborrow_keeps_its_index_premise_and_exact_stored_reference() {
+    const SOURCE: &str = r#"
+        data File { byte: u8; }
+        data Holder<'a> { state: @'a mutable File; }
+        machine inspect(state: @mutable File) -> u8 { state.byte }
+        machine main(items: @mutable [Holder], i: u64) -> u8
+        requires i < items.length {
+            let item: @mutable Holder = @mutable items[i];
+            inspect(item.state)
+        }
+    "#;
+    assert!(matches!(
+        judge(invocation(SOURCE, "main")).unwrap(),
+        RouteVerdict::Accepted(_)
+    ));
+    let missing = SOURCE.replace("requires i < items.length", "");
+    let rejected = judge(invocation(&missing, "main")).unwrap();
+    assert!(
+        matches!(rejected, RouteVerdict::Rejected { ref unproved, .. } if
+            unproved.iter().any(|row| row.statement.contains("cannot prove storage index bounds"))),
+        "{rejected:?}"
+    );
+}

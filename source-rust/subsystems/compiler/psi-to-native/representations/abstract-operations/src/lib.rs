@@ -101,7 +101,8 @@ pub use operation_operands::structural_stores::{
     StructuralWindowRoot,
 };
 pub use operations::{
-    AbstractOperation, ModuleInvocation, StructuralResultMetadata, StructuralResultRole,
+    AbstractOperation, ModuleInvocation, OpenedPackageCall, StructuralResultMetadata,
+    StructuralResultRole,
 };
 
 mod storage_mutations;

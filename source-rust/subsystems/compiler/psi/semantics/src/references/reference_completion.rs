@@ -819,6 +819,13 @@ pub fn borrowed_loan_sources<'a>(
         }
         return Ok(BorrowedLoanSources::Incoming(family));
     }
+    if source_origins.is_none()
+        && analysis
+            .unchanged_selected_input_reference(machine, at, descriptor)
+            .is_some()
+    {
+        return Ok(BorrowedLoanSources::Single(BorrowedLoanSource::Incoming));
+    }
     let origins = source_origins
         .ok_or("reference descriptor has no complete original loan correspondence")?;
     if provider_loan_access(module, machine, descriptor, &origins)?.is_some() {

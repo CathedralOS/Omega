@@ -16,11 +16,11 @@ machine mantissa(value: f64) reaches |process_authority|::StandardOutput {
     machine negative(bytes: @mutable [u8; 18], value: f64) {
         bytes[0] = 45;
         let scaled: i64 in Saturating = |float_operations|::I64::from_f64((0.0 - value) * 1000000000000000.0 + 0.5);
-        transition { _ -> digits(bytes, scaled as -Saturating +Wrapping, 17) }
+        transition { _ -> digits(bytes, scaled as -Saturating +Wrapping, 17 as +Wrapping) }
     }
     machine positive(bytes: @mutable [u8; 18], value: f64) {
         let scaled: i64 in Saturating = |float_operations|::I64::from_f64(value * 1000000000000000.0 + 0.5);
-        transition { _ -> digits(bytes, scaled as -Saturating +Wrapping, 17) }
+        transition { _ -> digits(bytes, scaled as -Saturating +Wrapping, 17 as +Wrapping) }
     }
     machine digits(bytes: @mutable [u8; 18],
                  remaining: i64 in Wrapping, position: i32 in Wrapping) {
@@ -39,13 +39,13 @@ machine mantissa(value: f64) reaches |process_authority|::StandardOutput {
     machine store(bytes: @mutable [u8; 18],
                 remaining: i64 in Wrapping, position: i32 in Wrapping) {
         let digit: i32 = |numeric_conversion|::narrow_i64_to_i32_trapping((remaining % 10 + 48) as i64);
-        bytes[position] = |numeric_conversion|::narrow_i32_to_u8_trapping(digit);
+        bytes[position as -Wrapping] = |numeric_conversion|::narrow_i32_to_u8_trapping(digit);
         transition { _ -> digits(bytes, remaining / 10, position - 1) }
     }
-    machine emit(bytes: @[u8; 18]) { |console|::Console::write(bytes); }
+    machine emit(bytes: @[u8; 18]) { |console|::Console::write(@bytes[..]); }
 }
 machine emit_number(value: f64) reaches |process_authority|::StandardOutput {
-    transition value < 0.0 { true -> normalize(0.0 - value, -1.0, 0), _ -> normalize(value, 1.0, 0) }
+    transition value < 0.0 { true -> normalize(0.0 - value, -1.0, 0 as +Wrapping), _ -> normalize(value, 1.0, 0 as +Wrapping) }
     machine normalize(value: f64, sign: f64, exponent: i32 in Wrapping) {
         transition value > 0.0 && value < 1.0 && exponent > -60 {
             true -> normalize(value * 10.0, sign, exponent - 1),

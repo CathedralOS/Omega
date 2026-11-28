@@ -1982,6 +1982,50 @@ impl<'a> Lowering<'a> {
             .ok_or_else(|| self.internal("a case is past its sum's declaration"))
     }
 
+    /// A nested projection can be typed as Link<opened S> while its parent
+    /// place still stores Link<schema S>. Resolve the checked loan coordinate
+    /// in the stored declaration, just as the operation's named path does.
+    fn stored_field_id(
+        &self,
+        parent: ExactPlaceId,
+        step: Step,
+    ) -> Checked<semantic_vocabulary::StructuralFieldId> {
+        let selected = self.declared(step)?.id;
+        let Step::Field { owner, .. } = step else {
+            return Ok(selected);
+        };
+        if self.records.field_openings.is_empty() {
+            return Ok(selected);
+        }
+        let (root, path) = self.lineage(parent)?;
+        let (_, root_type) = self
+            .roots
+            .get(root)
+            .ok_or_else(|| self.internal("field parent has no root type"))?;
+        let Some(stored) = terminal_semantics::descriptor_lifetimes::descriptor_location_type(
+            self.structural_types,
+            *root_type,
+            &path,
+        ) else {
+            return Ok(selected);
+        };
+        if owner == stored {
+            return Ok(selected);
+        }
+
+        use semantic_vocabulary::CanonicalStructuralPathSegment::Field;
+        let mapped = terminal_semantics::call_projection::translate(
+            self.structural_types,
+            owner,
+            stored,
+            &[Field(selected)],
+        );
+        match mapped.as_deref() {
+            Some([Field(field)]) => Ok(*field),
+            _ => Err(self.internal("opened member does not match its declared storage field")),
+        }
+    }
+
     /// The place one step beneath `parent`, interned.
     fn step(&mut self, parent: ExactPlaceId, step: Step) -> Checked<ExactPlaceId> {
         if let Step::Referent { owner } = step {
@@ -2005,7 +2049,7 @@ impl<'a> Lowering<'a> {
                 },
             );
         }
-        let field = self.declared(step)?.id;
+        let field = self.stored_field_id(parent, step)?;
         let parent = match step {
             Step::Index { .. } | Step::Referent { .. } => {
                 return Err(self.internal("a non-field step was not projected"));

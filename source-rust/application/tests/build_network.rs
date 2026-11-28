@@ -329,6 +329,47 @@ fn an_inheriting_child_can_send_and_its_offline_sibling_cannot() {
 }
 
 #[test]
+fn reviewed_nested_dependencies_keep_their_own_build_sources() {
+    let fixture = Fixture::new();
+    fixture.package("root", r#"machine build(b: @mutable BuildPlan) suspends {
+        let board: DependencyRegistration = Build::dependency(b, Source::Path { location: "board" }, Networking::Inherit);
+        let assets: DependencyRegistration = Build::dependency(b, Source::Path { location: "assets" });
+        suspend Build::prepare_dependency(b, board);
+        suspend Build::prepare_dependency(b, assets);
+        b.product = BuildProduct::Package { name: "release" };
+    }"#);
+    fixture.package("root/board", &sender("board"));
+    fixture.package("root/assets", &consumer("assets", &[]));
+
+    let published = fixture.update(true);
+    assert!(published.status.success(), "{}", report(&published));
+    let lock = fs::read_to_string(fixture.root().join("omega.lock")).unwrap();
+    assert!(lock.contains("board") && lock.contains("assets"), "{lock}");
+    let packets = fixture.packets();
+    assert!(
+        !packets.is_empty() && packets.iter().all(|packet| packet == "board"),
+        "{packets:?}"
+    );
+
+    project::write(
+        &fixture.root().join("board_support"),
+        &[
+            ("build.omg", "machine still_parent_owned() -> u8 { 0u8 }"),
+            (
+                "own.omg",
+                "public machine own() -> u32 { missing_parent_value }",
+            ),
+        ],
+    );
+    let invalid = fixture.update(true);
+    let message = report(&invalid);
+    assert!(
+        !invalid.status.success() && message.contains("board_support::own"),
+        "{message}"
+    );
+}
+
+#[test]
 fn a_child_cannot_implicitly_pass_its_grant_to_a_grandchild() {
     let fixture = Fixture::new();
     fixture.package("root", &consumer("root", &[("middle", true)]));

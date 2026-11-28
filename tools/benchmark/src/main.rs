@@ -15,6 +15,7 @@
    and summarizes them. `process.rs` uses Omega's bounded child runner.
 */
 
+mod cold_client;
 mod dominance_summary;
 mod experiment;
 mod history;

@@ -389,6 +389,87 @@ fn graph_refusal(
 }
 
 impl<'a> Storage<'a> {
+    /// During one call, a reference held in a borrowed record may be
+    /// reborrowed through the local descriptor that actually holds its
+    /// exclusive loan. The field still supplies its own checked input loan.
+    fn borrows_stored_input_through(
+        &self,
+        references: &mut super::DescriptorAnalysis<'a>,
+        call: &Formed,
+        carrier: &Formed,
+    ) -> bool {
+        if call.invocation.is_none()
+            || call.lifetime.is_some()
+            || call.returned_by.is_some()
+            || call.lender != Lender::Incoming
+            || !call.permitted
+            || carrier.invocation.is_some()
+            || carrier.access != ReferenceAccess::Mutable
+        {
+            return false;
+        }
+        let (Some(source), Some(live)) = (&call.from, &carrier.lifetime) else {
+            return false;
+        };
+        let [
+            DescriptorPathSegment::Referent,
+            DescriptorPathSegment::Field(field),
+        ] = source.path.as_slice()
+        else {
+            return false;
+        };
+        let local = DescriptorLocation::whole(source.root);
+        if !live
+            .authorized
+            .get(&call.at)
+            .is_some_and(|names| names.contains(&local))
+            || !live
+                .surviving
+                .get(&call.at)
+                .is_some_and(|names| names.contains(&local))
+        {
+            return false;
+        }
+        let (LoanRegion::Storage(parent), LoanRegion::Storage(target)) =
+            (&carrier.lineage, &call.lineage)
+        else {
+            return false;
+        };
+        let slot = super::Lineage {
+            root: source.root,
+            segments: source.path.clone(),
+        };
+        let Ok(slot) = self.backing(
+            references,
+            &slot,
+            call.at.0,
+            call.at.1 as usize,
+            Construct::Obligation(call.obligation),
+        ) else {
+            return false;
+        };
+        let (Some(parent_place), Some(slot_place), Some(target_place)) = (
+            parent.single_place(),
+            slot.single_place(),
+            target.single_place(),
+        ) else {
+            return false;
+        };
+        // The record covers the field containing the reference. The target
+        // crosses that exact slot using the independent permission it holds.
+        parent_place.root == slot_place.root
+            && slot_place.root == target_place.root
+            && slot_place
+                .segments
+                .strip_prefix(parent_place.segments.as_slice())
+                == Some(&[DescriptorPathSegment::Field(*field)][..])
+            && target_place
+                .segments
+                .strip_prefix(slot_place.segments.as_slice())
+                == Some(&[DescriptorPathSegment::Referent][..])
+            && parent.strictly_contains(&slot)
+    }
+
     pub(super) fn borrowed_resource(
         &self,
         parameter: &terminal_psi::StructuralParameterDeclaration,
@@ -1560,6 +1641,22 @@ impl<'a> Storage<'a> {
             Touch::Change | Touch::NativeWrite => ReferenceAccess::Mutable,
         };
         if competing_borrows(loan.access, &loan.lineage, access, backing).is_none() {
+            return Ok(None);
+        }
+        if matches!(touch, Touch::Read | Touch::Change)
+            && let Some((DescriptorPathSegment::Referent, before)) = place.segments.split_last()
+            && let LoanRegion::Storage(touched) = backing
+            && post_loans.formed_at(at).iter().any(|&idx| {
+                let argument = &formed[idx];
+                argument
+                    .from
+                    .as_ref()
+                    .is_some_and(|slot| slot.root == place.root && slot.path == before)
+                    && self.borrows_stored_input_through(references, argument, loan)
+                    && matches!(&argument.lineage, LoanRegion::Storage(target)
+                        if target.same_single_region(touched))
+            })
+        {
             return Ok(None);
         }
         let conflict = match touch {
@@ -3309,6 +3406,11 @@ impl<'a> Storage<'a> {
                         earlier.access,
                         &earlier.lineage,
                     ) {
+                        if self.borrows_stored_input_through(references, loan, earlier)
+                            || self.borrows_stored_input_through(references, earlier, loan)
+                        {
+                            continue;
+                        }
                         found = Some((Some(earlier.position), conflict));
                         break;
                     }

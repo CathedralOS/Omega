@@ -1544,8 +1544,8 @@ implies none.
 read: the strongly connected sets of the call graph. Nesting plays no part
 ([control flow](../../../../../../wiki/spec/terminal-psi/control_flow.md):
 "Source nesting does not bound the component or justify any edge."). Each
-machine still gets its own Terminal machine, and a machine on a cycle holds
-its whole component in its own graph
+machine still has its own callable entry. A machine that implements the loop
+holds its whole component in its own graph
 (control flow: "Constant-stack terminal cycles may become block backedges"):
 
 - **The entry** holds the machine's formals as machine parameters and jumps
@@ -1563,6 +1563,14 @@ its whole component in its own graph
 Each member has its own entry and its own graph. When two entries produce
 identical checking tables for places or scalar values, the compiler stores
 one copy of that table. Updating one entry leaves the other entry's rows intact.
+
+For a ranked group returning an owned record, a single member called from
+outside the group can hold the loop. Another entry can execute its own body
+and call toward that member when the calls form a finite chain. Lowering
+checks each internal call's actual rank against the immutable integer its
+caller received at entry. If they differ, that caller keeps its full loop
+and the checker judges the transfer under the caller's own contract. An
+outer entry can reach a helper with a narrower range than that helper admits.
 
 **`requires` at a head.** A member's `requires` clauses, each formal
 replaced by the head's parameter, are the head's one row in the module's

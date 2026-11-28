@@ -254,6 +254,68 @@ fn a_dying_record_releases_each_reference_it_holds() {
     }
 }
 
+/// The same declared member can have different storage coordinates in Link<File>
+/// and Link<S>. The destination releases each of its own members, including when
+/// the Link is stored inside an array.
+#[test]
+fn a_package_releases_each_borrow_in_its_nominal_fields() {
+    for (fields, stored, argument, expected) in [
+        (
+            "first: @'a T; second: @'a T;",
+            "Link<'a, S>",
+            "Link<'a, File>",
+            ["link.first", "link.second"],
+        ),
+        (
+            "target: @'a T;",
+            "[Link<'a, S>; 2]",
+            "[Link<'a, File>; 2]",
+            ["link.FixedIndex(0).target", "link.FixedIndex(1).target"],
+        ),
+    ] {
+        let program = Program::of(&format!(
+            "data File {{ n: u8; }}
+             data Link<'a, T> {{ {fields} }}
+             data Reader<'a, some S> {{ link: {stored}; tag: u8; }}
+             machine inspect<'a>(input: {argument}) -> u8 {{
+                 let p: Reader<'a> = Reader {{ link: input, tag: 42u8 }};
+                 p.tag
+             }}"
+        ));
+        let releases: Vec<_> = program
+            .machine("inspect")
+            .operations()
+            .filter_map(|op| {
+                let OperationKind::ReleaseReference { path, .. } = &op.kind else {
+                    return None;
+                };
+                let name = steps(&program, path).join(".");
+                name.starts_with("link.").then_some((op.id, path, name))
+            })
+            .collect();
+        let [(_, first, left), (id, _, right)] = releases.as_slice() else {
+            panic!("expected two nested releases: {releases:?}")
+        };
+        let mut paths = [left.as_str(), right.as_str()];
+        paths.sort();
+        assert_eq!(paths, expected);
+        program.judged(|_| {}).accepted();
+
+        // Redirect one release to its already released sibling.
+        let refusal = program
+            .judged_in("inspect", |machine| {
+                let OperationKind::ReleaseReference { path, .. } =
+                    &mut operation_mut(machine, *id).kind
+                else {
+                    unreachable!()
+                };
+                path.clone_from(first);
+            })
+            .refused();
+        assert!(refusal.detail.contains(DEAD_REFERENCE), "{refusal:?}");
+    }
+}
+
 /// `let chosen = left;` on `left: @mutable [u32]` forms a new exclusive
 /// view of `left` for the local, and `chosen.length` measures the local;
 /// the twin `let chosen = right;` forms it from `right`. Forming the
