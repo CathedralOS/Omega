@@ -5,7 +5,7 @@ use super::ScalarFact;
 use super::comparison::Evidence;
 use crate::entry_values::TerminalScalarValue as Scalar;
 use crate::synchronization::{
-    facts::Facts,
+    facts::BranchFacts,
     spin::{CellUpdate, Comparison, Operand, SpinCondition},
 };
 use semantic_vocabulary::{Proposition, ScalarType, ValueId};
@@ -109,8 +109,8 @@ impl Assumption {
 
     pub(in crate::synchronization) fn of_operation(
         kind: &OperationKind,
-        values: &Facts<ValueId, ScalarFact>,
-        predicates: &Facts<ValueId, Self>,
+        values: &BranchFacts<ValueId, ScalarFact>,
+        predicates: &BranchFacts<ValueId, Self>,
     ) -> Option<Self> {
         if let OperationKind::BooleanNot { operand } = kind {
             return predicates
