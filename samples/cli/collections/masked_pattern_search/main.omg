@@ -35,41 +35,42 @@ machine find<'input>(bytes: @'input [u8], pattern: @[PatternByte], start: u64)
     machine next(bytes: @'input [u8], pattern: @[PatternByte], cursor: u64)
         -> |option|::Optional<Found<'input>>
     requires cursor <= bytes.length && pattern.length > 0 {
-        transition pattern.length <= bytes.length - cursor {
+        transition cursor < bytes.length && pattern.length <= bytes.length - cursor {
             true -> compare(bytes, pattern, cursor),
             false -> |option|::Optional::None
         }
     }
     machine compare(bytes: @'input [u8], pattern: @[PatternByte], cursor: u64)
         -> |option|::Optional<Found<'input>>
-    requires cursor <= bytes.length && pattern.length > 0 && pattern.length <= bytes.length - cursor {
+    requires cursor < bytes.length && pattern.length > 0 && pattern.length <= bytes.length - cursor {
         let window: @[u8] = @bytes[cursor..cursor + pattern.length];
+        let found: Found<'input> = Found { position: cursor, bytes: window };
         transition matches(window, pattern) {
-            true -> |option|::Optional::Some { value: Found { position: cursor, bytes: window } },
+            true -> |option|::Optional::Some { value: found },
             false -> next(bytes, pattern, cursor + 1)
         }
     }
 }
 
-machine observed(found: |option|::Optional<Found>, position: u64, middle: u8) -> bool {
+machine observed<'input>(found: |option|::Optional<Found<'input>>, position: u64, middle: u8) -> bool {
     transition found {
         |option|::Optional::Some { value } -> inspect(value, position, middle),
         |option|::Optional::None -> false
     }
-    machine inspect(found: Found, position: u64, middle: u8) -> bool {
+    machine inspect(found: Found<'input>, position: u64, middle: u8) -> bool {
         transition found.bytes.length == 3 {
             true -> contents(found, position, middle),
             false -> false
         }
     }
-    machine contents(found: Found, position: u64, middle: u8) -> bool
+    machine contents(found: Found<'input>, position: u64, middle: u8) -> bool
     requires found.bytes.length == 3 {
         found.position == position && found.bytes[0] == 170
             && found.bytes[1] == middle && found.bytes[2] == 170
     }
 }
 
-machine absent(found: |option|::Optional<Found>) -> bool {
+machine absent<'input>(found: |option|::Optional<Found<'input>>) -> bool {
     transition found { |option|::Optional::Some { value } -> false, |option|::Optional::None -> true }
 }
 

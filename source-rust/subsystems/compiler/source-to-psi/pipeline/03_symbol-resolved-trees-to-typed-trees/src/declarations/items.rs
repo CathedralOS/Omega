@@ -695,7 +695,7 @@ pub(crate) mod machine {
     pub(crate) fn lower_machine(
         lowerer: &mut Lowerer,
         machine: &resolved::machine::Machine,
-    ) -> Result<typed::machine::Machine, Diagnostic> {
+    ) -> Result<(), Diagnostic> {
         if let Some(factory) = access_borrow_factory(lowerer.source_trees, machine.symbol)?
             && !lowerer
                 .typed_trees
@@ -712,7 +712,27 @@ pub(crate) mod machine {
         };
         lowerer.with_source_owner(machine.symbol, |lowerer| {
             lowerer.with_type_reference_exposure(exposure, |lowerer| {
-                lower_machine_contents(lowerer, machine)
+                let mut declaration = lower_machine_contents(lowerer, machine)?;
+                // Checking a body can instantiate a field type that names one of
+                // this machine's lifetimes. Publish the signature before checking it.
+                let completed_header =
+                    if machine.body_status == resolved::machine::MachineBodyStatus::Complete {
+                        let position = lowerer.typed_trees.machines().len();
+                        lowerer.typed_trees.push_machine(declaration.clone());
+                        complete_machine_body(lowerer, machine, &mut declaration)?;
+                        Some(position)
+                    } else {
+                        None
+                    };
+                if let Some(view) = lower_token_binding_view(lowerer, machine, &declaration)? {
+                    lowerer.typed_trees.push_machine_token_binding(view);
+                }
+                if let Some(position) = completed_header {
+                    lowerer.typed_trees.set_machine(position, declaration);
+                } else {
+                    lowerer.typed_trees.push_machine(declaration);
+                }
+                Ok(())
             })
         })
     }
@@ -1110,9 +1130,6 @@ pub(crate) mod machine {
             retain_machine_ranking_expressions(lowerer, machine)
         })?;
 
-        if machine.body_status == resolved::machine::MachineBodyStatus::Complete {
-            complete_machine_body(lowerer, machine, &mut typed_machine)?;
-        }
         Ok(typed_machine)
     }
 
