@@ -353,6 +353,32 @@ impl Lowering<'_> {
         Ok(Reached::Value(evaluated))
     }
 
+    /// Evaluate each operand at its original place, using the move, loan and
+    /// nonreturning paths of ordinary calls. Only a normal continuation needs
+    /// result custody. It cannot derive the cells from descriptor arithmetic.
+    pub(super) fn partition_run(
+        &mut self,
+        operation: language_core::sealed_intrinsics::RunPartitionOperation,
+        signature: &Signature,
+        operands: &[Expression],
+        source: SourceOrigin,
+    ) -> Evaluation<super::places::Located> {
+        use language_core::sealed_intrinsics::RunPartitionOperation;
+        let inputs = continuing!(self.arguments(signature, operands));
+        let missing = match (operation, inputs.actuals.as_slice()) {
+            (RunPartitionOperation::Split, [Actual::Place(_), Actual::Value(_)]) => {
+                "run split requires the input's ordered cell custody and backing at its cut"
+            }
+            (RunPartitionOperation::Merge, [Actual::Place(_), Actual::Place(_)]) => {
+                "run merge requires both inputs' ordered cell custody and compatible backing"
+            }
+            _ => return Err(self.internal("a run partition changed its applied operand lanes")),
+        };
+        let mut refusal = refuse(self.id, Construct::Machine, Unserved::Call(missing));
+        refusal.source_span = source.span();
+        Err(refusal)
+    }
+
     /// A terminal call within this component becomes a block transfer.
     /// Capture both argument lanes with the ordinary call evaluation order;
     /// the edge checks their access and retires staging homes after capture.

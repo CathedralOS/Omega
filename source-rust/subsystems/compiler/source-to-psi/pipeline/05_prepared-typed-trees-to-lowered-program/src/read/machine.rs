@@ -5351,7 +5351,10 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         | ExpressionKind::Zero
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Slot(_) => {}
-        ExpressionKind::PackedInteger {
+        ExpressionKind::RunPartition {
+            operands: elements, ..
+        }
+        | ExpressionKind::PackedInteger {
             operands: elements, ..
         }
         | ExpressionKind::Array { elements } => {

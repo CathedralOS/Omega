@@ -223,6 +223,48 @@ fn partition_calls_require_live_custody_on_each_consumed_run() {
 }
 
 #[test]
+fn merge_moves_the_left_owner_before_evaluating_the_right_operand() {
+    let source = r#"
+data Cells = |run|::Run<WordPlacement, Word> in |run|::Run::Live<WordPlacement, Word>;
+machine consume(value: Cells) -> Cells crashes Trap { crash Trap; }
+machine carry(parts: |run|::RunParts<WordPlacement, Word>) -> Cells crashes Trap {
+    |run|::merge::<WordPlacement, Word>(parts.left, consume(parts.right))
+}"#;
+    let (output, report) = inspect(source);
+    assert!(
+        output.status.success() && report.contains("psi selected_machine=carry"),
+        "{report}"
+    );
+    let (output, report) = inspect(&source.replace("consume(parts.right)", "consume(parts.left)"));
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("owned storage is used after its value was transferred or consumed"),
+        "{report}"
+    );
+}
+
+#[test]
+fn split_requires_an_owned_run_before_evaluating_the_cut() {
+    let source = r#"
+data Cells = |run|::Run<WordPlacement, Word> in |run|::Run::Live<WordPlacement, Word>;
+machine cut() -> u64 crashes Trap { crash Trap; }
+machine carry(input: Cells) -> |run|::RunParts<WordPlacement, Word> crashes Trap {
+    |run|::split::<WordPlacement, Word>(input, cut())
+}"#;
+    let (output, report) = inspect(source);
+    assert!(
+        output.status.success() && report.contains("psi selected_machine=carry"),
+        "{report}"
+    );
+    let (output, report) = inspect(&source.replace("input: Cells", "input: @Cells"));
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("owned extraction from borrowed storage"),
+        "{report}"
+    );
+}
+
+#[test]
 fn a_bodyless_lookalike_cannot_partition_a_run() {
     let live = "|run|::Run<P,T> in |run|::Run::Live<P,T>";
     for (name, parameters, result) in [

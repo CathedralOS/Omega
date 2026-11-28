@@ -2470,7 +2470,9 @@ impl<'t> Program<'t> {
         if let Some(formed) = self.native_borrow(id, slots, &invocation, source)? {
             return Ok(CallBinding::Generic(formed));
         }
-        self.check_run_partition(id, slots, &invocation)?;
+        if let Some(partition) = self.run_partition(id, slots, &invocation, source)? {
+            return Ok(CallBinding::Generic(partition));
+        }
         self.requirement_callbacks(id, invocation.target, invocation.application)?;
         if let Some(application) = self.theorem_application(id, slots, call, invocation, source)? {
             return Ok(CallBinding::Generic(application));
@@ -4938,7 +4940,10 @@ impl Touches<'_> {
                 changes || *access != ReferenceAccess::Shared,
                 captures,
             ),
-            ExpressionKind::PackedInteger {
+            ExpressionKind::RunPartition {
+                operands: elements, ..
+            }
+            | ExpressionKind::PackedInteger {
                 operands: elements, ..
             }
             | ExpressionKind::Array { elements } => {

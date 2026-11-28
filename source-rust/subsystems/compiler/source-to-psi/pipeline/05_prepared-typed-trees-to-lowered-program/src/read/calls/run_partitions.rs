@@ -3,24 +3,26 @@ use super::*;
 use language_core::sealed_intrinsics::{CompilerPrimitive, SealedIntrinsic};
 
 impl Program<'_> {
-    pub(super) fn check_run_partition(
+    pub(super) fn run_partition(
         &mut self,
         id: MachineId,
         slots: &[Slot],
         call: &StaticInvocation<'_>,
-    ) -> Checked<()> {
+        source: SourceOrigin,
+    ) -> Checked<Option<Expression>> {
         let typed = self.typed;
         let Some(machine) = self
             .entered_machine(call.target)
             .and_then(|symbol| typed.machine_by_symbol(symbol))
         else {
-            return Ok(());
+            return Ok(None);
         };
-        let Some(SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::RunPartition(_))) = typed
-            .symbols
-            .sealed_declaration(machine.symbol, machine.name.as_str())
+        let Some(SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::RunPartition(operation))) =
+            typed
+                .symbols
+                .sealed_declaration(machine.symbol, machine.name.as_str())
         else {
-            return Ok(());
+            return Ok(None);
         };
         let unavailable = |reason| refuse_at(id, Unserved::Call(reason));
         self.visible_to(id, machine.symbol)?;
@@ -49,6 +51,7 @@ impl Program<'_> {
         if formals.len() != call.arguments.len() {
             return Err(unavailable("run partition lost a declared operand"));
         }
+        let mut operands = Vec::with_capacity(formals.len());
         for (&ty, argument) in formals.iter().zip(call.arguments) {
             let actual = self.expression(id, slots, *argument, Some(ty))?;
             if !self.agrees(actual.result, Some(ty)) {
@@ -61,9 +64,17 @@ impl Program<'_> {
                     "run partition operand type",
                 ));
             }
+            operands.push(actual);
         }
-        Err(unavailable(
-            "run partition requires the ordered transfer of its input cell custody and backing",
-        ))
+        Ok(Some(Expression {
+            source,
+            result: signature.result,
+            kind: ExpressionKind::RunPartition {
+                operation,
+                signature: Box::new(signature),
+                operands,
+            },
+            call_context: None,
+        }))
     }
 }

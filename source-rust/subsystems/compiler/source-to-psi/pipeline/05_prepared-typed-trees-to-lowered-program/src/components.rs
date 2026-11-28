@@ -832,7 +832,10 @@ fn expression<'body>(value: &'body Expression, terminal: bool, sites: &mut BodyW
             }
             expression(place, false, sites);
         }
-        ExpressionKind::PackedInteger {
+        ExpressionKind::RunPartition {
+            operands: elements, ..
+        }
+        | ExpressionKind::PackedInteger {
             operands: elements, ..
         }
         | ExpressionKind::Array { elements } => {
