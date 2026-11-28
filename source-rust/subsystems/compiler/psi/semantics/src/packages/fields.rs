@@ -1,6 +1,23 @@
 //! Detect reads, stores and transfers crossing a package witness boundary.
 use super::*;
 
+pub(super) fn nominal_uses(
+    module: &TerminalModule,
+    ty: StructuralTypeId,
+    witness: StructuralTypeId,
+) -> bool {
+    let identity = |id| {
+        module
+            .structural_type(id)
+            .and_then(|row| module.identities.text(row.identity))
+    };
+    identity(ty)
+        .zip(identity(witness))
+        .is_some_and(|(carrier, witness)| {
+            application_identity::type_identity::package_applications::uses(carrier, witness)
+        })
+}
+
 // Identify every operation that enters a public package field. A producer
 // cannot extract the uninstantiated reference or overwrite just the callback
 // by leaving its opening out of the evidence table. Whole-package transport
@@ -10,12 +27,21 @@ pub(super) fn uses_witness(
     field: &StructuralFieldType,
     witness: StructuralTypeId,
 ) -> bool {
+    let dependent = |carrier| carrier == witness || nominal_uses(module, carrier, witness);
     match field {
-        StructuralFieldType::Scalar(ScalarType::Callable(id)) => module.execution.callables.contract(*id).is_some_and(|contract|
-            contract.structural_parameters.iter().any(|parameter| parameter.structural_type == witness)
-            || contract.proof_result.structural().is_some_and(|result| result.structural_type == witness)),
-        StructuralFieldType::Structural(id) => *id == witness || module.structural_type(*id)
-            .is_some_and(|row| matches!(row.shape,StructuralTypeShape::Reference {referent,..} if referent == witness)),
+        StructuralFieldType::Scalar(ScalarType::Callable(id)) => module
+            .execution
+            .callables
+            .contract(*id)
+            .is_some_and(|contract| {
+                contract.structural_parameters.iter().any(|p| dependent(p.structural_type))
+                    || contract.proof_result.structural().is_some_and(|r| dependent(r.structural_type))
+            }),
+        StructuralFieldType::Structural(id) => {
+            dependent(*id) || module.structural_type(*id).is_some_and(|row| {
+                matches!(row.shape, StructuralTypeShape::Reference { referent, .. } if referent == witness)
+            })
+        }
         _ => false,
     }
 }
@@ -29,20 +55,13 @@ fn field_needs_opening(
         return false;
     };
     match &field.field_type {
-        StructuralFieldType::Scalar(ScalarType::Callable(contract)) => module
-            .execution
-            .callables
-            .contract(*contract)
-            .is_none_or(|contract| {
-                contract
-                    .structural_parameters
+        StructuralFieldType::Scalar(ScalarType::Callable(contract)) => {
+            module.execution.callables.contract(*contract).is_none()
+                || schema
+                    .witnesses
                     .iter()
-                    .any(|parameter| schema.witnesses.contains(&parameter.structural_type))
-                    || contract
-                        .proof_result
-                        .structural()
-                        .is_some_and(|result| schema.witnesses.contains(&result.structural_type))
-            }),
+                    .any(|&witness| uses_witness(module, &field.field_type, witness))
+        }
         StructuralFieldType::Structural(ty) => {
             match module.structural_type(*ty).map(|row| &row.shape) {
                 Some(StructuralTypeShape::Reference { referent, .. }) => {

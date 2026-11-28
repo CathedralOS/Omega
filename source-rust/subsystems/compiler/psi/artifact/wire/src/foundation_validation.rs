@@ -7437,6 +7437,7 @@ pub(crate) mod storage_foundations {
             module: &TerminalModule,
             machine: &TerminalMachine,
             operation: &Operation,
+            packages: &terminal_semantics::packages::CheckedPackageSites,
         ) -> Result<(), CodecError> {
             let OperationKind::MoveStructuralField {
                 source,
@@ -7459,7 +7460,10 @@ pub(crate) mod storage_foundations {
             ) else {
                 return malformed("structural field move requires a mutable-borrowed parameter");
             };
-            if result.structural_type != window_field_type(module, root_type, path, *field)? {
+            if result.structural_type != window_field_type(module, root_type, path, *field)?
+                && packages.projected_structural_type(machine.id, operation.id)
+                    != Some(result.structural_type)
+            {
                 return malformed("structural field move result type does not match field");
             }
             Ok(())
@@ -7968,7 +7972,13 @@ pub(crate) mod storage_foundations {
             .ok_or(CodecError::MalformedStructuralFoundation(
                 "owned transfer requires a finite owned path",
             ))?;
-            if selected.id != result.structural_type {
+            if selected.id != result.structural_type
+                && analyses
+                    .package_sites()
+                    .map_err(CodecError::MalformedStructuralFoundation)?
+                    .projected_structural_type(machine.id, operation.id)
+                    != Some(result.structural_type)
+            {
                 return malformed("owned value transfer changes its carrier");
             }
             if !super::super::is_op_result_place(machine, operation, result) {
@@ -12939,7 +12949,14 @@ fn validate_operation_foundation(
             storage_foundations::validate_structural_scalar_field_store(module, machine, operation)?
         }
         OperationKind::MoveStructuralField { .. } => {
-            storage_foundations::validate_move_structural_field(module, machine, operation)?
+            storage_foundations::validate_move_structural_field(
+                module,
+                machine,
+                operation,
+                analyses
+                    .package_sites()
+                    .map_err(CodecError::MalformedStructuralFoundation)?,
+            )?
         }
         OperationKind::StoreStructuralField { .. } => {
             storage_foundations::validate_store_structural_field(

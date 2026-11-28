@@ -17,6 +17,7 @@ use terminal_psi::{
 mod construction;
 mod fields;
 mod opening;
+mod owned;
 mod restoration;
 mod store;
 mod substitution;
@@ -35,6 +36,7 @@ type Site = (MachineId, OperationId);
 enum Projected {
     Descriptor(ValueId),
     Reference(semantic_vocabulary::PlaceId),
+    Owner(semantic_vocabulary::PlaceId),
 }
 type ProjectedOrigins = BTreeMap<(MachineId, Projected), (u32, OperationId)>;
 
@@ -89,6 +91,17 @@ impl CheckedPackageSites {
         self.projected_fields.get(&(machine, operation)).copied()
     }
 
+    /// Structural type produced by an independently checked projection of
+    /// this operation's exact package field.
+    pub fn projected_structural_type(
+        &self,
+        machine: MachineId,
+        operation: OperationId,
+    ) -> Option<StructuralTypeId> {
+        let field = self.projected_field(machine, operation)?;
+        self.field_type(machine, operation, field)?.as_structural()
+    }
+
     /// Check the concrete contract on the descriptor actually read. Repeated
     /// occurrences of one witness must denote one type. The call also checks
     /// the separately stored argument against the concrete machine parameter.
@@ -105,13 +118,7 @@ impl CheckedPackageSites {
         let Ok(opened) = opening(module, machine, index) else {
             return false;
         };
-        opened_callable_admits(
-            &module.execution.callables,
-            &module.types.structural_types,
-            &opened.witnesses,
-            abstract_contract,
-            actual,
-        )
+        opened_callable_admits(module, &opened.witnesses, abstract_contract, actual)
     }
 
     /// At a checked call, the declared type of the field borrowed from the
@@ -184,12 +191,12 @@ pub fn projects_stored_callable(
 /// Determine whether the descriptor at an already checked opening preserves
 /// its entire callable contract under the inferred witness substitution.
 pub fn opened_callable_admits(
-    catalog: &terminal_psi::TerminalCallableCatalog,
-    types: &[terminal_psi::StructuralTypeDeclaration],
+    module: &TerminalModule,
     opened_witnesses: &[StructuralTypeId],
     abstract_contract: CallableContractId,
     actual: CallableContractId,
 ) -> bool {
+    let catalog = &module.execution.callables;
     let (Some(required), Some(supplied)) = (
         catalog.contract(abstract_contract),
         catalog.contract(actual),
@@ -202,13 +209,62 @@ pub fn opened_callable_admits(
         .iter()
         .zip(&supplied.structural_parameters)
     {
-        if opened_witnesses.contains(&from.structural_type)
-            && (terminal_psi::find_structural_type(types, to.structural_type).is_none()
-                || bindings
-                    .insert(from.structural_type, to.structural_type)
-                    .is_some_and(|previous| previous != to.structural_type))
+        let mut bind = |formal, actual| {
+            bindings
+                .insert(formal, actual)
+                .is_none_or(|previous| previous == actual)
+        };
+        if opened_witnesses.contains(&from.structural_type) {
+            if module.structural_type(to.structural_type).is_none()
+                || !bind(from.structural_type, to.structural_type)
+            {
+                return false;
+            }
+        } else if opened_witnesses
+            .iter()
+            .any(|&witness| fields::nominal_uses(module, from.structural_type, witness))
         {
-            return false;
+            let name = |id| {
+                module
+                    .structural_type(id)
+                    .and_then(|ty| module.identities.text(ty.identity))
+            };
+            let Some(formals) = opened_witnesses
+                .iter()
+                .map(|&id| name(id))
+                .collect::<Option<Vec<_>>>()
+            else {
+                return false;
+            };
+            let Some(arguments) = name(from.structural_type)
+                .zip(name(to.structural_type))
+                .and_then(|(public, actual)| {
+                    application_identity::type_identity::package_applications::supplied(
+                        public, actual, &formals,
+                    )
+                })
+            else {
+                return false;
+            };
+            for (formal, actual) in arguments {
+                let Some(index) = formals.iter().position(|&name| name == formal) else {
+                    return false;
+                };
+                let Some(identity) = module.identities.index_of(actual) else {
+                    return false;
+                };
+                let mut candidates = module
+                    .types
+                    .structural_types
+                    .iter()
+                    .filter(|ty| ty.identity == identity);
+                let Some(actual) = candidates.next() else {
+                    return false;
+                };
+                if candidates.next().is_some() || !bind(opened_witnesses[index], actual.id) {
+                    return false;
+                }
+            }
         }
     }
     let (public, actual_types): (Vec<_>, Vec<_>) = bindings.into_iter().unzip();
@@ -216,7 +272,7 @@ pub fn opened_callable_admits(
         public: &public,
         actual: &actual_types,
     }
-    .callable(catalog, abstract_contract, actual)
+    .callable(module, abstract_contract, actual)
 }
 
 fn scalar_type(machine: &TerminalMachine, id: ValueId) -> Option<ScalarType> {
@@ -426,6 +482,13 @@ pub fn check_package_sites(module: &TerminalModule) -> Result<CheckedPackageSite
                                 abstract_types
                                     .binary_search(&formal.structural_type)
                                     .is_ok()
+                                    || abstract_types.iter().any(|&witness| {
+                                        fields::nominal_uses(
+                                            module,
+                                            formal.structural_type,
+                                            witness,
+                                        )
+                                    })
                             })
                         }))
                 && !matches!(event, Some(TerminalPackageEvent::Invoke { .. }))

@@ -869,3 +869,130 @@ fn package_sites_keep_a_fixed_reader_index_across_a_scalar_output_write() {
         obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
     }));
 }
+
+#[test]
+fn a_consuming_descriptor_replays_its_nominal_owner_and_custody() {
+    let mut program = readers();
+    let mut names = std::mem::take(&mut program.identities).into_builder();
+    let hidden = "named(name(hidden))";
+    let file = "named(name(File))";
+    program.types.structural_types[1].identity = names.intern(hidden);
+    program.types.structural_types[3].identity = names.intern(file);
+    let extent = names.intern("named(name(Extent))");
+    program.types.structural_types[4].identity = extent;
+    let owner = names.intern("declaration of Owner");
+    let provider = names.intern("declaration of Owner.provider");
+    let storage = names.intern("storage");
+    let storage_declaration = names.intern("declaration of Owner.storage");
+    for (id, argument) in [(8, hidden), (9, file)] {
+        let mut row = byte_view_descriptor(id, None);
+        row.identity = names.intern(&format!("generic(name(Owner),{argument})"));
+        row.declaration_identity = owner;
+        row.multiplicity = StructuralMultiplicity::Linear;
+        row.owns_linear_claim = true;
+        row.no_code_affine_cleanup = false;
+        row.descriptor_cleanup = false;
+        let mut resident = declaration(id * 2, StructuralFieldType::Structural(ty(5)));
+        resident.identity = storage;
+        resident.declaration_identity = storage_declaration;
+        let mut handle = declaration(id * 2 + 1, StructuralFieldType::Scalar(ScalarType::Boolean));
+        handle.identity = names.intern("provider");
+        handle.declaration_identity = provider;
+        row.shape = StructuralTypeShape::Record {
+            fields: vec![resident, handle],
+            storage: StructuralRecordStorage::Packed,
+        };
+        program.types.structural_types.push(row);
+    }
+    let wrong_application = names.intern(&format!("generic(name(Other),{file})"));
+    let wrong_placement = names.intern(&format!(
+        "generic(name(Resident),named(name(OtherPlacement)),{file})"
+    ));
+    let byte = names.intern("named(name(u8))");
+    let byte_owner = names.intern("generic(name(Owner),named(name(u8)))");
+    let byte_resident = names.intern(
+        r"generic(name(Resident),named(name(Placement)),named(name(compiler-type\(atom\(u8\)\))))",
+    );
+    let domain = |id| semantic_vocabulary::StructuralDomainId::new(id).unwrap();
+    for (id, identity) in [
+        (
+            1,
+            format!("generic(name(Resident),named(name(Placement)),{hidden})"),
+        ),
+        (2, "named(name(Granted))".to_string()),
+        (
+            3,
+            format!("generic(name(Resident),named(name(Placement)),{file})"),
+        ),
+    ] {
+        program
+            .types
+            .structural_domains
+            .push(terminal_psi::StructuralDomainDeclaration {
+                id: domain(id),
+                identity: names.intern(&identity),
+                semantic_domain: semantic_vocabulary::DomainSemanticId::new(id).unwrap(),
+                carrier: ty(5),
+                subject_identity: extent,
+                complete_predicate_theory: false,
+                required_memberships: Some(vec![]),
+                predicate: None,
+                establishment_routes: Some(vec![]),
+                access_policy: None,
+                content_projection: None,
+                byte_predicate: None,
+            });
+    }
+    program.identities = names.build();
+    for (contract, carrier, domains) in [(1, 8, [1, 2]), (3, 9, [2, 3])] {
+        let info = &mut program.execution.callables.contracts[contract];
+        let mut owned = param(1, ty(carrier));
+        owned.access = StructuralAccess::Owned;
+        owned.multiplicity = StructuralMultiplicity::Linear;
+        owned.projected_qualifications = domains
+            .map(|id| terminal_psi::StructuralPathQualification {
+                path: vec![StructuralPathSegment::Field(storage)],
+                domain: domain(id),
+            })
+            .to_vec();
+        info.structural_parameters = vec![owned];
+        info.proof.structural_parameters = info.structural_parameters.clone();
+    }
+    let admitted = |module: &TerminalModule| {
+        crate::packages::opened_callable_admits(module, &[ty(2)], callable(2), callable(4))
+    };
+    assert!(admitted(&program));
+    let concrete = program.types.structural_types.len() - 1;
+    let mut primitive = program.clone();
+    primitive.types.structural_types[3].identity = byte;
+    let u8_type = semantic_vocabulary::IntegerType::from_fixed(
+        numerics::integer_carrier::FixedInteger::unsigned(8),
+    )
+    .unwrap();
+    primitive.types.structural_types[3].shape =
+        StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(u8_type));
+    primitive.types.structural_types[concrete].identity = byte_owner;
+    primitive.types.structural_domains[2].identity = byte_resident;
+    assert!(admitted(&primitive));
+    primitive.types.structural_types[3].shape =
+        StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean);
+    assert!(!admitted(&primitive));
+    let mut changed = program.clone();
+    changed.types.structural_domains[2].identity = wrong_placement;
+    assert!(!admitted(&changed));
+    let mut changed = program.clone();
+    changed.types.structural_domains[2].establishment_routes = None;
+    assert!(!admitted(&changed));
+    let mut changed = program.clone();
+    changed.types.structural_types[concrete].identity = wrong_application;
+    assert!(!admitted(&changed));
+    let mut changed = program.clone();
+    changed.types.structural_types[concrete].declaration_identity = provider;
+    assert!(!admitted(&changed));
+    let mut changed = program.clone();
+    changed.types.structural_types[concrete].owns_linear_claim = false;
+    assert!(!admitted(&changed));
+    let mut changed = program;
+    changed.types.structural_types[concrete].multiplicity = StructuralMultiplicity::Unrestricted;
+    assert!(!admitted(&changed));
+}

@@ -84,32 +84,45 @@ pub(super) fn construction(
             let input = match &field.value {
                 RecordFieldValue::Scalar { value, .. } => Projected::Descriptor(*value),
                 RecordFieldValue::Structural(arg) if arg.path.is_empty() => {
-                    Projected::Reference(arg.place)
+                    if declaration
+                        .field_type
+                        .as_structural()
+                        .is_some_and(|carrier| fields::nominal_uses(module, carrier, public))
+                    {
+                        Projected::Owner(arg.place)
+                    } else {
+                        Projected::Reference(arg.place)
+                    }
                 }
                 _ => return Err("repacked field has no materialized opened operand"),
             };
-            let (origin, producer) = origins
-                .get(&(machine.id, input))
-                .ok_or("repacked field has no opening origin")?;
+            let (origin, producer) = match input {
+                Projected::Owner(place) => {
+                    owned::origin(module, machine, origins, place, operation.id)
+                }
+                _ => origins.get(&(machine.id, input)).copied(),
+            }
+            .ok_or("repacked field has no opening origin")?;
             let materialized = match input {
                 Projected::Reference(place) => Some(place),
-                Projected::Descriptor(_) => None,
+                Projected::Descriptor(_) | Projected::Owner(_) => None,
             };
-            if *origin != index
-                || !versions::same_storage_version(
-                    module,
-                    machine,
-                    row,
-                    *producer,
-                    operation.id,
-                    materialized,
-                )
+            if origin != index
+                || !matches!(input, Projected::Owner(_))
+                    && !versions::same_storage_version(
+                        module,
+                        machine,
+                        row,
+                        producer,
+                        operation.id,
+                        materialized,
+                    )
             {
                 return Err("repacked field comes from a different or stale opening");
             }
             result
                 .repacked_fields
-                .insert((machine.id, operation.id, field.field), *producer);
+                .insert((machine.id, operation.id, field.field), producer);
         }
         result
             .fields

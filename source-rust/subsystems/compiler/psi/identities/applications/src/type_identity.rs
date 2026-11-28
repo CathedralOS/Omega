@@ -6,6 +6,8 @@ lifetime partitions (`lifetime_partition`), and type vocabulary descriptors
 (`vocabulary`).
 */
 
+pub mod package_applications;
+
 /// Encode a compiler type name from the canonical spelling of its atom.
 pub fn compiler_type_name(atom: &str) -> String {
     encoding::compound(
