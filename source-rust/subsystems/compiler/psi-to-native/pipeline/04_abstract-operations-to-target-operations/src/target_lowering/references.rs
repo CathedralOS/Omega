@@ -1348,6 +1348,10 @@ mod stored_calls {
     }
 
     pub(crate) struct StoredEffects {
+        pub(super) native_roots: BTreeMap<
+            (MachineId, semantic_vocabulary::OperationId),
+            Vec<target_operations::TargetReferenceOrigin>,
+        >,
         machines: BTreeMap<MachineId, Result<Vec<Effect>, &'static str>>,
         provider_outputs: BTreeMap<(BoundaryMachineId, u32), (StructuralTypeId, StructuralAccess)>,
         pub(crate) observations: BTreeMap<
@@ -1401,6 +1405,81 @@ mod stored_calls {
                 extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
             })
         }
+    }
+
+    /// Read the newly formed loan from the normal descriptor graph. Its origins
+    /// already reflect the instruction that exposed each address, including
+    /// temporary references that have since been released or replaced.
+    fn native_root(
+        types: &StructuralTypeLookup<'_>,
+        graph: &terminal_semantics::descriptor_results::DescriptorMachine,
+        effects: &StoredEffects,
+        result: PlaceId,
+        source: terminal_semantics::descriptor_results::DescriptorSourceOrigin,
+    ) -> Option<target_operations::TargetReferenceOrigin> {
+        use target_operations::{TargetReferenceOrigin, TargetReferenceOriginBase as Base};
+        use terminal_semantics::descriptor_lifetimes::descriptor_path;
+        use terminal_semantics::descriptor_results::{
+            DescriptorCallOrigin as Origin, DescriptorSourceOrigin as Source,
+        };
+        let incoming = |slot: &terminal_semantics::descriptor_lifetimes::DescriptorLocation| {
+            Some(Base::IncomingContents {
+                root: slot.root,
+                slot: descriptor_path(
+                    types.catalog(),
+                    *graph.place_types.get(&slot.root)?,
+                    &slot.path,
+                )?,
+            })
+        };
+        let (base, projection) = match source {
+            Source::Backing(Origin::Argument { source, projection }) => {
+                (Base::Storage { root: source }, projection)
+            }
+            Source::Backing(Origin::NativeAddress {
+                machine,
+                operation,
+                projection,
+                ..
+            }) => (Base::NativeAddress { machine, operation }, projection),
+            Source::Backing(Origin::Invocation {
+                carrier_type,
+                projection,
+            }) => (
+                Base::Invocation {
+                    root: result,
+                    carrier_type,
+                },
+                projection,
+            ),
+            Source::IncomingSlot(slot) => (
+                incoming(&slot)?,
+                terminal_semantics::storage::borrowed_storage::Projection::new(&[]),
+            ),
+            Source::IncomingContents { query, projection } => {
+                (incoming(&query.exact_location()?)?, projection)
+            }
+            Source::Provider(provider) => return effects.provider_origin(&provider),
+            _ => return None,
+        };
+        let path = projection.captured_storage_path();
+        let extent = if path.is_some() && !projection.is_native_enclosing_storage() {
+            semantic_vocabulary::ReferenceOriginExtent::Projected
+        } else {
+            semantic_vocabulary::ReferenceOriginExtent::WithinRegion
+        };
+        let path = path
+            .unwrap_or(projection.path)
+            .into_iter()
+            .map(|step| {
+                if step.runtime_index().is_some() {
+                    terminal_psi::ReferenceOriginProjection::Element
+                } else {
+                    terminal_psi::ReferenceOriginProjection::Exact(step)
+                }
+            })
+            .collect();
+        Some(TargetReferenceOrigin { base, path, extent })
     }
 
     fn writable_slots(function: &AbstractFunction, types: &StructuralTypeLookup<'_>) -> bool {
@@ -1501,6 +1580,7 @@ mod stored_calls {
             .filter(|function| writable_slots(function, types))
             .collect::<Vec<_>>();
         let mut effects = StoredEffects {
+            native_roots: BTreeMap::new(),
             provider_outputs: BTreeMap::new(),
             observations: BTreeMap::new(),
             access_results: BTreeMap::new(),
@@ -1599,6 +1679,41 @@ mod stored_calls {
         let mut analysis = DescriptorAnalysis::with_reference_slots(types.catalog(), &graph);
         let has_access_views = !types.catalog().access_views().is_empty();
         for machine in &graph {
+            if let Some(function) = functions.get(&machine.id) {
+                for block in &function.blocks {
+                    for (index, operation) in block.operations.iter().enumerate() {
+                        let AbstractOperation::BorrowAt {
+                            psi_operation,
+                            result,
+                            ..
+                        } = operation
+                        else {
+                            continue;
+                        };
+                        let Some(next) = u32::try_from(index)
+                            .ok()
+                            .and_then(|index| index.checked_add(1))
+                        else {
+                            continue;
+                        };
+                        let location = terminal_semantics::descriptor_lifetimes::DescriptorLocation::whole(result.place);
+                        let origins = analysis
+                            .symbolic_source_origins(machine.id, (block.block, next), &location)
+                            .and_then(|origins| {
+                                origins.into_iter().map(|origin| {
+                                    native_root(types, machine, &effects, result.place, origin)
+                                }).collect::<Option<Vec<_>>>()
+                            });
+                        if let Some(mut origins) = origins.filter(|origins| !origins.is_empty()) {
+                            origins.sort_unstable();
+                            origins.dedup();
+                            effects
+                                .native_roots
+                                .insert((machine.id, *psi_operation), origins);
+                        }
+                    }
+                }
+            }
             effects
                 .observations
                 .insert(machine.id, analysis.source_observations(machine.id));
@@ -2040,7 +2155,6 @@ pub(crate) fn establish_trusted(
     operation: &AbstractOperation,
     site: &mut RowSite<'_>,
 ) -> Result<(), LoweringError> {
-    let native_addresses = site.native_addresses;
     let (function, types, live, operations, provenance) = site.parts();
     let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let (psi_operation, result) = match operation {
@@ -2079,31 +2193,12 @@ pub(crate) fn establish_trusted(
             if !terminal_psi::StorageLocationQuery::Address.admits_result(scalar) {
                 return Err(invalid());
             }
-            let origin = native_addresses.origin(*address).ok_or_else(invalid)?;
-            let mut origins = Vec::new();
-            for source in &origin.sources {
-                let root = normalized_source(function, live, types, source)?;
-                let extent = if origin.exact
-                    && reference_source_type(function, live, types, source) == Some(referent)
-                {
-                    semantic_vocabulary::ReferenceOriginExtent::Projected
-                } else {
-                    semantic_vocabulary::ReferenceOriginExtent::WithinRegion
-                };
-                origins.extend(root.projected_family(&[], extent).origins());
-            }
-            if origins.is_empty() {
-                origins.push(target_operations::TargetReferenceOrigin {
-                    base: target_operations::TargetReferenceOriginBase::NativeAddress {
-                        machine: function.machine,
-                        operation: psi_operation,
-                    },
-                    path: Vec::new(),
-                    extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
-                });
-            }
-            origins.sort_unstable();
-            origins.dedup();
+            let origins = live
+                .stored_reference_effects
+                .native_roots
+                .get(&(function.machine, psi_operation))
+                .cloned()
+                .ok_or_else(invalid)?;
             live.references.insert(
                 (result.place, Vec::new()),
                 ReferenceStorage {

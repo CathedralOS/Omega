@@ -1111,43 +1111,6 @@ use terminal_psi::TerminalDynamicDispatchCatalog;
 use terminal_semantics::descriptor_lifetimes::canonical_descriptor_location;
 use terminal_semantics::runtime_structural_path_tip;
 
-use terminal_semantics::storage::native_borrows::NativeAddressOrigin;
-
-/// Storage identified by the raw address operands in this optimized function.
-pub struct NativeAddresses(Vec<(ValueId, NativeAddressOrigin<StructuralArgument>)>);
-
-impl NativeAddresses {
-    pub fn new(function: &PsiOptimizationFunction) -> Self {
-        let mut addresses = function
-            .block_nodes()
-            .filter_map(|node| match &node.operation {
-                O::BorrowAt { address, .. } => Some(*address),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        if addresses.is_empty() {
-            return Self(Vec::new());
-        }
-        addresses.sort_unstable();
-        addresses.dedup();
-        let expressions = ScalarExpressions::new(function);
-        Self(
-            addresses
-                .into_iter()
-                .map(|value| (value, expressions.native_address(value)))
-                .collect(),
-        )
-    }
-
-    pub fn origin(&self, address: ValueId) -> Option<&NativeAddressOrigin<StructuralArgument>> {
-        let position = self
-            .0
-            .binary_search_by_key(&address, |(value, _)| *value)
-            .ok()?;
-        Some(&self.0[position].1)
-    }
-}
-
 pub fn abstract_reference_catalog_graph<'function, 'boundary>(
     functions: impl IntoIterator<Item = &'function AbstractFunction>,
     boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
