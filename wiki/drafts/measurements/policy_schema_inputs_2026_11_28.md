@@ -1,12 +1,14 @@
 # Constructing checked policy inputs for public_values
 
-The compiler spent 33.778 s evaluating demanded values while building the original filesystem fixture on a cloud Xeon. Reusing each exact reflected input and sharing checked constructors for identical inactive rows reduced that phase to 23.578 s. A separate probe-free release build took 60.817 s end to end, compared with 71.775 s at the shared base. A Ryzen 9 7950X measurement is still required.
+The native Linux release CLI compiled the original public_values fixture in **83.059 s at the shared base and 65.909 s on the candidate** on the cloud Xeon. The one-second cold-build goal remains unmet. The [native Linux measurements](#native-linux-x86-64-qualification) include the separate edited-source builds, executable and policy checks, and CPU profile.
 
 ## Measured code and host
 
 - Shared baseline and main at acquisition: `e6477bc08c36684b78cca182ba91bd012b4c5a4d`. A later fetch at `1fe6c569a5d35b9e6a5e8f71820136d93a91555f` showed no changes to this policy path.
 - Candidate: `d5ac45bd29303ecc6efdf78abf357597d7cf98f6`. Both binaries used release optimization and temporary diagnostic probes. The candidate also counted constructor bodies and input materializations.
 - Linux x86-64, Intel Xeon Platinum 8573C, four-CPU cgroup quota. One run per revision per condition. The results measure compiler and dependency cold starts. The OS file cache was uncontrolled.
+
+## Earlier cross-compilation measurements targeting Windows x86-64
 
 | Input and prior state | Base phase | Candidate phase | Base wall | Candidate wall |
 | --- | ---: | ---: | ---: | ---: |
@@ -42,8 +44,6 @@ For the second run append a comment to the extracted main.omg and repeat with th
 An authored policy read alignment one from the last field and the last case's last payload field. The negative compiler test changed every inactive repeated field to alignment zero and the normal proof check refused the input. Returning inactive key zero as a live placement independently produced `layout refers to unknown field key 0`.
 
 All four returned layout plans and their private placements matched byte for byte across revisions. With both compilers pointed at the same source root, all three access results also matched, including their authority and issuance identities. SHA-256 of the seven sorted, newline-terminated diagnostic records was `44c716e355e8cfc501ef2df45b957ce683341cf22e9c8d7b23fa76aea6e61c43`. Moving the source root changes the package identity in access results. All 105 release source-compiler library tests passed, including positive and negative access policy tests. Both revisions ran the original fixture with Linux native/Psi agreement at exit 0. The Windows executable exited 0 under Debian Wine 10. Windows-target Psi on Linux reported a missing trusted Windows filesystem write binding (exit 200).
-
-For the hardware gate, run the original fixture with a release-built compiler and empty compiler, dependency and output caches on the Ryzen 9 7950X. Time the real CLI through exit and launch the emitted executable on Windows. Record the revision, exact command, wall time, exit, output hash and host. Measure the edited-source case separately.
 
 ## Native Linux x86-64 qualification
 
