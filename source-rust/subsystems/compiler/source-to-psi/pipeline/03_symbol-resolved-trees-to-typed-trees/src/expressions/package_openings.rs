@@ -1,8 +1,10 @@
 //! Open hidden data parameters at typed places before any runtime call binds
 //! the signature of its callee. Ordinary data projections take no new row.
 use crate::lowerer::TypingCohort;
+use crate::source_resolved as resolved;
 use crate::source_state as typed;
 use diagnostics::Diagnostic;
+use std::collections::HashMap;
 use symbols::{SymbolHandle, SymbolKind};
 use typed::expression::{ExpressionHandle, ExpressionNode, MemberSelection, UnaryOperator};
 use typed::package_openings::*;
@@ -12,6 +14,7 @@ use typed::types::TypeReferenceNode;
 use typed::{SubtreeEdges, TypedTrees};
 
 pub(crate) fn open_cohort(
+    source: &resolved::SymbolResolvedTrees,
     program: &mut TypedTrees,
     cohort: &TypingCohort<'_>,
 ) -> Result<(), Diagnostic> {
@@ -22,6 +25,7 @@ pub(crate) fn open_cohort(
     {
         return Ok(());
     }
+    let names = NamedOpenings::from_source(source)?;
     let states: Vec<_> = program
         .machines()
         .iter()
@@ -32,6 +36,14 @@ pub(crate) fn open_cohort(
     for state in &states {
         let mut scope = OpeningScope {
             state,
+            source,
+            names: &names,
+            named_versions: program
+                .state_parameters(state)
+                .iter()
+                .filter(|formal| names.0.contains_key(&formal.symbol))
+                .map(|formal| (formal.symbol, 0))
+                .collect(),
             version: 0,
             live: Vec::new(),
             active: Vec::new(),
@@ -41,8 +53,62 @@ pub(crate) fn open_cohort(
     Ok(())
 }
 
+/// Authored type names belong to one annotated value. Their positions refer
+/// to the declaration's full parameter telescope, before hiding parameters.
+#[derive(Default)]
+struct NamedOpenings(HashMap<SymbolHandle, Vec<(usize, SymbolHandle)>>);
+
+impl NamedOpenings {
+    fn from_source(source: &resolved::SymbolResolvedTrees) -> Result<Self, Diagnostic> {
+        let tables = &source.tables.declarations;
+        let types = &tables.child_type_references;
+        let mut result = Self::default();
+        if types.package_openings.is_empty() {
+            return Ok(result);
+        }
+        let bindings =
+            tables
+                .state_parameters
+                .iter()
+                .map(|(_, p)| (p.symbol, &p.type_reference))
+                .chain(tables.state_statements.iter().filter_map(
+                    |(_, statement)| match statement {
+                        resolved::statement::Statement::LocalData(local) => {
+                            Some((local.symbol, &local.type_reference))
+                        }
+                        _ => None,
+                    },
+                ));
+        for (owner, ty) in bindings {
+            let mut names = Vec::new();
+            for binding in types.annotation_openings(ty) {
+                if !source.symbols.symbols().nodes().is_valid(binding.symbol)
+                    || source.symbols.get(binding.symbol).parent != owner
+                {
+                    return Err(Diagnostic::error("named opening lost its annotated value"));
+                }
+                names.push((binding.position as usize, binding.symbol));
+            }
+            if !names.is_empty()
+                && result
+                    .0
+                    .insert(owner, names.clone())
+                    .is_some_and(|old| old != names)
+            {
+                return Err(Diagnostic::error(
+                    "one annotated value has conflicting package openings",
+                ));
+            }
+        }
+        Ok(result)
+    }
+}
+
 struct OpeningScope<'a> {
     state: &'a State,
+    source: &'a resolved::SymbolResolvedTrees,
+    names: &'a NamedOpenings,
+    named_versions: HashMap<SymbolHandle, u32>,
     version: u32,
     live: Vec<PackageOpeningHandle>,
     active: Vec<ExpressionHandle>,
@@ -72,9 +138,11 @@ impl OpeningScope<'_> {
                 StatementNode::Assignment(_) | StatementNode::Call(_) | StatementNode::Assembly(_)
             );
             let inferred_initializer = match statement {
-                StatementNode::LocalData(local) if local.type_is_inferred => {
-                    local.ordinary_value_initializer()
-                }
+                StatementNode::LocalData(local) if local.type_is_inferred => local.ordinary_value_initializer(),
+                _ => None,
+            };
+            let named_local = match statement {
+                StatementNode::LocalData(local) if self.names.0.contains_key(&local.symbol) => Some(local.symbol),
                 _ => None,
             };
             for (_, root) in program.expression_roots(statement) {
@@ -91,6 +159,9 @@ impl OpeningScope<'_> {
                     unreachable!("the initializer comes from this local")
                 };
                 local.type_reference = ty;
+            }
+            if let Some(local) = named_local {
+                self.named_versions.insert(local, self.version);
             }
             if writes {
                 self.invalidate()?;
@@ -143,6 +214,31 @@ impl OpeningScope<'_> {
         }
         self.active.pop();
         Ok(())
+    }
+
+    fn named_type(
+        &self,
+        subject: &PackageSubject,
+        declaration: SymbolHandle,
+        binder: SymbolHandle,
+    ) -> Option<SymbolHandle> {
+        let PackageSubjectRoot::Binding(owner) = subject.root else {
+            return None;
+        };
+        if !subject.steps.is_empty() || self.named_versions.get(&owner) != Some(&self.version) {
+            return None;
+        }
+        let data = self.source.data_definition_by_symbol(declaration)?;
+        let ordinal = self
+            .source
+            .data_type_parameters(data.type_parameters)
+            .iter()
+            .position(|parameter| parameter.symbol == binder)?;
+        self.names
+            .0
+            .get(&owner)?
+            .iter()
+            .find_map(|(position, symbol)| (*position == ordinal).then_some(*symbol))
     }
 
     fn project(
@@ -218,21 +314,30 @@ impl OpeningScope<'_> {
         } else {
             let mut witnesses = Vec::new();
             for binder in binders {
-                let spelling = program.symbols.name(binder);
-                let name = format!(
-                    "{spelling}@{}.{}",
-                    state.symbol.arena_index(),
-                    expression.arena_index()
-                );
-                let symbol = program.symbols.insert_generated_root_from(
-                    binder,
-                    SymbolKind::TypeParameter,
-                    &name,
-                );
-                let name = typed::name::Identifier::generated(&name);
+                let symbol = self
+                    .named_type(&subject, declaration, binder)
+                    .unwrap_or_else(|| {
+                        let spelling = program.symbols.name(binder);
+                        let name = format!(
+                            "{spelling}@{}.{}",
+                            state.symbol.arena_index(),
+                            expression.arena_index()
+                        );
+                        program.symbols.insert_generated_root_from(
+                            binder,
+                            SymbolKind::TypeParameter,
+                            &name,
+                        )
+                    });
                 let witness = program
                     .type_reference_table
-                    .insert(TypeReferenceNode::Named { symbol, name });
+                    .find_named_type_reference(symbol)
+                    .unwrap_or_else(|| {
+                        let name = typed::name::Identifier::generated(program.symbols.name(symbol));
+                        program
+                            .type_reference_table
+                            .insert(TypeReferenceNode::Named { symbol, name })
+                    });
                 witnesses.push((binder, witness));
             }
             let handle = program.package_openings.insert(PackageOpening {
@@ -429,6 +534,45 @@ machine crossed(left: @mutable Reader, right: @mutable Reader) -> u8 {
             p.normalized_type_identity(*referee)
         };
         assert_ne!(referent(actual.result_type), referent(formal));
+    }
+
+    #[test]
+    fn named_formal_and_local_openings_are_their_annotated_subjects_abstract_types() {
+        let source = r#"
+data Read<S> = machine(state: @mutable S) -> u8 reaches none crashes none;
+data Reader<'a, some S> { state: @'a mutable S; read: Read<S>; }
+machine use_openings(left: @mutable Reader<some A>, right: @mutable Reader) -> u8 {
+    let stored: Read<A> = left.read;
+    let local: @mutable Reader<some B> = right;
+    let selected: Read<B> = local.read;
+    (selected)(local.state)
+}
+"#;
+        let p = crate::lower_symbol_resolved_trees(&crate::resolve_fixture(source)).unwrap();
+        let mut actual = Vec::new();
+        for (_, opening) in p.package_openings.iter() {
+            let PackageSubjectRoot::Binding(owner) = opening.subject.root else {
+                panic!("bound subject");
+            };
+            let [(_, witness)] = opening.witnesses.as_slice() else {
+                panic!("one binder");
+            };
+            let TypeReferenceNode::Named { symbol, .. } =
+                p.type_reference_table.type_reference(*witness)
+            else {
+                panic!("named witness");
+            };
+            assert_eq!(p.symbols.get(*symbol).parent, owner);
+            actual.push((
+                p.symbols.name(owner).to_string(),
+                p.symbols.name(*symbol).to_string(),
+            ));
+        }
+        actual.sort();
+        assert_eq!(
+            actual,
+            vec![("left".into(), "A".into()), ("local".into(), "B".into())]
+        );
     }
 
     #[test]
