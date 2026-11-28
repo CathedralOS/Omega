@@ -672,7 +672,7 @@ pub(crate) mod construction {
                     .map_or((&[][..], &[][..]), |contract| {
                         (
                             contract.structural_types.as_slice(),
-                            contract.structural_types.owned_sequence_bounds(),
+                            contract.structural_types.storage_inputs(),
                         )
                     })
             }),
@@ -699,7 +699,7 @@ pub(crate) mod construction {
                                 .as_ref()
                                 .map_or(&[][..], |contract| contract.structural_types.as_slice()),
                             source.structural.as_ref().map_or(&[][..], |contract| {
-                                contract.structural_types.owned_sequence_bounds()
+                                contract.structural_types.storage_inputs()
                             }),
                         )
                         .ok_or_else(SelectedInstructionError::custody)?,
@@ -1172,7 +1172,7 @@ pub(crate) mod foreign_scalar_backings {
                     .get(
                         declarations,
                         function.structural.as_ref().map_or(&[][..], |signature| {
-                            signature.structural_types.owned_sequence_bounds()
+                            signature.structural_types.storage_inputs()
                         }),
                     )
                     .ok_or_else(|| {

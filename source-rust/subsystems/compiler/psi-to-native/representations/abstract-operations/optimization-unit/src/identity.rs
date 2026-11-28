@@ -1923,6 +1923,10 @@ pub(crate) mod unit_encoding {
                 bytes.u64(*bound);
             },
         );
+        bytes.slice(
+            unit.structural_types.storage_inputs().package_witnesses,
+            |bytes, witness| bytes.id(*witness),
+        );
         bytes.slice(&unit.structural_types, encode_structural_type);
         bytes.slice(unit.structural_types.referents(), |bytes, referent| {
             bytes.id(referent.id);

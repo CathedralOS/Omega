@@ -3657,16 +3657,32 @@ pub(crate) mod record_input {
             let operand_type = instantiated
                 .get(&field.field)
                 .unwrap_or(&expected.field_type);
-            let field_shape = field_shape(source, result, field, expected, operand_type)?;
-            if operand_type != &expected.field_type
-                && declarations
+            let operand_shape = field_shape(source, result, field, expected, operand_type)?;
+            let storage_shape = if operand_type == &expected.field_type {
+                operand_shape
+            } else {
+                let slot = declarations
                     .field_storage_shape(expected, result.structural_type)
-                    .ok()?
-                    != field_shape
-            {
-                return None;
-            }
-            let alignment = u32::from(field_shape.alignment);
+                    .ok()?;
+                match declarations.package_reference_field(&expected.field_type, operand_type) {
+                    Some(true) => {
+                        let layout = runtime_abi::ScalarReferenceLayout::NATIVE;
+                        let direct =
+                            ValueShape::integer(layout.address_byte_size, layout.alignment);
+                        let descriptor = ValueShape::integer(layout.byte_size, layout.alignment);
+                        if slot != descriptor
+                            || !(operand_shape == direct || operand_shape == descriptor)
+                        {
+                            return None;
+                        }
+                    }
+                    Some(false) => return None,
+                    None if slot != operand_shape => return None,
+                    None => {}
+                }
+                slot
+            };
+            let alignment = u32::from(storage_shape.alignment);
             offset = match expected.storage.as_ref() {
                 Some(semantic_vocabulary::AuthoredFieldStorage::Fragmented(fragments)) => {
                     u32::try_from(fragments.byte_envelope()?.0).ok()?
@@ -3674,11 +3690,11 @@ pub(crate) mod record_input {
                 Some(storage) => u32::try_from(storage.byte_offset()?).ok()?,
                 None => offset.checked_add(alignment.checked_sub(1)?)? / alignment * alignment,
             };
-            if offset.checked_add(field_shape.byte_size)? > shape.byte_size {
+            if offset.checked_add(storage_shape.byte_size)? > shape.byte_size {
                 return None;
             }
-            placed.push((offset, field_shape, operand_type.scalar_type()));
-            offset = offset.checked_add(field_shape.byte_size)?;
+            placed.push((offset, operand_shape, operand_type.scalar_type()));
+            offset = offset.checked_add(storage_shape.byte_size)?;
         }
         (offset <= shape.byte_size).then_some(placed)
     }

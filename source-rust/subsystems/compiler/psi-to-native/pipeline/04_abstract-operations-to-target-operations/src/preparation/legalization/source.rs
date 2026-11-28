@@ -1288,7 +1288,7 @@ pub(crate) fn derive_target_function_rosters(
         target.functions.iter().map(|function| {
             (
                 function.graph.structural_types.as_ref(),
-                function.graph.structural_types.owned_sequence_bounds(),
+                function.graph.structural_types.storage_inputs(),
             )
         }),
         target.target,
@@ -1299,7 +1299,7 @@ pub(crate) fn derive_target_function_rosters(
         let geometry = geometries
             .get(
                 &function.graph.structural_types,
-                function.graph.structural_types.owned_sequence_bounds(),
+                function.graph.structural_types.storage_inputs(),
             )
             .ok_or_else(LegalizationError::custody)?;
         let mut blocks = Vec::with_capacity(function.graph.blocks.len());

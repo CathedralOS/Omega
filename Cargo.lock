@@ -416,6 +416,7 @@ dependencies = [
  "layout-plans",
  "runtime-abi",
  "semantic-vocabulary",
+ "structural-storage",
  "target",
  "terminal-psi",
  "wire",
