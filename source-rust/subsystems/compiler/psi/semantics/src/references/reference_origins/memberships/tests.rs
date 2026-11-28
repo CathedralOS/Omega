@@ -63,6 +63,51 @@ fn declarations(
 }
 
 #[test]
+fn a_returned_borrowing_opaque_preserves_its_hidden_contents() {
+    use crate::descriptor_lifetimes::DescriptorPathSegment::UnknownContents;
+    use crate::descriptor_results::{
+        DescriptorResultContents, DescriptorResultSlot, DescriptorStoredOrigin,
+    };
+
+    let (mut types, _, result) = declarations(StructuralAccess::SharedBorrow);
+    types[1].shape = StructuralTypeShape::BorrowingOpaque { lifetime_count: 1 };
+    let input = terminal_psi::StructuralParameterDeclaration {
+        place: PlaceId::new(1).unwrap(),
+        position: 0,
+        structural_type: result.structural_type,
+        multiplicity: result.multiplicity,
+        access: StructuralAccess::Owned,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        additional_input_qualifications: Vec::new(),
+    };
+    let mut contents = DescriptorResultContents {
+        slots: Vec::new(),
+        unknown_contents: vec![DescriptorResultSlot {
+            path: vec![UnknownContents],
+            origins: vec![DescriptorStoredOrigin::IncomingSlot {
+                position: 0,
+                path: vec![UnknownContents],
+            }],
+        }],
+        unresolved_slots: Vec::new(),
+        case_facts: Default::default(),
+    };
+    let inputs = std::slice::from_ref(&input);
+    assert_eq!(
+        crate::reference_result_contents(&types, inputs, &result, &contents),
+        Ok(Vec::new())
+    );
+    contents.unknown_contents.clear();
+    assert!(crate::reference_result_contents(&types, inputs, &result, &contents).is_err());
+    types[1].shape = StructuralTypeShape::Opaque;
+    assert_eq!(
+        crate::reference_result_contents(&types, inputs, &result, &contents),
+        Ok(Vec::new())
+    );
+}
+
+#[test]
 fn unresolved_views_keep_loans_without_becoming_reference_authority() {
     let (mut types, _, declaration) = declarations(StructuralAccess::SharedBorrow);
     let contents = crate::descriptor_results::DescriptorResultContents {

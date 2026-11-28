@@ -99,10 +99,7 @@ pub fn structural_type_has_borrowed_storage_by<'types>(
     structural_type_contains_by(
         lookup,
         root,
-        |shape| {
-            shape.is_borrowed_descriptor()
-                || matches!(shape, StructuralTypeShape::BorrowingOpaque { .. })
-        },
+        StructuralTypeShape::is_borrowed_descriptor,
         |field| {
             matches!(
                 field.byte_sequence_carrier(),
@@ -140,9 +137,11 @@ fn structural_type_contains_by<'types>(
                 .any(|field| !field.relevance.is_erased() && contains_field(&field.field_type))
         };
         match &declaration.shape {
-            // A parameter's bounds do not exclude borrowed contents.
-            // Neither query may treat an unknown payload as empty.
-            StructuralTypeShape::TypeParameter => return true,
+            // Generic values and borrowing opaque owners can retain references
+            // and views in their hidden contents.
+            StructuralTypeShape::TypeParameter | StructuralTypeShape::BorrowingOpaque { .. } => {
+                return true;
+            }
             StructuralTypeShape::Record { fields, .. } => {
                 if push_fields(fields) {
                     return true;
@@ -165,7 +164,6 @@ fn structural_type_contains_by<'types>(
             }
             StructuralTypeShape::ElementView { element, .. } => pending.push(*element),
             StructuralTypeShape::Opaque
-            | StructuralTypeShape::BorrowingOpaque { .. }
             | StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::AtomicCell(_)
