@@ -338,3 +338,110 @@ machine main() crashes Trap {
 "#;
     Program::new(source, &[READ, WRITE]).assert_native_returns();
 }
+
+#[test]
+fn every_build_and_dependency_edge_must_admit_a_reachable_upgrade() {
+    let editor = r#"use {renderer}/main.omg as renderer;
+machine main() {
+    let mutable value: u8 = 17u8;
+    |renderer|::change(@value);
+}"#;
+    let renderer = r#"use {memory}/main.omg as memory;
+public machine change(byte: @u8) { |memory|::change(byte); }"#;
+    let memory = format!(
+        r#"{UNSAFE}
+public machine change(byte: @u8) {{
+    let writable: @mutable u8 = |native|::upgrade_mutability::<u8>(byte);
+    $writable = 31u8;
+}}"#
+    );
+    let program = Program(project::stage(
+        "transitive-native-borrow",
+        &[
+            ("main.omg", editor),
+            ("renderer/main.omg", renderer),
+            ("renderer/memory/main.omg", &memory),
+        ],
+    ));
+
+    for (withholding_build, closed_edge_to, refusal) in [
+        (None, None, None),
+        (Some("editor"), None, Some("root Product did not enable")),
+        (
+            Some("renderer"),
+            None,
+            Some("dependency `renderer` did not enable"),
+        ),
+        (
+            Some("memory"),
+            None,
+            Some("dependency `memory` did not enable"),
+        ),
+        (
+            None,
+            Some("renderer"),
+            Some("edge `renderer` did not admit"),
+        ),
+        (None, Some("memory"), Some("edge `memory` did not admit")),
+    ] {
+        for (file, name, child) in [
+            ("build.omg", "editor", Some("renderer")),
+            ("renderer/build.omg", "renderer", Some("memory")),
+            ("renderer/memory/build.omg", "memory", None),
+        ] {
+            let source = chain_build(name, child, withholding_build != Some(name), closed_edge_to);
+            project::write(program.0.path(), &[(file, &source)]);
+        }
+        let checked = program.check();
+        let message = report(&checked);
+        match refusal {
+            None => assert!(checked.status.success(), "{message}"),
+            Some(reason) => {
+                assert!(!checked.status.success(), "{message}");
+                assert!(
+                    message.contains(reason)
+                        && message.contains("Unsafe + BorrowMutabilityUpgrade")
+                        && message.contains("upgrade_mutability"),
+                    "{message}"
+                );
+            }
+        }
+    }
+}
+
+fn chain_build(
+    name: &str,
+    child: Option<&str>,
+    enabled: bool,
+    closed_edge_to: Option<&str>,
+) -> String {
+    let mut imports = format!("{UNSAFE}\n");
+    let mut body = String::new();
+    if name == "editor" {
+        imports.push_str("use main.omg as app;\n");
+        body.push_str("plan.product = BuildProduct::Application { name: \"editor\" };\n");
+    } else {
+        body.push_str(&format!(
+            "plan.product = BuildProduct::Package {{ name: \"{name}\" }};\n"
+        ));
+    }
+    if enabled {
+        body.push_str("Build::enable_unsafe::<|native|::BorrowMutabilityUpgrade>(plan);\n");
+    }
+    if let Some(child) = child {
+        imports.push_str("use {omega}/build/dependency.omg as dependency;\n");
+        body.push_str(&format!(r#"let request: DependencyDescription = |dependency|::from_source(Source::Path {{ location: "{child}" }});
+"#));
+        if closed_edge_to == Some(child) {
+            body.push_str("_ = Build::dependency(plan, request);\n");
+        } else {
+            body.push_str(r#"let allowed: [BoundaryServiceReference; 1] = [Build::service::<|native|::BorrowMutabilityUpgrade>(plan)];
+_ = |dependency|::add(plan, request, @allowed[..]);
+"#);
+        }
+    }
+    if name == "editor" {
+        body.push_str("Build::bind(plan, linux_x86_64::ProgramEntry, |app|::main);\n");
+    }
+    format!("{imports}machine build(plan: @mutable BuildPlan) {{\n{body}}}\n")
+}
