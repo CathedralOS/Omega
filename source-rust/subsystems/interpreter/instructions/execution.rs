@@ -1802,13 +1802,40 @@ pub(crate) mod capabilities {
             let mut program = program();
             let entry = MachineId::new(1).unwrap();
             let helper = MachineId::new(2).unwrap();
+            let operand = semantic_vocabulary::ValueId::new(1).unwrap();
+            let reference = PlaceId::new(1).unwrap();
+            let reference_type = StructuralTypeId::new(1).unwrap();
             let mut forming = machine(
                 0,
-                vec![OperationKind::BorrowAt {
-                    address: semantic_vocabulary::ValueId::new(1).unwrap(),
-                }],
+                vec![
+                    OperationKind::IntegerConstant {
+                        value: semantic_vocabulary::IntegerValue::Unsigned(0),
+                    },
+                    OperationKind::BorrowAt { address: operand },
+                    OperationKind::ReleaseReference {
+                        source: reference,
+                        path: Vec::new(),
+                    },
+                ],
             );
+            forming
+                .structural_places
+                .push(terminal_psi::StructuralPlaceDeclaration {
+                    id: reference,
+                    kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                        producer: OperationId::new(2).unwrap(),
+                        structural_type: reference_type,
+                    },
+                });
             forming.blocks[0].operations[0].result =
+                OperationResult::Scalar(terminal_psi::ValueDeclaration {
+                    id: operand,
+                    scalar_type: semantic_vocabulary::ScalarType::Integer(
+                        semantic_vocabulary::IntegerType::address(64).unwrap(),
+                    ),
+                    qualifications: Default::default(),
+                });
+            forming.blocks[0].operations[1].result =
                 OperationResult::Structural(terminal_psi::StructuralOperationResult {
                     place: PlaceId::new(1).unwrap(),
                     structural_type: StructuralTypeId::new(1).unwrap(),
@@ -1821,7 +1848,7 @@ pub(crate) mod capabilities {
                 });
             set_machine(&mut program, entry, machine(0, Vec::new()));
             set_machine(&mut program, helper, forming.clone());
-            assert!(check(&program, None).is_ok());
+            check(&program, None).expect("the reachable entry is empty");
 
             let boundary = BoundaryMachineId::new(1).unwrap();
             add_provider(&mut program, boundary);
