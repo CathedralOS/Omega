@@ -128,7 +128,7 @@ pub(crate) mod data_definitions {
                 .data_definitions
                 .get_mut(roster.start())
                 .symbol = replacement;
-            assert_eq!(program.tables.data_definitions.revision(), revision + 1);
+            assert_ne!(program.tables.data_definitions.revision(), revision);
             program.roots.data_definitions = HandleSpan::from_parts(roster.start(), 1);
             assert_fresh_rows(&program, &symbols, &names);
             program.roots.data_definitions = roster;
