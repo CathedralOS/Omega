@@ -545,9 +545,9 @@ call. The ownership walk reconstructs those claims
 (`MachineAffine::verify_claims` in Psi semantics). In a judged closure it
 runs once per machine, after inference has finished editing the module.
 `examine` ([verdict.rs](src/verdict.rs)) builds one `ModuleAnalyses` over the
-settled module. The affine check (`affine_plan`) walks each machine once for
-its reference ends and once more with claims (`verify_with_claims`), and that
-second walk answers both the verified cleanup schedule and the claim rows. The machine checks share
+settled module. The affine check (`affine_plan`) plans reference ends only for
+machines with last-use candidates. It verifies every machine’s cleanup schedule
+and claim rows with `verify_with_claims`. The machine checks share
 the same analyses, and `follow_the_lowered_form` reads the claim rows the
 affine check received. Inference (result summaries, input conditions,
 crash routes) replays a machine on a copy of its tables while the module is
