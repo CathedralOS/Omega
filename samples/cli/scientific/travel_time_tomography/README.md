@@ -1,6 +1,6 @@
 # Travel time tomography (NEW087)
 
-See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+See [scientific validation](../README.md) for the compiler commands used across the scientific samples.
 
 A complete synthetic two-cell inverse application: read three ray length/time
 observations, minimize the sum of squared time residuals subject to per-cell
@@ -69,44 +69,27 @@ calculation. Field, residual, and SSE tolerances are absolute 2e-6 (including
 micro-unit output truncation); rank, nullspace residuals, active labels, and
 exit codes are checked exactly. The verification script never rewrites oracles.
 
-From the repository root, with a matching compiler/library:
+From the sample directory on an ARM64 Mac, use the same input for each engine.
+The native command publishes the executable path in its report.
 
 ```sh
-omega packages update --project samples/cli/scientific/travel_time_tomography --target linux_x86_64
-# Inspect the generated review and accept only decisions authorized for this
-# local system dependency, then use the documented update --resume workflow.
-omega --check samples/cli/scientific/travel_time_tomography/main.omg
-omega run samples/cli/scientific/travel_time_tomography/main.omg < samples/cli/scientific/travel_time_tomography/data/exact.txt
-# Run an already published executable through all fixtures without recompilation:
+mkdir -p build
+omega run --target macos_arm64 --build-input build.omg --build-input main.omg --build-input io --build-input domain --input data/exact.txt build.omg
+omega --target macos_arm64 --build-input build.omg --build-input main.omg --build-input io --build-input domain --build-dir build/native --report-file build/native.txt build.omg
+build/native/omega-program < data/exact.txt
 ```
 
-For complete Terminal output validation, build the private test consumer using
-`mbx` (Cargo if unavailable), then run it and the same frozen verifier:
+The Build selects Linux x86_64 and macOS ARM64. On `omega-mac`, the native
+executable matched macOS-target Psi on all 21 frozen inputs. Psi ran on
+Windows x86_64. The 12 valid outputs matched the rational field, residual and
+objective values within the stated tolerances. All nine invalid inputs exited
+with 64 and printed the expected input diagnostic.
+
+The negative control reads `cells[2]` from a two-element array. From the
+sample directory, this command must report that index 2 is outside length 2.
 
 ```sh
-mbx build -p new087-terminal-validation
-new087-terminal-validation samples/cli/independent/travel_time_tomography samples/cli/independent/travel_time_tomography/build/terminal
-# Use the executable path saved in build/terminal/native-path.txt for --native.
-```
-
-This test-only Rust consumer uses the ordinary public package preparation and
-native facade, keeps the produced Terminal artifact and exact provisions, and
-executes each input in a new isolated Terminal instance with finite stdin.
-It captures both streams and exact completion codes before publishing the same
-native product. It never accepts packages, replays source, supplies expected
-result callbacks, or substitutes a checked-tree interpreter. The application
-and all tomography algorithms remain Omega.
-
-Only Linux x86_64 is selected in the current build metadata. The earlier comparison ran the published program and interpreted its Psi, then checked termination, stdout and stderr. The verifier separately checks the forwarded native output.
-An unsupported Terminal comparison must be reported as DECLINED, never agreement.
-
-The separate complete intended-invalid project is
-`controls/invalid_bounds/invalid.omg`. It reads `cells[2]` from a two-element ray
-length array. Its only intended diagnostic is `cannot prove index`; parse,
-package, provider, or entry failures do not pass this control. Check it separately:
-
-```sh
-omega --check samples/cli/independent/travel_time_tomography/controls/invalid_bounds/invalid.omg
+omega --check --target macos_arm64 --build-input build.omg --build-input invalid.omg controls/invalid_bounds/invalid.omg
 ```
 
 Generated programs, captured stdout/stderr, and per-case JSON results belong
