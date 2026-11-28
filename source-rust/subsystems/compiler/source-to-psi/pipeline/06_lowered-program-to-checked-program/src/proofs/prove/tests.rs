@@ -1112,6 +1112,73 @@ fn a_later_named_result_can_bound_the_same_expression_more_tightly() {
 }
 
 #[test]
+fn wrapping_decimal_division_and_remainder_propagate_checked_bounds() {
+    let integer = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let mut values = IdTable::default();
+    let [input, result] = [
+        ValueOrigin::MachineParameter { position: 0 },
+        ValueOrigin::Operation(OperationId::new(1).unwrap()),
+    ]
+    .map(|origin| {
+        let id = values.push(ValueRow {
+            scalar_type,
+            origin,
+            rigid: None,
+        });
+        ScalarTerm::value(id, scalar_type)
+    });
+    let literal = |n| ScalarTerm::integer(integer, IntegerValue::Signed(n)).unwrap();
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let quotient =
+        ScalarTerm::wrapping_integer_divide(integer, input.clone(), literal(10)).unwrap();
+    let remainder =
+        ScalarTerm::wrapping_integer_remainder(integer, input.clone(), literal(10)).unwrap();
+    for (expression, goal, lower_bound, provable) in [
+        (
+            quotient.clone(),
+            Proposition::LessThan(literal(0), result.clone()),
+            10,
+            true,
+        ),
+        (
+            quotient,
+            Proposition::LessThan(literal(0), result.clone()),
+            9,
+            false,
+        ),
+        (
+            remainder.clone(),
+            Proposition::LessOrEqual(literal(0), result.clone()),
+            0,
+            true,
+        ),
+        (
+            remainder,
+            Proposition::LessOrEqual(literal(0), result.clone()),
+            -1,
+            false,
+        ),
+    ] {
+        let assumptions = [Proposition::LessOrEqual(
+            literal(lower_bound),
+            input.clone(),
+        )];
+        let axioms = [Proposition::Equal(result.clone(), expression)];
+        let mut activity = ProofSearchActivity::default();
+        let proof =
+            Prover::new(&context, &assumptions, &axioms, &values, &mut activity).prove(&goal);
+        assert_eq!(proof.is_ok(), provable);
+        if let Ok(proof) = proof {
+            proof_admission::accept_certificate(&context, &goal, &assumptions, &axioms, &proof)
+                .unwrap();
+        }
+    }
+}
+
+#[test]
 fn policy_translation_maps_bounds_only_with_the_required_headroom() {
     let mut activity = ProofSearchActivity::default();
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
