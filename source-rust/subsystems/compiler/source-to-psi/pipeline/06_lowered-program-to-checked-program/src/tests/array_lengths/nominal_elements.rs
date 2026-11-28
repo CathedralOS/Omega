@@ -105,3 +105,23 @@ fn a_boundary_array_extent_does_not_index_its_plain_record_element() {
     );
     assert!(verdicts.iter().all(accepted), "{verdicts:?}");
 }
+
+#[test]
+fn a_ranked_self_transfer_preserves_the_forwarded_nominal_input() {
+    let read = "machine read<const Key: u64>(row: Row<Key>) requires Key >= 1 {}";
+    let entry = "machine entry<const Key: u64>(rows: @[Row<Key>])
+        terminates by rows -> Slice::Length
+        requires Key >= 1 && rows.length > 0 {
+            read::<Key>(rows[0]);
+            transition rows.length > 1 { true -> entry::<Key>(@rows[1..]), _ -> done() }
+            machine done() {}
+        }";
+    accepted_call(read, entry);
+    let changed = entry.replace("entry::<Key>", "entry::<2>");
+    let refusal =
+        lower(read, &changed).expect_err("a recursive transfer cannot change the element key");
+    assert!(
+        refusal.detail.contains("exact element") || refusal.detail.contains("argument"),
+        "{refusal:?}"
+    );
+}

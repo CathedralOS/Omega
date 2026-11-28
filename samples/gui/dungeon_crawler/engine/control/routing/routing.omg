@@ -59,18 +59,21 @@ terminates by remaining -> |nat|::Nat::Descending {
 public machine route_input<const Bindings: u64, const Actors: u64>(controls: @|control_state|::ControllerSet<Bindings, Actors>, intents: @mutable |control_state|::IntentSet<Actors>, device: u32, command: |control_state|::Command)
 terminates
 requires Bindings >= 1 && Actors >= 1 {
-    route_bindings::<Actors>(@controls.bindings[..controls.count], intents, device, command);
+    transition controls.count > 0 {
+        true -> route_bindings::<Actors>(@controls.bindings[..controls.count], intents, device, command),
+        _ -> done()
+    }
+    machine done() {}
 }
 
 machine route_bindings<const Actors: u64>(bindings: @[|control_state|::ControllerBinding<Actors>], intents: @mutable |control_state|::IntentSet<Actors>, device: u32, command: |control_state|::Command)
 terminates by bindings -> Slice::Length
-requires Actors >= 1 {
-    transition bindings.length > 0 { true -> head(bindings, intents, device, command), _ -> done() }
-    machine head(bindings: @[|control_state|::ControllerBinding<Actors>], intents: @mutable |control_state|::IntentSet<Actors>, device: u32, command: |control_state|::Command)
-    requires Actors >= 1 && bindings.length > 0 {
-        let binding: |control_state|::ControllerBinding<Actors> = bindings[0];
-        route_binding::<Actors>(binding, intents, device, command);
-        transition { _ -> route_bindings::<Actors>(@bindings[1..], intents, device, command) }
+requires Actors >= 1 && bindings.length > 0 {
+    let binding: |control_state|::ControllerBinding<Actors> = bindings[0];
+    route_binding::<Actors>(binding, intents, device, command);
+    transition bindings.length > 1 {
+        true -> route_bindings::<Actors>(@bindings[1..], intents, device, command),
+        _ -> done()
     }
     machine done() {}
 }

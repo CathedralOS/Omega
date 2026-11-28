@@ -127,10 +127,10 @@ pub(crate) struct TypeAlternative {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct ConstBinding {
+pub(crate) struct ConstBinding {
     symbol: SymbolHandle,
     owner: semantic_vocabulary::MachineId,
-    value: semantic_vocabulary::ValueId,
+    pub(crate) value: semantic_vocabulary::ValueId,
     scalar_type: semantic_vocabulary::ScalarType,
 }
 
@@ -403,7 +403,7 @@ pub(crate) struct Program<'t> {
     /// Sorted by source symbol within this declaration's selected telescope.
     nominal_calls: Vec<nominal_applications::NominalCallSource>,
     const_scope: Vec<ConstBinding>,
-    const_scopes: IdTable<MachineId, Vec<ConstBinding>>,
+    pub(crate) const_scopes: IdTable<MachineId, Vec<ConstBinding>>,
     /// While a generic data declaration's template is read
     /// (`subjects::generic_data`), the next input identity for a type
     /// equation its rigid binders leave open. `None` everywhere else.

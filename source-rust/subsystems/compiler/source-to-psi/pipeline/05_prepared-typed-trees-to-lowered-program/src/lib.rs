@@ -1190,6 +1190,7 @@ fn finish_logical_witness<'source>(
         &bodies,
         &mut program.signatures,
         &program.theorem_parameters,
+        &program.const_scopes,
     )?;
     let mut witness = lower_program(
         Some(entry),
@@ -1427,6 +1428,7 @@ fn finish_reading_into<'source>(
             &bodies,
             &mut program.signatures,
             &program.theorem_parameters,
+            &program.const_scopes,
         )?;
         program.finish_operational_envelopes(&bodies, &components)?;
         program.prepare_service_bindings(diagnostic)?;
@@ -1779,7 +1781,12 @@ fn lower_generic_for<'source>(
     source: Option<&'source read::Program<'source>>,
 ) -> Checked<PreparedProgram<'source>> {
     let mut machine_signatures = signatures.machines.clone();
-    let components = prepare_call_components(bodies, &mut machine_signatures, signatures.theorems)?;
+    let components = prepare_call_components(
+        bodies,
+        &mut machine_signatures,
+        signatures.theorems,
+        &Default::default(),
+    )?;
     let signatures = body::Signatures {
         machines: &machine_signatures,
         ..signatures
@@ -1808,11 +1815,12 @@ fn prepare_call_components(
     bodies: &IdTable<MachineId, Body>,
     signatures: &mut IdTable<MachineId, Signature>,
     theorems: &[terminal_psi::TheoremParameter],
+    const_scopes: &IdTable<MachineId, Vec<read::ConstBinding>>,
 ) -> Checked<components::Components> {
     for (machine, body) in bodies.iter() {
         lower::operational::positions(machine, body)?;
     }
-    components::components(bodies, signatures, theorems)
+    components::components(bodies, signatures, theorems, const_scopes)
 }
 
 fn lower_program<'source>(
@@ -2133,6 +2141,7 @@ fn lower_program_with_parallel<'source>(
             bodies,
             component,
             components.has_separate_entry(id),
+            components.forwarded_consts(id),
             signatures,
             &outcomes,
             &declared.records,
@@ -2688,7 +2697,9 @@ mod publication_scope_tests {
         });
         let lower = |publication| {
             let mut signatures = signatures.clone();
-            let components = prepare_call_components(&bodies, &mut signatures, &[]).unwrap();
+            let components =
+                prepare_call_components(&bodies, &mut signatures, &[], &Default::default())
+                    .unwrap();
             lower_program(
                 Some(entry),
                 &bodies,

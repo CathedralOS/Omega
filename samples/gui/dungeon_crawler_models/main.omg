@@ -56,6 +56,12 @@ machine check_input(controls: @mutable |state_state|::ControllerSet<3, 2>, inten
     controls.bindings[0] = |state_state|::ControllerBinding { actor: 0, source: |state_state|::ControlSource::Input { device: 0 } };
     controls.bindings[1] = |state_state|::ControllerBinding { actor: 1, source: |state_state|::ControlSource::Input { device: 0 } };
     controls.bindings[2] = |state_state|::ControllerBinding { actor: 0, source: |state_state|::ControlSource::Input { device: 1 } };
+    controls.count = 0;
+    intents.items[0] = |state_state|::Command { direction: 2, attack: false };
+    intents.items[1] = |state_state|::Command { direction: 3, attack: false };
+    |routing|::route_input::<3, 2>(controls, intents, 0, |state_state|::Command { direction: 1, attack: true });
+    let zero_live: bool = intents.items[0].direction == 2 && !intents.items[0].attack
+        && intents.items[1].direction == 3 && !intents.items[1].attack;
     controls.count = 2;
     |routing|::route_input::<3, 2>(controls, intents, 0, |state_state|::Command { direction: 1, attack: true });
     let second_device: |state_state|::Command = |state_state|::Command { direction: 3, attack: false };
@@ -64,7 +70,7 @@ machine check_input(controls: @mutable |state_state|::ControllerSet<3, 2>, inten
         && intents.items[1].direction == 1 && intents.items[1].attack;
     controls.count = 3;
     |routing|::route_input::<3, 2>(controls, intents, 1, second_device);
-    live_prefix && intents.items[0].direction == 3 && !intents.items[0].attack
+    zero_live && live_prefix && intents.items[0].direction == 3 && !intents.items[0].attack
         && intents.items[1].direction == 1 && intents.items[1].attack
 }
 

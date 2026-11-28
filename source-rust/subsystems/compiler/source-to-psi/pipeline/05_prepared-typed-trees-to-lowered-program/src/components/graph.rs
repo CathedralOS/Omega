@@ -34,6 +34,8 @@ pub(crate) struct Components {
     caller_offsets: Vec<usize>,
     callers: Vec<(usize, usize)>,
     invocation_entries: Vec<InvocationEntry>,
+    /// Entry scalar bindings retained unchanged at every self-transfer.
+    pub(super) forwarded_consts: Vec<(MachineId, usize)>,
     #[cfg(test)]
     discovery_edge_visits: usize,
 }
@@ -166,9 +168,20 @@ impl Components {
             caller_offsets: reverse_offsets,
             callers: reverse_calls,
             invocation_entries: vec![InvocationEntry::LoopHead; count],
+            forwarded_consts: Vec::new(),
             #[cfg(test)]
             discovery_edge_visits,
         }
+    }
+
+    pub(crate) fn forwarded_consts(&self, machine: MachineId) -> &[(MachineId, usize)] {
+        let first = self
+            .forwarded_consts
+            .partition_point(|(owner, _)| *owner < machine);
+        let end = self
+            .forwarded_consts
+            .partition_point(|(owner, _)| *owner <= machine);
+        &self.forwarded_consts[first..end]
     }
 
     /// Records which components lie on or call into an unranked cycle, in

@@ -164,6 +164,7 @@ pub(crate) fn machine(
         bodies,
         component,
         separate_entry,
+        &[],
         signatures,
         outcomes,
         records,
@@ -184,6 +185,7 @@ pub(crate) fn machine_with_read_only_qualifications(
     bodies: &IdTable<MachineId, Body>,
     component: &[MachineId],
     separate_entry: bool,
+    forwarded_consts: &[(MachineId, usize)],
     signatures: Signatures<'_>,
     outcomes: &IdTable<MachineId, Outcome>,
     records: &Records<'_>,
@@ -231,7 +233,14 @@ pub(crate) fn machine_with_read_only_qualifications(
         lowering.begin_ranking(id)?;
         lowering.body(id, body)?;
     } else {
-        lowering.component(id, bodies, component, &formals, separate_entry)?;
+        lowering.component(
+            id,
+            bodies,
+            component,
+            &formals,
+            separate_entry,
+            forwarded_consts,
+        )?;
     }
     lowering.finish(entry, formals, result, contract, structural_types)
 }
@@ -1210,6 +1219,7 @@ impl<'a> Lowering<'a> {
         component: &[MachineId],
         formals: &Formals,
         separate_entry: bool,
+        forwarded_consts: &[(MachineId, usize)],
     ) -> Checked<()> {
         let entered_bindings = self.slots.clone();
         for member in component {
@@ -1254,6 +1264,12 @@ impl<'a> Lowering<'a> {
                 .collect::<Checked<Vec<_>>>()?;
             for clause in &signature.requires {
                 self.name_clause_contents(clause, &bindings, None)?;
+            }
+            // An unchanged const still denotes the invocation's input. Its
+            // nominal storage and every ordinary call in the loop use that
+            // same SSA value. The head and its arrivals retain every formal.
+            for &(_, slot) in forwarded_consts {
+                self.slots[slot] = entered_bindings[slot];
             }
             self.heads.push(Head {
                 member: *member,

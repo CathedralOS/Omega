@@ -132,6 +132,7 @@ pub(crate) fn components(
     bodies: &IdTable<MachineId, Body>,
     signatures: &mut IdTable<MachineId, Signature>,
     theorems: &[terminal_psi::TheoremParameter],
+    const_scopes: &IdTable<MachineId, Vec<crate::read::ConstBinding>>,
 ) -> Checked<Components> {
     let (calls, mut table) = call_graph(bodies)?;
     rankings::carry(&calls, &table, signatures)?;
@@ -229,6 +230,27 @@ pub(crate) fn components(
     // cannot enter another forwarding frame, even when several inputs qualify.
     for machine in forwarding {
         table.forward_entry(machine);
+    }
+    for (machine, inputs) in const_scopes.iter() {
+        if inputs.is_empty() || table.members(machine)? != [machine] {
+            continue;
+        }
+        let signature =
+            terminal_check_tables::row(signatures, machine, machine, Construct::Machine)?;
+        for (slot, value) in signature.formal_values().into_iter().enumerate() {
+            if value.is_some_and(|value| inputs.iter().any(|input| input.value == value))
+                && calls
+                    .calls(index(machine))
+                    .iter()
+                    .filter(|site| site.callee == machine)
+                    .all(|site| {
+                        matches!(site.arguments.get(slot).map(|arg| &arg.kind),
+                        Some(ExpressionKind::Slot(actual)) if *actual == slot)
+                    })
+            {
+                table.forwarded_consts.push((machine, slot));
+            }
+        }
     }
     share_loop_entries(bodies, signatures, &calls, &mut table)?;
     Ok(table)
