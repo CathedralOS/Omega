@@ -13,6 +13,8 @@ use typed::types::TypeReferenceNode;
 use typed::{SubtreeEdges, TypedTrees};
 
 mod calls;
+mod copies;
+use copies::LiveOpenings;
 use typed::callable_values::RuntimeCallBinding;
 
 #[derive(Clone, Copy)]
@@ -54,14 +56,16 @@ pub(crate) fn open_cohort(
             state,
             source,
             names: &names,
-            named_bindings: program
+            facts: LiveOpenings {
+                names: program
                 .state_parameters(state)
                 .iter()
                 .filter(|formal| !names.for_binding(formal.symbol).is_empty())
                 .map(|formal| formal.symbol)
                 .collect(),
+                ..LiveOpenings::default()
+            },
             version: 0,
-            live: Vec::new(),
             active: Vec::new(),
         };
         scope.statements(program, state.statement_nodes)?;
@@ -154,9 +158,8 @@ struct OpeningScope<'a> {
     state: &'a State,
     source: &'a resolved::SymbolResolvedTrees,
     names: &'a NamedOpenings,
-    named_bindings: Vec<SymbolHandle>,
+    facts: LiveOpenings,
     version: u32,
-    live: Vec<PackageOpeningHandle>,
     active: Vec<ExpressionHandle>,
 }
 
@@ -182,8 +185,7 @@ impl OpeningScope<'_> {
             Write::Place(target) => package_place(program, target),
             _ => None,
         };
-        self.live.retain(|&handle| {
-            let subject = &program.package_opening(handle).subject;
+        let survives = |subject: &PackageSubject| {
             spared == Some(subject)
                 || written.as_ref().is_some_and(|place| {
                     !write_replaces(program, self.state, place, subject)
@@ -194,8 +196,12 @@ impl OpeningScope<'_> {
                             _ => false,
                         })
                 })
-        });
-        self.named_bindings.retain(|&symbol| {
+        };
+        self.facts
+            .openings
+            .retain(|&handle| survives(&program.package_opening(handle).subject));
+        self.facts.copies.retain_subjects(survives);
+        self.facts.names.retain(|&symbol| {
             let subject = bound_subject(symbol);
             spared == Some(&subject)
                 || written
@@ -254,12 +260,24 @@ impl OpeningScope<'_> {
                 local.type_reference = ty;
             }
             if let Some(local) = named_local
-                && !self.named_bindings.contains(&local)
+                && !self.facts.names.contains(&local)
             {
-                self.named_bindings.push(local);
+                self.facts.names.push(local);
             }
             if let Some(target) = write {
                 self.invalidate(program, target)?;
+            }
+            if let StatementNode::LocalData(local) = program.statement_table.statement(handle)
+                && let Some(source) = copies::value_copy_source(
+                    program,
+                    self.state,
+                    local.type_reference,
+                    local.ordinary_value_initializer(),
+                )
+            {
+                self.facts
+                    .copies
+                    .record(source, bound_subject(local.symbol));
             }
         }
         Ok(())
@@ -288,7 +306,7 @@ impl OpeningScope<'_> {
             // Guard expressions are evaluated in order along the fall-through
             // path. A taken arm cannot invalidate an opening on another arm.
             let arms = program.expression_table.match_arms(dispatch.arms).to_vec();
-            let mut common: Option<(Vec<PackageOpeningHandle>, Vec<SymbolHandle>)> = None;
+            let mut common: Option<LiveOpenings> = None;
             for arm in arms {
                 let operands: Vec<_> = program
                     .expression_table
@@ -297,18 +315,17 @@ impl OpeningScope<'_> {
                 for operand in operands {
                     self.visit(program, operand)?;
                 }
-                let fall_through = (self.live.clone(), self.named_bindings.clone());
+                let fall_through = self.facts.clone();
                 self.visit(program, arm.value)?;
-                if let Some((live, names)) = &mut common {
-                    live.retain(|opening| self.live.contains(opening));
-                    names.retain(|symbol| self.named_bindings.contains(symbol));
+                if let Some(joined) = &mut common {
+                    joined.retain_common(&self.facts);
                 } else {
-                    common = Some((self.live.clone(), self.named_bindings.clone()));
+                    common = Some(self.facts.clone());
                 }
-                (self.live, self.named_bindings) = fall_through;
+                self.facts = fall_through;
             }
             if let Some(joined) = common {
-                (self.live, self.named_bindings) = joined;
+                self.facts = joined;
             }
         } else {
             let projection = match node {
@@ -353,7 +370,7 @@ impl OpeningScope<'_> {
         let PackageSubjectRoot::Binding(owner) = subject.root else {
             return None;
         };
-        if !subject.steps.is_empty() || !self.named_bindings.contains(&owner) {
+        if !subject.steps.is_empty() || !self.facts.names.contains(&owner) {
             return None;
         }
         let data = self.source.data_definition_by_symbol(declaration)?;
@@ -391,6 +408,15 @@ impl OpeningScope<'_> {
         {
             return false;
         }
+        self.names_match(program, open, subject)
+    }
+
+    fn names_match(
+        &self,
+        program: &TypedTrees,
+        open: &PackageOpening,
+        subject: &PackageSubject,
+    ) -> bool {
         // An explicitly named witness remains bound to its lexical declaration.
         open.witnesses.iter().all(|&(binder, ty)| {
             self.named_type(subject, open.declaration, binder)
@@ -454,51 +480,70 @@ impl OpeningScope<'_> {
                 || opening.declaration != declaration
                 || opening.state != state.symbol
                 || !self.same_subject(program, opening, &subject)
-                || (opening.storage_version != self.version && !self.live.contains(&handle))
+                || (opening.storage_version != self.version
+                    && !self.facts.openings.contains(&handle))
             {
                 return Err(Diagnostic::error(
                     "one projected value is used under incompatible package openings",
                 ));
             }
-            if !self.live.contains(&handle) {
-                self.live.push(handle);
+            if !self.facts.openings.contains(&handle) {
+                self.facts.openings.push(handle);
             }
             return Ok(());
         }
-        let opening = if let Some(handle) = self.live.iter().copied().find(|handle| {
+        let opening = if let Some(handle) = self.facts.openings.iter().copied().find(|handle| {
             let open = program.package_opening(*handle);
             open.declaration == declaration && self.same_subject(program, open, &subject)
         }) {
             handle
         } else {
-            let mut witnesses = Vec::new();
-            for binder in binders {
-                let symbol = self
-                    .named_type(&subject, declaration, binder)
-                    .unwrap_or_else(|| {
-                        let spelling = program.symbols.name(binder);
-                        let name = format!(
-                            "{spelling}@{}.{}",
-                            state.symbol.arena_index(),
-                            expression.arena_index()
-                        );
-                        program.symbols.insert_generated_root_from(
-                            binder,
-                            SymbolKind::TypeParameter,
-                            &name,
-                        )
-                    });
-                let witness = program
-                    .type_reference_table
-                    .find_named_type_reference(symbol)
-                    .unwrap_or_else(|| {
-                        let name = typed::name::Identifier::generated(program.symbols.name(symbol));
-                        program
+            // A copy has its own storage opening. Only its abstract types can
+            // be reused from a value with the same still-live witness origin.
+            let copied = copies::stable_subject(program, self.state, &subject).and_then(|target| {
+                self.facts.openings.iter().find_map(|&handle| {
+                    let origin = program.package_opening(handle);
+                    let source = copies::stable_subject(program, self.state, &origin.subject)?;
+                    (origin.declaration == declaration
+                        && self.facts.copies.related(&source, &target)
+                        && self.names_match(program, origin, &subject))
+                    .then(|| origin.witnesses.clone())
+                })
+            });
+            let witnesses = copied.unwrap_or_else(|| {
+                binders
+                    .into_iter()
+                    .map(|binder| {
+                        let symbol = self
+                            .named_type(&subject, declaration, binder)
+                            .unwrap_or_else(|| {
+                                let spelling = program.symbols.name(binder);
+                                let name = format!(
+                                    "{spelling}@{}.{}",
+                                    state.symbol.arena_index(),
+                                    expression.arena_index()
+                                );
+                                program.symbols.insert_generated_root_from(
+                                    binder,
+                                    SymbolKind::TypeParameter,
+                                    &name,
+                                )
+                            });
+                        let witness = program
                             .type_reference_table
-                            .insert(TypeReferenceNode::Named { symbol, name })
-                    });
-                witnesses.push((binder, witness));
-            }
+                            .find_named_type_reference(symbol)
+                            .unwrap_or_else(|| {
+                                let name = typed::name::Identifier::generated(
+                                    program.symbols.name(symbol),
+                                );
+                                program
+                                    .type_reference_table
+                                    .insert(TypeReferenceNode::Named { symbol, name })
+                            });
+                        (binder, witness)
+                    })
+                    .collect()
+            });
             let handle = program.package_openings.insert(PackageOpening {
                 state: state.symbol,
                 declaration,
@@ -506,7 +551,7 @@ impl OpeningScope<'_> {
                 storage_version: self.version,
                 witnesses,
             });
-            self.live.push(handle);
+            self.facts.openings.push(handle);
             handle
         };
         substitutions.extend_from_slice(&program.package_opening(opening).witnesses);
@@ -687,6 +732,53 @@ mod tests {
         }
         assert_eq!(opened.len(), 2);
         assert_eq!(opened[0], opened[1]);
+    }
+
+    #[test]
+    fn a_value_copy_has_its_own_storage_opening_and_keeps_the_original_witness() {
+        let source = r#"
+            data Read<S> = machine(state: @S) -> u8 reaches none crashes none;
+            data Pair<some S> [copy] { left: Read<S>; right: Read<S>; }
+            machine repack(p: Pair, q: Pair) -> Pair {
+                let copied: Pair = p;
+                Pair { left: p.left, right: copied.right }
+            }
+        "#;
+        let checked =
+            |source: &str| crate::qualified_operator_home_tests::checked(&[("main.omg", source)]);
+        let trees = checked(source).unwrap();
+        let [left, right] = trees.package_projections.as_slice() else {
+            panic!("two callback reads")
+        };
+        let left = trees.package_opening(left.opening);
+        let right = trees.package_opening(right.opening);
+        assert_ne!(left.subject, right.subject);
+        assert_eq!(left.witnesses, right.witnesses);
+        let survivors = source.replace(
+            "let copied: Pair = p;",
+            "let mutable slot: Pair = p; let original: Pair = slot; let copied: Pair = slot; slot = q;",
+        ).replace("left: p.left", "left: original.left");
+        let trees = checked(&survivors)
+            .expect("two saved copies remain related after replacing the original slot");
+        let [left, right] = trees.package_projections.as_slice() else {
+            panic!("two saved callbacks")
+        };
+        assert_eq!(
+            trees.package_opening(left.opening).witnesses,
+            trees.package_opening(right.opening).witnesses
+        );
+        let replaced = survivors.replace("right: copied.right", "right: slot.right");
+        assert!(
+            checked(&replaced)
+                .unwrap_err()
+                .contains("conflicting generic arguments")
+        );
+        let other = source.replace("= p;", "= q;");
+        assert!(
+            checked(&other)
+                .unwrap_err()
+                .contains("conflicting generic arguments")
+        );
     }
 
     #[test]

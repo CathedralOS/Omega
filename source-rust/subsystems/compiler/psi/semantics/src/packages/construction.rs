@@ -95,11 +95,13 @@ pub(super) fn construction(
                 Projected::Reference(place) => Some(place),
                 Projected::Descriptor(_) => None,
             };
-            if *origin != index
+            let contributor = opening(module, machine.id, *origin)?;
+            if (*origin != index
+                && !subjects::copied_witness_at(module, machine, operation, row, contributor))
                 || !versions::same_storage_version(
                     module,
                     machine,
-                    row,
+                    contributor,
                     *producer,
                     operation.id,
                     materialized,

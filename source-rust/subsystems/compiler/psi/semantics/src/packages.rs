@@ -19,8 +19,10 @@ mod fields;
 mod opening;
 mod restoration;
 mod store;
+mod subjects;
 mod substitution;
 mod versions;
+mod witnesses;
 
 use construction::construction;
 use fields::{check_field_accesses, enters_package};
@@ -301,7 +303,6 @@ pub fn check_package_sites(module: &TerminalModule) -> Result<CheckedPackageSite
     {
         return Err("package tables have duplicated or unordered rows");
     }
-    let mut abstract_types = Vec::new();
     let opaque = |id: &StructuralTypeId| {
         module.structural_type(*id).is_some_and(|ty| {
             matches!(ty.shape, StructuralTypeShape::Opaque)
@@ -314,7 +315,6 @@ pub fn check_package_sites(module: &TerminalModule) -> Result<CheckedPackageSite
             return Err("package schema requires distinct abstract referents");
         }
         fields(module, row.record)?;
-        abstract_types.extend_from_slice(&row.witnesses);
     }
     for row in &catalog.openings {
         let machine = module
@@ -327,14 +327,8 @@ pub fn check_package_sites(module: &TerminalModule) -> Result<CheckedPackageSite
         {
             return Err("package opening lacks a typed subject and fresh witness identities");
         }
-        abstract_types.extend_from_slice(&row.witnesses);
     }
-    // Wire identifiers need not be dense at this point in admission.
-    // Size this inventory by the number of actual binders.
-    abstract_types.sort_unstable();
-    if abstract_types.windows(2).any(|pair| pair[0] == pair[1]) {
-        return Err("package declarations and openings must have distinct witness identities");
-    }
+    let mut binders = witnesses::WitnessBinders::from_catalog(catalog)?;
     let mut projected = BTreeMap::new();
     let mut events = BTreeMap::new();
     for site in &catalog.sites {
@@ -344,6 +338,12 @@ pub fn check_package_sites(module: &TerminalModule) -> Result<CheckedPackageSite
         let operation = machine
             .operation(site.operation)
             .ok_or("package site names an absent operation")?;
+        if let TerminalPackageEvent::Project { opening, .. }
+        | TerminalPackageEvent::Invoke { opening }
+        | TerminalPackageEvent::Store { opening, .. } = site.event
+        {
+            binders.check_use(module, machine, operation, opening)?;
+        }
         events.insert((machine.id, operation.id), &site.event);
         match &site.event {
             TerminalPackageEvent::Construct { .. } => (),
@@ -359,6 +359,8 @@ pub fn check_package_sites(module: &TerminalModule) -> Result<CheckedPackageSite
             TerminalPackageEvent::Invoke { .. } | TerminalPackageEvent::Store { .. } => (),
         }
     }
+    binders.require_copy_evidence()?;
+    let abstract_types = &binders.types;
     for machine in &module.machines {
         for block in &machine.blocks {
             if block
@@ -378,7 +380,7 @@ pub fn check_package_sites(module: &TerminalModule) -> Result<CheckedPackageSite
                     machine,
                     operation,
                     witnesses,
-                    &abstract_types,
+                    abstract_types,
                     &projected,
                     &mut checked,
                 )?;

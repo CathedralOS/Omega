@@ -37,7 +37,7 @@ pub(super) fn checked_store(
         }
         _ => return Err("a package store writes another destination field"),
     };
-    if !super::opening::same_subject_at(module, machine, operation, opened, *destination, parent)
+    if !super::subjects::same_storage_at(module, machine, operation, opened, *destination, parent)
         || enters_package(
             module,
             machine,
