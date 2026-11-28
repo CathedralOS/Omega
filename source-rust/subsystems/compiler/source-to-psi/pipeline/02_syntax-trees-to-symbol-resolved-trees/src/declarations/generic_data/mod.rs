@@ -199,8 +199,12 @@ pub(crate) fn validate_direct_const_arguments(
     let definition = selection
         .data(syntax, base_name)
         .map_err(|message| Diagnostic::error(message).with_source_span(base_name.source_span()))?;
-    let parameters = syntax.items.type_parameters(definition.type_parameters);
-    if parameters.len() != arguments.len() {
+    let parameters = syntax
+        .items
+        .type_parameters(definition.type_parameters)
+        .iter()
+        .filter(|parameter| !matches!(parameter.kind, TypeParameterKind::SomeType));
+    if parameters.clone().count() != arguments.len() {
         return Err(
             Diagnostic::error("direct constant argument lost its exact template slot")
                 .with_source_span(base_name.source_span()),

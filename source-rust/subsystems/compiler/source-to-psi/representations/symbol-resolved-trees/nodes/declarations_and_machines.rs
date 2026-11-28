@@ -138,6 +138,8 @@ pub mod declarations {
         pub enum TypeParameterKind {
             #[default]
             Type,
+            /// A declaration-scoped witness chosen by each constructed value.
+            SomeType,
             Implementation,
             Const {
                 type_reference: TypeReference,
