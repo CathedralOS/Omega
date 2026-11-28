@@ -114,6 +114,10 @@ pub struct DescriptorSourceObservation {
 }
 
 impl<'a> DescriptorAnalysis<'a> {
+    pub(crate) fn source_rows(&self) -> crate::module_analyses::DescriptorRowView<'a> {
+        self.replay.machines
+    }
+
     pub(crate) fn uses_source_graph<'rows>(
         &self,
         types: &[StructuralTypeDeclaration],
