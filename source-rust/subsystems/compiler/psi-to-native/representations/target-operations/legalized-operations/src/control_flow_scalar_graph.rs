@@ -845,6 +845,7 @@ pub enum LegalizedScalarInstructionKind {    InstallStaticInterrupt {
         destination: operation_operands::structural_stores::StructuralScalarStoreDestination,
         path: Vec<terminal_psi::StructuralPathSegment>,
         field: semantic_vocabulary::StructuralFieldId,
+        storage_scalar: semantic_vocabulary::ScalarType,
         value: operation_operands::values::AbstractResult,
         byte_offset: u32,
         byte_size: u32, // Physical access envelope, not the semantic register width.

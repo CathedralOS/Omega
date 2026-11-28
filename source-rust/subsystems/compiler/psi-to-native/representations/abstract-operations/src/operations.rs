@@ -370,6 +370,8 @@ define_abstract_operations! {
         destination: super::StructuralScalarStoreDestination,
         path: Vec<StructuralPathSegment>,
         field: semantic_vocabulary::StructuralFieldId,
+        /// The source checker's opened callable contract at this exact field write.
+        opened_callable: Option<semantic_vocabulary::CallableContractId>,
         value: AbstractResult,
         range_obligation: Option<semantic_vocabulary::ObligationId>,
     },

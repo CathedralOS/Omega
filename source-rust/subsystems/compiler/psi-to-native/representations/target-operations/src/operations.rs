@@ -373,6 +373,7 @@ pub enum TargetUnitOperation {    InstallStaticInterrupt {
         destination: operation_operands::structural_stores::StructuralScalarStoreDestination,
         path: Vec<StructuralPathSegment>,
         field: StructuralFieldId,
+        storage_scalar: semantic_vocabulary::ScalarType,
         destination_storage: crate::TargetStructuralArgumentSource,
         field_byte_offset: u32,
         /// Exact physical write envelope, not the semantic register width.

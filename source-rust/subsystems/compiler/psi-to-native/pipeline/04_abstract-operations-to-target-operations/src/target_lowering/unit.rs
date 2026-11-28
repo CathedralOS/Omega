@@ -2338,6 +2338,7 @@ mod structural_scalar {
             destination,
             path,
             field,
+            opened_callable,
             value,
             ..
         } = operation
@@ -2510,16 +2511,31 @@ mod structural_scalar {
         let (carrier_type, _, carrier_byte_offset, runs) =
             runtime_projection(projection_root, carrier_path, structural_types)?;
         let indices = runtime_indices(runs, function, scalar_sources, structural_types)?;
+        let storage_scalar = match opened_callable {
+            Some(opened) => {
+                if value.scalar_type != semantic_vocabulary::ScalarType::Callable(*opened) {
+                    return Err(unsupported(
+                        "stored value differs from the checked package callable",
+                    ));
+                }
+                let declared = terminal_semantics::projected_field_declaration(
+                    structural_types.catalog().as_slice().iter(),
+                    carrier_type,
+                    namespace,
+                    *field,
+                )
+                .and_then(|declaration| declaration.field_type.scalar_type());
+                let Some(stored @ semantic_vocabulary::ScalarType::Callable(_)) = declared else {
+                    return Err(unsupported("opened store has no declared callable field"));
+                };
+                stored
+            }
+            None => value.scalar_type,
+        };
         let (scalar_byte_offset, field_byte_size) = if namespace.is_empty() {
-            direct_scalar_field_geometry(carrier_type, *field, value.scalar_type, structural_types)?
+            direct_scalar_field_geometry(carrier_type, *field, storage_scalar, structural_types)?
         } else {
-            static_field_geometry(
-                carrier_type,
-                namespace,
-                *field,
-                value.scalar_type,
-                structural_types,
-            )?
+            static_field_geometry(carrier_type, namespace, *field, storage_scalar, structural_types)?
         };
         let destination_is_view = matches!(
             structural_types
@@ -2547,6 +2563,7 @@ mod structural_scalar {
             destination,
             path,
             field: *field,
+            storage_scalar,
             destination_storage,
             field_byte_offset,
             field_byte_size,

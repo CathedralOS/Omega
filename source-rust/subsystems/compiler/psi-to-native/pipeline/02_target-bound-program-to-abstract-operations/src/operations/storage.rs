@@ -1510,6 +1510,7 @@ pub(crate) mod structural_scalar_fields {
         machine: &TerminalMachine,
         structural_types: &[StructuralTypeDeclaration],
         module: &terminal_psi::TerminalModule,
+        packages: &terminal_semantics::packages::CheckedPackageSites,
         value_types: &BTreeMap<semantic_vocabulary::ValueId, ScalarType>,
     ) -> Result<AbstractOperation, LoweringError> {
         match &operation.kind {
@@ -1524,6 +1525,7 @@ pub(crate) mod structural_scalar_fields {
                 machine,
                 structural_types,
                 module,
+                packages,
                 value_types,
                 *destination,
                 path,
@@ -1600,6 +1602,7 @@ pub(crate) mod structural_scalar_fields {
         machine: &TerminalMachine,
         structural_types: &[StructuralTypeDeclaration],
         module: &terminal_psi::TerminalModule,
+        packages: &terminal_semantics::packages::CheckedPackageSites,
         value_types: &BTreeMap<semantic_vocabulary::ValueId, ScalarType>,
         destination: PlaceId,
         path: &[StructuralPathSegment],
@@ -1711,9 +1714,14 @@ pub(crate) mod structural_scalar_fields {
             field,
         )
         .ok_or_else(|| invalid("selected path has no exact field declaration"))?;
+        let opened_callable = opened_store_contract(
+            &declaration.field_type,
+            packages.stored_field_type(machine.id, operation.id),
+            scalar_type,
+        )
+        .map_err(invalid)?;
         if terminal_semantics::scalar_field_requires_evidence(&declaration.field_type)
             != range_obligation.is_some()
-            || declaration.field_type.scalar_type() != Some(scalar_type)
         {
             return Err(invalid(
                 "stored scalar type or receiving obligation differs from the field",
@@ -1724,9 +1732,29 @@ pub(crate) mod structural_scalar_fields {
             destination,
             path: path.to_vec(),
             field,
+            opened_callable,
             value: AbstractResult { value, scalar_type },
             range_obligation,
         })
+    }
+
+    fn opened_store_contract(
+        declared: &StructuralFieldType,
+        checked: Option<&StructuralFieldType>,
+        value: ScalarType,
+    ) -> Result<Option<semantic_vocabulary::CallableContractId>, &'static str> {
+        match checked {
+            None if declared.scalar_type() == Some(value) => Ok(None),
+            Some(StructuralFieldType::Scalar(ScalarType::Callable(opened)))
+                if matches!(
+                    declared,
+                    StructuralFieldType::Scalar(ScalarType::Callable(_))
+                ) && value == ScalarType::Callable(*opened) =>
+            {
+                Ok(Some(*opened))
+            }
+            _ => Err("stored scalar type or receiving obligation differs from the field"),
+        }
     }
 
     pub(crate) fn owned_storage_destination(
@@ -1919,5 +1947,42 @@ pub(crate) mod structural_scalar_fields {
             .filter(|declaration| declaration.id == structural_type);
         let declaration = matching.next()?;
         matching.next().is_none().then_some(declaration)
+    }
+
+    #[cfg(test)]
+    mod package_store_tests {
+        use super::*;
+        use semantic_vocabulary::CallableContractId;
+
+        #[test]
+        fn only_the_checked_store_can_change_the_declared_callback_contract() {
+            let public = CallableContractId::new(1).unwrap();
+            let opened = CallableContractId::new(2).unwrap();
+            let crossed = CallableContractId::new(3).unwrap();
+            let field = StructuralFieldType::Scalar(ScalarType::Callable(public));
+            let receipt = StructuralFieldType::Scalar(ScalarType::Callable(opened));
+
+            assert_eq!(
+                opened_store_contract(&field, None, ScalarType::Callable(public)),
+                Ok(None)
+            );
+            assert!(opened_store_contract(&field, None, ScalarType::Callable(opened)).is_err());
+            assert_eq!(
+                opened_store_contract(&field, Some(&receipt), ScalarType::Callable(opened)),
+                Ok(Some(opened))
+            );
+            assert!(
+                opened_store_contract(&field, Some(&receipt), ScalarType::Callable(crossed))
+                    .is_err()
+            );
+            assert!(
+                opened_store_contract(
+                    &StructuralFieldType::Scalar(ScalarType::Boolean),
+                    Some(&receipt),
+                    ScalarType::Callable(opened)
+                )
+                .is_err()
+            );
+        }
     }
 }
