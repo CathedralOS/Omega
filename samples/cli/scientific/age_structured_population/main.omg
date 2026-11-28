@@ -11,7 +11,7 @@ use {system}/console.omg;
 data Main { }
 machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let verified: bool = |oracles|::reference_checks();
-    transition verified { true -> read_input(), false -> oracle_error() }
+    transition verified { true -> block read_input(), false -> oracle_error() }
     machine oracle_error() { |console|::Console::write_line("ERROR internal oracle"); |process_exit|::ProcessExit::exit_process(4); }
     machine read_input() {
         let steps: |input|::Parsed = block |input|::read_number();
@@ -38,9 +38,9 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process
     machine invalid() { |console|::Console::write_line("ERROR invalid input"); |process_exit|::ProcessExit::exit_process(2); }
     machine forecast(census: |model|::Census, schedule: |model|::Schedule, steps: i64 in Wrapping) {
         |console|::Console::write_line("year,newborn,juvenile,adult,total,births,deaths,migration");
-        let initial: |model|::Balance = |model|::Balance { births: 0, deaths: 0, migration: 0, before: |model|::total(@census), after: |model|::total(@census) };
-        |report|::row(0, @census, @initial);
-        transition { _ -> cycle(census, schedule, steps, 0) }
+        let initial: |model|::Balance = |model|::Balance { births: 0i64 as +Wrapping, deaths: 0i64 as +Wrapping, migration: 0i64 as +Wrapping, before: |model|::total(@census), after: |model|::total(@census) };
+        |report|::row(0i64 as +Wrapping, @census, @initial);
+        transition { _ -> cycle(census, schedule, steps, 0i64 as +Wrapping) }
     }
     machine cycle(census: |model|::Census, schedule: |model|::Schedule, steps: i64 in Wrapping, year: i64 in Wrapping) {
         transition year < steps { true -> step(census, schedule, steps, year), false -> done() }
