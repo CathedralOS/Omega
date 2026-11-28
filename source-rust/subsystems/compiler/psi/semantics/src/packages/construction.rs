@@ -102,6 +102,9 @@ pub(super) fn construction(
             {
                 return Err("repacked field comes from a different or stale opening");
             }
+            result
+                .repacked_fields
+                .insert((machine.id, operation.id, field.field), *producer);
         }
         result
             .fields

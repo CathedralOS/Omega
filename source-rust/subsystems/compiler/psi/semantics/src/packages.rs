@@ -38,6 +38,7 @@ type ProjectedOrigins = BTreeMap<(MachineId, Projected), (u32, OperationId)>;
 pub struct CheckedPackageSites {
     fields: BTreeMap<(MachineId, OperationId, StructuralFieldId), StructuralFieldType>,
     calls: BTreeMap<Site, CallableContractId>,
+    repacked_fields: BTreeMap<(MachineId, OperationId, StructuralFieldId), OperationId>,
     projected_fields: BTreeMap<Site, StructuralFieldId>,
     descriptors: BTreeMap<Site, (u32, CallableContractId)>,
     borrowed_arguments: BTreeMap<(MachineId, OperationId, usize), StructuralTypeId>,
@@ -51,6 +52,19 @@ impl CheckedPackageSites {
         field: StructuralFieldId,
     ) -> Option<&StructuralFieldType> {
         self.fields.get(&(machine, operation, field))
+    }
+
+    /// The projection that supplied a dependent operand for this repacking.
+    /// Both operations belong to the same machine and checked storage version.
+    pub fn repacked_field(
+        &self,
+        machine: MachineId,
+        operation: OperationId,
+        field: StructuralFieldId,
+    ) -> Option<OperationId> {
+        self.repacked_fields
+            .get(&(machine, operation, field))
+            .copied()
     }
 
     pub fn projected_field(
