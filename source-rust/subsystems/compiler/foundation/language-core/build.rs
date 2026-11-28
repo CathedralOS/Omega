@@ -8,6 +8,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let core = Path::new("../../../../../source/library/core");
     let mut constants = String::new();
     for declaration_file in [
+        "activation",
         "extent",
         "filesystem_authority",
         "float_operations",
