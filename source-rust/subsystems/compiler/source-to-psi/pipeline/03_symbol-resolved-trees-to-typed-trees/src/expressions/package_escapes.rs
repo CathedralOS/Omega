@@ -1,5 +1,6 @@
 //! A package can cross its opening's boundary. A value whose public type
 //! still refers to that opening cannot, including a reference or callable.
+use super::package_openings::{bound_subject, package_place, write_replaces};
 use crate::lowerer::TypingCohort;
 use crate::source_resolved::SymbolResolvedTrees;
 use crate::source_state as typed;
@@ -8,7 +9,7 @@ use diagnostics::Diagnostic;
 use std::collections::HashSet;
 use symbols::SymbolHandle;
 use typed::expression::{ExpressionHandle, ExpressionNode};
-use typed::package_openings::PackageSubjectRoot;
+use typed::package_openings::{PackageSubject, PackageSubjectRoot};
 use typed::state::State;
 use typed::statement::{StatementNode, StatementRootRole};
 use typed::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -39,7 +40,7 @@ pub(crate) fn check_cohort(
             {
                 let subject = program.symbols.get(opening.symbol).parent;
                 if program.symbols.get(subject).parent == state.symbol {
-                    witnesses.push((opening.symbol, Some(subject)));
+                    witnesses.push((opening.symbol, bound_subject(subject)));
                 }
             }
             for (_, opening) in program
@@ -55,12 +56,11 @@ pub(crate) fn check_cohort(
                             "a package opening lost the identity of its abstract type",
                         ));
                     };
-                    let owner = match opening.subject.root {
-                        PackageSubjectRoot::Binding(binding) => Some(binding),
-                        PackageSubjectRoot::Evaluation(_) => None,
-                    };
-                    if !witnesses.contains(&(*symbol, owner)) {
-                        witnesses.push((*symbol, owner));
+                    if !witnesses
+                        .iter()
+                        .any(|(witness, subject)| witness == symbol && subject == &opening.subject)
+                    {
+                        witnesses.push((*symbol, opening.subject.clone()));
                     }
                 }
             }
@@ -70,7 +70,16 @@ pub(crate) fn check_cohort(
                     state,
                     witness,
                     subject,
-                    inferred: HashSet::new(),
+                    dependent: program
+                        .state_parameters(state)
+                        .iter()
+                        .filter_map(|parameter| {
+                            program
+                                .type_reference_mentions_any(parameter.type_reference, &[witness])
+                                .then_some(parameter.symbol)
+                        })
+                        .collect(),
+                    stale: HashSet::new(),
                 };
                 if scope.mentions(state.return_type) {
                     return Err(Diagnostic::error(
@@ -106,8 +115,9 @@ struct Scope<'program> {
     program: &'program TypedTrees,
     state: &'program State,
     witness: SymbolHandle,
-    subject: Option<SymbolHandle>,
-    inferred: HashSet<SymbolHandle>,
+    subject: PackageSubject,
+    dependent: HashSet<SymbolHandle>,
+    stale: HashSet<SymbolHandle>,
 }
 
 impl Scope<'_> {
@@ -149,7 +159,7 @@ impl Scope<'_> {
             ExpressionNode::Name(path)
                 if path
                     .resolved_symbol()
-                    .is_some_and(|s| self.inferred.contains(&s)) =>
+                    .is_some_and(|s| self.dependent.contains(&s)) =>
             {
                 return Ok(true);
             }
@@ -186,6 +196,27 @@ impl Scope<'_> {
         Ok(ty.is_some_and(|ty| self.mentions(ty)))
     }
 
+    /// Every path that supplies a replacement field must carry the same
+    /// witness, including paths whose value is a concrete type.
+    fn preserves(&self, value: ExpressionHandle) -> Result<bool, Diagnostic> {
+        if !self.program.expression_table.expression_is_valid(value) {
+            return Ok(false);
+        }
+        match self.program.expression_table.expression(value) {
+            ExpressionNode::Block(block) => self.preserves(block.tail),
+            ExpressionNode::Match(dispatch) => {
+                let arms = self.program.expression_table.match_arms(dispatch.arms);
+                for arm in arms {
+                    if !self.preserves(arm.value)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(!arms.is_empty())
+            }
+            _ => self.carries(value),
+        }
+    }
+
     fn refusal(&self, message: &'static str, value: ExpressionHandle) -> Diagnostic {
         Diagnostic::error(message)
             .with_source_span(self.program.expression_table.source_span(value))
@@ -211,19 +242,41 @@ impl Scope<'_> {
                 StatementNode::LocalData(local)
                     if local.initial_value.is_valid() && self.carries(local.initial_value)? =>
                 {
-                    if local.type_is_inferred {
-                        self.inferred.insert(local.symbol);
-                    } else if !self.mentions(local.type_reference) {
+                    if !local.type_is_inferred && !self.mentions(local.type_reference) {
                         return Err(self.refusal(
                             "the local type cannot erase the witness of its initializer",
                             local.initial_value,
                         ));
                     }
+                    self.dependent.insert(local.symbol);
                 }
-                StatementNode::Assignment(assignment)
-                    if self.carries(assignment.value)? && !self.carries(assignment.target)? =>
-                {
-                    return Err(self.refusal("the assignment would store an opened package witness outside its receiving type", assignment.value));
+                StatementNode::Assignment(assignment) => {
+                    let source = self.carries(assignment.value)?;
+                    let projected = program.package_projection(assignment.target);
+                    let destination =
+                        (source || projected.is_some()) && self.carries(assignment.target)?;
+                    if source && !destination {
+                        return Err(self.refusal("the assignment would store an opened package witness outside its receiving type", assignment.value));
+                    }
+                    if destination && projected.is_some() && !self.preserves(assignment.value)? {
+                        return Err(self.refusal(
+                            "a dependent field update must preserve the package's current witness",
+                            assignment.value,
+                        ));
+                    }
+                    if source
+                        && let ExpressionNode::Name(path) =
+                            program.expression_table.expression(assignment.target)
+                        && let Some(symbol) = path.resolved_symbol()
+                    {
+                        self.dependent.insert(symbol);
+                    }
+                    let written = package_place(program, assignment.target);
+                    if written.as_ref().is_none_or(|place| {
+                        write_replaces(program, self.state, place, &self.subject)
+                    }) {
+                        self.stale.extend(self.dependent.iter().copied());
+                    }
                 }
                 _ => {}
             }
@@ -237,18 +290,47 @@ impl Scope<'_> {
             return Ok(());
         }
         let node = program.expression_table.expression(expression);
-        if let ExpressionNode::Block(block) = node {
+        if let ExpressionNode::Name(path) = node
+            && path
+                .resolved_symbol()
+                .is_some_and(|s| self.stale.contains(&s))
+        {
+            return Err(self.refusal(
+                "replacing the whole package invalidates a live dependent projection",
+                expression,
+            ));
+        }
+        if let ExpressionNode::Match(dispatch) = node {
+            self.blocks(dispatch.subject)?;
+            // A replacement in one arm affects code after the dispatch, but it
+            // cannot invalidate a local while a mutually exclusive arm runs.
+            let arms = program.expression_table.match_arms(dispatch.arms);
+            let mut stale_after = self.stale.clone();
+            let mut dependent_after = self.dependent.clone();
+            for arm in arms {
+                for operand in program.expression_table.match_pattern_operands(arm.pattern) {
+                    self.blocks(operand)?;
+                }
+                let before = (self.dependent.clone(), self.stale.clone());
+                self.blocks(arm.value)?;
+                stale_after.extend(self.stale.drain());
+                dependent_after.extend(self.dependent.drain());
+                (self.dependent, self.stale) = before;
+            }
+            self.dependent = dependent_after;
+            self.stale = stale_after;
+        } else if let ExpressionNode::Block(block) = node {
             self.statements(block.statements)?;
             self.blocks(block.tail)?;
-            if self.subject.is_some_and(|subject| {
-                block.statements.handles().any(|h| {
+            if let PackageSubjectRoot::Binding(subject) = self.subject.root
+                && block.statements.handles().any(|h| {
                     program
                         .statement_table
                         .statement(h)
                         .as_local_data()
                         .is_some_and(|local| local.symbol == subject)
                 })
-            }) && self.carries(block.tail)?
+                && self.carries(block.tail)?
             {
                 return Err(self.refusal(
                     "the block result exposes a witness of a local package opening",
@@ -275,6 +357,112 @@ mod tests {
     use crate::source_state::expression::ExpressionNode;
 
     const PAIR: &str = "data Pair<'a, some S> { first: @'a S; second: @'a S; tag: u8; }";
+
+    #[test]
+    fn independent_writes_and_same_witness_updates_keep_one_opening() {
+        let source = format!(
+            "{PAIR}
+            machine update(p: @mutable Pair<some T>, other: @mutable Pair, next: Pair) {{
+                let held: @T = p.first;
+                p.tag = 1u8;
+                $other = next;
+                p.first = p.second;
+                let retained: @T = held;
+                let current: @T = p.first;
+            }}"
+        );
+        let program = checked(&[("main.omg", &source)]).unwrap();
+        assert_eq!(program.package_openings.len(), 1);
+        assert_eq!(program.package_projections.len(), 4);
+    }
+
+    #[test]
+    fn whole_replacement_can_change_a_dead_witness_but_cannot_invalidate_a_live_one() {
+        let source = format!(
+            "{PAIR}
+            machine replace(p: @mutable Pair<some T>, a: @u8, b: @u16) {{
+                let held: @T = p.first;
+                $p = Pair {{ first: a, second: a, tag: 1u8 }};
+                p.first;
+                $p = Pair {{ first: b, second: b, tag: 2u8 }};
+                p.second;
+            }}"
+        );
+        let program = checked(&[("main.omg", &source)]).unwrap();
+        let versions: std::collections::HashSet<_> = program
+            .package_openings
+            .iter()
+            .map(|(_, opening)| opening.storage_version)
+            .collect();
+        assert_eq!(versions.len(), 3);
+        let wrong = source.replace("p.second;", "let stale: @T = held;");
+        let error = checked(&[("main.omg", &wrong)]).unwrap_err();
+        assert!(
+            error.contains("invalidates a live dependent projection"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn one_field_cannot_introduce_a_different_or_concrete_witness() {
+        for value in [
+            "q.second",
+            "concrete",
+            "match 0u8 { 0 -> p.second, _ -> concrete, }",
+        ] {
+            let source = format!(
+                "{PAIR}
+                machine overwrite(p: @mutable Pair, q: @Pair, concrete: @u8) {{
+                    p.first = {value};
+                }}"
+            );
+            let error = checked(&[("main.omg", &source)]).unwrap_err();
+            assert!(
+                error.contains("must preserve the package's current witness")
+                    || error.contains("assignment would store an opened package witness"),
+                "{error}"
+            );
+        }
+    }
+
+    #[test]
+    fn replacement_in_one_arm_only_expires_a_loan_on_that_path_and_at_the_join() {
+        let source = format!(
+            "{PAIR}
+            machine choose(p: @mutable Pair<some T>, next: Pair, flag: bool) {{
+                let held: @T = p.first;
+                let tag: u8 = match flag {{
+                    true -> {{ $p = next; 1u8 }},
+                    false -> {{ let saved: @T = held; let fresh: @T = p.first; 2u8 }},
+                }};
+            }}"
+        );
+        checked(&[("main.omg", &source)]).unwrap();
+        let wrong = source.replace("};", "}; let stale: @T = held;");
+        let error = checked(&[("main.omg", &wrong)]).unwrap_err();
+        assert!(
+            error.contains("invalidates a live dependent projection"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn replacement_through_a_local_alias_sees_the_same_live_projection() {
+        let source = format!(
+            "{PAIR}
+            machine update(p: @mutable Pair<some T>, next: Pair) {{
+                let alias: @mutable Pair = p;
+                let held: @T = p.first;
+                $alias = next;
+                let stale: @T = held;
+            }}"
+        );
+        let error = checked(&[("main.omg", &source)]).unwrap_err();
+        assert!(
+            error.contains("invalidates a live dependent projection"),
+            "{error}"
+        );
+    }
 
     #[test]
     fn a_hidden_reference_cannot_be_returned_or_stored_as_an_unrelated_type() {
