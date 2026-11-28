@@ -1,9 +1,0 @@
-use {signals}/main.omg as signals;
-public boundary trait Forward {
-    machine publish(signal: @|signals|::Signal, observer: @|signals|::Signal) -> u32 reaches |signals|::Publisher crashes none;
-}
-public Relay satisfies Forward {
-    machine publish(signal: @|signals|::Signal, observer: @|signals|::Signal) -> u32 reaches |signals|::Publisher {
-        |signals|::Publisher::publish(signal, observer)
-    }
-}

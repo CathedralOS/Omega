@@ -1,7 +1,0 @@
-use {omega}/build/dependency.omg;
-machine build(build: @mutable BuildPlan) {
-    let mutable signals: DependencyDescription = |dependency|::from_source(Source::Path { location: "../supplier" });
-    |dependency|::with_alias(@mutable signals, "signals");
-    _ = |dependency|::add(build, signals);
-    build.product = BuildProduct::InterpretedBuild { entry: "configure.omg" };
-}

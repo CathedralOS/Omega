@@ -10,17 +10,3 @@ public SignalPublisher satisfies Publisher {
         observer.value.load(Receive)
     }
 }
-
-public WaitingPublisher satisfies Publisher {
-    machine publish(signal: @Signal, observer: @Signal) -> u32 {
-        wait_for_clear(signal);
-        signal.value.store(0, Publish);
-        observer.value.load(Receive)
-    }
-}
-
-machine wait_for_clear(signal: @Signal) {
-    let observed: u32 = signal.value.load(Receive);
-    transition observed == 1 { true -> wait_for_clear(signal), _ -> done() }
-    machine done() {}
-}

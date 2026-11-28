@@ -1,7 +1,0 @@
-use {omega}/build/dependency.omg;
-use {signals}/main.omg as signals;
-machine build(build: @mutable BuildPlan) {
-    build.product = BuildProduct::Package { name: "relay" };
-    _ = |dependency|::add(build, |dependency|::from_source(Source::Path { location: "../supplier" }));
-    Build::select_provider::<|signals|::Publisher, |signals|::WaitingPublisher>(build, linux_x86_64, CompositionMode::Independent);
-}
