@@ -9492,9 +9492,14 @@ pub(crate) mod structural_type_foundations {
                 }
             }
             StructuralTypeShape::Opaque | StructuralTypeShape::BorrowingOpaque { .. } => {
-                if matches!(declaration.shape, StructuralTypeShape::BorrowingOpaque { .. })
-                    && (declaration.is_copyable() || declaration.no_code_affine_cleanup) {
-                    return malformed("an opaque borrower cannot duplicate or silently discard its custody");
+                if matches!(
+                    declaration.shape,
+                    StructuralTypeShape::BorrowingOpaque { .. }
+                ) && (declaration.is_copyable() || declaration.no_code_affine_cleanup)
+                {
+                    return malformed(
+                        "an opaque borrower cannot duplicate or silently discard its custody",
+                    );
                 }
                 if declaration.quotient_carrier.is_some()
                     || declaration.scalar_restriction.is_some()
@@ -12514,7 +12519,12 @@ fn validate_reference_origin_path(
             return malformed("structural case path requires its payload field");
         }
         structural_type = match (segment, &declaration.shape) {
-            (_, StructuralTypeShape::Opaque | StructuralTypeShape::BorrowingOpaque { .. } | StructuralTypeShape::TypeParameter) => {
+            (
+                _,
+                StructuralTypeShape::Opaque
+                | StructuralTypeShape::BorrowingOpaque { .. }
+                | StructuralTypeShape::TypeParameter,
+            ) => {
                 return malformed("opaque contents have no guest-visible storage projection");
             }
             (StructuralPathSegment::AllElements, _) => {

@@ -4,7 +4,6 @@ mod demand;
 mod preparation;
 mod resume;
 mod step;
-pub use demand::caller_demand;
 use application_identity::{
     conformance_identity::MachineApplicationCommitment,
     type_identity::{
@@ -12,6 +11,7 @@ use application_identity::{
         vocabulary::{Label, NameForm, OwnerForm, TypeForm},
     },
 };
+pub use demand::caller_demand;
 use language_core::sealed_intrinsics::ActivationOperation;
 pub use preparation::PreparationShape;
 pub use resume::{ResumeShape, resume_shape};
@@ -147,21 +147,40 @@ pub fn prepare_shape(
         .as_ref()
         .ok_or("prepare has no checked declaration")?;
     let source = &checked.source;
-    let closed = source.specialization.as_ref().ok_or("prepare is not specialized")?;
-    let text = |id| module.identities.text(id).filter(|s| !s.is_empty()).ok_or("prepare has an unresolved identity");
-    if checked.execution != terminal_psi::CheckedBoundaryExecution::OwnedActivation(ActivationOperation::Prepare)
+    let closed = source
+        .specialization
+        .as_ref()
+        .ok_or("prepare is not specialized")?;
+    let text = |id| {
+        module
+            .identities
+            .text(id)
+            .filter(|s| !s.is_empty())
+            .ok_or("prepare has an unresolved identity")
+    };
+    if checked.execution
+        != terminal_psi::CheckedBoundaryExecution::OwnedActivation(ActivationOperation::Prepare)
         || boundary.kind != terminal_psi::BoundaryRequirementKind::Machine
         || boundary.completion != terminal_psi::BoundaryCompletion::NormalReturn
-        || !boundary.crash_routes.is_empty() || !boundary.fixed_service_reach.is_empty()
-        || !boundary.published_service_ceiling.is_empty() || !boundary.published_synchronous_entries.is_empty()
-        || boundary.owning_service.is_some() || boundary.service_reach_is_installation_bound
-        || boundary.attachment.is_some() || boundary.numeric_intrinsic.is_some()
-        || !only_declared_inputs(boundary) || !boundary.unconditional_termination
+        || !boundary.crash_routes.is_empty()
+        || !boundary.fixed_service_reach.is_empty()
+        || !boundary.published_service_ceiling.is_empty()
+        || !boundary.published_synchronous_entries.is_empty()
+        || boundary.owning_service.is_some()
+        || boundary.service_reach_is_installation_bound
+        || boundary.attachment.is_some()
+        || boundary.numeric_intrinsic.is_some()
+        || !only_declared_inputs(boundary)
+        || !boundary.unconditional_termination
         || text(closed.template.identity())? != source_owner("prepare")
         || text(closed.template_entry.identity())? != source_owner("prepare::entry")
-        || closed.capture.is_some() || source.machine != boundary.owner
-        || source.callable != boundary.identity || checked.service_declaration != source.contract
-        || source.published_may_suspend || source.published_may_block {
+        || closed.capture.is_some()
+        || source.machine != boundary.owner
+        || source.callable != boundary.identity
+        || checked.service_declaration != source.contract
+        || source.published_may_suspend
+        || source.published_may_block
+    {
         return Err("prepare differs from its sealed core declaration");
     }
     let [
@@ -177,8 +196,12 @@ pub fn prepare_shape(
         return Err("prepare needs its exact argument, result, worker and storage binders");
     };
     if worker_application_commitment(
-        text(closed.template_callable)?, &[text(*args)?, text(*out)?], text(*identity)?, text(*plan)?,
-    )? != closed.commitment {
+        text(closed.template_callable)?,
+        &[text(*args)?, text(*out)?],
+        text(*identity)?,
+        text(*plan)?,
+    )? != closed.commitment
+    {
         return Err("prepare selection differs from its closed application");
     }
     // Loan replay precedes the suspension-frontier report. The declaration
@@ -200,8 +223,11 @@ pub fn prepare_shape(
         storage: TerminalActivationStorage::from_core_argument(text(*plan)?)
             .ok_or("prepare did not select its declared storage plan")?,
     };
-    if worker.parameter_types.as_slice() != [*args] || worker.result_type != *out
-        || source.parameter_types.len() != 2 || source.parameter_types.first() != Some(args) {
+    if worker.parameter_types.as_slice() != [*args]
+        || worker.result_type != *out
+        || source.parameter_types.len() != 2
+        || source.parameter_types.first() != Some(args)
+    {
         return Err("prepare's argument and result binders differ from the worker's signature");
     }
     let backing = compound(
@@ -299,12 +325,21 @@ fn named(name: &str) -> String {
 // These operations transport their inputs. None of them is a provider for
 // additional regions, writes through reference parameters, or arbitrary facts.
 fn only_declared_inputs(boundary: &BoundaryMachineDeclaration) -> bool {
-    boundary.requires.iter().cloned().eq(terminal_psi::StructuralDomainRequirement::declared_roots(
-        &boundary.structural_parameters,
-    )) && boundary.normal_qualifications.is_empty() && boundary.scalar_domain_requirements.is_empty()
-        && boundary.membership_ensures.is_empty() && boundary.scalar_requires.is_empty()
-        && boundary.scalar_ensures.is_empty() && boundary.reference_outputs.is_empty()
-        && boundary.program_local_root_introductions.is_empty() && boundary.content_guarantees.is_empty()
+    boundary
+        .requires
+        .iter()
+        .cloned()
+        .eq(terminal_psi::StructuralDomainRequirement::declared_roots(
+            &boundary.structural_parameters,
+        ))
+        && boundary.normal_qualifications.is_empty()
+        && boundary.scalar_domain_requirements.is_empty()
+        && boundary.membership_ensures.is_empty()
+        && boundary.scalar_requires.is_empty()
+        && boundary.scalar_ensures.is_empty()
+        && boundary.reference_outputs.is_empty()
+        && boundary.program_local_root_introductions.is_empty()
+        && boundary.content_guarantees.is_empty()
 }
 
 fn publication_types(role: &str, reply: &str) -> (String, String, String) {
@@ -388,12 +423,22 @@ fn scalar_identity(scalar: semantic_vocabulary::ScalarType) -> Option<String> {
     let atom = match scalar {
         ScalarType::Boolean => "bool".into(),
         ScalarType::Integer(i) if i.is_address() => "address".into(),
-        ScalarType::Integer(i) => format!("{}{}", if i.sign() == IntegerSign::Signed { 'i' } else { 'u' }, i.bits()?),
+        ScalarType::Integer(i) => format!(
+            "{}{}",
+            if i.sign() == IntegerSign::Signed {
+                'i'
+            } else {
+                'u'
+            },
+            i.bits()?
+        ),
         ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => "f32".into(),
         ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => "f64".into(),
         ScalarType::Callable(_) => return None,
     };
-    Some(application_identity::type_identity::compiler_type_identity(&atom))
+    Some(application_identity::type_identity::compiler_type_identity(
+        &atom,
+    ))
 }
 
 fn checked_reply<'m>(
@@ -489,52 +534,102 @@ pub fn park_shape(
     {
         return Err("park consumes the request alone");
     }
-    publication_shape(module, request, *request_declared, source.result_type, "RequestRole")
+    publication_shape(
+        module,
+        request,
+        *request_declared,
+        source.result_type,
+        "RequestRole",
+    )
 }
 
 /// Check the caller's one-shot answer against the reply binder of the actual
 /// resume declaration. A handle to the same slot with the request role is
 /// not an answer permit. This check does not establish the parked owner.
-pub fn resume_permit(module: &TerminalModule, boundary: &BoundaryMachineDeclaration)
-    -> Result<ParkShape, &'static str> {
+pub fn resume_permit(
+    module: &TerminalModule,
+    boundary: &BoundaryMachineDeclaration,
+) -> Result<ParkShape, &'static str> {
     use terminal_psi::{CheckedBoundaryExecution, ClosedReachArgument as Arg};
-    let checked = boundary.declaration.as_ref().ok_or("resume has no declaration")?;
+    let checked = boundary
+        .declaration
+        .as_ref()
+        .ok_or("resume has no declaration")?;
     let source = &checked.source;
-    let closed = source.specialization.as_ref().ok_or("resume has no specialisation")?;
-    let [Arg::Type(args), Arg::Type(out), Arg::Type(reply), Arg::Machine { identity, .. }, Arg::Const(plan)] =
-        checked.method_arguments.as_slice() else { return Err("resume lost its closed reply type"); };
-    let [_, declared, value] = source.parameter_types.as_slice() else { return Err("resume needs owner, permit and value"); };
+    let closed = source
+        .specialization
+        .as_ref()
+        .ok_or("resume has no specialisation")?;
+    let [
+        Arg::Type(args),
+        Arg::Type(out),
+        Arg::Type(reply),
+        Arg::Machine { identity, .. },
+        Arg::Const(plan),
+    ] = checked.method_arguments.as_slice()
+    else {
+        return Err("resume lost its closed reply type");
+    };
+    let [_, declared, value] = source.parameter_types.as_slice() else {
+        return Err("resume needs owner, permit and value");
+    };
     if checked.execution != CheckedBoundaryExecution::OwnedActivation(ActivationOperation::Resume)
-        || module.identities.text(closed.template.identity()) != Some(source_owner("resume").as_str())
-        || module.identities.text(closed.template_entry.identity()) != Some(source_owner("resume::entry").as_str())
-        || closed.capture.is_some() || source.machine != boundary.owner || source.callable != boundary.identity
-        || checked.service_declaration != source.contract || source.published_may_suspend || source.published_may_block
+        || module.identities.text(closed.template.identity())
+            != Some(source_owner("resume").as_str())
+        || module.identities.text(closed.template_entry.identity())
+            != Some(source_owner("resume::entry").as_str())
+        || closed.capture.is_some()
+        || source.machine != boundary.owner
+        || source.callable != boundary.identity
+        || checked.service_declaration != source.contract
+        || source.published_may_suspend
+        || source.published_may_block
         || boundary.kind != terminal_psi::BoundaryRequirementKind::Machine
         || boundary.completion != terminal_psi::BoundaryCompletion::NormalReturn
-        || !boundary.crash_routes.is_empty() || !boundary.fixed_service_reach.is_empty()
-        || !boundary.published_service_ceiling.is_empty() || !boundary.published_synchronous_entries.is_empty()
-        || boundary.owning_service.is_some() || boundary.service_reach_is_installation_bound
-        || boundary.attachment.is_some() || boundary.numeric_intrinsic.is_some()
-        || !only_declared_inputs(boundary) || !boundary.unconditional_termination
+        || !boundary.crash_routes.is_empty()
+        || !boundary.fixed_service_reach.is_empty()
+        || !boundary.published_service_ceiling.is_empty()
+        || !boundary.published_synchronous_entries.is_empty()
+        || boundary.owning_service.is_some()
+        || boundary.service_reach_is_installation_bound
+        || boundary.attachment.is_some()
+        || boundary.numeric_intrinsic.is_some()
+        || !only_declared_inputs(boundary)
+        || !boundary.unconditional_termination
         || boundary.parameter_order.get(1) != Some(&BoundaryParameterKind::Structural)
-        || module.identities.text(*value) != module.identities.text(*reply) {
+        || module.identities.text(*value) != module.identities.text(*reply)
+    {
         return Err("resume has a different operation or value type");
     }
-    let text = |id| module.identities.text(id).filter(|s| !s.is_empty())
-        .ok_or("resume has an unresolved binder");
-    if worker_application_commitment(text(closed.template_callable)?, &[text(*args)?, text(*out)?, text(*reply)?],
-        text(*identity)?, text(*plan)?)? != closed.commitment {
+    let text = |id| {
+        module
+            .identities
+            .text(id)
+            .filter(|s| !s.is_empty())
+            .ok_or("resume has an unresolved binder")
+    };
+    if worker_application_commitment(
+        text(closed.template_callable)?,
+        &[text(*args)?, text(*out)?, text(*reply)?],
+        text(*identity)?,
+        text(*plan)?,
+    )? != closed.commitment
+    {
         return Err("resume differs from its checked reply, worker or storage application");
     }
-    let permit = boundary.structural_parameters.get(1)
+    let permit = boundary
+        .structural_parameters
+        .get(1)
         .filter(|p| p.position == 1)
         .ok_or("resume needs its original answer permit")?;
     publication_shape(module, permit, *declared, *reply, "AnswerRole")
 }
 
 fn publication_shape(
-    module: &TerminalModule, request: &terminal_psi::StructuralParameterDeclaration,
-    declared_type: terminal_psi::TerminalIdentityIndex, reply_type: terminal_psi::TerminalIdentityIndex,
+    module: &TerminalModule,
+    request: &terminal_psi::StructuralParameterDeclaration,
+    declared_type: terminal_psi::TerminalIdentityIndex,
+    reply_type: terminal_psi::TerminalIdentityIndex,
     role: &str,
 ) -> Result<ParkShape, &'static str> {
     let text = |id| module.identities.text(id);
@@ -638,10 +733,17 @@ mod preparation_commitment_tests {
         source.machine_argument("worker").unwrap();
         source.const_argument(&fixed).unwrap();
         let published = source.finish();
-        let reopen = |key: &str| worker_application_commitment("prepare", &["args", "out"], "worker", key);
-        assert_eq!(reopen(&fixed.application_identity().unwrap()), Ok(published));
+        let reopen =
+            |key: &str| worker_application_commitment("prepare", &["args", "out"], "worker", key);
+        assert_eq!(
+            reopen(&fixed.application_identity().unwrap()),
+            Ok(published)
+        );
         let split = Split.canonical_value().unwrap();
-        assert_ne!(reopen(&split.application_identity().unwrap()).unwrap(), published);
+        assert_ne!(
+            reopen(&split.application_identity().unwrap()).unwrap(),
+            published
+        );
         let mut unrelated = fixed;
         unrelated.type_name = "OtherStorage".into();
         assert!(reopen(&unrelated.application_identity().unwrap()).is_err());

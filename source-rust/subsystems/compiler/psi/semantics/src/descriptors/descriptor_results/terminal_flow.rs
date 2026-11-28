@@ -1819,11 +1819,13 @@ fn adapt_flow(
                                     result.place,
                                     result.structural_type,
                                 )?;
-                                let lifetime_dependencies = if inventory.unknown_contents.is_empty() {
+                                let lifetime_dependencies = if inventory.unknown_contents.is_empty()
+                                {
                                     Vec::new()
                                 } else {
                                     replay::retained_input_debts(
-                                        &module.types.structural_types, &public.contract().structural_parameters,
+                                        &module.types.structural_types,
+                                        &public.contract().structural_parameters,
                                     )?
                                 };
                                 for packet in inventory.unknown_contents {
@@ -1837,18 +1839,16 @@ fn adapt_flow(
                                         result.structural_type,
                                         prefix,
                                     )?;
-                                    let produced =
-                                        crate::descriptors::replay::ProducedContents {
-                                            producer: DescriptorInvocationSite {
-                                                machine: machine.id,
-                                                owner: call.owner,
-                                            },
-                                            path: path.clone(),
-                                            structural_type,
-                                            activation_backing: None,
-                                            lifetime_dependencies: lifetime_dependencies
-                                                .clone(),
-                                        };
+                                    let produced = crate::descriptors::replay::ProducedContents {
+                                        producer: DescriptorInvocationSite {
+                                            machine: machine.id,
+                                            owner: call.owner,
+                                        },
+                                        path: path.clone(),
+                                        structural_type,
+                                        activation_backing: None,
+                                        lifetime_dependencies: lifetime_dependencies.clone(),
+                                    };
                                     contents.push(DescriptorResultSlot {
                                         path,
                                         origins: vec![
@@ -1969,10 +1969,9 @@ fn adapt_flow(
                         )?),
                         _ => None,
                     };
-                    if preparation.is_none() && !preserves_access_token
-                        && !boundary_call_preserves_descriptor_storage(
-                            module, machine, operation,
-                        )
+                    if preparation.is_none()
+                        && !preserves_access_token
+                        && !boundary_call_preserves_descriptor_storage(module, machine, operation)
                     {
                         mark_opaque_call_occupancy(
                             &graph.place_types,
