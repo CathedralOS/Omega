@@ -4,14 +4,17 @@
 // the largest response delta is 50000 and the largest stimulus delta is 50.
 public data Knot [copy] { stimulus: i32 in Wrapping; response: i32 in Wrapping; }
 public data Calibration { forward: [Knot; 4]; reverse: [Knot; 4]; }
+machine knot(stimulus: i32, response: i32) -> Knot {
+    Knot { stimulus: stimulus as +Wrapping, response: response as +Wrapping }
+}
 public machine initialize(table: @mutable Calibration) {
-    table.forward = [Knot { stimulus: 0, response: 0 }, Knot { stimulus: 20, response: 18000 }, Knot { stimulus: 50, response: 55000 }, Knot { stimulus: 100, response: 105000 }];
-    table.reverse = [Knot { stimulus: 0, response: 4000 }, Knot { stimulus: 20, response: 25000 }, Knot { stimulus: 50, response: 60000 }, Knot { stimulus: 100, response: 105000 }];
+    table.forward = [knot(0, 0), knot(20, 18000), knot(50, 55000), knot(100, 105000)];
+    table.reverse = [knot(0, 4000), knot(20, 25000), knot(50, 60000), knot(100, 105000)];
 }
 public machine interpolate(points: @[Knot], stimulus: i32 in Wrapping) -> i32 in Wrapping {
     transition points.length >= 2 {
         true -> interval(points, stimulus),
-        false -> (-1)
+        false -> (-1 as i32 +Wrapping)
     }
     machine interval(points: @[Knot], stimulus: i32 in Wrapping) -> i32 in Wrapping
     requires points.length >= 2 {
@@ -26,7 +29,7 @@ public machine interpolate(points: @[Knot], stimulus: i32 in Wrapping) -> i32 in
         let denominator: i32 in Wrapping = right.stimulus - left.stimulus;
         transition denominator > 0 {
             true -> evaluate(left, right, stimulus, denominator),
-            false -> (-1)
+            false -> (-1 as i32 +Wrapping)
         }
     }
     machine evaluate(left: Knot, right: Knot, stimulus: i32 in Wrapping, denominator: i32 in Wrapping) -> i32 in Wrapping
@@ -36,7 +39,7 @@ public machine interpolate(points: @[Knot], stimulus: i32 in Wrapping) -> i32 in
     machine scan(points: @[Knot], stimulus: i32 in Wrapping) -> i32 in Wrapping {
         transition points.length >= 2 {
             true -> interval(points, stimulus),
-            false -> (-1)
+            false -> (-1 as i32 +Wrapping)
         }
     }
 }

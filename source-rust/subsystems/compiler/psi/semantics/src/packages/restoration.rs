@@ -234,7 +234,18 @@ pub(crate) fn opened_call_homes(
             (arg.place, carrier),
             member,
             checked,
-        ) else {
+        )
+        .or_else(|| {
+            let slot = location(arg.place, carrier)?;
+            super::returned::local_result_homes(
+                module,
+                machine,
+                references.source_rows(),
+                references,
+                at,
+                &slot,
+            )
+        }) else {
             continue;
         };
         let [(source, path)] = targets.as_slice() else {

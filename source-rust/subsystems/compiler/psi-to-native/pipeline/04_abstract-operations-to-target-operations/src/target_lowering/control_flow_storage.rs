@@ -806,7 +806,12 @@ pub(crate) mod borrowed_windows {
             None,
             site,
         )?;
-        super::references::relocate_leaves(site.live, result.place, relocations, moved_leaves);
+        super::references::relocate_leaves(
+            site.live,
+            Some(result.place),
+            relocations,
+            moved_leaves,
+        );
         Ok(())
     }
 
@@ -906,21 +911,37 @@ pub(crate) mod borrowed_windows {
             full.extend(custody_path);
             custody_path = full;
         }
-        let (storage, custody_path) = if super::references::contains_reference(types, field_type) {
-            window_storage(function, types, live, destination.place(), &custody_path)?
+        let (storage, custody_path) = if !super::references::contains_reference(types, field_type) {
+            (Some(destination.place()), custody_path)
+        } else if super::references::is_native_window(
+            function,
+            types,
+            live,
+            destination.place(),
+            &custody_path,
+        ) {
+            // Moving a descriptor into native storage consumes the input.
+            // There is no Omega-owned destination to register in the local map.
+            (None, Vec::new())
         } else {
-            (destination.place(), custody_path)
+            let (place, path) =
+                window_storage(function, types, live, destination.place(), &custody_path)?;
+            (Some(place), path)
         };
-        if *disposition == terminal_psi::StructuralStoreDisposition::ReplaceDiscardable {
-            super::references::discard_subtree(function, types, live, storage, &custody_path)?;
-        }
-        if live.references.keys().any(|(carrier, path)| {
-            *carrier == storage
-                && path
-                    .strip_prefix(custody_path.as_slice())
-                    .is_some_and(|relative| !relative.contains(&StructuralPathSegment::Referent))
-        }) {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
+        if let Some(storage) = storage {
+            if *disposition == terminal_psi::StructuralStoreDisposition::ReplaceDiscardable {
+                super::references::discard_subtree(function, types, live, storage, &custody_path)?;
+            }
+            if live.references.keys().any(|(carrier, path)| {
+                *carrier == storage
+                    && path
+                        .strip_prefix(custody_path.as_slice())
+                        .is_some_and(|relative| {
+                            !relative.contains(&StructuralPathSegment::Referent)
+                        })
+            }) {
+                return Err(LoweringError::unsupported_control_flow(function.machine));
+            }
         }
         let mut relocations = Vec::new();
         let mut moved_leaves = BTreeSet::new();
@@ -1941,7 +1962,12 @@ pub(crate) mod leaf_copy {
             site,
         )?;
         site.live.references.extend(copied);
-        super::references::relocate_leaves(site.live, result.place, relocations, moved_leaves);
+        super::references::relocate_leaves(
+            site.live,
+            Some(result.place),
+            relocations,
+            moved_leaves,
+        );
         Ok(())
     }
 
@@ -3707,7 +3733,7 @@ pub(crate) mod records {
                 live.structural_homes.remove(&place);
             }
         }
-        super::references::relocate_leaves(live, result.place, relocations, moved_leaves);
+        super::references::relocate_leaves(live, Some(result.place), relocations, moved_leaves);
         live.structural_homes
             .insert(result.place, result_home.clone());
         operations.push(if let Some(elements) = elements {

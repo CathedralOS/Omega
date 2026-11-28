@@ -1251,7 +1251,9 @@ call forms for it.
 - **A loan** is the argument for a borrowed formal: `@place` or `@mutable
   place` with the formal's access, the place a slot or a field path beneath
   one (`ExpressionKind::Borrow`), or a borrowed formal of the caller named
-  whole, which reborrows its referent (`set(value)`). The call passes the
+  whole, which reborrows its referent (`set(value)`). A shared value parameter
+  also borrows an owned place of the same type for the duration of the call.
+  The call passes the
   lent place itself as a structural argument with the loan's access, the
   invocation row names that exact place, and one `Loan` obligation is
   minted at the point before the call: captured place, access, and lender
@@ -1285,7 +1287,7 @@ refuses, by name, what the slice does not serve:
 | `@write T`, a reference with a named lifetime, an `[erased]` reference, `mutable` on a shared reference, a reference of a requirement, a referent of a type parameter | `parameter write-only reference parameter`, `parameter reference parameter with a named lifetime`, `parameter erased reference parameter`, `parameter mutable binding of a shared reference`, `parameter reference parameter of a requirement`, `parameter reference to a value of a type parameter` |
 | a reference local, a reference result or field, a reference anywhere but a formal | `type reference` |
 | a borrow anywhere but the argument for a borrowed formal | `expression borrow` |
-| an argument for a borrowed formal that is not a borrow, a borrow with another access than its formal's, of a value that is not a place, of a case payload | `call argument for a borrowed formal that is not a borrow`, `call borrow whose access differs from its formal's`, `call borrow of a value that is not a place`, `call borrow of a case payload` |
+| an owned argument that requires an explicit loan, a borrow with another access than its formal's, of a value that is not a place, of a case payload | `call argument for a borrowed formal that is not a borrow`, `call borrow whose access differs from its formal's`, `call borrow of a value that is not a place`, `call borrow of a case payload` |
 | `@mutable` of a binding that is not `mutable` (an exclusive reborrow of a shared reference is the checker's conflict) | `call exclusive loan of an immutable binding` |
 | another argument of the same call that names a lent slot (`f(@mutable a, a)`): the lowered form forms every loan at the call, so it does not say that the read runs while the loan is live. A shared loan beside a shared loan is not refused: a nested call's `@a` in `f(g(@a), @a)` reborrows and moves nothing | `call argument that names storage another argument lends` |
 | a loan that would give an SSA local a home inside the right of `&&` or `||` or a value `match` arm, so on some paths only | `call loan of a value local on some paths only` |

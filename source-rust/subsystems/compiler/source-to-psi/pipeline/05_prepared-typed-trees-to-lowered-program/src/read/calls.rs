@@ -4256,8 +4256,8 @@ impl<'t> Program<'t> {
         }
         // Evaluate the supplied value once. A reference descriptor carries
         // the permission to cross into its backing, whether it came from a
-        // binding, a field or another helper call. An ordinary owned value
-        // still needs an explicit borrow of its place.
+        // binding, a field or another helper call. A shared parameter can
+        // also lend an owned place of the declared referent type.
         let (operand, access, explicit) = match node {
             ExpressionNode::Borrow(borrow) => {
                 (beneath.unwrap_or(borrow.target), borrow.access, true)
@@ -4455,7 +4455,12 @@ impl<'t> Program<'t> {
         if !crossed {
             if let Some(slot) = slot {
                 let lender = &slots[slot];
-                if !explicit && lender.borrowed.is_none() {
+                if !explicit
+                    && lender.borrowed.is_none()
+                    && !(formal.access == ReferenceAccess::Shared
+                        && formal.referent == crate::body::BorrowedReferent::Value
+                        && self.same_type(place.result, expected))
+                {
                     return unserved("argument for a borrowed formal that is not a borrow");
                 }
                 if access == ReferenceAccess::Mutable

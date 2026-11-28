@@ -87,7 +87,7 @@ machine main() crashes Trap {
         "(file_reader.read)(file_reader.state)",
         "(file_reader.read)(socket_reader.state)",
     );
-    let Err(refusal) = Program::try_of(&[("main.omg", &crossed)]) else {
+    let Err(refusal) = Program::try_of(&[("product/main.omg", &crossed)]) else {
         panic!("a callback cannot use another package's state")
     };
     assert!(refusal.message.contains("argument types"), "{refusal:?}");

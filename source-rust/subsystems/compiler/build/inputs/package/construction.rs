@@ -92,6 +92,7 @@ impl PackageCompilationInputs {
                     PackageCompilationSourceRecord {
                         build_entries: package.build_entries,
                         source_root: canonical_root.clone(),
+                        local_lineage: package.local_lineage,
                         preparing_source: package.preparing_source,
                         canonical_name: package.canonical_name,
                         resolution: package.resolution,

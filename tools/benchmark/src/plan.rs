@@ -45,6 +45,9 @@ pub enum Measurement {
         source: PathBuf,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         candidate_source: Option<PathBuf>,
+        /// Common source tree under which each declared input keeps its relative path.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        cold_client_root: Option<PathBuf>,
         library_root: PathBuf,
         target: String,
         expected: ExpectedOutput,

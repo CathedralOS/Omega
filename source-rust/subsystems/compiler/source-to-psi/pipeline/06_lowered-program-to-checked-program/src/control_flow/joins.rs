@@ -483,6 +483,7 @@ pub(crate) fn infer<'a>(
             snapshots[position].push((value, row.scalar_type));
         }
     }
+    let mut arrivals = Vec::new();
     for &block in graph.reverse_postorder()? {
         let join = &lowered.blocks[usize::try_from(block.get() - 1).expect("dense block position")];
         let snapshots = &snapshots[usize::try_from(block.get() - 1).expect("dense block position")];
@@ -497,7 +498,7 @@ pub(crate) fn infer<'a>(
         // At a declared cyclic head only the inductive telescope is available.
         let dominating_bindings =
             (declared.is_none() || !graph.in_cycle(join.id)?).then_some(graph);
-        let mut disjuncts = Vec::new();
+        arrivals.clear();
         // A block entered by a cycle, or by an edge that passes no arguments
         // (a dispatch arm, whose parameters the payload binds through
         // `Justification::DispatchBinding`), gets no inferred predicate.
@@ -515,9 +516,20 @@ pub(crate) fn infer<'a>(
                 skip = true;
                 break;
             };
-            let bounds = argument_bounds(
-                id, tables, graph, context, join, at_edge, arguments, activity,
-            );
+            arrivals.push((edge, arguments));
+        }
+        let mut disjuncts = Vec::new();
+        for &(edge, arguments) in &arrivals {
+            let at_edge = ProgramPoint::Edge(edge);
+            // A later backedge or dispatch arm discards the whole predicate.
+            // Keep validating the preceding arrivals even in that case.
+            let bounds = if skip {
+                Vec::new()
+            } else {
+                argument_bounds(
+                    id, tables, graph, context, join, at_edge, arguments, activity,
+                )
+            };
             let mut snapshot_bindings = Vec::new();
             if !snapshots.is_empty() {
                 let concerns = Construct::Edge(edge);
