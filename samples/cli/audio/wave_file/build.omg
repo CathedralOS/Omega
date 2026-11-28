@@ -1,17 +1,6 @@
 use {omega}/build/dependency.omg;
-use main.omg as app;
 
 machine build(builder: @mutable BuildPlan) {
-    builder.product = BuildProduct::Application { name: "wave_file" };
-    let wav_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
-        location: "../wav_output"
-    }));
-    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Bundled {
-        name: "system"
-    }));
-    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
-    Build::bind(builder, windows_arm64::ProgramEntry, |app|::main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
-    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
-    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    _ = |dependency|::add(builder, |dependency|::from_source(Source::Path { location: "../wav_output" }));
+    builder.product = BuildProduct::InterpretedBuild { entry: "configure.omg" };
 }

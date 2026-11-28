@@ -277,7 +277,6 @@ impl CallableValueBody {
 
 /// Immutable source projections; every resolution has its own temporary solver.
 pub struct CallableValueProgram<'a> {
-    pub module: Option<&'a terminal_psi::TerminalModule>,
     pub catalog: &'a TerminalCallableCatalog,
     pub structural_types: &'a [StructuralTypeDeclaration],
     pub graph: Vec<DescriptorMachine>,
@@ -289,8 +288,14 @@ enum Source {
     Value(CallableValueQuery),
     Constructed(MachineDescriptorId),
     Input(CallableFormalInput),
-    Invocation(CallableInvocation, Option<DescriptorLocation>),
+    Invocation(CallableInvocation, CallOutput),
     Ceiling,
+}
+
+#[derive(Clone)]
+enum CallOutput {
+    Result(Option<DescriptorLocation>),
+    WrittenArgument(DescriptorLocation),
 }
 
 enum CallableActualValue {
@@ -363,7 +368,6 @@ impl CallableValueRows {
         module: &'p terminal_psi::TerminalModule,
     ) -> CallableValueView<'p> {
         CallableValueView {
-            module: Some(module),
             catalog: &module.execution.callables,
             structural_types: &module.types.structural_types,
             graph: &self.graph,
@@ -434,7 +438,6 @@ impl<'p> BoundCallableValues<'p> {
 /// it freely.
 #[derive(Clone, Copy)]
 pub struct CallableValueView<'p> {
-    module: Option<&'p terminal_psi::TerminalModule>,
     pub catalog: &'p TerminalCallableCatalog,
     pub structural_types: &'p [StructuralTypeDeclaration],
     graph: &'p [DescriptorMachine],
@@ -446,7 +449,6 @@ pub struct CallableValueView<'p> {
 impl<'p, 'a: 'p> From<&'p CallableValueProgram<'a>> for CallableValueView<'p> {
     fn from(program: &'p CallableValueProgram<'a>) -> Self {
         Self {
-            module: program.module,
             catalog: program.catalog,
             structural_types: program.structural_types,
             graph: &program.graph,
@@ -858,7 +860,7 @@ impl<'p> CallableValueView<'p> {
                     CallableDefinition::Invocation(position) => Source::Invocation(
                         self.bound(body.primary_invocation(*position)?)?
                             .into_owned(),
-                        None,
+                        CallOutput::Result(None),
                     ),
                     CallableDefinition::Opaque => Source::Ceiling,
                     CallableDefinition::Unsupported => {
@@ -920,6 +922,66 @@ impl<'p> CallableValueView<'p> {
             return Err("callable SSA join has no feasible incoming value");
         }
         Ok(result)
+    }
+
+    /// When a direct callee writes a callable field in its sole mutable
+    /// argument, read that record's selected field at each normal exit.
+    /// Formal inputs that reach those exits are read at the call's entry.
+    fn written_argument(
+        &self,
+        analysis: &mut DescriptorAnalysis<'_>,
+        caller: MachineId,
+        at: DescriptorPosition,
+        stored: &DescriptorLocation,
+    ) -> Option<Source> {
+        let invocation = self.body(caller).ok()?.primary_invocation(at).ok()?;
+        let CallableInvocationTarget::Machine(callee) = invocation.target else {
+            return None;
+        };
+        let [actual] = invocation.structural_arguments.as_slice() else {
+            return None;
+        };
+        let [(_, StructuralAccess::MutableBorrow)] = invocation.structural_actual_types.as_slice()
+        else {
+            return None;
+        };
+        let base = analysis.location(caller, at, actual)?;
+        DescriptorLocation::captured(base.root, &base.path)?;
+        let flow = self.flow(callee).ok()?;
+        let formal = flow.places.iter().find(|p| {
+            matches!(
+                p.definition,
+                DescriptorDefinition::Parameter {
+                    position: 0,
+                    access: StructuralAccess::MutableBorrow,
+                    ..
+                }
+            )
+        })?;
+        let output = stored.transported(&base, &DescriptorLocation::whole(formal.place))?;
+        DescriptorLocation::captured(output.root, &output.path)?;
+        let (DescriptorPathSegment::Field(_), owner) = output.path.split_last()? else {
+            return None;
+        };
+        let body = self.body(callee).ok()?;
+        let writes_callable = flow.flow.values().any(|step| {
+            step.scalar_value_stores.iter().any(|(target, value)| {
+                let Some((DescriptorPathSegment::Field(_), parent)) = target.path.split_last()
+                else {
+                    return false;
+                };
+                target.root == formal.place
+                    && parent == owner
+                    && matches!(body.scalar_type(*value), Some(ScalarType::Callable(_)))
+            })
+        });
+        if !writes_callable || flow.normal_exits.is_empty() {
+            return None;
+        }
+        Some(Source::Invocation(
+            invocation.clone(),
+            CallOutput::WrittenArgument(output),
+        ))
     }
 
     fn stored_sources(
@@ -1090,7 +1152,7 @@ impl<'p> CallableValueView<'p> {
                     result.push(Source::Invocation(
                         self.bound(body.primary_invocation(*producer)?)?
                             .into_owned(),
-                        Some(arrival.clone()),
+                        CallOutput::Result(Some(arrival.clone())),
                     ));
                     continue;
                 }
@@ -1132,7 +1194,12 @@ impl<'p> CallableValueView<'p> {
                             }))
                     });
                 result.push(if invalidated {
-                    Source::Ceiling
+                    if unresolved_address {
+                        Source::Ceiling
+                    } else {
+                        self.written_argument(&mut analysis, machine, *producer, &arrival)
+                            .unwrap_or(Source::Ceiling)
+                    }
                 } else {
                     Source::Value(CallableValueQuery::Storage {
                         machine,
@@ -1266,7 +1333,7 @@ impl Solver<'_, '_> {
         &mut self,
         caller: MachineId,
         invocation: &CallableInvocation,
-        projection: &Option<DescriptorLocation>,
+        output: &CallOutput,
         result_contract: CallableContractId,
     ) -> CallableValueResult<CallableValuePossibilities> {
         self.program.validate_occurrence(caller, invocation)?;
@@ -1289,11 +1356,11 @@ impl Solver<'_, '_> {
                         .descriptor(descriptor)
                         .ok_or("callable selection descriptor is absent or stale")?;
                     if descriptor.contract != contract
-                        && !self.program.body(caller)?.package_sites.admits_descriptor(
-                            self.program.module,
-                            invocation,
-                            descriptor.contract,
-                        )
+                        && !self
+                            .program
+                            .body(caller)?
+                            .package_sites
+                            .admits_descriptor(invocation, descriptor.contract)
                     {
                         return Err("callable selection descriptor changes its contract");
                     }
@@ -1306,10 +1373,25 @@ impl Solver<'_, '_> {
         }
         for machine in machines {
             self.program.validate_actuals(caller, machine, invocation)?;
-            for returned in self
-                .program
-                .result_queries(machine, projection, result_contract)?
-            {
+            let outputs = match output {
+                CallOutput::Result(projection) => {
+                    self.program
+                        .result_queries(machine, projection, result_contract)?
+                }
+                CallOutput::WrittenArgument(location) => self
+                    .program
+                    .flow(machine)?
+                    .normal_exits
+                    .iter()
+                    .map(|position| CallableValueQuery::Storage {
+                        machine,
+                        position: *position,
+                        location: location.clone(),
+                        contract: result_contract,
+                    })
+                    .collect(),
+            };
+            for returned in outputs {
                 let values = self.read(returned)?;
                 if self.reached_inputs.is_some() {
                     result.join(values);

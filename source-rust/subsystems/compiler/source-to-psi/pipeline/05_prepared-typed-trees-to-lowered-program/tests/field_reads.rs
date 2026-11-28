@@ -274,6 +274,129 @@ machine main() {
 }
 
 #[test]
+fn packing_a_borrowed_record_preserves_the_outer_lifetime() {
+    let source = r"
+data File { byte: u8; }
+data Socket<'a> { file: @'a File; }
+data Reader<'a, some S> { state: @'a S; tag: u8; }
+machine pack<'a, T>(value: @'a T, tag: u8) -> Reader<'a> {
+    Reader { state: value, tag: tag }
+}
+machine inspect<'outer, 'inside>(socket: @'outer Socket<'inside>) -> u8 {
+    let packed: Reader<'outer> = pack::<Socket<'inside>>(socket, 42u8);
+    packed.tag
+}
+machine main() crashes Trap {
+    let file: File = File { byte: 17u8 };
+    let socket: Socket = Socket { file: @file };
+    transition inspect(@socket) == 42u8 { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}";
+    Program::of(source).judged(|_| {}).accepted();
+    let wrong = source.replace("let packed: Reader<'outer>", "let packed: Reader<'inside>");
+    let refusal = Program::try_of(&[("product/main.omg", &wrong)])
+        .err()
+        .expect("packing cannot lengthen a borrowed input's outer lifetime");
+    assert!(
+        refusal.message.contains("lifetime") || refusal.message.contains("region"),
+        "{refusal:?}"
+    );
+}
+
+#[test]
+fn arrays_of_borrowed_witnesses_keep_each_dimension_and_the_outer_lifetime() {
+    let source = r"
+data File { byte: u8; }
+data Socket<'a> { file: @'a File; }
+data Reader<'a, some S> { state: [[@'a S; 2]; 2]; tag: u8; }
+machine inspect<'outer, 'inside>(socket: @'outer Socket<'inside>) -> u8 {
+    let held: [@'outer Socket<'inside>; 2] = [socket, socket];
+    let packed: Reader<'outer> = Reader { state: [held, held], tag: 42u8 };
+    packed.tag
+}
+machine main() crashes Trap {
+    let file: File = File { byte: 17u8 };
+    let socket: Socket = Socket { file: @file };
+    transition inspect(@socket) == 42u8 { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}";
+    Program::of(source).judged(|_| {}).accepted();
+    for (from, to, reason) in [
+        ("[[@'a S; 2]; 2]", "[[@'a S; 3]; 2]", "array"),
+        (
+            "let packed: Reader<'outer>",
+            "let packed: Reader<'inside>",
+            "lifetime",
+        ),
+    ] {
+        let changed = source.replace(from, to);
+        let refusal = Program::try_of(&[("product/main.omg", &changed)])
+            .err()
+            .expect("a different array extent or unrelated lifetime must be refused");
+        assert!(refusal.message.contains(reason), "{refusal:?}");
+    }
+}
+
+/// A borrowed callback argument reads the member of the stored Link, even
+/// though the source expression has the fresh type of this Reader's opening.
+#[test]
+fn an_opened_nominal_record_lends_the_field_at_its_stored_coordinate() {
+    let source = r"
+data File { byte: u8; }
+data Link<'a, T> { target: @'a T; }
+data Read<T> = machine(input: @T) -> u8 reaches none crashes none;
+data Reader<'a, some S> { link: Link<'a, S>; read: Read<S>; }
+machine get(f: @File) -> u8 { f.byte }
+machine apply(reader: @Reader) -> u8 { (reader.read)(reader.link.target) }
+machine inspect<'a>(file: @'a File) -> u8 {
+    let link: Link<'a, File> = Link { target: file };
+    let reader: Reader<'a> = Reader { link: link, read: get };
+    apply(@reader)
+}";
+    let program = Program::of(source);
+    let module = &program.elaboration().module;
+    let call = program
+        .machine("apply")
+        .operations()
+        .find_map(|operation| match &operation.kind {
+            OperationKind::CallMachine {
+                structural_arguments,
+                ..
+            } => Some(structural_arguments),
+            _ => None,
+        })
+        .expect("apply invokes the stored callback");
+    let [input] = call.as_slice() else {
+        panic!("a single borrowed input: {call:?}")
+    };
+    let [
+        StructuralPathSegment::Field(link),
+        StructuralPathSegment::Field(target),
+        StructuralPathSegment::Referent,
+    ] = input.path.as_slice()
+    else {
+        panic!("callback takes the stored target: {input:?}")
+    };
+    assert_eq!(module.identities.text(*link), Some("link"));
+    assert_eq!(module.identities.text(*target), Some("target"));
+    program.judged(|_| {}).accepted();
+
+    let crossed = source
+        .replace(
+            "apply(reader: @Reader)",
+            "apply(reader: @Reader, other: @Reader)",
+        )
+        .replace("(reader.link.target)", "(other.link.target)")
+        .replace("apply(@reader)", "apply(@reader, @reader)");
+    let refusal = Program::try_of(&[("product/main.omg", &crossed)])
+        .err()
+        .expect("separately opened witness");
+    assert!(refusal.message.contains("argument types"), "{refusal:?}");
+}
+
+#[test]
 fn a_branch_reads_plain_array_metadata_without_opening_the_witness() {
     let program = Program::of(
         r"

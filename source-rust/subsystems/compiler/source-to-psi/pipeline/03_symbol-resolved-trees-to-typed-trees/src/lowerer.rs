@@ -7,9 +7,7 @@ seeded continuation (`seeded_continuation`).
 
 use crate::declarations::items::data::lower_data_definition;
 use crate::declarations::items::domain::lower_domain_definition;
-use crate::declarations::items::machine::{
-    lower_machine, lower_token_binding_view, settle_satisfied_declarations_from,
-};
+use crate::declarations::items::machine::{lower_machine, settle_satisfied_declarations_from};
 use crate::declarations::items::mathematical::lower_mathematical_definition;
 use crate::declarations::items::operator::lower_operator_definition;
 use crate::declarations::items::proposition::lower_proposition_definition;
@@ -2115,9 +2113,7 @@ pub(crate) fn close_typed_cohort(
             cohort,
         );
     if applied_signatures_walk_program {
-        lowerer
-            .typed_trees
-            .prepare_applied_callable_signatures()
+        crate::declarations::applied_callable_signatures::prepare(&mut lowerer.typed_trees)
             .map_err(|message| Diagnostic::error(message.to_owned()))?;
     }
     // Infer unannotated constants whose initializer type is already known
@@ -2509,15 +2505,9 @@ impl Lowerer<'_> {
         &mut self,
         machine: &crate::source_resolved::machine::Machine,
     ) -> Result<(), Diagnostic> {
-        let typed_machine = self
-            .with_type_reference_exposure(Some(machine.interface_exposure), |lowerer| {
-                lower_machine(lowerer, machine)
-            })?;
-        if let Some(view) = lower_token_binding_view(self, machine, &typed_machine)? {
-            self.typed_trees.push_machine_token_binding(view);
-        }
-        self.typed_trees.push_machine(typed_machine);
-        Ok(())
+        self.with_type_reference_exposure(Some(machine.interface_exposure), |lowerer| {
+            lower_machine(lowerer, machine)
+        })
     }
 
     fn lower_trait_declaration(

@@ -308,6 +308,10 @@ machine build(builder: @mutable BuildPlan) {
         report(&interpreted)
     );
 
+    // The saved product binds the Linux x86-64 entry.
+    if !cfg!(target_arch = "x86_64") {
+        return;
+    }
     let mut command = saved.command(&[
         "build",
         "--trusted-artifact",

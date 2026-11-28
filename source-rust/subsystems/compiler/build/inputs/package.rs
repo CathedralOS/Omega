@@ -117,10 +117,11 @@ impl std::borrow::Borrow<PackageKeyIdentity> for PackageUse {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
-struct PackageCompilationSourceRecord {
-    build_entries: PackageBuildEntries,
+pub(crate) struct PackageCompilationSourceRecord {
+    pub(crate) build_entries: PackageBuildEntries,
     resolution: Option<[u8; 32]>,
-    source_root: PathBuf,
+    pub(crate) source_root: PathBuf,
+    pub(crate) local_lineage: Option<source_acquisition::ExternalLocalLineage>,
     preparing_source: Option<crate::CapturedLocalSource>,
     canonical_name: String,
     canonical_source_metadata: Option<CanonicalFilesystemMetadataIndex>,
@@ -151,11 +152,8 @@ impl PackageCompilationInputs {
 
     pub(crate) fn source_owners(
         &self,
-    ) -> impl Iterator<Item = (PackageKeyIdentity, &Path, &PackageBuildEntries)> {
-        self.source
-            .packages
-            .iter()
-            .map(|(identity, owner)| (*identity, owner.source_root.as_path(), &owner.build_entries))
+    ) -> impl Iterator<Item = (&PackageKeyIdentity, &PackageCompilationSourceRecord)> {
+        self.source.packages.iter()
     }
 
     pub(crate) fn dependency_build_file(
@@ -173,6 +171,7 @@ impl PackageCompilationInputs {
         for (identity, record) in &self.source.packages {
             if let Some(previous) = other.source.packages.get(identity)
                 && (record.source_root != previous.source_root
+                    || record.local_lineage != previous.local_lineage
                     || record.preparing_source != previous.preparing_source
                     || record.canonical_name != previous.canonical_name
                     || record.build_entries != previous.build_entries

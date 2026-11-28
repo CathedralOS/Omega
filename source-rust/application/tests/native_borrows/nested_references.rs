@@ -103,6 +103,123 @@ fn replacing_a_reference_through_its_native_address_changes_only_the_slot() {
 }
 
 #[test]
+fn a_helper_reads_an_initialized_reference_cell_through_its_address() {
+    let source = r#"
+machine load<'a>(location: address) -> u8 {
+    let view: @@'a u8 = |native|::borrow_at::<@'a u8>(location);
+    let stored: @'a u8 = $view;
+    $stored
+}
+machine inspect<'a>(source: @'a u8) -> u8 {
+    let slot: @'a u8 = source;
+    load(address_of(@slot))
+}
+machine main() crashes Trap {
+    let first: u8 = 19u8;
+    let second: u8 = 31u8;
+    transition inspect(@first) == 19u8 && inspect(@second) == 31u8 {
+        true -> {}, false -> wrong()
+    }
+    machine wrong() { crash Trap; }
+}"#;
+    let program = Program::new(source, &[READ]);
+    program.assert_native_returns();
+    assert_addressed_cell_survives_call(&program);
+    let denied = source.replace("    $stored\n", "    $stored = 7u8;\n    $stored\n");
+    let result = Program::new(&denied, &[READ]).check();
+    let diagnostic = super::report(&result);
+    assert!(
+        !result.status.success() && diagnostic.contains("grants shared access only"),
+        "{diagnostic}"
+    );
+}
+
+/// A native stack slot may still contain its old pointer after its loan ends.
+/// Check the saved program as well as the bytes the executable returns.
+fn assert_addressed_cell_survives_call(program: &Program) {
+    use terminal_psi::OperationKind;
+    let published = program
+        .command(&[
+            "--emit-psi",
+            "cell.psi",
+            "--target",
+            super::host_profile(),
+            "build.omg",
+        ])
+        .output()
+        .unwrap();
+    assert!(published.status.success(), "{}", super::report(&published));
+    let bytes = std::fs::read(program.0.path().join("cell.psi")).unwrap();
+    let saved = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+    let module = saved.semantic_module();
+    let caller = module
+        .machines
+        .iter()
+        .find(|body| {
+            body.declaration
+                .as_ref()
+                .and_then(|decl| module.identities.text(decl.callable))
+                .is_some_and(|name| name.contains("inspect"))
+        })
+        .expect("saved calling machine");
+    let mut operations = caller.operations();
+    let (address, cell) = operations
+        .find_map(|op| {
+            let OperationKind::StorageAddress { source } = &op.kind else {
+                return None;
+            };
+            let (temporary, _) = caller.producing_operation(source.place)?;
+            let OperationKind::EstablishReference { source: cell, .. } = &temporary.kind else {
+                return None;
+            };
+            Some((op.result.as_scalar()?.id, cell.place))
+        })
+        .expect("the caller exposes its reference cell");
+    for op in operations {
+        match &op.kind {
+            OperationKind::Call { arguments, .. } if arguments.contains(&address) => return,
+            OperationKind::ReleaseReference { source, path }
+                if *source == cell && path.is_empty() =>
+            {
+                panic!("the caller released its reference cell before passing the address to load")
+            }
+            _ => {}
+        }
+    }
+    panic!("the caller never passed the cell address to load");
+}
+
+#[test]
+fn a_helper_updates_the_callers_reference_slot_through_its_address() {
+    let source = r#"
+machine load<'a>(location: address, replacement: @'a u8) -> u8 {
+    let view: @mutable @'a u8 = |native|::borrow_mutable_at::<@'a u8>(location);
+    $view = replacement;
+    let restored: @'a u8 = $view;
+    $restored
+}
+machine inspect<'a>(source: @'a u8, replacement: @'a u8) -> bool {
+    let mutable slot: @'a u8 = source;
+    let loaded: u8 = load(address_of(@slot), replacement);
+    loaded == 31u8 && $slot == 31u8 && $source == 19u8 && $replacement == 31u8
+}
+machine main() crashes Trap {
+    let a: u8 = 19u8;
+    let b: u8 = 31u8;
+    transition inspect(@a, @b) { true -> {}, false -> wrong() }
+    machine wrong() { crash Trap; }
+}"#;
+    Program::new(source, &[READ, super::WRITE]).assert_native_returns();
+    let denied = source.replace("    $restored\n", "    $restored = 7u8;\n    $restored\n");
+    let output = Program::new(&denied, &[READ, super::WRITE]).check();
+    let message = super::report(&output);
+    assert!(
+        !output.status.success() && message.contains("grants shared access only"),
+        "{message}"
+    );
+}
+
+#[test]
 fn the_inner_lifetime_cannot_extend_a_native_borrow_of_the_local_slot() {
     let code = r#"
 machine leave<'a>(arg: @'a u8) -> @'a @'a u8 {
@@ -196,6 +313,51 @@ machine main() crashes Trap {
         program.assert_psi_returns();
         program.assert_native_returns();
     }
+}
+
+#[test]
+fn forwarding_an_existing_reference_preserves_its_inner_reference() {
+    let body = r#"
+machine read<'a>(view: @@'a u8) -> u8 {
+    let inner: @'a u8 = $view;
+    $inner
+}
+machine relay<'a>(view: @@'a u8) -> u8 { read(view) }
+machine inspect<'a>(source: @'a u8) -> u8 {
+    let slot: @'a u8 = source;
+    let view: @@'a u8 = FORMATION;
+    relay(view)
+}
+machine main() crashes Trap {
+    let value: u8 = 53u8;
+    transition inspect(@value) == 53u8 { true -> {}, false -> wrong() }
+    machine wrong() { crash Trap; }
+}"#;
+    let ordinary = Program::new(&body.replace("FORMATION", "@slot"), &[]);
+    ordinary.assert_psi_returns();
+    ordinary.assert_native_returns();
+    let native = body.replace(
+        "FORMATION",
+        "|native|::borrow_at::<@'a u8>(address_of(@slot))",
+    );
+    Program::new(&native, &[READ]).assert_native_returns();
+
+    let mutable_cell = native.replace("let slot:", "let mutable slot:");
+    let replace = "let edit: @mutable @'a u8 = |native|::borrow_mutable_at::<@'a u8>(address_of(@slot)); $edit = source;";
+    let grants = &[READ, super::WRITE];
+    let before = mutable_cell.replace("    let view:", &format!("    {replace}\n    let view:"));
+    Program::new(&before, grants).assert_native_returns();
+    let overlapping = mutable_cell.replace(
+        "    relay(view)",
+        &format!("    {replace}\n    relay(view)"),
+    );
+    let refused = Program::new(&overlapping, grants).check();
+    let message = super::report(&refused);
+    assert!(
+        !refused.status.success()
+            && message.contains("storage is changed while a conflicting reference remains live"),
+        "{message}"
+    );
 }
 
 #[test]

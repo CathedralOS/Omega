@@ -943,6 +943,9 @@ impl Program<'_> {
                     _ if typed.closed_fixed_array_length(reference).is_some() => {}
                     FixedArrayLength::ConstParameter { symbol, .. }
                         if own(*symbol, const_binder) => {}
+                    FixedArrayLength::Expression(argument) => {
+                        self.template_array_extent(entry, declaration, parameters, *argument)?;
+                    }
                     _ => return Err(unserved()),
                 }
                 self.template_type(entry, declaration, parameters, *element_type, depth + 1)

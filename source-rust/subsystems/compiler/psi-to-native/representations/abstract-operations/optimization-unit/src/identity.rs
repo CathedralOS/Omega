@@ -2288,7 +2288,16 @@ pub(crate) mod operation_encoding {
     macro_rules! ids {
         ($($ty:ident),+) => { $(field!(semantic_vocabulary::$ty, |bytes, value| bytes.id(*value));)+ };
     }
+    field!(abstract_operations::OpenedPackageCall, |bytes, value| {
+        let abstract_operations::OpenedPackageCall {
+            admitted_contracts,
+            stored_arguments,
+        } = value;
+        admitted_contracts.encode(bytes);
+        stored_arguments.encode(bytes);
+    });
     ids!(
+        CallableContractId,
         OperationId,
         SuspensionCrossingId,
         ValueId,

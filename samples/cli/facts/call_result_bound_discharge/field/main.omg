@@ -16,8 +16,8 @@ data Reading { scale: u64; }
 
 data Main { hits: i32 in Wrapping; }
 
-machine Main::main(main: @mutable Main) crashes Trap {
-    main.hits = 0;
+machine check_result(main: @mutable Main) crashes Trap {
+    main.hits = 0i32 as +Wrapping;
 
     let reading: Reading = Reading { scale: opaque() };
     let r: u64 = echo(reading.scale);
@@ -25,12 +25,12 @@ machine Main::main(main: @mutable Main) crashes Trap {
         true -> pass(main),
         _ -> fail(main)
     }
-    machine pass(main: @mutable Main) { main.hits = 1; }
+    machine pass(main: @mutable Main) { main.hits = 1i32 as +Wrapping; }
     machine fail(main: @mutable Main) { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() crashes Trap {
-    let mutable entry_storage: Main;
-    Main::main(@mutable entry_storage);
+    let mutable entry_storage: Main = Main { hits: 0i32 as +Wrapping };
+    check_result(@mutable entry_storage);
 }

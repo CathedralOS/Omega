@@ -6,7 +6,7 @@ public data Input {
     case Sample(stimulus: i32 in Wrapping, observed: i32 in Wrapping);
 }
 public machine parse_line(text: @[u8]) -> Input {
-    transition { _ -> stimulus(text, 0, false) }
+    transition { _ -> stimulus(text, 0 as i32 +Wrapping, false) }
     machine stimulus(text: @[u8], value: i32 in Wrapping, seen: bool) -> Input {
         transition text.length > 0 {
             true -> stimulus_byte(text[0], text[1..], value, seen),
@@ -21,7 +21,7 @@ public machine parse_line(text: @[u8]) -> Input {
     }
     machine separator(byte: u8, rest: @[u8], value: i32 in Wrapping, seen: bool) -> Input {
         transition byte == 32 && seen {
-            true -> observed(rest, value, 0, false),
+            true -> observed(rest, value, 0 as i32 +Wrapping, false),
             false -> (Input::Invalid)
         }
     }

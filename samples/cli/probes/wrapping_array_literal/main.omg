@@ -1,3 +1,4 @@
+// Expected exit: 0
 // The fixed array, nested array, and record field retain Wrapping on each
 // u32 element. Incrementing the maximum u32 produces zero.
 

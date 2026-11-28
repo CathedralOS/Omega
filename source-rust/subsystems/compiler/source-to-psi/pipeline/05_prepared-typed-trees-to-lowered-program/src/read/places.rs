@@ -298,7 +298,7 @@ impl Program<'_> {
                 continue;
             }
             // One slot can be substituted simultaneously at every field.
-            // Several reference arguments need independent declaration-local
+            // Several region-bearing arguments need independent declaration-local
             // slots even if their original concrete lifetimes coincide.
             if !tuple.is_empty() {
                 return Err(refuse_at(
@@ -306,14 +306,17 @@ impl Program<'_> {
                     Unserved::Type("record application with multiple borrowed type arguments"),
                 ));
             }
-            let actual =
-                super::source_records::retained_borrow(typed, &application.scope, *supplied)
-                    .ok_or_else(|| {
-                        refuse_at(
-                            id,
-                            Unserved::Type("record occurrence lost its borrow region"),
-                        )
-                    })?;
+            let actual = super::source_records::retained_argument_region(
+                typed,
+                &application.scope,
+                *supplied,
+            )
+            .ok_or_else(|| {
+                refuse_at(
+                    id,
+                    Unserved::Type("record occurrence lost its borrow region"),
+                )
+            })?;
             tuple.push(super::regions::Region::Parameter(actual));
         }
         Ok(self.intern_regions(tuple))
@@ -1982,30 +1985,18 @@ impl Program<'_> {
                     "record literal field type",
                 ));
             }
-            if field_type != storage_type && !self.agrees(operand.result, Some(storage_type)) {
-                // check_construction matched this exact field against the declaration
-                // with the package's entire witness tuple substituted. Keep the
-                // same outer permissions as we emit its concrete initializer. The
-                // lowered-form checker checks its physical storage recursively.
-                let admitted = package.is_some()
-                    && match (storage_type, field_type) {
-                        (
-                            ValueType::Scalar(semantic_vocabulary::ScalarType::Callable(_), public),
-                            ValueType::Scalar(
-                                semantic_vocabulary::ScalarType::Callable(_),
-                                concrete,
-                            ),
-                        ) => public == concrete,
-                        (ValueType::Record(_, pq, pr), ValueType::Record(_, cq, cr)) => {
-                            pq == cq && pr == cr
-                        }
-                        _ => false,
-                    };
-                if !admitted {
-                    return Err(unserved(
-                        "package field has no checked uniform representation",
-                    ));
-                }
+            if field_type != storage_type
+                && !self.agrees(operand.result, Some(storage_type))
+                && !self.package_field_storage_agrees(
+                    literal.type_symbol,
+                    &package_witnesses,
+                    storage_type,
+                    field_type,
+                )
+            {
+                return Err(unserved(
+                    "package field has no checked uniform representation",
+                ));
             }
             fields.push((position, operand));
         }

@@ -268,6 +268,90 @@ fn field_initializers(
     writes
 }
 
+/// Follow the actual value into this caller slot, then substitute the checked
+/// return field's formal lenders with the arguments of that particular call.
+pub(super) fn local_result_homes(
+    module: &TerminalModule,
+    caller: &TerminalMachine,
+    graph: DescriptorRowView<'_>,
+    analysis: &mut DescriptorAnalysis<'_>,
+    at: DescriptorPosition,
+    slot: &DescriptorLocation,
+) -> Option<Vec<(semantic_vocabulary::PlaceId, Vec<StructuralPathSegment>)>> {
+    let types = &module.types.structural_types;
+    let Source::Call(position, suffix) = reaching_source(
+        types,
+        caller.id,
+        graph,
+        analysis,
+        &Initializers::new(),
+        at,
+        slot.clone(),
+    )?
+    else {
+        return None;
+    };
+    let operation = caller
+        .blocks
+        .iter()
+        .find(|block| block.id == position.0)?
+        .operations
+        .get(usize::try_from(position.1).ok()?)?;
+    let invocation = operation.declared_invocation()?;
+    let terminal_psi::TargetMachineCallable::Machine(callee) = invocation.callee else {
+        return None;
+    };
+    let result = operation.result.structural()?;
+    let field = descriptor_path(types, result.structural_type, &suffix)?;
+    let contents = analysis.result_contents(module, callee)?;
+    let lenders = contents.package_referents.0.get(&field)?;
+    let mut actual_homes = BTreeSet::new();
+    for ((parameter, input), referent) in lenders {
+        let argument = invocation.structural_arguments.get(*parameter)?;
+        let mut path = argument.path.clone();
+        for projection in input {
+            let terminal_psi::ReferenceOriginProjection::Exact(segment) = projection else {
+                return None;
+            };
+            path.push(segment.clone());
+        }
+        if path.iter().any(|segment| segment.runtime_index().is_some()) {
+            return None;
+        }
+        let argument_slot = descriptor_location(
+            types,
+            argument.place,
+            caller.structural_place_type(argument.place)?,
+            &path,
+            None,
+        )?;
+        for origin in analysis
+            .captured_storage_family(caller.id, position, &argument_slot)
+            .ok()?
+        {
+            let crate::descriptor_results::DescriptorCallOrigin::Argument { source, projection } =
+                origin
+            else {
+                return None;
+            };
+            let path = projection.captured_storage_path()?;
+            if path.iter().any(|segment| segment.runtime_index().is_some()) {
+                return None;
+            }
+            let ty = caller.structural_place_type(source)?;
+            if crate::runtime_structural_path_tip(types.iter(), ty, &path)?.id != *referent {
+                return None;
+            }
+            actual_homes.insert((source, path));
+        }
+    }
+    let homes = analysis.local_reference_homes(caller.id, at, slot)?;
+    homes
+        .iter()
+        .all(|home| actual_homes.contains(home))
+        .then_some(homes)
+}
+
 fn reaching_source(
     types: &[terminal_psi::StructuralTypeDeclaration],
     machine: MachineId,

@@ -8,36 +8,36 @@ invokes |console|::Console
 blocks
 crashes Trap
 {
-    transition { _ -> scan(0, 0, false, false) }
+    transition { _ -> block scan(0i64 as +Wrapping, 0i32 as +Wrapping, false, false) }
     machine scan(accumulated: i64 in Wrapping, digits: i32 in Wrapping, negative: bool, sign: bool) -> Parsed {
         let observed: |console|::ByteRead = block |console|::Console::read_byte();
         transition observed {
             |console|::ByteRead::Eof -> finish(accumulated, digits, negative),
-            |console|::ByteRead::Byte { value } -> classify(accumulated, digits, negative, sign, value),
-            _ -> Parsed { value: 0, valid: false }
+            |console|::ByteRead::Byte { value } -> block classify(accumulated, digits, negative, sign, value),
+            _ -> Parsed { value: 0i64 as +Wrapping, valid: false }
         }
     }
     machine classify(accumulated: i64 in Wrapping, digits: i32 in Wrapping, negative: bool, sign: bool, byte: i32) -> Parsed {
         transition byte == 10 {
             true -> finish(accumulated, digits, negative),
-            false -> character(accumulated, digits, negative, sign, byte)
+            false -> block character(accumulated, digits, negative, sign, byte)
         }
     }
     machine character(accumulated: i64 in Wrapping, digits: i32 in Wrapping, negative: bool, sign: bool, byte: i32) -> Parsed {
         transition byte == 45 && digits == 0 && !sign {
-            true -> scan(accumulated, digits, true, true),
-            false -> digit(accumulated, digits, negative, byte)
+            true -> block scan(accumulated, digits, true, true),
+            false -> block digit(accumulated, digits, negative, byte)
         }
     }
     machine digit(accumulated: i64 in Wrapping, digits: i32 in Wrapping, negative: bool, byte: i32) -> Parsed {
         transition byte >= 48 && byte <= 57 && digits < 10 {
-            true -> accumulate(accumulated, digits, negative, byte),
-            false -> Parsed { value: 0, valid: false }
+            true -> block accumulate(accumulated, digits, negative, byte),
+            false -> Parsed { value: 0i64 as +Wrapping, valid: false }
         }
     }
     machine accumulate(accumulated: i64 in Wrapping, digits: i32 in Wrapping, negative: bool, byte: i32) -> Parsed {
         let next: i64 in Wrapping = accumulated * 10 + (byte as i64 +Wrapping) - 48;
-        transition { _ -> scan(next, digits + 1, negative, true) }
+        transition { _ -> block scan(next, digits + 1, negative, true) }
     }
     machine finish(accumulated: i64 in Wrapping, digits: i32 in Wrapping, negative: bool) -> Parsed {
         transition negative {

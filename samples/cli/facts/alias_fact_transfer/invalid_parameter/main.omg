@@ -12,27 +12,28 @@ data Main {
     player: Player;
 }
 
-machine Main::inspect(player: Player)
+machine inspect(player: Player)
 requires
     player in Player::Alive
 {
 }
 
-machine Main::carry(player: Player) {
-    Main::inspect(player);
+machine carry(player: Player) {
+    inspect(player);
 }
 
-machine Main::main(main: @mutable Main)
+machine observe_player(main: @mutable Main)
 requires
     main.player in Player::Alive
 {
     let mutable copy: Player = main.player;
-    Main::carry(copy);
+    carry(copy);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start()
 {
-    let mutable entry_storage: Main;
-    Main::main(@mutable entry_storage);
+    let mutable entry_storage: Main = Main { player: Player { health: 1 } };
+    observe_player(@mutable entry_storage);
+    carry(Player { health: 0 });
 }

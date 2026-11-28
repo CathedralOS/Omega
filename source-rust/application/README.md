@@ -220,8 +220,11 @@ separately produced components is refused during compilation for interpretation
 native images. Streams are forwarded afterwards, not live.
 
 Compilation emits requested products and diagnostics, not debug dumps.
-`--timings` prints command-stage durations and total elapsed time to stderr;
-otherwise no timings are collected.
+`--timings` prints the command timeline and total elapsed time to stderr.
+For source builds it also prints the measured Product stages with their input
+and output forms. Each phase row sums its recorded durations and gives the
+number of measurements in `[n=…]`. Nested phases and parallel workers can
+cover the same elapsed interval. Use the command timeline for wall time.
 `--report-file <path>` writes the compile report (product, target, summary and
 publication lines) to a plain-text file. For a native publication, it includes
 the launchable executable path, the program’s process-exit capability and the

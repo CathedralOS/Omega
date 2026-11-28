@@ -18,8 +18,8 @@ pub struct PackageCallableSites {
 struct OpenedCall {
     operation: OperationId,
     contract: CallableContractId,
-    witnesses: Vec<StructuralTypeId>,
-    stored_referents: Vec<Option<StructuralTypeId>>,
+    admitted: Vec<CallableContractId>,
+    stored_arguments: Vec<Option<StructuralTypeId>>,
 }
 
 impl PackageCallableSites {
@@ -31,31 +31,49 @@ impl PackageCallableSites {
         field: StructuralFieldId,
         actual: &terminal_psi::StructuralFieldType,
     ) -> CallableValueResult<()> {
+        self.stored_field(
+            types,
+            position,
+            (record.place, record.structural_type),
+            (&[], field),
+            actual,
+        )
+    }
+
+    /// Retain the concrete contract only for the exact write whose package
+    /// receipt admitted this callable field. This records a type transition;
+    /// the ordinary storage equations still recover the descriptor itself.
+    pub fn stored_field(
+        &mut self,
+        types: &[StructuralTypeDeclaration],
+        position: DescriptorPosition,
+        (destination, root): (PlaceId, StructuralTypeId),
+        (path, field): (&[terminal_psi::StructuralPathSegment], StructuralFieldId),
+        actual: &terminal_psi::StructuralFieldType,
+    ) -> CallableValueResult<()> {
         let Some(ScalarType::Callable(actual)) = actual.scalar_type() else {
             return Ok(());
         };
-        let declaration = crate::structural_declaration(types.iter(), record.structural_type)
-            .and_then(|record| {
-                record
-                    .shape
-                    .fields()
-                    .find(|candidate| candidate.id == field)
-            })
+        let declaration = crate::projected_field_declaration(types.iter(), root, path, field)
             .ok_or("package callable write names an absent field")?;
         let Some(ScalarType::Callable(public)) = declaration.field_type.scalar_type() else {
             return Err("package callable write names a non-callable field");
         };
         if actual != public {
-            let location = DescriptorLocation {
-                root: record.place,
-                path: vec![DescriptorPathSegment::Field(field)],
-            };
+            let location = crate::descriptor_lifetimes::descriptor_location(
+                types,
+                destination,
+                root,
+                path,
+                Some(field),
+            )
+            .ok_or("package callable write has no storage path")?;
             if self
                 .writes
                 .insert((position, location), (public, actual))
                 .is_some()
             {
-                return Err("package callable field has two writes at one construction");
+                return Err("package callable field has two writes at one site");
             }
         }
         Ok(())
@@ -66,22 +84,22 @@ impl PackageCallableSites {
         catalog: &TerminalCallableCatalog,
         operation: OperationId,
         contract: CallableContractId,
-        witnesses: &[StructuralTypeId],
-        referents: impl IntoIterator<Item = (usize, StructuralTypeId)>,
+        admitted: Vec<CallableContractId>,
+        arguments: impl IntoIterator<Item = (usize, StructuralTypeId)>,
     ) -> CallableValueResult<()> {
         let interface = catalog
             .contract(contract)
             .ok_or("package call lacks its opened contract")?;
-        let mut stored_referents = vec![None; interface.structural_parameters.len()];
-        for (i, public) in referents {
+        let mut stored_arguments = vec![None; interface.structural_parameters.len()];
+        for (i, public) in arguments {
             let formal = interface
                 .structural_parameters
                 .get(i)
-                .ok_or("package call names an absent borrowed parameter")?;
-            if formal.access == StructuralAccess::Owned
-                || stored_referents[i].replace(public).is_some()
+                .ok_or("package call names an absent parameter")?;
+            if (formal.access == StructuralAccess::Owned && formal.structural_type != public)
+                || stored_arguments[i].replace(public).is_some()
             {
-                return Err("package call names an invalid borrowed parameter");
+                return Err("package call names an invalid opened argument");
             }
         }
         let Err(index) = self
@@ -95,8 +113,8 @@ impl PackageCallableSites {
             OpenedCall {
                 operation,
                 contract,
-                witnesses: witnesses.to_vec(),
-                stored_referents,
+                admitted,
+                stored_arguments,
             },
         );
         Ok(())
@@ -126,20 +144,11 @@ impl PackageCallableSites {
 
     pub(super) fn admits_descriptor(
         &self,
-        module: Option<&terminal_psi::TerminalModule>,
         invocation: &CallableInvocation,
         actual: CallableContractId,
     ) -> bool {
-        module
-            .zip(self.call(invocation))
-            .is_some_and(|(module, call)| {
-                crate::packages::opened_callable_admits(
-                    module,
-                    &call.witnesses,
-                    call.contract,
-                    actual,
-                )
-            })
+        self.call(invocation)
+            .is_some_and(|call| call.admitted.contains(&actual))
     }
 
     pub(super) fn stored_argument(
@@ -148,7 +157,7 @@ impl PackageCallableSites {
         index: usize,
     ) -> Option<StructuralTypeId> {
         self.call(invocation)?
-            .stored_referents
+            .stored_arguments
             .get(index)
             .copied()
             .flatten()

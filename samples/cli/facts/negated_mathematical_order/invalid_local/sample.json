@@ -2,6 +2,8 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "exact arithmetic in machine `main` state `entry` local `remaining` may overflow `u64`"
+    "exact arithmetic in machine `main` state `entry` local `remaining` may overflow `u64`",
+    "cannot prove the value of this cast is in the domain it adds",
+    "domain `u64::Small` requires `within(5, self)`"
   ]
 }

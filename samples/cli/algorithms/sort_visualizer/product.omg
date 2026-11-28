@@ -1,0 +1,20 @@
+use main.omg as app;
+use {system}/clock.omg;
+use {omega}/build/dependency.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "sort_visualizer" };
+    let system: DependencyDescription = |dependency|::from_source(Source::Bundled { name: "system" });
+    let allowed: [BoundaryServiceReference; 4] = [
+        Build::service::<|process_authority|::StandardInput>(builder),
+        Build::service::<|process_authority|::StandardOutput>(builder),
+        Build::service::<|process_exit|::ProcessExit>(builder),
+        Build::service::<|clock|::Clock>(builder)
+    ];
+    _ = |dependency|::add(builder, system, @allowed[..]);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::entry_start);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::entry_start);
+}

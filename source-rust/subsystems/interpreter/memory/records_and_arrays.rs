@@ -781,13 +781,55 @@ pub(crate) mod record {
                 multiplicity: StructuralMultiplicity,
                 identity_cursor: &mut Option<u64>,
             ) -> Result<StagedOwnedValue, TerminalInterpretError> {
+                self.stage_owned_value_for_move(
+                    source,
+                    structural_type,
+                    multiplicity,
+                    identity_cursor,
+                    None,
+                )
+            }
+
+            pub(crate) fn stage_owned_value_for_move(
+                &self,
+                source: &StructuralArgument,
+                structural_type: StructuralTypeId,
+                multiplicity: StructuralMultiplicity,
+                identity_cursor: &mut Option<u64>,
+                operation: Option<&terminal_psi::Operation>,
+            ) -> Result<StagedOwnedValue, TerminalInterpretError> {
                 if source.access != StructuralAccess::Owned {
                     return Err(TerminalInterpretError::ClaimTransferMismatch);
                 }
                 let child = ConstructorValue::resolve(self, source)?;
-                if child.structural_type() != structural_type {
-                    return Err(malformed());
-                }
+                let (whole, projected) = child.memberships();
+                let (qualifications, projected_qualifications) =
+                    if child.structural_type() == structural_type {
+                        (whole.to_vec(), projected.to_vec())
+                    } else {
+                        let operation = operation.ok_or_else(malformed)?;
+                        let machine = self.program.verified_machine(self.current_machine)?;
+                        let public = terminal_semantics::structural_qualifications::Memberships {
+                            whole: whole.to_vec(),
+                            projected: projected.to_vec(),
+                        };
+                        let result = operation.result.structural().ok_or_else(malformed)?;
+                        if result.structural_type != structural_type
+                            || !self.program.package_sites()?.moved_owner_carries(
+                                &self.program.catalogs,
+                                machine,
+                                operation,
+                                child.structural_type(),
+                                &public,
+                            )
+                        {
+                            return Err(malformed());
+                        }
+                        (
+                            result.qualifications.clone(),
+                            result.projected_qualifications.clone(),
+                        )
+                    };
                 if let ConstructorValue::Access(value) = &child
                     && crate::engine::custody::has_live_loan(
                         self.reference_referents.as_map(),
@@ -804,14 +846,13 @@ pub(crate) mod record {
                     .iter()
                     .map(|(_, claim)| claim.path.clone())
                     .collect::<Vec<_>>();
-                let (qualifications, projected_qualifications) = child.memberships();
                 let retained = TerminalStructuralValue {
                     opaque_identity: self
                         .local_structural_identities
                         .allocate_staged(identity_cursor)?,
                     structural_type,
-                    qualifications: qualifications.to_vec(),
-                    projected_qualifications: projected_qualifications.to_vec(),
+                    qualifications,
+                    projected_qualifications,
                     path: Vec::new(),
                 };
                 let transfers_custody = !claims.is_empty()
@@ -1147,6 +1188,7 @@ pub(crate) mod record {
         crate::storage::byte_sequences::binding::ByteOwnerHome,
         ByteSequenceView,
     )>,
+    pub(super) package_owner_storage: RuntimeRows<StructuralRuntimePlace, StructuralTypeId>,
     cases: RuntimeRows<
         StructuralRuntimePlace,
         crate::boundary::structural_inputs::case_membership::StructuralCaseContents,
@@ -1273,6 +1315,7 @@ pub(crate) mod record {
                     (byte_arrays, structural_byte_storage),
                     (array_initialization.rows, array_initialization.rows),
                     (cases, structural_cases),
+                    (package_owner_storage, package_owner_storage),
                 )
             };
             (@measure $self:expr, $custody:expr; $(($($l:ident).+, $($r:ident).+),)*) => {{
@@ -1387,6 +1430,7 @@ pub(crate) mod record {
                         ),
                     owner_writes: Vec::new(),
                     cases: RuntimeRows::new(account),
+                    package_owner_storage: RuntimeRows::new(account),
                 }
             }
 
@@ -1409,6 +1453,9 @@ pub(crate) mod record {
                 let relocate = |home: &StructuralRuntimePlace| {
                     relocate_place(&source, destination, home).ok_or_else(malformed)
                 };
+                for (home, ty) in &original.package_owner_storage {
+                    self.package_owner_storage.insert(relocate(home)?, *ty)?;
+                }
                 for (home, root) in &original.original_roots {
                     self.original_roots.insert(relocate(home)?, *root)?;
                 }
@@ -2116,6 +2163,9 @@ pub(crate) mod record {
                 relocate_cells!(execution.structural_host_atoms, |_h, atom, target| {
                     self.host_atoms.insert(target, *atom)?;
                 });
+                relocate_cells!(execution.package_owner_storage, |_h, ty, target| {
+                    self.package_owner_storage.insert(target, *ty)?;
+                });
                 relocate_cells!(execution.structural_cases, |_h, case, target| {
                     self.cases.insert(target, *case)?;
                 });
@@ -2613,16 +2663,22 @@ pub(crate) mod record {
                             self.stage_constructor_operand(argument, &mut frontier, &mut consumed)?;
                         let mut member_path = value.path.clone();
                         member_path.push(StructuralPathSegment::Field(declaration.identity));
-                        storage.stage(
-                            self,
-                            argument,
-                            &child,
-                            &StructuralRuntimePlace {
-                                opaque_identity: value.opaque_identity,
-                                path: member_path,
-                            },
-                            transfers_custody,
-                        )?;
+                        let home = StructuralRuntimePlace {
+                            opaque_identity: value.opaque_identity,
+                            path: member_path,
+                        };
+                        storage.stage(self, argument, &child, &home, transfers_custody)?;
+                        if *field_type != declaration.field_type
+                            && matches!(
+                                self.structural_declaration(child.structural_type())?.shape,
+                                StructuralTypeShape::Record { .. }
+                            )
+                            && !storage.package_owner_storage.contains_key(&home)
+                        {
+                            storage
+                                .package_owner_storage
+                                .insert(home, child.structural_type())?;
+                        }
                     }
                 }
             }
@@ -6731,6 +6787,8 @@ pub(crate) mod structural_storage {
             self.array_initialization.reclaim_orphan_records(&mut roots);
             self.structural_scalar_fields
                 .retain(|key, _| roots.contains(&key.parent.opaque_identity));
+            self.package_owner_storage
+                .retain(|home, _| roots.contains(&home.opaque_identity));
         }
     }
 }

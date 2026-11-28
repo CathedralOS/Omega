@@ -20,15 +20,9 @@ pub(crate) fn local_mutable_field_homes(
 ) -> Option<Vec<(PlaceId, Vec<StructuralPathSegment>)>> {
     let root = machine.structural_place_type(source)?;
     let member = fields::hidden_reference_field(module, root, path)?;
-    if member.access != StructuralAccess::MutableBorrow
-        || member
-            .path
-            .iter()
-            .any(|step| step.runtime_index().is_some())
-    {
+    if member.access != StructuralAccess::MutableBorrow {
         return None;
     }
-    let types = &module.types.structural_types;
     let replayed;
     let checked = match checked {
         Some(checked) => checked,
@@ -37,6 +31,35 @@ pub(crate) fn local_mutable_field_homes(
             &replayed
         }
     };
+    field_homes(
+        module,
+        machine,
+        at,
+        references,
+        (source, path),
+        member,
+        checked,
+    )
+}
+
+fn field_homes(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    at: DescriptorPosition,
+    references: &mut DescriptorAnalysis<'_>,
+    (source, path): (PlaceId, &[StructuralPathSegment]),
+    member: fields::HiddenReferenceField<'_>,
+    checked: &CheckedPackageSites,
+) -> Option<Vec<(PlaceId, Vec<StructuralPathSegment>)>> {
+    if member
+        .path
+        .iter()
+        .any(|step| step.runtime_index().is_some())
+    {
+        return None;
+    }
+    let types = &module.types.structural_types;
+    let root = machine.structural_place_type(source)?;
     let slot = descriptor_location(types, source, root, path, None)?;
     let homes = references.local_reference_homes(machine.id, at, &slot)?;
     let mut pending: BTreeSet<_> = homes.iter().collect();
@@ -146,4 +169,96 @@ pub fn local_call_write_origins(
         })
     })
     .collect()
+}
+
+/// The concrete local address of each checked package reference used by this
+/// invocation. A reference read from an incoming package can remain symbolic.
+/// A local input contributes an address only after its actual captured home
+/// has been recovered from the corresponding typed construction.
+pub(crate) fn opened_call_homes(
+    module: &TerminalModule,
+    checked: &CheckedPackageSites,
+    machine: MachineId,
+    operation: OperationId,
+    at: DescriptorPosition,
+    references: &mut DescriptorAnalysis<'_>,
+) -> Vec<(DescriptorLocation, DescriptorLocation)> {
+    let mut homes = Vec::new();
+    if checked.invocation_contract(machine, operation).is_none() {
+        return homes;
+    }
+    let Some(machine) = module.machine(machine) else {
+        return homes;
+    };
+    let Some(operation) = machine.operation(operation) else {
+        return homes;
+    };
+    let OperationKind::CallMachine {
+        structural_arguments,
+        ..
+    } = &operation.kind
+    else {
+        return homes;
+    };
+    let types = &module.types.structural_types;
+    let location = |place, path: &[StructuralPathSegment]| {
+        descriptor_location(
+            types,
+            place,
+            machine.structural_place_type(place)?,
+            path,
+            None,
+        )
+    };
+    for (i, arg) in structural_arguments.iter().enumerate() {
+        if checked
+            .borrowed_argument(machine.id, operation.id, i)
+            .is_none()
+        {
+            continue;
+        }
+        let Some((StructuralPathSegment::Referent, carrier)) = arg.path.split_last() else {
+            continue;
+        };
+        let Some(member) = machine
+            .structural_place_type(arg.place)
+            .and_then(|root| fields::hidden_reference_field(module, root, carrier))
+        else {
+            continue;
+        };
+        let Some(targets) = field_homes(
+            module,
+            machine,
+            at,
+            references,
+            (arg.place, carrier),
+            member,
+            checked,
+        )
+        .or_else(|| {
+            let slot = location(arg.place, carrier)?;
+            super::returned::local_result_homes(
+                module,
+                machine,
+                references.source_rows(),
+                references,
+                at,
+                &slot,
+            )
+        }) else {
+            continue;
+        };
+        let [(source, path)] = targets.as_slice() else {
+            continue;
+        };
+        if path.iter().any(|step| step.runtime_index().is_some()) {
+            continue;
+        }
+        if let (Some(input), Some(backing)) =
+            (location(arg.place, &arg.path), location(*source, path))
+        {
+            homes.push((input, backing));
+        }
+    }
+    homes
 }

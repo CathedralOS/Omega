@@ -1082,7 +1082,7 @@ fn statement_homes<'b>(
             expression_homes(value, slots, homes);
         }
         // A scalar local declared without an initializer is its own home.
-        Statement::AssemblyAdjacent { .. } => {}
+        Statement::AssemblyAdjacent { .. } | Statement::AssemblyRegister { .. } => {}
         Statement::Declare { slot, home, .. } => {
             if let Some(value_type @ ValueType::Scalar(..)) = slots.get(*slot).copied() {
                 homes(value_type, home.as_ref(), None);
@@ -1494,6 +1494,7 @@ impl Records<'_> {
 /// place that is its home.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Bound {
+    UninitializedRegister,
     Scalar(ValueId),
     Record(PlaceId),
     Observed(usize),
@@ -1982,6 +1983,50 @@ impl<'a> Lowering<'a> {
             .ok_or_else(|| self.internal("a case is past its sum's declaration"))
     }
 
+    /// A nested projection can be typed as Link<opened S> while its parent
+    /// place still stores Link<schema S>. Resolve the checked loan coordinate
+    /// in the stored declaration, just as the operation's named path does.
+    fn stored_field_id(
+        &self,
+        parent: ExactPlaceId,
+        step: Step,
+    ) -> Checked<semantic_vocabulary::StructuralFieldId> {
+        let selected = self.declared(step)?.id;
+        let Step::Field { owner, .. } = step else {
+            return Ok(selected);
+        };
+        if self.records.field_openings.is_empty() {
+            return Ok(selected);
+        }
+        let (root, path) = self.lineage(parent)?;
+        let (_, root_type) = self
+            .roots
+            .get(root)
+            .ok_or_else(|| self.internal("field parent has no root type"))?;
+        let Some(stored) = terminal_semantics::descriptor_lifetimes::descriptor_location_type(
+            self.structural_types,
+            *root_type,
+            &path,
+        ) else {
+            return Ok(selected);
+        };
+        if owner == stored {
+            return Ok(selected);
+        }
+
+        use semantic_vocabulary::CanonicalStructuralPathSegment::Field;
+        let mapped = terminal_semantics::call_projection::translate(
+            self.structural_types,
+            owner,
+            stored,
+            &[Field(selected)],
+        );
+        match mapped.as_deref() {
+            Some([Field(field)]) => Ok(*field),
+            _ => Err(self.internal("opened member does not match its declared storage field")),
+        }
+    }
+
     /// The place one step beneath `parent`, interned.
     fn step(&mut self, parent: ExactPlaceId, step: Step) -> Checked<ExactPlaceId> {
         if let Step::Referent { owner } = step {
@@ -2005,7 +2050,7 @@ impl<'a> Lowering<'a> {
                 },
             );
         }
-        let field = self.declared(step)?.id;
+        let field = self.stored_field_id(parent, step)?;
         let parent = match step {
             Step::Index { .. } | Step::Referent { .. } => {
                 return Err(self.internal("a non-field step was not projected"));
@@ -2623,9 +2668,12 @@ impl<'a> Lowering<'a> {
                         record,
                         fresh: false,
                     })),
-                    Some(Bound::Scalar(_) | Bound::Home(_) | Bound::Erased(_)) => {
-                        Err(self.internal("a scalar slot is used as a record"))
-                    }
+                    Some(
+                        Bound::Scalar(_)
+                        | Bound::UninitializedRegister
+                        | Bound::Home(_)
+                        | Bound::Erased(_),
+                    ) => Err(self.internal("a scalar slot is used as a record")),
                     None => Err(self.internal("a slot is read before it is bound")),
                 }
             }
@@ -5563,36 +5611,36 @@ impl<'a> Lowering<'a> {
                 let stored = continuing!(self.scalar(value));
                 let operation = self.operation_identity(source);
 
-                let kind = if let Some(Step::Field { .. }) = steps.last() {
-                    let field = self
-                        .declared(
-                            *steps
-                                .last()
-                                .ok_or_else(|| self.internal("a field store lost its step"))?,
-                        )?
-                        .id;
-                    let storage = self.storage_path(
-                        &steps[..steps.len() - 1],
-                        ExecutionSite::Operation(operation),
-                        source,
-                    )?;
-                    OperationKind::StructuralScalarFieldStore {
-                        destination: root,
-                        path: storage,
-                        field,
-                        value: stored,
-                        range_obligation: None,
-                    }
-                } else {
-                    let storage =
-                        self.storage_path(&steps, ExecutionSite::Operation(operation), source)?;
-                    OperationKind::WriteOnlyPrimitiveStore {
-                        destination: root,
-                        path: storage,
-                        value: stored,
-                        range_obligation: None,
-                    }
-                };
+                let kind =
+                    if let Some((step @ Step::Field { owner, .. }, parent)) = steps.split_last() {
+                        let field = self.declared(*step)?.id;
+                        let storage =
+                            self.storage_path(parent, ExecutionSite::Operation(operation), source)?;
+                        if let Some(projection) = projected {
+                            let subject = StructuralArgument {
+                                place: root,
+                                path: storage.clone(),
+                                access: StructuralAccess::SharedBorrow,
+                            };
+                            self.package_store_site(projection, subject, *owner, field, operation)?;
+                        }
+                        OperationKind::StructuralScalarFieldStore {
+                            destination: root,
+                            path: storage,
+                            field,
+                            value: stored,
+                            range_obligation: None,
+                        }
+                    } else {
+                        let storage =
+                            self.storage_path(&steps, ExecutionSite::Operation(operation), source)?;
+                        OperationKind::WriteOnlyPrimitiveStore {
+                            destination: root,
+                            path: storage,
+                            value: stored,
+                            range_obligation: None,
+                        }
+                    };
                 self.emit(operation, None, kind)?;
                 self.write(
                     place,

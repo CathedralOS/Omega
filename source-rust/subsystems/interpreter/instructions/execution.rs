@@ -3100,6 +3100,9 @@ pub(crate) mod execution {
             RuntimeRows<StructuralRuntimePlace, StructuralByteArrayStorage>,
         pub(crate) array_initialization: ArrayInitialization,
         pub(crate) structural_cases: RuntimeRows<StructuralRuntimePlace, StructuralCaseContents>,
+        /// Concrete record storage installed at an authenticated package field.
+        pub(crate) package_owner_storage:
+            RuntimeRows<StructuralRuntimePlace, semantic_vocabulary::StructuralTypeId>,
         pub(crate) structural_host_atoms:
             RuntimeRows<StructuralRuntimePlace, HostStructuralPayload>,
         pub(crate) component_byte_arrays:
@@ -3263,6 +3266,7 @@ pub(crate) mod execution {
         },
         Structural {
             result: StructuralOperationResult,
+            opened_owner: Option<semantic_vocabulary::CallableContractId>,
             claim_origin: ResultClaimOrigin,
             expected_reference_backings: Vec<Vec<crate::storage::reference::ReferenceBacking>>,
             preserved_projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
@@ -3570,6 +3574,7 @@ pub(crate) mod execution {
                 structural_byte_storage: RuntimeRows::new(account.as_ref()),
                 array_initialization: ArrayInitialization::new(account.as_ref()),
                 structural_cases: RuntimeRows::new(account.as_ref()),
+                package_owner_storage: RuntimeRows::new(account.as_ref()),
                 structural_host_atoms: RuntimeRows::new(account.as_ref()),
                 component_byte_arrays: RuntimeRows::new(account.as_ref()),
                 component_lent_host_atoms: RuntimeRows::new(account.as_ref()),

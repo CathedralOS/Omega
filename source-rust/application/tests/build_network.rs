@@ -1,11 +1,15 @@
 //! An accepted Build sends a real datagram through its own registration's backing.
+#[cfg(unix)]
+#[path = "build_network/git.rs"]
+mod git;
 #[path = "support/project.rs"]
 mod project;
 mod support;
 
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::{
-    collections::HashSet,
+    collections::{BTreeMap, HashSet},
+    ffi::OsString,
     fs,
     io::ErrorKind,
     net::{SocketAddr, UdpSocket},
@@ -16,6 +20,7 @@ use std::{
 struct Fixture {
     packages: TemporaryDirectory,
     peer: UdpSocket,
+    environment: BTreeMap<&'static str, OsString>,
 }
 
 impl Fixture {
@@ -25,6 +30,7 @@ impl Fixture {
         Self {
             packages: TemporaryDirectory::create("omega-build-network", false).unwrap(),
             peer,
+            environment: BTreeMap::new(),
         }
     }
 
@@ -47,6 +53,7 @@ impl Fixture {
         command
             .args(args)
             .current_dir(self.root())
+            .envs(&self.environment)
             .env(
                 "OMEGA_LIBRARY_ROOT",
                 support::repository_root().join("source/library"),
@@ -80,7 +87,11 @@ impl Fixture {
 
     fn update(&self, grant: bool) -> Output {
         let peer = grant.then(|| self.peer.local_addr().unwrap());
-        let mut result = self.cli(&["packages", "update"], grant, peer);
+        self.finish_update(self.cli(&["packages", "update"], grant, peer), grant)
+    }
+
+    fn finish_update(&self, mut result: Output, grant: bool) -> Output {
+        let peer = grant.then(|| self.peer.local_addr().unwrap());
         let mut edited = HashSet::new();
         while result.status.code() == Some(3) {
             let mut accepted = false;
@@ -315,6 +326,47 @@ fn an_inheriting_child_can_send_and_its_offline_sibling_cannot() {
     );
     assert!(fixture.packets().iter().all(|s| s == "live"));
     assert_eq!(fs::read(&lock).unwrap(), accepted_lock);
+}
+
+#[test]
+fn reviewed_nested_dependencies_keep_their_own_build_sources() {
+    let fixture = Fixture::new();
+    fixture.package("root", r#"machine build(b: @mutable BuildPlan) suspends {
+        let board: DependencyRegistration = Build::dependency(b, Source::Path { location: "board" }, Networking::Inherit);
+        let assets: DependencyRegistration = Build::dependency(b, Source::Path { location: "assets" });
+        suspend Build::prepare_dependency(b, board);
+        suspend Build::prepare_dependency(b, assets);
+        b.product = BuildProduct::Package { name: "release" };
+    }"#);
+    fixture.package("root/board", &sender("board"));
+    fixture.package("root/assets", &consumer("assets", &[]));
+
+    let published = fixture.update(true);
+    assert!(published.status.success(), "{}", report(&published));
+    let lock = fs::read_to_string(fixture.root().join("omega.lock")).unwrap();
+    assert!(lock.contains("board") && lock.contains("assets"), "{lock}");
+    let packets = fixture.packets();
+    assert!(
+        !packets.is_empty() && packets.iter().all(|packet| packet == "board"),
+        "{packets:?}"
+    );
+
+    project::write(
+        &fixture.root().join("board_support"),
+        &[
+            ("build.omg", "machine still_parent_owned() -> u8 { 0u8 }"),
+            (
+                "own.omg",
+                "public machine own() -> u32 { missing_parent_value }",
+            ),
+        ],
+    );
+    let invalid = fixture.update(true);
+    let message = report(&invalid);
+    assert!(
+        !invalid.status.success() && message.contains("board_support::own"),
+        "{message}"
+    );
 }
 
 #[test]
@@ -666,4 +718,61 @@ machine build(builder: @mutable BuildPlan) suspends blocks {
     };
     assert_eq!(package.name.as_str(), "recorded_failure");
     assert!(fixture.packets().is_empty());
+}
+
+#[test]
+fn a_missing_network_grant_names_the_denied_registration_of_the_same_source() {
+    for prepare in [false, true] {
+        let fixture = Fixture::new();
+        fixture.package("shared", &sender("shared"));
+        let await_board = if prepare {
+            "suspend Build::prepare_dependency(b, board);"
+        } else {
+            ""
+        };
+        let await_preview = if prepare {
+            "suspend Build::prepare_dependency(b, preview);"
+        } else {
+            ""
+        };
+        let build = format!(
+            r#"use {{omega}}/build/dependency.omg as dependency;
+use main.omg as app;
+machine build(b: @mutable BuildPlan) suspends {{
+    let mutable first: DependencyDescription = |dependency|::from_source(Source::Path {{ location: "../shared" }});
+    |dependency|::with_alias(@mutable first, "board");
+    let board: DependencyRegistration = Build::dependency(b, first, Networking::Inherit);
+    {await_board}
+    let mutable second: DependencyDescription = |dependency|::from_source(Source::Path {{ location: "../shared" }});
+    |dependency|::with_alias(@mutable second, "preview");
+    let preview: DependencyRegistration = Build::dependency(b, second);
+    {await_preview}
+    b.product = BuildProduct::Application {{ name: "root" }};
+    Build::bind(b, {}::ProgramEntry, |app|::main);
+}}"#,
+            target::TargetProfile::host_if_supported()
+                .unwrap()
+                .target_name()
+        );
+        project::write(
+            &fixture.root(),
+            &[("build.omg", &build), ("main.omg", "machine main() {}")],
+        );
+        let peer = fixture.peer.local_addr().unwrap();
+        for output in [
+            fixture.cli(&["build", "build.omg"], true, Some(peer)),
+            fixture.update(true),
+        ] {
+            let message = report(&output);
+            assert_eq!(output.status.code(), Some(1), "{message}");
+            assert!(
+                message.contains("dependency registration `preview`")
+                    && message.contains("requires Network before entry"),
+                "{message}"
+            );
+            assert_send_path(&message, "call path: ");
+        }
+        assert_eq!(fixture.packets(), ["shared", "shared"]);
+        assert!(!fixture.root().join("omega.lock").exists());
+    }
 }

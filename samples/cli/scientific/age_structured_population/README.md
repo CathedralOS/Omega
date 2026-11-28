@@ -1,8 +1,8 @@
 # Age structured population (NEW057)
 
-A complete synthetic census forecast in Omega. Source checking has reached
-package admission; native and Terminal execution are currently blocked by a
-denied bundled-std package acceptance. Three bounded integer cohorts (newborn,
+The census forecast runs on an ARM64 Mac. Across all 23 frozen inputs, the
+native executable and the Mac-target Psi interpreter produced the expected
+exit status and exact CSV or error message. Three bounded integer cohorts (newborn,
 juvenile, open-ended adult) evolve under supplied cohort-specific survival,
 fertility and signed migration rates. This is a declared sample model, not an
 empirical demographic prediction. No external scientific library or worker
@@ -29,12 +29,12 @@ Zero-horizon runs emit only the initial census. Valid forecasts exit 0.
 The ordinary sample gate supplies empty stdin, so its annotations require the
 correct missing-input rejection (exit 2); the 23-case validator exercises forecasts.
 
-`demography/model.omg` owns the private census recurrence and admission rules;
-`demography/oracles.omg` checks 17 transitions from six pre-frozen fixtures at startup;
-`demography/input.omg` owns the bounded streaming parser; `demography/report.omg` owns
+`demography/model/model.omg` owns the private census recurrence and admission rules;
+`demography/oracles/oracles.omg` checks 17 transitions from six pre-frozen fixtures at startup;
+`demography/input/input.omg` owns the bounded streaming parser; `demography/report/report.omg` owns
 signed decimal CSV reporting. `main.omg` reads the input and drives the forecast.
-`build.omg` binds the entry to the documented Linux x86-64 program slot and uses
-the existing system Console provider. Output is stdout CSV suitable for redirection.
+`build.omg` binds the entry for Linux x86-64 and ARM64 macOS. The Build grants
+standard input, standard output and process exit to the bundled system library. Output is stdout CSV suitable for redirection.
 
 Existing samples were compared before authoring: `borrowed_sum_population`
 exercises linear values and borrowed population of a case carrier, rather than
@@ -59,18 +59,22 @@ provider failure or any other diagnostic is not a successful negative control.
 
 ## Commands
 
-From the repository root, use a compiler built from the recorded base revision
-with its matching `source/library` (set `OMEGA_LIBRARY_ROOT` to that absolute path).
-Here `omega` names that compiler and `S` is this sample directory:
+From this sample directory on an ARM64 Mac, use the compiler with its matching
+`source/library`. Use `target=linux_x86_64` on a Linux x86-64 host.
 
 ```sh
-S=samples/cli/scientific/age_structured_population
-omega packages update --project "$S" --target linux_x86_64
-# Review the exact generated pending decisions before accepting and resuming.
-omega --check "$S/main.omg"
-omega --build-dir "$S/build" "$S/main.omg"
-omega run --keep "$S/main.omg" < "$S/fixtures/births.input"
-omega --check "$S/controls/invalid_rate_type/invalid.omg"
+target=macos_arm64
+set --
+for source in build.omg main.omg demography/*/*.omg; do
+    set -- "$@" --build-input "$source"
+done
+omega packages update --project . --target "$target" "$@"
+# After reviewing the generated package decisions, resume the update.
+omega packages update --project . --resume
+omega run --target "$target" "$@" --input fixtures/births.input --outputs build/psi build.omg
+omega --target "$target" "$@" --build-dir build/native build.omg
+mbx reserve --cpus 1 -- build/native/omega-program < fixtures/births.input
+omega --check --target "$target" --build-input build.omg --build-input invalid.omg controls/invalid_rate_type/build.omg
 ```
 
 Native runs compare exact bytes with the frozen output oracle. The recorded comparison replayed the same input

@@ -252,6 +252,10 @@ pub(super) fn invocation(
                     "package consuming call uses an owner from a different or stale opening",
                 );
             }
+            checked.arguments.insert(
+                (machine.id, operation.id, i),
+                (formal.structural_type, StructuralAccess::Owned),
+            );
             continue;
         }
         let Some(position) = opened
@@ -271,8 +275,8 @@ pub(super) fn invocation(
             return Err("package argument differs from its opened parameter");
         }
         checked
-            .borrowed_arguments
-            .insert((machine.id, operation.id, i), referent);
+            .arguments
+            .insert((machine.id, operation.id, i), (referent, formal.access));
     }
     Ok(*contract)
 }

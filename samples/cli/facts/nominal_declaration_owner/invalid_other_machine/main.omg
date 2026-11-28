@@ -2,9 +2,8 @@
 // Expected exit: 0
 use {shared}/copied/copied.omg;
 use {shared}/library/library.omg as shared_library;
-data Relay {}
-machine Relay::forward(token: |copied|::Token) -> u8 { |shared_library|::read(token) }
-machine transported() -> u8 { Relay::forward(|copied|::Token { value: 7 }) }
+machine forward(token: |copied|::Token) -> u8 { |shared_library|::read(token) }
+machine transported() -> u8 { forward(|copied|::Token { value: 7 }) }
 machine main() crashes Trap {
     transition transported() == 7 { true -> done(), _ -> bad() }
     machine done() {}

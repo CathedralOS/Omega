@@ -9,7 +9,9 @@ use crate::descriptor_lifetimes::{
     descriptor_entry_lifetime_with_contents_indexed,
     descriptor_location_lifetime_with_contents_indexed, descriptor_path,
 };
-use crate::descriptor_results::{DescriptorAnalysis, DescriptorSlotKind};
+use crate::descriptor_results::{
+    DescriptorAnalysis, DescriptorCallOrigin, DescriptorSlotKind, DescriptorSourceOrigin,
+};
 use crate::descriptors::row_source::DescriptorRowSource;
 use crate::module_analyses::DescriptorRows;
 use arena::IdTable;
@@ -253,12 +255,63 @@ fn validate_call_owners(
     Ok(())
 }
 
-fn indexed_store_contents(
+fn required_contents(
     module: &TerminalModule,
     machine: &terminal_psi::TerminalMachine,
     prepared: &crate::descriptor_results::DescriptorMachine,
+    analysis: &mut DescriptorAnalysis<'_>,
 ) -> Result<Vec<(DescriptorPosition, DescriptorLocation)>, Error> {
     let mut contents = Vec::new();
+    // A scalar actual can point to a cell holding a live descriptor. Read its
+    // storage at exposure and retain the cell at the invocation, including calls
+    // that leave through a terminator. A dynamic selector retains its enclosing array.
+    for (&position, calls) in &prepared.calls {
+        let observed = calls
+            .iter()
+            .flatten()
+            .flat_map(|call| &call.native_address_arguments)
+            .flat_map(|actual| &actual.sources);
+        for actual in observed {
+            if !actual.storage_address
+                || !actual.pointee.is_some_and(|ty| {
+                    terminal_psi::structural_type_has_borrowed_storage_by(
+                        |id| module.structural_type(id),
+                        ty,
+                    )
+                })
+            {
+                continue;
+            }
+            let origins = analysis
+                .observed_storage_family(machine, actual.at, &actual.location)
+                .map_err(|detail| Error::local(machine.id, None, detail))?;
+            for origin in origins.into_iter().flatten() {
+                let DescriptorCallOrigin::Argument { source, projection } = origin else {
+                    continue;
+                };
+                let root = prepared.place_types.get(&source).ok_or_else(|| {
+                    Error::local(
+                        machine.id,
+                        None,
+                        "addressed reference cell lost its root type",
+                    )
+                })?;
+                let cell = projection
+                    .captured_storage_path()
+                    .and_then(|path| {
+                        crate::descriptor_lifetimes::descriptor_location(
+                            &module.types.structural_types,
+                            source,
+                            *root,
+                            &path,
+                            None,
+                        )
+                    })
+                    .unwrap_or_else(|| DescriptorLocation::whole(source));
+                contents.push((position, cell));
+            }
+        }
+    }
     for block in &machine.blocks {
         for (ordinal, operation) in block.operations.iter().enumerate() {
             let (OperationKind::StoreStructuralField {
@@ -320,7 +373,8 @@ fn indexed_store_contents(
             contents.push(((block.id, ordinal), location));
         }
     }
-    contents.sort_unstable_by_key(|(at, _)| *at);
+    contents.sort_unstable();
+    contents.dedup();
     Ok(contents)
 }
 
@@ -587,15 +641,14 @@ fn machine_candidates(
 ) -> Result<Candidates, Error> {
     validate_call_owners(module, machine, prepared)
         .map_err(|detail| Error::local(machine.id, None, detail))?;
-    // An indexed replacement requires an intact array at its own cut.
-    // Ending an old descriptor before that cut would make the compiler's
-    // own cleanup create a hole. Retaining it there does not read or escape
-    // its backing, and does not change how affine checking judges authored moves.
-    let contents = indexed_store_contents(module, machine, prepared)?;
+    // Compiler-inserted cleanup must leave the original descriptors available
+    // at each indexed replacement or call that can observe their contents.
+    let contents = required_contents(module, machine, prepared, analysis)?;
     let needs_contents = |at, name: &DescriptorLocation| {
-        contents
-            .binary_search_by_key(&at, |(position, _)| *position)
-            .is_ok_and(|index| contents[index].1.contains(name))
+        contents[contents.partition_point(|(position, _)| *position < at)..]
+            .iter()
+            .take_while(|(position, _)| *position == at)
+            .any(|(_, required)| required.contains(name))
     };
     let predecessors = FlowPredecessors::new(flow);
     let cutoff = build_dead_tail_cutoff(module, machine, flow, &predecessors, &contents);
@@ -726,6 +779,44 @@ fn machine_candidates(
                     lifetimes.push(retained.lifetime);
                 }
             }
+            // Forming a reference from the address of a local descriptor cell
+            // retains that cell until the new reference ends, just as an
+            // explicit structural borrow does. External addresses have no local owner.
+            let mut native_lenders = Vec::new();
+            if matches!(operation.kind, OperationKind::BorrowAt { .. }) {
+                let after = (
+                    birth.0,
+                    birth.1.checked_add(1).ok_or_else(|| {
+                        Error::local(
+                            machine.id,
+                            Some(operation.id),
+                            "native reference formation position overflows",
+                        )
+                    })?,
+                );
+                for origin in analysis
+                    .symbolic_source_origins(
+                        machine.id,
+                        after,
+                        &DescriptorLocation::whole(output.place),
+                    )
+                    .into_iter()
+                    .flatten()
+                {
+                    if let DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
+                        source,
+                        projection,
+                    }) = origin
+                        && let Some(path) = projection.captured_storage_path()
+                    {
+                        native_lenders.push(StructuralArgument {
+                            place: source,
+                            path,
+                            access: StructuralAccess::SharedBorrow,
+                        });
+                    }
+                }
+            }
             for slot in inventory.slots {
                 let lifetime = descriptor_location_lifetime_with_contents_indexed(
                     flow,
@@ -735,7 +826,10 @@ fn machine_candidates(
                     &slot,
                     needs_contents,
                 );
-                if let Some(source) = retained_loan_source(&operation.kind) {
+                for source in retained_loan_source(&operation.kind)
+                    .into_iter()
+                    .chain(&native_lenders)
+                {
                     add_dependencies(
                         module,
                         prepared,

@@ -580,6 +580,65 @@ _ = |dependency|::add(plan, request, @allowed[..]);
 }
 
 #[test]
+fn initialized_native_record_fields_and_array_elements_are_readable() {
+    let source = r#"
+data Table { tag: u8; pointer: address }
+machine field(location: address) -> address {
+    let table: @Table = |native|::borrow_at::<Table>(location);
+    table.pointer
+}
+machine element(location: address) -> u64 {
+    let array: @[u64; 2] = |native|::borrow_at::<[u64; 2]>(location);
+    array[1u64]
+}
+machine main() crashes Trap {
+    let values: [u64; 2] = [19u64, 31u64];
+    let raw: address = address_of(@values);
+    let table: Table = Table { tag: 3u8, pointer: raw };
+    transition element(field(address_of(@table))) == 31u64 { true -> {}, false -> wrong() }
+    machine wrong() { crash Trap; }
+}"#;
+    Program::new(source, &[READ]).assert_native_returns();
+}
+
+#[test]
+fn a_native_pointer_cell_can_be_read_and_retargeted() {
+    let source = r#"
+machine load(location: address) -> u8 {
+    let pointer: @address = |native|::borrow_at::<address>(location);
+    let value: @u8 = |native|::borrow_at::<u8>($pointer);
+    $value
+}
+machine retarget(location: address, destination: address) {
+    let pointer: @mutable address = |native|::borrow_mutable_at::<address>(location);
+    $pointer = destination;
+}
+machine main() crashes Trap {
+    let first: u8 = 19u8;
+    let second: u8 = 31u8;
+    let mutable pointer: address = address_of(@first);
+    let before: u8 = load(address_of(@pointer));
+    retarget(address_of(@pointer), address_of(@second));
+    let after: u8 = load(address_of(@pointer));
+    transition before == 19u8 && after == 31u8 && first == 19u8 && second == 31u8 {
+        true -> {}, false -> wrong()
+    }
+    machine wrong() { crash Trap; }
+}"#;
+    Program::new(source, &[READ, WRITE]).assert_native_returns();
+    let shared = source.replace(
+        "let pointer: @mutable address = |native|::borrow_mutable_at",
+        "let pointer: @address = |native|::borrow_at",
+    );
+    let output = Program::new(&shared, &[READ]).check();
+    let message = report(&output);
+    assert!(
+        !output.status.success() && message.contains("grants shared access only"),
+        "{message}"
+    );
+}
+
+#[test]
 fn a_derived_address_writes_only_the_middle_byte_of_an_owned_array() {
     let source = r#"
 machine change(base: address) crashes Trap {
@@ -846,8 +905,16 @@ fn assert_upgraded_window(element: &str, first: u32, second: u32) {
             "let writable: @mutable [{element}] = upgraded(@items[1..3]);\n    mark(writable);"
         ),
     ] {
-        let source = format!(
-            r#"
+        let source = upgraded_window_source(element, first, second, &change);
+        let program = Program::new(&source, &[UPGRADE]);
+        program.assert_native_returns();
+        program.assert_psi_returns();
+    }
+}
+
+fn upgraded_window_source(element: &str, first: u32, second: u32, change: &str) -> String {
+    format!(
+        r#"
 machine upgraded(shared: @[{element}]) -> @mutable [{element}] {{
     |native|::upgrade_mutability::<[{element}]>(shared)
 }}
@@ -876,10 +943,64 @@ machine main() crashes Trap {{
     machine wrong() crashes Trap {{ crash Trap; }}
 }}
 "#
+    )
+}
+
+#[test]
+fn a_runtime_selected_writer_can_upgrade_its_callers_window() {
+    for (element, first, second) in [("u8", 71, 83), ("u32", 65538, 131075)] {
+        let source = upgraded_window_source(element, first, second, "edit(@items[1..3]);").replace(
+            "machine main() crashes Trap {",
+            "machine main() crashes Trap { run(forward); }\nmachine run(edit: Edit) crashes Trap {",
+        );
+        let source = format!(
+            "data Edit = machine(window: @[{element}]) reaches |native|::BorrowMutabilityUpgrade crashes Trap;\n{source}"
         );
         let program = Program::new(&source, &[UPGRADE]);
         program.assert_native_returns();
         program.assert_psi_returns();
+        let alias = source.replace(
+            "edit(@items[1..3]);",
+            &format!("let held: @[{element}] = @items[1..3]; edit(@items[1..3]); observe(held);"),
+        ) + &format!("\nmachine observe(input: @[{element}]) {{}}\n");
+        let output = Program::new(&alias, &[UPGRADE]).check();
+        let diagnostic = report(&output);
+        assert!(
+            !output.status.success() && diagnostic.contains("conflicting reference remains live"),
+            "{diagnostic}"
+        );
+    }
+}
+
+#[test]
+fn a_helper_upgrading_a_window_excludes_other_loans_and_invalidates_written_values() {
+    for (element, first, second) in [("u8", 71, 83), ("u32", 65538, 131075)] {
+        let stale =
+            upgraded_window_source(
+                element,
+                first,
+                second,
+                "forward(@items[1..3]); old(items[1u64]);",
+            ) + &format!("\nmachine old(input: {element}) requires input == 23{element} {{}}\n");
+        let overlap = upgraded_window_source(
+            element,
+            first,
+            second,
+            &format!(
+                "let held: @[{element}] = @items[1..3]; forward(@items[1..3]); observe(held);"
+            ),
+        ) + &format!("\nmachine observe(input: @[{element}]) {{}}\n");
+        for (source, expected) in [
+            (stale, "cannot prove requires contract for call old"),
+            (overlap, "conflicting reference remains live"),
+        ] {
+            let output = Program::new(&source, &[UPGRADE]).check();
+            let diagnostic = report(&output);
+            assert!(
+                !output.status.success() && diagnostic.contains(expected),
+                "{element}: {diagnostic}"
+            );
+        }
     }
 }
 

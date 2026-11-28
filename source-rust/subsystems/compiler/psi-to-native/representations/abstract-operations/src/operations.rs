@@ -32,6 +32,15 @@ use terminal_psi::{
     StructuralTypeDeclaration, TerminalAffineCleanupAction as CleanupAction,
 };
 
+/// Type compatibility and stored borrows for an indirect call through an opened package.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OpenedPackageCall {
+    pub admitted_contracts: Vec<semantic_vocabulary::CallableContractId>,
+    /// A dependent argument retains its complete owned carrier type or the
+    /// referent type stored behind a borrowed package field.
+    pub stored_arguments: Vec<(usize, semantic_vocabulary::StructuralTypeId)>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StructuralStorageDeclaration {
     pub place: PlaceId,
@@ -470,8 +479,7 @@ define_abstract_operations! {
         psi_operation: OperationId,
         suspension_crossing: Option<semantic_vocabulary::SuspensionCrossingId>,
         callee: AbstractCallTarget,
-        /// Stored referent for each argument the call reborrows through a package opening.
-        opened_referents: Vec<(usize, semantic_vocabulary::StructuralTypeId)>,
+        opening: Option<OpenedPackageCall>,
         arguments: Vec<ValueId>, // Runtime scalar arguments in exact Terminal call order.
         structural_arguments: Vec<StructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,

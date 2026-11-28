@@ -28,7 +28,7 @@ omega --check samples/cli/facts/call_result_bound_discharge/main.omg
 mbx xtask sample-gate --filter samples/cli/facts/call_result_bound_discharge
 ```
 
-The native/Psi comparison reports the native exit and the Terminal Psi exit; agreement at zero is the place's runtime oracle.
+On Linux x86-64 the executables exit 0, and Psi returns normally with the same output.
 
 ## Reject twins
 
@@ -36,17 +36,17 @@ Each twin keeps the operation, the record and the construction shape identical a
 
 | Place | Reject Twin | Authored diagnostic fragment |
 | --- | --- | --- |
-| local | [invalid_local/main.omg](invalid_local/main.omg) | `cannot prove requires contract for call echo from Main::main: s <= 5` |
-| field | [invalid_field/main.omg](invalid_field/main.omg) | `cannot prove requires contract for call echo from Main::main: reading.scale <= 5` |
-| parameter | [invalid_parameter/main.omg](invalid_parameter/main.omg) | `cannot prove requires contract for call deliver from Main::main: s <= 5` |
-| call_result | [invalid_call_result/main.omg](invalid_call_result/main.omg) | `the instantiated fact is structurally false (`9 <= 5`)` |
+| local | [invalid_local/main.omg](invalid_local/main.omg) | `cannot prove requires contract for call echo from check_result: s <= 5` |
+| field | [invalid_field/main.omg](invalid_field/main.omg) | `cannot prove requires contract for call echo from check_result: reading.scale <= 5` |
+| parameter | [invalid_parameter/main.omg](invalid_parameter/main.omg) | `cannot prove requires contract for call deliver from check_result: s <= 5` |
+| call_result | [invalid_call_result/main.omg](invalid_call_result/main.omg) | `cannot prove requires contract for call echo from check_result: nine() <= 5` |
 | match_join | [invalid_match_join/main.omg](invalid_match_join/main.omg) | `cannot prove requires contract for call echo from choose: scale <= 5` |
-| const_name | [invalid_const_name/main.omg](invalid_const_name/main.omg) | `the instantiated fact is structurally false (`9 <= 5`)` |
+| const_name | [invalid_const_name/main.omg](invalid_const_name/main.omg) | `cannot prove requires contract for call echo from check_result: SCALE <= 5` |
 | other_state | [invalid_other_state/main.omg](invalid_other_state/main.omg) | `cannot prove requires contract for call hold from carry: scale <= 5` |
-| other_machine | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | `the instantiated fact is structurally false (`9 <= 5`)` |
-| target_body | [invalid_target_body/main.omg](invalid_target_body/main.omg) | `cannot prove requires contract for call take from Main::main: s <= 5` |
+| other_machine | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | `cannot prove requires contract for call consume from check_result: produce() <= 5` |
+| target_body | [invalid_target_body/main.omg](invalid_target_body/main.omg) | `cannot prove requires clause 1 of the called machine` and `main.omg:64:18` |
 
-Check a twin with `omega --check samples/cli/facts/call_result_bound_discharge/<place>/invalid/main.omg`.
+Check a twin with `omega --check samples/cli/facts/call_result_bound_discharge/invalid_<place>/main.omg`.
 
 ## Requirements and Evidence
 
@@ -58,8 +58,8 @@ Check a twin with `omega --check samples/cli/facts/call_result_bound_discharge/<
 
 - **Establishment:** `opaque()` is a closed machine whose body is the literal `4u64`, so its return value is exact and known at compile time. The callee's contract `requires scale <= 5` is directly discharged by the instantiated judgment on the argument the call supplies without any post-hoc caller equality guard (`transition x == 100`). Removing the closed result removes the proof, as demonstrated by the twins.
 - **Identity and lifetime:** Every place tracks one exact scalar value: the result of one call to `opaque()`. The static scalar integer bound `4u64 <= 5u64` persists across value copies, struct fields, parameters, join points, const bindings, and state hops without invalidation.
-- **Composition:** The call-result bound fact composes through all 9 places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`) into the consuming `echo(scale)` call. `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in the construct's input value (4 vs 9), or contract (`other_machine`).
-- **Soundness boundaries:** All 9 `<place>/invalid/main.omg` reject twins fail closed with structural or requires contract diagnostics (`the instantiated fact is structurally false (`9 <= 5`)` or `cannot prove requires contract for call ...`) when fed 9 instead of 4, refusing compilation rather than admitting invalid contracts downstream.
+- **Composition:** The call-result bound fact composes through all 9 places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`) into the consuming `echo(scale)` call. `<place>/main.omg` vs. `invalid_<place>/main.omg` differ only in the construct's input value (4 vs 9), or contract (`other_machine`).
+- **Soundness boundaries:** All 9 `invalid_<place>/main.omg` reject twins fail closed with structural or requires contract diagnostics (`the instantiated fact is structurally false (`9 <= 5`)` or `cannot prove requires contract for call ...`) when fed 9 instead of 4, refusing compilation rather than admitting invalid contracts downstream.
 - **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Source constructs lower without semantic loss into canonical target-neutral Terminal Psi (`PSITERM\0`), erasing proof-formal tag lanes while retaining integer certificates, state transitions, and target-scoped body candidates, executing in the Terminal Psi interpreter with full agreement.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` settles across the four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), layout geometry for scalar `u64` and records (`data Main { hits: i32 in Wrapping; }`, `data Reading { scale: u64; }`) evaluates and validates, and `CallPlan`/`StatePlan` place scalar arguments and returns across registers and stack frames according to target ABIs.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA instructions (`mov`, `call`, `ret`), assigns register homes and disjoint stack-frame storage with live-across-call spill slots, and inserts entry prologues and multi-return epilogues.

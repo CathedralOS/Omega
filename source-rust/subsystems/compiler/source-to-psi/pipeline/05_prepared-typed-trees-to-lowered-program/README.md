@@ -356,7 +356,11 @@ data clause is about. So a term form read once is read in every clause; `!b`,
 for example, is a Boolean operand (`a == !b`) as well as a whole clause, and
 so is a comparison (`flag == (a < b)`): it is the Boolean value it computes,
 with `>` and `>=` read as `<` and `<=` of the exchanged operands and `!=` as
-the negation of `==`. A comparison under an arithmetic policy is refused as
+the negation of `==`. For a negated integer order, the reader publishes the bound that
+holds when the comparison is false. For example, `!(value > limit)` gives
+`value <= limit`. The reader makes this choice after resolving the comparison.
+An IEEE float can be unordered, so its negation keeps the IEEE comparison.
+A comparison under an arithmetic policy is refused as
 an operand by name. A case test `x in S::C` is read in a machine clause as
 well as in a data clause, of a formal or of the result (`requires outcome in
 Outcome::Good`, `ensures result in Result::Ok`), beside an alternative
@@ -809,7 +813,9 @@ operand value is representable in `T` (a wider carrier of the same sign, or
 unsigned to a wider signed one), and otherwise `IntegerExactCast` with an
 `OperationSafety` obligation ("exact widening, or narrowing with
 representability proved"). A cast to the operand's own carrier converts
-nothing and is its operand.
+nothing and is its operand. When a cast involves a floating-point carrier, the
+reader attaches the cast expression and its lexical owner to the call of the
+sealed Core conversion. The checker still requires exact representability.
 
 The reader decides from what the typed trees record, never from the cast's
 spelling: a recast (`CastForm::Recast`), a cast with a domain symbol, a cast
@@ -1251,7 +1257,9 @@ call forms for it.
 - **A loan** is the argument for a borrowed formal: `@place` or `@mutable
   place` with the formal's access, the place a slot or a field path beneath
   one (`ExpressionKind::Borrow`), or a borrowed formal of the caller named
-  whole, which reborrows its referent (`set(value)`). The call passes the
+  whole, which reborrows its referent (`set(value)`). A shared value parameter
+  also borrows an owned place of the same type for the duration of the call.
+  The call passes the
   lent place itself as a structural argument with the loan's access, the
   invocation row names that exact place, and one `Loan` obligation is
   minted at the point before the call: captured place, access, and lender
@@ -1285,7 +1293,7 @@ refuses, by name, what the slice does not serve:
 | `@write T`, a reference with a named lifetime, an `[erased]` reference, `mutable` on a shared reference, a reference of a requirement, a referent of a type parameter | `parameter write-only reference parameter`, `parameter reference parameter with a named lifetime`, `parameter erased reference parameter`, `parameter mutable binding of a shared reference`, `parameter reference parameter of a requirement`, `parameter reference to a value of a type parameter` |
 | a reference local, a reference result or field, a reference anywhere but a formal | `type reference` |
 | a borrow anywhere but the argument for a borrowed formal | `expression borrow` |
-| an argument for a borrowed formal that is not a borrow, a borrow with another access than its formal's, of a value that is not a place, of a case payload | `call argument for a borrowed formal that is not a borrow`, `call borrow whose access differs from its formal's`, `call borrow of a value that is not a place`, `call borrow of a case payload` |
+| an owned argument that requires an explicit loan, a borrow with another access than its formal's, of a value that is not a place, of a case payload | `call argument for a borrowed formal that is not a borrow`, `call borrow whose access differs from its formal's`, `call borrow of a value that is not a place`, `call borrow of a case payload` |
 | `@mutable` of a binding that is not `mutable` (an exclusive reborrow of a shared reference is the checker's conflict) | `call exclusive loan of an immutable binding` |
 | another argument of the same call that names a lent slot (`f(@mutable a, a)`): the lowered form forms every loan at the call, so it does not say that the read runs while the loan is live. A shared loan beside a shared loan is not refused: a nested call's `@a` in `f(g(@a), @a)` reborrows and moves nothing | `call argument that names storage another argument lends` |
 | a loan that would give an SSA local a home inside the right of `&&` or `||` or a value `match` arm, so on some paths only | `call loan of a value local on some paths only` |
@@ -1542,8 +1550,8 @@ implies none.
 read: the strongly connected sets of the call graph. Nesting plays no part
 ([control flow](../../../../../../wiki/spec/terminal-psi/control_flow.md):
 "Source nesting does not bound the component or justify any edge."). Each
-machine still gets its own Terminal machine, and a machine on a cycle holds
-its whole component in its own graph
+machine still has its own callable entry. A machine that implements the loop
+holds its whole component in its own graph
 (control flow: "Constant-stack terminal cycles may become block backedges"):
 
 - **The entry** holds the machine's formals as machine parameters and jumps
@@ -1561,6 +1569,14 @@ its whole component in its own graph
 Each member has its own entry and its own graph. When two entries produce
 identical checking tables for places or scalar values, the compiler stores
 one copy of that table. Updating one entry leaves the other entry's rows intact.
+
+For a ranked group returning an owned record, a single member called from
+outside the group can hold the loop. Another entry can execute its own body
+and call toward that member when the calls form a finite chain. Lowering
+checks each internal call's actual rank against the immutable integer its
+caller received at entry. If they differ, that caller keeps its full loop
+and the checker judges the transfer under the caller's own contract. An
+outer entry can reach a helper with a narrower range than that helper admits.
 
 **`requires` at a head.** A member's `requires` clauses, each formal
 replaced by the head's parameter, are the head's one row in the module's

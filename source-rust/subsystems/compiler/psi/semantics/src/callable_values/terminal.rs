@@ -317,15 +317,34 @@ fn project_callable_values<'m>(
                         }
                     }
                 }
+                if let O::StructuralScalarFieldStore {
+                    destination,
+                    path,
+                    field,
+                    ..
+                } = &operation.kind
+                    && let Some(actual) = packages.stored_field_type(machine.id, operation.id)
+                {
+                    let root = machine
+                        .structural_place_type(*destination)
+                        .ok_or("package callable store lost its destination type")?;
+                    body.package_sites.stored_field(
+                        &module.types.structural_types,
+                        position,
+                        (*destination, root),
+                        (path, *field),
+                        actual,
+                    )?;
+                }
                 if let O::CallMachine {
                     structural_arguments,
                     ..
                 } = &operation.kind
                     && let Some(contract) = packages.invocation_contract(machine.id, operation.id)
                 {
-                    let referents = (0..structural_arguments.len()).filter_map(|i| {
+                    let arguments = (0..structural_arguments.len()).filter_map(|i| {
                         packages
-                            .borrowed_argument(machine.id, operation.id, i)
+                            .invocation_argument(machine.id, operation.id, i)
                             .map(|t| (i, t))
                     });
                     body.package_sites.opened_call(
@@ -333,9 +352,9 @@ fn project_callable_values<'m>(
                         operation.id,
                         contract,
                         packages
-                            .invocation_witnesses(module, machine.id, operation.id)
+                            .admitted_invocation_contracts(module, machine.id, operation.id)
                             .ok_or("package call lacks its checked witness tuple")?,
-                        referents,
+                        arguments,
                     )?;
                 }
                 if let Some(result) = operation.result.as_structural() {
@@ -512,7 +531,6 @@ fn project_callable_values<'m>(
         }
     }
     Ok(CallableValueProgram {
-        module: Some(module),
         catalog: &module.execution.callables,
         structural_types: &module.types.structural_types,
         graph,

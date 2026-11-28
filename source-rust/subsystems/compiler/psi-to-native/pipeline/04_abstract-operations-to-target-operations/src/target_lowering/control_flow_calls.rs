@@ -1089,7 +1089,7 @@ pub(crate) mod calls {
         diagnostic_owner: MachineId,
         scalar_arguments: &'a [ValueId],
         structural_arguments: &'a [StructuralArgument],
-        opened_referents: &'a [(usize, semantic_vocabulary::StructuralTypeId)],
+        opened_arguments: &'a [(usize, semantic_vocabulary::StructuralTypeId)],
         claim_transfers: &'a [ClaimTransfer],
         requirement_obligations: &'a [ObligationId],
         crash_continuations: &'a [CrashRouteBucket],
@@ -1117,7 +1117,7 @@ pub(crate) mod calls {
                 callee,
                 arguments,
                 structural_arguments,
-                opened_referents,
+                opening,
                 claim_transfers,
                 result,
                 requirement_obligations,
@@ -1130,7 +1130,9 @@ pub(crate) mod calls {
                     diagnostic_owner: callee.machine().unwrap_or(function.machine),
                     scalar_arguments: arguments,
                     structural_arguments,
-                    opened_referents,
+                    opened_arguments: opening
+                        .as_ref()
+                        .map_or(&[], |call| call.stored_arguments.as_slice()),
                     claim_transfers,
                     requirement_obligations,
                     crash_continuations,
@@ -1159,7 +1161,7 @@ pub(crate) mod calls {
                     diagnostic_owner: *callee,
                     scalar_arguments: arguments,
                     structural_arguments: &[],
-                    opened_referents: &[],
+                    opened_arguments: &[],
                     claim_transfers: &[],
                     requirement_obligations,
                     crash_continuations,
@@ -1289,11 +1291,18 @@ pub(crate) mod calls {
             .map(|(position, ((argument, declaration), destination))| {
                 let mut declaration =
                     declaration.ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-                let opened = call.opened_referents.iter().find(|(i, _)| *i == position);
-                let opened_referent = opened.map(|_| declaration.structural_type);
+                let opened = call.opened_arguments.iter().find(|(i, _)| *i == position);
+                let opened_referent = opened
+                    .filter(|_| declaration.access != StructuralAccess::Owned)
+                    .map(|_| declaration.structural_type);
                 if let Some((_, stored)) = opened {
-                    // The source projects the stored package field; the destination ABI
-                    // was selected using the corresponding opened callable parameter.
+                    if declaration.access == StructuralAccess::Owned
+                        && declaration.structural_type != *stored
+                    {
+                        return Err(LoweringError::unsupported_control_flow(function.machine));
+                    }
+                    // An owned carrier keeps its normal move. Only a borrowed
+                    // field needs a separate opened referent in the target ABI.
                     declaration.structural_type = *stored;
                 }
                 let mut target = structural_argument(
@@ -2185,7 +2194,7 @@ pub(crate) mod selected_boundary_calls {
         let resolved = match (result, &candidate.result) {
             (abstract_operations::AbstractBoundaryResult::Unit, AbstractFunctionResult::Unit) => {
                 AbstractOperation::CallStructural {
-                    opened_referents: Vec::new(),
+                    opening: None,
                     psi_operation: *psi_operation,
                     suspension_crossing: *suspension_crossing,
                     callee: callee.into(),
@@ -2204,7 +2213,7 @@ pub(crate) mod selected_boundary_calls {
                 && result.multiplicity == candidate_result.multiplicity =>
             {
                 AbstractOperation::CallStructural {
-                    opened_referents: Vec::new(),
+                    opening: None,
                     psi_operation: *psi_operation,
                     suspension_crossing: *suspension_crossing,
                     result: AbstractStructuralCallResult::Structural {
@@ -2236,7 +2245,7 @@ pub(crate) mod selected_boundary_calls {
                     }
                 } else {
                     AbstractOperation::CallStructural {
-                        opened_referents: Vec::new(),
+                        opening: None,
                         psi_operation: *psi_operation,
                         suspension_crossing: *suspension_crossing,
                         result: AbstractStructuralCallResult::Scalar(*result),

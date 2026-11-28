@@ -807,7 +807,6 @@ fn callable_arguments_preserve_descriptor_reborrow_authority_and_identity() {
     let id = |n: u64| StructuralTypeId::new(n * 10).unwrap();
     let accepts = |actual, formal| {
         let program = CallableValueProgram {
-            module: None,
             catalog: &module.execution.callables,
             structural_types: &module.types.structural_types,
             graph: Vec::new(),
@@ -834,7 +833,6 @@ fn callable_arguments_preserve_descriptor_reborrow_authority_and_identity() {
         access: None,
     };
     let program = CallableValueProgram {
-        module: None,
         catalog: &module.execution.callables,
         structural_types: &module.types.structural_types,
         graph: Vec::new(),
@@ -850,7 +848,6 @@ fn callable_arguments_preserve_descriptor_reborrow_authority_and_identity() {
         access: Some(MutableBorrow),
     };
     let program = CallableValueProgram {
-        module: None,
         catalog: &module.execution.callables,
         structural_types: &module.types.structural_types,
         graph: Vec::new(),
@@ -894,7 +891,6 @@ fn callable_reborrows_do_not_erase_declaration_requirements() {
     module.types.structural_types = vec![first.clone(), second.clone()];
     let refuses = |types: &[StructuralTypeDeclaration]| {
         let program = CallableValueProgram {
-            module: None,
             catalog: &module.execution.callables,
             structural_types: types,
             graph: Vec::new(),

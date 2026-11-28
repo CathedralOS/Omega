@@ -4,9 +4,9 @@ use {omega}/language/core/foundation.omg as proof;
 let within(limit: u64, value: u64): |proof|::Strict<0> = !(value > limit);
 domain u64::Small requires within(5, self);
 machine main() crashes Trap {
-    let mutable value: u64 in Small = 0;
-    value = 6;
-    let remaining: u64 = 5u64 - value;
+    let mutable value: u64 in Small = 0u64 as +Small;
+    value = 6u64 as +Small;
+    let remaining: u64 = 5u64 - (value as -Small);
     transition remaining == 2 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

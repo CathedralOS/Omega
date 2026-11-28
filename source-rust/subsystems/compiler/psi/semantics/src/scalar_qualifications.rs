@@ -725,7 +725,7 @@ fn case_guarded<'a>(
     }
 }
 
-fn retains_predicate<'a>(
+pub(crate) fn retains_predicate<'a>(
     expected: &Proposition,
     clauses: impl Iterator<Item = &'a Proposition> + Clone,
 ) -> bool {
@@ -1227,11 +1227,16 @@ fn validate_bodies_into(
             if let Some(predicate) = &domain.predicate {
                 let mut expected = predicate.proposition.clone();
                 expected.remap_value_ids(|_| destination.id);
-                if !module.proofs.scalar_block_invariants.iter().any(|invariant| {
-                    invariant.machine == machine.id
-                        && invariant.header == target.id
-                        && retains_conjunct(&invariant.predicate, &expected)
-                }) {
+                if !module
+                    .proofs
+                    .scalar_block_invariants
+                    .iter()
+                    .any(|invariant| {
+                        invariant.machine == machine.id
+                            && invariant.header == target.id
+                            && retains_predicate(&expected, std::iter::once(&invariant.predicate))
+                    })
+                {
                     return malformed(
                         "scalar coercion lost its declared predicate arrival obligation",
                     );
@@ -1338,21 +1343,14 @@ fn validate_bodies_into(
         {
             let mut expected = predicate.proposition.clone();
             expected.remap_value_ids(|_| result.id);
-            let complete = match &expected {
-                Proposition::Conjunction(predicates) => predicates.iter().all(|predicate| {
-                    machine
-                        .contract
-                        .ensures
-                        .iter()
-                        .any(|clause| retains_conjunct(&clause.proposition, predicate))
-                }),
-                Proposition::Truth => true,
-                _ => machine
+            let complete = retains_predicate(
+                &expected,
+                machine
                     .contract
                     .ensures
                     .iter()
-                    .any(|clause| retains_conjunct(&clause.proposition, &expected)),
-            };
+                    .map(|clause| &clause.proposition),
+            );
             if !complete {
                 return malformed("scalar result contract lost its domain predicate");
             }
@@ -1362,17 +1360,22 @@ fn validate_bodies_into(
         {
             let mut expected = predicate.proposition.clone();
             expected.remap_value_ids(|_| result.id);
-            if !module.proofs.scalar_block_invariants.iter().any(|invariant| {
-                invariant.machine == machine.id
-                    && machine.blocks.iter().any(|block| {
-                        block.id == invariant.header
-                            && block
-                                .parameters
-                                .iter()
-                                .any(|parameter| parameter.id == result.id)
-                    })
-                    && retains_conjunct(&invariant.predicate, &expected)
-            }) {
+            if !module
+                .proofs
+                .scalar_block_invariants
+                .iter()
+                .any(|invariant| {
+                    invariant.machine == machine.id
+                        && machine.blocks.iter().any(|block| {
+                            block.id == invariant.header
+                                && block
+                                    .parameters
+                                    .iter()
+                                    .any(|parameter| parameter.id == result.id)
+                        })
+                        && retains_predicate(&expected, std::iter::once(&invariant.predicate))
+                })
+            {
                 return malformed(
                     "scalar establishment completion lost its declared predicate obligation",
                 );
@@ -1646,11 +1649,15 @@ fn validate_bodies_into(
     Ok(())
 }
 
-pub(crate) fn retains_conjunct(actual: &Proposition, expected: &Proposition) -> bool {
-    actual == expected
-        || reordered_predicate(actual) == reordered_predicate(expected)
-        || matches!(actual, Proposition::Conjunction(children)
-        if children.iter().any(|child| retains_conjunct(child, expected)))
+fn retains_conjunct(actual: &Proposition, expected: &Proposition) -> bool {
+    // The caller splits the required conjunction. Walk only conjunctions in
+    // the evidence, so a clause inside a disjunction cannot satisfy it alone.
+    match actual {
+        Proposition::Conjunction(children) => children
+            .iter()
+            .any(|child| retains_conjunct(child, expected)),
+        _ => actual == expected || reordered_predicate(actual) == reordered_predicate(expected),
+    }
 }
 
 /// Substituting a field for a scalar subject changes the wire ordering of

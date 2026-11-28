@@ -1,0 +1,1 @@
+cannot prove requires contract for call forward from main: @bound.valid && @bound.bytes == 7

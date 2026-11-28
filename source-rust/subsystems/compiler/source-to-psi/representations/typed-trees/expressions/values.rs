@@ -2302,6 +2302,7 @@ pub mod expression {
                         self.insert(ExpressionNode::Cast(TableCastExpression {
                             value,
                             target_type: cast.target_type,
+                            operand_type: cast.operand_type,
                             recast_storage_type: cast.recast_storage_type,
                             result_type: cast.result_type,
                             target_label,
@@ -4923,6 +4924,8 @@ pub mod expression {
     pub struct TableCastExpression {
         pub value: ExpressionHandle,
         pub target_type: crate::source_state::types::TypeReferenceHandle,
+        /// Declared operand carrier of a value cast, before conversion.
+        pub operand_type: crate::source_state::types::TypeReferenceHandle,
         /// Root storage whose geometry an explicit recast must establish.
         pub recast_storage_type: crate::source_state::types::TypeReferenceHandle,
         pub result_type: crate::source_state::types::TypeReferenceHandle,

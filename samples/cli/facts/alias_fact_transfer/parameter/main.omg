@@ -15,33 +15,33 @@ data Main {
     observed: i32;
 }
 
-machine Main::inspect(player: Player) -> i32
+machine inspect(player: Player) -> i32
 requires
     player in Player::Alive
 {
     player.health
 }
 
-machine Main::carry(player: Player) -> i32
+machine carry(player: Player) -> i32
 requires
     player in Player::Alive
 {
-    Main::inspect(player)
+    inspect(player)
 }
 
-machine Main::main(main: @mutable Main)
+machine observe_player(main: @mutable Main)
 requires
     main.player in Player::Alive
 {
     let mutable copy: Player = main.player;
-    main.observed = Main::carry(copy);
+    main.observed = carry(copy);
 }
 
 machine entry() crashes Trap {
     let mutable a: Main = Main { player: Player { health: 42 }, observed: 0 };
-    Main::main(@mutable a);
+    observe_player(@mutable a);
     let mutable b: Main = Main { player: Player { health: 1 }, observed: 0 };
-    Main::main(@mutable b);
+    observe_player(@mutable b);
     transition a.observed == 42 && b.observed == 1 {
         true -> done(),
         _ -> bad()

@@ -32,7 +32,7 @@ use construction::construction;
 use fields::{check_field_accesses, enters_package};
 use opening::{invocation, projection};
 pub use restoration::local_call_write_origins;
-pub(crate) use restoration::local_mutable_field_homes;
+pub(crate) use restoration::{local_mutable_field_homes, opened_call_homes};
 use substitution::Substitution;
 
 /// The hidden referent of the inline reference actually stored at this path.
@@ -63,7 +63,7 @@ pub struct CheckedPackageSites {
     repacked_fields: BTreeMap<(MachineId, OperationId, StructuralFieldId), OperationId>,
     projected_fields: BTreeMap<Site, StructuralFieldId>,
     descriptors: BTreeMap<Site, (u32, CallableContractId)>,
-    borrowed_arguments: BTreeMap<(MachineId, OperationId, usize), StructuralTypeId>,
+    arguments: BTreeMap<(MachineId, OperationId, usize), (StructuralTypeId, StructuralAccess)>,
 }
 
 impl CheckedPackageSites {
@@ -223,14 +223,29 @@ impl CheckedPackageSites {
             )
     }
 
-    pub(crate) fn invocation_witnesses<'m>(
+    /// Contracts a selected descriptor may implement at this opened package call.
+    /// This bounds the type of a descriptor already found by value flow.
+    pub fn admitted_invocation_contracts(
         &self,
-        module: &'m TerminalModule,
+        module: &TerminalModule,
         machine: MachineId,
         operation: OperationId,
-    ) -> Option<&'m [StructuralTypeId]> {
-        let &(index, _) = self.descriptors.get(&(machine, operation))?;
-        Some(&opening(module, machine, index).ok()?.witnesses)
+    ) -> Option<Vec<CallableContractId>> {
+        let &(index, contract) = self.descriptors.get(&(machine, operation))?;
+        let witnesses = &opening(module, machine, index).ok()?.witnesses;
+        Some(
+            module
+                .execution
+                .callables
+                .contracts
+                .iter()
+                .filter(|candidate| {
+                    candidate.id != contract
+                        && opened_callable_admits(module, witnesses, contract, candidate.id)
+                })
+                .map(|candidate| candidate.id)
+                .collect(),
+        )
     }
 
     /// Check the concrete contract on the descriptor actually read. Repeated
@@ -260,9 +275,21 @@ impl CheckedPackageSites {
         operation: OperationId,
         index: usize,
     ) -> Option<StructuralTypeId> {
-        self.borrowed_arguments
+        let &(ty, access) = self.arguments.get(&(machine, operation, index))?;
+        (access != StructuralAccess::Owned).then_some(ty)
+    }
+
+    /// The argument authenticated by this opening. An owned argument has to
+    /// be the complete projected owner of the same live package.
+    pub fn invocation_argument(
+        &self,
+        machine: MachineId,
+        operation: OperationId,
+        index: usize,
+    ) -> Option<StructuralTypeId> {
+        self.arguments
             .get(&(machine, operation, index))
-            .copied()
+            .map(|row| row.0)
     }
 
     pub fn invocation_contract(
@@ -445,7 +472,7 @@ fn fields(
     }
 }
 
-fn schema(
+pub(crate) fn schema(
     module: &TerminalModule,
     record: StructuralTypeId,
 ) -> Result<&TerminalPackageSchema, &'static str> {
