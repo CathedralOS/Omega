@@ -1447,7 +1447,7 @@ pub(crate) mod primitive_storage {
                             span_end = Some(end);
                             use crate::boundary::structural_inputs::byte_arrays::storage::ArrayStorageHome;
                             requested_frame = match array.home {
-                                ArrayStorageHome::Runtime => None,
+                                ArrayStorageHome::Component | ArrayStorageHome::Runtime => None,
                                 ArrayStorageHome::Frame {
                                     depth,
                                     place,
@@ -2453,6 +2453,7 @@ pub(crate) mod primitive_storage {
                             place,
                             structural_type,
                         } => (depth, place, structural_type),
+                        ArrayStorageHome::Component => return Ok(None),
                         ArrayStorageHome::Runtime => {
                             let payload = self.structural_byte_storage.require(&array.referent)?;
                             if *index >= payload.len() {
@@ -2855,11 +2856,8 @@ pub(crate) mod primitive_storage {
                     offset,
                     ..
                 } => {
-                    let extent =
-                        crate::boundary::structural_inputs::byte_arrays::byte_array_length(
-                            &self.structural_types(),
-                            *array_type,
-                        )
+                    let extent = self
+                        .checked_byte_array_extent(array, *array_type)
                         .ok_or(malformed())?;
                     if self.stored_byte_array_length(array)? as u128 != u128::from(extent) {
                         return Err(malformed());
@@ -5989,6 +5987,65 @@ pub(crate) mod storage_addresses {
         path: Vec<Coordinate>,
     }
 
+    /// An interval in one original packed array, in the issuing instance's coordinates.
+    #[derive(Clone, PartialEq, Eq)]
+    pub(crate) struct ByteAddressRange<'a> {
+        namespace: u64,
+        root: u64,
+        path: &'a [Coordinate],
+        start: u64,
+        end: u64,
+    }
+
+    impl ByteAddressRange<'_> {
+        pub(crate) fn overlaps(&self, other: &Self) -> bool {
+            self.namespace == other.namespace
+                && self.root == other.root
+                && self.path == other.path
+                && self.start < other.end
+                && other.start < self.end
+        }
+    }
+
+    impl ScalarStorageAddress {
+        pub(crate) fn byte_range(
+            &self,
+            offset: usize,
+            count: usize,
+        ) -> Result<ByteAddressRange<'_>, TerminalInterpretError> {
+            let Some(((0, first), path)) = self.path.split_last() else {
+                return Err(malformed());
+            };
+            let start = first
+                .checked_add(u64::try_from(offset).map_err(|_| exhausted())?)
+                .ok_or_else(exhausted)?;
+            let end = start
+                .checked_add(u64::try_from(count).map_err(|_| exhausted())?)
+                .ok_or_else(exhausted)?;
+            Ok(ByteAddressRange {
+                namespace: self.namespace,
+                root: self.root,
+                path,
+                start,
+                end,
+            })
+        }
+
+        fn byte_offset(
+            &self,
+            offset: usize,
+        ) -> Result<(Option<u64>, u64, Vec<Coordinate>), TerminalInterpretError> {
+            let mut path = self.path.clone();
+            let Some((0, first)) = path.last_mut() else {
+                return Err(malformed());
+            };
+            *first = first
+                .checked_add(u64::try_from(offset).map_err(|_| exhausted())?)
+                .ok_or_else(exhausted)?;
+            Ok((Some(self.namespace), self.root, path))
+        }
+    }
+
     fn encode(
         namespace: u64,
         root: u64,
@@ -6241,6 +6298,17 @@ pub(crate) mod storage_addresses {
                 }
                 PrimitiveStorageEndpoint::ArrayElement { array, index } => {
                     let (mut place, index) = match array.home {
+                        ArrayStorageHome::Component => {
+                            let original = self.component_byte_arrays.require(&array.referent)?;
+                            if index >= original.cells.cells().len() {
+                                return Err(malformed());
+                            }
+                            return original
+                                .first
+                                .as_ref()
+                                .ok_or(malformed())?
+                                .byte_offset(index);
+                        }
                         ArrayStorageHome::Runtime => (array.referent, index),
                         ArrayStorageHome::Frame { depth, place, .. } => {
                             // Nested frame arrays share packed storage, so include the
@@ -6266,14 +6334,7 @@ pub(crate) mod storage_addresses {
                 }
                 PrimitiveStorageEndpoint::ViewByte { bytes, index } => {
                     if let Some((original, offset)) = bytes.component_array_address(index) {
-                        let mut path = original.path.clone();
-                        let Some((0, first)) = path.last_mut() else {
-                            return Err(malformed());
-                        };
-                        *first = first
-                            .checked_add(u64::try_from(offset).map_err(|_| exhausted())?)
-                            .ok_or_else(exhausted)?;
-                        return Ok((Some(original.namespace), original.root, path));
+                        return original.byte_offset(offset);
                     }
                     if bytes.original_array().is_some() {
                         let original =
@@ -6394,6 +6455,7 @@ pub(crate) mod storage_addresses {
                     array_element(home.scalar_array_frame().2, index)
                 }
                 PrimitiveStorageEndpoint::ArrayElement { array, index } => match array.home {
+                    ArrayStorageHome::Component => Ok(1),
                     ArrayStorageHome::Runtime => {
                         let mut place = array.referent;
                         place.path.push(Step::FixedIndex(
@@ -6940,6 +7002,42 @@ pub(crate) mod storage_addresses {
         }
 
         #[test]
+        fn component_alias_checks_compare_intervals_in_the_original_array() {
+            let mut owner = execution();
+            let first = array(&mut owner, 17);
+            let other = array(&mut owner, 18);
+            let mut address = |array: ArrayStorage, offset, length| {
+                owner
+                    .lent_array_window_address(&OriginalByteArrayWindow {
+                        array,
+                        array_type: StructuralTypeId::new(2).unwrap(),
+                        offset,
+                        length,
+                    })
+                    .unwrap()
+                    .unwrap()
+            };
+            let a = address(first.clone(), 0, 3);
+            let b = address(first, 1, 2);
+            let c = address(other, 1, 2);
+            assert!(
+                a.byte_range(1, 2)
+                    .unwrap()
+                    .overlaps(&b.byte_range(0, 2).unwrap())
+            );
+            assert!(
+                !a.byte_range(0, 1)
+                    .unwrap()
+                    .overlaps(&b.byte_range(0, 2).unwrap())
+            );
+            assert!(
+                !a.byte_range(1, 2)
+                    .unwrap()
+                    .overlaps(&c.byte_range(0, 2).unwrap())
+            );
+        }
+
+        #[test]
         fn a_shared_component_subslice_keeps_its_callers_element_address() {
             let mut caller = execution();
             let array = array(&mut caller, 17);
@@ -6957,6 +7055,75 @@ pub(crate) mod storage_addresses {
             assert_eq!(view_addr(&mut child, nested.clone(), 0), address);
             nested.lend_array_to_component(&mut child).unwrap();
             assert_eq!(view_addr(&mut execution(), nested, 0), address);
+        }
+
+        #[test]
+        fn mutable_component_windows_share_original_addresses_and_expire_with_the_parent_loan() {
+            use crate::storage::scalar_storage::ScalarLoanScope;
+            let mut caller = execution();
+            let original = array(&mut caller, 21);
+            let ty = StructuralTypeId::new(2).unwrap();
+            let descriptor = StructuralTypeId::new(3).unwrap();
+            let parent = ScalarLoanScope::new();
+            let mut child = execution();
+            let input = caller
+                .lend_component_byte_array(
+                    &OriginalByteArrayWindow {
+                        array: original.clone(),
+                        array_type: ty,
+                        offset: 1,
+                        length: 2,
+                    },
+                    &parent,
+                )
+                .unwrap();
+            let home = TerminalStructuralValue::minted(33, descriptor, Vec::new());
+            let ByteSequenceBinding::MutableArray { array: first, .. } =
+                input.bind(&mut child, home.clone()).unwrap()
+            else {
+                panic!("expected a mutable loan")
+            };
+            assert_eq!(child.stored_byte_array_read(&first, 0).unwrap(), 2);
+            assert!(child.stored_byte_array_write(&first, 2, 90).is_err());
+            let mut nested = execution();
+            let scope = ScalarLoanScope::new();
+            let input = child
+                .lend_component_byte_array(
+                    &OriginalByteArrayWindow {
+                        array: first.clone(),
+                        array_type: descriptor,
+                        offset: 1,
+                        length: 1,
+                    },
+                    &scope,
+                )
+                .unwrap();
+            let ByteSequenceBinding::MutableArray { array: second, .. } =
+                input.bind(&mut nested, home).unwrap()
+            else {
+                panic!("expected a nested loan")
+            };
+            let (namespace, root, path) = array_addr(&mut caller, &original, 2);
+            assert_eq!(
+                array_addr(&mut nested, &second, 0),
+                (
+                    namespace.or(caller.local_structural_identities.exposure_namespace),
+                    root,
+                    path
+                )
+            );
+            nested.stored_byte_array_write(&second, 0, 89).unwrap();
+            assert_eq!(
+                caller
+                    .stored_byte_array_snapshot(&original, 0, 4)
+                    .unwrap()
+                    .bytes(),
+                &[1, 2, 89, 4]
+            );
+            drop(parent);
+            assert!(child.stored_byte_array_read(&first, 0).is_err());
+            assert!(nested.stored_byte_array_write(&second, 0, 90).is_err());
+            assert_eq!(caller.stored_byte_array_read(&original, 2).unwrap(), 89);
         }
 
         #[test]

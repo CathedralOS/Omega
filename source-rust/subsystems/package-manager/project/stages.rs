@@ -134,7 +134,8 @@ impl package_compilation::build_execution::RestrictedBuildGrants for StagedGrant
             BuildNetworkInvocation, RestrictedBuildOperation,
         };
         Ok(match request.operation() {
-            RestrictedBuildOperation::SendDatagram { peer, .. } => {
+            RestrictedBuildOperation::SendDatagram { peer }
+            | RestrictedBuildOperation::ReceiveDatagram { peer } => {
                 self.network == (BuildNetworkInvocation::Granted { peer: Some(*peer) })
             }
             RestrictedBuildOperation::ProgramLaunch(_) => self.program_launch,

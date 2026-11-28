@@ -79,6 +79,7 @@ fn catalog() -> TerminalCallableCatalog {
         contracts: vec![TerminalCallableContract {
             id: contract(),
             identity: TerminalIdentityIndex(1),
+            requirement: None,
             scalar_parameters: Vec::new(),
             parameter_order: Vec::new(),
             structural_parameters: Vec::new(),

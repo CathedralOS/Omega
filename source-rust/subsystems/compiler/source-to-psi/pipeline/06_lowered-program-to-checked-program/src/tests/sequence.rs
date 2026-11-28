@@ -353,3 +353,85 @@ ensures |proof|::Identity::<N>(observe(pack(s,t).samples,n), observe(s,n)) {}";
         );
     }
 }
+
+#[test]
+fn a_received_record_carries_its_strict_domain() {
+    let source = sequences(
+        REPEAT,
+        "
+data OnlyZero requires |proof|::Squash::<|proof|::Identity::<N>(value, N::Z)> { value: N; }
+machine wrap(n: N) -> OnlyZero requires |proof|::Squash::<|proof|::Identity::<N>(n, N::Z)> {
+    OnlyZero { value: n }
+}
+machine lawful(n: N) requires |proof|::Squash::<|proof|::Identity::<N>(n, N::Z)>
+ensures |proof|::Identity::<N>(wrap(n).value, n) {}
+machine stored(p: OnlyZero) ensures |proof|::Squash::<|proof|::Identity::<N>(p.value, N::Z)> {}",
+    );
+    let verdicts = judged(&source);
+    let machines = judged_laws(&verdicts);
+    for name in ["lawful", "stored"] {
+        assert!(machines.iter().any(|proved| proved == name));
+        let law = verdicts
+            .iter()
+            .find_map(|verdict| match verdict {
+                RouteVerdict::Laws(judgment) => {
+                    judgment.laws.iter().find(|law| law.machine == name)
+                }
+                _ => None,
+            })
+            .unwrap();
+        let mut proof = terminal_codec::decode_mathematical_certificate(&law.certificate).unwrap();
+        proof_admission::verify_mathematical_certificate(
+            &mut proof.arena,
+            &proof.certificate,
+            &mut Default::default(),
+        )
+        .expect("the receiver checks the record and its projected condition");
+        if name == "stored" {
+            use mathematical_kernel::Term;
+            let Term::Pi { domain, .. } = proof.arena.get(proof.certificate.expected) else {
+                panic!("the theorem takes a record");
+            };
+            let Term::Constant { declaration, .. } = proof.arena.get(domain) else {
+                panic!("the input names its declared record type");
+            };
+            let record = proof.certificate.signature[declaration as usize]
+                .body
+                .expect("defined record");
+            let Term::Sigma { codomain, .. } = proof.arena.get(record) else {
+                panic!("the record retains both its value and its evidence");
+            };
+            assert!(matches!(proof.arena.get(codomain), Term::Box { .. }));
+        }
+        assert!(proof.certificate.context.is_empty());
+        let MathematicalCoreDecision::Judged(receipt) = law.decision;
+        assert_eq!(receipt.assumption_closure, 0);
+    }
+    for (invalid, machine) in [
+        (
+            source.replace(
+                "-> OnlyZero requires |proof|::Squash::<|proof|::Identity::<N>(n, N::Z)>",
+                "-> OnlyZero",
+            ),
+            "wrap",
+        ),
+        (
+            source
+                .replace("stored(p: OnlyZero)", "stored(p: OnlyZero, other: N)")
+                .replace("::<N>(p.value, N::Z)", "::<N>(other, N::Z)"),
+            "stored",
+        ),
+        (
+            source.replace("::<N>(p.value, N::Z)", "::<N>(p.value, N::S { p: N::Z })"),
+            "stored",
+        ),
+    ] {
+        let verdicts = judged(&invalid);
+        assert!(
+            verdicts.iter().any(|v| matches!(v,
+                RouteVerdict::UnprovedLaws(laws) if laws.iter().any(|law| law.machine == machine)
+            )),
+            "{verdicts:?}"
+        );
+    }
+}

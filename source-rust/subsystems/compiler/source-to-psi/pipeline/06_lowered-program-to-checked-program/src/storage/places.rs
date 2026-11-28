@@ -5110,7 +5110,7 @@ impl<'a> Storage<'a> {
                             }
                             None => None,
                             Some(call) => Some(
-                                self.call_content_boundary(call, &arrived, concerns)?
+                                self.call_content_boundary(tables, call, &arrived, concerns)?
                                     .segments
                                     .len(),
                             ),
