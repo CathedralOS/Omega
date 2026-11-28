@@ -48,6 +48,8 @@ pub enum SealedIntrinsic {
     LayoutStorageData,
     /// Core `layout.omg`'s `layout_target_facts` snapshot query.
     LayoutTargetFacts,
+    /// A control transfer that the execution owner, not a selected foreign provider, serves.
+    OwnedActivation(ActivationOperation),
     /// Core's ordinary identity body also records an exact private-slot placement.
     PrivateLayoutPlacement,
     /// Core `layout.omg`'s free placed `read` or `write` primitive.
@@ -87,6 +89,11 @@ pub enum CompilerPrimitive {
     FloatSemantics,
     NaturalRanking,
     Collection(CollectionPrimitive),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ActivationOperation {
+    Park,
 }
 
 /// The checked packed-integer instructions. Each one is the contract of one
@@ -872,6 +879,12 @@ const ROWS: &[SealedIntrinsicRow] = &[
         source: BundledFile::CoreStaticInterrupt,
         intrinsic: SealedIntrinsic::StaticInterrupt(StaticInterruptOperation::FinishCompletion),
     },
+    row(
+        "activation.omg",
+        "Activation::park",
+        BundledFile::CoreActivation,
+        SealedIntrinsic::OwnedActivation(ActivationOperation::Park),
+    ),
     SealedIntrinsicRow {
         file: "task.omg",
         declaration: SealedDeclaration::Exact("TaskRuntime::start"),
