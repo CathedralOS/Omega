@@ -52,7 +52,6 @@ struct ServiceSource {
     id: ServiceId,
     identity: String,
     name: String,
-    unsafe_atom: Option<language_core::core_vocabulary::UnsafeAtom>,
     parents: Vec<ServiceId>,
     schema: crate::source_state::service_declarations::RetainedServiceSurface,
 }
@@ -132,12 +131,6 @@ impl ServiceMap {
                     id,
                     identity,
                     name: scope.declaration.name.as_str().to_owned(),
-                    unsafe_atom: match typed.core_vocabulary(scope.declaration.symbol) {
-                        Some(language_core::core_vocabulary::CoreVocabulary::UnsafeAtom(atom)) => {
-                            Some(atom)
-                        }
-                        _ => None,
-                    },
                     parents: parents.clone(),
                     schema,
                 },
@@ -164,51 +157,6 @@ impl ServiceMap {
                 unavailable(context, "service is outside the retained canonical closure")
             })
     }
-    /// A native borrow contributes the installed Core atom and its boundary parents
-    /// even in a machine with no calls and no written reach annotation.
-    fn operation_reach(
-        &self,
-        module: &TerminalModule,
-        machine: &terminal_psi::TerminalMachine,
-    ) -> Checked<Vec<ServiceId>> {
-        let mut pending = Vec::new();
-        for op in machine.operations() {
-            if let Some((_, atoms)) =
-                terminal_semantics::storage::native_borrows::required_authority(module, op)
-                    .map_err(|reason| unavailable(machine.id, reason))?
-            {
-                for &atom in atoms {
-                    let source = self
-                        .declarations
-                        .iter()
-                        .find(|source| source.unsafe_atom == Some(atom))
-                        .ok_or_else(|| {
-                            unavailable(
-                                machine.id,
-                                "native borrow lacks its installed core service",
-                            )
-                        })?;
-                    pending.push(source.id);
-                }
-            }
-        }
-        let mut reached = Vec::new();
-        while let Some(service) = pending.pop() {
-            if !reached.contains(&service) {
-                let declaration = module.service(service).ok_or_else(|| {
-                    unavailable(
-                        machine.id,
-                        "intrinsic reach has no installed service declaration",
-                    )
-                })?;
-                reached.push(service);
-                pending.extend_from_slice(&declaration.parents);
-            }
-        }
-        reached.sort_unstable();
-        Ok(reached)
-    }
-
     pub(crate) fn identity(&self, service: ServiceId) -> Option<&str> {
         self.declarations
             .iter()
@@ -432,6 +380,21 @@ pub(crate) fn authored_source_ceiling(
     crate::read::services::finite_reach(typed, context, row).map(Some)
 }
 
+/// A native borrow contributes the installed Core atom and its boundary parents
+/// even in a machine with no calls and no written reach annotation.
+fn operation_reach(
+    module: &TerminalModule,
+    machine: &terminal_psi::TerminalMachine,
+) -> Checked<Vec<ServiceId>> {
+    let mut reached = Vec::new();
+    for operation in machine.operations() {
+        let row = terminal_semantics::storage::native_borrows::required_services(module, operation)
+            .map_err(|reason| crate::read::services::unavailable(machine.id, reason))?;
+        union(&mut reached, &row);
+    }
+    Ok(reached)
+}
+
 /// State canonical rows from actual lowered direct, callable and boundary calls.
 /// No acceptance follows from this computation; the receiving judgment checks it.
 pub(crate) fn publish(
@@ -465,7 +428,7 @@ pub(crate) fn publish(
         .zip(&ceilings)
         .map(|(machine, ceiling)| match ceiling {
             Some(row) => Ok(row.clone()),
-            None => services.operation_reach(&elaboration.module, machine),
+            None => operation_reach(&elaboration.module, machine),
         })
         .collect::<Checked<Vec<_>>>()?;
     let position = |machine: MachineId| {

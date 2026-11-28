@@ -170,6 +170,59 @@ fn sealed_native_borrow_headers_require_the_exact_typed_declaration_and_unsafe_r
 }
 
 #[test]
+fn installation_reach_recovers_an_upgrades_core_service_and_parent_from_psi() {
+    use language_core::core_vocabulary::UnsafeAtom::BorrowMutabilityUpgrade;
+    let typed = super::build_purpose::frontier_with_core(
+        r#"use {omega}/language/core/unsafe.omg as native;
+machine main(byte: @u8) {
+    let writable: @mutable u8 = |native|::upgrade_mutability::<u8>(byte);
+    $writable = 1u8;
+}"#,
+        "machine build_entry() {}",
+        source_provenance::DependencyScope::Product,
+        &[(
+            "unsafe.omg",
+            "native",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../../../../source/library/core/unsafe.omg"
+            )),
+        )],
+    );
+    let Ok(crate::RouteVerdict::Accepted(accepted)) = judge_observed(&typed).remove(0) else {
+        panic!("upgrading a borrowed formal must produce a checked module");
+    };
+    let mut module = accepted.elaboration.module;
+    let child = module
+        .core_unsafe_service(BorrowMutabilityUpgrade)
+        .unwrap()
+        .clone();
+    let [parent] = child.parents.as_slice() else {
+        panic!("one Unsafe parent");
+    };
+    let terminal_psi::TargetMachineCallable::Machine(entry) = module.entry.unwrap() else {
+        panic!("machine entry");
+    };
+    let recovered = terminal_semantics::synchronous_calls::call_analyses(&module)
+        .unwrap()
+        .calls()
+        .service_reach_from(entry, &[])
+        .unwrap();
+    assert_eq!(recovered.concrete, [*parent, child.id]);
+    let slot = module
+        .interfaces
+        .services
+        .iter_mut()
+        .find(|row| row.id == child.id)
+        .unwrap();
+    slot.parents.clear();
+    assert!(
+        module.core_unsafe_service(BorrowMutabilityUpgrade).is_err(),
+        "a copied child without the authentic parent cannot supply the capability"
+    );
+}
+
+#[test]
 fn real_byte_observation_headers_publish_complete_terminating_schemas() {
     const SOURCE: &str = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

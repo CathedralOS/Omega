@@ -156,3 +156,22 @@ pub fn required_authority(
         _ => Ok(None),
     }
 }
+
+/// The concrete service row of the operation, including the reporting parent.
+/// The module supplies a complete bundled declaration for every required atom.
+pub fn required_services(
+    module: &terminal_psi::TerminalModule,
+    operation: &terminal_psi::Operation,
+) -> Result<Vec<semantic_vocabulary::ServiceId>, String> {
+    let mut services = Vec::new();
+    if let Some((_, atoms)) = required_authority(module, operation)? {
+        for &atom in atoms {
+            let source = module.core_unsafe_service(atom)?;
+            services.push(source.id);
+            services.extend_from_slice(&source.parents);
+        }
+        services.sort_unstable();
+        services.dedup();
+    }
+    Ok(services)
+}
