@@ -1,0 +1,29 @@
+use {omega}/build/dependency.omg;
+use main.omg as app;
+use {wav_output}/wav_output/wav_output.omg as output;
+use {omega}/language/core/filesystem_authority.omg as authority;
+
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "wave_file" };
+    let filesystem: [BoundaryServiceReference; 4] = [
+        Build::service::<|authority|::FilesystemContentRead>(builder),
+        Build::service::<|authority|::FilesystemContentWrite>(builder),
+        Build::service::<|authority|::FilesystemMetadataMutation>(builder),
+        Build::service::<|authority|::FilesystemNamespaceMutation>(builder)
+    ];
+    let wav: [BoundaryServiceReference; 5] = [
+        Build::service::<|output|::WavOutput>(builder),
+        filesystem[0], filesystem[1], filesystem[2], filesystem[3]
+    ];
+    _ = |dependency|::add(builder, |dependency|::from_source(Source::Path {
+        location: "../wav_output"
+    }), @wav[..]);
+    _ = |dependency|::add(builder, |dependency|::from_source(Source::Bundled {
+        name: "system"
+    }), @filesystem[..]);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, windows_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+}

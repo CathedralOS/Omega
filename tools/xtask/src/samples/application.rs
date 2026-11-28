@@ -374,6 +374,7 @@ pub(super) fn compare(
             host_target()
         ));
     }
+    fs::create_dir_all(evidence).map_err(|e| format!("{}: {e}", evidence.display()))?;
     let snapshot = evidence.join("stdin");
     if let Some(path) = input {
         fs::copy(path, &snapshot).map_err(|e| format!("capture {}: {e}", path.display()))?;
