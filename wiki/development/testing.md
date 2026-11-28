@@ -334,8 +334,10 @@ external submodules use their own gates.
 checkout with `mbx` and authenticates its Cargo artifacts, fingerprints and
 effective Rust flags. It rejects `--cli`: an external executable cannot supply
 the required current-source build evidence. Builds use the checkout's own Cargo
-target directory (`target/`, or `CARGO_TARGET_DIR`). The gate then runs each
-sample's `omega packages update`, builds it and runs it. By default a sample's
+target directory (`target/`, or `CARGO_TARGET_DIR`). By default the gate prepares
+each project's package lock with `omega packages update`, then builds and runs
+the sample. Projects that declare `"package_workflow": "staged"` in `sample.json`
+use the authored Build stages to supply and admit their dependencies. By default a sample's
 inputs are its files, assets and module subdirectories, stopping at nested
 projects with their own `build.omg` or `sample.json`, which are found
 separately. A `source_inputs` list in the sample replaces that default. The
