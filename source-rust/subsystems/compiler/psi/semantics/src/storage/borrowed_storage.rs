@@ -257,6 +257,9 @@ pub struct Projection {
     descriptor: DescriptorPrefix,
     /// The derivation includes a checked upgrade of this backing.
     pub(crate) upgraded_mutability: bool,
+    /// This storage bounds the lifetime of a native borrow; its static layout
+    /// need not describe the address or type used to access the native value.
+    native_enclosing_storage: bool,
     pub path: Vec<StructuralPathSegment>,
     pub exact: bool,
     pub indirect: bool,
@@ -324,6 +327,7 @@ impl Projection {
             ));
         Self {
             upgraded_mutability: false,
+            native_enclosing_storage: false,
             descriptor: if length == path.len() {
                 DescriptorPrefix::Open(path.to_vec())
             } else {
@@ -346,6 +350,15 @@ impl Projection {
     /// checked mutability upgrade operation.
     pub fn upgraded() -> Self {
         Self { upgraded_mutability: true, ..Self::new(&[]) }
+    }
+
+    pub(crate) fn as_native_enclosing_storage(mut self) -> Self {
+        self.native_enclosing_storage = true;
+        self
+    }
+
+    pub fn is_native_enclosing_storage(&self) -> bool {
+        self.native_enclosing_storage
     }
 
     pub fn at(mut self, position: Position) -> Self {
@@ -892,6 +905,10 @@ impl Projection {
 
     pub fn then(&self, suffix: &Self) -> Self {
         let mut composed = self.clone();
+        if self.native_enclosing_storage {
+            return self.clone();
+        }
+        composed.native_enclosing_storage |= suffix.native_enclosing_storage;
         composed.upgraded_mutability |= suffix.upgraded_mutability;
         composed.descriptor = match (
             self.original_descriptor_path(),

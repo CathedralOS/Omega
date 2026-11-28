@@ -110,6 +110,7 @@ pub enum DescriptorCallOrigin {
         projection: Projection,
     },
     NativeAddress {
+        exact_parameters: bool,
         parameters: Vec<semantic_vocabulary::ValueId>,
         machine: MachineId,
         operation: semantic_vocabulary::OperationId,
@@ -771,7 +772,8 @@ pub fn descriptor_machine(
 /// Backing of a scalar actual needed when a callee forms a reference from it.
 pub struct NativeAddressActual {
     pub parameter: ValueId,
-    pub(crate) sources: Vec<(DescriptorLocation, Option<Projection>)>,
+    pub(crate) exact: bool,
+    pub(crate) sources: Vec<(DescriptorLocation, Option<Projection>, Option<StructuralTypeId>)>,
     pub(crate) parameters: Vec<ValueId>,
 }
 

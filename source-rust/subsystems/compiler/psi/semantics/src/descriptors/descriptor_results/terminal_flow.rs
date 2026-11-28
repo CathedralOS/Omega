@@ -2560,15 +2560,15 @@ impl DescriptorMachine {
         parameters: Vec<ValueId>,
     ) -> Option<NativeAddressActual> {
         let sources = sources.into_iter().map(|source| {
-            let (location, mut projection, _) = captured_storage_source(
-                types, source.place, &source.path, *self.place_types.get(&source.place)?, position,
+            let root = *self.place_types.get(&source.place)?;
+            let (location, projection, _) = captured_storage_source(
+                types, source.place, &source.path, root, position,
             )?;
-            if !exact {
-                projection.get_or_insert_with(|| Projection::new(&[])).forget_address();
-            }
-            Some((location, projection))
+            let pointee = crate::runtime_structural_path_tip(types.iter(), root, &source.path)
+                .map(|declaration| declaration.id);
+            Some((location, projection, pointee))
         }).collect::<Option<Vec<_>>>()?;
-        Some(NativeAddressActual { parameter, sources, parameters })
+        Some(NativeAddressActual { parameter, exact, sources, parameters })
     }
 
     /// A known address follows the storage that produced it. A native address
@@ -2586,9 +2586,17 @@ impl DescriptorMachine {
         parameters: Vec<ValueId>,
     ) -> Option<()> {
         let destination = DescriptorLocation::whole(result.place);
+        let StructuralTypeShape::Reference { referent, .. } =
+            find_structural_type(types, result.structural_type)?.shape else { return None; };
         let mut known = false;
+        let mut needs_native_formation = false;
         for source in sources {
             known = true;
+            let pointee = crate::runtime_structural_path_tip(
+                types.iter(), *self.place_types.get(&source.place)?, &source.path,
+            );
+            let enclosing = !exact || pointee.is_none_or(|row| row.id != referent);
+            needs_native_formation |= enclosing;
             let (location, projection, capture) = captured_storage_source(
                 types,
                 source.place,
@@ -2600,16 +2608,20 @@ impl DescriptorMachine {
             if capture == CapturedBacking::StorageAddress {
                 self.storage_derivations.insert((position, location.clone(), destination.clone()));
             }
-            if projection.is_some() || !exact {
-                let mut projection = projection.unwrap_or_else(|| Projection::new(&[]));
-                if !exact { projection.forget_address(); }
+            let projection = if enclosing {
+                Some(projection.unwrap_or_else(|| Projection::new(&[])).as_native_enclosing_storage())
+            } else {
+                projection
+            };
+            if let Some(projection) = projection {
                 self.projections.insert((position, location, destination.clone()), projection);
             }
         }
         let origins = self.originations.entry(position).or_default();
         origins.retain(|(location, _)| location != &destination);
-        if !known || !parameters.is_empty() {
+        if !known || needs_native_formation || !parameters.is_empty() {
             origins.push((destination, DescriptorCallOrigin::NativeAddress {
+                exact_parameters: exact,
                 parameters,
                 machine: self.id,
                 operation,

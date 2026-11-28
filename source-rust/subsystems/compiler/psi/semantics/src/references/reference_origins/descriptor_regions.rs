@@ -349,7 +349,7 @@ fn reference_sources_for_leaves(
             let extent = match origin {
                 DescriptorStoredOrigin::Parameter { projection, .. }
                 | DescriptorStoredOrigin::IncomingContents { projection, .. }
-                    if projection.indirect || projection.window.is_some() =>
+                    if projection.is_native_enclosing_storage() || projection.indirect || projection.window.is_some() =>
                 {
                     return Err("reference result needs a static retained input projection");
                 }

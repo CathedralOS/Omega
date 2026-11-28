@@ -802,6 +802,7 @@ fn native_borrow_results_follow_scalar_address_actuals_back_to_their_storage() {
     let formal = ValueId::new(1).unwrap();
     let forwarded = ValueId::new(2).unwrap();
     let make_origin = |parameters| DescriptorStoredOrigin::NativeAddress {
+        exact_parameters: true,
         machine: MachineId::new(2).unwrap(),
         operation: OperationId::new(1).unwrap(),
         place: location(3).root,
@@ -812,7 +813,8 @@ fn native_borrow_results_follow_scalar_address_actuals_back_to_their_storage() {
     let bind = |storage: Option<DescriptorLocation>, forwarded: Option<ValueId>| {
         let native_address_arguments = [NativeAddressActual {
             parameter: formal,
-            sources: storage.into_iter().map(|storage| (storage, None)).collect(),
+            exact: true,
+            sources: storage.into_iter().map(|storage| (storage, None, Some(scalar))).collect(),
             parameters: forwarded.into_iter().collect(),
         }];
         let origins = replay.substitute_actuals(&machine, &state, DescriptorActualInputs {

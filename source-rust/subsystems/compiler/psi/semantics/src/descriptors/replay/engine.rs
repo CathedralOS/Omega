@@ -2243,6 +2243,7 @@ impl<'a> Replay<'a> {
                             let composed = prefix.then(projection);
                             if composed.exact
                                 && !composed.upgraded_mutability
+                                && !composed.is_native_enclosing_storage()
                                 && !composed.indirect
                                 && composed.window.is_none()
                                 && composed.captured_at.is_none()
@@ -2299,6 +2300,7 @@ impl<'a> Replay<'a> {
                     projection: prefix.then(projection),
                 })),
                 Origin::Backing(DescriptorCallOrigin::NativeAddress {
+                    exact_parameters,
                     parameters,
                     machine,
                     operation,
@@ -2306,6 +2308,7 @@ impl<'a> Replay<'a> {
                     carrier,
                     projection: prefix,
                 }) => Some(Origin::Backing(DescriptorCallOrigin::NativeAddress {
+                    exact_parameters,
                     parameters,
                     machine,
                     operation,
@@ -3378,9 +3381,18 @@ impl<'a> Replay<'a> {
                         } else {
                             Origin::Backing(origin.clone())
                         };
-                        after
-                            .slots_mut()
-                            .insert(location.clone(), Some(BTreeSet::from([origin])));
+                        // An imprecise native address has both a typed formation and
+                        // enclosing storage which constrains that formation's lifetime.
+                        // Preserve every captured backing when adding the formation.
+                        let mut values = if matches!(origin, Origin::Backing(DescriptorCallOrigin::NativeAddress { .. }))
+                            && step.derivations.iter().any(|(_, destination)| destination == location)
+                        {
+                            after.slots.get(location)?.clone()?
+                        } else {
+                            BTreeSet::new()
+                        };
+                        values.insert(origin);
+                        after.slots_mut().insert(location.clone(), Some(values));
                     }
                 }
                 if let Some(call) = machine.direct_call(position)
@@ -3787,27 +3799,43 @@ impl<'a> Replay<'a> {
                     projection: projection.clone(),
                 },
             )])),
-            DescriptorStoredOrigin::NativeAddress { machine: formed_in, operation, place, carrier, projection, parameters } => {
+            DescriptorStoredOrigin::NativeAddress { machine: formed_in, operation, place, carrier, projection, parameters, exact_parameters } => {
+                let StructuralTypeShape::Reference { referent, .. } = self.type_index.find(*carrier)?.shape else {
+                    return None;
+                };
                 let mut origins = BTreeSet::new();
                 let mut forwarded = BTreeSet::new();
+                let mut forwarded_exact = *exact_parameters;
+                let mut needs_formation = false;
                 for parameter in parameters {
                     let actual = actuals.native_address_arguments.iter().find(|row| row.parameter == *parameter)?;
-                    for (location, offset) in &actual.sources {
+                    if !actual.parameters.is_empty() {
+                        forwarded_exact &= actual.exact;
+                    }
+                    for (location, offset, pointee) in &actual.sources {
+                        let enclosing = !*exact_parameters || !actual.exact || *pointee != Some(referent);
+                        needs_formation |= enclosing;
                         let value = if let Some(offset) = offset {
                             self.captured_source_value(machine, state, location, Some(offset), reads)
                         } else {
                             self.capture_storage(machine, state, location, reads)
                         };
-                        origins.extend(self.project(machine, value, Some(projection))?);
+                        if enclosing {
+                            let bound = Projection::new(&[]).as_native_enclosing_storage();
+                            origins.extend(self.project(machine, value, Some(&bound))?);
+                        } else {
+                            origins.extend(self.project(machine, value, Some(projection))?);
+                        }
                     }
                     forwarded.extend(actual.parameters.iter().copied());
                 }
-                if origins.is_empty() || !forwarded.is_empty() {
+                if origins.is_empty() || needs_formation || !forwarded.is_empty() {
                     origins.insert(Origin::Backing(DescriptorCallOrigin::NativeAddress {
                         machine: *formed_in,
                         operation: *operation,
                         place: *place,
                         carrier: *carrier,
+                        exact_parameters: forwarded_exact,
                         parameters: forwarded.into_iter().collect(),
                         projection: projection.clone(),
                     }));
@@ -4153,6 +4181,7 @@ impl<'a> Replay<'a> {
                 projection: projection.clone().without_runtime_coordinates(),
             }),
             Origin::Backing(DescriptorCallOrigin::NativeAddress {
+                exact_parameters,
                 parameters,
                 machine,
                 operation,
@@ -4160,6 +4189,7 @@ impl<'a> Replay<'a> {
                 carrier,
                 projection,
             }) => Some(DescriptorStoredOrigin::NativeAddress {
+                exact_parameters: *exact_parameters,
                 parameters: parameters.clone(),
                 machine: *machine,
                 operation: *operation,
