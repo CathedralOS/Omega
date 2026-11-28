@@ -1601,9 +1601,10 @@ impl Program<'_> {
         if !literal.type_symbol.is_valid() {
             return Err(spelling("record literal without a type symbol"));
         }
-        if self.data_declaration(literal.type_symbol).is_none() {
-            return Err(unserved("literal of a type that is not a data declaration"));
-        }
+        let declaration = self
+            .data_declaration(literal.type_symbol)
+            .ok_or_else(|| unserved("literal of a type that is not a data declaration"))?;
+        let package = super::packages::check_construction(self.typed, id, declaration, literal)?;
         let applications = [
             literal.application_type,
             self.typed
@@ -1756,7 +1757,16 @@ impl Program<'_> {
             if std::mem::replace(&mut seen[position], true) {
                 return Err(typing("record literal names a field twice"));
             }
-            let field_type = declared[position];
+            let storage_type = declared[position];
+            let field_type = if let Some(package) = &package {
+                let concrete = package
+                    .get(&field.field_symbol)
+                    .ok_or_else(|| typing("package literal lacks its concrete field type"))?;
+                let concrete = self.value_type(id, *concrete)?;
+                self.substitute(concrete, &substitution)
+            } else {
+                storage_type
+            };
             let operand = self.expression(id, slots, field.value, Some(field_type))?;
             if !self.agrees(operand.result, Some(field_type)) {
                 return Err(self.mistyped(
@@ -1766,6 +1776,13 @@ impl Program<'_> {
                     Some(field_type),
                     operand.result,
                     "record literal field type",
+                ));
+            }
+            // Keep concrete reference and callable types until the storage
+            // conversion can prove they share this package's witness.
+            if field_type != storage_type && !self.agrees(operand.result, Some(storage_type)) {
+                return Err(unserved(
+                    "package field requires a checked witness-preserving storage conversion",
                 ));
             }
             fields.push((position, operand));
