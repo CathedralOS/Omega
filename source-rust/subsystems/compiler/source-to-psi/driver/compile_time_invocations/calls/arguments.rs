@@ -475,7 +475,14 @@ fn materialize_argument(
         .clone()
     {
         TypeReferenceNode::Constrained { base_type, .. } => {
-            return materialize_argument(program, state, input_values, base_type, value, layout_schema);
+            return materialize_argument(
+                program,
+                state,
+                input_values,
+                base_type,
+                value,
+                layout_schema,
+            );
         }
         TypeReferenceNode::Reference { referee, .. }
             if matches!(
@@ -495,7 +502,14 @@ fn materialize_argument(
             let elements = elements
                 .iter()
                 .map(|value| {
-                    materialize_argument(program, state, input_values, element_type, value, layout_schema)
+                    materialize_argument(
+                        program,
+                        state,
+                        input_values,
+                        element_type,
+                        value,
+                        layout_schema,
+                    )
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             ExpressionNode::ArrayLiteral(
@@ -513,9 +527,23 @@ fn materialize_argument(
             let elements = if layout_schema {
                 fixed_array_elements(program, state, input_values, element_type, elements)?
             } else {
-                elements.iter().map(|value| materialize_argument(program, state, input_values, element_type, value, false)).collect::<Result<Vec<_>, _>>()?
+                elements
+                    .iter()
+                    .map(|value| {
+                        materialize_argument(
+                            program,
+                            state,
+                            input_values,
+                            element_type,
+                            value,
+                            false,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()?
             };
-            ExpressionNode::ArrayLiteral(program.expression_table.insert_expression_handles(elements))
+            ExpressionNode::ArrayLiteral(
+                program.expression_table.insert_expression_handles(elements),
+            )
         }
         TypeReferenceNode::Named { symbol, .. }
             if program.symbols.builtin_type_atom(symbol).is_some() =>
