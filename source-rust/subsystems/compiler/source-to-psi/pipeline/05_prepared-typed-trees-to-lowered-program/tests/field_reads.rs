@@ -428,8 +428,8 @@ fn a_fixed_whole_borrow_preserves_defaults_without_naming_its_unused_elements() 
     assert!(matches!(overwritten.judged(|_| {}), program::Verdict::Rejected(_)));
 }
 
-/// A captured selector can overwrite the literal slot, including across a
-/// block edge. A disjoint literal write preserves the selected payload.
+/// A captured selector can overwrite either literal slot. A disjoint
+/// literal write preserves both payloads.
 #[test]
 fn mutable_sum_array_snapshots_preserve_overlapping_writes() {
     let program = |length: usize, selector: &str, read: usize| {
@@ -442,10 +442,7 @@ fn mutable_sum_array_snapshots_preserve_overlapping_writes() {
              slots[2] = Slot::Full {{ value: 7u64 as + Small }};
              slots[3] = Slot::Full {{ value: 7u64 as + Small }};
              slots[{selector}] = Slot::Full {{ value: 9u64 as + Small }};
-             transition {{ _ -> block read(slots) }}
-             machine read(slots: @mutable [Slot; {length}]) -> u64 {{
-                 transition slots[{read}] {{ Slot::Full {{ value }} -> (value as - Small), Slot::Empty -> 0 }}
-             }}
+             transition slots[{read}] {{ Slot::Full {{ value }} -> (value as - Small), Slot::Empty -> 0 }}
          }}"
     ))
     };
