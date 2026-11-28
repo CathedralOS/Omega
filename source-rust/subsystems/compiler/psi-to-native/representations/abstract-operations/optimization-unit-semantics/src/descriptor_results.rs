@@ -1572,6 +1572,28 @@ fn adapt(
                     .push((destination, value));
             }
             let result = operation.structural_result().map(|(_, result)| result);
+            let bind_address_arguments =
+                |graph: &DescriptorMachine,
+                 call: &mut kernel::DescriptorInvocation,
+                 callee: &PsiOptimizationFunction,
+                 actuals: &[semantic_vocabulary::ValueId]| {
+                    if callee.parameters.len() != actuals.len() {
+                        return None;
+                    }
+                    graph.bind_native_address_arguments(
+                        call,
+                        types,
+                        position,
+                        &callee.structural_parameters,
+                        result,
+                        callee
+                            .parameters
+                            .iter()
+                            .map(|formal| formal.value)
+                            .zip(actuals.iter().copied()),
+                        |actual| scalar_expressions.native_address(actual, &scalar_formals),
+                    )
+                };
             if let O::IntegerConstant {
                 result,
                 value: semantic_vocabulary::IntegerValue::Unsigned(value),
@@ -2380,6 +2402,7 @@ fn adapt(
                             interface,
                             slot,
                         },
+                    arguments: scalar_actuals,
                     structural_arguments,
                     ..
                 } => {
@@ -2412,6 +2435,13 @@ fn adapt(
                     )?;
                     let complete_contents = call.argument_contents.iter().all(Option::is_some);
                     let effects_machine = effects_machine.filter(|_| complete_contents);
+                    if let Some(machine) = effects_machine {
+                        let callee = functions
+                            .iter()
+                            .copied()
+                            .find(|body| body.machine == machine)?;
+                        bind_address_arguments(&graph, &mut call, callee, scalar_actuals)?;
+                    }
                     if let kernel::DescriptorInvocationTarget::Public {
                         effects_machine: target,
                         ..
@@ -2479,19 +2509,7 @@ fn adapt(
                                 .iter()
                                 .map(|actual| graph.place_types.get(&actual.place).copied()),
                         )?;
-                        graph.bind_native_address_arguments(
-                            &mut call,
-                            types,
-                            position,
-                            &callee.structural_parameters,
-                            result,
-                            callee
-                                .parameters
-                                .iter()
-                                .map(|formal| formal.value)
-                                .zip(scalar_actuals.iter().copied()),
-                            |actual| scalar_expressions.native_address(actual, &scalar_formals),
-                        )?;
+                        bind_address_arguments(&graph, &mut call, callee, scalar_actuals)?;
                         call.scalar_arguments = kernel::descriptor_scalar_arguments(
                             callee
                                 .parameters
@@ -3292,7 +3310,10 @@ fn selected_effects_machine(
                     && result.scalar_type == expected.scalar_type
             })
         }
-        terminal_psi::BoundaryMachineResult::Structural(_) => false,
+        terminal_psi::BoundaryMachineResult::Structural(_) => body
+            .result
+            .structural()
+            .is_some_and(|result| signature.result.matches_structural_result(result)),
     };
     if bodies.next().is_some()
         || !result_matches
