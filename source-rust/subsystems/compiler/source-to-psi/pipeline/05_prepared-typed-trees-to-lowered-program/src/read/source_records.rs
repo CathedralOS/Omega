@@ -137,6 +137,30 @@ fn selected_sampler(
     Ok(machine.symbol)
 }
 
+/// A supplied operation record must implement the exact trait application at this use.
+fn check_record_operations(
+    typed: &crate::source_state::TypedTrees,
+    mut required: crate::source_state::trait_definition::AppliedTraitScope<'_>,
+    receiving_scope: &crate::source_state::SourceTypeScope,
+    argument: TypeReferenceHandle,
+) -> crate::source_state::static_operand_binding::Served<()> {
+    use crate::source_state::static_operand_binding::{require_static_record_schema, unserved};
+    let mut outer = Some(receiving_scope);
+    while let Some(frame) = outer {
+        if let Some((binder, _)) = frame.substitutions.first() {
+            let owner = typed.symbols.get(*binder).parent;
+            required = required
+                .under_invocation(typed, owner, owner, &frame.substitutions, &[])
+                .ok_or_else(|| unserved("record operation parameter lost its applied schema"))?;
+        }
+        outer = frame.parent.as_deref();
+    }
+    let TypeReferenceNode::Named { symbol, .. } = typed.type_reference_node(argument) else {
+        return Err(unserved("record operation argument needs its exact named value"));
+    };
+    require_static_record_schema(typed, &required, *symbol)
+}
+
 pub(super) fn source_application(
     typed: &crate::source_state::TypedTrees,
     data: &DataDefinition,
@@ -277,6 +301,15 @@ fn checked_source_application(
             ));
         }
         let mut binders = Vec::with_capacity(parameters.len());
+        let signature_scope = || crate::source_state::SourceTypeScope {
+            parent: Some(scope.clone()),
+            substitutions: parameters
+                .iter()
+                .zip(arguments)
+                .map(|(parameter, argument)| (parameter.symbol, *argument))
+                .collect(),
+            rigid_parameters: Vec::new(),
+        };
         for (parameter, argument) in parameters.iter().zip(arguments) {
             if !parameter.symbol.is_valid()
                 || typed.symbols.get(parameter.symbol).parent != template.symbol
@@ -333,16 +366,7 @@ fn checked_source_application(
                     let supplied = scope
                         .supplied_type_reference(typed, *argument)
                         .map_err(|why| malformed(machine, why))?;
-                    let signature_scope = crate::source_state::SourceTypeScope {
-                        parent: Some(scope.clone()),
-                        substitutions: parameters
-                            .iter()
-                            .zip(arguments)
-                            .map(|(parameter, argument)| (parameter.symbol, *argument))
-                            .collect(),
-                        rigid_parameters: Vec::new(),
-                    };
-                    selected_sampler(typed, required, supplied.reference, &signature_scope)
+                    selected_sampler(typed, required, supplied.reference, &signature_scope())
                         .map_err(|stop| match stop {
                             SelectedMachine::Unserved(what) => {
                                 let mut refusal = unavailable(what);
@@ -373,6 +397,37 @@ fn checked_source_application(
                 }
                 &TypeParameterKind::Const { type_reference }
                 | &TypeParameterKind::Value { type_reference } => {
+                    if matches!(parameter.kind, TypeParameterKind::Const { .. })
+                        && let Some(required) = typed.static_record_schema(type_reference, template.symbol)
+                    {
+                        let supplied = scope
+                            .supplied_type_reference(typed, *argument)
+                            .map_err(|why| malformed(machine, why))?;
+                        use crate::source_state::static_operand_binding::Stop;
+                        check_record_operations(
+                            typed,
+                            required,
+                            &signature_scope(),
+                            supplied.reference,
+                        )
+                        .map_err(|stop| match stop {
+                            Stop::Rejected(reason) => crate::reject(
+                                machine,
+                                crate::SourceOrigin::of(
+                                    typed
+                                        .symbols
+                                        .symbol_source_span(parameter.symbol)
+                                        .unwrap_or_default(),
+                                ),
+                                reason,
+                            ),
+                            Stop::Unserved(reason) => super::unavailable(machine, reason),
+                            Stop::Defect(reason) => malformed(machine, reason),
+                        })?;
+                        binders.push(parameter.symbol);
+                        substitutions.push((parameter.symbol, *argument));
+                        continue;
+                    }
                     let carrier = match typed.type_reference_table.type_reference(type_reference) {
                         TypeReferenceNode::Named { symbol, .. } => {
                             match typed.symbols.builtin_type_atom(*symbol) {

@@ -390,41 +390,7 @@ impl Operand {
                 .ok_or(unserved(
                     "a static record binder needs its call's static arguments",
                 ))?;
-            let symbol = operand.argument.symbol;
-            if program.symbols.get(symbol).kind == SymbolKind::TypeParameter {
-                let declaration = program
-                    .data_type_parameter_by_symbol(symbol)
-                    .ok_or(unserved("a forwarded static record has no declared binder"))?;
-                let TypeParameterKind::Const { type_reference } = declaration.kind else {
-                    return Err(unserved("a forwarded static record is not a const value"));
-                };
-                let actual = program
-                    .static_record_schema(type_reference, program.symbols.get(symbol).parent)
-                    .ok_or(unserved(
-                        "a forwarded static record lost its declared schema",
-                    ))?;
-                if !required.same_application(program, &actual) {
-                    return Err(Stop::Rejected(
-                        "a forwarded static record has another declared schema".into(),
-                    ));
-                }
-            } else {
-                let selected = program.conformance_by_symbol(symbol).ok_or(unserved(
-                    "a static record operand has no named record declaration",
-                ))?;
-                let actual =
-                    crate::source_state::trait_definition::AppliedTraitScope::from_conformance(
-                        program, selected,
-                    )
-                    .ok_or(unserved(
-                        "a static record operand lost its complete schema application",
-                    ))?;
-                if !required.same_application(program, &actual) {
-                    return Err(Stop::Rejected(
-                        "a static record operand has another declared schema".into(),
-                    ));
-                }
-            }
+            require_static_record_schema(program, &required, operand.argument.symbol)?;
         }
         Ok(())
     }
@@ -706,6 +672,60 @@ fn bound_arguments_match(
         }
     }
     Ok(true)
+}
+
+/// Compare a selected operation record against the complete schema of its receiving binder.
+pub fn require_static_record_schema(
+    program: &TypedTrees,
+    required: &crate::source_state::trait_definition::AppliedTraitScope<'_>,
+    symbol: SymbolHandle,
+) -> Served<()> {
+    if !program.symbols.symbols().nodes().is_valid(symbol) {
+        return Err(unserved(
+            "a static record operand has no named record declaration",
+        ));
+    }
+    if program.symbols.get(symbol).kind == SymbolKind::TypeParameter {
+        let declaration = program
+            .data_type_parameter_by_symbol(symbol)
+            .ok_or(unserved("a forwarded static record has no declared binder"))?;
+        let TypeParameterKind::Const { type_reference } = declaration.kind else {
+            return Err(unserved("a forwarded static record is not a const value"));
+        };
+        let actual = program
+            .static_record_schema(type_reference, program.symbols.get(symbol).parent)
+            .ok_or(unserved(
+                "a forwarded static record lost its declared schema",
+            ))?;
+        if !required.same_application(program, &actual) {
+            return Err(Stop::Rejected(
+                "a forwarded static record has another declared schema".into(),
+            ));
+        }
+    } else {
+        let selected = program.conformance_by_symbol(symbol).ok_or(unserved(
+            "a static record operand has no named record declaration",
+        ))?;
+        if !selected.lifetime_parameters.is_empty()
+            || !program.conformance_type_parameters(selected).is_empty()
+        {
+            return Err(unserved(
+                "a static record operand needs its complete closed application",
+            ));
+        }
+        let actual = crate::source_state::trait_definition::AppliedTraitScope::from_conformance(
+            program, selected,
+        )
+        .ok_or(unserved(
+            "a static record operand lost its complete schema application",
+        ))?;
+        if !required.same_application(program, &actual) {
+            return Err(Stop::Rejected(
+                "a static record operand has another declared schema".into(),
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn named_static_record(

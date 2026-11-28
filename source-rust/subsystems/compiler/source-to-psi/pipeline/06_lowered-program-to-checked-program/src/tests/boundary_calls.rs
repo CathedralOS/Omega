@@ -157,6 +157,29 @@ fn a_record_index_and_a_machine_argument_name_the_same_enum_case() {
 }
 
 #[test]
+fn a_forwarded_operation_record_keeps_its_complete_schema() {
+    let source = r"
+trait Factory<T> { machine make() -> T reaches none crashes none; }
+Words satisfies Factory<u32> { machine make() -> u32 reaches none crashes none { 7u32 } }
+Flags satisfies Factory<bool> { machine make() -> bool reaches none crashes none { true } }
+data Slot<T, const Ops: Factory<T>> { value: T; }
+data Bundle<T, const Active: Factory<T>> { slot: Slot<T, Active>; }
+machine entry(box: Bundle<u32, Words>) -> u32 { box.slot.value }
+";
+    let prepared = crate::preparation::prepare_typed_trees(typed(source), &[], &[]).unwrap();
+    let verdict = judge(invocation(prepared.into_inner())).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+
+    let wrong = source.replace("Bundle<u32, Words>", "Bundle<u32, Flags>");
+    let error = try_typed(&wrong).expect_err("Flags provides Factory<bool>");
+    assert!(
+        error.message.contains("does not supply the declared `Factory` application of `Bundle`"),
+        "{}",
+        error.message
+    );
+}
+
+#[test]
 fn record_indices_and_static_machine_arguments_require_a_complete_case_of_the_carrier() {
     let declarations = "data Mode [copy] { case Fixed; case Split; case Sized(bytes:u32); }
         data Other [copy] { case Fixed; }

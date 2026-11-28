@@ -798,8 +798,9 @@ impl Program<'_> {
     /// application serves (`source_records::source_application`):
     ///
     /// - type parameters may require stored multiplicities; each application
-    ///   checks the supplied type against them. Constant carriers must be
-    ///   copyable and address-free. Lifetimes, conformance bounds, cleanup
+    ///   checks the supplied type against them. A const holds a copyable,
+    ///   address-free value or selects a named record at its declared trait
+    ///   application. Lifetimes, conformance bounds, cleanup
     ///   and quotients have separate formation rules;
     ///   a declared predicate has its own generic formation check;
     /// - each member is an ordinary runtime field or payload field, and its
@@ -841,10 +842,11 @@ impl Program<'_> {
                 TypeParameterKind::Const { type_reference }
                 | TypeParameterKind::Value { type_reference } => {
                     parameter.bounds == crate::source_state::data::DataProperties::default()
-                        && crate::source_state::canonical_const_carrier_is_supported(
+                        && (crate::source_state::canonical_const_carrier_is_supported(
                             typed,
                             type_reference,
-                        )
+                        ) || (matches!(parameter.kind, TypeParameterKind::Const { .. })
+                            && typed.static_record_schema(type_reference, data.symbol).is_some()))
                 }
                 _ => false,
             };
