@@ -65,7 +65,10 @@ fn an_explicit_borrowed_type_argument_constrains_a_single_runtime_operand() {
          }
          machine build_entry() {}",
     );
-    assert!(reason.contains("one lifetime two regions"), "{reason}");
+    assert!(
+        reason.contains("nothing relates two lifetimes of one machine"),
+        "{reason}"
+    );
 }
 
 #[test]
