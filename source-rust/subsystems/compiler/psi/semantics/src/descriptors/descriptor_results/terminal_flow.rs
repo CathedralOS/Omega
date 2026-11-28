@@ -179,6 +179,7 @@ pub(crate) fn residence_rules(
 }
 
 pub(crate) fn adapt(
+    tracks_native_addresses: bool,
     module: &TerminalModule,
     machines: &[&TerminalMachine],
     machine: &TerminalMachine,
@@ -197,6 +198,7 @@ pub(crate) fn adapt(
         detail: None,
     };
     adapt_flow(
+        tracks_native_addresses,
         module,
         machines,
         machine,
@@ -212,6 +214,7 @@ pub(crate) fn adapt(
 
 #[allow(clippy::too_many_arguments)]
 fn adapt_flow(
+    tracks_native_addresses: bool,
     module: &TerminalModule,
     machines: &[&TerminalMachine],
     machine: &TerminalMachine,
@@ -1606,13 +1609,9 @@ fn adapt_flow(
                     let effects_machine = effects_machine.filter(|_| complete_contents);
                     if let Some(selected) = effects_machine {
                         graph.bind_terminal_native_addresses(
-                            &mut call,
-                            module,
-                            machine,
-                            terminal_graph_machine(machines, selected)?,
-                            position,
-                            arguments,
-                            result,
+                            tracks_native_addresses,
+                            &mut call, module, machine, terminal_graph_machine(machines, selected)?,
+                            position, arguments, result,
                         )?;
                     }
                     if let DescriptorInvocationTarget::Public {
@@ -1718,13 +1717,9 @@ fn adapt_flow(
                                 _ => operation.module_invocation()?.arguments,
                             };
                             graph.bind_terminal_native_addresses(
-                                &mut call,
-                                module,
-                                machine,
-                                terminal_graph_machine(machines, callee)?,
-                                position,
-                                arguments,
-                                result,
+                                tracks_native_addresses,
+                                &mut call, module, machine, terminal_graph_machine(machines, callee)?,
+                                position, arguments, result,
                             )?;
                         }
                         call.retain_whole_scalar_result_address(module, &public);
@@ -1849,6 +1844,7 @@ fn adapt_flow(
                             return None;
                         }
                         let call = graph.direct_invocation(
+                            tracks_native_addresses,
                             machine,
                             position,
                             module,
@@ -2264,6 +2260,7 @@ fn adapt_flow(
                     *failure_detail =
                         Some("descriptor terminal invocation does not match its callee header");
                     Some(graph.direct_invocation(
+                        tracks_native_addresses,
                         machine,
                         position,
                         module,

@@ -113,6 +113,7 @@ impl DescriptorMachine {
             ValueId,
         )
             -> crate::storage::native_borrows::NativeAddressOrigin<S>,
+        tracks_native_addresses: bool,
     ) -> Option<()> {
         let returns_reference = result.is_some_and(|result| {
             terminal_psi::structural_type_contains_reference(types, result.structural_type)
@@ -123,7 +124,7 @@ impl DescriptorMachine {
                 StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
             ) && terminal_psi::structural_type_contains_reference(types, formal.structural_type)
         });
-        if returns_reference || writes_reference {
+        if returns_reference || writes_reference || tracks_native_addresses {
             for (formal, actual) in scalar_bindings {
                 let origin = address_origin(actual);
                 call.native_address_arguments
@@ -142,6 +143,7 @@ impl DescriptorMachine {
 
     pub(crate) fn bind_terminal_native_addresses(
         &self,
+        tracks_native_addresses: bool,
         call: &mut DescriptorInvocation,
         module: &TerminalModule,
         caller: &TerminalMachine,
@@ -162,6 +164,7 @@ impl DescriptorMachine {
                 .map(|formal| formal.id)
                 .zip(arguments.iter().copied()),
             |actual| crate::storage::native_borrows::address_origin(caller, actual),
+            tracks_native_addresses,
         )
     }
 
@@ -170,6 +173,7 @@ impl DescriptorMachine {
     // complete parameter list and supplied arguments at the pre-call cut.
     pub(crate) fn direct_invocation(
         &self,
+        tracks_native_addresses: bool,
         caller: &TerminalMachine,
         position: DescriptorPosition,
         module: &TerminalModule,
@@ -224,13 +228,7 @@ impl DescriptorMachine {
             )?
         };
         self.bind_terminal_native_addresses(
-            &mut call,
-            module,
-            caller,
-            callee,
-            position,
-            inputs.arguments,
-            result,
+            tracks_native_addresses, &mut call, module, caller, callee, position, inputs.arguments, result,
         )?;
         call.scalar_arguments = descriptor_scalar_arguments(
             callee
