@@ -409,7 +409,13 @@ own `ensures` beyond its requirement's is kept before its caller-facing
 contract becomes the requirement's (`realized_ensures`), and lowering hands
 it to the other members of the same implementation as
 `MachineTables::realized_guarantees`, so a law's body can use what its
-comparison ensures of itself. What an
+comparison ensures of itself. In the copy of a machine generic over
+`E satisfies EqualImpliesIdentity<T>`, a clause's `E::equals` keeps the row
+specialization selected (`StaticRequirementDispatch`) and is read as that
+implementation's row (`dispatched_row`); `Identity::<T>` there is the type
+the copy's specialization binds `T` to; and a law cited as
+`E::identity_of_equal` has the requirement's header at the implementation's
+own arguments. What an
 operation ensures does not stop a clause naming it; a precondition does.
 `tools/ratchets/clause_term_readers.txt` counts the functions in `read/` that
 return a clause term, so the number can only fall.
