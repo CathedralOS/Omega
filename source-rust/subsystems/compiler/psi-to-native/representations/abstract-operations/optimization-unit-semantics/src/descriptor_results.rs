@@ -1935,6 +1935,7 @@ fn adapt(
                         origin.observed_sources(),
                         origin.exact,
                         origin.parameters.clone(),
+                        origin.opaque,
                     )?;
                 }
                 O::UpgradeMutability { result, source, .. } if slot_kind.tracks_references() => {
