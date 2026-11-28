@@ -349,19 +349,11 @@ impl Program<'_> {
         let source = self.record_source(id, record)?;
         let mut own = self.own_regions(source.declaration);
         if let Some(application) = &source.application {
-            own.extend(
-                application
-                    .substitutions
-                    .iter()
-                    .filter_map(|(_, argument)| {
-                        super::source_records::retained_borrow(
-                            self.typed,
-                            &application.scope,
-                            *argument,
-                        )
-                        .map(Region::Parameter)
-                    }),
-            );
+            for (_, argument) in &application.substitutions {
+                let parameters = super::source_records::retained_regions(self.typed, &application.scope, *argument)
+                    .ok_or_else(|| refuse_at(id, Unserved::Typing("record application lost its argument regions")))?;
+                own.extend(parameters.into_iter().map(Region::Parameter));
+            }
         }
         Ok(own)
     }
@@ -388,8 +380,7 @@ impl Program<'_> {
                 .as_ref()
                 .is_some_and(|app| {
                     app.substitutions.iter().any(|(_, arg)| {
-                        super::source_records::retained_borrow(self.typed, &app.scope, *arg)
-                            .is_some()
+                        app.scope.region_free_type_identity(self.typed, *arg).is_none()
                     })
                 })
             {
@@ -408,16 +399,21 @@ impl Program<'_> {
                 Unserved::Typing("record applied at another number of regions than it declares"),
             ));
         }
-        Ok(own
-            .into_iter()
-            .zip(applied)
-            .filter_map(|(parameter, argument)| match parameter {
-                Region::Parameter(parameter) if Region::Parameter(parameter) != *argument => {
-                    Some((parameter, *argument))
+        // A shared layout may have first been formed with two coincident
+        // lifetimes. Only rebind that parameter when every occurrence agrees.
+        let mut bindings = Vec::new();
+        for (parameter, actual) in own.into_iter().zip(applied) {
+            let Region::Parameter(parameter) = parameter else { continue };
+            if let Some((_, prior)) = bindings.iter().find(|(key, _)| *key == parameter) {
+                if prior != actual {
+                    return Err(refuse_at(id, Unserved::Typing("one retained record region has distinct occurrence arguments")));
                 }
-                _ => None,
-            })
-            .collect())
+            } else {
+                bindings.push((parameter, *actual));
+            }
+        }
+        bindings.retain(|(parameter, actual)| Region::Parameter(*parameter) != *actual);
+        Ok(bindings)
     }
 
     /// Extends `bound` so that `formal`, with `bound` applied, is `actual`,
