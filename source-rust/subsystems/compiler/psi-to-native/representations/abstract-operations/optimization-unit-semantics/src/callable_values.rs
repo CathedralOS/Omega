@@ -89,7 +89,7 @@ fn project<'a>(
                         instantiated,
                         ..
                     } => {
-                        for (field, actual) in instantiated {
+                        for (field, actual) in instantiated.fields() {
                             body.package_sites.record_field(
                                 structural_types,
                                 position,
