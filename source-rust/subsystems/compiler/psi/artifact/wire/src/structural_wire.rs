@@ -700,6 +700,7 @@ pub(crate) mod structural_signature_wire {
             result_lifetimes: Optional<List<crate::module_wire::closed_conformance_wire::ResultLifetime>>,
             requires: List<DomainRequirement>,
             normal_qualifications: List<DomainRequirement>,
+            membership_requires: List<super::contract_wire::Membership>,
             membership_ensures: List<super::contract_wire::Membership>,
             scalar_domain_requirements: List<ScalarDomain>,
             scalar_requires: List<Proposition>,
@@ -787,7 +788,9 @@ pub(crate) mod structural_signature_wire {
         }
     }
 
+    use language_core::sealed_intrinsics::ActivationOperation;
     wire_enum! {
+        ActivationOp: ActivationOperation, "activation control operation" { 0 => Park }
         Execution: CheckedBoundaryExecution, "checked boundary execution" {
             0 => Provider,
             1 => AccessInitialize,
@@ -802,6 +805,7 @@ pub(crate) mod structural_signature_wire {
             10 => HostedPrimitive { operation: HostedOperationWire, requirement: Id },
             11 => NumericPrimitive,
             12 => LayoutTargetFacts,
+            13 => OwnedActivation(operation: ActivationOp),
         }
         Role: BoundaryDeclarationRole, "BoundaryDeclarationRole" { 0 => Callable, 1 => ContractEvidence }
         RequirementKind: BoundaryRequirementKind, "BoundaryRequirementKind" {

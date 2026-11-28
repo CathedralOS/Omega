@@ -64,27 +64,32 @@ fn refinement_module() -> TerminalModule {
         obligation: id(90),
         proposition: subject_bound(11, 10),
     }];
-    module.execution.callables.contracts.push(TerminalCallableContract {
-        id: id(1),
-        identity,
-        scalar_parameters: vec![parameter],
-        parameter_order,
-        structural_parameters: Vec::new(),
-        result: BoundaryMachineResult::Scalar(result.value_type()),
-        proof_result: TerminalMachineResult::Scalar(result),
-        entry_claim_paths: Vec::new(),
-        result_claim_paths: Vec::new(),
-        result_reference_regions: Vec::new(),
-        proof,
-        evidence_contract: Vec::new(),
-        envelope: TerminalCallableEnvelope {
-            service_reach: Vec::new(),
-            invocations: Vec::new(),
-            suspends: false,
-            blocks: false,
-            termination: TerminalCallableTermination::NotGuaranteed,
-        },
-    });
+    module
+        .execution
+        .callables
+        .contracts
+        .push(TerminalCallableContract {
+            id: id(1),
+            identity,
+            requirement: None,
+            scalar_parameters: vec![parameter],
+            parameter_order,
+            structural_parameters: Vec::new(),
+            result: BoundaryMachineResult::Scalar(result.value_type()),
+            proof_result: TerminalMachineResult::Scalar(result),
+            entry_claim_paths: Vec::new(),
+            result_claim_paths: Vec::new(),
+            result_reference_regions: Vec::new(),
+            proof,
+            evidence_contract: Vec::new(),
+            envelope: TerminalCallableEnvelope {
+                service_reach: Vec::new(),
+                invocations: Vec::new(),
+                suspends: false,
+                blocks: false,
+                termination: TerminalCallableTermination::NotGuaranteed,
+            },
+        });
     let goals = callable_contract_refinement_goals(&module, id(1), id(1)).unwrap();
     let mut next_obligation = 100;
     let obligations = goals
@@ -272,22 +277,32 @@ fn declared_refinement_module() -> TerminalModule {
     let identity = identities.intern(&required_identity);
     let application = identities.intern("source-owned-selected-application");
     module.identities = identities.build();
-    let envelope = module.execution.callables.machine_envelope(id(1)).unwrap().clone();
-    module.execution.callables.contracts.push(TerminalCallableContract {
-        id: id(1),
-        identity,
-        scalar_parameters: selected.parameters.clone(),
-        parameter_order: selected.parameter_order.clone(),
-        structural_parameters: selected.structural_parameters.clone(),
-        result: BoundaryMachineResult::Scalar(selected.result.scalar().unwrap().value_type()),
-        proof_result: selected.result.clone(),
-        proof,
-        entry_claim_paths: Vec::new(),
-        result_claim_paths: Vec::new(),
-        result_reference_regions: Vec::new(),
-        evidence_contract: Vec::new(),
-        envelope,
-    });
+    let envelope = module
+        .execution
+        .callables
+        .machine_envelope(id(1))
+        .unwrap()
+        .clone();
+    module
+        .execution
+        .callables
+        .contracts
+        .push(TerminalCallableContract {
+            id: id(1),
+            identity,
+            requirement: None,
+            scalar_parameters: selected.parameters.clone(),
+            parameter_order: selected.parameter_order.clone(),
+            structural_parameters: selected.structural_parameters.clone(),
+            result: BoundaryMachineResult::Scalar(selected.result.scalar().unwrap().value_type()),
+            proof_result: selected.result.clone(),
+            proof,
+            entry_claim_paths: Vec::new(),
+            result_claim_paths: Vec::new(),
+            result_reference_regions: Vec::new(),
+            evidence_contract: Vec::new(),
+            envelope,
+        });
     let questions = callable_contract_refinement_goals(&module, id(1), id(1)).unwrap();
     module
         .execution.callables
@@ -608,11 +623,14 @@ machine build_entry(value: u32) -> u32 {{
         "let result: u32 = block root(value); result",
     ] {
         let negative = source("root", body);
-        assert_scalar_callee_refused(&negative);
+        assert_typing_refuses(
+            &negative,
+            "the evaluated call operand is not a runtime callable",
+        );
     }
 }
 
-fn assert_scalar_callee_refused(negative: &str) {
+pub(super) fn assert_typing_refuses(negative: &str, expected: &str) {
     let mut sources = crate::source_inputs::SourceMap::default();
     let source_id = sources
         .add_checked_instance(
@@ -634,10 +652,7 @@ fn assert_scalar_callee_refused(negative: &str) {
     request.sources = Some(std::sync::Arc::new(sources));
     let resolved = crate::resolution::resolve(request).unwrap();
     let error = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap_err();
-    assert_eq!(
-        error.message,
-        "the evaluated call operand is not a runtime callable"
-    );
+    assert_eq!(error.message, expected);
 }
 
 /// Inference, opaque contracts and boundary headers must discharge the same

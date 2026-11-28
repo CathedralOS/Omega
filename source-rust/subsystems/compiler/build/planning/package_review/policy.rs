@@ -25,6 +25,7 @@ pub(super) fn project(
     target: TargetProfile,
     package: PackageKeyIdentity,
     component_assumptions: Vec<review_evidence::record::PackagePolicyComponentAssumption>,
+    unsafe_services: &[semantic_vocabulary::ServiceId],
 ) -> Result<PackagePolicyBaseline, Vec<Diagnostic>> {
     if input.sources().package_identity() != Some(package)
         || input.declarations.published_program() != checked.original_program()
@@ -56,7 +57,12 @@ pub(super) fn project(
         services,
         input.public_traits(package)?,
     )?;
-    providers.validate_service_inventory(&census, &source.callables, &source.public_api.traits)?;
+    providers.validate_service_inventory(
+        &census,
+        &source.callables,
+        &source.public_api.traits,
+        unsafe_services,
+    )?;
     let native_bindings = native.finish(checked, target)?;
     let mut public_api = source.public_api;
     public_api.traits.extend(providers.public_traits);

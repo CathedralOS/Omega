@@ -78,7 +78,7 @@ pub mod const_integer {
         BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable, TableNamePath,
     };
     use bignum::BigInt;
-    use numeric_literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
+    use numeric_literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
     use numerics::arithmetic::ArithmeticDomain;
 
     /// What exact evaluation found for one integer calculation.
@@ -295,26 +295,17 @@ pub mod const_integer {
         expressions: &ExpressionTable,
         expression: ExpressionHandle,
     ) -> Option<IntegerLiteral> {
-        if !matches!(
-            expressions.expression(expression),
-            ExpressionNode::Binary(_)
-        ) {
-            return None;
+        match expressions.expression(expression) {
+            ExpressionNode::Integer(literal) => return Some(literal.clone()),
+            ExpressionNode::Binary(_) => {}
+            _ => return None,
         }
         let ExactInteger::Value { value, landing } =
             exact_value(expressions, expression, Operators::Ring, &|_| None)
         else {
             return None;
         };
-        let literal = match value.to_i64() {
-            Some(narrow) => IntegerLiteral::from_value(narrow),
-            None => IntegerLiteral::from_parts(
-                value.is_negative(),
-                IntegerRadix::Decimal,
-                &value.abs().to_string(),
-            )
-            .ok()?,
-        };
+        let literal = IntegerLiteral::from_integer(value);
         Some(match landing {
             Some(landing) => literal.with_landing(landing),
             None => literal,
@@ -325,6 +316,7 @@ pub mod const_integer {
     mod tests {
         use super::super::expression::TableBinaryExpression;
         use super::*;
+        use numeric_literals::IntegerRadix;
 
         fn landed(value: i64, name: &str) -> IntegerLiteral {
             IntegerLiteral::from_value(value).with_landing(IntegerLanding {
@@ -5218,6 +5210,18 @@ pub mod expression {
                     symbols.get(self.symbol).kind,
                     symbols::SymbolKind::Conformance | symbols::SymbolKind::ConformanceParameter
                 )
+        }
+
+        /// A resolved bare path describes its declaration, not a partly
+        /// supplied application. The lexical spelling adds no identity.
+        pub fn is_bare_declaration(&self) -> bool {
+            self.symbol.is_valid()
+                && self.type_reference == Default::default()
+                && self.authored_machine_application == Default::default()
+                && self.authored_selection.is_none()
+                && self.application.is_none()
+                && self.const_literal.is_none()
+                && self.evidence_projection.is_none()
         }
     }
 

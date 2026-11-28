@@ -1815,8 +1815,14 @@ pub(crate) mod declaration_foundations {
                     })?;
             }
             for row in &module.interfaces.provider_exports {
-                row.check_members(module)
-                    .map_err(CodecError::MalformedStructuralFoundation)?;
+                row.check_member_contracts(module, |id, method| {
+                    let boundary = module
+                        .boundary_machine(id)
+                        .ok_or("unknown exported boundary")?;
+                    terminal_semantics::validate_boundary_memberships(module, boundary, method)
+                        .map_err(|_| "exported method changes its requirement's domain membership")
+                })
+                .map_err(CodecError::MalformedStructuralFoundation)?;
             }
             for request in &module.interfaces.calling_policy_requests {
                 match &request.declaration {
@@ -2828,8 +2834,6 @@ pub(crate) mod declaration_foundations {
             );
         }
         validate_provider_scalar_contract(boundary, machine, &module.types.structural_domains)?;
-        terminal_semantics::provider_candidates::conservation::verify(module, candidate)
-            .map_err(CodecError::MalformedStructuralFoundation)?;
         super::scalar_boundary_contracts::validate_provider(module, boundary, &machine.parameters)?;
         for parameter in &candidate.signature.parameters {
             if !has_structural_type(module, parameter.structural_type) {
@@ -5507,6 +5511,7 @@ pub(crate) mod scalar_applications {
                 structural_parameters: Vec::new(),
                 result: terminal_psi::BoundaryMachineResult::Unit,
                 requires: Vec::new(),
+                membership_requires: Vec::new(),
                 membership_ensures: Vec::new(),
                 normal_qualifications: Vec::new(),
                 scalar_domain_requirements: Vec::new(),
@@ -6325,6 +6330,7 @@ pub(crate) mod scalar_qualifications {
             ),
             Error::MalformedStructuralFoundation(detail)
             | Error::MalformedMachine { detail, .. }
+            | Error::UnmetInputMembership { detail, .. }
             | Error::NormalResultMembership { detail, .. } => {
                 crate::CodecError::MalformedStructuralFoundation(detail)
             }
@@ -7382,6 +7388,7 @@ pub(crate) mod storage_foundations {
             module: &TerminalModule,
             machine: &TerminalMachine,
             operation: &Operation,
+            package_sites: &terminal_semantics::packages::CheckedPackageSites,
         ) -> Result<(), CodecError> {
             let OperationKind::StructuralScalarFieldStore {
                 destination,
@@ -7427,6 +7434,10 @@ pub(crate) mod storage_foundations {
                     "structural scalar field store does not select a relevant scalar field",
                 );
             };
+            let expected = package_sites
+                .stored_field_type(machine.id, operation.id)
+                .and_then(StructuralFieldType::scalar_type)
+                .unwrap_or(expected);
             if declared_scalar_type(machine, *value) != Some(expected) {
                 return malformed("structural scalar field store value type does not match field");
             }
@@ -11579,6 +11590,12 @@ fn validate_callable_scalar_types(module: &TerminalModule) -> Result<(), CodecEr
     }
     for (ordinal, contract) in module.execution.callables.contracts.iter().enumerate() {
         if usize::try_from(contract.id.get() - 1).ok() != Some(ordinal)
+            || contract.requirement.is_some_and(|requirement| {
+                module
+                    .identities
+                    .text(requirement)
+                    .is_none_or(str::is_empty)
+            })
             || module
                 .identities
                 .text(contract.identity)
@@ -12328,23 +12345,11 @@ pub(crate) fn validate_structural_foundation(
                 "no-normal validation has incomplete declared type contracts",
             )
         })?;
-    let has_boundary_content =
-        terminal_semantics::content_transformations::boundary_calls::has_declared_conservation(
-            module,
-        );
     for machine in &module.machines {
         machine_foundations::validate_machine(analyses, machine, &inhabitation)?;
-        terminal_semantics::content_transformations::forwarding::checked_returns_in(
-            analyses, machine,
-        )
-        .map_err(CodecError::MalformedStructuralFoundation)?;
-        if has_boundary_content || !machine.content_partition_compositions.is_empty() {
-            terminal_semantics::content_transformations::boundary_calls::verify_machine_in(
-                analyses, machine,
-            )
-            .map_err(CodecError::MalformedStructuralFoundation)?;
-        }
     }
+    terminal_semantics::content_transformations::verify_module(analyses)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
     empty_elimination_foundations::validate(analyses, &contracts, &inhabitation)?;
     terminal_semantics::activation_storage::validate_module(module)
         .map_err(CodecError::MalformedStructuralFoundation)?;
@@ -12930,7 +12935,14 @@ fn validate_operation_foundation(
             storage_foundations::validate_write_only_primitive_store(module, machine, operation)?
         }
         OperationKind::StructuralScalarFieldStore { .. } => {
-            storage_foundations::validate_structural_scalar_field_store(module, machine, operation)?
+            storage_foundations::validate_structural_scalar_field_store(
+                module,
+                machine,
+                operation,
+                analyses
+                    .package_sites()
+                    .map_err(CodecError::MalformedStructuralFoundation)?,
+            )?
         }
         OperationKind::MoveStructuralField { .. } => {
             storage_foundations::validate_move_structural_field(module, machine, operation)?
@@ -13850,6 +13862,7 @@ mod installed_interrupt_owner_tests {
                 result_reference_regions: Vec::new(),
                 result_lifetimes: None,
                 requires: Vec::new(),
+                membership_requires: Vec::new(),
                 membership_ensures: Vec::new(),
                 normal_qualifications: Vec::new(),
                 scalar_domain_requirements: Vec::new(),

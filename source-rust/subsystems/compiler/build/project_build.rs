@@ -13,7 +13,10 @@ pub use product::ProductStage;
 pub use registered_tests::{RegisteredTestPlan, TestExecution};
 #[path = "planning/package_review/mod.rs"]
 mod package_review;
-pub use package_review::{CheckedPackagePolicy, ReviewedPreparation};
+pub use package_review::{
+    CheckedPackagePolicy, ReviewedPreparation, ReviewedUnsafeAdmission, ReviewedUnsafeAuthority,
+    ReviewedUnsafeDependency, ReviewedUnsafeOrigin, ReviewedUnsafePath, ReviewedUnsafeUse,
+};
 #[path = "planning/source.rs"]
 mod source;
 pub use source::{

@@ -154,7 +154,12 @@ impl Program<'_> {
     /// not a record this route can read and stays with the scalar route's
     /// refusal.
     pub(super) fn data_declaration(&self, symbol: SymbolHandle) -> Option<&DataDefinition> {
-        if !symbol.is_valid() || self.typed.symbols.get(symbol).kind != SymbolKind::Data {
+        if !symbol.is_valid()
+            || !matches!(
+                self.typed.symbols.get(symbol).kind,
+                SymbolKind::Data | SymbolKind::Trait
+            )
+        {
             return None;
         }
         self.typed.data_definition_by_symbol(symbol)
@@ -231,6 +236,16 @@ impl Program<'_> {
                 .is_some()
         }) {
             return self.occurrence_regions(id, data, semantic);
+        }
+        if !data.lifetime_parameters.is_empty() {
+            // A reference-valued type argument adds another region to the
+            // named regions. Keep refusing until both are represented.
+            return Err(refuse_at(
+                id,
+                Unserved::Type(
+                    "record occurrence with both declared regions and a borrowed type argument",
+                ),
+            ));
         }
         // The stored application may have been shared by occurrences at
         // different lifetimes. Read this occurrence's actual arguments.

@@ -7,8 +7,8 @@ When no executed optimization rule is selected that is the whole result; when
 one is, it stages allocation legality and runs the selected catalog slice from
 `rewrites.rs` (`run_selected_lowering_optimizations` or
 `run_pre_allocation_optimizations`). Either way register allocation receives one
-`SelectedAllocationInput` (the current program, its analyses and its
-`SelectedOptimizationRecord`) inside `SelectedInstructionOptimizationOutput`.
+`SelectedBody` (the current program, its analyses and its
+`SelectedOptimizationRecord`). The driver retains the optional replay output separately.
 */
 
 /*
@@ -26,7 +26,7 @@ and explicitly requested validators.
 
 /*
 - Native stage 05 (`target-operations-to-selected-instructions`) supplies `SelectedOptimizationInput`.
-- Native stage 07 (`selected-instructions-to-register-homes`) consumes the allocation input from `SelectedInstructionOptimizationOutput`. Validators can request `SelectedOptimizationReplay`.
+- Native stage 07 (`selected-instructions-to-register-homes`) consumes `SelectedBody`. The driver forwards `SelectedOptimizationReplay` only to requested verification.
 - Flat module layout:
   - `selected_optimization.rs`: stage admission, catalog phase dispatch, restaging the rewritten program for allocation, `SelectedInstructionOptimizationOutput` and the opt-in `SelectedOptimizationReplay` validator.
   - `rewrites.rs`: stage rule catalog, shared condition-state/place-storage/window-hazard helpers, and the pre-allocation fixed-point driver.

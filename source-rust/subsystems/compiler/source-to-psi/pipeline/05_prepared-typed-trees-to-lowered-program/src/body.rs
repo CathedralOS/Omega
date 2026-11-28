@@ -609,6 +609,8 @@ pub struct Signature {
     /// right after the scalar formals, which is how `ensures` clauses name
     /// `result`. A record result is the machine's result place.
     pub result: Option<ValueType>,
+    /// Provenance a caller must supply for these exact inputs. Their declared types stay unchanged.
+    pub membership_requires: Vec<RuntimeMembership>,
     /// Facts promised about the normal result, independent of its declared type.
     pub membership_ensures: Vec<RuntimeMembership>,
     /// Normal-return equations whose source domain instances still need their
@@ -809,6 +811,7 @@ impl Signature {
             erased: Vec::new(),
             borrowed: Vec::new(),
             result: None,
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             content_ensures: Vec::new(),
             requires: Vec::new(),

@@ -1853,6 +1853,9 @@ pub(crate) mod program {
         /// or scalar-geometry replacements, the first time execution asks,
         /// and kept unchanged for the life of this program.
         memberships: std::sync::OnceLock<terminal_semantics::IntrinsicMemberships>,
+        package_sites: std::sync::OnceLock<
+            Result<terminal_semantics::packages::CheckedPackageSites, &'static str>,
+        >,
         /// The declaration-dependent part of every primitive store, prepared
         /// for the whole program the first time one runs.
         primitive_stores: std::sync::OnceLock<Vec<PreparedPrimitiveStore>>,
@@ -1948,9 +1951,20 @@ pub(crate) mod program {
                 target_layouts,
                 scalar_geometry,
                 memberships: std::sync::OnceLock::new(),
+                package_sites: std::sync::OnceLock::new(),
                 primitive_stores: std::sync::OnceLock::new(),
                 claim_roster: std::sync::OnceLock::new(),
             }
+        }
+
+        pub(crate) fn package_sites(
+            &self,
+        ) -> Result<&terminal_semantics::packages::CheckedPackageSites, TerminalInterpretError>
+        {
+            self.package_sites
+                .get_or_init(|| terminal_semantics::packages::check_package_sites(&self.catalogs))
+                .as_ref()
+                .map_err(|_| malformed())
         }
 
         fn prepare_memberships(&self) -> terminal_semantics::IntrinsicMemberships {
@@ -2078,6 +2092,7 @@ pub(crate) mod program {
     impl AdmittedTerminalProgram<'_> {
         #[cfg(test)]
         pub(crate) fn fixture_module_mut(&mut self) -> &mut TerminalModule {
+            self.package_sites.take();
             let storage = std::sync::Arc::get_mut(&mut self.catalogs)
                 .expect("fixture construction requires unshared storage");
             let ProgramStorage::Fixture(module) = storage else {
@@ -2287,6 +2302,7 @@ pub(crate) mod program {
         access_view_inputs: &'program [terminal_psi::TerminalAccessViewInput],
         pub result: &'program terminal_psi::TerminalMachineResult,
         requires: &'program [semantic_vocabulary::Proposition],
+        membership_requires: &'program [terminal_psi::RuntimeDomainMembership],
     }
 
     impl TerminalProgramEntry<'_> {
@@ -2307,7 +2323,7 @@ pub(crate) mod program {
             established: &[semantic_vocabulary::Proposition],
         ) -> Result<Option<bool>, String> {
             let mut integers = closed_predicates::ClosedIntegerEvaluator::default();
-            let mut undecided = false;
+            let mut undecided = !self.membership_requires.is_empty();
             for clause in self.requires {
                 if established.contains(clause) {
                     continue;
@@ -2388,6 +2404,7 @@ pub(crate) mod program {
                 access_view_inputs: &self.program.catalogs.access.access_view_inputs,
                 result: &machine.result,
                 requires: &machine.contract.requires,
+                membership_requires: &machine.contract.membership_requires,
             })
         }
 

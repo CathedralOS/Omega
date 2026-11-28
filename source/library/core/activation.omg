@@ -5,7 +5,16 @@
 // to the calling activation; the static Bound charges that activation's closed
 // demand even when the runtime request rejects. The opaque linear carrier
 // cannot be reconstructed from addresses, lengths, or ordinary record fields.
+use {omega}/language/core/reply.omg;
+
 public data Activation {}
+
+// Only an issued request identifies a publication. A bare slot borrow
+// carries neither that publication's role nor its reply contract.
+public boundary machine park<'slot, Reply>(
+    request: |reply|::Publication<'slot> in |reply|::Issued<|reply|::RequestRole, Reply>
+) -> Reply
+    reaches none crashes none suspends;
 
 public boundary data ActivationClaim [linear];
 

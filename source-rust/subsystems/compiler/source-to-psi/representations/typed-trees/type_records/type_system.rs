@@ -1472,6 +1472,7 @@ pub mod types {
     }
     pub(crate) mod substitution {
         use super::*;
+        use crate::source_state::expression::{ExpressionNode, ExpressionTable};
 
         impl TypeReferenceTable {
             pub fn substitute_node(
@@ -1724,6 +1725,7 @@ pub mod types {
                 &mut self,
                 handle: TypeReferenceHandle,
                 substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+                expressions: &ExpressionTable,
             ) -> Result<TypeReferenceHandle, &'static str> {
                 if !handle.is_valid() {
                     return Ok(handle);
@@ -1740,7 +1742,7 @@ pub mod types {
                         access,
                         lifetime,
                     } => {
-                        let instantiated = self.instantiate(referee, substitutions)?;
+                        let instantiated = self.instantiate(referee, substitutions, expressions)?;
                         (instantiated != referee).then_some(TypeReferenceNode::Reference {
                             referee: instantiated,
                             access,
@@ -1757,7 +1759,8 @@ pub mod types {
                         // carrier, so they take the same substitution. The
                         // authored span stays as written for the template;
                         // whether the applied domain holds is not asked here.
-                        let instantiated = self.instantiate(base_type, substitutions)?;
+                        let instantiated =
+                            self.instantiate(base_type, substitutions, expressions)?;
                         let mut applied = self.constraints(constraints).to_vec();
                         let mut changed = false;
                         for constraint in &mut applied {
@@ -1765,7 +1768,8 @@ pub mod types {
                                 continue;
                             };
                             for argument in &mut domain.arguments {
-                                let actual = self.instantiate(*argument, substitutions)?;
+                                let actual =
+                                    self.instantiate(*argument, substitutions, expressions)?;
                                 changed |= actual != *argument;
                                 *argument = actual;
                             }
@@ -1789,30 +1793,16 @@ pub mod types {
                         let instantiated_length = match &length {
                             FixedArrayLength::ConstParameter { symbol, .. } => {
                                 match substitutions.iter().find(|(binder, _)| binder == symbol) {
-                                    Some((_, argument)) => match self.type_reference(*argument) {
-                                        TypeReferenceNode::Named { symbol, name } if symbol.is_valid() =>
-                                            FixedArrayLength::ConstParameter { symbol: *symbol, name: name.clone() },
-                                        // `Buffer<capacity()>`: the argument
-                                        // is still written as an expression
-                                        // to evaluate, so the length is that
-                                        // argument, not yet a number. The
-                                        // evaluator that gives the argument
-                                        // its value gives this length the
-                                        // same one (`settle_const_argument`).
-                                        TypeReferenceNode::ConstExpression(_) =>
-                                            FixedArrayLength::Expression(*argument),
-                                        _ => FixedArrayLength::Literal(
-                                            self.anonymous_numeric_literal_value(*argument).ok_or(
-                                                "an applied array length is not a closed nonnegative integer",
-                                            )?,
-                                        ),
-                                    },
+                                    Some((_, argument)) => {
+                                        self.substituted_extent(*argument, expressions)?
+                                    }
                                     None => length.clone(),
                                 }
                             }
                             _ => length.clone(),
                         };
-                        let instantiated = self.instantiate(element_type, substitutions)?;
+                        let instantiated =
+                            self.instantiate(element_type, substitutions, expressions)?;
                         (instantiated != element_type || instantiated_length != length).then_some(
                             TypeReferenceNode::FixedArray {
                                 element_type: instantiated,
@@ -1821,7 +1811,8 @@ pub mod types {
                         )
                     }
                     TypeReferenceNode::Slice { element_type } => {
-                        let instantiated = self.instantiate(element_type, substitutions)?;
+                        let instantiated =
+                            self.instantiate(element_type, substitutions, expressions)?;
                         (instantiated != element_type).then_some(TypeReferenceNode::Slice {
                             element_type: instantiated,
                         })
@@ -1832,7 +1823,7 @@ pub mod types {
                         lifetime_arguments,
                         arguments,
                     } => self
-                        .instantiate_arguments(arguments, substitutions)?
+                        .instantiate_arguments(arguments, substitutions, expressions)?
                         .map(|arguments| TypeReferenceNode::Generic {
                             base_symbol,
                             base_name,
@@ -1865,15 +1856,49 @@ pub mod types {
                 Ok(rebuilt)
             }
 
+            fn substituted_extent(
+                &self,
+                argument: TypeReferenceHandle,
+                expressions: &ExpressionTable,
+            ) -> Result<FixedArrayLength, &'static str> {
+                let node = self.type_reference(argument);
+                if let Some(literal) = node.integer_literal(expressions) {
+                    return literal
+                        .value_u64()
+                        .and_then(|value| usize::try_from(value).ok())
+                        .map(FixedArrayLength::Literal)
+                        .ok_or("an applied array length is not a closed nonnegative integer");
+                }
+                match node {
+                    TypeReferenceNode::Named { symbol, name } if symbol.is_valid() => {
+                        Ok(FixedArrayLength::ConstParameter {
+                            symbol: *symbol,
+                            name: name.clone(),
+                        })
+                    }
+                    // An unevaluated argument keeps its handle so settlement can update the extent.
+                    TypeReferenceNode::ConstExpression(expression)
+                        if !matches!(
+                            expressions.expression(*expression),
+                            ExpressionNode::Boolean(_)
+                        ) =>
+                    {
+                        Ok(FixedArrayLength::Expression(argument))
+                    }
+                    _ => Err("an applied array length is not a closed nonnegative integer"),
+                }
+            }
+
             fn instantiate_arguments(
                 &mut self,
                 arguments: HandleSpan<TypeReferenceHandle>,
                 substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+                expressions: &ExpressionTable,
             ) -> Result<Option<HandleSpan<TypeReferenceHandle>>, &'static str> {
                 let original = self.type_reference_handles(arguments).to_vec();
                 let mut instantiated = Vec::with_capacity(original.len());
                 for argument in &original {
-                    instantiated.push(self.instantiate(*argument, substitutions)?);
+                    instantiated.push(self.instantiate(*argument, substitutions, expressions)?);
                 }
                 Ok((instantiated != original)
                     .then(|| self.insert_type_reference_handles(instantiated)))
@@ -3143,6 +3168,36 @@ pub mod types {
     }
 
     impl TypeReferenceNode {
+        pub(crate) fn integer_literal(
+            &self,
+            expressions: &crate::source_state::expression::ExpressionTable,
+        ) -> Option<numeric_literals::IntegerLiteral> {
+            use numeric_literals::{IntegerLiteral, IntegerRadix};
+            match self {
+                Self::ConstExpression(value) => {
+                    crate::source_state::const_integer::closed_literal(expressions, *value)
+                }
+                Self::Named { symbol, name } if !symbol.is_valid() => {
+                    let mut spelling = name.as_str();
+                    let negative = spelling.starts_with('-');
+                    if negative {
+                        spelling = &spelling[1..];
+                    }
+                    let (radix, digits) = if let Some(digits) = spelling.strip_prefix("0b") {
+                        (IntegerRadix::Binary, digits)
+                    } else if let Some(digits) = spelling.strip_prefix("0o") {
+                        (IntegerRadix::Octal, digits)
+                    } else if let Some(digits) = spelling.strip_prefix("0x") {
+                        (IntegerRadix::Hexadecimal, digits)
+                    } else {
+                        (IntegerRadix::Decimal, spelling)
+                    };
+                    IntegerLiteral::from_parts(negative, radix, digits).ok()
+                }
+                _ => None,
+            }
+        }
+
         pub fn primitive_type(
             &self,
             table: &TypeReferenceTable,
@@ -3940,7 +3995,7 @@ pub mod types {
             let substitutions = [(binder, actual)];
 
             let instantiated = table
-                .instantiate(borrowed, &substitutions)
+                .instantiate(borrowed, &substitutions, &Default::default())
                 .expect("a reference to the binder instantiates");
             assert_ne!(instantiated, borrowed);
             assert_eq!(
@@ -3952,8 +4007,14 @@ pub mod types {
                 }
             );
             assert_eq!(table.type_reference(borrowed), &authored);
-            assert_eq!(table.instantiate(unrelated, &substitutions), Ok(unrelated));
-            assert_eq!(table.instantiate(formal, &substitutions), Ok(actual));
+            assert_eq!(
+                table.instantiate(unrelated, &substitutions, &Default::default()),
+                Ok(unrelated)
+            );
+            assert_eq!(
+                table.instantiate(formal, &substitutions, &Default::default()),
+                Ok(actual)
+            );
         }
 
         #[test]
@@ -3980,7 +4041,9 @@ pub mod types {
                 },
             };
             let array = table.insert(authored.clone());
-            let applied = table.instantiate(array, &[(binder, argument)]).unwrap();
+            let applied = table
+                .instantiate(array, &[(binder, argument)], &Default::default())
+                .unwrap();
             assert_eq!(
                 table.type_reference(applied),
                 &TypeReferenceNode::FixedArray {
@@ -4029,7 +4092,7 @@ pub mod types {
 
             let (open, authored) = constrained(&mut table, formal);
             let applied = table
-                .instantiate(open, &substitutions)
+                .instantiate(open, &substitutions, &Default::default())
                 .expect("a domain argument naming the binder instantiates");
             assert_ne!(applied, open);
             let TypeReferenceNode::Constrained {
@@ -4056,7 +4119,10 @@ pub mod types {
 
             // A constraint that names no binder is the same row afterwards.
             let (closed, _) = constrained(&mut table, actual);
-            assert_eq!(table.instantiate(closed, &substitutions), Ok(closed));
+            assert_eq!(
+                table.instantiate(closed, &substitutions, &Default::default()),
+                Ok(closed)
+            );
 
             // A negative extent inside a domain argument refuses the application.
             let negative_extent = table.insert(TypeReferenceNode::Named {
@@ -4072,7 +4138,11 @@ pub mod types {
             });
             let (unsubstitutable, _) = constrained(&mut table, array);
             assert_eq!(
-                table.instantiate(unsubstitutable, &[(binder, negative_extent)]),
+                table.instantiate(
+                    unsubstitutable,
+                    &[(binder, negative_extent)],
+                    &Default::default()
+                ),
                 Err("an applied array length is not a closed nonnegative integer")
             );
         }

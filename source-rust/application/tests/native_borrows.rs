@@ -1,6 +1,10 @@
 //! Native address formation and checked upgrades both produce ordinary, typed borrows.
 #![cfg(all(target_os = "linux", target_arch = "x86_64"))]
 
+#[path = "native_borrows/nested_references.rs"]
+mod nested_references;
+#[path = "native_borrows/qualifications.rs"]
+mod qualifications;
 #[path = "support/project.rs"]
 mod project;
 mod support;
@@ -788,4 +792,36 @@ machine main() crashes Trap {{
         program.assert_native_returns();
         program.assert_psi_returns();
     }
+}
+
+#[test]
+fn a_shared_callee_reports_the_origin_even_when_the_other_call_path_is_longer() {
+    let source = r#"
+machine leaf(location: address) -> u8 {
+    let byte: @u8 = |native|::borrow_at::<u8>(location);
+    $byte
+}
+machine indirect(location: address) -> u8 { further(location) }
+machine further(location: address) -> u8 { leaf(location) }
+machine main() crashes Trap {
+    let value: u8 = 49u8;
+    let direct: u8 = leaf(address_of(@value));
+    let nested: u8 = indirect(address_of(@value));
+    transition direct == nested { true -> done(), _ -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}"#;
+    let denied = Program::new(source, &[]).check();
+    let message = report(&denied);
+    assert!(!denied.status.success(), "{message}");
+    for expected in [
+        "note: call path: main.omg::main -> main.omg::leaf",
+        "note: operation: |unsafe|::borrow_at",
+    ] {
+        assert!(
+            message.lines().any(|line| line.trim() == expected),
+            "{message}"
+        );
+    }
+    Program::new(source, &[READ]).assert_native_returns();
 }

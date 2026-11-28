@@ -63,19 +63,23 @@ impl RuntimeCallBinding {
 #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
 pub struct RuntimeCallableLowering {
     sources: Vec<RuntimeCallableContractHandle>,
+    // Only requirements actually named as runtime types have rows here.
+    requirements: Vec<((u32, u32), RuntimeCallableContractHandle)>,
+    pending_requirements: Vec<RuntimeCallableContractHandle>,
 }
 
 impl RuntimeCallableLowering {
-    pub fn from_contracts(
+    pub fn rebuild_source_rows(
+        &mut self,
         contracts: &arena::RootedArena<RuntimeCallableContract>,
-    ) -> Result<Self, &'static str> {
-        let mut lowering = Self::default();
+    ) -> Result<(), &'static str> {
+        self.sources.clear();
         for (handle, contract) in contracts.iter() {
             if let Some((index, _)) = contract.resolved_source {
-                lowering.retain(index, handle)?;
+                self.retain(index, handle)?;
             }
         }
-        Ok(lowering)
+        Ok(())
     }
 
     pub fn retain(
@@ -100,6 +104,38 @@ impl RuntimeCallableLowering {
             .get(index as usize)
             .copied()
             .filter(|handle| handle.is_valid())
+    }
+
+    pub fn requirement(
+        &mut self,
+        declarations: &mut arena::RootedArena<RuntimeCallableContract>,
+        requirement: SymbolHandle,
+        owner: SymbolHandle,
+    ) -> RuntimeCallableContractHandle {
+        let key = (requirement.arena_index(), requirement.generation());
+        match self
+            .requirements
+            .binary_search_by_key(&key, |(key, _)| *key)
+        {
+            Ok(index) => self.requirements[index].1,
+            Err(index) => {
+                let handle = declarations.insert(RuntimeCallableContract {
+                    signature: crate::source_state::signature::StateSignature {
+                        symbol: requirement,
+                        ..Default::default()
+                    },
+                    lexical_owner: owner,
+                    resolved_source: None,
+                });
+                self.requirements.insert(index, (key, handle));
+                self.pending_requirements.push(handle);
+                handle
+            }
+        }
+    }
+
+    pub fn next_pending_requirement(&mut self) -> Option<RuntimeCallableContractHandle> {
+        self.pending_requirements.pop()
     }
 }
 

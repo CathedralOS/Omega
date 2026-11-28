@@ -1752,110 +1752,111 @@ impl<'completed> TypingCohort<'completed> {
         ordinal >= self.typed_machines || self.completes(symbol)
     }
 
-    pub(crate) fn declaration_keys(&self, program: &TypedTrees) -> Vec<(u32, u32)> {
-        let mut keys = Vec::new();
-        keys.extend(
+    pub(crate) fn declarations(
+        &self,
+        program: &TypedTrees,
+    ) -> crate::source_state::references::DeclarationSelection {
+        let mut symbols = Vec::new();
+        symbols.extend(
             program
                 .type_aliases()
                 .iter()
                 .skip(self.type_aliases)
-                .map(|item| symbol_key(item.symbol)),
+                .map(|item| item.symbol),
         );
-        keys.extend(
+        symbols.extend(
             program
                 .data_definitions()
                 .iter()
                 .skip(self.data_definitions)
-                .map(|item| symbol_key(item.symbol)),
+                .map(|item| item.symbol),
         );
-        keys.extend(
+        symbols.extend(
             program
                 .traits()
                 .iter()
                 .skip(self.traits)
-                .map(|item| symbol_key(item.symbol)),
+                .map(|item| item.symbol),
         );
-        keys.extend(
+        symbols.extend(
             program
                 .conformances()
                 .iter()
                 .skip(self.conformances)
-                .map(|item| symbol_key(item.symbol)),
+                .map(|item| item.symbol),
         );
-        keys.extend(
+        symbols.extend(
             program
                 .propositions()
                 .iter()
                 .skip(self.propositions)
-                .map(|item| symbol_key(item.symbol)),
+                .map(|item| item.symbol),
         );
-        keys.extend(
+        symbols.extend(
             program
                 .mathematical_definitions()
                 .iter()
                 .skip(self.mathematical_definitions)
-                .map(|item| symbol_key(item.symbol)),
+                .map(|item| item.symbol),
         );
-        keys.extend(
+        symbols.extend(
             program
                 .measures()
                 .iter()
                 .skip(self.measures)
-                .map(|item| symbol_key(item.symbol)),
+                .map(|item| item.symbol),
         );
-        keys.extend(
+        symbols.extend(
             program
                 .const_declarations()
                 .iter()
                 .skip(self.const_declarations)
-                .map(|item| symbol_key(item.symbol)),
+                .map(|item| item.symbol),
         );
-        keys.extend(
+        symbols.extend(
             program
                 .operators()
                 .iter()
                 .skip(self.operators)
-                .map(|item| symbol_key(item.symbol)),
+                .map(|item| item.symbol),
         );
-        keys.extend(
+        symbols.extend(
             program
                 .machine_token_bindings()
                 .iter()
                 .skip(self.typed_machine_token_bindings)
-                .map(|item| symbol_key(item.symbol)),
+                .map(|item| item.symbol),
         );
-        keys.extend(
+        symbols.extend(
             program
                 .domain_definitions()
                 .iter()
                 .skip(self.domain_definitions)
                 .flat_map(|domain| {
-                    std::iter::once(symbol_key(domain.symbol)).chain(
+                    std::iter::once(domain.symbol).chain(
                         program
                             .domain_operators(domain)
                             .iter()
-                            .map(|operator| symbol_key(operator.symbol)),
+                            .map(|operator| operator.symbol),
                     )
                 }),
         );
-        keys.extend(
+        symbols.extend(
             program
                 .wire_schemas()
                 .iter()
                 .skip(self.wire_schemas)
-                .map(|item| symbol_key(item.symbol)),
+                .map(|item| item.symbol),
         );
-        keys.extend(
+        symbols.extend(
             program
                 .machines()
                 .iter()
                 .skip(self.typed_machines)
-                .map(|item| symbol_key(item.symbol)),
+                .map(|item| item.symbol),
         );
-        keys.extend(self.completed_keys.iter().copied());
-        keys.sort_unstable();
-        keys.dedup();
-        keys
+        symbols.extend(self.completed_machines.iter().copied());
+        crate::source_state::references::DeclarationSelection::from_symbols(symbols)
     }
 
     pub(crate) fn completing(mut self, machines: &'completed [SymbolHandle]) -> Self {
@@ -2000,6 +2001,7 @@ pub(crate) fn type_resolved_cohort(
         )?;
         lowerer.typed_trees.push_wire_schema(wire_schema);
     }
+    crate::expressions::runtime_callables::finish_requirement_types(&mut lowerer.typed_trees)?;
     lowerer.lower_const_initializer_evidence(cohort.const_declarations)
 }
 

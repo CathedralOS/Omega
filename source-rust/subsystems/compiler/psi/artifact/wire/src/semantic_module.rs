@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 309`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 311`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -2130,6 +2130,7 @@ mod numeric_intrinsic_tests {
                     scalar_type: result,
                     qualifications: ScalarQualificationSetId::ZERO,
                 }),
+                membership_requires: Vec::new(),
                 membership_ensures: Vec::new(),
                 normal_qualifications: Vec::new(),
                 scalar_domain_requirements: Vec::new(),
@@ -2952,6 +2953,7 @@ mod routed_scalar_tests {
             .boundary_machines
             .push(BoundaryMachineDeclaration {
                 numeric_intrinsic: None,
+                membership_requires: Vec::new(),
                 membership_ensures: Vec::new(),
                 normal_qualifications: Vec::new(),
                 scalar_domain_requirements: Vec::new(),
@@ -4092,6 +4094,8 @@ pub(crate) use wire::{Reader, Writer, decode_canonical};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
+// Marker 311 distinguishes nominal preconditions on exact formals from normal results.
+// Marker 310 records the exact route of a nominal callable contract.
 // Marker 309 retains per-value package schemas, openings and checked construction, projection, call and store sites.
 // Marker 308 names individual callable fields in invocation contracts.
 // Marker 307 adds the terminal storage-alignment projection on scalar reads.
@@ -4110,7 +4114,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // at the FloatMeaning carrier and retires proposition tag 19.
 // Marker 295 retires byte-sequence equality proposition tag 12, which only
 // an uncalled producer wrote.
-pub(crate) const FORMAT_MARKER: u16 = 309;
+pub(crate) const FORMAT_MARKER: u16 = 311;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -4476,6 +4480,7 @@ mod normal_qualification_tests {
                     path: vec![field(8)],
                     domain,
                 }],
+                membership_requires: Vec::new(),
                 membership_ensures: Vec::new(),
                 normal_qualifications: [
                     (0, Vec::new()),

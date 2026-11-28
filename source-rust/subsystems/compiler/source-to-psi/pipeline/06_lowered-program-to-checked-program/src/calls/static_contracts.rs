@@ -238,6 +238,10 @@ pub(crate) fn requirement_declarations(
                         .eq(machine.ensures.iter().map(|row| &row.proposition)),
                 ),
                 (
+                    "abstract requirement has different source input memberships",
+                    header.proof.membership_requires != machine.contract.membership_requires,
+                ),
+                (
                     "abstract requirement has different source result memberships",
                     header.proof.membership_ensures != machine.contract.membership_ensures,
                 ),
@@ -908,6 +912,7 @@ pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
                         semantic_vocabulary::Proposition::ContentConservation(_)
                     )
                 }))
+            || boundary.membership_requires != question.required.proof.membership_requires
             || boundary.membership_ensures != question.required.proof.membership_ensures
             || boundary.crash_routes != question.required.proof.crash_routes
             || question.required.crash_policy != CallableCrashPolicy::Closed

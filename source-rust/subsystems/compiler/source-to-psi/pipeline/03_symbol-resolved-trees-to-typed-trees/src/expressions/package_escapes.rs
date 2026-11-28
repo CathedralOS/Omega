@@ -6,7 +6,6 @@ use crate::source_resolved::SymbolResolvedTrees;
 use crate::source_state as typed;
 use crate::types::typing_queries::scoped_expression_type_reference;
 use diagnostics::Diagnostic;
-use std::collections::HashSet;
 use symbols::SymbolHandle;
 use typed::expression::{ExpressionHandle, ExpressionNode};
 use typed::package_openings::{PackageSubject, PackageSubjectRoot};
@@ -65,21 +64,18 @@ pub(crate) fn check_cohort(
                 }
             }
             for (witness, subject) in witnesses {
+                let mut bindings = WitnessBindings::default();
+                for parameter in program.state_parameters(state) {
+                    if program.type_reference_mentions_any(parameter.type_reference, &[witness]) {
+                        bindings.record(parameter.symbol, false);
+                    }
+                }
                 let mut scope = Scope {
                     program,
                     state,
                     witness,
                     subject,
-                    dependent: program
-                        .state_parameters(state)
-                        .iter()
-                        .filter_map(|parameter| {
-                            program
-                                .type_reference_mentions_any(parameter.type_reference, &[witness])
-                                .then_some(parameter.symbol)
-                        })
-                        .collect(),
-                    stale: HashSet::new(),
+                    bindings,
                 };
                 if scope.mentions(state.return_type) {
                     return Err(Diagnostic::error(
@@ -116,8 +112,50 @@ struct Scope<'program> {
     state: &'program State,
     witness: SymbolHandle,
     subject: PackageSubject,
-    dependent: HashSet<SymbolHandle>,
-    stale: HashSet<SymbolHandle>,
+    bindings: WitnessBindings,
+}
+
+/// Only locals and parameters carrying this opening's witness need a row.
+/// Keep full symbol handles so reusing an arena slot cannot revive a binding.
+#[derive(Clone, Default)]
+struct WitnessBindings(Vec<WitnessBinding>);
+
+#[derive(Clone, Copy)]
+struct WitnessBinding {
+    symbol: SymbolHandle,
+    stale: bool,
+}
+
+impl WitnessBindings {
+    fn position(&self, symbol: SymbolHandle) -> Result<usize, usize> {
+        self.0
+            .binary_search_by_key(&(symbol.arena_index(), symbol.generation()), |row| {
+                (row.symbol.arena_index(), row.symbol.generation())
+            })
+    }
+
+    fn get(&self, symbol: SymbolHandle) -> Option<&WitnessBinding> {
+        self.position(symbol).ok().map(|index| &self.0[index])
+    }
+
+    fn record(&mut self, symbol: SymbolHandle, stale: bool) {
+        match self.position(symbol) {
+            Ok(index) => self.0[index].stale |= stale,
+            Err(index) => self.0.insert(index, WitnessBinding { symbol, stale }),
+        }
+    }
+
+    fn invalidate(&mut self) {
+        for binding in &mut self.0 {
+            binding.stale = true;
+        }
+    }
+
+    fn merge(&mut self, other: Self) {
+        for binding in other.0 {
+            self.record(binding.symbol, binding.stale);
+        }
+    }
 }
 
 impl Scope<'_> {
@@ -159,7 +197,7 @@ impl Scope<'_> {
             ExpressionNode::Name(path)
                 if path
                     .resolved_symbol()
-                    .is_some_and(|s| self.dependent.contains(&s)) =>
+                    .is_some_and(|s| self.bindings.get(s).is_some()) =>
             {
                 return Ok(true);
             }
@@ -248,7 +286,7 @@ impl Scope<'_> {
                             local.initial_value,
                         ));
                     }
-                    self.dependent.insert(local.symbol);
+                    self.bindings.record(local.symbol, false);
                 }
                 StatementNode::Assignment(assignment) => {
                     let source = self.carries(assignment.value)?;
@@ -269,13 +307,13 @@ impl Scope<'_> {
                             program.expression_table.expression(assignment.target)
                         && let Some(symbol) = path.resolved_symbol()
                     {
-                        self.dependent.insert(symbol);
+                        self.bindings.record(symbol, false);
                     }
                     let written = package_place(program, assignment.target);
                     if written.as_ref().is_none_or(|place| {
                         write_replaces(program, self.state, place, &self.subject)
                     }) {
-                        self.stale.extend(self.dependent.iter().copied());
+                        self.bindings.invalidate();
                     }
                 }
                 _ => {}
@@ -293,7 +331,7 @@ impl Scope<'_> {
         if let ExpressionNode::Name(path) = node
             && path
                 .resolved_symbol()
-                .is_some_and(|s| self.stale.contains(&s))
+                .is_some_and(|s| self.bindings.get(s).is_some_and(|binding| binding.stale))
         {
             return Err(self.refusal(
                 "replacing the whole package invalidates a live dependent projection",
@@ -305,20 +343,16 @@ impl Scope<'_> {
             // A replacement in one arm affects code after the dispatch, but it
             // cannot invalidate a local while a mutually exclusive arm runs.
             let arms = program.expression_table.match_arms(dispatch.arms);
-            let mut stale_after = self.stale.clone();
-            let mut dependent_after = self.dependent.clone();
+            let mut after = self.bindings.clone();
             for arm in arms {
                 for operand in program.expression_table.match_pattern_operands(arm.pattern) {
                     self.blocks(operand)?;
                 }
-                let before = (self.dependent.clone(), self.stale.clone());
+                let before = self.bindings.clone();
                 self.blocks(arm.value)?;
-                stale_after.extend(self.stale.drain());
-                dependent_after.extend(self.dependent.drain());
-                (self.dependent, self.stale) = before;
+                after.merge(std::mem::replace(&mut self.bindings, before));
             }
-            self.dependent = dependent_after;
-            self.stale = stale_after;
+            self.bindings = after;
         } else if let ExpressionNode::Block(block) = node {
             self.statements(block.statements)?;
             self.blocks(block.tail)?;

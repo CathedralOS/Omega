@@ -1828,13 +1828,10 @@ impl ProgramOperandOwners {
     }
 }
 
-/*
-    The lexical owners seen for each arena slot, in first-visit order. Most
-    slots have one owner, so the rows share one flat table chained per slot
-    instead of holding a small vector per slot. A slot keeps rows for every
-    generation it was visited under; lookups match the exact handle.
-*/
-struct ScopedOccurrences<Element> {
+/// Each lexical owner that visited an exact arena handle, in first-visit order.
+/// Most slots have one owner. A flat table chains additional owners and
+/// generations at the same slot without allocating a vector per slot.
+pub struct ScopedOccurrences<Element> {
     // Per arena slot: one plus the index of the slot's first row; 0 is empty.
     heads: Vec<usize>,
     rows: Vec<ScopedOccurrenceRow<Element>>,
@@ -1899,7 +1896,7 @@ impl<Element> ScopedOccurrences<Element> {
     }
 
     /// Record `owner` for `reference`; false when that pair was already seen.
-    fn insert(&mut self, owner: SymbolHandle, reference: arena::Handle<Element>) -> bool {
+    pub fn insert(&mut self, owner: SymbolHandle, reference: arena::Handle<Element>) -> bool {
         let slot = reference.arena_index() as usize;
         if self.heads.len() <= slot {
             self.heads.resize(slot + 1, 0);
@@ -1981,6 +1978,20 @@ pub fn collect_program_operand_owners(program: &TypedTrees) -> ProgramOperandOwn
     collect_operand_owners(program, TypeOccurrences::default())
 }
 
+/// Find owners within the selected declarations of this program snapshot.
+pub fn collect_selected_program_operand_owners(
+    program: &TypedTrees,
+    selection: DeclarationSelection,
+) -> ProgramOperandOwners {
+    collect_operand_owners(
+        program,
+        TypeOccurrences {
+            selection,
+            ..Default::default()
+        },
+    )
+}
+
 /// Collects the operands that could request source evaluation. The proof
 /// calculus reads universe levels and the formula under Box or Squash. An
 /// ordinary occurrence of the same handle still requires source evaluation.
@@ -2016,14 +2027,19 @@ fn collect_operand_owners(
     mut occurrences: TypeOccurrences,
 ) -> ProgramOperandOwners {
     occurrences.operand_owners_only = true;
-    let workers = worker_budget::current_workers();
-    if workers > 1 {
-        return collect_operand_owners_in_parallel(program, occurrences, workers);
+    // A continuation can select a single declaration in a large retained
+    // program. Grow its tables from the operands it actually visits.
+    if occurrences.selection.explicit_symbols().is_none() {
+        let workers = worker_budget::current_workers();
+        if workers > 1 {
+            return collect_operand_owners_in_parallel(program, occurrences, workers);
+        }
+        occurrences.seen_types = ScopedOccurrences::with_slot_capacity(
+            program.type_reference_table.type_reference_count(),
+        );
+        occurrences.seen_expressions =
+            ScopedOccurrences::with_slot_capacity(program.expression_table.expression_count());
     }
-    occurrences.seen_types =
-        ScopedOccurrences::with_slot_capacity(program.type_reference_table.type_reference_count());
-    occurrences.seen_expressions =
-        ScopedOccurrences::with_slot_capacity(program.expression_table.expression_count());
     visit_program(program, &mut occurrences);
     ProgramOperandOwners {
         types: occurrences.seen_types,

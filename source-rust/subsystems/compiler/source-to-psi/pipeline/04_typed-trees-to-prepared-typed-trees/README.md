@@ -14,6 +14,11 @@ request it cannot resolve stays on the owning declaration for lowering to
 report if the program needs it. The subsequent passes attach domain theories
 and field identities to the trees. Stage 06 checks the resulting lowered form.
 
+An owned-activation operation has no Omega body. When its reply type is
+known, specialization closes its parameter and result types just as it would
+for a checked body, but leaves the declaration bodyless. Later stages retain
+the selected core operation; they do not look for a provider for it.
+
 ## The list today
 
 | Pass | What it writes | Who reads it |
