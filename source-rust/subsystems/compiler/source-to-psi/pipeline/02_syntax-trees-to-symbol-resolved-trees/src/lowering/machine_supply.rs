@@ -4,7 +4,7 @@ use crate::resolution::lowering::lowerer::Lowerer;
 use diagnostics::Diagnostic;
 use language_core::atomic::ATOMIC_FENCE_NAMESPACE;
 use language_core::byte_predicates::ByteSequencePredicate;
-use language_core::sealed_intrinsics::{CollectionPrimitive, CompilerPrimitive, SealedIntrinsic};
+use language_core::sealed_intrinsics::{CompilerPrimitive, SealedIntrinsic};
 use numerics::float_projection::FloatProjectionOperation;
 use syntax::types::TypeReferenceNode;
 use syntax_trees::{self as syntax, SyntaxTrees};
@@ -43,9 +43,9 @@ pub(crate) fn require_catalog_signature(
     let (namespace, leaf) = name.rsplit_once("::").unwrap_or(("", name));
     let custody = super::machine::sealed_intrinsic(lowerer, syntax_trees, machine);
     let family = match custody {
-        Some(SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::Collection(operation))) => {
-            Some(CatalogFamily::Collection(operation))
-        }
+        Some(SealedIntrinsic::CompilerPrimitive(
+            operation @ (CompilerPrimitive::Collection(_) | CompilerPrimitive::RunPartition(_)),
+        )) => Some(CatalogFamily::Typed(operation)),
         Some(SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::NativeBorrow(operation))) => {
             Some(CatalogFamily::NativeBorrow(operation))
         }
@@ -96,7 +96,7 @@ pub(crate) fn require_catalog_signature(
         // The exact bundled declaration proceeds through the complete
         // generic machine owner. Typed schema normalization retains every
         // binder, lifetime relation and contract before a use is served.
-        CatalogFamily::Collection(_)
+        CatalogFamily::Typed(_)
         | CatalogFamily::PackedInteger(_)
         | CatalogFamily::NativeBorrow(_) => {}
         CatalogFamily::FloatProjection => {}
@@ -125,7 +125,7 @@ pub(crate) fn require_catalog_signature(
 #[derive(Clone, Copy)]
 enum CatalogFamily {
     PackedInteger(language_core::sealed_intrinsics::PackedIntegerPrimitive),
-    Collection(CollectionPrimitive),
+    Typed(CompilerPrimitive),
     NativeBorrow(language_core::sealed_intrinsics::NativeBorrow),
     ByteObservation(ByteSequencePredicate),
     /* Place-free portable fence (`atomic.omg`). */
@@ -162,7 +162,7 @@ impl CatalogFamily {
     fn primitive(self) -> CompilerPrimitive {
         match self {
             Self::PackedInteger(operation) => CompilerPrimitive::PackedInteger(operation),
-            Self::Collection(operation) => CompilerPrimitive::Collection(operation),
+            Self::Typed(operation) => operation,
             Self::NativeBorrow(operation) => CompilerPrimitive::NativeBorrow(operation),
             Self::ByteObservation(predicate) => CompilerPrimitive::ByteObservation(predicate),
             Self::AtomicFence => CompilerPrimitive::AtomicFence,

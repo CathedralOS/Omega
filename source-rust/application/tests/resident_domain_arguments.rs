@@ -178,6 +178,41 @@ fn an_empty_run_consumes_the_same_authorized_empty_partition() {
 }
 
 #[test]
+fn run_parts_must_return_both_owned_subsequences() {
+    let source = r#"machine carry(parts: |run|::RunParts<WordPlacement, Word>) -> |run|::RunParts<WordPlacement, Word> {
+    |run|::RunParts { left: parts.left, right: parts.right }
+}"#;
+    let (output, report) = inspect(source);
+    assert!(output.status.success(), "{report}");
+    let (output, report) = inspect(&source.replace("right: parts.right", "right: parts.left"));
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("a linear value is still held") || report.contains("already moved"),
+        "{report}"
+    );
+}
+
+#[test]
+fn a_bodyless_lookalike_cannot_partition_a_run() {
+    let live = "|run|::Run<P,T> in |run|::Run::Live<P,T>";
+    for (name, parameters, result) in [
+        (
+            "split",
+            format!("r: {live}, cut: u64"),
+            "|run|::RunParts<P,T>",
+        ),
+        ("merge", format!("left: {live}, right: {live}"), live),
+    ] {
+        let source = format!(
+            "{DOMAINS}\nmachine {name}<P,T>({parameters}) -> {result};\nmachine main() {{}}"
+        );
+        let (output, report) = program::invoke(&source, &["--check"]);
+        assert!(!output.status.success(), "{report}");
+        assert!(report.contains(&format!("`{name}` has no body and is neither a boundary signature nor a compiler-catalog primitive")), "{report}");
+    }
+}
+
+#[test]
 fn an_empty_live_prefix_preserves_the_original_vacant_capacity() {
     let (output, report) = inspect(
         r#"
