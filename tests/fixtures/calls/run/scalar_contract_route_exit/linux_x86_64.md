@@ -8,7 +8,7 @@ From this directory, publish the selected Build with the bundled library.
 omega --emit-psi /tmp/linux_x86_64.psi --target linux_x86_64 --build-input build.omg --build-input main.omg build.omg
 ```
 
-At `4d475e4a79130f45886f3d004d3f971d417c4360`, the compiler read 51 source files and published this fixture under semantic format marker 312 and proof-system marker 10. Two independent compilations produced identical bytes. The compiler executable SHA-256 was `e7fff58e173742e0706de7b6c86ba0c339431b2d1b5ed52651ad38c17a398bb8`. The bundled `source/library` tree was `3da442745dc853b9310f2a6fbd991359ae5e04ed`.
+The compiler built from `4d475e4a79130f45886f3d004d3f971d417c4360` read 51 source files and published this fixture under semantic format marker 312 and proof-system marker 10. Two independent compilations produced identical bytes. The compiler executable SHA-256 was `e7fff58e173742e0706de7b6c86ba0c339431b2d1b5ed52651ad38c17a398bb8`. `OMEGA_LIBRARY_ROOT` selected `source/library` from `8509b98b77d94fd3fa042f25a6915065406987cc`, tree `3da442745dc853b9310f2a6fbd991359ae5e04ed`.
 
 Format 312 records whether the caller or a scheduled task owns an activation. It also records opaque activation claims that retain loans from their inputs.
 

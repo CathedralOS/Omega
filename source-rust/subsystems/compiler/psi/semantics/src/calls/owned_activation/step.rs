@@ -105,15 +105,14 @@ pub fn step_shape(
     let [owner] = source.parameter_types.as_slice() else {
         return Err("step needs the declared ready owner");
     };
-    let prepared_source = &prepare
-        .declaration
-        .as_ref()
-        .ok_or("step lost its preparation")?
-        .source;
-    let original =
-        super::declared_operands(module, prepared_source.result_type, "ActivationPreparation")?;
-    if super::declared_operands(module, *owner, "ReadyActivation")? != original
-        || super::declared_operands(module, source.result_type, "ActivationStep")? != original
+    if !super::declares_worker(module, prepared.selected, *owner, "ReadyActivation", None)?
+        || !super::declares_worker(
+            module,
+            prepared.selected,
+            source.result_type,
+            "ActivationStep",
+            None,
+        )?
     {
         return Err("step changed the declared worker or storage of its input or result");
     }
