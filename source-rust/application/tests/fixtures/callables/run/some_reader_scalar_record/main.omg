@@ -1,0 +1,32 @@
+data Socket { unused: u8; byte: u8; }
+data Read<S> = machine(state: @mutable S) -> u8 reaches none crashes none;
+data Reader<'a, some S> {
+    state: @'a mutable S;
+    read: Read<S>;
+}
+
+machine read_byte(state: @mutable u8) -> u8 reaches none crashes none { $state }
+machine read_socket(state: @mutable Socket) -> u8 reaches none crashes none {
+    transition state.byte == 41u8 { true -> 42u8, false -> 0u8 }
+}
+
+machine read(reader: @mutable Reader) -> u8 {
+    (reader.read)(reader.state)
+}
+
+machine main() crashes Trap {
+    let mutable byte: u8 = 17u8;
+    let mutable socket: Socket = Socket { unused: 93u8, byte: 41u8 };
+    let mutable readers: [Reader; 2] = [
+        Reader { state: @mutable byte, read: read_byte },
+        Reader { state: @mutable socket, read: read_socket }
+    ];
+    let first: u8 = read(@mutable readers[0]);
+    let second: u8 = read(@mutable readers[1]);
+    transition first == 17u8 && second == 42u8 {
+        true -> done(),
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}
