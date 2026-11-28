@@ -286,10 +286,12 @@ the outer sum describes lifecycle outcomes. Trap/abort remain declared crash
 routes, not fabricated returned cases. Generic result containers retain each
 active payload's substituted linear debt.
 
-These operations declare ordinary explicit parameters: `task: @Task<T>` for
-cancellation and `task: Task<T>` for completion. Carrier qualification supplies
-no implicit argument or storage, and consuming completion retains its declared
-suspension and blocking contract.
+The core claim is `Task<T> in Task::Live<T>`. A successful `start` establishes
+it on the owned result and a successful `try_start` on the selected
+`Started.task` payload. Constructing the provider and activation fields supplies
+only the unqualified carrier. Cancellation borrows the live claim and completion
+consumes it through their explicit task parameters. Completion retains its
+declared suspension and blocking contract.
 
 The task can move into a record, selected case, or ordinary supervisor, thereby
 transferring its obligation. Copying, overwriting, branch loss, scope drop, or

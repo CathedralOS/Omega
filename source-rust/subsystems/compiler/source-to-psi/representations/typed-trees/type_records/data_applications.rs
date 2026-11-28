@@ -322,6 +322,22 @@ fn finalize_const_expression_operators(
     }
 }
 
+fn rebind_domain(
+    program: &mut TypedTrees,
+    carrier: TypeReferenceHandle,
+    domain: &mut crate::source_state::types::DomainConstraint,
+) -> Result<(), String> {
+    let identity = program
+        .retain_domain_application(domain.symbol, carrier, &domain.arguments)
+        .map_err(|error| error.message)?;
+    domain.semantic_id = identity;
+    domain.semantic_roles.denotation_dimension =
+        domain.semantic_roles.denotation_dimension.map(|_| identity);
+    domain.semantic_roles.arithmetic_policy =
+        domain.semantic_roles.arithmetic_policy.map(|_| identity);
+    Ok(())
+}
+
 /// Replace the former application coordinate wherever the same type occurrence
 /// supplied it. Another occurrence of a similar expression keeps its own request.
 fn settle_domain_indices(
@@ -354,20 +370,14 @@ fn settle_domain_indices(
             {
                 continue;
             }
-            let identity = program
-                .retain_domain_application(domain.symbol, carrier, &domain.arguments)
-                .map_err(|error| error.message)?;
+            let previous = domain.semantic_id;
+            rebind_domain(program, carrier, domain)?;
             domain_changes.push((
                 domain.symbol,
-                domain.semantic_id,
+                previous,
                 domain.arguments.clone(),
-                identity,
+                domain.semantic_id,
             ));
-            domain.semantic_id = identity;
-            domain.semantic_roles.denotation_dimension =
-                domain.semantic_roles.denotation_dimension.map(|_| identity);
-            domain.semantic_roles.arithmetic_policy =
-                domain.semantic_roles.arithmetic_policy.map(|_| identity);
         }
         let constraints = program.type_reference_table.insert_constraints(constraints);
         program
@@ -588,7 +598,48 @@ impl<'source> ApplicationPreparation<'source> {
                 let element_closed = self.reference(element_type)?;
                 Ok(element_closed && self.source.closed_fixed_array_length(reference).is_some())
             }
-            TypeReferenceNode::Constrained { base_type, .. } => self.reference(base_type),
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                // Instantiating the member's type substitutes its carrier and
+                // written indices. Retain the domain at that same application
+                // before a field or selected case can use its membership.
+                let mut changed = None;
+                for position in 0..constraints.len() {
+                    let rows = self.source.type_reference_table.constraints(constraints);
+                    let TypeConstraintNode::Domain(domain) = &rows[position] else {
+                        continue;
+                    };
+                    if domain.subject != DomainConstraintSubject::Declared
+                        || self
+                            .source
+                            .domain_definition(domain.symbol)
+                            .is_none_or(|definition| definition.type_parameters.is_empty())
+                    {
+                        continue;
+                    }
+                    let previous = domain.semantic_id;
+                    let mut applied = domain.clone();
+                    rebind_domain(self.source, base_type, &mut applied)?;
+                    if previous != applied.semantic_id {
+                        let rows = changed.get_or_insert_with(|| {
+                            self.source
+                                .type_reference_table
+                                .constraints(constraints)
+                                .to_vec()
+                        });
+                        rows[position] = TypeConstraintNode::Domain(applied);
+                    }
+                }
+                if let Some(changed) = changed {
+                    let constraints = self.source.type_reference_table.insert_constraints(changed);
+                    self.source
+                        .type_reference_table
+                        .set_constraint_span(reference, constraints);
+                }
+                self.reference(base_type)
+            }
             TypeReferenceNode::Callable { contract } => {
                 self.source
                     .declared_callable_contract(contract)
