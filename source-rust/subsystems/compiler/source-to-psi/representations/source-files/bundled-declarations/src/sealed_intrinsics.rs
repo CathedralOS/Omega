@@ -170,6 +170,18 @@ mod tests {
 
     #[test]
     fn rows_match_only_their_exact_file_declaration_and_source() {
+        let run = crate::bytes(BundledFile::CoreRun);
+        assert_eq!(
+            SealedIntrinsicCatalog::classify(site("run.omg", "Run::retire_empty", run)),
+            Some(SealedIntrinsic::EmptyRunRelease)
+        );
+        for lookalike in [
+            site("run.omg", "Run::release_empty", run),
+            site("other.omg", "Run::retire_empty", run),
+            site("run.omg", "Run::retire_empty", b"edited"),
+        ] {
+            assert_eq!(SealedIntrinsicCatalog::classify(lookalike), None);
+        }
         for placement in [
             "layout_plan_place_private",
             "layout_plan_place_private_field",

@@ -188,6 +188,26 @@ ensures result.count == 0, result.storage.base == storage.base, result.storage.l
 }"#;
 
 #[test]
+fn an_empty_run_returns_its_original_vacant_backing() {
+    let release = r#"
+data Cells = |run|::Run<WordPlacement, Word> in |run|::Run::Live<WordPlacement, Word>;
+data Vacant = |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant;
+machine carry(input: Cells) -> Vacant
+requires input.count == 0, input.storage.length == 0
+ensures result.base == input.storage.base, result.length == input.storage.length {
+    |run|::Run::release_empty::<WordPlacement, Word>(input)
+}"#;
+    let (output, report) = inspect(release);
+    assert!(output.status.success(), "{report}");
+    assert!(report.contains("psi selected_machine=carry"), "{report}");
+    for premise in ["input.count == 0", "input.storage.length == 0"] {
+        let (output, report) = inspect(&release.replace(premise, &premise.replace("== 0", "== 1")));
+        assert!(!output.status.success(), "{report}");
+        assert!(report.contains("requirement") || report.contains("precondition"), "{report}");
+    }
+}
+
+#[test]
 fn an_empty_run_consumes_the_same_authorized_empty_partition() {
     let (output, report) = inspect(EMPTY_RUN);
     assert!(output.status.success(), "{report}");
