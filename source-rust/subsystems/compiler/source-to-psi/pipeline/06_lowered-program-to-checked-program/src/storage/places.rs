@@ -152,6 +152,8 @@ impl StorageAddresses for Lineage {
 /// Descriptor storage and the payload it permits access to are different
 /// places. Initializing or replacing a descriptor does not write payload bytes.
 enum StorageEffect {
+    /// Retain the lender resolved while recording this call's possible write.
+    CallWrite(Lineage, Backing),
     NativeWrite(Lineage, Backing),
     Storage(Lineage),
     Payload(Lineage),
@@ -5565,6 +5567,8 @@ impl<'a> Storage<'a> {
     fn operation_changes(&self, operation: &Operation) -> Checked<Vec<StorageEffect>> {
         let concerns = Construct::Operation(operation.id);
         let payloads = self.call_payload_arguments(operation, true)?;
+        let is_call = operation.kind.declared_invocation().is_some()
+            || operation.kind.callable_invocation().is_some();
         let mut changes: Vec<_> = self
             .log
             .iter()
@@ -5586,6 +5590,8 @@ impl<'a> Storage<'a> {
                         && row.destination.segments.starts_with(&payload.segments)
                 }) {
                     StorageEffect::Payload(row.destination.clone())
+                } else if is_call && matches!(row.stored, Stored::Established) {
+                    StorageEffect::CallWrite(row.destination.clone(), row.backing.clone())
                 } else {
                     StorageEffect::Storage(row.destination.clone())
                 }

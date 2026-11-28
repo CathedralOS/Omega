@@ -576,6 +576,25 @@ machine main() -> bool {
     assert_eq!(lenders.len(), 2);
     assert_ne!(lenders[0], lenders[1]);
     program.judged(|_| ()).accepted();
+
+    // Borrow the original File again while its Reader will still invoke it.
+    let overlapping = source
+        .replace(
+            "machine main()",
+            "machine overwrite(value: @mutable File) { value.byte = 99u8; }\nmachine main()",
+        )
+        .replace(
+            "let first: u8",
+            "overwrite(@mutable file);\n    let first: u8",
+        );
+    match Program::of(&overlapping).judged(|_| ()) {
+        program::Verdict::Refused(refusal) => assert_eq!(
+            refusal.reason,
+            terminal_check_tables::RefusalReason::Conflict
+        ),
+        program::Verdict::Rejected(rejection) => assert!(!rejection.conflicts.is_empty()),
+        other => panic!("expected conflicting use of the retained File, got {other:?}"),
+    }
 }
 
 /// Rebuilding the public package borrows both hidden fields from the same

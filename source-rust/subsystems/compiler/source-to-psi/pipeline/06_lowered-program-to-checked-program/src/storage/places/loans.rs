@@ -3807,6 +3807,13 @@ fn resolve_effect<'a>(
         super::StorageEffect::NativeWrite(place, backing) => {
             return Ok((place, LoanRegion::Storage(backing), Touch::NativeWrite));
         }
+        super::StorageEffect::CallWrite(place, backing) => {
+            let region = match storage.provider_referent(references, &place, at, concerns)? {
+                Some((_, access)) => LoanRegion::Provider(access),
+                None => LoanRegion::Storage(backing),
+            };
+            (place, region)
+        }
         super::StorageEffect::Payload(place) => {
             let backing = storage.borrow_backing(
                 references,
