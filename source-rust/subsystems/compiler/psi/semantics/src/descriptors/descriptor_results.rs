@@ -93,7 +93,8 @@ pub(crate) use invocation::{machine_invocation, public_result_slots};
 pub use replay::{
     DescriptorAnalysis, DescriptorResultContents, DescriptorSlotInventory, DescriptorSlotKind,
     DescriptorSourceObservation, DescriptorSourceObservations, DescriptorStoredEffect,
-    DescriptorStoredOrigin, ModuleSummaries, UnknownContentsKind, UnknownDescriptorContents,
+    DescriptorStoredOrigin, LocalReturnBacking, ModuleSummaries, UnknownContentsKind,
+    UnknownDescriptorContents,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]

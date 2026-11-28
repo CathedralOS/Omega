@@ -662,14 +662,21 @@ fn publish_results(
                 .preparation_error(id)
                 .map(|error| graph_unavailable(module, error))
                 .unwrap_or_else(|| {
-                    unavailable(
-                        id,
-                        if analysis.result_exposes_local_storage(id) {
-                            "returned loan would outlive its local backing storage"
-                        } else {
-                            "reference result has no complete actual return-source correspondence"
-                        },
-                    )
+                    use terminal_semantics::descriptor_results::LocalReturnBacking;
+                    match analysis.local_return_backing(id) {
+                        LocalReturnBacking::EveryReturn => crate::reject(
+                            id,
+                            crate::SourceOrigin::Unpositioned(crate::Unpositioned::MachineEntry),
+                            "returned loan would outlive its local backing storage",
+                        ),
+                        LocalReturnBacking::Alternative => {
+                            unavailable(id, "a returned loan may outlive its local backing storage")
+                        }
+                        LocalReturnBacking::Unobserved => unavailable(
+                            id,
+                            "reference result has no complete actual return-source correspondence",
+                        ),
+                    }
                 })
         })?;
         let mappings = terminal_semantics::reference_result_contents(
