@@ -1,0 +1,37 @@
+Current Sort Metric: Inclusive Total CPU Time ( i.%totalcpu )
+Functions sorted by metric: Inclusive Total CPU Time
+
+Excl. Total     Incl. Total      Name
+CPU             CPU
+   sec.      %     sec.      %
+346.402 100.00  346.402 100.00   <Total>
+  2.252   0.65   26.449   7.64   <lowered_program_to_checked_program::proofs::prove::Prover>::prove
+  8.606   2.48   19.213   5.55   <terminal_semantics::descriptors::replay::engine::Replay>::resolve_storage_branch
+  1.181   0.34   19.143   5.53   proof_admission::kernel::decide_primitive
+  8.526   2.46   17.883   5.16   <terminal_semantics::descriptors::replay::engine::Replay>::transfer::<core::iter::adapters::map::Map<core::slice::iter::Iter<(terminal_psi::types::descriptor_locations::DescriptorLocation, terminal_psi::types::descriptor_locations::DescriptorLocation)>, <terminal_semantics::descriptors::replay::engine::Replay>::prepare_state_rows::{closure#5}>>
+  2.031   0.59   17.772   5.13   <semantic_vocabulary::proposition::propositions::PropositionContext>::validate
+  0.380   0.11   16.121   4.65   <terminal_semantics::descriptors::replay::engine::Replay>::states
+  0.280   0.08   15.931   4.60   <lowered_program_to_checked_program::proofs::prove::Prover>::closed
+ 15.531   4.48   15.531   4.48   <static>@0x162127 (<libc.so.6>)
+  0.320   0.09   14.580   4.21   <lowered_program_to_checked_program::storage::places::Storage>::reaching_supply
+  0.460   0.13   14.460   4.17   lowered_program_to_checked_program::control_flow::joins::infer
+  3.783   1.09   13.850   4.00   mathematical_kernel::typing::judgments::drive
+  3.272   0.94   13.840   4.00   <lowered_program_to_checked_program::storage::places::Storage>::reaching_backing_supply
+  0.881   0.25   12.739   3.68   mi_theap_malloc_zero_aligned_at_overalloc
+ 12.269   3.54   12.289   3.55   _mi_page_malloc_zero
+  0.120   0.03   12.269   3.54   <terminal_semantics::descriptors::replay::analysis::DescriptorAnalysis>::prepare_flow
+  0.640   0.18   12.038   3.48   _mi_malloc_generic
+  0.      0.     11.278   3.26   <lowered_program_to_checked_program::proofs::prove::Prover>::prove_under
+  0.180   0.05   10.677   3.08   proof_admission::integer_rules::closed_integer::compare_integer_math_terms
+  0.660   0.19   10.507   3.03   <lowered_program_to_checked_program::storage::places::Storage>::optional_backing
+  1.741   0.50   10.427   3.01   <semantic_vocabulary::proposition::propositions::Proposition>::validate
+  0.050   0.01    9.507   2.74   <lowered_program_to_checked_program::proofs::prove::Prover>::literal_bounds
+  0.070   0.02    9.276   2.68   <lowered_program_to_checked_program::proofs::prove::Prover>::by_transport
+  0.040   0.01    9.266   2.68   <terminal_semantics::descriptors::replay::engine::Replay>::summary
+  0.230   0.07    9.186   2.65   <lowered_program_to_checked_program::proofs::prove::Prover>::prove_structural
+  0.450   0.13    8.876   2.56   <lowered_program_to_checked_program::storage::places::Storage>::reaching
+  1.031   0.30    8.756   2.53   <terminal_semantics::descriptors::replay::analysis::DescriptorAnalysis>::append_invocation_flow
+  8.616   2.49    8.616   2.49   mi_free
+  0.010   0.00    8.326   2.40   terminal_semantics::storage::borrowed_storage::write_frames::derive_write_frames
+  4.013   1.16    8.276   2.39   <lowered_program_to_checked_program::proofs::prove::Prover>::bound_literal
+  0.030   0.01    8.116   2.34   proof_admission::proof::accept_certificate_with_machine_parameters

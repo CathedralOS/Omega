@@ -1,8 +1,9 @@
 """Collect coarse call spans from the unmodified Linux release binary with GDB."""
 
-import gdb
 import os
 import time
+
+import gdb
 
 FUNCTIONS = {
     "<compiler::Program>::prepare": "product preparation",
@@ -18,8 +19,8 @@ gdb.execute("set debuginfod enabled off")
 gdb.execute("set disable-randomization off")
 gdb.execute("starti")
 inferior = gdb.selected_inferior()
-exe = os.path.realpath("/proc/%d/exe" % inferior.pid)
-with open("/proc/%d/maps" % inferior.pid) as f:
+exe = os.path.realpath(f"/proc/{inferior.pid}/exe")
+with open(f"/proc/{inferior.pid}/maps") as f:
     base = next(
         int(parts[0].split("-")[0], 16)
         for parts in map(str.split, f)
@@ -46,7 +47,7 @@ class Return(gdb.FinishBreakpoint):
 
 class Entry(gdb.Breakpoint):
     def __init__(self, addr, label):
-        super().__init__("*%#x" % addr, internal=True)
+        super().__init__(f"*{addr:#x}", internal=True)
         self.label = label
 
     def stop(self):
@@ -62,11 +63,9 @@ with open(os.environ["BENCH_NM"]) as f:
             Entry(base + int(parts[0], 16), FUNCTIONS[parts[2]])
             seen.add(parts[2])
 if seen != FUNCTIONS.keys():
-    raise RuntimeError("unmapped measurement functions: %s" % (FUNCTIONS.keys() - seen))
+    raise RuntimeError(f"unmapped measurement functions: {FUNCTIONS.keys() - seen}")
 gdb.execute("continue")
 with open(os.environ["BENCH_SPANS"], "w") as f:
     f.write("function\tstart_ns\tend_ns\n")
-    for label, begin, end in spans:
-        f.write("%s\t%d\t%d\n" % (label, begin, end))
-    for label in missed:
-        f.write("%s\tmissing\treturn\n" % label)
+    f.writelines(f"{label}\t{begin}\t{end}\n" for label, begin, end in spans)
+    f.writelines(f"{label}\tmissing\treturn\n" for label in missed)
