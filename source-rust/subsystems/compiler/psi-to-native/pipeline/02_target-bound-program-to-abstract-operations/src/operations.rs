@@ -223,16 +223,16 @@ mod machine {
                                     .ok_or(LoweringError::UnsupportedDynamicDispatch(
                                         operation.id,
                                     ))?;
-                                let stored_referents = (0..structural_arguments.len())
+                                let stored_arguments = (0..structural_arguments.len())
                                     .filter_map(|position| {
                                         packages
-                                            .borrowed_argument(machine.id, operation.id, position)
+                                            .invocation_argument(machine.id, operation.id, position)
                                             .map(|ty| (position, ty))
                                     })
                                     .collect();
                                 Ok(abstract_operations::OpenedPackageCall {
                                     admitted_contracts,
-                                    stored_referents,
+                                    stored_arguments,
                                 })
                             })
                             .transpose()?,

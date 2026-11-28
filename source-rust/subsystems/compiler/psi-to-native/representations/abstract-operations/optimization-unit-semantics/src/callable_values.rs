@@ -110,7 +110,7 @@ fn project<'a>(
                             *psi_operation,
                             *contract,
                             opening.admitted_contracts.clone(),
-                            opening.stored_referents.iter().copied(),
+                            opening.stored_arguments.iter().copied(),
                         )?;
                     }
                     _ => {}
