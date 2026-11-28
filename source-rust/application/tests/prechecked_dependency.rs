@@ -310,6 +310,16 @@ machine main() reaches |signals|::Samples crashes Trap {{
         "edited_build_and_run_us={} supplier_publications_reused=1",
         (planned_receiver_time + native_start.elapsed()).as_micros()
     );
+    let control_output = dir.path().join("edited-embedded-source");
+    let start = Instant::now();
+    let control_product = open(&root, &control_output);
+    build(&root, &control_output, &control_product, &*control_product);
+    eprintln!(
+        "edited_embedded_source_build_and_run_us={}",
+        start.elapsed().as_micros()
+    );
+    assert_eq!(images(&second), images(&control_output));
+    drop(control_product);
     let control = dir.path().join("edited-cli-control");
     let start = Instant::now();
     let compiled = Command::new(env!("CARGO_BIN_EXE_omega"))
