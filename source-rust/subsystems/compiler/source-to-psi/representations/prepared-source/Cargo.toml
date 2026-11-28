@@ -16,6 +16,10 @@ path = "lib.rs"
 test-support = []
 
 [dependencies]
+numeric-literals = { path = "../../../foundation/numeric-literals" }
+source-admission = { path = "../source-files/custody" }
+source-provenance = { path = "../../../foundation/source-provenance" }
+source-symbol-table = { path = "../symbol-resolved-trees/symbol-table" }
 prepared-source-issuer = { path = "issuer" }
 typed-trees = { path = "../typed-trees" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
