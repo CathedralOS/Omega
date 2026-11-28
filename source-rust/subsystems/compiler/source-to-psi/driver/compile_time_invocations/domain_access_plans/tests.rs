@@ -429,6 +429,45 @@ fn fixed_step_and_resume_preserve_the_closed_owner_and_returned_inputs() {
             .and_then(|bytes| terminal_codec::decode_module(&bytes))
             .unwrap_err()
     };
+    let permit_domain = answer.structural_parameters[1].qualifications[0];
+    let domain_index = reopened
+        .types
+        .structural_domains
+        .iter()
+        .position(|domain| domain.id == permit_domain)
+        .unwrap();
+    let mut missing_issuer = reopened.clone();
+    missing_issuer.types.structural_domains[domain_index].access_policy = None;
+    assert_eq!(
+        resume_shape(&missing_issuer, answer, make.id),
+        Err("publication lost its issuance policy")
+    );
+    refused(&missing_issuer);
+
+    let worker = reopened
+        .machine(step.selected.entry_machine)
+        .unwrap()
+        .declaration
+        .as_ref()
+        .unwrap();
+    let mut wrong_issuer = reopened.clone();
+    let policy = wrong_issuer.types.structural_domains[domain_index]
+        .access_policy
+        .as_mut()
+        .unwrap();
+    let [(_, issuer)] = policy.issuance.as_mut().unwrap().as_mut_slice() else {
+        panic!("expected the sole checked reply issuer");
+    };
+    *issuer = terminal_psi::StructuralEstablishmentRoute::ExactMachine {
+        declaration: worker.machine.clone(),
+        machine_identity: worker.callable,
+    };
+    assert_eq!(
+        resume_shape(&wrong_issuer, answer, make.id),
+        Err("park request must retain its exact issuer and deny re-targeting the slot")
+    );
+    refused(&wrong_issuer);
+
     let mut missing_demand = reopened.clone();
     missing_demand.execution.task_activation_demands.clear();
     // Lowering replays loans against the closed calls before it computes how
