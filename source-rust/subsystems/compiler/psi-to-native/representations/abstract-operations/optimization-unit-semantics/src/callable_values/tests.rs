@@ -67,6 +67,7 @@ fn call(id: u64, callee: AbstractCallTarget, arguments: Vec<ValueId>) -> Abstrac
         callee,
         arguments,
         structural_arguments: Vec::new(),
+        opened_referents: Default::default(),
         claim_transfers: Vec::new(),
         result: AbstractStructuralCallResult::Unit,
         requirement_obligations: Vec::new(),
