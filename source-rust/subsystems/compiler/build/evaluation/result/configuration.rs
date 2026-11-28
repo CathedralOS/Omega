@@ -78,8 +78,10 @@ pub struct ComputedBuildConfig {
 // Retaining a judgment changes custody, not the meaning of Build's output.
 // Fresh equivalent executions already compare by their values and observations;
 // an Arc address must not become another output/cache identity.
-impl PartialEq for ComputedBuildConfig {
-    fn eq(&self, other: &Self) -> bool {
+impl ComputedBuildConfig {
+    /// Independent executions can produce the same Product while their session
+    /// sponsors report different storage peaks. Resource usage belongs to the invocation.
+    pub fn same_product_and_observations(&self, other: &Self) -> bool {
         let Self {
             enabled_unsafe_atoms,
             accepted_builds: _,
@@ -93,7 +95,7 @@ impl PartialEq for ComputedBuildConfig {
             behavior_exclusion_requests,
             project_declaration,
             optimization_report_request,
-            evaluation_usage,
+            evaluation_usage: _,
             observation_summary,
             executed_entry,
             generated_sources,
@@ -109,10 +111,15 @@ impl PartialEq for ComputedBuildConfig {
             && behavior_exclusion_requests == &other.behavior_exclusion_requests
             && project_declaration == &other.project_declaration
             && optimization_report_request == &other.optimization_report_request
-            && evaluation_usage == &other.evaluation_usage
             && observation_summary == &other.observation_summary
             && executed_entry == &other.executed_entry
             && generated_sources == &other.generated_sources
+    }
+}
+
+impl PartialEq for ComputedBuildConfig {
+    fn eq(&self, other: &Self) -> bool {
+        self.same_product_and_observations(other) && self.evaluation_usage == other.evaluation_usage
     }
 }
 

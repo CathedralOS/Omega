@@ -647,6 +647,8 @@ pub mod data {
         pub supply_mode: language_core::DataSupplyMode,
         pub lifetime_parameters: Vec<Identifier>,
         pub type_parameters: HandleSpan<TypeParameter>,
+        /// Lexical type variables instantiated by each record value, outside the public argument list.
+        pub package_parameters: HandleSpan<TypeParameter>,
         pub generic_instance: Option<TypeReferenceHandle>,
         pub conformance_bounds: Vec<crate::source_state::machine::GenericConformanceBound>,
         pub properties: DataProperties,
@@ -669,6 +671,7 @@ pub mod data {
                 supply_mode: language_core::DataSupplyMode::CheckedShape,
                 lifetime_parameters: Vec::new(),
                 type_parameters: HandleSpan::empty(),
+                package_parameters: HandleSpan::empty(),
                 conformance_bounds: Vec::new(),
                 generic_instance: None,
                 properties: DataProperties::default(),

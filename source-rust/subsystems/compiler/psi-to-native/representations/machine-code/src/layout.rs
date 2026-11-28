@@ -16,7 +16,7 @@ Layouts carry no content hash: checks compare the retained rows and roots.
 
 mod relaxation_record;
 pub mod text_section;
-pub use relaxation_record::X86BranchRelaxationRecord;
+pub use relaxation_record::{X86BranchRelaxationAudit, X86BranchRelaxationRecord};
 
 use std::sync::Arc;
 
@@ -265,17 +265,14 @@ pub struct ResolvedMachineProgram {
 
 /// The resolved-layout stage's output: the program with its active
 /// layout, the baseline layout it came from, the layout-phase selections and
-/// budget that governed the run, and the identity of any x86 branch relaxation.
-/// Native stage 12 retains the relaxation trace for replay.
+/// budget that governed the run, and the layout issued by any x86 branch relaxation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OptimizedMachineLayout {
     pub baseline: ResolvedLayoutRoots,
     pub program: ResolvedMachineProgram,
     pub selections: optimization_core::OptimizationPhaseSelections,
     pub budget: optimization_core::OptimizationWorkBudget,
-    pub relaxation: Option<X86BranchRelaxationIdentity>,
-    /// The issued trace whose identity the exit contract binds. Replay checks both.
-    pub trace: Option<Arc<X86BranchRelaxationRecord>>,
+    pub relaxation: Option<Arc<X86BranchRelaxationRecord>>,
 }
 
 impl OptimizedMachineLayout {

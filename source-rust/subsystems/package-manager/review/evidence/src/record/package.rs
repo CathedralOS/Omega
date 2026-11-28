@@ -21,9 +21,11 @@ pub use provider_policy::{
     PackagePolicyServiceMethod, PackagePolicyServiceSignature,
 };
 pub(crate) use provider_policy::{
-    PackagePolicyProviderFamily, PackagePolicyProviderFamilyCoordinate,
-    PackagePolicyServiceProgressPremise, PackagePolicyServiceProgressRoute,
-    validate_native_service_method,
+    PackagePolicyProviderFamily, PackagePolicyServiceProgressRoute, validate_native_service_method,
+};
+#[cfg(any(test, feature = "full-policy-recovery"))]
+pub(crate) use provider_policy::{
+    PackagePolicyProviderFamilyCoordinate, PackagePolicyServiceProgressPremise,
 };
 pub use providers::{
     PackageReviewBoundaryApplication, PackageReviewCompilerIntrinsicExecution,

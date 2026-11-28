@@ -265,12 +265,31 @@ fn settle_resolution(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(), 
     Ok(())
 }
 
+fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
+    (symbol.arena_index(), symbol.generation())
+}
+
+struct SelectedMachines(Vec<(u32, u32)>);
+
+impl SelectedMachines {
+    fn new(machines: &[SymbolHandle]) -> Self {
+        let mut keys = machines.iter().copied().map(symbol_key).collect::<Vec<_>>();
+        keys.sort_unstable();
+        Self(keys)
+    }
+
+    fn contains(&self, symbol: SymbolHandle) -> bool {
+        self.0.binary_search(&symbol_key(symbol)).is_ok()
+    }
+}
+
 fn finish_resolved_tables(
     lowerer: &mut Lowerer,
     machines: &[SymbolHandle],
 ) -> Result<(), Vec<Diagnostic>> {
-    route_conformance_requirement_calls(&mut lowerer.symbol_resolved_trees, machines)?;
-    route_named_implementation_calls(&mut lowerer.symbol_resolved_trees, machines);
+    let work = SelectedMachines::new(machines);
+    route_conformance_requirement_calls(&mut lowerer.symbol_resolved_trees, &work)?;
+    route_named_implementation_calls(&mut lowerer.symbol_resolved_trees, &work);
     crate::resolution::names::target_machine_families::bind(&mut lowerer.symbol_resolved_trees)?;
     bind_sibling_calls(&mut lowerer.symbol_resolved_trees, machines);
     crate::resolution::names::recursive_tail_calls::normalize(

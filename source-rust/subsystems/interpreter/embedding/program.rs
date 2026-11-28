@@ -2345,6 +2345,31 @@ pub(crate) mod program {
             crate::engine::capabilities::check(&self.program, installation)
         }
 
+        /// Report the checked call path to each import during the same
+        /// capability walk that computes the entry's requirements.
+        pub fn execution_requirements_with_import_paths(
+            &self,
+            installation: Option<&crate::boundary::effects::TerminalRuntimeSupplies>,
+        ) -> Result<
+            (
+                crate::engine::capabilities::TerminalExecutionRequirements,
+                crate::engine::capabilities::TerminalImportPaths,
+            ),
+            TerminalInterpretError,
+        > {
+            self.program.validate_layout_selection(installation)?;
+            let mut paths = crate::engine::capabilities::TerminalImportPaths::default();
+            let requirements = crate::engine::capabilities::check_with_import_paths(
+                &self.program,
+                installation,
+                &[],
+                None,
+                None,
+                Some(&mut paths),
+            )?;
+            Ok((requirements, paths))
+        }
+
         /// Build this program's callable projection once for `providers`, so
         /// several checks and instances of its entries under the same
         /// providers reuse it. Every check that receives it refuses a

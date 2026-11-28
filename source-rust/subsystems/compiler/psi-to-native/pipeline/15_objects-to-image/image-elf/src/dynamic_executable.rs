@@ -24,22 +24,32 @@ const EV_CURRENT: u32 = 1;
 
 #[derive(Debug)]
 #[must_use = "admitted dynamic ELF retains exact final-image and byte custody"]
-pub struct ValidatedElfDynamicExecutable {
+pub struct ValidatedElfDynamicExecutable<Output = ExecutableImageOutput> {
     image: FinalImage,
-    output: ExecutableImageOutput,
+    output: Output,
 }
 
-impl ValidatedElfDynamicExecutable {
+impl<Output> ValidatedElfDynamicExecutable<Output> {
     pub const fn image(&self) -> &FinalImage {
         &self.image
     }
 
-    pub const fn output(&self) -> &ExecutableImageOutput {
+    pub const fn output(&self) -> &Output {
         &self.output
     }
 
-    pub fn into_parts(self) -> (FinalImage, ExecutableImageOutput) {
+    pub fn into_parts(self) -> (FinalImage, Output) {
         (self.image, self.output)
+    }
+}
+
+impl ValidatedElfDynamicExecutable {
+    pub fn into_emitted(self) -> ValidatedElfDynamicExecutable<image::EmittedImageOutput> {
+        let (image, output) = self.into_parts();
+        ValidatedElfDynamicExecutable {
+            image,
+            output: image::emitted_direct_executable_output(output),
+        }
     }
 }
 
@@ -552,6 +562,37 @@ mod tests {
             );
             assert_eq!(admitted.image().memory.text, output.final_text_bytes);
             assert_eq!(admitted.image().memory.data, output.final_data_bytes);
+
+            let payloads = [
+                output.bytes.as_ptr(),
+                output.final_text_bytes.as_ptr(),
+                output.final_data_bytes.as_ptr(),
+                output.final_import_data_bytes.as_ptr(),
+            ];
+            let regions = (
+                output.executable_regions.regions.as_ptr(),
+                output.data_regions.regions.as_ptr(),
+                output.import_data_regions.regions.as_ptr(),
+            );
+            let emitted = admitted.into_emitted();
+            let output = emitted.output();
+            assert_eq!(
+                payloads,
+                [
+                    output.bytes.as_ptr(),
+                    output.final_text_bytes.as_ptr(),
+                    output.final_data_bytes.as_ptr(),
+                    output.final_import_data_bytes.as_ptr()
+                ]
+            );
+            assert_eq!(
+                regions,
+                (
+                    output.executable_regions.regions.as_ptr(),
+                    output.data_regions.regions.as_ptr(),
+                    output.import_data_regions.regions.as_ptr()
+                )
+            );
         }
     }
 

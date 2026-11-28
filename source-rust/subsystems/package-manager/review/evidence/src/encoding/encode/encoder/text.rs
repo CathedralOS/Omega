@@ -22,6 +22,7 @@ impl PackagePolicyBaseline {
     }
 }
 
+#[cfg(any(test, feature = "full-policy-recovery"))]
 pub(in crate::encoding) fn render(
     policy: &PackagePolicyBaseline,
     writer: Writer<'_>,
