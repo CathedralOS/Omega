@@ -143,6 +143,19 @@ pub struct NativeGeometries<'a> {
     catalogs: Vec<NativeGeometry<'a>>,
 }
 
+impl crate::LegalizedScalarFunction {
+    pub fn native_layout_inputs(&self) -> (&[StructuralTypeDeclaration], StorageLayoutInputs<'_>) {
+        self.structural
+            .as_ref()
+            .map_or((&[], StorageLayoutInputs::default()), |contract| {
+                (
+                    contract.structural_types.as_slice(),
+                    contract.structural_types.storage_inputs(),
+                )
+            })
+    }
+}
+
 impl<'a> NativeGeometries<'a> {
     pub fn new(
         declarations: impl Iterator<Item = (&'a [StructuralTypeDeclaration], StorageLayoutInputs<'a>)>,
