@@ -3020,9 +3020,7 @@ pub(crate) mod direct {
             // Naming a hidden slot does not turn a bare package into a public
             // application, including when its ordinary lifetimes were elided.
             resolved::types::TypeReference::Generic(generic)
-                if !generic.openings.is_empty()
-                    && generic.arguments.is_empty()
-                    && generic.lifetime_arguments.is_empty() =>
+                if generic.opens_bare_package() =>
             {
                 super::lower_named_type_reference(
                     source_trees, typed_trees, generic.base_symbol, &generic.base_name, exposure,

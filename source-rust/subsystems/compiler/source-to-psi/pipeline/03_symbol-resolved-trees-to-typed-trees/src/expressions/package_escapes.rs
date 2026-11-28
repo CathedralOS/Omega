@@ -329,7 +329,7 @@ mod tests {
     fn one_opening_can_repack_correlated_fields_without_exporting_its_witness() {
         let source = format!("{PAIR}
             machine repack(p: @Pair) -> Pair {{ Pair {{ first: p.first, second: p.second, tag: p.tag }} }}
-            machine tag(p: @Pair<some X>) -> u8 {{ p.tag }}");
+            machine tag(p: @Pair<some X>) -> u8 {{ let local: @Pair<some Y> = p; local.tag }}");
         let program = checked(&[("main.omg", &source)]).unwrap();
         let package = program
             .expression_table

@@ -401,6 +401,13 @@ pub mod type_system {
 
         deref_to_storage!(GenericTypeReference => GenericTypeReferenceStorage);
 
+        impl GenericTypeReference {
+            /// Opening a hidden slot contributes no argument to the public type.
+            pub fn opens_bare_package(&self) -> bool {
+                !self.openings.is_empty() && self.arguments.is_empty() && self.lifetime_arguments.is_empty()
+            }
+        }
+
         pub type ReceivingApplicationHandle = Handle<ReceivingApplication>;
 
         /* Pending declaration custody, not another language type or a selected value. */
@@ -760,6 +767,12 @@ pub mod type_system {
                             source_expressions,
                         );
                         self.insert(TypeReferenceNode::Slice { element_type })
+                    }
+                    TypeReference::Generic(generic) if generic.opens_bare_package() => {
+                        self.insert(TypeReferenceNode::Named {
+                            symbol: generic.base_symbol,
+                            name: generic.base_name.clone(),
+                        })
                     }
                     TypeReference::Generic(generic) => {
                         let arguments = self.insert_type_reference_handle_span_from_trees(
