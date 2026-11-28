@@ -2968,7 +2968,7 @@ use terminal_psi::{
 
 pub(crate) struct PendingBoundaryCall {
     pub(crate) site: crate::boundary::results::TerminalEffectWait,
-    pub(crate) awaiting_provider_readiness: bool,
+    pub(crate) park: Option<crate::suspension::ParkOccurrence>,
     arguments: crate::boundary::effects::byte_buffers::BoundaryArguments,
     remaining_claims: BTreeMap<semantic_vocabulary::ClaimId, crate::engine::execution::LiveClaim>,
     effect: TerminalEffect,
@@ -3198,13 +3198,23 @@ impl<'artifact> TerminalExecution<'artifact> {
         meter: &mut dyn terminal_work::ExecutionMeter,
         components: &mut crate::embedding::instance::ComponentBindings<'_, 'artifact>,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        if let Some(pending) = self.awaiting_effect.as_ref() {
-            if let Some(status) = self.boundary_effect_wait(operation, handler, pending)? {
-                self.awaiting_effect
-                    .as_mut()
-                    .ok_or(malformed())?
-                    .awaiting_provider_readiness =
-                    matches!(status, TerminalExecutionStatus::AwaitingEffect(_));
+        if let Some(pending) = self.awaiting_effect.as_mut() {
+            operation_kind!(operation => BoundaryCall { boundary, .. });
+            if pending.site.program != self.program.identity
+                || pending.site.machine != self.current_machine
+                || pending.site.block != self.current
+                || pending.site.operation != operation.id
+                || pending.site.boundary != *boundary
+            {
+                return Err(malformed());
+            }
+            if let Some(status) = Self::boundary_effect_wait(
+                operation,
+                handler,
+                pending,
+                self.local_structural_identities.exposure_namespace,
+                &mut self.last_park,
+            )? {
                 return Ok(OperationFlow::Yield(status));
             }
             let pending = self.awaiting_effect.take().ok_or(malformed())?;
@@ -3580,7 +3590,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             result: boundary_declaration.result.clone(),
         };
         let mut pending = PendingBoundaryCall {
-            awaiting_provider_readiness: false,
+            park: None,
             site,
             arguments: boundary_arguments,
             remaining_claims,
@@ -3589,9 +3599,13 @@ impl<'artifact> TerminalExecution<'artifact> {
         if layout_snapshot {
             return self.complete_boundary_effect(operation, handler, pending);
         }
-        if let Some(status) = self.boundary_effect_wait(operation, handler, &pending)? {
-            pending.awaiting_provider_readiness =
-                matches!(status, TerminalExecutionStatus::AwaitingEffect(_));
+        if let Some(status) = Self::boundary_effect_wait(
+            operation,
+            handler,
+            &mut pending,
+            self.local_structural_identities.exposure_namespace,
+            &mut self.last_park,
+        )? {
             self.awaiting_effect = Some(Box::new(pending));
             Ok(OperationFlow::Yield(status))
         } else {
@@ -3601,20 +3615,12 @@ impl<'artifact> TerminalExecution<'artifact> {
     }
 
     fn boundary_effect_wait(
-        &self,
         operation: &terminal_psi::Operation,
         handler: &mut impl TerminalEffectHandler,
-        pending: &PendingBoundaryCall,
+        pending: &mut PendingBoundaryCall,
+        namespace: Option<u64>,
+        last_park: &mut u64,
     ) -> Result<Option<TerminalExecutionStatus>, TerminalInterpretError> {
-        operation_kind!(operation => BoundaryCall { boundary, .. });
-        if pending.site.program != self.program.identity
-            || pending.site.machine != self.current_machine
-            || pending.site.block != self.current
-            || pending.site.operation != operation.id
-            || pending.site.boundary != *boundary
-        {
-            return Err(malformed());
-        }
         let ready = handler
             .poll_effect_readiness(&pending.effect)
             .map_err(|rejection| TerminalInterpretError::EffectRejected {
@@ -3630,8 +3636,16 @@ impl<'artifact> TerminalExecution<'artifact> {
             });
         }
         if !ready {
+            let occurrence = match pending.park {
+                Some(existing) => existing,
+                None => crate::suspension::ParkOccurrence::fresh(namespace, last_park)?,
+            };
+            pending.park = Some(occurrence);
             return Ok(Some(TerminalExecutionStatus::AwaitingEffect(
-                pending.site.clone(),
+                crate::TerminalSuspension {
+                    site: pending.site.clone(),
+                    occurrence,
+                },
             )));
         }
         let computed = handler
@@ -3640,6 +3654,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 operation: operation.id,
                 rejection,
             })?;
+        pending.park = None;
         Ok(
             (!computed).then_some(TerminalExecutionStatus::HostComputationPending(
                 pending.site.clone(),

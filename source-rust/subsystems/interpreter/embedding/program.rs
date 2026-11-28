@@ -502,6 +502,17 @@ pub(crate) mod instance {
                     .is_some_and(|pending| pending.operation == operation)
             }
 
+            pub(super) fn active_instance(
+                &self,
+                operation: OperationId,
+            ) -> Option<&TerminalInstance<'host, 'artifact>> {
+                self.pending
+                    .as_ref()
+                    .filter(|pending| pending.operation == operation)?
+                    .instance
+                    .as_deref()
+            }
+
             pub(crate) fn prepare(
                 &mut self,
                 caller: ComponentCallScope,
@@ -1112,7 +1123,7 @@ pub(crate) mod instance {
                     || !execution
                         .awaiting_effect
                         .as_ref()
-                        .is_some_and(|pending| pending.awaiting_provider_readiness)
+                        .is_some_and(|pending| pending.park.is_some())
                     || execution.failure.is_some())
             {
                 return Err(
@@ -1244,6 +1255,57 @@ pub(crate) mod instance {
             meter: &mut dyn ExecutionMeter,
         ) -> Result<TerminalExecutionStatus, TerminalInstanceError> {
             self.invoke_in_scope(meter, psi_provider_selections::ProgressScope::Executable)
+        }
+
+        /// Poll the admitted provider only if this exact visit is still parked.
+        /// A stale notification leaves both the instance and the meter alone.
+        /// A matching notification does not itself mean the provider is ready.
+        pub fn recheck_suspension(
+            &mut self,
+            suspension: &crate::TerminalSuspension,
+            meter: &mut dyn ExecutionMeter,
+        ) -> Result<Option<TerminalExecutionStatus>, TerminalInstanceError> {
+            if self.is_parked_at(suspension) {
+                self.invoke(meter).map(Some)
+            } else {
+                Ok(None)
+            }
+        }
+
+        fn is_parked_at(&self, suspension: &crate::TerminalSuspension) -> bool {
+            // A component call forwards the child's wait. Follow only the
+            // instruction actually stopped on; unrelated bindings cannot answer it.
+            let mut current = self;
+            loop {
+                let Some(execution) = current.execution.as_ref() else {
+                    return false;
+                };
+                if current.closed || current.discard.is_some() || execution.failure.is_some() {
+                    return false;
+                }
+                if let Some(call) = execution.awaiting_effect.as_ref() {
+                    return call.park == Some(suspension.occurrence)
+                        && call.site == suspension.site;
+                }
+                let op = execution
+                    .program
+                    .machines()
+                    .get(&execution.current_machine)
+                    .and_then(|machine| machine.block(&execution.current))
+                    .and_then(|block| block.operations.get(execution.next_operation));
+                let Some(op) = op else { return false };
+                let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = &op.kind else {
+                    return false;
+                };
+                let Some(child) = current
+                    .components
+                    .get(boundary)
+                    .and_then(|binding| binding.active_instance(op.id))
+                else {
+                    return false;
+                };
+                current = child;
+            }
         }
 
         fn invoke_in_scope(
