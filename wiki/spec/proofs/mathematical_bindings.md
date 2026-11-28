@@ -72,17 +72,19 @@ or per-binding modifiers. Display aliases cannot change those identities.
 Sort formation, equality and elimination follow the foundation; `[erased]`,
 multiplicity and runtime representation remain separate judgments.
 
-Arrow types are mathematical dependent Π-types. `A -> B` abbreviates a Π whose
+In the mathematical notation above, arrows denote dependent Π-types. This
+notation does not supply an inline function-type spelling for an Omega
+generic argument. `A -> B` abbreviates a Π whose
 result does not depend on the argument. Arrows associate to the right; a named
 domain binder scopes over its codomain, never over earlier parameters. A type
 family `A -> |proof|::Type<v>` does not itself require a dependent arrow; applying
 that family in a function's result type does.
 
 In proof use, a well-formed mathematical function type can instantiate a
-generic type parameter at its checked universe level. If a record declares
-`state: S` and `S` is instantiated with `Nat -> Rat`, construction can
-supply an arbitrary mathematical function `f` of that type. Projecting
-`state` gives that same term, and applying it to `n` gives `f(n)`. Any
+generic type parameter at its checked universe level. For the Cauchy
+sequence's field `state: S`, the theorem may supply a function from
+natural numbers to rationals. Projecting `state` gives that same term,
+and the named sampler can apply it to an index. Any
 demand for execution still requires a checked realization.
 
 Universe inference may omit routine written levels at definitions and calls.
