@@ -2,12 +2,14 @@
 //! A complete local origin carries an address even when the public binder
 //! hides its type. Check each address against the original typed initializer.
 use super::*;
-use crate::descriptor_lifetimes::{DescriptorPosition, descriptor_location};
-use crate::descriptor_results::DescriptorAnalysis;
+use crate::descriptor_lifetimes::{
+    DescriptorLocation, DescriptorPosition, descriptor_location, descriptor_path,
+};
+use crate::descriptor_results::{DescriptorAnalysis, DescriptorCallOrigin};
 use semantic_vocabulary::PlaceId;
 use std::collections::BTreeSet;
 
-pub(crate) fn local_restoration_homes(
+pub(crate) fn local_mutable_field_homes(
     module: &TerminalModule,
     machine: &TerminalMachine,
     at: DescriptorPosition,
@@ -73,4 +75,51 @@ pub(crate) fn local_restoration_homes(
         }
     }
     None
+}
+
+/// A conservative call effect can invalidate the hidden state reached through
+/// its mutable package argument. Resolve the complete set of local lenders
+/// captured by that field. Unknown captures keep the ordinary refusal.
+pub fn local_call_write_origins(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    at: DescriptorPosition,
+    references: &mut DescriptorAnalysis<'_>,
+    location: &DescriptorLocation,
+) -> Option<Vec<DescriptorCallOrigin>> {
+    let operation = machine
+        .blocks
+        .iter()
+        .find(|block| block.id == at.0)?
+        .operations
+        .get(usize::try_from(at.1).ok()?)?;
+    let root = machine.structural_place_type(location.root)?;
+    let path = descriptor_path(&module.types.structural_types, root, &location.path)?;
+    let (StructuralPathSegment::Referent, carrier) = path.split_last()? else {
+        return None;
+    };
+    let (_, package) = carrier.split_last()?;
+    let written_argument = terminal_psi::call_structural_arguments(&operation.kind)
+        .iter()
+        .any(|arg| {
+            arg.place == location.root
+                && arg.access == StructuralAccess::MutableBorrow
+                && (package.starts_with(&arg.path) || path == arg.path)
+        });
+    if !written_argument {
+        return None;
+    }
+    local_mutable_field_homes(module, machine, at, references, location.root, carrier)?
+        .into_iter()
+        .map(|(source, path)| {
+            // A runtime index would need its original evaluation point to
+            // identify the same cell after the call.
+            (!path.iter().any(|segment| segment.runtime_index().is_some())).then(|| {
+                DescriptorCallOrigin::Argument {
+                    source,
+                    projection: crate::borrowed_storage::Projection::new(&path),
+                }
+            })
+        })
+        .collect()
 }

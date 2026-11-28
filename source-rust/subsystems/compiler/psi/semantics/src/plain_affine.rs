@@ -4765,7 +4765,7 @@ impl<'a> Analysis<'a> {
                     // Only a handback may inspect the closed initializer's actual
                     // lenders. This cannot authorize a move or receiving store.
                     let path = restoring_reference.ok_or_else(unresolved)?;
-                    let homes = crate::packages::local_restoration_homes(
+                    let homes = crate::packages::local_mutable_field_homes(
                         self.module.ok_or_else(unresolved)?,
                         body,
                         position,
