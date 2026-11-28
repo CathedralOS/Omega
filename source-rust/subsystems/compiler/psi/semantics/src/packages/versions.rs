@@ -13,8 +13,9 @@ pub(super) fn same_storage_version(
     materialized: Option<semantic_vocabulary::PlaceId>,
 ) -> bool {
     use crate::descriptors::descriptor_lifetimes::descriptor_location;
+    use crate::descriptors::descriptor_results::payload_versions::require_preserved_observed_storage;
     use crate::descriptors::descriptor_results::{
-        DescriptorPayloadTarget, require_preserved_observed_storage,
+        DescriptorPayloadTarget,
         terminal_borrowed_storage_graph_from,
     };
     let position = |id| {

@@ -64,9 +64,8 @@ pub use payload_versions::{
     unchanged_stored_scalar_sources,
 };
 pub(crate) use payload_versions::{
-    require_completed_scalar_capture, require_preserved_observed_storage,
-    require_unchanged_produced_payload, require_unchanged_produced_payload_in,
-    unchanged_stored_projection_sources_in,
+    require_completed_scalar_capture, require_unchanged_produced_payload,
+    require_unchanged_produced_payload_in, unchanged_stored_projection_sources_in,
 };
 pub(crate) use scalar_captures::scalar_storage_writes;
 pub use scalar_captures::{
