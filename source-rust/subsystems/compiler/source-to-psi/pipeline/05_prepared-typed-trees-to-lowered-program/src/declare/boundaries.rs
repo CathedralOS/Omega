@@ -308,6 +308,7 @@ impl BoundaryNamespace {
                 requires,
                 normal_qualifications: Vec::new(),
                 scalar_domain_requirements,
+                membership_requires: header.proof.membership_requires,
                 membership_ensures: header.proof.membership_ensures,
                 scalar_requires: header.proof.requires,
                 scalar_ensures: header.proof.ensures.into_iter().map(|clause| clause.proposition)

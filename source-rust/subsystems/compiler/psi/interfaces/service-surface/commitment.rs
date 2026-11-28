@@ -205,16 +205,25 @@ impl<Output: ServiceContractSink> ContractEncoder<'_, Output> {
             self.string(&claim.domain);
             self.carry_policy(claim.effective_carry);
         }
-        self.len(method.normal_result_memberships.len());
-        for membership in &method.normal_result_memberships {
-            self.len(membership.path.len());
+        self.len(method.domain_memberships.len());
+        for membership in &method.domain_memberships {
+            let input = match membership.subject {
+                ServiceMembershipSubject::Input(index) => Some(index),
+                ServiceMembershipSubject::NormalResult => None,
+            };
+            self.len(membership.path.len() + usize::from(input.is_some()));
+            if let Some(index) = input {
+                self.byte(4);
+                self.output.service_contract_bytes(&index.to_le_bytes());
+            }
             for projection in &membership.path {
                 self.byte(service_member_tag(projection));
                 match projection {
-                    ServiceResultProjection::Field(name) | ServiceResultProjection::Case(name) => {
+                    ServiceMembershipProjection::Field(name)
+                    | ServiceMembershipProjection::Case(name) => {
                         self.string(name);
                     }
-                    ServiceResultProjection::FixedIndex(index) => {
+                    ServiceMembershipProjection::FixedIndex(index) => {
                         self.output.service_contract_bytes(&index.to_le_bytes());
                     }
                 }
@@ -284,9 +293,10 @@ mod declared_type_tests {
 
     #[test]
     fn result_memberships_use_service_wire_order_for_shared_place_segments() {
-        use super::{ServiceNormalResultMembership, ServiceResultProjection as Member};
+        use super::{ServiceDomainMembership, ServiceMembershipProjection as Member};
 
-        let membership = |path, domain: &str| ServiceNormalResultMembership {
+        let membership = |path, domain: &str| ServiceDomainMembership {
+            subject: crate::ServiceMembershipSubject::NormalResult,
             path,
             domain: domain.to_owned(),
         };
@@ -306,6 +316,43 @@ mod declared_type_tests {
         received.sort();
         assert_eq!(received, ordered);
     }
+    #[test]
+    fn input_memberships_keep_their_public_ordinal_and_existing_result_hashes() {
+        use super::{
+            ServiceDomainMembership, ServiceMembershipProjection, ServiceMembershipSubject,
+        };
+        use std::hash::{DefaultHasher, Hash, Hasher};
+
+        let result = ServiceDomainMembership {
+            subject: ServiceMembershipSubject::NormalResult,
+            path: vec![ServiceMembershipProjection::Field("Ticket::number".into())],
+            domain: "Ticket::Stamped".into(),
+        };
+        let hash = |membership: &ServiceDomainMembership| {
+            let mut state = DefaultHasher::new();
+            membership.hash(&mut state);
+            state.finish()
+        };
+        let mut previous = DefaultHasher::new();
+        result.path.hash(&mut previous);
+        result.domain.hash(&mut previous);
+        assert_eq!(hash(&result), previous.finish());
+
+        let first = ServiceDomainMembership {
+            subject: ServiceMembershipSubject::Input(0),
+            ..result.clone()
+        };
+        let second = ServiceDomainMembership {
+            subject: ServiceMembershipSubject::Input(1),
+            ..result.clone()
+        };
+        assert!(first.has_subject(1, false));
+        assert!(!second.has_subject(1, true));
+        assert!(!result.has_subject(2, false));
+        assert_ne!(hash(&first), hash(&second));
+        assert_ne!(hash(&first), hash(&result));
+    }
+
     use super::declared_type_signature;
 
     #[test]

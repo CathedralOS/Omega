@@ -25,6 +25,18 @@ impl PackagePolicyTerminalPermissions {
     field_projection_accessors!(copied target: target::TargetProfile);
     field_projection_accessors!(sliced services: &[PackagePolicyTerminalService]);
 
+    pub(crate) fn has_network_authority(&self) -> bool {
+        use semantic_vocabulary::TerminalAuthorityClass::{
+            HostNetworkStack, OffMachineNetworkTransmit,
+        };
+        self.services.iter().flat_map(|s| &s.permissions).any(|p| {
+            p.permitted
+                .classes()
+                .iter()
+                .any(|class| matches!(class, HostNetworkStack | OffMachineNetworkTransmit))
+        })
+    }
+
     pub(crate) fn validate_canonical_structure(&self) -> Result<(), &'static str> {
         ordered_by(&self.services, |a, b| a.service.cmp(&b.service))?;
         for service in &self.services {

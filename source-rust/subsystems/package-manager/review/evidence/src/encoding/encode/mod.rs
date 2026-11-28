@@ -18,6 +18,8 @@ mod terminal_permissions;
 mod values;
 
 #[cfg(test)]
+pub(in crate::encoding) use selected_providers::encode_membership;
+#[cfg(test)]
 pub(in crate::encoding) use values::providers::encode_compiler_intrinsic_execution;
 
 #[cfg(test)]

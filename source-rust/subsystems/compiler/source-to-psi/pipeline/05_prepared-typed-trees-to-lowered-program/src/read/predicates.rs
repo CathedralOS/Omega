@@ -215,7 +215,7 @@ impl<'t> Program<'t> {
             .map(|(clause, _)| clause)
             .collect::<Vec<_>>();
         if nominal {
-            let result_subject = match (&subject, scope.result) {
+            let admitted_subject = match (&subject, scope.result) {
                 (
                     crate::body::RuntimeMembershipSubject::Scalar(ScalarTerm::Value { id, .. }),
                     ResultTerm::Named(result, ..),
@@ -232,11 +232,37 @@ impl<'t> Program<'t> {
                     crate::body::RuntimeMembershipSubject::Structural { root, .. },
                     ResultTerm::Structural(result, _),
                 ) => *root == result,
+                (
+                    crate::body::RuntimeMembershipSubject::Scalar(ScalarTerm::Value {
+                        id: value,
+                        ..
+                    }),
+                    ResultTerm::Absent(_),
+                ) => scope
+                    .slots
+                    .iter()
+                    .zip(scope.values)
+                    .any(|(slot, formal)| !slot.erased && *formal == Some(*value)),
+                (
+                    crate::body::RuntimeMembershipSubject::Structural { root, .. }
+                    | crate::body::RuntimeMembershipSubject::Scalar(
+                        ScalarTerm::BooleanField { root, .. }
+                        | ScalarTerm::IntegerField { root, .. }
+                        | ScalarTerm::IeeeFloatField { root, .. },
+                    ),
+                    ResultTerm::Absent(_),
+                ) => scope.slots.iter().enumerate().any(|(index, slot)| {
+                    !slot.erased
+                        && (slot.borrowed.is_some()
+                            || matches!(slot.value_type, ValueType::Record(..)))
+                        && super::contracts::formal_place(id, scope.slots, index).ok()
+                            == Some(*root)
+                }),
                 _ => false,
             };
-            if !result_subject {
+            if !admitted_subject {
                 return Err(unavailable(
-                    "routed contract membership needs its exact normal result subject",
+                    "routed membership must name a declared input in requires or the normal result in ensures",
                 ));
             }
         }

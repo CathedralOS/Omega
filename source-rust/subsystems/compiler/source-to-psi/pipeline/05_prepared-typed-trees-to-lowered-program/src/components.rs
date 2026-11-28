@@ -294,6 +294,7 @@ fn share_loop_entries(
 fn can_forward_result(body: &Body, signature: &Signature) -> bool {
     has_no_owned_structural_slots(body, signature)
         && signature.ensures.is_empty()
+        && signature.membership_requires.is_empty()
         && !signature.has_structural_guarantees()
         && signature.ranking.is_none()
         && signature.termination == Termination::Silent

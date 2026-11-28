@@ -2101,7 +2101,7 @@ impl Program<'_> {
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
     ) -> Checked<Option<(PlaceId, Vec<CanonicalStructuralPathSegment>, ValueType)>> {
-        let Some((root, path, ty)) = self.read_projection(id, scope, expression)? else {
+        let Some((root, path, ty)) = self.read_projection(id, scope, expression, None)? else {
             return Ok(None);
         };
         let path = static_read_path(&path).ok_or_else(|| {
@@ -2113,11 +2113,50 @@ impl Program<'_> {
         Ok(Some((root, path, ty)))
     }
 
+    /// Select the reference's referent or the slice's first element before
+    /// observing its alignment, just as an executable location query does.
+    pub(super) fn alignment_observation(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        operand: ExpressionHandle,
+    ) -> Checked<(PlaceId, Vec<ScalarReadProjection>)> {
+        let invalid = || {
+            refuse_at(
+                id,
+                Unserved::Contract("location alignment requires accessible storage in this clause"),
+            )
+        };
+        let (root, mut path, value_type) = self
+            .read_projection(
+                id,
+                scope,
+                operand,
+                Some(terminal_psi::StorageLocationQuery::Alignment),
+            )?
+            .ok_or_else(invalid)?;
+        if let ValueType::Record(record, _, _) = value_type {
+            if let Some((_, access)) = self.reference_referent(id, value_type)? {
+                if access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
+                    return Err(invalid());
+                }
+                path.push(ScalarReadProjection::Referent);
+            } else if self.alignment_view_element(id, record)?.is_some() {
+                path.push(CanonicalStructuralPathSegment::FixedIndex(0).into());
+            }
+        }
+        path.push(ScalarReadProjection::Alignment);
+        Ok((root, path))
+    }
+
+    /// A location query can name a lent scalar directly. Reading its contents
+    /// requires an explicit dereference. Both uses resolve the same storage path.
     pub(super) fn read_projection(
         &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
+        location_query: Option<terminal_psi::StorageLocationQuery>,
     ) -> Checked<Option<(PlaceId, Vec<ScalarReadProjection>, ValueType)>> {
         if scope.subject.is_none()
             && !scope.formal_fields
@@ -2154,7 +2193,7 @@ impl Program<'_> {
                 // argument written for it where it was applied, so its
                 // fields are that argument's.
                 if let Some(actual) = self.proposition_argument(path.symbol) {
-                    return self.read_projection(id, scope, actual);
+                    return self.read_projection(id, scope, actual, location_query);
                 }
                 if let Some((place, value_type)) = self.universal_binder(path.symbol) {
                     return Ok(Some((place, Vec::new(), value_type)));
@@ -2178,8 +2217,17 @@ impl Program<'_> {
                     }
                     // The formal itself can be a membership subject. Keep its
                     // qualifications when authorizing a read of its storage.
-                    let value_type = scope.slots[slot].value_type;
-                    if self.opened(id, Some(value_type), Access::Read)?.is_none() {
+                    let formal = &scope.slots[slot];
+                    let value_type = formal.value_type;
+                    if location_query.is_some() && formal.borrowed.is_some() {
+                        if formal.borrowed == Some(language_core::ReferenceAccess::WriteOnly) {
+                            return Err(refuse_at(
+                                id,
+                                Unserved::Contract("location alignment requires a readable borrow"),
+                            ));
+                        }
+                        self.authorized(id, value_type, Access::Read)?;
+                    } else if self.opened(id, Some(value_type), Access::Read)?.is_none() {
                         return Ok(None);
                     }
                     let root = formal_place(id, scope.slots, slot)?;
@@ -2218,7 +2266,7 @@ impl Program<'_> {
                     )
                 };
                 let Some((root, mut base, receiver)) =
-                    self.read_projection(id, scope, member.receiver)?
+                    self.read_projection(id, scope, member.receiver, location_query)?
                 else {
                     return Err(not_data());
                 };
@@ -2231,7 +2279,7 @@ impl Program<'_> {
             ExpressionNode::Indexed(indexed) => {
                 let unavailable = |what| refuse_at(id, Unserved::Contract(what));
                 let Some((root, mut path, receiver)) =
-                    self.read_projection(id, scope, indexed.collection)?
+                    self.read_projection(id, scope, indexed.collection, location_query)?
                 else {
                     return Err(unavailable("index of something that is not storage"));
                 };
@@ -2315,7 +2363,7 @@ impl Program<'_> {
             {
                 let unavailable = |what| refuse_at(id, Unserved::Contract(what));
                 let Some((root, mut path, carrier)) =
-                    self.read_projection(id, scope, unary.operand)?
+                    self.read_projection(id, scope, unary.operand, location_query)?
                 else {
                     return Err(unavailable(
                         "dereference of other than a borrowed formal in a clause",
@@ -2462,7 +2510,9 @@ pub(super) fn static_read_path(
         .map(|step| match step {
             ScalarReadProjection::Referent => Some(CanonicalStructuralPathSegment::Referent),
             ScalarReadProjection::Static(segment) => Some(*segment),
-            ScalarReadProjection::Index(_) | ScalarReadProjection::Extent => None,
+            ScalarReadProjection::Index(_)
+            | ScalarReadProjection::Extent
+            | ScalarReadProjection::Alignment => None,
         })
         .collect()
 }

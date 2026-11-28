@@ -119,6 +119,10 @@ pub fn routes(
 pub struct FormalStorage {
     pub root: PlaceId,
     pub prefix: Vec<ScalarReadProjection>,
+    /// A simple renaming, or a readable borrow of the same whole storage.
+    /// A transported value may occupy a new home; a projection can change
+    /// the layout that caps an observed alignment.
+    same_location_view: bool,
 }
 
 impl FormalStorage {
@@ -126,6 +130,7 @@ impl FormalStorage {
         Self {
             root,
             prefix: Vec::new(),
+            same_location_view: true,
         }
     }
 }
@@ -145,7 +150,14 @@ pub fn call_storage(
         .iter()
         .map(|argument| {
             if argument.path.is_empty() {
-                return Some(FormalStorage::whole(argument.place));
+                return Some(FormalStorage {
+                    root: argument.place,
+                    prefix: Vec::new(),
+                    same_location_view: matches!(
+                        argument.access,
+                        terminal_psi::reading_borrow_pair_pattern!()
+                    ),
+                });
             }
             let (prefix, _) = terminal_semantics::canonical_read_projection(
                 types.iter(),
@@ -155,6 +167,7 @@ pub fn call_storage(
             )?;
             Some(FormalStorage {
                 root: argument.place,
+                same_location_view: false,
                 prefix,
             })
         })
@@ -418,6 +431,11 @@ impl<S: RestatedSources> terminal_semantics::substitution::clauses::ClauseBindin
         // Substitution already renamed each selector into the consumer's
         // scope. The restated clause names the observation; the checker reads
         // that storage where the call is made or the edge arrives.
+        if matches!(path.last(), Some(ScalarReadProjection::Alignment))
+            && !self.place(root)?.same_location_view
+        {
+            return Err("restated alignment requires the same storage and declared geometry");
+        }
         let (root, path) = self.read_path(root, path)?;
         Ok(ScalarTerm::StructuralRead {
             root,
@@ -477,6 +495,43 @@ mod tests {
     use psi_declaration_encoding::terms::order::validate_canonical_proposition;
     use semantic_vocabulary::ScalarType;
 
+    #[test]
+    fn restating_location_alignment_requires_the_same_storage_view() {
+        use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+        use terminal_psi::{StructuralAccess, StructuralArgument};
+        let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        let scalar = ScalarType::Integer(integer);
+        let source = PlaceId::new(1).unwrap();
+        let target = PlaceId::new(9).unwrap();
+        let clause = Proposition::Equal(
+            ScalarTerm::structural_read(source, vec![ScalarReadProjection::Alignment], scalar)
+                .unwrap(),
+            ScalarTerm::Integer {
+                scalar_type: integer,
+                value: IntegerValue::Unsigned(8),
+            },
+        );
+        for (access, shares_home) in [
+            (StructuralAccess::SharedBorrow, true),
+            (StructuralAccess::MutableBorrow, true),
+            (StructuralAccess::WriteOnlyBorrow, false),
+            (StructuralAccess::Owned, false),
+        ] {
+            let places = call_storage(
+                &[],
+                |_| None,
+                |_| None,
+                &[StructuralArgument {
+                    place: target,
+                    path: Vec::new(),
+                    access,
+                }],
+            );
+            let result = substitute_formals(&clause, &[], &places, &mut CallActuals);
+            assert_eq!(result.is_ok(), shares_home, "{access:?}: {result:?}");
+        }
+    }
+
     /// A callee's guard `x == y -> x == y` restated with actuals whose IDs
     /// sort the other way must still be in canonical wire order, including
     /// inside an implication.
@@ -516,6 +571,7 @@ mod tests {
         };
         let field = CanonicalStructuralPathSegment::Field(StructuralFieldId::new(2).unwrap());
         let places = [Some(FormalStorage {
+            same_location_view: false,
             root: PlaceId::new(5).unwrap(),
             prefix: vec![ScalarReadProjection::Static(field)],
         })];
@@ -554,6 +610,7 @@ mod tests {
             scalar_type: ty,
         };
         let places = [Some(FormalStorage {
+            same_location_view: false,
             root: PlaceId::new(5).unwrap(),
             prefix: vec![index(7)],
         })];
