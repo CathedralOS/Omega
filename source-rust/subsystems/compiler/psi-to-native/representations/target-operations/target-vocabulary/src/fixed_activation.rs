@@ -25,6 +25,7 @@ pub struct FixedActivationCall {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FixedActivationAction {
     Prepare {
+        storage: terminal_psi::TerminalActivationStorage,
         worker: MachineId,
         tag: FixedField,
         /// Owner.
@@ -59,6 +60,16 @@ pub enum FixedActivationAction {
 }
 
 impl FixedActivationAction {
+    pub const fn prepares_split(self) -> bool {
+        matches!(
+            self,
+            Self::Prepare {
+                storage: terminal_psi::TerminalActivationStorage::Split,
+                ..
+            }
+        )
+    }
+
     pub const fn operation(self) -> ActivationOperation {
         match self {
             Self::Prepare { .. } => ActivationOperation::Prepare,
@@ -110,12 +121,17 @@ impl FixedActivationCall {
         bytes.extend_from_slice(&self.boundary.get().to_le_bytes());
         match self.action {
             Action::Prepare {
+                storage,
                 worker,
                 tag,
                 ready,
                 rejected,
             } => {
                 bytes.push(0);
+                bytes.push(match storage {
+                    terminal_psi::TerminalActivationStorage::Fixed => 0,
+                    terminal_psi::TerminalActivationStorage::Split => 1,
+                });
                 bytes.extend_from_slice(&worker.get().to_le_bytes());
                 field(bytes, tag);
                 case(bytes, ready);

@@ -52,6 +52,7 @@ pub struct FixedTransfer {
     pub argument_offset: u32,
     pub argument_bytes: u32,
     pub result_offset: u32,
+    pub result_bytes: u32,
     pub job: post_allocation_machine::adapters::AdapterInstructions,
 }
 

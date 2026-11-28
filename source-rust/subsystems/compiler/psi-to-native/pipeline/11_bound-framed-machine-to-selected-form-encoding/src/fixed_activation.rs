@@ -430,6 +430,12 @@ pub fn encode_call<Origin>(
     let helper = code.len();
     patch_forward(&mut code, helper_call, helper)?;
     let worker_call = match fixed.action {
+        action if action.prepares_split() => {
+            // This implementation has fixed backing only. A split request
+            // returns the caller's complete job and loan without touching them.
+            code.extend_from_slice(&[0x31, 0xc0, 0xc3]);
+            None
+        }
         Action::Prepare { .. } => {
             let t = call
                 .transfer

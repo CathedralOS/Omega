@@ -186,6 +186,7 @@ impl FixedActivationLayout {
             argument_offset,
             argument_bytes: argument.map_or(0, native_foreign_bridge::extent),
             result_offset,
+            result_bytes: result.map_or(0, native_foreign_bridge::extent),
             job: marshal.instructions,
         };
         Ok((layout, transfer))

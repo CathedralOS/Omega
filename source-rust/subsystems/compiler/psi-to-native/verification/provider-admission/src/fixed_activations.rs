@@ -183,6 +183,7 @@ fn action(
         ActivationOperation::Prepare => {
             let s = owned_activation::prepare_shape(module, boundary)?;
             A::Prepare {
+                storage: s.selected.storage,
                 worker: s.selected.entry_machine,
                 tag: tag(s.result)?,
                 ready: case(geometry, s.result, s.ready, [s.owner])?,

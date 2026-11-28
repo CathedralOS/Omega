@@ -30,6 +30,7 @@ pub fn plan_call(
     }
     let frame = Frame::for_binding(binding).ok_or("invalid fixed activation ABI frame")?;
     let worker = match fixed.action {
+        action if action.prepares_split() => None,
         Action::Prepare { worker, .. } | Action::Step { worker, .. } => Some(worker),
         _ => None,
     };
@@ -112,8 +113,10 @@ pub fn plan_call(
             let [argument, backing] = frame.inputs.as_slice() else {
                 return Err(TRANSPORT);
             };
-            let value = transfer.as_ref().ok_or(TRANSPORT)?.transfer();
-            if value.argument_bytes != argument.1 {
+            if transfer
+                .as_ref()
+                .is_some_and(|t| t.transfer().argument_bytes != argument.1)
+            {
                 return Err("fixed worker job and prepare input differ");
             }
             if matches!(
@@ -159,6 +162,9 @@ pub fn plan_call(
             wrap.tag(&mut zero, tag, returned)?;
             let data = transfer.as_ref().ok_or(TRANSPORT)?.transfer();
             let result = wrap.destination(returned.fields[0])?;
+            if result.1 != data.result_bytes {
+                return Err("worker return width differs from its checked outcome");
+            }
             enc.copy_indirect_at(
                 &mut zero,
                 result.0,
