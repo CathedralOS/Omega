@@ -212,7 +212,11 @@ impl CallableNamespace {
                 result_reference_regions: Vec::new(),
                 proof,
                 evidence_contract: Vec::new(),
-                envelope: services.envelope(context, &contract.envelope)?,
+                envelope: services.envelope(
+                    context,
+                    &contract.envelope,
+                    qualifications.identities.as_table(),
+                )?,
             });
         }
         catalog.machine_envelopes = self
@@ -223,7 +227,7 @@ impl CallableNamespace {
                     .as_ref()
                     .map(|envelope| {
                         services
-                            .envelope(context, envelope)
+                            .envelope(context, envelope, qualifications.identities.as_table())
                             .map(|envelope| TerminalMachineEnvelope { machine, envelope })
                     })
                     .transpose()
@@ -233,9 +237,11 @@ impl CallableNamespace {
             .rows
             .iter()
             .map(|(boundary, row)| {
-                services.envelope(context, &row.envelope).map(|envelope| {
-                    Some(terminal_psi::TerminalBoundaryEnvelope { boundary, envelope })
-                })
+                services
+                    .envelope(context, &row.envelope, qualifications.identities.as_table())
+                    .map(|envelope| {
+                        Some(terminal_psi::TerminalBoundaryEnvelope { boundary, envelope })
+                    })
             })
             .collect::<Checked<Vec<_>>>()?;
         for (id, selection) in self.descriptors.iter() {

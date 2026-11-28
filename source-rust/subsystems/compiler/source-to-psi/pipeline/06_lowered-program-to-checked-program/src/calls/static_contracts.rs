@@ -135,6 +135,35 @@ pub(crate) fn check_envelope(
                     }
                 }
             }
+            terminal_psi::TerminalCallableInvocation::ParameterPath { parameter, path } => {
+                if let Some(signature) = signature {
+                    let position = usize::try_from(*parameter)
+                        .map_err(|_| fault(site, "callback field ordinal is too large"))?;
+                    let (_, ValueType::Record(root)) = signature
+                        .parameters
+                        .iter()
+                        .enumerate()
+                        .filter(|(position, _)| !signature.is_erased(*position))
+                        .nth(position)
+                        .ok_or_else(|| {
+                            fault(site, "callback field escapes its static signature")
+                        })?
+                    else {
+                        return Err(fault(site, "callback field has no structural formal"));
+                    };
+                    if path.is_empty()
+                        || terminal_semantics::callable_envelopes::projected_callback(
+                            module, *root, path,
+                        )
+                        .is_none()
+                    {
+                        return Err(fault(
+                            site,
+                            "callback field names no callable in its static signature",
+                        ));
+                    }
+                }
+            }
             _ => {}
         }
     }

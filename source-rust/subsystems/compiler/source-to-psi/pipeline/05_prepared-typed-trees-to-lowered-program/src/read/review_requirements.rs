@@ -157,6 +157,9 @@ impl Program<'_> {
                 SourceInvocation::Parameter(position) => {
                     Ok(RequirementInvocation::Parameter(*position))
                 }
+                SourceInvocation::ParameterPath { .. } => {
+                    Err("a public requirement cannot declare an inferred invocation path")
+                }
                 SourceInvocation::Service(id) => service(*id).map(RequirementInvocation::Service),
             })
             .collect::<Result<_, _>>()?;
