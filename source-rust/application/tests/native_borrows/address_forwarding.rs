@@ -74,3 +74,129 @@ machine main() crashes Trap {{
     );
     program.assert_native_returns();
 }
+
+#[test]
+fn a_returned_field_address_borrows_the_structural_argument_that_supplied_it() {
+    let body = r#"
+data Pair { left: u8; right: u8 }
+machine locate(pair: @Pair) -> address { address_of(@pair.right) }
+machine again(pair: @Pair) -> address { locate(pair) }
+machine choose<'a>(incoming: @'a Pair) -> @'a u8 {
+    let local: Pair = Pair { left: 3u8, right: 4u8 };
+    |native|::borrow_at::<u8>(again(ARG))
+}
+machine main() crashes Trap {
+    let caller: Pair = Pair { left: 13u8, right: 17u8 };
+    let result: @u8 = choose(@caller);
+    transition $result == 17u8 && caller.left == 13u8 { true -> {}, _ -> wrong() }
+    machine wrong() { crash Trap; }
+}"#;
+    let refused = Program::new(&body.replace("ARG", "@local"), &[READ]).check();
+    let diagnostic = report(&refused);
+    assert!(
+        !refused.status.success() && diagnostic.contains("outlive its local backing"),
+        "{diagnostic}"
+    );
+    Program::new(&body.replace("ARG", "incoming"), &[READ]).assert_native_returns();
+}
+
+#[test]
+fn a_native_borrow_cannot_be_formed_after_its_address_owners_return() {
+    let program = Program::new(
+        r#"
+machine local_address() -> address {
+    let local: u8 = 13u8;
+    address_of(@local)
+}
+machine forward() -> address { local_address() }
+machine main() {
+    let local: @u8 = |native|::borrow_at::<u8>(forward());
+}
+"#,
+        &[READ],
+    );
+    let refused = program.check();
+    let diagnostic = report(&refused);
+    assert!(
+        !refused.status.success()
+            && diagnostic.contains("already returned")
+            && !diagnostic.contains("not supported yet"),
+        "{diagnostic}"
+    );
+}
+
+#[test]
+fn a_caller_must_supply_live_storage_to_the_parameter_a_helper_borrows() {
+    let source = r#"
+machine local_address() -> address {
+    let local: u8 = 7u8;
+    address_of(@local)
+}
+machine read(location: address) -> u8 {
+    let byte: @u8 = |native|::borrow_at::<u8>(location);
+    $byte
+}
+machine relay(ignored: address, selected: address) -> u8 { read(selected) }
+machine optional(needed: bool, location: address) -> u8 {
+    transition needed { true -> read(location), false -> 31u8 }
+}
+machine main() crashes Trap {
+    let live: u8 = 31u8;
+    let past: address = local_address();
+    let left: u8 = relay(ARGUMENTS);
+    let right: u8 = optional(false, past);
+    transition left == 31u8 && right == 31u8 { true -> {}, _ -> wrong() }
+    machine wrong() { crash Trap; }
+}"#;
+    let refused = Program::new(
+        &source.replace("ARGUMENTS", "address_of(@live), past"),
+        &[READ],
+    )
+    .check();
+    let diagnostic = report(&refused);
+    assert!(
+        !refused.status.success()
+            && diagnostic.contains("already returned")
+            && !diagnostic.contains("not supported yet"),
+        "{diagnostic}"
+    );
+    Program::new(
+        &source.replace("ARGUMENTS", "past, address_of(@live)"),
+        &[READ],
+    )
+    .assert_native_returns();
+}
+
+#[test]
+fn an_address_into_an_inline_array_keeps_its_owners_lifetime() {
+    let source = r#"
+machine make_bytes() -> [u8; 2] { [4u8, 7u8] }
+machine find(input: @[u8; 2], i: u64) -> address requires i < 2u64 {
+    address_of(@input[i])
+}
+machine locate(input: @[u8; 2], i: u64) -> address requires i < 2u64 {
+    let owned: [u8; 2] = [4u8, 7u8];
+    let produced: [u8; 2] = make_bytes();
+    LOCATION
+}
+machine main() crashes Trap {
+    let caller: [u8; 2] = [19u8, 37u8];
+    let cell: @u8 = |native|::borrow_at::<u8>(locate(@caller, 1u64));
+    transition $cell == 37u8 { true -> {}, false -> bad() }
+    machine bad() { crash Trap; }
+}"#;
+    for location in [
+        "address_of(@owned[1u64])",
+        "address_of(@produced[1u64])",
+        "address_of(@owned[i])",
+        "find(@owned, i)",
+    ] {
+        let refused = Program::new(&source.replace("LOCATION", location), &[READ]).check();
+        let diagnostic = report(&refused);
+        assert!(
+            !refused.status.success() && diagnostic.contains("already returned"),
+            "{location}: {diagnostic}"
+        );
+    }
+    Program::new(&source.replace("LOCATION", "find(input, i)"), &[READ]).assert_native_returns();
+}

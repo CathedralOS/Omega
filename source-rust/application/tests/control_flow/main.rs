@@ -4,6 +4,7 @@ mod program;
 mod support;
 
 mod block_valued_arms;
+mod copied_readers;
 mod incoming_reference_match;
 mod inlined_multiple_returns;
 mod inlined_scalar_arguments;

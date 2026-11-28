@@ -1,12 +1,13 @@
 //! Evaluate closed IEEE comparisons and equations between mathematical float meanings.
 
 use numerics::float_semantics::{
-    FloatFormat, FloatMeaning, FloatSemanticOperand, FloatSemanticOperation, FloatSemanticResult,
-    FloatSemantics,
+    FloatFormat, FloatMeaning, FloatSemanticEvaluationError, FloatSemanticOperand,
+    FloatSemanticOperation, FloatSemanticResult, FloatSemantics, FloatToIntegerError,
 };
 use semantic_vocabulary::{
-    ClauseIdentity, FloatMeaningClauseOperand, FloatMeaningClauseValue, IeeeFloatComparisonKind,
-    IeeeFloatFormat, IeeeFloatValue, IntegerMathLiteral, Proposition, ScalarTerm,
+    ClauseIdentity, FloatIntegerConversion, FloatMeaningClauseOperand, FloatMeaningClauseValue,
+    IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatValue, IntegerMathLiteral, Proposition,
+    ScalarTerm,
 };
 
 pub fn closed_ieee_relation(proposition: &Proposition) -> Option<bool> {
@@ -43,6 +44,41 @@ pub(crate) fn ieee_relation(
         IeeeFloatComparisonKind::NotLessThan => !FloatSemantics::less(&left, &right),
         IeeeFloatComparisonKind::NotLessOrEqual => !FloatSemantics::less_or_equal(&left, &right),
     })
+}
+
+/// Compare the returned integer with the named converter's result. A source
+/// whose IEEE bits are unspecified can still have an observed NaN meaning.
+pub fn closed_float_integer_conversion(
+    clause: &FloatIntegerConversion,
+    observe: &impl Fn(&ScalarTerm) -> Option<FloatMeaning>,
+    maximum_endpoint_bits: u64,
+) -> Result<Option<bool>, FloatSemanticEvaluationError> {
+    clause
+        .validate()
+        .map_err(|_| FloatSemanticEvaluationError::OperandSignatureMismatch)?;
+    let Some(source) = observed_meaning(&clause.source, observe) else {
+        return Ok(None);
+    };
+    let ScalarTerm::Integer { value, .. } = &clause.result else {
+        return Ok(None);
+    };
+    let expected = crate::big_integer_literal(IntegerMathLiteral::from_integer_value(*value));
+    let operation = FloatSemanticOperation::for_contract_identity(&clause.operation)
+        .ok_or(FloatSemanticEvaluationError::UnsupportedApplication)?;
+    match operation
+        .kernel_discharge(
+            &[FloatSemanticOperand::Meaning(source)],
+            maximum_endpoint_bits,
+        )
+        .map(|discharge| discharge.result)
+    {
+        Ok(FloatSemanticResult::Integer(actual)) => Ok(Some(actual == expected)),
+        Ok(_) => Err(FloatSemanticEvaluationError::ResultSignatureMismatch),
+        Err(FloatSemanticEvaluationError::IntegerConversion(
+            FloatToIntegerError::NonFinite | FloatToIntegerError::OutOfRange,
+        )) => Ok(Some(false)),
+        Err(error) => Err(error),
+    }
 }
 
 fn observed_meaning(

@@ -799,7 +799,8 @@ fn adapt_flow(
                 } if event.modifies_resident() => {
                     payload_writes.push(payload_query(*place, path, None));
                 }
-                OperationKind::AtomicAccess { .. }
+                OperationKind::SelectMachine { .. }
+                | OperationKind::AtomicAccess { .. }
                 | OperationKind::AtomicFence { .. }
                 | OperationKind::StorageAddress { .. }
                 | OperationKind::StorageAlignment { .. }
@@ -978,7 +979,7 @@ fn adapt_flow(
                         &mut step,
                         operation.id,
                         result?,
-                        origin.observed_sources().map(|(at, source)| (at, *source)),
+                        origin.observed_sources(),
                         origin.exact,
                         origin.parameters.clone(),
                         origin.opaque,
@@ -1532,6 +1533,9 @@ fn adapt_flow(
                 }
                 OperationKind::EstablishRecord { fields }
                 | OperationKind::EstablishStructuralCase { fields, .. } => {
+                    let is_package = result.is_some_and(|result| {
+                        crate::packages::schema(module, result.structural_type).is_ok()
+                    });
                     for (field_ordinal, field) in fields.iter().enumerate() {
                         let destination = match &operation.kind {
                             OperationKind::EstablishStructuralCase {
@@ -1564,7 +1568,16 @@ fn adapt_flow(
                         if let Some(source) = field.value.as_structural() {
                             if let Some(source) = location(&graph, source.place, &source.path, None)
                             {
-                                step.copy_value(source, destination);
+                                if is_package {
+                                    let source_type = *graph.place_types.get(&source.root)?;
+                                    step.copy_package_field(
+                                        &module.types.structural_types,
+                                        (source, source_type),
+                                        (destination, result?.structural_type),
+                                    )?;
+                                } else {
+                                    step.copy_value(source, destination);
+                                }
                             } else {
                                 step.may_escape = true;
                             }

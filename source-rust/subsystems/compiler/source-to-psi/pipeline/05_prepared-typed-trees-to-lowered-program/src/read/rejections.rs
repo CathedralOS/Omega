@@ -71,6 +71,7 @@ pub(super) enum Destination {
     Assigned,
     /// The element type of the array an array literal constructs.
     ArrayElement,
+    AtomicOperand,
     Referent,
 }
 
@@ -78,6 +79,7 @@ impl Destination {
     const fn named(self) -> &'static str {
         match self {
             Self::Parameter => "the parameter it is passed for",
+            Self::AtomicOperand => "the atomic cell",
             Self::Result => "the machine's result",
             Self::MatchArm => "the match's common result type",
             Self::Field => "the field it initializes",

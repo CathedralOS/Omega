@@ -45,10 +45,15 @@ pub enum Measurement {
         source: PathBuf,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         candidate_source: Option<PathBuf>,
+        /// Common source tree under which each declared input keeps its relative path.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        cold_client_root: Option<PathBuf>,
         library_root: PathBuf,
         target: String,
         expected: ExpectedOutput,
         require_identical_artifacts: bool,
+        #[serde(default = "timings_enabled", skip_serializing_if = "is_enabled")]
+        stage_timings: bool,
     },
     Process {
         stdin: String,
@@ -59,6 +64,13 @@ pub enum Measurement {
         work_units: u64,
         checksum: String,
     },
+}
+
+fn timings_enabled() -> bool {
+    true
+}
+fn is_enabled(value: &bool) -> bool {
+    *value
 }
 
 impl Measurement {
@@ -121,12 +133,13 @@ impl Plan {
                 return Err("each command requires an explicit executable path".into());
             }
             if matches!(self.measurement, Measurement::Compiler { .. }) {
-                let mut arguments = command.arguments.iter();
+                let mut arguments = command.arguments.iter().peekable();
+                arguments.next_if(|arg| arg.as_str() == "build");
                 while let Some(argument) = arguments.next() {
                     match argument.as_str() {
                         "--offline" => {}
                         "--disable-optimization" if arguments.next().is_some_and(|rule| rule.starts_with(|letter: char| letter.is_ascii_uppercase()) && rule.chars().all(|letter| letter.is_ascii_alphanumeric())) => {}
-                        _ => return Err("compiler arguments support --offline and --disable-optimization <ExactName>; the plan owns source, target, library, and product".into()),
+                        _ => return Err("compiler arguments support an initial build, --offline and --disable-optimization <ExactName>; the plan owns source, target, library, and product".into()),
                     }
                 }
             }

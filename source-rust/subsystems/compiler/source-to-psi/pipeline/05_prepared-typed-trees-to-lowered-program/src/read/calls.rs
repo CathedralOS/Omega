@@ -4298,14 +4298,23 @@ impl<'t> Program<'t> {
         }
         // Evaluate the supplied value once. A reference descriptor carries
         // the permission to cross into its backing, whether it came from a
-        // binding, a field or another helper call. An ordinary owned value
-        // still needs an explicit borrow of its place.
+        // binding, a field or another helper call. A shared parameter can
+        // also lend an owned place of the declared referent type.
         let (operand, access, explicit) = match node {
             ExpressionNode::Borrow(borrow) => {
                 (beneath.unwrap_or(borrow.target), borrow.access, true)
             }
             _ => (argument, formal.access, false),
         };
+        if explicit {
+            self.require_borrow_layers(id, argument, expected, source)?;
+        }
+        // A nested borrowed parameter lends a slot whose contents are themselves
+        // a reference. Forwarding an existing loan crosses its outer layer once.
+        let forwards_slot = !explicit
+            && formal.referent == crate::body::BorrowedReferent::Value
+            && self.reference_referent(id, expected)?.is_some()
+            && !matches!(self.node(id, operand)?, ExpressionNode::Cast(cast) if cast.form.is_recast());
         // A recast forms its written reference presentation over the same
         // captured storage. Its source still runs once and keeps its type.
         let (mut place, presentation) = match self.node(id, operand)? {
@@ -4352,6 +4361,11 @@ impl<'t> Program<'t> {
                     self.expression(id, slots, cast.value, None)?,
                     Some(presentation),
                 )
+            }
+            _ if forwards_slot => {
+                let place = self.referenced_place(id, slots, operand, source)?.ok_or_else(||
+                    crate::reject(id, source, "a borrowed parameter needs an existing reference or an explicit loan of a place"))?;
+                (place, None)
             }
             _ => {
                 let retain_descriptor = if explicit {
@@ -4448,6 +4462,7 @@ impl<'t> Program<'t> {
         // layer when the formal's referent is the stored reference type.
         if let Some(value_type) = place.result
             && let Some((referent, _)) = self.reference_referent(id, value_type)?
+            && !forwards_slot
             && (!explicit || !self.same_type(Some(value_type), expected))
         {
             place = Expression {
@@ -4494,7 +4509,12 @@ impl<'t> Program<'t> {
         if !crossed {
             if let Some(slot) = slot {
                 let lender = &slots[slot];
-                if !explicit && lender.borrowed.is_none() {
+                if !explicit
+                    && lender.borrowed.is_none()
+                    && !(formal.access == ReferenceAccess::Shared
+                        && formal.referent == crate::body::BorrowedReferent::Value
+                        && self.same_type(place.result, expected))
+                {
                     return unserved("argument for a borrowed formal that is not a borrow");
                 }
                 if access == ReferenceAccess::Mutable

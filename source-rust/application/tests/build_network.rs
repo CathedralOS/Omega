@@ -318,6 +318,47 @@ fn an_inheriting_child_can_send_and_its_offline_sibling_cannot() {
 }
 
 #[test]
+fn reviewed_nested_dependencies_keep_their_own_build_sources() {
+    let fixture = Fixture::new();
+    fixture.package("root", r#"machine build(b: @mutable BuildPlan) suspends {
+        let board: DependencyRegistration = Build::dependency(b, Source::Path { location: "board" }, Networking::Inherit);
+        let assets: DependencyRegistration = Build::dependency(b, Source::Path { location: "assets" });
+        suspend Build::prepare_dependency(b, board);
+        suspend Build::prepare_dependency(b, assets);
+        b.product = BuildProduct::Package { name: "release" };
+    }"#);
+    fixture.package("root/board", &sender("board"));
+    fixture.package("root/assets", &consumer("assets", &[]));
+
+    let published = fixture.update(true);
+    assert!(published.status.success(), "{}", report(&published));
+    let lock = fs::read_to_string(fixture.root().join("omega.lock")).unwrap();
+    assert!(lock.contains("board") && lock.contains("assets"), "{lock}");
+    let packets = fixture.packets();
+    assert!(
+        !packets.is_empty() && packets.iter().all(|packet| packet == "board"),
+        "{packets:?}"
+    );
+
+    project::write(
+        &fixture.root().join("board_support"),
+        &[
+            ("build.omg", "machine still_parent_owned() -> u8 { 0u8 }"),
+            (
+                "own.omg",
+                "public machine own() -> u32 { missing_parent_value }",
+            ),
+        ],
+    );
+    let invalid = fixture.update(true);
+    let message = report(&invalid);
+    assert!(
+        !invalid.status.success() && message.contains("board_support::own"),
+        "{message}"
+    );
+}
+
+#[test]
 fn a_child_cannot_implicitly_pass_its_grant_to_a_grandchild() {
     let fixture = Fixture::new();
     fixture.package("root", &consumer("root", &[("middle", true)]));
@@ -475,11 +516,8 @@ fn approving_a_send_alone_cannot_run_a_build_that_also_receives() {
     assert!(!fixture.root().join("omega.lock").exists());
 }
 
-#[test]
-fn receiving_requires_delegation_and_a_reply_requires_a_prior_send() {
-    let fixture = Fixture::new();
-    fixture.package("root", &consumer("parent", &[("reader", false)]));
-    let source = r#"use {omega}/build/network.omg as network;
+fn receiver_without_a_send() -> &'static str {
+    r#"use {omega}/build/network.omg as network;
 use {omega}/language/core/sandbox/datagram.omg as datagram;
 machine build(b: @mutable BuildPlan) blocks {
     let mutable byte: [u8; 1] = [99u8];
@@ -496,8 +534,14 @@ machine build(b: @mutable BuildPlan) blocks {
     }
     machine untouched(b: @mutable BuildPlan) { b.product = BuildProduct::Package { name: "no_open_flow" }; }
     machine wrong(b: @mutable BuildPlan) { b.product = BuildProduct::Package { name: "bad_reply" }; }
-}"#;
-    fixture.package("reader", source);
+}"#
+}
+
+#[test]
+fn receiving_requires_delegation_and_a_reply_requires_a_prior_send() {
+    let fixture = Fixture::new();
+    fixture.package("root", &consumer("parent", &[("reader", false)]));
+    fixture.package("reader", receiver_without_a_send());
     let offline = fixture.update(true);
     let message = report(&offline);
     assert_eq!(offline.status.code(), Some(1), "{message}");
@@ -517,10 +561,14 @@ machine build(b: @mutable BuildPlan) blocks {
 }
 
 #[test]
-fn an_inheriting_child_uses_only_its_admitted_peers_reply() {
+fn a_build_reply_belongs_to_the_sending_child_and_its_admitted_peer() {
     use std::{sync::mpsc, thread};
     let fixture = Fixture::new();
-    fixture.package("root", &consumer("parent", &[("child", true)]));
+    fixture.package(
+        "root",
+        &consumer("parent", &[("child", true), ("reader", true)]),
+    );
+    fixture.package("reader", receiver_without_a_send());
     fixture.package("child", reply_consumer());
     let socket = fixture.peer.try_clone().unwrap();
     let stranger = UdpSocket::bind("127.0.0.1:0").unwrap();
@@ -534,6 +582,7 @@ fn an_inheriting_child_uses_only_its_admitted_peers_reply() {
                     assert_eq!(&packet[..n], b"query");
                     stranger.send_to(b"NO", client).unwrap();
                     socket.send_to(b"OK", client).unwrap();
+                    socket.send_to(b"extra", client).unwrap();
                     count += 1;
                 }
                 Err(error) if error.kind() == ErrorKind::WouldBlock => {
@@ -551,7 +600,10 @@ fn an_inheriting_child_uses_only_its_admitted_peers_reply() {
     assert!(requests > 0);
     let lock = fs::read_to_string(fixture.root().join("omega.lock")).unwrap();
     assert!(
-        lock.contains("reply_ok") && !lock.contains("reply_failed"),
+        lock.contains("reply_ok")
+            && !lock.contains("reply_failed")
+            && lock.contains("no_open_flow")
+            && !lock.contains("bad_reply"),
         "{lock}"
     );
 }

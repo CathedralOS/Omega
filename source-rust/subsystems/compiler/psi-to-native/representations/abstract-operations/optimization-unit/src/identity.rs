@@ -1928,6 +1928,10 @@ pub(crate) mod unit_encoding {
                 bytes.u64(*bound);
             },
         );
+        bytes.slice(
+            unit.structural_types.storage_inputs().package_witnesses,
+            |bytes, witness| bytes.id(*witness),
+        );
         bytes.slice(&unit.structural_types, encode_structural_type);
         bytes.slice(unit.structural_types.referents(), |bytes, referent| {
             bytes.id(referent.id);
@@ -2288,7 +2292,16 @@ pub(crate) mod operation_encoding {
     macro_rules! ids {
         ($($ty:ident),+) => { $(field!(semantic_vocabulary::$ty, |bytes, value| bytes.id(*value));)+ };
     }
+    field!(abstract_operations::OpenedPackageCall, |bytes, value| {
+        let abstract_operations::OpenedPackageCall {
+            admitted_contracts,
+            stored_referents,
+        } = value;
+        admitted_contracts.encode(bytes);
+        stored_referents.encode(bytes);
+    });
     ids!(
+        CallableContractId,
         OperationId,
         SuspensionCrossingId,
         ValueId,

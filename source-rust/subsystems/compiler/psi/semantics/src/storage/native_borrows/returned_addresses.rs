@@ -1,22 +1,25 @@
-//! Which scalar formals can contribute to a normally returned address.
+//! Which inputs and invocation-owned homes can contribute to a normally returned address.
 //! Both the Psi and selected-operation readers supply their own definitions.
 //! Only the scalar slice feeding a return is needed for this question.
-use super::{AddressDefinition, trace_local};
+use super::returned_storage::StorageInput;
+use super::{AddressCall, AddressDefinition, Position, ReturnedStorage, trace_local};
 use arena::IdSet;
 use semantic_vocabulary::{MachineId, ValueId};
 use std::collections::{BTreeSet, VecDeque};
+use terminal_psi::{StructuralArgument, StructuralPathSegment};
 
 pub struct AddressReturnBody {
     formals: Vec<ValueId>,
     results: Vec<ValueId>,
-    definitions: Vec<(ValueId, AddressDefinition<()>)>,
+    definitions: Vec<(ValueId, AddressDefinition<ReturnedStorage>)>,
 }
 
 impl AddressReturnBody {
-    pub fn new<S>(
+    pub fn new(
         formals: Vec<ValueId>,
         results: Vec<ValueId>,
-        mut definition: impl FnMut(ValueId) -> AddressDefinition<S>,
+        mut definition: impl FnMut(ValueId) -> AddressDefinition<StructuralArgument>,
+        mut storage: impl FnMut(&StructuralArgument, Position) -> ReturnedStorage,
     ) -> Self {
         let mut pending = results.clone();
         let mut visited = IdSet::new();
@@ -39,15 +42,23 @@ impl AddressReturnBody {
                     pending.extend(inputs.iter().flatten());
                     AddressDefinition::Incoming(inputs)
                 }
-                AddressDefinition::Call(machine, arguments) => {
-                    pending.extend(&arguments);
-                    AddressDefinition::Call(machine, arguments)
+                AddressDefinition::Call(call) => {
+                    pending.extend(&call.scalars);
+                    AddressDefinition::Call(AddressCall {
+                        callee: call.callee,
+                        scalars: call.scalars,
+                        storage: call
+                            .storage
+                            .iter()
+                            .map(|source| storage(source, call.at))
+                            .collect(),
+                        at: call.at,
+                    })
                 }
-                // A callee-local storage coordinate cannot name one of the
-                // caller's scalar formals. It remains an independent route.
-                AddressDefinition::Storage(..) | AddressDefinition::Opaque => {
-                    AddressDefinition::Opaque
+                AddressDefinition::Storage(source, at) => {
+                    AddressDefinition::Storage(storage(&source, at), at)
                 }
+                AddressDefinition::Opaque => AddressDefinition::Opaque,
             };
             definitions.push((value, step));
         }
@@ -62,6 +73,8 @@ impl AddressReturnBody {
     fn inputs(&self, summaries: &ReturnSources) -> ReturnInputs {
         let mut parameters = BTreeSet::new();
         let mut exact = true;
+        let mut storage = Vec::new();
+        let mut expired = false;
         let mut opaque = self.results.is_empty();
         for &result in &self.results {
             let origin = trace_local(
@@ -73,9 +86,30 @@ impl AddressReturnBody {
                         .map(|i| self.definitions[i].1.clone())
                         .unwrap_or(AddressDefinition::Opaque)
                 },
-                |callee, actuals| ReturnInputs::substitute(summaries.summary(callee), actuals),
+                |call| {
+                    ReturnInputs::substitute(
+                        summaries.summary(call.callee),
+                        call,
+                        ReturnedStorage::project,
+                    )
+                },
             );
             opaque |= origin.opaque;
+            expired |= origin.expired;
+            for source in origin.sources {
+                match source {
+                    ReturnedStorage::Borrowed {
+                        ordinal,
+                        path,
+                        exact: precise,
+                    } => {
+                        exact &= precise;
+                        exact &= StorageInput::join(&mut storage, ordinal, path)
+                    }
+                    ReturnedStorage::Local => expired = true,
+                    ReturnedStorage::Opaque => opaque = true,
+                }
+            }
             exact &= origin.exact;
             for formal in origin.parameters {
                 match self.formals.iter().position(|&id| id == formal) {
@@ -87,7 +121,9 @@ impl AddressReturnBody {
             }
         }
         ReturnInputs {
-            exact: exact && !opaque && parameters.len() == 1,
+            exact: exact && !opaque && !expired && parameters.len() + storage.len() == 1,
+            storage,
+            expired,
             opaque,
             parameters,
         }
@@ -96,37 +132,58 @@ impl AddressReturnBody {
 
 #[derive(Clone, PartialEq, Eq)]
 struct ReturnInputs {
+    storage: Vec<StorageInput>,
+    expired: bool,
     parameters: BTreeSet<usize>,
     exact: bool,
     opaque: bool,
 }
 
-pub(super) struct ReturnedActuals {
+pub(super) struct ReturnedActuals<S> {
     pub values: Vec<ValueId>,
+    pub storage: Vec<S>,
     pub exact: bool,
     pub opaque: bool,
+    pub expired: bool,
 }
 
 impl ReturnInputs {
-    fn substitute(summary: Option<&Self>, actuals: &[ValueId]) -> ReturnedActuals {
-        let values = summary.and_then(|s| {
-            s.parameters
-                .iter()
-                .map(|&index| actuals.get(index).copied())
-                .collect::<Option<Vec<_>>>()
-        });
-        match (summary, values) {
-            (Some(s), Some(values)) => ReturnedActuals {
-                values,
-                exact: s.exact,
-                opaque: s.opaque,
-            },
-            _ => ReturnedActuals {
-                values: vec![],
-                exact: false,
-                opaque: true,
-            },
+    fn substitute<S>(
+        summary: Option<&Self>,
+        call: &AddressCall<S>,
+        project: impl Fn(&S, &[StructuralPathSegment]) -> S,
+    ) -> ReturnedActuals<S> {
+        let mut actuals = ReturnedActuals {
+            values: Vec::new(),
+            storage: Vec::new(),
+            exact: false,
+            opaque: true,
+            expired: false,
+        };
+        if let Some(summary) = summary {
+            actuals.exact = summary.exact;
+            actuals.opaque = summary.opaque;
+            actuals.expired = summary.expired;
+            for &ordinal in &summary.parameters {
+                match call.scalars.get(ordinal) {
+                    Some(value) => actuals.values.push(*value),
+                    None => {
+                        actuals.opaque = true;
+                        actuals.exact = false;
+                    }
+                }
+            }
+            for input in &summary.storage {
+                match call.storage.get(input.ordinal) {
+                    Some(source) => actuals.storage.push(project(source, &input.path)),
+                    None => {
+                        actuals.opaque = true;
+                        actuals.exact = false;
+                    }
+                }
+            }
         }
+        actuals
     }
 }
 
@@ -146,10 +203,10 @@ impl ReturnSources {
 
     pub(super) fn actuals(
         &mut self,
-        callee: MachineId,
-        actuals: &[ValueId],
+        call: &AddressCall<StructuralArgument>,
         body: &mut impl FnMut(MachineId) -> Option<AddressReturnBody>,
-    ) -> ReturnedActuals {
+    ) -> ReturnedActuals<StructuralArgument> {
+        let callee = call.callee;
         if self.summary(callee).is_none() {
             let mut visited = IdSet::new();
             let mut bodies = Vec::new();
@@ -163,9 +220,9 @@ impl ReturnSources {
                     continue;
                 };
                 for (_, step) in &machine.definitions {
-                    if let AddressDefinition::Call(target, _) = step {
-                        edges.push((*target, id));
-                        discover.push(*target);
+                    if let AddressDefinition::Call(call) = step {
+                        edges.push((call.callee, id));
+                        discover.push(call.callee);
                     }
                 }
                 bodies.push((id, machine));
@@ -193,7 +250,11 @@ impl ReturnSources {
                 }
             }
         }
-        ReturnInputs::substitute(self.summary(callee), actuals)
+        ReturnInputs::substitute(self.summary(callee), call, |source, suffix| {
+            let mut projected = source.clone();
+            projected.path.extend_from_slice(suffix);
+            projected
+        })
     }
 }
 
@@ -209,19 +270,27 @@ mod tests {
         let result = ValueId::new(4).unwrap();
         let machine = MachineId::new(1).unwrap();
         let mut returns = ReturnSources::default();
-        let reached = returns.actuals(machine, &[left, right], &mut |_| {
+        let at = (semantic_vocabulary::BlockId::new(1).unwrap(), 0);
+        let call = |scalars| AddressCall {
+            callee: machine,
+            scalars,
+            storage: Vec::new(),
+            at,
+        };
+        let reached = returns.actuals(&call(vec![left, right]), &mut |_| {
             Some(AddressReturnBody::new(
                 vec![left, right],
                 vec![result],
                 |value| {
                     if value == result {
-                        AddressDefinition::<()>::Incoming(vec![Some(left), Some(recursive)])
+                        AddressDefinition::Incoming(vec![Some(left), Some(recursive)])
                     } else if value == recursive {
-                        AddressDefinition::Call(machine, vec![right, left])
+                        AddressDefinition::Call(call(vec![right, left]))
                     } else {
                         AddressDefinition::Parameter
                     }
                 },
+                |_, _| ReturnedStorage::Opaque,
             ))
         });
         assert_eq!(reached.values, [left, right]);

@@ -502,13 +502,15 @@ pub(crate) mod structural_result_wire {
     };
 
     pub(crate) fn validate_reference_sources(
-        module: &terminal_psi::TerminalModule,
+        analyses: &terminal_semantics::ModuleAnalyses<'_>,
         machine: &terminal_psi::TerminalMachine,
     ) -> Result<(), CodecError> {
+        let module = analyses.module();
         let Some(result) = machine.result.structural() else {
             return Ok(());
         };
         validate_reference_source_order(result)?;
+        let mut needs_package_replay = false;
         for reference in &result.reference_sources {
             let reference_type =
                 crate::sections::semantic_module::module_foundation_validation::validate_structural_path(
@@ -542,14 +544,54 @@ pub(crate) mod structural_result_wire {
                     crate::sections::semantic_module::module_foundation_validation::validate_reference_origin_family(
                         module, root, source.path(),
                     )?;
-                if *access != source.access()
-                    || (source.extent() == semantic_vocabulary::ReferenceOriginExtent::Projected
-                        && *referent != endpoint)
-                {
+                if *access != source.access() {
                     return crate::codec_error::malformed(
                         "reference result source has mismatched referent or access",
                     );
                 }
+                if source.extent() == semantic_vocabulary::ReferenceOriginExtent::Projected
+                    && *referent != endpoint
+                {
+                    if terminal_semantics::packages::hidden_reference_referent(
+                        module,
+                        result.structural_type,
+                        &reference.path,
+                    ) != Some(*referent)
+                    {
+                        return crate::codec_error::malformed(
+                            "reference result source has mismatched referent or access",
+                        );
+                    }
+                    needs_package_replay = true;
+                }
+            }
+        }
+        // A complete package can hide the concrete input's type. Recompute
+        // the returned sources from the body before accepting such a header.
+        if needs_package_replay {
+            let actual = (|| {
+                let graph = analyses
+                    .descriptor_closure(
+                        terminal_semantics::descriptor_results::DescriptorSlotKind::BorrowedStorage,
+                        [machine.id],
+                    )
+                    .ok()?;
+                let mut loans = terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
+                    &module.types.structural_types, &graph,
+                );
+                let contents = loans.result_contents(module, machine.id)?;
+                terminal_semantics::reference_result_contents(
+                    &module.types.structural_types,
+                    &machine.structural_parameters,
+                    result,
+                    &contents,
+                )
+                .ok()
+            })();
+            if actual.as_ref() != Some(&result.reference_sources) {
+                return crate::codec_error::malformed(
+                    "reference result source has mismatched referent or access",
+                );
             }
         }
         Ok(())

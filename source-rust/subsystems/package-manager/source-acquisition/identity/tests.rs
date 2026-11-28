@@ -165,6 +165,27 @@ fn external_local_lineage_is_canonical_nonportable_and_context_bound() {
 }
 
 #[test]
+fn stored_external_local_lineage_recovers_only_an_absolute_normalized_path() {
+    let context = ExternalSourceContext::derive(b"retained-package-input");
+    let path = std::env::temp_dir().join("omega-retained-package-root");
+    let lineage = ExternalLocalLineage::from_canonical_path(
+        path.to_str().unwrap().to_owned(),
+        context.clone(),
+    )
+    .unwrap();
+    let limits = record_storage::RecordLimits::default();
+    let bytes = record_storage::encode(&lineage, limits).unwrap();
+    assert_eq!(
+        record_storage::decode::<ExternalLocalLineage>(&bytes, limits).unwrap(),
+        lineage
+    );
+
+    let relative =
+        record_storage::encode(&(*context.digest(), "relative".to_owned()), limits).unwrap();
+    assert!(record_storage::decode::<ExternalLocalLineage>(&relative, limits).is_err());
+}
+
+#[test]
 fn recovered_external_local_lineage_rejects_noncanonical_separators() {
     let context = ExternalSourceContext::derive(b"review-baseline");
     let canonical = std::env::temp_dir().join("omega-recovered-source");

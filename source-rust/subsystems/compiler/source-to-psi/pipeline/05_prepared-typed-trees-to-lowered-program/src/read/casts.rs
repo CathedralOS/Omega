@@ -131,6 +131,7 @@ impl Program<'_> {
             return Ok(Expression {
                 call_context: None,
                 kind: ExpressionKind::Record {
+                    package_witnesses: Vec::new(),
                     fields: vec![(0, operand)],
                     erased: Vec::new(),
                 },
