@@ -57,9 +57,6 @@ pub(crate) fn runtime_permission_rows(
     permissions: &[crate::permission_acceptance::RuntimeServicePermission],
     assumptions: &[crate::record::PackagePolicyComponentAssumption],
 ) -> Result<Vec<PackagePolicyRow>, PackageReviewEncodingError> {
-    use crate::record::{
-        PackagePolicyTerminalPermission, PackageReviewNominalIdentity, PackageReviewNominalOwner,
-    };
     let mut builder = Builder::new(
         package,
         target,
@@ -68,18 +65,7 @@ pub(crate) fn runtime_permission_rows(
         true,
     )?;
     for row in permissions {
-        let nominal = |path: &str| PackageReviewNominalIdentity {
-            owner: PackageReviewNominalOwner::Package(row.owner),
-            path: path.to_owned(),
-        };
-        components::terminal_permission(
-            &mut builder,
-            &nominal(&row.service_path).into(),
-            &PackagePolicyTerminalPermission {
-                requirement: nominal(&row.requirement_path),
-                permitted: row.permitted.clone(),
-            },
-        )?;
+        components::terminal_permission(&mut builder, &row.service, &row.permission)?;
     }
     assembly::component_assumptions_rows(&mut builder, assumptions)?;
     builder.finish().map(|(rows, _)| rows)

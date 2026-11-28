@@ -1186,11 +1186,7 @@ fn finish_logical_witness<'source>(
     program.prepare_domain_predicates(entry)?;
     let source_selection_questions = capture_source_questions(&mut program, entry)?;
     let services = program.service_map(entry)?;
-    let components = prepare_call_components(
-        &bodies,
-        &mut program.signatures,
-        &program.theorem_parameters,
-    )?;
+    let components = program.prepare_call_components(&bodies)?;
     let mut witness = lower_program(
         Some(entry),
         &bodies,
@@ -1421,11 +1417,7 @@ fn finish_reading_into<'source>(
                 program.application_binders(next)?
             });
         }
-        let components = prepare_call_components(
-            &bodies,
-            &mut program.signatures,
-            &program.theorem_parameters,
-        )?;
+        let components = program.prepare_call_components(&bodies)?;
         program.finish_operational_envelopes(&bodies, &components)?;
         program.prepare_service_bindings(diagnostic)?;
         let more = program.prepare_calling_policies(diagnostic, calling, &mut policies)?;
@@ -1775,7 +1767,12 @@ fn lower_generic_for<'source>(
     source: Option<&'source read::Program<'source>>,
 ) -> Checked<PreparedProgram<'source>> {
     let mut machine_signatures = signatures.machines.clone();
-    let components = prepare_call_components(bodies, &mut machine_signatures, signatures.theorems)?;
+    let components = prepare_call_components(
+        bodies,
+        &mut machine_signatures,
+        signatures.theorems,
+        std::iter::empty(),
+    )?;
     let signatures = body::Signatures {
         machines: &machine_signatures,
         ..signatures
@@ -1800,15 +1797,16 @@ fn lower_generic_for<'source>(
 
 /// Validate call positions and prepare the graph once for this body closure.
 /// Progress inference and lowering borrow the same component/ranking data.
-fn prepare_call_components(
+fn prepare_call_components<'a>(
     bodies: &IdTable<MachineId, Body>,
     signatures: &mut IdTable<MachineId, Signature>,
     theorems: &[terminal_psi::TheoremParameter],
+    const_scopes: impl Iterator<Item = (MachineId, &'a [read::ConstBinding])>,
 ) -> Checked<components::Components> {
     for (machine, body) in bodies.iter() {
         lower::operational::positions(machine, body)?;
     }
-    components::components(bodies, signatures, theorems)
+    components::components(bodies, signatures, theorems, const_scopes)
 }
 
 fn lower_program<'source>(
@@ -2129,6 +2127,7 @@ fn lower_program_with_parallel<'source>(
             bodies,
             component,
             components.has_separate_entry(id),
+            components.forwarded_consts(id),
             signatures,
             &outcomes,
             &declared.records,
@@ -2684,7 +2683,8 @@ mod publication_scope_tests {
         });
         let lower = |publication| {
             let mut signatures = signatures.clone();
-            let components = prepare_call_components(&bodies, &mut signatures, &[]).unwrap();
+            let components =
+                prepare_call_components(&bodies, &mut signatures, &[], std::iter::empty()).unwrap();
             lower_program(
                 Some(entry),
                 &bodies,
