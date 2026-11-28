@@ -302,7 +302,23 @@ fn retain_borrow_type(
         Some(reference) => Some(reference),
         None => infer(program, borrow.target, &mut Vec::new())?,
     };
-    if let Some(referent) = referent {
+    if let Some(mut referent) = referent {
+        if let Some(indexed) = program.expression_table.indexed_node(borrow.target)
+            && program.expression_table.range_node(indexed.index).is_some()
+            && let Some(collection) = crate::types::typing_queries::declared_expression_type(
+                program,
+                caller,
+                indexed.collection,
+            )
+            && let Some(element_type) =
+                builtin_range_element(program, caller, borrow.target, collection)
+        {
+            // The written access selects the range view. A named slot that
+            // holds that same view can itself be borrowed as an ordinary value.
+            referent = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Slice { element_type });
+        }
         let reference = reference_formation_type(program, referent, borrow.access);
         program
             .type_reference_table
@@ -349,19 +365,15 @@ pub(crate) fn retain_indexed_operand_type(
     Ok(())
 }
 
-fn retain_builtin_range_type(
+/// Only a core range supplies the built-in slice presentation. An overloaded
+/// range keeps the selected machine's result, including any reference layers.
+fn builtin_range_element(
     program: &mut TypedTrees,
     caller: SymbolHandle,
     expression: ExpressionHandle,
     collection: TypeReferenceHandle,
-) -> Result<(), Diagnostic> {
-    // A bare range observes the actual collection's elements,
-    // not one element. Retain its shared view before ordinary callers
-    // and borrow formations ask for its type. A selected user operator
-    // must supply its own result instead of acquiring a builtin type.
-    let Some(count) = builtin(program, BuiltinTypeAtom::U64) else {
-        return Ok(());
-    };
+) -> Option<TypeReferenceHandle> {
+    let count = builtin(program, BuiltinTypeAtom::U64)?;
     let operands = [Some(collection), Some(count), Some(count)];
     if !crate::source_state::operator::resolve_indexed_spelling_for_operands(
         program,
@@ -378,8 +390,17 @@ fn retain_builtin_range_type(
             &operands,
         )
     {
-        return Ok(());
+        return None;
     }
+    crate::types::typing_queries::collection_element_type(program, collection).ok()
+}
+
+fn retain_builtin_range_type(
+    program: &mut TypedTrees,
+    caller: SymbolHandle,
+    expression: ExpressionHandle,
+    collection: TypeReferenceHandle,
+) -> Result<(), Diagnostic> {
     if program.type_reference_table.contains_type_reference(
         program
             .expression_table
@@ -387,9 +408,7 @@ fn retain_builtin_range_type(
     ) {
         return Ok(());
     }
-    let Ok(element_type) =
-        crate::types::typing_queries::collection_element_type(program, collection)
-    else {
+    let Some(element_type) = builtin_range_element(program, caller, expression, collection) else {
         return Ok(());
     };
     let slice = program
@@ -911,22 +930,12 @@ fn builtin(program: &mut TypedTrees, atom: BuiltinTypeAtom) -> Option<TypeRefere
     )
 }
 
-/// Borrowing an existing reference lends its referent again. Range views use
-/// that same formation, preserving their element type and the written access.
+/// Each written reference layer keeps the complete type of its operand.
 fn reference_formation_type(
     program: &mut TypedTrees,
-    mut referee: TypeReferenceHandle,
+    referee: TypeReferenceHandle,
     access: language_core::ReferenceAccess,
 ) -> TypeReferenceHandle {
-    let bare = program
-        .type_reference_table
-        .unconstrained_type_reference(referee);
-    if let TypeReferenceNode::Reference {
-        referee: backing, ..
-    } = program.type_reference_table.type_reference(bare)
-    {
-        referee = *backing;
-    }
     program
         .type_reference_table
         .insert(TypeReferenceNode::Reference {
@@ -1071,6 +1080,17 @@ fn infer(
             )
             .ok()
         }),
+        // The owner selects the range operator and its access in retain_borrow_type.
+        ExpressionNode::Borrow(borrow)
+            if program
+                .expression_table
+                .indexed_node(borrow.target)
+                .is_some_and(|indexed| {
+                    program.expression_table.range_node(indexed.index).is_some()
+                }) =>
+        {
+            None
+        }
         ExpressionNode::Borrow(borrow) => infer(program, borrow.target, active)?
             .map(|referee| reference_formation_type(program, referee, borrow.access)),
         ExpressionNode::ArrayLiteral(_) => infer_array(program, value, None, active)?,
