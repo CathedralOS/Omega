@@ -4254,8 +4254,8 @@ impl TerminalExecution<'_> {
                         source,
                     )
                     .map_err(TerminalInterpretError::UnsupportedSemanticVariant)?;
-                    // Admission replayed this callee's complete result header against its
-                    // body. Capture the physical input named by that header before the call.
+                    // The source checker and saved-Psi receiver verify this header against
+                    // the body. Capture the physical input it names before entering the call.
                     let exact =
                         binding.extent == semantic_vocabulary::ReferenceOriginExtent::Projected;
                     let is_hidden = |root, path: &[StructuralPathSegment]| {

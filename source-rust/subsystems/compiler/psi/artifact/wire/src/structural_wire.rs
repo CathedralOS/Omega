@@ -549,15 +549,27 @@ pub(crate) mod structural_result_wire {
                         "reference result source has mismatched referent or access",
                     );
                 }
-                needs_package_replay |= source.extent()
-                    == semantic_vocabulary::ReferenceOriginExtent::Projected
-                    && *referent != endpoint;
+                if source.extent() == semantic_vocabulary::ReferenceOriginExtent::Projected
+                    && *referent != endpoint
+                {
+                    if terminal_semantics::packages::hidden_reference_referent(
+                        module,
+                        result.structural_type,
+                        &reference.path,
+                    ) != Some(*referent)
+                    {
+                        return crate::codec_error::malformed(
+                            "reference result source has mismatched referent or access",
+                        );
+                    }
+                    needs_package_replay = true;
+                }
             }
         }
         // A complete package can hide the concrete input's type. Recompute
         // the returned sources from the body before accepting such a header.
         if needs_package_replay {
-            let actual = (!module.execution.packages.schemas.is_empty()).then(|| {
+            let actual = (|| {
                 let graph = analyses.descriptor_closure(
                     terminal_semantics::descriptor_results::DescriptorSlotKind::BorrowedStorage,
                     [machine.id],
@@ -569,7 +581,7 @@ pub(crate) mod structural_result_wire {
                 terminal_semantics::reference_result_contents(
                     &module.types.structural_types, &machine.structural_parameters, result, &contents,
                 ).ok()
-            }).flatten();
+            })();
             if actual.as_ref() != Some(&result.reference_sources) {
                 return crate::codec_error::malformed(
                     "reference result source has mismatched referent or access",

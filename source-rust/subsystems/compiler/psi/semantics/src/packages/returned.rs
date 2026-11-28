@@ -2,10 +2,11 @@
 //! Recover its referent from the initialized field that reaches the return.
 use super::*;
 use crate::descriptor_lifetimes::{
-    DescriptorLocation, DescriptorPosition, descriptor_location, descriptor_path,
+    DescriptorLocation, DescriptorPathSegment, DescriptorPosition, descriptor_location,
+    descriptor_path,
 };
 use crate::descriptor_results::{
-    DescriptorAnalysis, DescriptorResultSlot, projected_stored_sources_in,
+    DescriptorAnalysis, DescriptorResultSlot, DescriptorStoredOrigin, projected_stored_sources_in,
 };
 use crate::module_analyses::DescriptorRowView;
 use crate::references::reference_origins::descriptor_regions::descriptor_input_origin_path;
@@ -48,66 +49,171 @@ pub(crate) fn returned_referents(
     let Some(result) = machine.result.structural() else {
         return referents;
     };
-    let Some(returns) = graph.find(id).and_then(|row| row.returns.as_ref()) else {
-        return referents;
-    };
     let types = &module.types.structural_types;
     let checked = std::cell::OnceCell::new();
     for slot in slots {
         let Some(path) = descriptor_path(types, result.structural_type, &slot.path) else {
             continue;
         };
-        let Some(member) = fields::hidden_reference_field(module, result.structural_type, &path)
-        else {
+        if fields::hidden_reference_field(module, result.structural_type, &path).is_none() {
             continue;
-        };
+        }
         let Some(checked) = checked
             .get_or_init(|| check_package_sites(module).ok())
             .as_ref()
         else {
             break;
         };
-        let initializers = field_initializers(module, machine, checked, &member);
-        if initializers.is_empty() {
-            continue;
+        for origin in &slot.origins {
+            let Ok(input) =
+                descriptor_input_origin_path(types, &machine.structural_parameters, origin)
+            else {
+                continue;
+            };
+            let request = Lender {
+                machine: id,
+                field: path.clone(),
+                input: input.clone(),
+            };
+            if let Some(ty) = lender_type(module, graph, analysis, checked, request) {
+                referents
+                    .0
+                    .entry(path.clone())
+                    .or_default()
+                    .insert(input, ty);
+            }
         }
-        let mut choices = BTreeMap::new();
-        let complete = returns.iter().try_for_each(|(at, returned)| {
-            let location =
-                descriptor_location(types, returned.root, result.structural_type, &path, None)?;
-            let ty = initializer_referent(
+    }
+    referents
+}
+
+/// Each dependency is a returned field of a particular callee and the
+/// formal lender whose actual argument reached the current return.
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct Lender {
+    machine: MachineId,
+    field: Vec<StructuralPathSegment>,
+    input: Input,
+}
+
+impl Lender {
+    fn is_among(
+        &self,
+        module: &TerminalModule,
+        machine: &TerminalMachine,
+        origins: &[DescriptorStoredOrigin],
+    ) -> bool {
+        origins.iter().any(|origin| {
+            descriptor_input_origin_path(
+                &module.types.structural_types,
+                &machine.structural_parameters,
+                origin,
+            )
+            .is_ok_and(|input| input == self.input)
+        })
+    }
+
+    /// Substitute each callee lender separately. A branch choosing Socket
+    /// cannot establish File for a different input of the caller.
+    fn forwarded_lenders(
+        &self,
+        module: &TerminalModule,
+        analysis: &mut DescriptorAnalysis<'_>,
+        position: DescriptorPosition,
+        callee: MachineId,
+        suffix: &[DescriptorPathSegment],
+    ) -> Option<Vec<Self>> {
+        let caller = module.machine(self.machine)?;
+        let callee = module.machine(callee)?;
+        let types = &module.types.structural_types;
+        let field = descriptor_path(types, callee.result.structural()?.structural_type, suffix)?;
+        let mut lenders = Vec::new();
+        for (formal, actuals) in analysis.forwarded_origins(caller.id, position, suffix)? {
+            if self.is_among(module, caller, &actuals) {
+                let input =
+                    descriptor_input_origin_path(types, &callee.structural_parameters, &formal)
+                        .ok()?;
+                lenders.push(Self {
+                    machine: callee.id,
+                    field: field.clone(),
+                    input,
+                });
+            }
+        }
+        (!lenders.is_empty()).then_some(lenders)
+    }
+}
+
+fn lender_type(
+    module: &TerminalModule,
+    graph: DescriptorRowView<'_>,
+    analysis: &mut DescriptorAnalysis<'_>,
+    checked: &CheckedPackageSites,
+    root: Lender,
+) -> Option<StructuralTypeId> {
+    let types = &module.types.structural_types;
+    let mut requests = vec![root.clone()];
+    let mut positions = BTreeMap::from([(root, 0)]);
+    let mut rows = Vec::new();
+    while let Some(request) = requests.get(rows.len()).cloned() {
+        let machine = module.machine(request.machine)?;
+        let result = machine.result.structural()?.structural_type;
+        let member = fields::hidden_reference_field(module, result, &request.field)?;
+        let initializers = field_initializers(module, machine, checked, &member);
+        let row = graph.find(machine.id)?;
+        let mut fixed = Vec::new();
+        let mut dependencies = Vec::new();
+        for (at, returned) in row.returns.as_ref()? {
+            let location = descriptor_location(types, returned.root, result, &request.field, None)?;
+            let inputs = analysis.returned_origins(machine.id, *at, &location)?;
+            if !request.is_among(module, machine, &inputs) {
+                continue;
+            }
+            match reaching_source(
                 types,
-                id,
+                machine.id,
                 graph,
                 analysis,
                 &initializers,
                 *at,
-                location.clone(),
-            )?;
-            for origin in analysis.returned_origins(id, *at, &location)? {
-                let input =
-                    descriptor_input_origin_path(types, &machine.structural_parameters, &origin)
-                        .ok()?;
-                if choices
-                    .insert(input, ty)
-                    .is_some_and(|previous| previous != ty)
-                {
-                    return None;
+                location,
+            )? {
+                Source::Initializer(ty) => fixed.push(ty),
+                Source::Call(position, suffix) => {
+                    let callee = row.direct_call(position)?.callee()?;
+                    for child in
+                        request.forwarded_lenders(module, analysis, position, callee, &suffix)?
+                    {
+                        let index = *positions.entry(child.clone()).or_insert_with(|| {
+                            requests.push(child);
+                            requests.len() - 1
+                        });
+                        dependencies.push(Some(index));
+                    }
                 }
+                Source::Transfer(..) => return None,
             }
-            Some(())
-        });
-        if complete.is_some() {
-            referents.0.insert(path, choices);
         }
+        if fixed.is_empty() && dependencies.is_empty() {
+            return None;
+        }
+        rows.push(graphs::reach::ReachRow {
+            fixed,
+            dependencies,
+        });
     }
-    referents
+    let resolved = graphs::reach::resolve(rows).ok()?;
+    let [ty] = resolved.first()?.as_slice() else {
+        return None;
+    };
+    Some(*ty)
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum Source {
     Initializer(StructuralTypeId),
     Transfer(DescriptorPosition, DescriptorLocation),
+    Call(DescriptorPosition, Vec<DescriptorPathSegment>),
 }
 
 type Initializers = BTreeMap<DescriptorPosition, (DescriptorLocation, StructuralTypeId)>;
@@ -162,7 +268,7 @@ fn field_initializers(
     writes
 }
 
-fn initializer_referent(
+fn reaching_source(
     types: &[terminal_psi::StructuralTypeDeclaration],
     machine: MachineId,
     graph: DescriptorRowView<'_>,
@@ -170,7 +276,7 @@ fn initializer_referent(
     initializers: &Initializers,
     mut at: DescriptorPosition,
     mut location: DescriptorLocation,
-) -> Option<StructuralTypeId> {
+) -> Option<Source> {
     let row = graph.find(machine)?;
     let mut visited = BTreeSet::new();
     while visited.insert((at, location.clone())) {
@@ -188,6 +294,11 @@ fn initializer_referent(
                 if let Some((stored, referent)) = initializers.get(&position) {
                     return vec![(stored.clone(), Source::Initializer(*referent))];
                 }
+                if let Some(call) = row.direct_call(position)
+                    && let Some(destination) = &call.result
+                {
+                    return vec![(destination.clone(), Source::Call(position, Vec::new()))];
+                }
                 step.value_transfers
                     .iter()
                     .map(|(from, to)| (to.clone(), Source::Transfer(position, from.clone())))
@@ -195,6 +306,7 @@ fn initializer_referent(
             },
             |source, suffix| match source {
                 Source::Initializer(_) => suffix.is_empty().then_some(source),
+                Source::Call(position, _) => Some(Source::Call(position, suffix.to_vec())),
                 Source::Transfer(position, mut input) => {
                     input.path.extend_from_slice(suffix);
                     Some(Source::Transfer(position, input))
@@ -205,7 +317,7 @@ fn initializer_referent(
             return None;
         };
         match source {
-            Source::Initializer(ty) => return Some(*ty),
+            Source::Initializer(_) | Source::Call(..) => return Some(source.clone()),
             Source::Transfer(position, input) => {
                 at = *position;
                 location = input.clone();
