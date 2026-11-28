@@ -391,9 +391,12 @@ fn checked_source_application(
                             .supplied_type_reference(typed, *argument)
                             .map_err(|reason| malformed(machine, reason))?;
                         let value = crate::source_state::canonical_const_argument_value(
-                            typed, supplied.reference,
+                            typed,
+                            supplied.reference,
                         )
-                        .ok_or_else(|| unavailable("record const argument has no canonical value"))?;
+                        .ok_or_else(|| {
+                            unavailable("record const argument has no canonical value")
+                        })?;
                         let bindings = parameters
                             .iter()
                             .zip(arguments)
