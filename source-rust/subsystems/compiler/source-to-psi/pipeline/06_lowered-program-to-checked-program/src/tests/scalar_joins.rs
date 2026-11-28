@@ -35,6 +35,30 @@ fn assert_join_subtraction_refused(source: &str) {
 }
 
 #[test]
+fn picking_the_larger_alignment_requires_both_arms_to_respect_the_upper_bound() {
+    let source = r#"
+machine pick(left: u64, right: u64) -> u64
+requires left >= 1 && left <= 16 && right >= 1 && right <= 16
+ensures result >= 1 && result <= 16
+{
+    match left > right { true -> left, _ -> right }
+}
+"#;
+    let positive = super::entryless::judged(source, false);
+    assert!(
+        matches!(positive, RouteVerdict::Accepted(_)),
+        "{positive:?}"
+    );
+    let negative = super::entryless::judged(&source.replace("right <= 16", "right <= 17"), false);
+    assert!(
+        matches!(negative, RouteVerdict::Rejected { ref unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { .. })
+            && row.statement.contains("exit from pick"))),
+        "{negative:?}"
+    );
+}
+
+#[test]
 fn a_reachable_unsafe_predecessor_cannot_borrow_the_other_arms_arithmetic_value() {
     // The zero-valued arm is now reachable. Its actual arrival still owes
     // the post-join subtraction; the other arm cannot establish its bound.

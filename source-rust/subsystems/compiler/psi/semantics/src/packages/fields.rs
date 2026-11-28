@@ -1,6 +1,23 @@
 //! Detect reads, stores and transfers crossing a package witness boundary.
 use super::*;
 
+pub(super) fn nominal_uses(
+    module: &TerminalModule,
+    ty: StructuralTypeId,
+    witness: StructuralTypeId,
+) -> bool {
+    let identity = |id| {
+        module
+            .structural_type(id)
+            .and_then(|row| module.identities.text(row.identity))
+    };
+    identity(ty)
+        .zip(identity(witness))
+        .is_some_and(|(carrier, witness)| {
+            application_identity::type_identity::package_applications::uses(carrier, witness)
+        })
+}
+
 // Identify every operation that enters a public package field. A producer
 // cannot extract the uninstantiated reference or overwrite just the callback
 // by leaving its opening out of the evidence table. Whole-package transport
@@ -10,14 +27,48 @@ pub(super) fn uses_witness(
     field: &StructuralFieldType,
     witness: StructuralTypeId,
 ) -> bool {
-    match field {
-        StructuralFieldType::Scalar(ScalarType::Callable(id)) => module.execution.callables.contract(*id).is_some_and(|contract|
-            contract.structural_parameters.iter().any(|parameter| parameter.structural_type == witness)
-            || contract.proof_result.structural().is_some_and(|result| result.structural_type == witness)),
-        StructuralFieldType::Structural(id) => *id == witness || module.structural_type(*id)
-            .is_some_and(|row| matches!(row.shape,StructuralTypeShape::Reference {referent,..} if referent == witness)),
-        _ => false,
+    let mut pending = vec![field.clone()];
+    let mut seen = std::collections::BTreeSet::new();
+    while let Some(field) = pending.pop() {
+        if !seen.insert(field.clone()) {
+            continue;
+        }
+        match field {
+            StructuralFieldType::Scalar(ScalarType::Callable(id)) => {
+                if let Some(contract) = module.execution.callables.contract(id) {
+                    pending.extend(
+                        contract
+                            .structural_parameters
+                            .iter()
+                            .map(|p| StructuralFieldType::Structural(p.structural_type)),
+                    );
+                    if let Some(result) = contract.proof_result.structural() {
+                        pending.push(StructuralFieldType::Structural(result.structural_type));
+                    }
+                }
+            }
+            StructuralFieldType::Structural(id) => {
+                if id == witness || nominal_uses(module, id, witness) {
+                    return true;
+                }
+                if let Some(row) = module.structural_type(id) {
+                    match &row.shape {
+                        StructuralTypeShape::Reference { referent, .. } => {
+                            pending.push(StructuralFieldType::Structural(*referent))
+                        }
+                        StructuralTypeShape::FixedArray { element, .. } => {
+                            pending.push(StructuralFieldType::Structural(*element))
+                        }
+                        shape => {
+                            pending.extend(shape.fields().map(|field| field.field_type.clone()))
+                        }
+                    }
+                }
+            }
+            _ => (),
+        }
     }
+    false
 }
 
 pub(super) fn field_needs_opening(
@@ -29,75 +80,76 @@ pub(super) fn field_needs_opening(
         return false;
     };
     match &field.field_type {
-        StructuralFieldType::Scalar(ScalarType::Callable(contract)) => module
-            .execution
-            .callables
-            .contract(*contract)
-            .is_none_or(|contract| {
-                contract
-                    .structural_parameters
+        StructuralFieldType::Scalar(ScalarType::Callable(contract)) => {
+            module.execution.callables.contract(*contract).is_none()
+                || schema
+                    .witnesses
                     .iter()
-                    .any(|parameter| schema.witnesses.contains(&parameter.structural_type))
-                    || contract
-                        .proof_result
-                        .structural()
-                        .is_some_and(|result| schema.witnesses.contains(&result.structural_type))
-            }),
+                    .any(|&witness| uses_witness(module, &field.field_type, witness))
+        }
         StructuralFieldType::Structural(ty) => {
-            match module.structural_type(*ty).map(|row| &row.shape) {
-                Some(StructuralTypeShape::Reference { referent, .. }) => {
-                    schema.witnesses.contains(referent)
-                }
-                _ => true,
-            }
+            let Some(row) = module.structural_type(*ty) else {
+                return true;
+            };
+            // An unrestricted tag or metadata record carries no package
+            // permission of its own. A linear field can additionally carry
+            // the witness in custody qualifications on its enclosing path.
+            !row.is_copyable() && !matches!(row.shape, StructuralTypeShape::Reference { .. })
+                || schema
+                    .witnesses
+                    .iter()
+                    .any(|&witness| uses_witness(module, &field.field_type, witness))
         }
         _ => false,
     }
 }
 
-/// The reference descriptor owned directly by an inline package field.
-pub(super) fn hidden_reference_field<'a>(
-    module: &'a TerminalModule,
-    machine: &TerminalMachine,
-    source: semantic_vocabulary::PlaceId,
-    path: &[StructuralPathSegment],
-) -> Option<(
-    StructuralTypeId,
-    &'a StructuralFieldDeclaration,
-    StructuralAccess,
-)> {
-    let (StructuralPathSegment::Field(identity), parent) = path.split_last()? else {
-        return None;
-    };
-    if parent.contains(&StructuralPathSegment::Referent)
-        || enters_package(
-            module,
-            machine,
-            terminal_psi::OperationProjection {
-                root: source,
-                path: parent,
-                field: None,
-            },
-        )
-    {
-        return None;
-    }
-    let root = machine.structural_place_type(source)?;
-    let record =
-        crate::runtime_structural_path_tip(module.types.structural_types.iter(), root, parent)?.id;
-    let schema = schema(module, record).ok()?;
-    let field = fields(module, record)
-        .ok()?
-        .iter()
-        .find(|f| f.identity == *identity)?;
-    let reference = module.structural_type(field.field_type.as_structural()?)?;
+/// The package member that owns this loan and the path to its reference
+/// within the member's concrete initializer.
+pub(super) struct HiddenReferenceField<'path> {
+    pub record: StructuralTypeId,
+    pub field: StructuralFieldId,
+    pub path: &'path [StructuralPathSegment],
+    pub access: StructuralAccess,
+    pub referent: StructuralTypeId,
+}
+
+pub(super) fn hidden_reference_field<'path>(
+    module: &TerminalModule,
+    root: StructuralTypeId,
+    path: &'path [StructuralPathSegment],
+) -> Option<HiddenReferenceField<'path>> {
+    let types = &module.types.structural_types;
+    let reference = crate::inline_descriptor_type(types.iter(), root, path)?;
     let StructuralTypeShape::Reference { referent, access } = reference.shape else {
         return None;
     };
-    schema
-        .witnesses
-        .contains(&referent)
-        .then_some((record, field, access))
+    for (position, segment) in path.iter().enumerate() {
+        let StructuralPathSegment::Field(identity) = segment else {
+            continue;
+        };
+        let record = crate::runtime_structural_path_tip(types.iter(), root, &path[..position])?.id;
+        let Ok(package) = schema(module, record) else {
+            continue;
+        };
+        let field = fields(module, record)
+            .ok()?
+            .iter()
+            .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+        if field_needs_opening(module, record, field) {
+            return package
+                .witnesses
+                .contains(&referent)
+                .then_some(HiddenReferenceField {
+                    record,
+                    field: field.id,
+                    path: &path[position + 1..],
+                    access,
+                    referent,
+                });
+        }
+    }
+    None
 }
 
 pub(super) fn enters_package(
@@ -142,7 +194,8 @@ pub(super) fn check_field_accesses(
     // Last use ends the stored permission itself. Ordinary affine checking
     // still requires an owned, live carrier and restores each actual lender.
     if let OperationKind::ReleaseReference { source, path } = &operation.kind
-        && hidden_reference_field(module, machine, *source, path).is_some()
+        && let Some(root) = machine.structural_place_type(*source)
+        && hidden_reference_field(module, root, path).is_some()
     {
         return Ok(());
     }

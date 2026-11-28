@@ -74,7 +74,11 @@ fn main() {
             } else {
                 println!("published native output to {}", artifact.display());
             }
-            eprintln!("  1.25 ms  Stage fixture");
+            if arguments.iter().any(|argument| argument == "--timings") {
+                eprintln!("  1.25 ms  Stage fixture");
+                eprintln!("0.250..1.500 ms (1.250 ms)  timeline / compile_native");
+                eprintln!("2.000 ms  total elapsed");
+            }
         }
     }
 }

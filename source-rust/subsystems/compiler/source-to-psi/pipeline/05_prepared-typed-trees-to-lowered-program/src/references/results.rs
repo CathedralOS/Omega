@@ -7,10 +7,10 @@ use crate::{Unserved, refuse};
 use semantic_vocabulary::MachineId;
 use terminal_check_tables::{Checked, Construct, Refusal};
 use terminal_psi::TerminalModule;
-use terminal_semantics::ModuleAnalyses;
 use terminal_semantics::descriptor_results::{
     DescriptorAnalysis, DescriptorGraphError, DescriptorSlotKind, ModuleSummaries,
 };
+use terminal_semantics::{DescriptorRows, ModuleAnalyses};
 
 /// The nominal calls of the reference-parent graph: none. `ModuleSummaries`
 /// checks a graph's nominal calls by address, so the table and the analyses
@@ -30,12 +30,11 @@ fn module_summaries(module: &TerminalModule) -> ModuleSummaries<'_> {
 /// A fresh analysis over `graph`, a closure built from `module` without
 /// nominal calls, sharing `summaries` (`module_summaries` of that module).
 fn shared_analysis<'a>(
-    module: &'a TerminalModule,
-    graph: &'a [terminal_semantics::descriptor_results::DescriptorMachine],
+    analyses: &'a ModuleAnalyses<'_>,
+    graph: &'a DescriptorRows<'_>,
     summaries: &'a ModuleSummaries<'a>,
 ) -> DescriptorAnalysis<'a> {
-    let mut analysis =
-        DescriptorAnalysis::with_borrowed_storage_slots(&module.types.structural_types, graph);
+    let mut analysis = analyses.analysis(DescriptorSlotKind::BorrowedStorage, graph);
     analysis.share_summaries(summaries, &NO_NOMINAL_CALLS);
     analysis
 }
@@ -646,8 +645,9 @@ fn publish_results(
     // A returned generic value can carry a loan from a view inside an input
     // record. Keep those views during replay, even though the return header
     // names only the references found by `reference_result_contents`.
-    let mut analysis =
-        DescriptorAnalysis::with_borrowed_storage_slots(&module.types.structural_types, &graph);
+    let analyses = ModuleAnalyses::new(module).map_err(|error| graph_unavailable(module, error))?;
+    let graph = DescriptorRows::from(graph);
+    let mut analysis = analyses.analysis(DescriptorSlotKind::BorrowedStorage, &graph);
     let mut published = Vec::with_capacity(selected.len());
     for id in selected {
         let machine = module
@@ -657,19 +657,26 @@ fn publish_results(
             .result
             .structural()
             .ok_or_else(|| unavailable(id, "reference result lost its structural declaration"))?;
-        let contents = analysis.result_contents(id).ok_or_else(|| {
+        let contents = analysis.result_contents(module, id).ok_or_else(|| {
             analysis
                 .preparation_error(id)
                 .map(|error| graph_unavailable(module, error))
                 .unwrap_or_else(|| {
-                    unavailable(
-                        id,
-                        if analysis.result_exposes_local_storage(id) {
-                            "returned loan would outlive its local backing storage"
-                        } else {
-                            "reference result has no complete actual return-source correspondence"
-                        },
-                    )
+                    use terminal_semantics::descriptor_results::LocalReturnBacking;
+                    match analysis.local_return_backing(id) {
+                        LocalReturnBacking::EveryReturn => crate::reject(
+                            id,
+                            crate::SourceOrigin::Unpositioned(crate::Unpositioned::MachineEntry),
+                            "returned loan would outlive its local backing storage",
+                        ),
+                        LocalReturnBacking::Alternative => {
+                            unavailable(id, "a returned loan may outlive its local backing storage")
+                        }
+                        LocalReturnBacking::Unobserved => unavailable(
+                            id,
+                            "reference result has no complete actual return-source correspondence",
+                        ),
+                    }
                 })
         })?;
         let mappings = terminal_semantics::reference_result_contents(
@@ -1004,6 +1011,8 @@ fn publish_parents(
         &terminal_check_tables::contracts::scoped_requirement_addresses(&module.machines, schemas),
     )
         .map_err(|error| graph_unavailable(module, error))?;
+    let analyses = ModuleAnalyses::new(module).map_err(|error| graph_unavailable(module, error))?;
+    let graph = DescriptorRows::from(graph);
     let summaries = &module_summaries(module);
     let solve_machine = |query: (
         &terminal_psi::TerminalMachine,
@@ -1018,7 +1027,7 @@ fn publish_parents(
         // Calls share one immutable graph and the module's callee summaries.
         // Saved storage states are needed only while finding the parents of
         // this machine's loans.
-        let mut analysis = shared_analysis(module, &graph, summaries);
+        let mut analysis = shared_analysis(&analyses, &graph, summaries);
         let flow = analysis
             .flow_arc(machine.id)
             .map_err(|error| graph_unavailable(module, error))?;

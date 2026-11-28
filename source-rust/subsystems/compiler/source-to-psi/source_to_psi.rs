@@ -91,13 +91,27 @@ pub fn compile_with_declaration_usage(
     advisories: Option<&mut Vec<Diagnostic>>,
     declaration_usage: Option<&mut DeclarationUsageAdvisories>,
 ) -> Result<PublishedPsi, Vec<Diagnostic>> {
+    compile_with_timings(
+        source,
+        advisories,
+        declaration_usage,
+        &mut CompileTimings::default(),
+    )
+}
+
+pub fn compile_with_timings(
+    source: StageSource<'_>,
+    advisories: Option<&mut Vec<Diagnostic>>,
+    declaration_usage: Option<&mut DeclarationUsageAdvisories>,
+    timings: &mut CompileTimings,
+) -> Result<PublishedPsi, Vec<Diagnostic>> {
     driver::publish_stage(
         source,
         ProductEntry::BuildBindings,
         advisories,
         declaration_usage,
         &mut Default::default(),
-        &mut CompileTimings::default(),
+        timings,
     )
     .and_then(|(artifact, checked)| {
         checked.admit_dependency_uses()?;

@@ -56,7 +56,14 @@ fn holder() -> ValueType {
 
 /// `Token {}`
 fn minted() -> Expression {
-    of_type(ExpressionKind::Record { fields: Vec::new(), erased: Vec::new() }, token())
+    of_type(
+        ExpressionKind::Record {
+            fields: Vec::new(),
+            erased: Vec::new(),
+            package_witnesses: Vec::new(),
+        },
+        token(),
+    )
 }
 
 fn verdict(
@@ -157,6 +164,7 @@ fn an_empty_record_is_a_field_and_an_argument() {
                     0,
                     of_type(
                         ExpressionKind::Record {
+                            package_witnesses: Vec::new(),
                             erased: Vec::new(),
                             fields: vec![(0, minted())],
                         },

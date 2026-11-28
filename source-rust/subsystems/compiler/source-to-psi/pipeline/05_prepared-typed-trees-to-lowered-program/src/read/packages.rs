@@ -101,6 +101,13 @@ pub(super) fn check_construction<'a>(
             "package construction has an unresolved type argument",
         ));
     }
+    if package
+        .witnesses
+        .iter()
+        .any(|&witness| typed.package_witness_is_unsized(witness))
+    {
+        return Err(invalid("package construction has an unsized witness"));
+    }
     let mut rows: Vec<_> = package.fields.iter().collect();
     rows.sort_unstable_by_key(|field| symbol_key(field.symbol));
     let members = typed
@@ -138,6 +145,213 @@ pub(super) fn check_construction<'a>(
         }
     }
     Ok(Some(fields))
+}
+
+impl super::Program<'_> {
+    /// The concrete initializer has already been checked against the entire
+    /// witness substitution. Retain the lifetimes that its public field exposes.
+    pub(super) fn package_field_storage_agrees(
+        &self,
+        package: SymbolHandle,
+        witnesses: &[semantic_vocabulary::StructuralTypeId],
+        storage: crate::body::ValueType,
+        concrete: crate::body::ValueType,
+    ) -> bool {
+        use crate::body::{StorageShape, ValueType};
+        use semantic_vocabulary::ScalarType;
+        match (storage, concrete) {
+            (
+                ValueType::Scalar(ScalarType::Callable(_), public),
+                ValueType::Scalar(ScalarType::Callable(_), actual),
+            ) => public == actual,
+            (ValueType::Record(public, pq, pr), ValueType::Record(actual, aq, ar)) if pq == aq => {
+                if pr == ar {
+                    return true;
+                }
+                // @'a S exposes 'a. Any further regions belong to the selected
+                // concrete S. Only that binder and that actual witness may erase them.
+                let reference = |row| match self.records.get(row)?.shape {
+                    StorageShape::Reference { referent, access } => Some((referent, access)),
+                    _ => None,
+                };
+                let Some(data) = self.data_declaration(package) else {
+                    return false;
+                };
+                let binders = self
+                    .typed
+                    .data_type_parameters
+                    .span_or_empty(data.package_parameters);
+                if !matches!((self.region_tuple(pr), self.region_tuple(ar)),
+                    ([outer], [actual_outer, ..]) if outer == actual_outer)
+                {
+                    return false;
+                }
+                let same_witness_borrow = |actual, public| {
+                    let (Some((witness, actual_access)), Some((hidden, public_access))) =
+                        (reference(actual), reference(public))
+                    else {
+                        return false;
+                    };
+                    actual_access == public_access
+                        && binders.iter().zip(witnesses).any(|(parameter, chosen)| {
+                            *chosen == witness
+                                && self
+                                    .witness_index(parameter.symbol)
+                                    .is_ok_and(|index| self.package_witnesses[index].1 == hidden)
+                        })
+                };
+                self.array_storage_matches_by(actual, public, |_, _| false, same_witness_borrow)
+            }
+            _ => false,
+        }
+    }
+
+    pub(super) fn witness_index(&self, symbol: SymbolHandle) -> Result<usize, usize> {
+        self.package_witnesses
+            .binary_search_by_key(&symbol_key(symbol), |(binder, _)| symbol_key(*binder))
+    }
+
+    /// Declaration binders and opened witnesses retain their source identity
+    /// even when their only occurrence is an index of a custody domain.
+    pub(super) fn is_package_witness_symbol(&self, symbol: SymbolHandle) -> bool {
+        let typed = self.typed;
+        if !typed.symbols.symbols().nodes().is_valid(symbol)
+            || typed.symbols.get(symbol).kind != symbols::SymbolKind::TypeParameter
+        {
+            return false;
+        }
+        let types = &typed.type_reference_table;
+        let owner = typed.symbols.get(symbol).parent;
+        let declared = owner.is_valid()
+            && typed
+                .unique_data_definition_by_symbol(owner)
+                .is_some_and(|data| {
+                    typed
+                        .data_type_parameters
+                        .span_or_empty(data.package_parameters)
+                        .iter()
+                        .any(|parameter| parameter.symbol == symbol)
+                });
+        let opened = || {
+            typed.package_openings.iter().any(|(_, opening)| {
+                opening.witnesses.iter().any(|(_, ty)| {
+                    types.contains_type_reference(*ty)
+                        && types.type_reference(*ty).as_named_symbol() == Some(symbol)
+                })
+            })
+        };
+        declared || opened()
+    }
+
+    /// A declared hidden binder and each fresh opening have different
+    /// nominal types. Their storage rows have no readable fields or owned
+    /// contents. Only a reference to the sized witness has public geometry.
+    pub(super) fn package_witness_type(
+        &mut self,
+        machine: MachineId,
+        reference: TypeReferenceHandle,
+    ) -> Checked<Option<crate::body::ValueType>> {
+        use super::places::RecordSource;
+        use crate::body::{RecordType, StorageShape, ValueType};
+        let typed = self.typed;
+        let types = &typed.type_reference_table;
+        if !types.contains_type_reference(reference) {
+            return Ok(None);
+        }
+        let Some(symbol) = types.type_reference(reference).as_named_symbol() else {
+            return Ok(None);
+        };
+        let slot = match self.witness_index(symbol) {
+            Ok(index) => return Ok(Some(ValueType::record(self.package_witnesses[index].1))),
+            Err(slot) => slot,
+        };
+        if !self.is_package_witness_symbol(symbol) {
+            return Ok(None);
+        }
+        let owner = typed.symbols.get(symbol).parent;
+        let identity = typed.package_qualified_type_identity_text(reference);
+        if identity.is_empty() {
+            return Err(super::unavailable(
+                machine,
+                "package witness lacks its nominal identity",
+            ));
+        }
+        let source = RecordSource {
+            declaration: symbol,
+            constant_input_owner: None,
+            cleanup: None,
+            application: Some(crate::source_state::SourceTypeApplication {
+                reference,
+                substitutions: Vec::new(),
+                scope: Default::default(),
+            }),
+            region_owner: owner,
+            fields: Vec::new(),
+            cases: Vec::new(),
+            erased: Vec::new(),
+        };
+        let row = self.push_record_row(
+            RecordType {
+                identity,
+                multiplicity: terminal_psi::StructuralMultiplicity::Linear,
+                cleanup: None,
+                shape: StorageShape::Opaque,
+                requires: Vec::new(),
+                authored_layout: false,
+                erased: Vec::new(),
+            },
+            source,
+        );
+        self.package_witnesses.insert(slot, (symbol, row));
+        Ok(Some(ValueType::record(row)))
+    }
+
+    pub(super) fn retain_package_schema(
+        &mut self,
+        machine: MachineId,
+        record: semantic_vocabulary::StructuralTypeId,
+        data: &DataDefinition,
+    ) -> Checked<()> {
+        if data.package_parameters.is_empty() {
+            return Ok(());
+        }
+        let typed = self.typed;
+        let parameters = typed
+            .data_type_parameters
+            .span(data.package_parameters)
+            .ok_or_else(|| super::unavailable(machine, "package schema lost its binder roster"))?;
+        let mut witnesses = Vec::with_capacity(parameters.len());
+        for parameter in parameters {
+            let missing =
+                || super::unavailable(machine, "package schema lost its declared witness");
+            let types = &typed.type_reference_table;
+            let reference = types
+                .find_named_type_reference(parameter.symbol)
+                .ok_or_else(missing)?;
+            if !self
+                .typed
+                .symbols
+                .symbols()
+                .nodes()
+                .is_valid(parameter.symbol)
+                || typed.symbols.get(parameter.symbol).parent != data.symbol
+            {
+                return Err(missing());
+            }
+            // The sole use may be an index such as Resident<P, S>. Its value
+            // field has the Extent carrier, so reading that field need not
+            // have requested a separate opaque row for S.
+            let Some(crate::body::ValueType::Record(witness, ..)) =
+                self.package_witness_type(machine, reference)?
+            else {
+                return Err(missing());
+            };
+            witnesses.push(witness);
+        }
+        self.package_schemas
+            .push(terminal_psi::TerminalPackageSchema { record, witnesses });
+        Ok(())
+    }
 }
 
 #[cfg(test)]

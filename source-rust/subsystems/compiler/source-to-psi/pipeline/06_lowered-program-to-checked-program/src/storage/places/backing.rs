@@ -838,7 +838,7 @@ impl<'a> Storage<'a> {
         before: usize,
         concerns: Construct,
     ) -> Checked<Backing> {
-        self.optional_backing(references, place, block, before, concerns)?
+        self.optional_backing(references, place, block, before, concerns, false)?
             .ok_or_else(|| self.unsupported(concerns, "captured storage family is empty"))
     }
 
@@ -943,6 +943,7 @@ impl<'a> Storage<'a> {
         block: BlockId,
         before: usize,
         concerns: Construct,
+        call_write: bool,
     ) -> Checked<Option<Backing>> {
         let borrowed_arrival = self.is_borrowed_arrival(place.root, concerns)?;
         if !borrowed_arrival && !place.segments.contains(&Segment::Referent) {
@@ -975,18 +976,15 @@ impl<'a> Storage<'a> {
                 "reference backing has no complete descriptor coordinate",
             )
         })?;
-        let addresses = match references.captured_storage_family_if_active(
-            self.machine,
-            (block, before),
-            &location,
-        ) {
+        let at = (block, before);
+        let addresses = match references.observed_storage_family(self.lowered, at, &location) {
             Ok(Some(addresses))
                 if addresses
                     .iter()
                     .any(|source| matches!(source, DescriptorCallOrigin::NativeAddress { .. })) =>
             {
                 return self
-                    .native_referent_backing(references, place, (block, before), concerns)?
+                    .native_referent_backing(references, place, at, concerns)?
                     .map(Some)
                     .ok_or_else(|| {
                         self.unsupported(concerns, "native reference has no current typed referent")
@@ -995,10 +993,22 @@ impl<'a> Storage<'a> {
             Ok(Some(addresses)) => addresses,
             Ok(None) => return Ok(None),
             Err(detail) => {
-                return self
-                    .native_referent_backing(references, place, (block, before), concerns)?
-                    .map(Some)
-                    .ok_or_else(|| self.unsupported(concerns, detail));
+                if call_write
+                    && let Some(addresses) = terminal_semantics::packages::local_call_write_origins(
+                        self.module,
+                        self.lowered,
+                        at,
+                        references,
+                        &location,
+                    )
+                {
+                    addresses
+                } else {
+                    return self
+                        .native_referent_backing(references, place, at, concerns)?
+                        .map(Some)
+                        .ok_or_else(|| self.unsupported(concerns, detail));
+                }
             }
         };
         let owner = if borrowed_arrival && !place.segments.contains(&Segment::Referent) {

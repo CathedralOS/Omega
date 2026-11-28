@@ -2,7 +2,7 @@
 // carry limb at index 8 overflows the fixed 8-limb `[u32; 8]` bignum record.
 
 data Bignum [copy] {
-    limbs: [u32; 8] in Wrapping;
+    limbs: [u32 in Wrapping; 8];
 }
 
 machine store_overflow_carry(out: @mutable Bignum, carry: u32 in Wrapping) {

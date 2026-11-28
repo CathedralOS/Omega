@@ -23,6 +23,8 @@ enum InvocationEntry {
     Receiver,
     Separate,
     Forward,
+    /// Use an ordinary entry only when its lowered calls pass the original rank value.
+    ForwardPreservingRank,
 }
 
 pub(crate) struct Components {
@@ -236,6 +238,14 @@ impl Components {
         if *entry == InvocationEntry::LoopHead {
             *entry = InvocationEntry::Forward;
         }
+    }
+
+    pub(super) fn try_rank_preserving_entry(&mut self, machine: MachineId) {
+        self.invocation_entries[index(machine)] = InvocationEntry::ForwardPreservingRank;
+    }
+
+    pub(crate) fn needs_rank_identity(&self, machine: MachineId) -> bool {
+        self.invocation_entries[index(machine)] == InvocationEntry::ForwardPreservingRank
     }
 
     /// The ordinary entry of a forwarder executes in its receiver's component.

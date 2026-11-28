@@ -173,6 +173,7 @@ mod machine {
             pub(super) fn lower(
                 operation: &Operation,
                 machine: &TerminalMachine,
+                module: &terminal_psi::TerminalModule,
                 packages: &terminal_semantics::packages::CheckedPackageSites,
             ) -> Result<AbstractOperation, LoweringError> {
                 Ok(match operation.kind.clone() {
@@ -214,13 +215,27 @@ mod machine {
                         crash_continuations,
                         ..
                     } => AbstractOperation::CallStructural {
-                        opened_referents: (0..structural_arguments.len())
-                            .filter_map(|position| {
-                                packages
-                                    .borrowed_argument(machine.id, operation.id, position)
-                                    .map(|ty| (position, ty))
+                        opening: packages
+                            .invocation_contract(machine.id, operation.id)
+                            .map(|_| -> Result<_, LoweringError> {
+                                let admitted_contracts = packages
+                                    .admitted_invocation_contracts(module, machine.id, operation.id)
+                                    .ok_or(LoweringError::UnsupportedDynamicDispatch(
+                                        operation.id,
+                                    ))?;
+                                let stored_referents = (0..structural_arguments.len())
+                                    .filter_map(|position| {
+                                        packages
+                                            .borrowed_argument(machine.id, operation.id, position)
+                                            .map(|ty| (position, ty))
+                                    })
+                                    .collect();
+                                Ok(abstract_operations::OpenedPackageCall {
+                                    admitted_contracts,
+                                    stored_referents,
+                                })
                             })
-                            .collect(),
+                            .transpose()?,
                         psi_operation: operation.id,
                         suspension_crossing: operation.suspension_crossing,
                         callee: AbstractCallTarget::Callable { callee, contract },
@@ -255,7 +270,7 @@ mod machine {
                         crash_continuations,
                         ..
                     } => AbstractOperation::CallStructural {
-                        opened_referents: Vec::new(),
+                        opening: None,
                         psi_operation: operation.id,
                         suspension_crossing: operation.suspension_crossing,
                         callee: AbstractCallTarget::Dynamic {
@@ -293,7 +308,7 @@ mod machine {
                         requirement_obligations,
                         crash_continuations,
                     } => AbstractOperation::CallStructural {
-                        opened_referents: Vec::new(),
+                        opening: None,
                         psi_operation: operation.id,
                         suspension_crossing: operation.suspension_crossing,
                         callee: callee.into(),
@@ -316,7 +331,7 @@ mod machine {
                     } => {
                         let result = operation.result.expect_scalar();
                         AbstractOperation::CallStructural {
-                            opened_referents: Vec::new(),
+                            opening: None,
                             psi_operation: operation.id,
                             suspension_crossing: operation.suspension_crossing,
                             result: AbstractStructuralCallResult::Scalar(result.into()),
@@ -355,7 +370,7 @@ mod machine {
                             _ => Vec::new(),
                         };
                         AbstractOperation::CallStructural {
-                            opened_referents: Vec::new(),
+                            opening: None,
                             psi_operation: operation.id,
                             suspension_crossing: operation.suspension_crossing,
                             result: AbstractStructuralCallResult::Structural {
@@ -813,7 +828,7 @@ mod machine {
                     | OperationKind::SelectMachine { .. }
                     | OperationKind::CallDynamic { .. }
                     | OperationKind::CallMachine { .. } => {
-                        calls::lower(operation, machine, packages)
+                        calls::lower(operation, machine, module, packages)
                     }
                     OperationKind::StorageAddress { source } | OperationKind::StorageAlignment { source } => {
                         let query = if matches!(operation.kind, OperationKind::StorageAddress { .. }) {
@@ -1283,7 +1298,7 @@ mod machine {
                     | OperationKind::CallStructuralScalar { .. }
                     | terminal_psi::call_structural_pair_pattern!(..)
                     | OperationKind::BoundaryCall { .. }
-                    | OperationKind::Call { .. } => calls::lower(operation, machine, packages),
+                    | OperationKind::Call { .. } => calls::lower(operation, machine, module, packages),
                     OperationKind::PortWrite { .. }
                     | OperationKind::RegisterAccess { .. }
                     | OperationKind::ActivateTaskRegister { .. }
@@ -1305,7 +1320,7 @@ mod machine {
                         )
                     }
                     terminal_psi::move_or_store_structural_field_pattern!() => {
-                        borrowed_windows::lower(operation, machine, structural_types)
+                        borrowed_windows::lower(operation, machine, structural_types, packages)
                     }
                     OperationKind::TransformContent {
                         source,
@@ -1401,6 +1416,7 @@ mod machine {
                             machine,
                             module,
                             structural_types,
+                            packages,
                             *source,
                             abstract_operations::StructuralCopyPath::Ordinary(path.clone()),
                         )
@@ -1411,6 +1427,7 @@ mod machine {
                             machine,
                             module,
                             structural_types,
+                            packages,
                             *source,
                             abstract_operations::StructuralCopyPath::Case(path.clone()),
                         )
@@ -2046,7 +2063,8 @@ pub(crate) fn lower_selected_module(
         .map_err(LoweringError::SemanticIdentity)?
         .with_quotients(module.types.quotients.clone())
         .map_err(LoweringError::SemanticIdentity)?
-        .with_owned_sequence_bounds(owned_sequence_bounds),
+        .with_owned_sequence_bounds(owned_sequence_bounds)
+        .with_package_witnesses(&module.execution.packages),
         boundary_machines: module
             .interfaces.boundary_machines
             .iter()
