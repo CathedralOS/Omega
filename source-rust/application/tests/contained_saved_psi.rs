@@ -220,16 +220,20 @@ impl Saved {
         }
     }
 
-    fn omega(&self, arguments: &[&str]) -> Output {
-        std::process::Command::new(env!("CARGO_BIN_EXE_omega"))
+    fn command(&self, arguments: &[&str]) -> std::process::Command {
+        let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_omega"));
+        command
             .env("OMEGA_LIBRARY_ROOT", self.consumer.join("absent-sdk"))
             .env("OMEGA_HOST_PACKAGE_LOCK", &self.lock)
             .env("OMEGA_HOST_PACKAGE_LOCK_SHA256", &self.approval)
             .args(arguments)
             .current_dir(&self.consumer)
-            .stdin(std::process::Stdio::null())
-            .output()
-            .unwrap()
+            .stdin(std::process::Stdio::null());
+        command
+    }
+
+    fn omega(&self, arguments: &[&str]) -> Output {
+        self.command(arguments).output().unwrap()
     }
 
     fn run(&self, options: &[&str]) -> Output {
@@ -273,6 +277,50 @@ fn saved_psi_without_producer_trust_runs_contained() {
         report(&compiled)
     );
     assert!(!saved.path("image").exists());
+}
+
+#[test]
+fn saved_readers_keep_their_callbacks_and_hidden_state() {
+    const MAIN: &str = include_str!("fixtures/callables/run/some_reader/main.omg");
+    const BUILD: &str = r#"use main.omg as app;
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "saved_readers" };
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+}"#;
+    let saved = Saved::publish("saved-package-readers", MAIN, BUILD);
+    let interpreted = saved.run(&[]);
+    assert!(interpreted.status.success(), "{}", report(&interpreted));
+    assert!(interpreted.stdout.is_empty(), "{}", report(&interpreted));
+    assert!(
+        String::from_utf8_lossy(&interpreted.stderr)
+            .lines()
+            .any(|line| line == "Psi exit 0"),
+        "{}",
+        report(&interpreted)
+    );
+
+    let mut command = saved.command(&[
+        "build",
+        "--trusted-artifact",
+        "--target",
+        "linux_x86_64",
+        "app.psi",
+    ]);
+    let compiled = project::build_and_run_command(&mut command);
+    assert!(
+        compiled.compiler.status.success(),
+        "{}",
+        report(&compiled.compiler)
+    );
+    let ran = compiled
+        .execution
+        .expect("the native producer published an executable");
+    assert!(ran.status.success(), "{}", report(&ran));
+    assert!(
+        ran.stdout.is_empty() && ran.stderr.is_empty(),
+        "{}",
+        report(&ran)
+    );
 }
 
 #[test]
