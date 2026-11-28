@@ -6588,7 +6588,16 @@ pub(crate) mod storage_addresses {
                 self.live_structural_type(source.place)?,
                 &source.path,
             );
-            let endpoint = self.storage_address_endpoint(source, scalar_type)?;
+            let endpoint = match self.storage_location_endpoint(source, scalar_type)? {
+                LocationEndpoint::Primitive(endpoint) => endpoint,
+                LocationEndpoint::Frame(home) => {
+                    let (depth, place, _) = home.storage.scalar_array_frame();
+                    PrimitiveStorageEndpoint::Scalar(StructuralRuntimePlace {
+                        opaque_identity: self.array_storage_identity(depth, place)?,
+                        path: home.path,
+                    })
+                }
+            };
             let (namespace, root, path) = self.endpoint_identity(endpoint)?;
             Ok(ScalarStorageAddress {
                 namespace: namespace
