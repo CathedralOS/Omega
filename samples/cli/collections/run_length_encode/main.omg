@@ -1,3 +1,4 @@
+use {omega}/language/core/byte_observation/byte_observation.omg;
 use {omega}/language/core/numeric_conversion.omg;
 use {omega}/language/core/process_authority.omg;
 use {omega}/language/core/process_exit.omg;
@@ -14,16 +15,14 @@ use {system}/console.omg;
 
 domain [u8]::Utf8
 requires
-    valid_utf8(self);
+    |byte_observation|::valid_utf8(@self[..]);
 domain [u8; 20]::Utf8
 requires
-    valid_utf8(self);
+    |byte_observation|::valid_utf8(@self[..]);
 
 data Main {
-    data: [u8; 20] in Utf8;
-    // Counters are `in Wrapping`: increments are defined arithmetic; index uses
-    // stay bounded by the `i < 20` guard.
-    i: i32 in Wrapping;
+    record: [u8; 20] in Utf8;
+    i: u64;
     runs: i32 in Wrapping;
     b: u8;
     prev: u8;
@@ -34,10 +33,10 @@ data Main {
 
 machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     |console|::Console::write_line("run_length_encode: 20 bytes -> one line per run, exit = number of runs");
-    main.data = "AAAABBBCCDDDDDEEEEEE" as +Utf8;
-    main.prev = main.data[0];
+    main.record = "AAAABBBCCDDDDDEEEEEE" as +Utf8;
+    main.prev = (@main.record as -Utf8)[0];
     main.count = 1 as +Wrapping;
-    main.i = 1 as +Wrapping;
+    main.i = 1;
     main.runs = 0 as +Wrapping;
     transition {
         _ -> block step(main)
@@ -51,7 +50,7 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process
     }
 
     machine read(main: @mutable Main) {
-        main.b = main.data[main.i];
+        main.b = (@main.record as -Utf8)[main.i];
         transition main.b == main.prev {
             true -> block bump(main),
             _ -> block emit_mid(main)
@@ -68,9 +67,9 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process
 
     machine emit_mid(main: @mutable Main) {
         |console|::Console::write("run: ");
-        |console|::Console::write_byte(main.prev as i32);
+        |console|::Console::write_byte(|numeric_conversion|::widen_u8_to_i32(main.prev));
         |console|::Console::write(" x");
-        main.chi = |numeric_conversion|::narrow_u32_to_i32_trapping((main.count + 48) as u32);
+        main.chi = |numeric_conversion|::narrow_u32_to_i32_trapping((main.count + 48) as -Wrapping);
         |console|::Console::write_byte(main.chi);
         |console|::Console::write_line("");
         main.runs = main.runs + 1;
@@ -84,9 +83,9 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process
 
     machine done(main: @mutable Main) {
         |console|::Console::write("run: ");
-        |console|::Console::write_byte(main.prev as i32);
+        |console|::Console::write_byte(|numeric_conversion|::widen_u8_to_i32(main.prev));
         |console|::Console::write(" x");
-        main.chi = |numeric_conversion|::narrow_u32_to_i32_trapping((main.count + 48) as u32);
+        main.chi = |numeric_conversion|::narrow_u32_to_i32_trapping((main.count + 48) as -Wrapping);
         |console|::Console::write_byte(main.chi);
         |console|::Console::write_line("");
         main.runs = main.runs + 1;
@@ -98,7 +97,7 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process
     machine finish(main: @mutable Main) {
         |console|::Console::write_line("[press Enter to close]");
         _ = block |console|::Console::read_line(@mutable main.pause[..]);
-        |process_exit|::ProcessExit::exit_process(main.runs as i32);
+        |process_exit|::ProcessExit::exit_process(main.runs as -Wrapping);
     }
 }
 
