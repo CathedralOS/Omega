@@ -365,6 +365,9 @@ fn build_request(output: &mut Output, request: &RestrictedBuildRequest) -> fmt::
             peer.address(),
             peer.max_datagram_bytes()
         )?;
+        for class in peer.physical_authority() {
+            writeln!(output, "physical-authority {class:?}")?;
+        }
     }
     if let RestrictedBuildOperation::ProgramLaunch(program) = request.operation() {
         writeln!(

@@ -128,7 +128,7 @@ pub enum OperationKind {    ActivateTaskRegister {
     BorrowAt {
         address: ValueId,
     },
-    /// Reborrow the selected shared reference with exclusive access while
+    /// Reborrow the selected shared reference or typed view with exclusive access while
     /// preserving its referent, bounds and remaining lifetime.
     UpgradeMutability {
         source: StructuralArgument,

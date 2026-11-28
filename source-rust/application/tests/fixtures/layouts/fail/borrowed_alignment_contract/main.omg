@@ -1,0 +1,11 @@
+machine alignment(value: @u64) -> u64
+ensures result == align_of(value)
+{ 1u64 }
+
+public machine main() crashes Trap {
+    let cell: u64 = 42u64;
+    let n: u64 = alignment(@cell);
+    transition n >= 8u64 { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

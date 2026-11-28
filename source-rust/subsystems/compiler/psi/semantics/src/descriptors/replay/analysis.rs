@@ -2139,6 +2139,7 @@ impl<'a> DescriptorAnalysis<'a> {
                             // different field. A reference to parameter
                             // storage still needs its retained call loan.
                             self.replay.slot_kind != DescriptorSlotKind::References
+                                && !projection.upgraded_mutability
                                 && projection.original_descriptor_path().is_some()
                                 && !projection.indirect
                                 && projection.window.is_none()

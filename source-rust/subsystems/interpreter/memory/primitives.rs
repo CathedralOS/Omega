@@ -5938,6 +5938,11 @@ pub(crate) mod storage_addresses {
         TerminalInterpretError::StructuralIdentityExhausted
     }
 
+    enum LocationEndpoint {
+        Primitive(PrimitiveStorageEndpoint),
+        Frame(crate::storage::element_views::ElementViewHome),
+    }
+
     type Coordinate = (u64, u64);
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -6031,11 +6036,11 @@ pub(crate) mod storage_addresses {
             })
         }
 
-        fn storage_address_endpoint(
-            &mut self,
+        fn storage_location_endpoint(
+            &self,
             source: &StructuralArgument,
             scalar_type: Option<ScalarType>,
-        ) -> Result<PrimitiveStorageEndpoint, TerminalInterpretError> {
+        ) -> Result<LocationEndpoint, TerminalInterpretError> {
             let Some(scalar_type) = scalar_type else {
                 let selected = self.element_collection_storage(source)?;
                 if let Some(crate::storage::reference::AggregateViewTip::Aggregate {
@@ -6053,20 +6058,15 @@ pub(crate) mod storage_addresses {
                                 .into(),
                     });
                 }
-                let place = match selected.home {
-                    Some(home) => {
-                        self.owned_array_home(&home.storage)?;
-                        let (depth, place, _) = home.storage.scalar_array_frame();
-                        StructuralRuntimePlace {
-                            opaque_identity: self.array_storage_identity(depth, place)?,
-                            path: home.path,
-                        }
-                    }
-                    None => StructuralRuntimePlace::from(
-                        selected.collection.as_ref().ok_or(malformed())?,
-                    ),
-                };
-                return Ok(PrimitiveStorageEndpoint::Scalar(place));
+                if let Some(home) = selected.home {
+                    self.owned_array_home(&home.storage)?;
+                    return Ok(LocationEndpoint::Frame(home));
+                }
+                let place =
+                    StructuralRuntimePlace::from(selected.collection.as_ref().ok_or(malformed())?);
+                return Ok(LocationEndpoint::Primitive(
+                    PrimitiveStorageEndpoint::Scalar(place),
+                ));
             };
             if let Some((prefix, field_path)) = scalar_field_projection(&source.path) {
                 let (carrier, view) = self.resolve_live_view_projection(
@@ -6085,19 +6085,20 @@ pub(crate) mod storage_addresses {
                                 .and_then(|backing| backing.collection_home.as_ref()),
                             false,
                         )
-                        .map(|(storage, _, _)| storage.endpoint);
+                        .map(|(storage, _, _)| LocationEndpoint::Primitive(storage.endpoint));
                 }
                 if let Some(observed) =
                     self.scalar_field_at_carrier(carrier, view, field_path, scalar_type)?
                 {
-                    return Ok(self
-                        .reference_byte_region_access(&observed.carrier, &observed.leaf)?
-                        .map(|(storage, _)| storage.endpoint)
-                        .unwrap_or(PrimitiveStorageEndpoint::ScalarField(observed.cell)));
+                    return Ok(LocationEndpoint::Primitive(
+                        self.reference_byte_region_access(&observed.carrier, &observed.leaf)?
+                            .map(|(storage, _)| storage.endpoint)
+                            .unwrap_or(PrimitiveStorageEndpoint::ScalarField(observed.cell)),
+                    ));
                 }
             }
             self.primitive_access(source.place, false, &source.path)
-                .map(|(storage, _, _)| storage.endpoint)
+                .map(|(storage, _, _)| LocationEndpoint::Primitive(storage.endpoint))
         }
 
         fn array_storage_identity(
@@ -6272,7 +6273,7 @@ pub(crate) mod storage_addresses {
         /// address is an identity token in Psi and carries no alignment bits.
         fn location_alignment(
             &self,
-            endpoint: PrimitiveStorageEndpoint,
+            endpoint: LocationEndpoint,
         ) -> Result<u64, TerminalInterpretError> {
             use crate::boundary::values::StructuralFieldNamespace;
             use crate::storage::provider_storage::value_image::geometry::ImageGeometry;
@@ -6347,6 +6348,12 @@ pub(crate) mod storage_addresses {
                     }
                     alignment(allocation.structural_type, &path)
                 };
+            let endpoint = match endpoint {
+                LocationEndpoint::Frame(home) => {
+                    return alignment(home.storage.scalar_array_frame().2, &home.path);
+                }
+                LocationEndpoint::Primitive(endpoint) => endpoint,
+            };
             match endpoint {
                 PrimitiveStorageEndpoint::Scalar(place) => scalar_location(&place, None),
                 PrimitiveStorageEndpoint::ScalarField(field) => {
@@ -6386,11 +6393,11 @@ pub(crate) mod storage_addresses {
                     let [fragment] = fragments.as_slice() else {
                         return Err(missing());
                     };
-                    self.location_alignment(
+                    self.location_alignment(LocationEndpoint::Primitive(
                         fragment
                             .contiguous_address_endpoint(stored)
                             .ok_or_else(missing)?,
-                    )
+                    ))
                 }
                 PrimitiveStorageEndpoint::ViewByte { .. }
                 | PrimitiveStorageEndpoint::RepresentationByte(_) => Err(missing()),
@@ -6411,17 +6418,11 @@ pub(crate) mod storage_addresses {
             {
                 return Err(malformed());
             }
-            let scalar = terminal_semantics::primitive_read_projection_type(
-                self.structural_types().values(),
+            let alignment = self.observed_location_alignment(
+                source,
                 self.live_structural_type(source.place)?,
                 &source.path,
-            );
-            let endpoint = self.storage_address_endpoint(source, scalar)?;
-            let geometry = crate::storage::provider_storage::value_image::geometry::ImageGeometry::for_execution(self);
-            let limit = geometry
-                .location_alignment_limit(self.live_structural_type(source.place)?, &source.path)
-                .ok_or(malformed())?;
-            let alignment = self.location_alignment(endpoint)?.min(limit);
+            )?;
             self.values.insert(
                 result.id,
                 TerminalScalarValue::Integer {
@@ -6430,6 +6431,25 @@ pub(crate) mod storage_addresses {
                 },
             )?;
             Ok(())
+        }
+
+        pub(crate) fn observed_location_alignment(
+            &self,
+            source: &StructuralArgument,
+            observed_type: semantic_vocabulary::StructuralTypeId,
+            observed_path: &[StructuralPathSegment],
+        ) -> Result<u64, TerminalInterpretError> {
+            let scalar = terminal_semantics::primitive_read_projection_type(
+                self.structural_types().values(),
+                self.live_structural_type(source.place)?,
+                &source.path,
+            );
+            let endpoint = self.storage_location_endpoint(source, scalar)?;
+            let geometry = crate::storage::provider_storage::value_image::geometry::ImageGeometry::for_execution(self);
+            let limit = geometry
+                .location_alignment_limit(observed_type, observed_path)
+                .ok_or(malformed())?;
+            Ok(self.location_alignment(endpoint)?.min(limit))
         }
 
         pub(crate) fn execute_storage_address(
@@ -6451,7 +6471,16 @@ pub(crate) mod storage_addresses {
                 self.live_structural_type(source.place)?,
                 &source.path,
             );
-            let endpoint = self.storage_address_endpoint(source, scalar_type)?;
+            let endpoint = match self.storage_location_endpoint(source, scalar_type)? {
+                LocationEndpoint::Primitive(endpoint) => endpoint,
+                LocationEndpoint::Frame(home) => {
+                    let (depth, place, _) = home.storage.scalar_array_frame();
+                    PrimitiveStorageEndpoint::Scalar(StructuralRuntimePlace {
+                        opaque_identity: self.array_storage_identity(depth, place)?,
+                        path: home.path,
+                    })
+                }
+            };
             let (namespace, root, path) = self.endpoint_identity(endpoint)?;
             let namespace = namespace
                 .or(self.local_structural_identities.exposure_namespace)
@@ -6935,6 +6964,77 @@ pub(crate) mod storage_addresses {
             assert_eq!(actual, [1, 2, 91, 4]);
             referent.path = vec![StructuralPathSegment::FixedRange { start: 1, end: 3 }];
             assert!(shared.exclusive_reborrow(&execution, &referent).is_err());
+        }
+
+        #[test]
+        fn upgraded_view_descriptors_preserve_the_source_array_and_exact_subslice() {
+            let mut execution = execution();
+            let array = array(&mut execution, 19);
+            let source =
+                TerminalStructuralValue::minted(30, StructuralTypeId::new(3).unwrap(), Vec::new());
+            let destination =
+                TerminalStructuralValue::minted(31, source.structural_type, Vec::new());
+            let shared = shared(&execution, &array)
+                .subslice(1, 4)
+                .unwrap()
+                .subslice(1, 2)
+                .unwrap()
+                .with_descriptor_home(source);
+            let binding = ByteSequenceBinding::Immutable(shared);
+            let exclusive = binding
+                .exclusive_view_descriptor(&execution, &destination)
+                .unwrap();
+            assert_eq!(
+                execution
+                    .byte_descriptor_length(&exclusive, &destination)
+                    .unwrap(),
+                1
+            );
+            let ByteSequenceBinding::MutableArray {
+                array: backing,
+                offset,
+                ..
+            } = exclusive
+            else {
+                panic!("an upgraded byte descriptor needs the live array");
+            };
+            assert_eq!(offset, 2);
+            execution.stored_byte_array_write(&backing, 2, 91).unwrap();
+            assert_eq!(
+                (0..4)
+                    .map(|i| execution.stored_byte_array_read(&array, i).unwrap())
+                    .collect::<Vec<_>>(),
+                [1, 2, 91, 4]
+            );
+
+            let original =
+                TerminalStructuralValue::minted(40, StructuralTypeId::new(4).unwrap(), Vec::new());
+            let view = crate::storage::element_views::ElementView::structural(
+                original.clone(),
+                6,
+                StructuralAccess::SharedBorrow,
+                None,
+                semantic_vocabulary::PlaceId::new(1).unwrap(),
+            );
+            let shared = view
+                .subslice(1, 5, StructuralAccess::SharedBorrow)
+                .unwrap()
+                .subslice(1, 3, StructuralAccess::SharedBorrow)
+                .unwrap();
+            let exclusive = shared
+                .exclusive_reborrow()
+                .unwrap()
+                .with_descriptor_home(destination);
+            assert_eq!(exclusive.len(), 2);
+            for index in 0..6 {
+                let mut selected = original.clone();
+                selected.path.push(StructuralPathSegment::FixedIndex(index));
+                assert_eq!(
+                    exclusive.lends_structural_storage(&selected),
+                    (2..4).contains(&index)
+                );
+                assert!(!shared.lends_structural_storage(&selected));
+            }
         }
 
         #[test]

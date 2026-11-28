@@ -88,18 +88,20 @@ available. Pinned elements cannot gain mobility by entering a run.
 
 ## Split and merge contracts
 
-`Run::split<P, T>` and `Run::merge<P, T>` are public, bodyless compiler-supplied
-core machines admitted through the [sealed catalog](../language/machines.md#supply).
-Their exact declaration identities and signatures own the trusted rules below.
+`core/run.omg` declares `split<P, T>` and `merge<P, T>` as public, bodyless
+[file-level machines](../language/machines.md#static-declarations-and-explicit-state).
+The compiler supplies both machines. Callers select them as
+`|run|::split` and `|run|::merge`. The [sealed catalog](../language/machines.md#supply)
+identifies each by its exact declaration and signature.
 Matching a helper's name or adding it to `established by` grants no primitive
-semantics. `Live<P, T>` includes both declarations among its authorized
+semantics. `Run::Live<P, T>` includes those same two declarations among its authorized
 establishment routes, alongside its existing empty, initialization and relocation
 routes.
 
 | Primitive | Caller obligations | Custody result |
 | --- | --- | --- |
-| `Run::split::<P, T>(run, cut)` | Own a live run and prove `cut <= run.count`, with the backing partition and outstanding loans valid. | Consume `run`; return `RunParts<P, T>` with live `left` and `right` fields owning exactly its prefix and suffix. Their counts are `cut` and the input count minus `cut`. |
-| `Run::merge::<P, T>(left, right)` | Own both live runs; prove compatible placement and backing, valid backing adjacency, and that the combined count fits `u64`. | Consume both inputs; return one live run containing the actual left cells followed by the actual right cells, with their combined count and backing. |
+| `split::<P, T>(run, cut)` | Own a live run and prove `cut <= run.count`, with the backing partition and outstanding loans valid. | Consume `run`; return `RunParts<P, T>` with live `left` and `right` fields owning exactly its prefix and suffix. Their counts are `cut` and the input count minus `cut`. |
+| `merge::<P, T>(left, right)` | Own both live runs; prove compatible placement and backing, valid backing adjacency, and that the combined count fits `u64`. | Consume both inputs; return one live run containing the actual left cells followed by the actual right cells, with their combined count and backing. |
 
 Both operations are total when their preconditions hold. Bounds, adjacency and
 compatibility are `requires` obligations; a caller with runtime inputs can branch
@@ -111,9 +113,9 @@ They need no supply-selecting wrapper.
 For example, splitting and rejoining transfers the original ownership throughout:
 
 ```omega
-let parts: RunParts<P, T> = Run::split::<P, T>(run, cut);
-let whole: Run<P, T> in Live<P, T> =
-    Run::merge::<P, T>(parts.left, parts.right);
+let parts: |run|::RunParts<P, T> = |run|::split::<P, T>(run, cut);
+let whole: |run|::Run<P, T> in |run|::Run::Live<P, T> =
+    |run|::merge::<P, T>(parts.left, parts.right);
 ```
 
 At each call, the consumed inputs become unavailable. The compiler tracks the

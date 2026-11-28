@@ -14,11 +14,10 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 use crate::compile_time_invocations::{
-    FixedLayoutTargetScope, PlannedCall, PureEvaluationRecord, SourceCompletionAccounting,
-    invocation_error,
+    FixedLayoutTargetScope, PureEvaluationRecord, SourceCompletionAccounting, invocation_error,
 };
 
-use super::super::demanded_values::{DemandedValues, RoundProgram};
+use super::super::demanded_values::{DemandedValues, JudgedCall, RoundDemand, RoundProgram};
 use super::{References, decoded, family_position, key};
 
 /// Keeps the machine that computes each unevaluated constant among the
@@ -259,6 +258,7 @@ impl<'scope> Initializers<'scope> {
         &mut self,
         value: usize,
         round: &RoundProgram,
+        judged: Option<JudgedCall<'_>>,
         program: &mut TypedTrees,
         accounting: &mut SourceCompletionAccounting,
     ) -> Result<(), Vec<Diagnostic>> {
@@ -269,7 +269,8 @@ impl<'scope> Initializers<'scope> {
             .iter()
             .map(|scope| (scope.target.as_str(), scope.facts.as_ref()))
             .collect::<Vec<_>>();
-        let invocation = round.calls().prepare_entry(symbol, entry, &[])?;
+        let plan = round.calls().plan_entry(symbol, entry, &[])?;
+        let invocation = round.calls().demand_entry(&plan, judged)?;
         let module = invocation.accepted().module();
         let applications = module.scalars.scalar_applications.declarations();
         // A scalar produced with target inputs belongs to that deployment.
@@ -385,20 +386,17 @@ impl DemandedValues for Initializers<'_> {
     /// whatever deployments later run it.
     fn plan_round(
         &mut self,
-        values: &[usize],
+        values: &mut [RoundDemand],
         round: &RoundProgram,
         _program: &TypedTrees,
-    ) -> Vec<PlannedCall> {
-        values
-            .iter()
-            .filter_map(|&value| {
-                let job = &self.jobs[value];
-                round
-                    .calls()
-                    .plan_entry(job.symbol[0], job.entry[0], &[])
-                    .ok()
-            })
-            .collect()
+    ) {
+        for ready in values {
+            let job = &self.jobs[ready.value];
+            ready.call = round
+                .calls()
+                .plan_entry(job.symbol[0], job.entry[0], &[])
+                .ok();
+        }
     }
 
     fn description(&self, program: &TypedTrees, value: usize) -> String {
@@ -418,11 +416,12 @@ impl DemandedValues for Initializers<'_> {
         &mut self,
         value: usize,
         round: &RoundProgram,
+        judged: Option<JudgedCall<'_>>,
         program: &mut TypedTrees,
         accounting: &mut SourceCompletionAccounting,
     ) -> Result<(), Vec<Diagnostic>> {
         let symbol = self.jobs[value].symbol[0];
-        self.evaluate_job(value, round, program, accounting)
+        self.evaluate_job(value, round, judged, program, accounting)
             .map_err(|mut diagnostics| {
                 let name = program.symbols.name(symbol);
                 let declaration_span = program.symbols.symbol_source_span(symbol);
