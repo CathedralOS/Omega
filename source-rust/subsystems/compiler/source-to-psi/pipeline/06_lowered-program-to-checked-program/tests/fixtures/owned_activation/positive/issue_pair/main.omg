@@ -1,0 +1,14 @@
+use {omega}/language/core/reply.omg;
+use {omega}/language/core/activation.omg;
+
+machine main<'p>(slot: @'p mutable |reply|::ReplySlot) -> |reply|::ReplyPair<'p, u8>
+reaches none crashes none {
+    |reply|::new_reply_pair::<u8>(@mutable slot)
+}
+
+machine await_reply<'p>(
+    request: |reply|::Publication<'p> in |reply|::Issued<|reply|::RequestRole, u8>
+) -> u8
+reaches none crashes none suspends {
+    suspend |activation|::park::<u8>(request)
+}

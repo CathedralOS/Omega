@@ -40,6 +40,7 @@ macro_rules! bundled_library_files {
             CoreProgramImage => "core/program_image.omg",
             CoreReflect => "core/reflect/reflect.omg",
             CoreRelation => "core/relation.omg",
+            CoreReply => "core/reply.omg",
             CoreRepresentation => "core/representation.omg",
             CoreRun => "core/run.omg",
             CoreStaticInterrupt => "core/static_interrupt.omg",

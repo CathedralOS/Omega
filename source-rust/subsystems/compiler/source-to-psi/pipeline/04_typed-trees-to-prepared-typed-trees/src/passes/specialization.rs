@@ -591,11 +591,15 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut GeneratedMachines
         .expression_table
         .static_machine_application_arguments(applied.application)
         .to_vec();
-    if entered_machine(program, applied.target).is_some()
+    if let Some((declaration, _)) = entered_machine(program, applied.target)
         && program
             .preparable_bodyless_declaration(applied.target)
             .map_err(unserved)?
             .is_some()
+        && !matches!(
+            program.sealed_callable(declaration),
+            Some(language_core::sealed_intrinsics::SealedIntrinsic::OwnedActivation(_))
+        )
     {
         installed_interrupts::prepare_registrar(program, site, &applied)?;
         program
@@ -1525,8 +1529,14 @@ fn copied_parts(
     // copier preserves their supplying owners, and the specialization receipt
     // identifies the original declaration; invocation regions do not select a
     // separate executable body.
-    let plain = machine.body_is_present
-        && machine.supply_mode == source_declarations::MachineSupplyMode::CheckedBody
+    let sealed_header = machine.has_bodyless_signature()
+        && machine.supply_mode == source_declarations::MachineSupplyMode::Boundary
+        && matches!(
+            program.sealed_callable(symbol),
+            Some(language_core::sealed_intrinsics::SealedIntrinsic::OwnedActivation(_))
+        );
+    let plain = ((machine.body_is_present
+        && machine.supply_mode == source_declarations::MachineSupplyMode::CheckedBody) || sealed_header)
         && machine.owned_data.is_empty()
         && machine.satisfies.is_empty()
         && program.signature_invokes.span(machine.invokes).is_some()

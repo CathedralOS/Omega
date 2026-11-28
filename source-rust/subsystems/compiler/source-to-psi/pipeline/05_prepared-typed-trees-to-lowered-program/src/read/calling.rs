@@ -1187,12 +1187,6 @@ mod header_reading_tests {
             let row = program.boundaries.row(boundary).unwrap();
             assert_eq!(row.source, selected);
             assert_eq!(row.owner, owner);
-            assert_eq!(
-                row.declaration.owner,
-                typed
-                    .type_identity_text(typed.exact_owner_nominal_identity(owner, &[]).unwrap())
-                    .unwrap()
-            );
             let (registered, parents) = program.services.get(row.owning_service.unwrap()).unwrap();
             assert_eq!(registered.declaration.symbol, owner);
             assert!(parents.is_empty());

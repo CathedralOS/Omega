@@ -23,7 +23,7 @@ pub struct PackagePolicyServiceMethod {
     pub entry_claims: Vec<ServiceEntryClaim>,
     pub has_result: bool,
     pub result_type_identity: Option<String>,
-    pub normal_result_memberships: Vec<service_surface::ServiceNormalResultMembership>,
+    pub domain_memberships: Vec<service_surface::ServiceDomainMembership>,
     pub result_claims: Vec<ServiceResultClaim>,
     pub service_reach: Vec<String>,
     pub synchronous_invocations: Vec<ServiceSynchronousInvocation>,
@@ -57,7 +57,7 @@ impl PackagePolicyServiceMethod {
         self.result_type_identity.as_deref()
     }
 
-    field_projection_accessors!(sliced normal_result_memberships: &[service_surface::ServiceNormalResultMembership]);
+    field_projection_accessors!(sliced domain_memberships: &[service_surface::ServiceDomainMembership]);
     field_projection_accessors!(sliced result_claims: &[ServiceResultClaim]);
     field_projection_accessors!(sliced service_reach: &[String]);
     field_projection_accessors!(sliced synchronous_invocations: &[ServiceSynchronousInvocation]);

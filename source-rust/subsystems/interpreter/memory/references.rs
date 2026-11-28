@@ -3149,6 +3149,13 @@ impl TerminalExecution<'_> {
     ) -> Result<(), TerminalInterpretError> {
         let result = operation.result.structural().ok_or(malformed())?;
         let descriptor = self.resolve_live_projection(source.place, &source.path, source.access)?;
+        if !result
+            .projected_qualifications
+            .iter()
+            .all(|row| descriptor.projected_qualifications.contains(row))
+        {
+            return Err(malformed());
+        }
         if self
             .structural_declaration(descriptor.structural_type)?
             .shape
@@ -3162,10 +3169,6 @@ impl TerminalExecution<'_> {
             || input_type != result_type
             || input_access != StructuralAccess::SharedBorrow
             || result_access != StructuralAccess::MutableBorrow
-            || !result
-                .projected_qualifications
-                .iter()
-                .all(|row| descriptor.projected_qualifications.contains(row))
         {
             return Err(malformed());
         }
@@ -3230,7 +3233,6 @@ impl TerminalExecution<'_> {
             )
             || result.multiplicity != StructuralMultiplicity::Affine
             || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
             || !result.claims.is_empty()
             || self.structural_values.contains_key(&result.place)
             || self.live_affine_discard_at(result.place).is_some()
@@ -3245,7 +3247,10 @@ impl TerminalExecution<'_> {
         }
         self.validate_descriptor_borrow(source, source.access)?;
         let mut cursor = self.local_structural_identities.cursor();
-        let destination = self.mint_staged(&mut cursor, result.structural_type)?;
+        let mut destination = self.mint_staged(&mut cursor, result.structural_type)?;
+        destination
+            .projected_qualifications
+            .clone_from(&result.projected_qualifications);
         if input.is_borrowed_byte_carrier() {
             let binding = self.byte_descriptor_binding(source, descriptor)?;
             let length = self.byte_descriptor_length(&binding, descriptor)?;

@@ -229,9 +229,16 @@ fn checked_source_application(
         let template = typed
             .unique_data_definition_by_symbol(*base_symbol)
             .ok_or_else(|| malformed(machine, "record application has no unique template"))?;
-        if !lifetime_arguments.is_empty() || !template.lifetime_parameters.is_empty() {
-            return Err(unavailable(
-                "record application with type and lifetime arguments",
+        // Specializing the value/type arguments must not change the set of
+        // lifetime binders. The use of this record carries their actual
+        // regions, not the shared storage description.
+        if template.lifetime_parameters != data.lifetime_parameters
+            || (!lifetime_arguments.is_empty()
+                && lifetime_arguments.len() != template.lifetime_parameters.len())
+        {
+            return Err(malformed(
+                machine,
+                "record application changed its lifetime binders",
             ));
         }
         if !template.conformance_bounds.is_empty() || !data.conformance_bounds.is_empty() {

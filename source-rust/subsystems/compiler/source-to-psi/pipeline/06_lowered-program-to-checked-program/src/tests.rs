@@ -280,6 +280,7 @@ fn lower(machines: Vec<Machine>) -> Checked<crate::lowering::Elaboration> {
             statements: machine.statements,
         });
         signatures.push(Signature {
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             content_ensures: Vec::new(),
             operational: Default::default(),
@@ -307,6 +308,23 @@ fn run(machines: Vec<Machine>) -> (crate::lowering::Elaboration, Discharge) {
     let mut elaboration = lower(machines).unwrap();
     let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     (elaboration, result)
+}
+
+fn assert_routed_input_violation(verdict: RouteVerdict, source: &str, call: &str) {
+    let RouteVerdict::Rejected { violations, .. } = verdict else {
+        panic!("expected an input requirement violation at {call}: {verdict:?}");
+    };
+    let [violation] = &violations[..] else {
+        panic!("expected one input requirement violation: {violations:?}");
+    };
+    assert!(
+        violation
+            .statement
+            .starts_with("call does not establish the routed membership of its actual input"),
+        "{violation:?}"
+    );
+    let span = violation.site.expect("the authored call has a span").span;
+    assert_eq!(&source[span.start..span.end], call);
 }
 
 /// The route's verdict on `machines`, which must reject the program.
@@ -2077,6 +2095,7 @@ fn elaborate_over(
             statements: machine.statements,
         });
         signatures.push(Signature {
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             content_ensures: Vec::new(),
             operational: Default::default(),
@@ -6569,6 +6588,7 @@ mod generic_bodies {
                 statements: machine.statements,
             });
             signatures.push(Signature {
+                membership_requires: Vec::new(),
                 membership_ensures: Vec::new(),
                 content_ensures: Vec::new(),
                 operational: Default::default(),
@@ -7175,6 +7195,7 @@ fn crashing_below_ten(
         ],
     });
     signatures.push(Signature {
+        membership_requires: Vec::new(),
         membership_ensures: Vec::new(),
         content_ensures: Vec::new(),
         operational: Default::default(),
@@ -7350,6 +7371,7 @@ fn crashing_at_zero(requires: Vec<Proposition>) -> (crate::lowering::Elaboration
         ],
     });
     signatures.push(Signature {
+        membership_requires: Vec::new(),
         membership_ensures: Vec::new(),
         content_ensures: Vec::new(),
         operational: Default::default(),
@@ -7406,6 +7428,7 @@ fn calling_a_zero_route(requires: Vec<Proposition>) -> (crate::lowering::Elabora
         statements: vec![returns(call(2, vec![slot(0, u32_type())]))],
     });
     signatures.push(Signature {
+        membership_requires: Vec::new(),
         membership_ensures: Vec::new(),
         content_ensures: Vec::new(),
         operational: Default::default(),
@@ -7434,6 +7457,7 @@ fn calling_a_zero_route(requires: Vec<Proposition>) -> (crate::lowering::Elabora
         ],
     });
     signatures.push(Signature {
+        membership_requires: Vec::new(),
         membership_ensures: Vec::new(),
         content_ensures: Vec::new(),
         operational: Default::default(),
@@ -7539,6 +7563,7 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
             statements: vec![returns(call(2, vec![slot(0, u32_type())]))],
         });
         signatures.push(Signature {
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             content_ensures: Vec::new(),
             operational: Default::default(),
@@ -7567,6 +7592,7 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
             ],
         });
         signatures.push(Signature {
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             content_ensures: Vec::new(),
             operational: Default::default(),
