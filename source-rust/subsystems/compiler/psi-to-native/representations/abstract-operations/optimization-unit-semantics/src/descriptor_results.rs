@@ -657,7 +657,7 @@ pub(crate) mod scalar_expressions {
                             access: StructuralAccess::Owned,
                         },
                     ],
-                    opened_referents: Default::default(),
+                    opening: None,
                     claim_transfers: Vec::new(),
                     result: AbstractStructuralCallResult::Unit,
                     requirement_obligations: Vec::new(),
