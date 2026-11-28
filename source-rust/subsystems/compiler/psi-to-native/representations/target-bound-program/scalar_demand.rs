@@ -277,6 +277,21 @@ mod storage {
         fn only_the_checked_borrow_stops_at_its_stored_reference() {
             use terminal_psi::{OperationProjection, StructuralArgument, StructuralPathSegment};
 
+            fn projected<'a>(
+                projection: OperationProjection<'a>,
+                argument: &StructuralArgument,
+                has_receipt: bool,
+            ) -> OperationProjection<'a> {
+                let terminal_psi::StructuralStorageUse::Projection(actual) = call_argument_storage(
+                    projection.into(),
+                    std::slice::from_ref(argument),
+                    |index| index == 0 && has_receipt,
+                ) else {
+                    panic!("a call argument must retain its reference carrier");
+                };
+                actual
+            }
+
             let place = semantic_vocabulary::PlaceId::new(1).unwrap();
             let path = [
                 StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(0)),
@@ -296,44 +311,19 @@ mod storage {
                 path: path.to_vec(),
                 access: StructuralAccess::MutableBorrow,
             };
-            let borrow = |projection: OperationProjection, argument, checked| {
-                let terminal_psi::StructuralStorageUse::Projection(actual) =
-                    call_argument_storage(projection.into(), &[argument], |position| {
-                        position == 0 && checked
-                    })
-                else {
-                    panic!("a call argument must retain its reference carrier");
-                };
-                assert_eq!(actual.root, projection.root);
-                (actual.path.to_vec(), actual.field)
-            };
-            assert_eq!(
-                borrow(projection, argument.clone(), true),
-                (stored.path.to_vec(), None)
-            );
-            assert_eq!(
-                borrow(projection, argument.clone(), false),
-                (path.to_vec(), None)
-            );
-            assert_eq!(
-                borrow(
-                    projection,
-                    StructuralArgument {
-                        access: StructuralAccess::Owned,
-                        ..argument.clone()
-                    },
-                    true
-                ),
-                (path.to_vec(), None)
-            );
-            let selected_field = OperationProjection {
+            assert_eq!(projected(projection, &argument, true), stored);
+            assert_eq!(projected(projection, &argument, false), projection);
+
+            let field = OperationProjection {
                 field: semantic_vocabulary::StructuralFieldId::new(2),
                 ..projection
             };
-            assert_eq!(
-                borrow(selected_field, argument, true),
-                (path.to_vec(), selected_field.field)
-            );
+            assert_eq!(projected(field, &argument, true), field);
+            let owned = StructuralArgument {
+                access: StructuralAccess::Owned,
+                ..argument
+            };
+            assert_eq!(projected(projection, &owned, true), projection);
         }
 
         #[test]
