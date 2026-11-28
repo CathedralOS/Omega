@@ -1,6 +1,8 @@
 //! Native address formation and checked upgrades both produce ordinary, typed borrows.
 #![cfg(all(target_os = "linux", target_arch = "x86_64"))]
 
+#[path = "native_borrows/nested_references.rs"]
+mod nested_references;
 #[path = "native_borrows/qualifications.rs"]
 mod qualifications;
 #[path = "support/project.rs"]
