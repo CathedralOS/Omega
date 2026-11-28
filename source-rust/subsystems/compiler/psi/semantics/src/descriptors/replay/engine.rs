@@ -1022,8 +1022,14 @@ impl<'a> Replay<'a> {
                 }
                 // Public and provider calls need their retained interface
                 // effect owner. A possible private implementation is not it.
-                let Some(callee) = invocation.callee() else {
-                    return Ok(None);
+                use crate::descriptor_lifetimes::ActivationAccess;
+                let callee = match machine.activation_access(position, invocation.owner) {
+                    Some(ActivationAccess::Prepare(_) | ActivationAccess::Resume) => continue,
+                    Some(ActivationAccess::Step(worker)) => worker,
+                    None => match invocation.callee() {
+                        Some(callee) => callee,
+                        None => return Ok(None),
+                    },
                 };
                 self.prepare_access_frame(callee)?;
                 let complete = self
@@ -4960,6 +4966,11 @@ impl<'a> Replay<'a> {
                     if origins.is_empty() {
                         return None;
                     }
+                    if is_empty_case_slot(&origins)
+                        && cases.excludes_payload(structural_type, &slot.path)
+                    {
+                        continue;
+                    }
                     for origin in origins {
                         slot.merge(self.exported_result(
                             machine,
@@ -4991,6 +5002,17 @@ impl<'a> Replay<'a> {
             }
             let mut slots = slots?;
             slots.retain(|slot| !unknown_results.contains(&slot.path));
+            for slot in &mut slots {
+                if slot.origins.is_empty() {
+                    if !result_type
+                        .zip(result_cases.as_ref())
+                        .is_some_and(|(ty, cases)| cases.excludes_payload(ty, &slot.path))
+                    {
+                        return None;
+                    }
+                    slot.origins.push(DescriptorStoredOrigin::Empty);
+                }
+            }
             DescriptorResultSlot::canonicalize(&mut slots)?;
             Some(slots)
         } else {
@@ -5293,12 +5315,36 @@ fn merge_state(existing: &mut State, incoming: &State) -> bool {
             changed = true;
         }
     }
+    let prior_cases = before.cases.clone();
     drop(before);
-    changed |= merge_slots(&mut existing.slots, &incoming.slots);
-    changed |= merge_slots(&mut existing.arrival_backing, &incoming.arrival_backing);
+    changed |= merge_slots(
+        &mut existing.slots,
+        &incoming.slots,
+        Some((&prior_cases, &incoming.cases)),
+    );
+    changed |= merge_slots(
+        &mut existing.arrival_backing,
+        &incoming.arrival_backing,
+        None,
+    );
     changed
 }
-fn merge_slots(existing: &mut Arc<Slots>, incoming: &Arc<Slots>) -> bool {
+fn is_empty_case_slot(origins: &BTreeSet<Origin>) -> bool {
+    origins.len() == 1
+        && matches!(
+            origins.first(),
+            Some(Origin::Backing(DescriptorCallOrigin::Empty))
+        )
+}
+
+fn merge_slots(
+    existing: &mut Arc<Slots>,
+    incoming: &Arc<Slots>,
+    cases: Option<(
+        &super::case_flow::CurrentCases,
+        &super::case_flow::CurrentCases,
+    )>,
+) -> bool {
     if Arc::ptr_eq(existing, incoming) {
         return false;
     }
@@ -5338,6 +5384,21 @@ fn merge_slots(existing: &mut Arc<Slots>, incoming: &Arc<Slots>) -> bool {
                 previous.and_then(Option::as_ref),
                 arriving.and_then(Option::as_ref),
             ) {
+                // An inactive sum field holds a placeholder on this edge. Its
+                // sibling edge still has to supply a complete origin of its own.
+                (Some(left), Some(right))
+                    if is_empty_case_slot(left)
+                        && cases.is_some_and(|(before, _)| before.excludes_payload(location)) =>
+                {
+                    Some(right.clone())
+                }
+                (Some(left), Some(right))
+                    if is_empty_case_slot(right)
+                        && cases
+                            .is_some_and(|(_, arriving)| arriving.excludes_payload(location)) =>
+                {
+                    Some(left.clone())
+                }
                 (Some(left), Some(right)) => Some(left.union(right).cloned().collect()),
                 _ => None,
             };

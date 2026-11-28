@@ -25,6 +25,7 @@ impl RequirementApplicationSource {
     /// body header. No callback contract can be filled in at this earlier point.
     pub(super) fn primitive(
         typed: &TypedTrees,
+        sources: &[(source_text::SourceId, [u8; 32])],
         symbol: SymbolHandle,
         prepared: super::PreparedApplication,
         callable: String,
@@ -40,7 +41,7 @@ impl RequirementApplicationSource {
         if bindings.len() != prepared.telescope.len() {
             return Err("a specialized primitive lost a static argument");
         }
-        let arguments = prepared
+        let mut arguments = prepared
             .telescope
             .into_iter()
             .zip(bindings)
@@ -75,6 +76,39 @@ impl RequirementApplicationSource {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
+        use language_core::sealed_intrinsics::{ActivationOperation, SealedIntrinsic};
+        let reply_position = match typed.sealed_callable(symbol) {
+            Some(SealedIntrinsic::OwnedActivation(ActivationOperation::Park)) => Some(0),
+            Some(SealedIntrinsic::OwnedActivation(ActivationOperation::Resume)) => Some(2),
+            _ => None,
+        };
+        let mut commitment = commitment;
+        if let Some(position) = reply_position {
+            let (Some(RequirementArgumentSource::Type(declared)), Some(binding)) =
+                (arguments.get_mut(position), bindings.get(position))
+            else {
+                return Err("an activation lost its reply type argument");
+            };
+            let StaticMachineBindingValue::Type(reference) = binding.value else {
+                return Err("an activation needs a type for its reply");
+            };
+            let exact = typed
+                .exact_owner_type_identity(
+                    crate::source_state::type_identity::ExactOwnerTypeIdentityRequest {
+                        type_reference: reference,
+                        lifetime_scope: None,
+                        binders: &[],
+                        substitutions: &[],
+                        exact_toolchain_sources: sources,
+                    },
+                )
+                .and_then(|id| typed.type_identity_text(id))
+                .ok_or("an activation reply lost its exact type owner")?;
+            commitment = terminal_semantics::calls::owned_activation::reply_application_commitment(
+                commitment, declared, &exact,
+            )?;
+            *declared = exact;
+        }
         Ok(Self {
             callable,
             arguments,

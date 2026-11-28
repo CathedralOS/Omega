@@ -306,3 +306,26 @@ fn completed_return_tags_union_all_exits_and_unknown_or_public_returns_grant_not
         FlowFeasibility::Unknown
     );
 }
+
+#[test]
+fn an_inactive_payload_can_be_excluded_only_at_its_exact_subject() {
+    let selected = StructuralCaseId::new(1).unwrap();
+    let sibling = StructuralCaseId::new(2).unwrap();
+    let mut owner = place(1);
+    owner.path.push(DescriptorPathSegment::Field(
+        semantic_vocabulary::StructuralFieldId::new(8).unwrap(),
+    ));
+    let mut payload = owner.clone();
+    payload.path.push(DescriptorPathSegment::Case(selected));
+    let mut other_owner = payload.clone();
+    other_owner.root = place(2).root;
+    let mut facts = CurrentCases::default();
+    assert!(!facts.excludes_payload(&payload));
+    facts
+        .facts
+        .insert(owner.clone(), CaseSet::singleton(sibling));
+    assert!(facts.excludes_payload(&payload));
+    assert!(!facts.excludes_payload(&other_owner));
+    facts.facts.insert(owner, CaseSet::singleton(selected));
+    assert!(!facts.excludes_payload(&payload));
+}

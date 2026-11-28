@@ -1974,11 +1974,11 @@ fn adapt_flow(
                     let declaration = module.boundary_machine(*boundary)?;
                     let preparation = match declaration.declaration.as_ref().map(|d| &d.execution) {
                         Some(terminal_psi::CheckedBoundaryExecution::OwnedActivation(
-                            control @ (language_core::sealed_intrinsics::ActivationOperation::Prepare
+                            language_core::sealed_intrinsics::ActivationOperation::Prepare
                             | language_core::sealed_intrinsics::ActivationOperation::StepFixed
-                            | language_core::sealed_intrinsics::ActivationOperation::Resume)
+                            | language_core::sealed_intrinsics::ActivationOperation::Resume,
                         )) => Some(super::prepared_owner::invocation(
-                            module, machine, operation, declaration, *control, slot_kind, failure_detail,
+                            module, machine, operation, declaration, slot_kind, failure_detail, &mut step,
                         )?),
                         _ => None,
                     };

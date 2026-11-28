@@ -3142,6 +3142,27 @@ impl<'a> Storage<'a> {
                             "returned reference has no actual result descriptor",
                         )
                     })?;
+                    // The published mapping covers the whole result. At this
+                    // return only an inhabited alternative can carry a loan.
+                    let inactive = descriptor.path.iter().enumerate().any(|(index, segment)| {
+                        let DescriptorPathSegment::Case(case) = segment else {
+                            return false;
+                        };
+                        let subject = DescriptorLocation {
+                            root: descriptor.root,
+                            path: descriptor.path[..index].to_vec(),
+                        };
+                        references.case_feasibility(
+                            self.lowered.id, at,
+                            &terminal_semantics::descriptor_results::DescriptorCasePredicate {
+                                subject: subject.into(),
+                                case: *case,
+                            },
+                        ) == terminal_semantics::descriptor_results::FlowFeasibility::ProvedImpossible
+                    });
+                    if inactive {
+                        continue;
+                    }
                     let sources = terminal_semantics::borrowed_loan_sources(
                         module,
                         self.lowered,

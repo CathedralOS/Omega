@@ -110,9 +110,13 @@ pub fn resume_shape(
         .declaration
         .as_ref()
         .ok_or("resume has no checked signature")?;
+    let source = &checked.source;
+    let [declared_owner, _, declared_reply] = source.parameter_types.as_slice() else {
+        return Err("resume needs the declared owner, publication and reply");
+    };
     let reply = module
         .identities
-        .text(permit.reply)
+        .text(*declared_reply)
         .ok_or("resume has no declared reply")?;
     let [input, publication, ..] = boundary.structural_parameters.as_slice() else {
         return Err("resume must take the suspended owner and its answer publication");
@@ -223,10 +227,6 @@ pub fn resume_shape(
     ) {
         return Err("resume asserted an unprovided result qualification");
     }
-    let source = &checked.source;
-    let [declared_owner, _, _] = source.parameter_types.as_slice() else {
-        return Err("resume needs the declared owner, publication and reply");
-    };
     if !super::declares_worker(
         module,
         prepared.selected,
