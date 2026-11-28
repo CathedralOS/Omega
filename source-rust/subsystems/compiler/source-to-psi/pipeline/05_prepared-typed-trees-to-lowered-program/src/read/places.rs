@@ -235,9 +235,12 @@ impl Program<'_> {
         if !data.lifetime_parameters.is_empty() {
             // A reference-valued type argument adds another region to the
             // named regions. Keep refusing until both are represented.
-            return Err(refuse_at(id, Unserved::Type(
-                "record occurrence with both declared regions and a borrowed type argument",
-            )));
+            return Err(refuse_at(
+                id,
+                Unserved::Type(
+                    "record occurrence with both declared regions and a borrowed type argument",
+                ),
+            ));
         }
         // The stored application may have been shared by occurrences at
         // different lifetimes. Read this occurrence's actual arguments.

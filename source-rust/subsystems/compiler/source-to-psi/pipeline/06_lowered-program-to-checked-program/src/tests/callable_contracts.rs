@@ -608,7 +608,10 @@ machine build_entry(value: u32) -> u32 {{
         "let result: u32 = block root(value); result",
     ] {
         let negative = source("root", body);
-        assert_typing_refuses(&negative, "the evaluated call operand is not a runtime callable");
+        assert_typing_refuses(
+            &negative,
+            "the evaluated call operand is not a runtime callable",
+        );
     }
 }
 

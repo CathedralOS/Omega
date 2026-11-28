@@ -116,7 +116,9 @@ impl TypedTrees {
         &self,
         symbol: symbols::SymbolHandle,
     ) -> Option<language_core::sealed_intrinsics::SealedIntrinsic> {
-        let template = self.machine_specialization(symbol).map_or(symbol, |row| row.template);
+        let template = self
+            .machine_specialization(symbol)
+            .map_or(symbol, |row| row.template);
         self.symbols.sealed_intrinsic(template)
     }
 

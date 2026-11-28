@@ -236,7 +236,10 @@ fn checked_source_application(
             || (!lifetime_arguments.is_empty()
                 && lifetime_arguments.len() != template.lifetime_parameters.len())
         {
-            return Err(malformed(machine, "record application changed its lifetime binders"));
+            return Err(malformed(
+                machine,
+                "record application changed its lifetime binders",
+            ));
         }
         if !template.conformance_bounds.is_empty() || !data.conformance_bounds.is_empty() {
             return Err(unavailable(

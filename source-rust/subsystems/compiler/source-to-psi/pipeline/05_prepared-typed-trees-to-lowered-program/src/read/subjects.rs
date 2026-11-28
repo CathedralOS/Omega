@@ -829,7 +829,11 @@ impl Program<'_> {
                 "generic data with bounds, cleanup, a quotient or retired members",
             ));
         }
-        super::places::lifetime_binders(entry, &data.lifetime_parameters, self.declared_at(data.symbol))?;
+        super::places::lifetime_binders(
+            entry,
+            &data.lifetime_parameters,
+            self.declared_at(data.symbol),
+        )?;
         let parameters = typed.data_type_parameters(data);
         for parameter in parameters {
             let served = match parameter.kind {

@@ -1300,7 +1300,10 @@ pub(crate) fn access_caller_route(
     } else if selected.is_bare_declaration() && !typed.machine_type_parameters(machine).is_empty() {
         // The exact template's issuer is already checked against each
         // specialization. This is not a closed callable commitment.
-        (NominalDeclarationIdentity::new(nominal(typed, sources, machine.symbol, identities)?), callable)
+        (
+            NominalDeclarationIdentity::new(nominal(typed, sources, machine.symbol, identities)?),
+            callable,
+        )
     } else {
         use crate::source_state::data::TypeParameterKind;
         use crate::source_state::static_applications::{
@@ -1839,7 +1842,9 @@ pub(crate) fn boundary(
 
     let intrinsic = match execution {
         CheckedBoundaryExecution::LayoutTargetFacts => Some(SealedIntrinsic::LayoutTargetFacts),
-        CheckedBoundaryExecution::OwnedActivation(operation) => Some(SealedIntrinsic::OwnedActivation(operation)),
+        CheckedBoundaryExecution::OwnedActivation(operation) => {
+            Some(SealedIntrinsic::OwnedActivation(operation))
+        }
         CheckedBoundaryExecution::NumericPrimitive => {
             Some(SealedIntrinsic::FloatOperationRequirement)
         }
@@ -2062,14 +2067,25 @@ fn top_level_boundary(
         published,
     )
     .map_err(Diagnostic::error)?;
-    let (specialization, method_arguments) = if let Some(row) = typed.machine_specialization(symbol) {
-        let (application, prepared) = application(typed, &sources, symbol, row.template, &[], identities)
-            .map_err(Diagnostic::error)?;
-        let prepared = prepared.ok_or_else(|| Diagnostic::error("primitive has no closed argument record"))?;
-        let arguments = prepared.telescope.iter().map(|parameter| match parameter {
-            PreparedParameter::Ready(ClosedReachParameter::Type { argument }) => Ok(terminal_psi::ClosedReachArgument::Type(identities.intern(argument))),
-            _ => Err(Diagnostic::error("primitive has an unsupported generic argument kind")),
-        }).collect::<Result<Vec<_>, _>>()?;
+    let (specialization, method_arguments) = if let Some(row) = typed.machine_specialization(symbol)
+    {
+        let (application, prepared) =
+            application(typed, &sources, symbol, row.template, &[], identities)
+                .map_err(Diagnostic::error)?;
+        let prepared =
+            prepared.ok_or_else(|| Diagnostic::error("primitive has no closed argument record"))?;
+        let arguments = prepared
+            .telescope
+            .iter()
+            .map(|parameter| match parameter {
+                PreparedParameter::Ready(ClosedReachParameter::Type { argument }) => Ok(
+                    terminal_psi::ClosedReachArgument::Type(identities.intern(argument)),
+                ),
+                _ => Err(Diagnostic::error(
+                    "primitive has an unsupported generic argument kind",
+                )),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         (Some(application), arguments)
     } else {
         (None, Vec::new())

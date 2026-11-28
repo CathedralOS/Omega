@@ -159,9 +159,9 @@ impl BoundaryNamespace {
                     .collect();
             let reader = declarations.ok_or_else(|| refusal("boundary lost its source owner"))?;
             let execution = match reader.typed.sealed_callable(source.source) {
-                Some(language_core::sealed_intrinsics::SealedIntrinsic::OwnedActivation(operation)) => {
-                    CheckedBoundaryExecution::OwnedActivation(operation)
-                }
+                Some(language_core::sealed_intrinsics::SealedIntrinsic::OwnedActivation(
+                    operation,
+                )) => CheckedBoundaryExecution::OwnedActivation(operation),
                 Some(language_core::sealed_intrinsics::SealedIntrinsic::LayoutTargetFacts) => {
                     CheckedBoundaryExecution::LayoutTargetFacts
                 }

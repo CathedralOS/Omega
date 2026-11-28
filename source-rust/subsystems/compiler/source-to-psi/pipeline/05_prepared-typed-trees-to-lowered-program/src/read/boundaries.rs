@@ -161,14 +161,21 @@ impl Program<'_> {
         {
             return Ok(Some((id, source.signature.clone())));
         }
-        if matches!(typed.sealed_callable(target),
-            Some(language_core::sealed_intrinsics::SealedIntrinsic::LayoutTargetFacts |
-                 language_core::sealed_intrinsics::SealedIntrinsic::OwnedActivation(_))) {
+        if matches!(
+            typed.sealed_callable(target),
+            Some(
+                language_core::sealed_intrinsics::SealedIntrinsic::LayoutTargetFacts
+                    | language_core::sealed_intrinsics::SealedIntrinsic::OwnedActivation(_)
+            )
+        ) {
             let (_, declared) = typed
                 .bodyless_declaration(target)
                 .map_err(|reason| crate::read::unavailable(context, reason))?
                 .ok_or_else(|| {
-                    crate::read::unavailable(context, "compiler operation lost its core declaration")
+                    crate::read::unavailable(
+                        context,
+                        "compiler operation lost its core declaration",
+                    )
                 })?;
             let (signature, _) = self.boundary_signature(context, &declared)?;
             let envelope = self.signature_envelope(context, &declared)?;

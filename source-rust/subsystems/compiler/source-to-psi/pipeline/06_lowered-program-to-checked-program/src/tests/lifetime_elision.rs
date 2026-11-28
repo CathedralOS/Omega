@@ -66,10 +66,14 @@ data Packet<'storage, T> { anchor: @'storage u8; value: T; }
 machine build_entry<'a>(packet: Packet<'a, u8>) -> u8 { packet.value }
 "#;
     let verdict = judge_build(source).unwrap();
-    let RouteVerdict::Accepted(accepted) = verdict else { panic!("{verdict:?}") };
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("{verdict:?}")
+    };
     accepted.publish_invocation().unwrap();
-    assert!(violation(&source.replace("Packet<'a, u8>", "Packet<'other, u8>"))
-        .contains("undeclared lifetime tags reject"));
+    assert!(
+        violation(&source.replace("Packet<'a, u8>", "Packet<'other, u8>"))
+            .contains("undeclared lifetime tags reject")
+    );
 }
 
 #[test]
@@ -82,10 +86,15 @@ data Box<'held> { label: Label<'held> in Label::Marked; number: u8; }
 machine build_entry<'a>(box: Box<'a>) -> u8 { box.number }
 "#;
     let verdict = judge_build(source).unwrap();
-    let RouteVerdict::Accepted(accepted) = verdict else { panic!("{verdict:?}") };
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("{verdict:?}")
+    };
     accepted.publish_invocation().unwrap();
     let other = source.replace("label: Label<'held>", "label: Other<'held>");
-    super::callable_contracts::assert_typing_refuses(&other, "domain `Label::Marked` does not qualify carrier `Other<>`");
+    super::callable_contracts::assert_typing_refuses(
+        &other,
+        "domain `Label::Marked` does not qualify carrier `Other<>`",
+    );
 }
 
 /// `Build` itself stores views: `identifier: @'storage [u8]`. The view's

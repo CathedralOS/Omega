@@ -460,10 +460,11 @@ fn adapt_flow(
                     .or_default()
                     .push((location, ScalarTerm::value(result.id, result.scalar_type)));
             }
-            let mut needs_invocation_summary = matches!(
-                &operation.kind,
-                terminal_psi::call_structural_argument_variants!(_arguments)
-            ) || matches!(&operation.kind, OperationKind::Call { .. });
+            let mut needs_invocation_summary =
+                matches!(
+                    &operation.kind,
+                    terminal_psi::call_structural_argument_variants!(_arguments)
+                ) || matches!(&operation.kind, OperationKind::Call { .. });
             // A scalar sibling does not observe the reference leaves
             // beside it. Retain the representation's projected uses;
             // reducing them to roots spuriously extends those loans.
