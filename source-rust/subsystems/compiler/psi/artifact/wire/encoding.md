@@ -2713,9 +2713,19 @@ presence Boolean followed by a `u32` index; both envelope tables likewise
 use a presence Boolean before each present row. The existing declaration,
 result, claim, proof and certificate encodings apply to the corresponding fields.
 Runtime parameter-order tags are `0` scalar and `1` structural; erased formals
-have no runtime position. An invocation dependency is tag `1` plus a `u32`
-callable parameter position, or tag `2` plus a service id. Termination tag `0`
-provides no guarantee; tag `1` is followed by counted termination premises.
+have no runtime position. The invocation dependency tags are as follows.
+
+| Tag | Payload | Entry |
+| --- | --- | --- |
+| 1 | `u32` parameter position | The callable formal itself |
+| 2 | Service id | The named synchronous service entry |
+| 3 | `u32` parameter position and counted structural path | The callable stored at that path in the formal |
+
+Tag 3 requires a nonempty path of field, case, fixed-index or referent steps.
+It must resolve to a callable in that formal. Forwarding a record substitutes
+the actual record and the same path into the caller's entry obligations.
+
+Termination tag `0` provides no guarantee. Tag `1` precedes counted termination premises.
 Other tags reject.
 
 Receiving checks each opaque scalar's contract association and each descriptor's
