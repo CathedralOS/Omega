@@ -2,7 +2,7 @@
 use diagnostics::Diagnostic;
 use semantic_vocabulary::TargetMachineCallable as Callable;
 use semantic_vocabulary::dependency_reach::{
-    DependencyCallOrigin, DependencyCallOrigins, ExecutionReachPolicy, UnsafeServices,
+    DependencyCallOrigin, DependencyCallOrigins, ExecutionReachPolicy, UnsafeAtom, UnsafeServices,
 };
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use terminal_psi::{ProofCallableHeader, TerminalModule};
@@ -51,6 +51,23 @@ enum Via {
 
 type Paths = BTreeMap<Callable, Via>;
 
+/// A caller can report the same service as a callee that is reachable through a
+/// shorter path. Only an intrinsic or an actual boundary identifies the operation.
+struct UnmetService<'a> {
+    callable: Callable,
+    service: &'a str,
+    required: Option<UnsafeAtom>,
+    intrinsic: Option<&'static str>,
+    edge_withheld: bool,
+}
+
+impl UnmetService<'_> {
+    fn names_unsafe_operation(&self) -> bool {
+        self.required.is_some()
+            && (self.intrinsic.is_some() || matches!(self.callable, Callable::Boundary(_)))
+    }
+}
+
 fn complete_paths(
     calls: &CallGraph<'_>,
     paths: &mut Paths,
@@ -71,14 +88,14 @@ fn complete_paths(
     reached
 }
 
-fn diagnostic_path(
+fn path_notes(
     module: &TerminalModule,
     policy: &ExecutionReachPolicy,
     headers: &BTreeMap<Callable, &ProofCallableHeader>,
     paths: &Paths,
     roots: &Paths,
     current: Callable,
-) -> Result<String, Vec<Diagnostic>> {
+) -> Result<Vec<Diagnostic>, Vec<Diagnostic>> {
     let mut path = Vec::new();
     let mut cursor = current;
     let mut predecessors = paths;
@@ -113,15 +130,18 @@ fn diagnostic_path(
             name(module, header).map(application_identity::type_identity::callable_display_path)
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let calls = calls.join(" -> ");
-    if packages.is_empty() {
-        Ok(format!("\n  call path: {calls}"))
-    } else {
-        Ok(format!(
-            "\n  dependency path: {}\n  call path: {calls}",
+    let mut notes = Vec::new();
+    if !packages.is_empty() {
+        notes.push(Diagnostic::note(format!(
+            "dependency path: {}",
             packages.join(" -> ")
-        ))
+        )));
     }
+    notes.push(Diagnostic::note(format!(
+        "call path: {}",
+        calls.join(" -> ")
+    )));
+    Ok(notes)
 }
 
 /// Edges are on the actually invoked functions and their selected providers. A callback
@@ -337,9 +357,8 @@ pub fn check(
             pending.push_back(entry);
         }
         let reached = complete_paths(&calls, &mut paths, pending);
-        // A callee's demand also appears in its callers' derived ceilings.
-        // Diagnose the originating call before that propagated demand.
-        for current in reached.into_iter().rev() {
+        let mut refusal: Option<UnmetService<'_>> = None;
+        'find_origin: for current in reached.into_iter().rev() {
             let (published, body): (&[_], &[_]) = match current {
                 Callable::Machine(id) => {
                     let machine = module
@@ -392,11 +411,7 @@ pub fn check(
                 .map(|(id, _)| id)
                 .chain(published.iter())
                 .chain(body);
-            // A rejected concrete child explains the operation even if its reporting parent
-            // appears earlier in the service table.
-            let (specific, other) =
-                services.partition::<Vec<_>, _>(|id| unsafe_services.get(**id).is_some_and(Option::is_some));
-            for &service in specific.into_iter().chain(other) {
+            for &service in services {
                 let atom = module
                     .service(service)
                     .and_then(|decl| module.identities.text(decl.identity))
@@ -410,38 +425,68 @@ pub fn check(
                         .is_some_and(|enabled| enabled.contains(required))
                 });
                 let withheld_by_edge = gate.filter(|edge| !edge.max_reach.admits(atom));
-                if withheld_by_product || withheld_by_edge.is_some() {
-                    let path =
-                        diagnostic_path(module, policy, &headers, &paths, &root_paths, current)?;
-                    if let Some(required) = required {
-                        let subject = match (gate, withheld_by_edge) {
-                            (_, Some(edge)) => {
-                                format!("dependency edge `{}` did not admit", edge.alias)
-                            }
-                            (Some(edge), None) => {
-                                format!("Build of dependency `{}` did not enable", edge.alias)
-                            }
-                            (None, None) => "Build of the root Product did not enable".to_owned(),
-                        };
-                        let operation = intrinsic
-                            .iter()
-                            .find_map(|(id, name)| (*id == service).then_some(*name));
-                        let detail = operation.map_or_else(String::new, |name| {
-                            format!("\n  operation: |unsafe|::{name}")
-                        });
-                        return Err(error(format!(
-                            "{subject} Unsafe + {}{path}{detail}\nOmega is designed to be used without Unsafe. Performance is not a valid justification. Use checked Omega or checked inline assembly for performance-sensitive code.\n\nUnsafe exists only for extreme applications. Treat any use of Unsafe in a library as malicious.",
-                            required.name()
-                        )));
-                    }
-                    if let Some(edge) = withheld_by_edge {
-                        return Err(error(format!(
-                            "dependency `{}` exceeds its reach ceiling with service `{atom}`{path}",
-                            edge.alias
-                        )));
-                    }
+                if !withheld_by_product && withheld_by_edge.is_none() {
+                    continue;
+                }
+                let failure = UnmetService {
+                    callable: current,
+                    service: atom,
+                    required: required.copied(),
+                    intrinsic: intrinsic
+                        .iter()
+                        .find_map(|(id, name)| (*id == service).then_some(*name)),
+                    edge_withheld: withheld_by_edge.is_some(),
+                };
+                if failure.names_unsafe_operation() {
+                    refusal = Some(failure);
+                    break 'find_origin;
+                }
+                if refusal
+                    .as_ref()
+                    .is_none_or(|prior| prior.required.is_none() && required.is_some())
+                {
+                    refusal = Some(failure);
                 }
             }
+        }
+        if let Some(failure) = refusal {
+            let notes = path_notes(
+                module,
+                policy,
+                &headers,
+                &paths,
+                &root_paths,
+                failure.callable,
+            )?;
+            if let Some(required) = failure.required {
+                let subject = match gate {
+                    Some(edge) if failure.edge_withheld => {
+                        format!("dependency edge `{}` did not admit", edge.alias)
+                    }
+                    Some(edge) => format!("Build of dependency `{}` did not enable", edge.alias),
+                    None => "Build of the root Product did not enable".to_owned(),
+                };
+                let mut diagnostics = error(format!("{subject} Unsafe + {}", required.name()));
+                diagnostics.extend(notes);
+                if let Some(name) = failure.intrinsic {
+                    diagnostics.push(Diagnostic::note(format!("operation: |unsafe|::{name}")));
+                } else if let Callable::Boundary(_) = failure.callable {
+                    let boundary = application_identity::type_identity::callable_display_path(
+                        name(module, headers[&failure.callable])?,
+                    );
+                    diagnostics.push(Diagnostic::note(format!("operation: {boundary}")));
+                }
+                diagnostics.push(Diagnostic::note("Omega is designed to be used without Unsafe. Performance is not a valid justification. Use checked Omega or checked inline assembly for performance-sensitive code."));
+                diagnostics.push(Diagnostic::note("Unsafe exists only for extreme applications. Treat any use of Unsafe in a library as malicious."));
+                return Err(diagnostics);
+            }
+            let edge = gate.ok_or_else(|| error("a service ceiling requires a dependency edge"))?;
+            let mut diagnostics = error(format!(
+                "dependency `{}` exceeds its reach ceiling with service `{}`",
+                edge.alias, failure.service
+            ));
+            diagnostics.extend(notes);
+            return Err(diagnostics);
         }
     }
     Ok(())
