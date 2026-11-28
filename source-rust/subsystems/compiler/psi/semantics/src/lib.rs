@@ -38,6 +38,7 @@ pub use module_analyses::{
 };
 pub mod normal_completion;
 pub mod numeric_primitives;
+pub mod packages;
 pub mod plain_affine;
 pub mod reference_ends;
 pub mod references;

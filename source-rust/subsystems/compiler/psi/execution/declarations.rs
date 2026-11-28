@@ -4,6 +4,7 @@ use crate::*;
 pub struct ExecutionDeclarations {
     pub dynamic_dispatch: TerminalDynamicDispatchCatalog,
     pub callables: crate::TerminalCallableCatalog,
+    pub packages: crate::TerminalPackageCatalog,
     pub unoptimized_behavior: Vec<crate::UnoptimizedMachineBehavior>,
     /// Declaration contracts with no executable body, ordered by ContractId.
     pub declaration_contracts: Vec<crate::MachineContract>,

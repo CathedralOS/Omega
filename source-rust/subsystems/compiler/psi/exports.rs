@@ -17,7 +17,10 @@ pub use crate::execution::task_activation::*;
 pub use crate::execution::unoptimized_behavior::{
     UnoptimizedBehaviorOperation, UnoptimizedMachineBehavior,
 };
-pub use crate::execution::{ExecutionDeclarations, static_reach};
+pub use crate::execution::{
+    ExecutionDeclarations, TerminalPackageCatalog, TerminalPackageEvent, TerminalPackageOpening,
+    TerminalPackageSchema, TerminalPackageSite, static_reach,
+};
 pub use crate::execution::{
     TerminalDynamicClaimPath, TerminalDynamicDispatchCatalog, TerminalDynamicInterface,
     TerminalDynamicReferenceOrigin, TerminalDynamicReferenceRegion, TerminalDynamicSlot,
