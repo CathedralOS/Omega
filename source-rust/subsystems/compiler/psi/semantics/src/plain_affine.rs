@@ -4723,6 +4723,12 @@ impl<'a> Analysis<'a> {
         family
             .into_iter()
             .filter_map(|origin| {
+                // An opaque native address names live external storage. It has
+                // no local affine vacancy to update. Known address_of origins
+                // still resolve to their actual storage through the normal path.
+                if matches!(origin, crate::descriptor_results::DescriptorCallOrigin::NativeAddress { .. }) {
+                    return None;
+                }
                 let crate::descriptor_results::DescriptorCallOrigin::Argument {
                     source,
                     projection,
