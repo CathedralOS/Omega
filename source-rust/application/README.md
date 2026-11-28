@@ -128,12 +128,15 @@ and providers. A missing adapter refuses execution.
 
 **Implementation status.** The [standalone contract](../../wiki/spec/build/embedding.md#standalone-interpretation)
 specifies bare `omega run app.psi` and confines both source and saved Products
-to the caller’s working directory by default. The current Rust CLI still
-requires `--trusted-artifact <manifest-id>` to run saved Psi. With no explicit
-run directory mappings it supplies the host filesystem namespace and enables
-matching-host adapters for admitted providers. The contained embedding
-currently refuses filesystem delegation. The CLI defaults and confined
-filesystem work are tracked in [PSI-UNTRUSTED-INTERPRETATION](../../TASKS.md#psi-untrusted-interpretation).
+to the caller’s working directory by default. Without `--trusted-artifact`,
+the Rust CLI interprets saved Psi contained: it gets the host's reviewed
+package bindings and standard streams, but no filesystem yet, no native
+provider and no native compilation, and it refuses run directory mappings.
+`--trusted-artifact <manifest-id>` runs saved Psi on the trusted route. For a
+trusted run with no explicit run directory mappings, the CLI supplies the host
+filesystem namespace and enables matching-host adapters for admitted
+providers. The cwd mount for contained runs and confined filesystem work are
+tracked in [PSI-UNTRUSTED-INTERPRETATION](../../TASKS.md#psi-untrusted-interpretation).
 
 ```bash
 mbx run -p omega -- packages update --project samples/cli/basics/cli_mvp --target macos_arm64

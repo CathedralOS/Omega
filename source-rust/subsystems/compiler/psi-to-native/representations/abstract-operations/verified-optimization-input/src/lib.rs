@@ -158,7 +158,7 @@ impl VerifiedPsiOptimizationInput {
     /// `retain_*` and `attach_*` methods as each admission step succeeds.
     pub fn lowered(
         plan: AbstractOperationPlan,
-        artifact: psi_authorization::AuthorizedTerminalArtifact,
+        artifact: psi_authorization::AdmittedTerminalArtifact,
         target_context: Option<TerminalTargetContext>,
     ) -> Result<Self, &'static str> {
         if plan.psi != artifact.artifact().view().identity() {
@@ -387,7 +387,7 @@ impl VerifiedPsiOptimizationInput {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedPsiOptimizationContext {
-    artifact: psi_authorization::AuthorizedTerminalArtifact,
+    artifact: psi_authorization::AdmittedTerminalArtifact,
 }
 
 impl VerifiedPsiOptimizationContext {
@@ -399,7 +399,7 @@ impl VerifiedPsiOptimizationContext {
         self.artifact.artifact().closed_module()
     }
 
-    pub const fn authorization(&self) -> &psi_authorization::AuthorizedTerminalArtifact {
+    pub const fn authorization(&self) -> &psi_authorization::AdmittedTerminalArtifact {
         &self.artifact
     }
 }
@@ -414,7 +414,7 @@ pub struct AdmittedLoweringFacts {
     entry: semantic_vocabulary::MachineId,
     native_execution_scope: Option<std::sync::Arc<NativeExecutionScope>>,
     selected_provider_closure: Option<[u8; 32]>,
-    artifact: psi_authorization::AuthorizedTerminalArtifact,
+    artifact: psi_authorization::AdmittedTerminalArtifact,
     program_entry: Option<SelectedProgramEntryCall>,
     target_context: Option<TerminalTargetContext>,
     native_callbacks: provider_admission::AdmittedNativeCallbackCohort,
@@ -530,7 +530,7 @@ impl AdmittedLoweringFacts {
         self.artifact.artifact().closed_module()
     }
 
-    pub const fn authorization(&self) -> &psi_authorization::AuthorizedTerminalArtifact {
+    pub const fn authorization(&self) -> &psi_authorization::AdmittedTerminalArtifact {
         &self.artifact
     }
 

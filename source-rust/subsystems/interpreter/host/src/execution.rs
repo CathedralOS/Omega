@@ -282,7 +282,11 @@ fn require_containable(
             "a guest admitted without producer trust cannot reach native providers or services",
         ));
     }
-    if !matches!(request.filesystem, TerminalFilesystemDelegation::Unprovided) {
+    if !matches!(
+        request.filesystem,
+        TerminalFilesystemDelegation::Unprovided
+            | TerminalFilesystemDelegation::StandardStreamsOnly
+    ) {
         return Err(refuse(
             "a guest admitted without producer trust gets no filesystem delegation",
         ));
@@ -609,6 +613,10 @@ mod containment_tests {
             request.filesystem = TerminalFilesystemDelegation::HostNamespace;
         }));
         assert!(refused(|request| request.output_limits = None));
+        // A namespace of standard streams alone reaches no host descriptor.
+        assert!(!refused(|request| {
+            request.filesystem = TerminalFilesystemDelegation::StandardStreamsOnly;
+        }));
 
         let observation = execute(request(contained.artifact(), containment)).unwrap();
         assert!(matches!(
