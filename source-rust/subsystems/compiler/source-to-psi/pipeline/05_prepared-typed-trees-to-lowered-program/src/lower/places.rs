@@ -1082,7 +1082,7 @@ fn statement_homes<'b>(
             expression_homes(value, slots, homes);
         }
         // A scalar local declared without an initializer is its own home.
-        Statement::AssemblyAdjacent { .. } => {}
+        Statement::AssemblyAdjacent { .. } | Statement::AssemblyRegister { .. } => {}
         Statement::Declare { slot, home, .. } => {
             if let Some(value_type @ ValueType::Scalar(..)) = slots.get(*slot).copied() {
                 homes(value_type, home.as_ref(), None);
@@ -1494,6 +1494,7 @@ impl Records<'_> {
 /// place that is its home.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Bound {
+    UninitializedRegister,
     Scalar(ValueId),
     Record(PlaceId),
     Observed(usize),
@@ -2667,9 +2668,12 @@ impl<'a> Lowering<'a> {
                         record,
                         fresh: false,
                     })),
-                    Some(Bound::Scalar(_) | Bound::Home(_) | Bound::Erased(_)) => {
-                        Err(self.internal("a scalar slot is used as a record"))
-                    }
+                    Some(
+                        Bound::Scalar(_)
+                        | Bound::UninitializedRegister
+                        | Bound::Home(_)
+                        | Bound::Erased(_),
+                    ) => Err(self.internal("a scalar slot is used as a record")),
                     None => Err(self.internal("a slot is read before it is bound")),
                 }
             }

@@ -1,8 +1,7 @@
 // An x86 mov through a typed view index copies the indexed element by the place's ordinary assignment.
 // Expected exit: 0.
 data Cells { values: [u32; 2]; }
-data Writer {}
-machine Writer::fill(cells: @mutable Cells) crashes Trap {
+machine fill(cells: @mutable Cells) crashes Trap {
     asm {
         mov eax, 37;
         mov cells.values[0], eax
@@ -16,5 +15,5 @@ machine Writer::fill(cells: @mutable Cells) crashes Trap {
 }
 machine main() crashes Trap {
     let mutable cells: Cells = Cells { values: [7, 9] };
-    Writer::fill(@mutable cells);
+    fill(@mutable cells);
 }

@@ -384,15 +384,10 @@ fn expand(
             .collect();
         validate_asm_clobber_contract(&declared, &realized_clobbers, span)?;
     }
-    // A straight-line region of place instructions has the exact meaning of
-    // its desugared statements: each one reads and writes ordinary typed
-    // places, with no register, flag or block state between them. The
-    // region therefore runs as those statements and the checker judges them
-    // under the ordinary rules. Regions with labels, contracts, flags or
-    // scratch registers keep their assembly control flow.
+    // Place instructions run as ordinary assignments. Only an earlier write
+    // in this region can supply a working register's value.
     if !contract.is_machine_body
         && place_forms_only
-        && !uses_scratch
         && primitives.is_empty()
         && !flags.observes()
         && !flags.restores
@@ -404,6 +399,11 @@ fn expand(
         && block.requires.is_empty()
         && block.ensures.is_empty()
     {
+        if uses_scratch {
+            let (_, mut statements) = generated_statements::bind(syntax_trees, scope, true);
+            statements.extend_from_slice(&block.instructions);
+            return Ok((statements, target_requirement));
+        }
         return Ok((block.instructions.clone(), target_requirement));
     }
     flags.materialize(syntax_trees, &mut blocks, body_requires, &mut primitives);

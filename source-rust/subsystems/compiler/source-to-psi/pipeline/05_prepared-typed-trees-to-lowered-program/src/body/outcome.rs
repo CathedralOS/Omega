@@ -499,7 +499,8 @@ impl<'b> Walk<'b> {
                     }
                 }
                 // These bindings evaluate no value and reach no call.
-                Statement::AssemblyAdjacent { .. }
+                Statement::AssemblyRegister { .. }
+                | Statement::AssemblyAdjacent { .. }
                 | Statement::Declare { .. }
                 | Statement::Witness { .. }
                 | Statement::CaptureReference { .. } => {}

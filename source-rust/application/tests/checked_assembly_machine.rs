@@ -63,6 +63,20 @@ fn a_working_register_has_no_default_incoming_value() {
 }
 
 #[test]
+fn inline_moves_can_only_read_registers_initialized_in_the_same_region() {
+    let source =
+        "machine main() { let mutable result: u32 = 0; asm { mov eax, 37; mov result, eax } }";
+    let (status, report) = check_x86_source(source);
+    assert!(status.status.success(), "{report}");
+    for moves in ["mov result, eax", "mov eax, 37 } asm { mov result, eax"] {
+        let (status, report) =
+            check_x86_source(&source.replace("mov eax, 37; mov result, eax", moves));
+        assert!(!status.status.success(), "{report}");
+        assert!(report.contains("reads a register before"), "{report}");
+    }
+}
+
+#[test]
 fn the_artifact_retains_the_local_edge_and_its_discharged_precondition() {
     use terminal_psi::AssemblyExitConstraint::{Adjacent, ScalarReturn};
 
