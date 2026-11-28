@@ -2960,6 +2960,41 @@ pub(crate) mod operation_encoding {
         |bytes, value| atomic::encode_residency_edge(bytes, value)
     );
 
+    #[cfg(test)]
+    #[test]
+    fn package_operands_encode_the_field_types_and_parameter_positions() {
+        use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};
+        use terminal_psi::StructuralFieldType;
+
+        let first = StructuralFieldId::new(1).unwrap();
+        let second = StructuralFieldId::new(2).unwrap();
+        let witness = StructuralTypeId::new(9).unwrap();
+        let scalar = StructuralFieldType::Scalar(ScalarType::Boolean);
+        let reference = StructuralFieldType::Structural(witness);
+        let fields = std::collections::BTreeMap::from([
+            (second, reference.clone()),
+            (first, scalar.clone()),
+        ]);
+
+        let mut output = CanonicalBytes::collect();
+        fields.encode(&mut output);
+        let mut expected = CanonicalBytes::collect();
+        expected.len(2);
+        expected.id(first);
+        encode_scalar_restriction(&mut expected, &scalar);
+        expected.id(second);
+        encode_scalar_restriction(&mut expected, &reference);
+        assert_eq!(output.finish(), expected.finish());
+
+        let mut output = CanonicalBytes::collect();
+        vec![(3usize, witness)].encode(&mut output);
+        let mut expected = CanonicalBytes::collect();
+        expected.len(1);
+        expected.len(3);
+        expected.id(witness);
+        assert_eq!(output.finish(), expected.finish());
+    }
+
     pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
         macro_rules! encode_fields {
             ($tag:expr $(, $operand:ident)*) => {{
