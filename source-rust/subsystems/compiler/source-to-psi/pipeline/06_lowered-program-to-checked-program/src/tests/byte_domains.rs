@@ -734,6 +734,19 @@ machine build_entry() { let n: Named = Named { name: "x" as +Filled }; }
 }
 
 #[test]
+fn zeroed_record_fields_must_satisfy_their_byte_domain_before_the_entry_call() {
+    let source = r#"
+domain [u8; 3]::Text requires |byte_observation|::valid_utf8(@self[..]);
+data Buffer { bytes: [u8; 3] in Text; }
+machine inspect(buffer: @mutable Buffer) {}
+machine build_entry() { let mutable buffer: Buffer; inspect(@mutable buffer); }
+"#;
+    assert_eq!(verdict(source), "accepted");
+    let refused = verdict(&source.replace("valid_utf8", "no_nul"));
+    assert!(refused.contains("zeroed storage"), "{refused}");
+}
+
+#[test]
 fn byte_predicate_spelling_needs_its_exact_domain_call() {
     const UNKNOWN: &str = "this call has no visible declaration in its source scope";
     for source in [
