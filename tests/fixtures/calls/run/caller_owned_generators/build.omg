@@ -1,0 +1,11 @@
+use main.omg as app;
+use {omega}/build/dependency.omg;
+use {omega}/language/core/process_exit.omg;
+
+machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Application { name: "caller_owned_generators" };
+    let standard: DependencyDescription = |dependency|::from_source(Source::Path { location: "../../../../../source/library/system" });
+    let allowed: [BoundaryServiceReference; 1] = [Build::service::<|process_exit|::ProcessExit>(plan)];
+    _ = |dependency|::add(plan, standard, @allowed[..]);
+    Build::bind(plan, linux_x86_64::ProgramEntry, |app|::main);
+}

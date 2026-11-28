@@ -1,0 +1,164 @@
+use {omega}/language/core/activation.omg;
+use {omega}/language/core/generator.omg;
+use {omega}/language/core/never.omg;
+use {omega}/language/core/option.omg;
+use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/reply.omg;
+use {omega}/language/core/task.omg;
+
+// The producer and its receiver share only atomic state. The ready flag publishes the preceding item store.
+data Mailbox { item: AtomicU32; full: AtomicU32; }
+MailboxOps satisfies |generator|::Transport<Mailbox, u32> {
+    machine publish(box: @Mailbox, item: u32) reaches none crashes none {
+        box.item.store(item, Publish);
+        box.full.store(1u32, Publish);
+    }
+    machine take(box: @Mailbox) -> |option|::Optional<u32> reaches none crashes none {
+        match box.full.load(Receive) == 1u32 {
+            false -> |option|::Optional::None,
+            true -> take_full(box)
+        }
+        machine take_full(box: @Mailbox) -> |option|::Optional<u32> reaches none crashes none {
+            let item: u32 = box.item.load(Receive);
+            box.full.store(0u32, Publish);
+            |option|::Optional::Some { value: item }
+        }
+    }
+}
+
+data Audit { starts: AtomicU32; cleanups: AtomicU32; }
+data Work<'slot> {
+    seed: u32;
+    emitter: |generator|::Emitter<'slot, Mailbox, u32, MailboxOps>;
+    audit: @'slot Audit;
+}
+machine produce<'slot>(work: Work<'slot>) -> u32 reaches none crashes none suspends {
+    work.audit.starts.store(work.audit.starts.load(Receive) +% 1u32, Publish);
+    let saved: u32 = work.seed *% 3u32 +% 2u32;
+    let answer: |generator|::Decision = suspend |generator|::emit::<Mailbox, u32, MailboxOps>(move work.emitter, saved +% 5u32);
+    let result: u32 = match answer {
+        |generator|::Decision::Continue -> saved +% 100u32,
+        |generator|::Decision::Stop -> saved +% 200u32
+    };
+    work.audit.cleanups.store(work.audit.cleanups.load(Receive) +% 1u32, Publish);
+    result
+}
+
+data Ready<'storage, 'slot> = |activation|::ReadyActivation<'storage, Work<'slot>, u32, produce, |task|::ActivationStorage::Fixed>;
+data Parked<'storage, 'slot> = |activation|::SuspendedActivation<'storage, Work<'slot>, u32, produce, |task|::ActivationStorage::Fixed>;
+data Permit<'slot> = |reply|::Publication<'slot> in |reply|::Issued<|reply|::AnswerRole, |generator|::Decision>;
+data Received<'slot> { item: u32; permit: Permit<'slot>; }
+data Crossed<'back, 'work, 'permit> {
+    owner: Parked<'back, 'work>;
+    permit: Permit<'permit>;
+    answer: |generator|::Decision;
+}
+
+machine failed() -> |never|::Never reaches none crashes Trap { crash Trap; }
+machine expect(ok: bool) reaches none crashes Trap {
+    transition ok { true -> done(), false -> failed() }
+    machine done() {}
+}
+machine prepare<'back, 'slot>(work: Work<'slot>, backing: @'back mutable [u8]) -> Ready<'back, 'slot> crashes Trap {
+    match |activation|::prepare::<Work<'slot>, u32, produce, |task|::ActivationStorage::Fixed>(move work, backing) {
+        |activation|::ActivationPreparation::Ready { owner } -> move owner,
+        |activation|::ActivationPreparation::Rejected { arguments, retained } -> failed()
+    }
+}
+machine until_park<'back, 'slot>(ready: Ready<'back, 'slot>) -> Parked<'back, 'slot> blocks crashes Trap crashes Abort {
+    match block |activation|::step_fixed::<Work<'slot>, u32, produce>(move ready) {
+        |activation|::ActivationStep::Parked { owner } -> move owner,
+        |activation|::ActivationStep::Returned { value, retained } -> failed()
+    }
+}
+machine until_return<'back, 'slot>(ready: Ready<'back, 'slot>, mark: u8) -> u32 blocks crashes Trap crashes Abort {
+    match block |activation|::step_fixed::<Work<'slot>, u32, produce>(move ready) {
+        |activation|::ActivationStep::Parked { owner } -> failed(),
+        |activation|::ActivationStep::Returned { value, retained } -> mark_backing(retained, value, mark)
+    }
+    machine mark_backing(retained: @mutable [u8], value: u32, mark: u8) -> u32 crashes Trap {
+        retained[0] = mark;
+        value
+    }
+}
+machine pending<'slot>(waiting: |generator|::Receiver<'slot, Mailbox, u32, MailboxOps>)
+    -> |generator|::Receiver<'slot, Mailbox, u32, MailboxOps> crashes Trap {
+    match |generator|::try_receive::<Mailbox, u32, MailboxOps>(move waiting) {
+        |generator|::Reception::Pending { receiver } -> move receiver,
+        |generator|::Reception::Received { item, permit } -> failed()
+    }
+}
+machine receive<'slot>(waiting: |generator|::Receiver<'slot, Mailbox, u32, MailboxOps>) -> Received<'slot> crashes Trap {
+    match |generator|::try_receive::<Mailbox, u32, MailboxOps>(move waiting) {
+        |generator|::Reception::Pending { receiver } -> failed(),
+        |generator|::Reception::Received { item, permit } -> Received { item: item, permit: move permit }
+    }
+}
+machine cross<'back, 'work, 'permit>(parked: Parked<'back, 'work>, wrong: Permit<'permit>) -> Crossed<'back, 'work, 'permit> crashes Trap {
+    match |activation|::resume::<Work<'work>, u32, |generator|::Decision, produce, |task|::ActivationStorage::Fixed>(
+        move parked, move wrong, |generator|::Decision::Continue) {
+        |activation|::ResumeAttempt::Ready { owner } -> failed(),
+        |activation|::ResumeAttempt::Mismatch { owner, permit, value } -> Crossed { owner: move owner, permit: move permit, answer: value }
+    }
+}
+machine answer<'back, 'work, 'permit>(parked: Parked<'back, 'work>, allowed: Permit<'permit>, decision: |generator|::Decision)
+    -> Ready<'back, 'work> crashes Trap {
+    match |activation|::resume::<Work<'work>, u32, |generator|::Decision, produce, |task|::ActivationStorage::Fixed>(
+        move parked, move allowed, decision) {
+        |activation|::ResumeAttempt::Ready { owner } -> move owner,
+        |activation|::ResumeAttempt::Mismatch { owner, permit, value } -> failed()
+    }
+}
+machine empty_slot() -> |generator|::Slot<Mailbox> reaches none crashes none {
+    let mutable box: Mailbox;
+    box.full.store(0u32, Publish);
+    box.item.store(0u32, Publish);
+    |generator|::Slot {
+        reply: |reply|::ReplySlot { anchor: 0u8 },
+        endpoint: move box
+    }
+}
+public machine main() reaches |process_exit|::ProcessExit blocks crashes Trap crashes Abort {
+    let mutable left_slot: |generator|::Slot<Mailbox> = empty_slot();
+    let mutable right_slot: |generator|::Slot<Mailbox> = empty_slot();
+    let mutable left_stack: [u8; 65536];
+    let mutable right_stack: [u8; 65536];
+    let mutable left_audit: Audit;
+    let mutable right_audit: Audit;
+    left_audit.starts.store(0u32, Publish);
+    right_audit.starts.store(0u32, Publish);
+    left_audit.cleanups.store(0u32, Publish);
+    right_audit.cleanups.store(0u32, Publish);
+    block interleave(@mutable left_slot, @mutable right_slot, @left_audit, @right_audit, @mutable left_stack[..], @mutable right_stack[..]);
+    expect(left_stack[0] == 17u8 && right_stack[0] == 29u8);
+    |process_exit|::ProcessExit::exit_process(73);
+}
+
+machine interleave<'left, 'right, 'left_back, 'right_back>(
+    left_slot: @'left mutable |generator|::Slot<Mailbox>, right_slot: @'right mutable |generator|::Slot<Mailbox>,
+    left_audit: @'left Audit, right_audit: @'right Audit,
+    left_stack: @'left_back mutable [u8], right_stack: @'right_back mutable [u8]
+) blocks crashes Trap crashes Abort {
+    let left: |generator|::Pair<'left, Mailbox, u32, MailboxOps> = |generator|::open::<Mailbox, u32, MailboxOps>(left_slot);
+    let right: |generator|::Pair<'right, Mailbox, u32, MailboxOps> = |generator|::open::<Mailbox, u32, MailboxOps>(right_slot);
+    let left_ready: Ready<'left_back, 'left> = prepare(Work { seed: 7u32, emitter: move left.emitter, audit: left_audit }, left_stack);
+    let right_ready: Ready<'right_back, 'right> = prepare(Work { seed: 17u32, emitter: move right.emitter, audit: right_audit }, right_stack);
+    expect(left_audit.starts.load(Receive) == 0u32 && right_audit.starts.load(Receive) == 0u32);
+
+    let left_parked: Parked<'left_back, 'left> = block until_park(move left_ready);
+    let right_receiver: |generator|::Receiver<'right, Mailbox, u32, MailboxOps> = pending(move right.receiver);
+    let left_item: Received<'left> = receive(move left.receiver);
+    expect(left_item.item == 28u32 && right_audit.starts.load(Receive) == 0u32);
+    let right_parked: Parked<'right_back, 'right> = block until_park(move right_ready);
+    let right_item: Received<'right> = receive(move right_receiver);
+    expect(right_item.item == 58u32 && left_audit.starts.load(Receive) == 1u32 && right_audit.starts.load(Receive) == 1u32);
+
+    let crossed: Crossed<'left_back, 'left, 'right> = cross(move left_parked, move right_item.permit);
+    let stop: Ready<'right_back, 'right> = answer(move right_parked, move crossed.permit, |generator|::Decision::Stop);
+    let again: Ready<'left_back, 'left> = answer(move crossed.owner, move left_item.permit, crossed.answer);
+    expect(left_audit.cleanups.load(Receive) == 0u32 && right_audit.cleanups.load(Receive) == 0u32);
+    expect(block until_return(move stop, 29u8) == 253u32);
+    expect(right_audit.cleanups.load(Receive) == 1u32 && left_audit.cleanups.load(Receive) == 0u32);
+    expect(block until_return(move again, 17u8) == 123u32);
+    expect(left_audit.cleanups.load(Receive) == 1u32 && right_audit.cleanups.load(Receive) == 1u32);
+}
