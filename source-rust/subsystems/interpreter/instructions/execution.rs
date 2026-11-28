@@ -448,6 +448,45 @@ pub(crate) mod capabilities {
         }
     }
 
+    /// Reached internal assembly returns use the installed target's ordinary calling
+    /// convention. A boundary candidate must instead satisfy its own selected policy.
+    fn check_assembly_return(
+        program: &AdmittedTerminalProgram,
+        machine: &terminal_psi::TerminalMachine,
+        view: terminal_psi::AsmRegisterView,
+        target: Option<&str>,
+    ) -> Result<(), TerminalInterpretError> {
+        use language_core::native_call::{NativeCallingConvention, target_platform};
+        let reject = TerminalInterpretError::UnsupportedSemanticVariant;
+        if !machine.structural_parameters.is_empty()
+            || !machine.entry_claims.is_empty()
+            || program
+                .catalogs
+                .interfaces
+                .provider_candidates
+                .iter()
+                .any(|row| row.candidate == machine.id)
+        {
+            return Err(reject(
+                "assembly return requires its selected boundary or structural calling plan",
+            ));
+        }
+        let Some((architecture, format)) = target.and_then(target_platform) else {
+            return Err(reject("assembly return requires a concrete native target"));
+        };
+        let convention = NativeCallingConvention::for_target(architecture, format);
+        if !matches!(&machine.result, terminal_psi::TerminalMachineResult::Scalar(result)
+            if matches!(result.scalar_type, semantic_vocabulary::ScalarType::Integer(integer)
+                if !integer.is_address() && integer.bits() == Some(32)))
+            || convention.integer_result_registers().first() != Some(&view.parent())
+        {
+            return Err(reject(
+                "authored assembly register does not hold this calling convention's scalar result",
+            ));
+        }
+        Ok(())
+    }
+
     /// The requirements of everything `entry` reaches, read from the module's
     /// analyses. `prepared` holds the provider bodies a reused
     /// `TerminalCallableAnalysis` read for its own installation.
@@ -463,6 +502,14 @@ pub(crate) mod capabilities {
         >,
         mut paths: Option<&mut TerminalImportPaths>,
     ) -> Result<TerminalExecutionRequirements, TerminalInterpretError> {
+        let selected_target = installation
+            .and_then(|supplies| supplies.target_machines.as_ref())
+            .map(|selection| selection.target());
+        let layout_target = program
+            .target_layouts
+            .as_ref()
+            .map(|layouts| layouts.target());
+        let target = selected_target.or(layout_target);
         let mut imports = BTreeSet::new();
         let mut missing_providers = BTreeSet::new();
         let mut installation_bound_call = false;
@@ -527,22 +574,15 @@ pub(crate) mod capabilities {
                     .map(|parameter| parameter.structural_type),
             );
             let requirement = machine.assembly_target_requirement;
-            if requirement != terminal_psi::RegisterTargetApplicability::Any {
-                let selected = installation
-                    .and_then(|supplies| supplies.target_machines.as_ref())
-                    .map(|selection| selection.target());
-                let layouts = program
-                    .target_layouts
-                    .as_ref()
-                    .map(|layouts| layouts.target());
-                let target = selected.or(layouts);
-                if selected.zip(layouts).is_some_and(|(a, b)| a != b)
-                    || target.is_none_or(|target| !requirement.accepts_target_name(target))
-                {
-                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                        "assembly catalog target requirement is not established by the target environment",
-                    ));
-                }
+            if requirement != terminal_psi::RegisterTargetApplicability::Any
+                && (selected_target
+                    .zip(layout_target)
+                    .is_some_and(|(a, b)| a != b)
+                    || target.is_none_or(|target| !requirement.accepts_target_name(target)))
+            {
+                return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "assembly catalog target requirement is not established by the target environment",
+                ));
             }
             // `TerminalMachine::block` scans the machine's blocks, so this walk
             // over every reachable block finds each one through a sorted index.
@@ -567,6 +607,11 @@ pub(crate) mod capabilities {
                     continue;
                 }
                 let block = &machine.blocks[position];
+                if let Some(terminal_psi::AssemblyExitConstraint::ScalarReturn(view)) =
+                    block.assembly_exit
+                {
+                    check_assembly_return(program, machine, view, target)?;
+                }
                 storage_roots.extend(
                     block
                         .structural_parameters
@@ -981,6 +1026,7 @@ pub(crate) mod capabilities {
             };
             let block_id = BlockId::new(1).unwrap();
             let block = Block {
+                assembly_exit: None,
                 id: block_id,
                 parameters: Vec::new(),
                 erased_scalar_formals: Vec::new(),
@@ -1718,6 +1764,43 @@ pub(crate) mod capabilities {
                 vec![service];
             check(&program, Some(&installation))
                 .expect("the same selected row fits the wider bound");
+        }
+
+        #[test]
+        fn ordinary_assembly_plan_cannot_admit_a_boundary_candidate() {
+            let mut program = program();
+            use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, ValueId};
+            let candidate = MachineId::new(2).unwrap();
+            let mut body = machine(0, Vec::new());
+            body.contract.result = TerminalMachineResult::Scalar(terminal_psi::ValueDeclaration {
+                id: ValueId::new(1).unwrap(),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+                ),
+                qualifications: Default::default(),
+            });
+            let view = terminal_psi::AsmRegisterView::from_scratch_slot(0).unwrap();
+            let target = Some("linux_x86_64");
+            set_machine(&mut program, candidate, body);
+            check_assembly_return(
+                &program,
+                program.verified_machine(candidate).unwrap(),
+                view,
+                target,
+            )
+            .unwrap();
+            add_provider(&mut program, BoundaryMachineId::new(1).unwrap());
+            assert!(matches!(
+                check_assembly_return(
+                    &program,
+                    program.verified_machine(candidate).unwrap(),
+                    view,
+                    target,
+                ),
+                Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "assembly return requires its selected boundary or structural calling plan"
+                ))
+            ));
         }
 
         #[test]

@@ -172,6 +172,8 @@ pub fn target_plan(
         profile: None,
         entry: plan.entry,
         functions: vec![TargetFunction {
+            assembly_return: None,
+            assembly_register_versions: Vec::new(),
             machine: function.machine,
             attachment: None,
             scalar_abi: None,

@@ -186,6 +186,8 @@ mod tests {
             placement: call_plan.parameters[0].clone(),
         }];
         LegalizedFunctionAbi {
+            assembly_return: None,
+            assembly_register_versions: Vec::new(),
             machine: MachineId::new(1).unwrap(),
             call_plan: call_plan.clone(),
             entry_scalar_codecs: vec![Some(0)],

@@ -3282,6 +3282,95 @@ pub(crate) mod program {
     }
 
     #[cfg(test)]
+    mod assembly_return_tests {
+        use super::*;
+        use crate::boundary::effects::TerminalRuntimeSupplyRequest;
+        use crate::engine::calls::frames::tests::empty_program;
+        use semantic_vocabulary::{
+            EdgeId, IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType, ValueId,
+        };
+        use terminal_psi::{
+            AsmRegisterView, AssemblyExitConstraint, Operation, OperationKind, OperationResult,
+            TerminalMachineResult, Terminator, ValueDeclaration,
+        };
+
+        fn artifact(register: &str) -> terminal_codec::CanonicalTerminalArtifact {
+            let mut module = (**empty_program().catalogs).clone();
+            let body = &mut module.machines[0];
+            let (slot, _, _) = language_core::inline_assembly::scratch_register(register).unwrap();
+            let returned = AsmRegisterView::from_scratch_slot(slot).unwrap();
+            let value = ValueDeclaration {
+                id: ValueId::new(1).unwrap(),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+                ),
+                qualifications: Default::default(),
+            };
+            body.contract.result = TerminalMachineResult::Scalar(value);
+            body.assembly_target_requirement = returned.target();
+            body.blocks[0].operations = vec![Operation::unsuspended(
+                OperationId::new(1).unwrap(),
+                OperationResult::Scalar(value),
+                OperationKind::IntegerConstant {
+                    value: IntegerValue::Unsigned(42),
+                },
+            )];
+            body.blocks[0].terminator = Terminator::Return {
+                edge: EdgeId::new(1).unwrap(),
+                value: value.id,
+                cleanup_actions: Vec::new(),
+            };
+            body.blocks[0].assembly_exit = Some(AssemblyExitConstraint::ScalarReturn(returned));
+            let record =
+                terminal_codec::build_identity_optimization_execution_record(&module).unwrap();
+            terminal_codec::CanonicalTerminalArtifact::from_parts(module, record, None).unwrap()
+        }
+
+        #[test]
+        fn a_reached_register_return_requires_its_installed_result_placement() {
+            for (name, correct, wrong) in
+                [("linux_x86_64", "eax", "ecx"), ("macos_arm64", "w0", "w1")]
+            {
+                for (register, compatible) in [(correct, true), (wrong, false)] {
+                    let artifact = artifact(register);
+                    let program = TerminalProgram::borrow(artifact.view()).unwrap();
+                    assert!(matches!(
+                        program.execution_requirements(None),
+                        Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                            "assembly catalog target requirement is not established by the target environment"
+                        ))
+                    ));
+                    let target = psi_target_layouts::terminal_target_context(artifact.view(), name);
+                    let supplies = program
+                        .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+                            entry: None,
+                            installation: None,
+                            host_imports: &[],
+                            external_completions: &[],
+                            target_machines: Some(&target),
+                            target_layouts: None,
+                            native_code_layouts: None,
+                            memory_ordering: None,
+                            x86_flags: None,
+                        })
+                        .unwrap();
+                    let result = program.execution_requirements(Some(&supplies));
+                    if compatible {
+                        result.unwrap();
+                    } else {
+                        assert!(matches!(
+                            result,
+                            Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                                "authored assembly register does not hold this calling convention's scalar result"
+                            ))
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    #[cfg(test)]
     mod host_trust_tests {
         use super::*;
 

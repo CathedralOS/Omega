@@ -3638,6 +3638,7 @@ pub(crate) mod machine_foundations {
             .validate_whole_discards(|ty| module.structural_type(ty))
             .map_err(CodecError::MalformedStructuralFoundation)?;
         for block in &machine.blocks {
+            crate::block_wire::assembly_exit::validate(machine, block, &scalar_index)?;
             super::call_foundations::validate_external_completion(
                 module,
                 &scalar_index,

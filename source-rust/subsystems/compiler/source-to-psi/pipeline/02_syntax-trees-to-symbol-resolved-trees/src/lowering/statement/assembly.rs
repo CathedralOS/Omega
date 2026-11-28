@@ -51,6 +51,8 @@ pub(super) fn lower(
             statement_nodes: HandleSpan::empty(),
             exit: match block.exit {
                 syntax::AssemblyExit::Fallthrough => AssemblyExit::Fallthrough,
+                syntax::AssemblyExit::Adjacent => AssemblyExit::Adjacent,
+                syntax::AssemblyExit::Return => AssemblyExit::Return,
                 syntax::AssemblyExit::EnclosingTransition => AssemblyExit::EnclosingTransition,
                 syntax::AssemblyExit::Jump(_) => AssemblyExit::Jump(Handle::invalid()),
                 syntax::AssemblyExit::ZeroFlag(_, when_set) => {
