@@ -1107,6 +1107,55 @@ pub(super) fn published_source_crash_routes(
 
 #[cfg(test)]
 mod exposure_tests {
+
+    #[test]
+    fn package_review_preserves_whole_parameters_and_refuses_invoked_fields() {
+        use semantic_vocabulary::{ContractId, MachineId};
+        use terminal_psi::{
+            StructuralPathSegment, TargetMachineCallable, TerminalCallableEnvelope,
+            TerminalCallableInvocation, TerminalCallableTermination, TerminalDeclarationEnvelope,
+            TerminalIdentityIndex, TerminalModule,
+        };
+
+        let mut envelope = TerminalCallableEnvelope {
+            service_reach: Vec::new(),
+            invocations: vec![TerminalCallableInvocation::Parameter(1)],
+            suspends: false,
+            blocks: false,
+            termination: TerminalCallableTermination::NotGuaranteed,
+        };
+        assert_eq!(
+            super::reviewed_invocations(&[], &envelope).unwrap(),
+            [super::PackageReviewSynchronousInvocation::Parameter(1)]
+        );
+
+        envelope.invocations[0] = TerminalCallableInvocation::ParameterPath {
+            parameter: 1,
+            path: vec![StructuralPathSegment::Field(TerminalIdentityIndex(2))],
+        };
+        let direct = super::reviewed_invocations(&[], &envelope).unwrap_err();
+        assert_eq!(
+            direct,
+            super::unavailable("the parameter field that a callback invocation enters")
+        );
+
+        let mut module = TerminalModule::declarations();
+        let selected = ContractId::new(1).unwrap();
+        module
+            .execution
+            .callables
+            .declaration_envelopes
+            .push(TerminalDeclarationEnvelope {
+                contract: selected,
+                envelope,
+            });
+        let callee = TargetMachineCallable::Machine(MachineId::new(1).unwrap());
+        assert_eq!(
+            super::contribution(&module, callee, Some(selected)).unwrap_err(),
+            direct
+        );
+    }
+
     #[test]
     fn exported_boundary_supply_exposes_its_contract_without_publishing_its_name() {
         use source_compiler::representations::{
