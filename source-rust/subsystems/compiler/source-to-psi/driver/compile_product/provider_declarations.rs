@@ -20,6 +20,7 @@ pub use checked_program_to_psi::provider_choice_inputs::{
 };
 use diagnostics::Diagnostic;
 pub use requests::collect_product_provider_selections;
+pub(crate) use requests::collect_provider_records;
 pub use semantic_vocabulary::source_selections::CompositionMode;
 use semantic_vocabulary::source_selections::ProductTarget;
 

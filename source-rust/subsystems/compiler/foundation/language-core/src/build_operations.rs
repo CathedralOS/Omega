@@ -20,6 +20,8 @@ pub enum BuildOperation {
     FieldDescription,
     ServiceDescription,
     EnableUnsafe,
+    /// Make a closed satisfaction available to consumers of this Product.
+    ProviderExport,
 }
 
 impl BuildOperation {
@@ -28,12 +30,16 @@ impl BuildOperation {
     }
     pub const fn has_designated_operands(self) -> bool {
         self.selects_product_declarations()
-            || matches!(self, Self::ProviderReadiness | Self::ServiceDescription | Self::EnableUnsafe)
+            || matches!(
+                self,
+                Self::ProviderReadiness | Self::ServiceDescription | Self::EnableUnsafe
+            )
     }
     pub const fn selects_product_declarations(self) -> bool {
         matches!(
             self,
             Self::ProviderSelection
+                | Self::ProviderExport
                 | Self::NativeBinding
                 | Self::ServiceExclusion
                 | Self::ServiceAudit
@@ -44,11 +50,12 @@ impl BuildOperation {
         )
     }
 
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 15] = [
         Self::ProviderReadiness,
         Self::ServiceDescription,
         Self::EnableUnsafe,
         Self::ProviderSelection,
+        Self::ProviderExport,
         Self::RepresentationSelection,
         Self::ServiceExclusion,
         Self::ServiceAudit,
@@ -70,6 +77,7 @@ impl BuildOperation {
             Self::NativeBinding => "bind_native",
             Self::ProviderReadiness => "await_provider",
             Self::ProviderSelection => "select_provider",
+            Self::ProviderExport => "export_provider",
             Self::RepresentationSelection => "select_representation",
             Self::ServiceExclusion => "exclude_service",
             Self::ServiceAudit => "audit_service",
@@ -112,16 +120,18 @@ impl BuildOperation {
     pub const fn product_operand_role(self, position: usize) -> Option<ProductOperandRole> {
         use ProductOperandRole as Role;
         match (self, position) {
-            (Self::ProviderSelection, 0) | (Self::ServiceExclusion | Self::ServiceAudit, 0) => {
-                Some(Role::BoundarySubject)
-            }
-            (Self::ProviderSelection, 1) => Some(Role::Provider),
+            (
+                Self::ProviderSelection
+                | Self::ProviderExport
+                | Self::ServiceExclusion
+                | Self::ServiceAudit,
+                0,
+            ) => Some(Role::BoundarySubject),
+            (Self::ProviderSelection | Self::ProviderExport, 1) => Some(Role::Provider),
             (Self::BoundaryAcceptance, 0) => Some(Role::RootGrantSubject),
             (Self::ParameterDescription, 0) => Some(Role::Formal),
             (Self::FieldDescription, 0) => Some(Role::Field),
-            (Self::NativeBinding, 0) => {
-                Some(Role::Requirement)
-            }
+            (Self::NativeBinding, 0) => Some(Role::Requirement),
             (Self::TestGroupRegistration, 0) => Some(Role::TestRequirement),
             (Self::TestGroupRegistration, 1) => Some(Role::CheckedMachine),
             (Self::RepresentationSelection, 0) | (Self::WireCompatibilityRequest, 0..=3) => {
@@ -140,7 +150,9 @@ impl BuildOperation {
             | Self::NativeBinding
             | Self::ParameterDescription
             | Self::FieldDescription => count == 1,
-            Self::ProviderSelection | Self::RepresentationSelection => count == 2,
+            Self::ProviderSelection | Self::ProviderExport | Self::RepresentationSelection => {
+                count == 2
+            }
             Self::ServiceExclusion | Self::ServiceAudit | Self::BoundaryAcceptance => count == 1,
             Self::TestGroupRegistration => matches!(count, 1 | 2),
             Self::WireCompatibilityRequest => count >= 5,
