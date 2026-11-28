@@ -3563,53 +3563,24 @@ pub(crate) mod reference {
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
-        let LegalizedScalarInstructionKind::BorrowAt {
-            result,
-            address,
-            shape,
-        } = &row.kind
-        else {
-            return Err(invalid());
-        };
-        let geometry = source.geometry();
-        let Some(terminal_psi::StructuralTypeShape::Reference { referent, access }) = geometry
-            .declaration(result.structural_type)
-            .ok()
-            .map(|row| &row.shape)
-        else {
-            return Err(invalid());
-        };
-        if !matches!(
-            access,
-            terminal_psi::StructuralAccess::SharedBorrow
-                | terminal_psi::StructuralAccess::MutableBorrow
-        ) || crate::instruction_selection::structural_inputs::shape(
-            result.structural_type,
-            geometry,
-        ) != Some(*shape)
-            || result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
-            || row.result.is_some()
-        {
-            return Err(invalid());
-        }
-        let (_, value, _, address_type) = builder.resolve(*address).ok_or_else(invalid)?;
+        let (result, address, codec) =
+            crate::instruction_selection::selection::reference_input::native_address(source, row)
+                .ok_or_else(invalid)?;
+        let (_, value, _, address_type) = builder.resolve(address).ok_or_else(invalid)?;
         if !matches!(address_type, semantic_vocabulary::ClosedScalarType::Integer(integer) if integer.is_address() && integer.bits() == 64)
         {
             return Err(invalid());
         }
-        let scalar = crate::instruction_selection::structural_inputs::structural_reference_input::scalar_storage_type(*referent, geometry);
-        let codec = scalar
-            .map(|scalar| {
-                let bits = runtime_abi::ScalarStorageCodec::from_scalar(scalar)
-                    .and_then(|codec| codec.encode())
-                    .ok_or_else(invalid)?;
-                let reg = transport_register(builder, result.place, 8)?;
+        let codec = codec
+            .map(|codec| {
+                let bits = codec.encode().ok_or_else(invalid)?;
+                let register = transport_register(builder, result.place, 8)?;
                 builder.emit_materialize_i64(
                     semantic_vocabulary::IntegerValue::Unsigned(u128::from(bits)),
-                    reg,
+                    register,
                     provenance(row),
                 )?;
-                Ok(reg)
+                Ok(register)
             })
             .transpose()?;
         write_descriptor(builder, row, result, value, codec)
