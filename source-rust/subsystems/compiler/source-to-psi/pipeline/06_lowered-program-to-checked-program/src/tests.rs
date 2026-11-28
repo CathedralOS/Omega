@@ -310,6 +310,23 @@ fn run(machines: Vec<Machine>) -> (crate::lowering::Elaboration, Discharge) {
     (elaboration, result)
 }
 
+fn assert_routed_input_violation(verdict: RouteVerdict, source: &str, call: &str) {
+    let RouteVerdict::Rejected { violations, .. } = verdict else {
+        panic!("expected an input requirement violation at {call}: {verdict:?}");
+    };
+    let [violation] = &violations[..] else {
+        panic!("expected one input requirement violation: {violations:?}");
+    };
+    assert!(
+        violation
+            .statement
+            .starts_with("call does not establish the routed membership of its actual input"),
+        "{violation:?}"
+    );
+    let span = violation.site.expect("the authored call has a span").span;
+    assert_eq!(&source[span.start..span.end], call);
+}
+
 /// The route's verdict on `machines`, which must reject the program.
 fn rejected(machines: Vec<Machine>) -> Vec<UnprovedObligation> {
     match judge(lower(machines)).unwrap() {

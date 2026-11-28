@@ -6332,6 +6332,7 @@ pub(crate) mod scalar_qualifications {
             ),
             Error::MalformedStructuralFoundation(detail)
             | Error::MalformedMachine { detail, .. }
+            | Error::UnmetInputMembership { detail, .. }
             | Error::NormalResultMembership { detail, .. } => {
                 crate::CodecError::MalformedStructuralFoundation(detail)
             }

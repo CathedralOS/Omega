@@ -446,12 +446,10 @@ machine entry() -> i64 {{ forward(issue(7), issue(0) as -Classified) }}
     // Identical runtime value satisfies the arithmetic predicate. Only the
     // first of these paths went through the issuer for the second argument.
     let other = source.replace("issue(0) as -Classified", "0");
-    let refused = judge(invocation(&other)).unwrap_err();
-    assert!(
-        refused
-            .detail
-            .contains("routed membership of its actual input"),
-        "{refused:?}"
+    assert_routed_input_violation(
+        judge(invocation(&other)).unwrap(),
+        &other,
+        "forward(issue(7), 0)",
     );
 }
 

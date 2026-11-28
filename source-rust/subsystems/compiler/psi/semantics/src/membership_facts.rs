@@ -14,7 +14,7 @@ use semantic_vocabulary::{
     StructuralDomainId, StructuralTypeId, ValueId,
 };
 use terminal_psi::{
-    Operation, OperationResult, RuntimeDomainMembership, StructuralParameterDeclaration,
+    CallSite, Operation, OperationResult, RuntimeDomainMembership, StructuralParameterDeclaration,
     StructuralPathQualification, TargetMachineCallable, TerminalMachine, TerminalModule,
     ValueDeclaration,
 };
@@ -453,16 +453,31 @@ impl Facts {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum MembershipFailure {
+    Unavailable(Option<MachineId>),
+    UnmetInput { machine: MachineId, site: CallSite },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct MembershipError {
-    pub machine: Option<MachineId>,
+    pub(super) failure: MembershipFailure,
     pub detail: &'static str,
+}
+
+impl MembershipError {
+    pub(super) fn machine(&self) -> Option<MachineId> {
+        match self.failure {
+            MembershipFailure::Unavailable(machine) => machine,
+            MembershipFailure::UnmetInput { machine, .. } => Some(machine),
+        }
+    }
 }
 
 type Judged<T> = Result<T, MembershipError>;
 
 fn unavailable(machine: impl Into<Option<MachineId>>, detail: &'static str) -> MembershipError {
     MembershipError {
-        machine: machine.into(),
+        failure: MembershipFailure::Unavailable(machine.into()),
         detail,
     }
 }
@@ -642,9 +657,11 @@ fn scalar_declarations(module: &TerminalModule, values: &[ValueDeclaration]) -> 
     for value in values {
         let domains =
             crate::scalar_qualifications::qualification_domains(module, value.qualifications)
-                .ok_or(MembershipError {
-                    machine: None,
-                    detail: "membership source lost its declared scalar domain set",
+                .ok_or_else(|| {
+                    unavailable(
+                        None,
+                        "membership source lost its declared scalar domain set",
+                    )
                 })?;
         facts.extend(domains.iter().map(|domain| Fact {
             subject: Subject::Value(value.id),
@@ -825,7 +842,7 @@ fn operation_call(
 
 #[derive(Default)]
 struct Event {
-    required: Vec<Fact>,
+    required: Vec<(CallSite, Fact)>,
     produced: Vec<Fact>,
     declared: Vec<Fact>,
 }
@@ -849,7 +866,10 @@ fn operation_event(
     };
     let (required, produced) = operation_call(module, machine, operation)?;
     Ok(Event {
-        required,
+        required: required
+            .into_iter()
+            .map(|fact| (CallSite::Operation(operation.id), fact))
+            .collect(),
         produced,
         declared,
     })
@@ -1856,9 +1876,11 @@ fn analyze_observations(
     // callee's returned storage and writes still constrain its caller.
     let graphs = rows
         .closure(DescriptorSlotKind::References, bodies.iter().copied())
-        .map_err(|_| MembershipError {
-            machine: None,
-            detail: "runtime membership has no complete storage transfer graph",
+        .map_err(|_| {
+            unavailable(
+                None,
+                "runtime membership has no complete storage transfer graph",
+            )
         })?;
     let mut graphs_by_id = graphs.iter().collect::<Vec<_>>();
     graphs_by_id.sort_unstable_by_key(|graph| graph.id);
@@ -1945,9 +1967,10 @@ fn analyze_observations(
                 && let Some((preconditions, _, _)) =
                     call_contract(module, machine, Some(call), None)?
             {
-                required.extend(preconditions);
+                let site = CallSite::Edge(block.terminator.edge());
+                required.extend(preconditions.into_iter().map(|fact| (site, fact)));
             }
-            for (_edge, actions) in block.terminator.cleanup_rosters() {
+            for (edge, actions) in block.terminator.cleanup_rosters() {
                 let mut prior_call = false;
                 for action in actions {
                     let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(invocation) = action
@@ -1964,7 +1987,11 @@ fn analyze_observations(
                                 "a later cleanup has no checked post-cleanup input membership",
                             ));
                         }
-                        required.extend(preconditions);
+                        required.extend(
+                            preconditions
+                                .into_iter()
+                                .map(|fact| (CallSite::Edge(edge), fact)),
+                        );
                     }
                     prior_call = true;
                 }
@@ -2143,9 +2170,10 @@ fn analyze_observations(
             if let Some(event) = events.get(&position)
                 && !event.required.is_empty()
             {
-                let missing = event.required.iter().any(|goal| {
+                let missing = event.required.iter().find_map(|(site, goal)| {
                     observe(module, machine, &mut storage, position, goal.clone())
                         .is_none_or(|(goal, _)| !incoming.proves(module, &goal))
+                        .then_some(*site)
                 });
                 unsatisfied_calls.insert(position, missing);
             }
@@ -2247,11 +2275,14 @@ fn analyze_observations(
                 }
             }
         }
-        if unsatisfied_calls.values().any(|missing| *missing) {
-            return Err(unavailable(
-                machine.id,
-                "call does not establish the routed membership of its actual input",
-            ));
+        if let Some(site) = unsatisfied_calls.into_values().flatten().next() {
+            return Err(MembershipError {
+                failure: MembershipFailure::UnmetInput {
+                    machine: machine.id,
+                    site,
+                },
+                detail: "call does not establish the routed membership of its actual input",
+            });
         }
         if completed.values().any(|proved| !proved) {
             return Err(unavailable(

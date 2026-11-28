@@ -42,9 +42,9 @@ machine entry() -> u32 { forward(stamp(Ticket { number: 7u32 }) as -Stamped) }
         "{ read(ticket) }",
         "{ let mutable copy: Ticket = ticket; copy.number = 9u32; read(copy) }",
     );
-    for (name, source) in [
-        ("unissued", unissued),
-        ("changed after entry", changed_after_entry),
+    for (name, source, call) in [
+        ("unissued", unissued, "forward(Ticket { number: 7u32 })"),
+        ("changed after entry", changed_after_entry, "read(copy)"),
     ] {
         let closed =
             terminal_codec::ClosedTerminalModule::new(invocation(&source).unwrap().module).unwrap();
@@ -60,12 +60,7 @@ machine entry() -> u32 { forward(stamp(Ticket { number: 7u32 }) as -Stamped) }
             ),
             "{name}: {received:?}"
         );
-        let refusal = checked_invocation(&source).expect_err(name);
-        assert!(
-            matches!(&refusal, crate::CompilationRefusal::Elaboration(error)
-                if error.detail.contains("routed membership of its actual input")),
-            "{name}: {refusal:?}"
-        );
+        assert_routed_input_violation(checked_invocation(&source).unwrap(), &source, call);
     }
 }
 
@@ -90,15 +85,11 @@ machine entry() -> u32 {
         matches!(accepted, RouteVerdict::Accepted(_)),
         "{accepted:?}"
     );
-    let refusal = judge(invocation(
-        &source.replace("inspect(@plain)", "inspect(@other)"),
-    ))
-    .expect_err("a different referent with the same payload has no establishment");
-    assert!(
-        refusal
-            .detail
-            .contains("routed membership of its actual input"),
-        "{refusal:?}"
+    let other = source.replace("inspect(@plain)", "inspect(@other)");
+    assert_routed_input_violation(
+        judge(invocation(&other)).unwrap(),
+        &other,
+        "inspect(@other)",
     );
 }
 

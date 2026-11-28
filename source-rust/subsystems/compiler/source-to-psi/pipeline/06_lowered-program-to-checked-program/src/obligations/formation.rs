@@ -82,15 +82,29 @@ pub fn prepare_replay<'source>(
         .map_err(|error| {
             let fallback = || elaboration.module.machines.first().map(|machine| machine.id)
                 .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity"));
+            use terminal_semantics::scalar_qualifications::ScalarQualificationError;
             let (machine, detail) = match error {
-                terminal_semantics::scalar_qualifications::ScalarQualificationError::DeniedEstablishment(denied) => {
+                ScalarQualificationError::DeniedEstablishment(denied) => {
                     return denied_domain_cast(elaboration, denied);
                 }
-                terminal_semantics::scalar_qualifications::ScalarQualificationError::NormalResultMembership { machine, detail } => (
+                ScalarQualificationError::UnmetInputMembership {
+                    machine,
+                    site,
+                    detail,
+                } => {
+                    let construct = match site {
+                        terminal_psi::CallSite::Operation(operation) => {
+                            Construct::Operation(operation)
+                        }
+                        terminal_psi::CallSite::Edge(edge) => Construct::Edge(edge),
+                    };
+                    return crate::refusal(RefusalReason::Violation, machine, construct, detail);
+                }
+                ScalarQualificationError::NormalResultMembership { machine, detail } => (
                     machine.unwrap_or_else(fallback),
                     format!("domain guarantee for the returned value: {detail}"),
                 ),
-                terminal_semantics::scalar_qualifications::ScalarQualificationError::MalformedMachine { machine, detail } => (
+                ScalarQualificationError::MalformedMachine { machine, detail } => (
                     machine,
                     format!("invalid declared scalar qualifications: {detail}"),
                 ),
