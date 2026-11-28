@@ -82,6 +82,35 @@ mod storage {
             || borrowed_slice_element(shape, access).is_some()
     }
 
+    /// Selecting a checked hidden borrow loads the stored reference. The
+    /// selected callee knows the concrete pointee; the caller needs only the
+    /// geometry leading to the reference itself.
+    fn call_argument_storage<'a>(
+        storage: terminal_psi::StructuralStorageUse<'a>,
+        arguments: &[terminal_psi::StructuralArgument],
+        checked_borrow: impl Fn(usize) -> bool,
+    ) -> terminal_psi::StructuralStorageUse<'a> {
+        let terminal_psi::StructuralStorageUse::Projection(mut projection) = storage else {
+            return storage;
+        };
+        let Some((terminal_psi::StructuralPathSegment::Referent, carrier)) =
+            projection.path.split_last()
+        else {
+            return storage;
+        };
+        if projection.field.is_none()
+            && arguments.iter().enumerate().any(|(index, argument)| {
+                argument.place == projection.root
+                    && argument.path == projection.path
+                    && argument.access != StructuralAccess::Owned
+                    && checked_borrow(index)
+            })
+        {
+            projection.path = carrier;
+        }
+        projection.into()
+    }
+
     impl ScalarDemand<'_> {
         pub(super) fn storage_extent_demand(
             &self,
@@ -105,6 +134,7 @@ mod storage {
                 });
                 (!fixed_transport).then_some(formal.structural_type)
             };
+            let package_sites = terminal_semantics::packages::check_package_sites(module)?;
             let mut roots = BTreeSet::new();
             for machine in module
                 .machines
@@ -162,6 +192,15 @@ mod storage {
                             .kind
                             .storage_uses_with_arguments(needs_argument_storage)
                         {
+                            let storage = match &operation.kind {
+                                terminal_psi::OperationKind::CallMachine {
+                                    structural_arguments,
+                                    ..
+                                } => call_argument_storage(storage, structural_arguments, |index| {
+                                    package_sites.borrowed_argument(machine.id, operation.id, index).is_some()
+                                }),
+                                _ => storage,
+                            };
                             terminal_semantics::storage_operand_dependencies(
                                 machine,
                                 &declarations,
