@@ -47,13 +47,17 @@ public Input satisfies |streams|::SandboxInput {{
         .unwrap()
         .into_parts()
         .0;
-    let desc =
-        native_artifact::describe_portable_component(&produced, &Default::default()).unwrap();
+    let desc = stage
+        .review_policy(target)
+        .unwrap()
+        .component_description
+        .expect("the published supplier package description");
+    assert_eq!(desc.expected_subject(), produced.view().identity());
     let received = CanonicalTerminalArtifact::from_bytes(&produced.to_bytes()).unwrap();
     let trust = HostProducerTrust::accept("checked fixture supplier");
     (
         authorize_terminal_artifact(Arc::new(received), Some(&trust)).unwrap(),
-        desc,
+        desc.description().to_vec(),
     )
 }
 
