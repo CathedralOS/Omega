@@ -47,7 +47,7 @@ pub(super) fn prepare_roster(
         .iter()
         .map(|supply| &supply.selection)
         .collect::<Vec<_>>();
-    let layout_scopes = layout_target_scopes(
+    let mut layout_scopes = layout_target_scopes(
         &typed,
         &nominees,
         &pass.explicit_providers,
@@ -56,6 +56,11 @@ pub(super) fn prepare_roster(
         build.targets,
         build.calling_targets,
     )?;
+    for scope in &mut layout_scopes {
+        scope
+            .provider_declarations
+            .extend(pass.exported_providers.iter().cloned());
+    }
     let direct = pass.roots.direct();
     let external_roots = program_roots(direct);
     let bindings = crate::compile_product::entry_shapes::bound_program_entry_shapes(
@@ -196,9 +201,9 @@ pub(super) fn prepare_roster(
         })
         .collect::<Vec<_>>();
     let crate::compile_product::provider_choices::PreparedProviderChoices {
-        selections: provider_inputs,
+        selections: mut provider_inputs,
         declaration_roots,
-        calling_applications,
+        mut calling_applications,
     } = crate::compile_product::provider_choices::prepare_with_source_defaults(
         program,
         build.calling_targets,
@@ -207,6 +212,18 @@ pub(super) fn prepare_roster(
         &prepared_provider_defaults,
     )?;
     roster.selected.extend(declaration_roots);
+    for export in &pass.exported_providers {
+        let record = crate::compile_product::provider_choices::prepare_export(program, export)?;
+        crate::compile_product::provider_choices::include_calling_application(
+            program,
+            &record.schema,
+            &mut calling_applications,
+        )?;
+        if record.provider_application.is_none() && !roster.selected.contains(&record.provider) {
+            roster.selected.push(record.provider);
+        }
+        provider_inputs.push(record);
+    }
     let mut entry_contracts = Vec::with_capacity(build.calling_targets.len());
     for name in build.calling_targets {
         let profile = crate::compile_product::source_targets::target_named(build.targets, name)

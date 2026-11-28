@@ -69,6 +69,96 @@ pub struct TerminalProgramEntryContract {
     pub physical_source_digest: [u8; 32],
 }
 
+/// A supplier explicitly publishes this closed operation record. Its members
+/// name checked candidates, not every candidate used by their implementations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalProviderExport {
+    pub schema_declaration: TerminalIdentityIndex,
+    pub schema_application: TerminalIdentityIndex,
+    pub provider_declaration: TerminalIdentityIndex,
+    pub provider_identity: TerminalIdentityIndex,
+    pub members: Vec<ProviderExportMember>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ProviderExportMember {
+    pub boundary: semantic_vocabulary::BoundaryMachineId,
+    pub machine: semantic_vocabulary::MachineId,
+}
+
+impl TerminalProviderExport {
+    /// A candidate may be an internal dependency. Only the members of this
+    /// declared record, proved for this schema and this provider, are exported.
+    pub fn check_members(&self, module: &crate::TerminalModule) -> Result<(), &'static str> {
+        let schema = module
+            .service_schema(self.schema_declaration, self.schema_application)
+            .map_err(|_| "export does not name a closed schema")?;
+        if [self.provider_declaration, self.provider_identity]
+            .iter()
+            .any(|&id| module.identities.text(id).is_none_or(str::is_empty))
+        {
+            return Err("export does not identify its provider");
+        }
+        if self.members.len() != schema.surface.methods.len()
+            || !self
+                .members
+                .windows(2)
+                .all(|w| w[0].boundary < w[1].boundary)
+        {
+            return Err("export must provide one checked member per requirement");
+        }
+        let mut provided = Vec::with_capacity(self.members.len());
+        let candidates = &module.interfaces.provider_candidates;
+        for member in &self.members {
+            let start = candidates.partition_point(|row| row.boundary < member.boundary);
+            let mut matched = candidates[start..]
+                .iter()
+                .take_while(|row| row.boundary == member.boundary)
+                .filter(|row| {
+                    row.candidate == member.machine
+                        && row.provider_identity == self.provider_identity
+                        && row.provider_declaration.identity() == self.provider_declaration
+                });
+            let (Some(row), None) = (matched.next(), matched.next()) else {
+                return Err("exported member is not this provider's checked candidate");
+            };
+            let requirement = module
+                .identities
+                .text(row.source_requirement_identity)
+                .ok_or("unknown exported requirement")?;
+            let receiving = if row.declaration_application.is_absent() {
+                None
+            } else {
+                Some(
+                    module
+                        .identities
+                        .text(row.declaration_application)
+                        .ok_or("unknown exported application")?,
+                )
+            };
+            if !schema
+                .surface
+                .matches_receiving_application(requirement, receiving)
+            {
+                return Err("exported member belongs to a different schema application");
+            }
+            provided.push(requirement);
+        }
+        provided.sort_unstable();
+        let mut required = schema
+            .surface
+            .methods
+            .iter()
+            .map(|method| schema.surface.identity_text(method.requirement_identity))
+            .collect::<Vec<_>>();
+        required.sort_unstable();
+        if required != provided {
+            return Err("exported members differ from the closed requirement record");
+        }
+        Ok(())
+    }
+}
+
 /// Build precedence has already selected this source provider declaration.
 /// Its nominal owner and its semantic implementation identity stay distinct.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -397,11 +487,11 @@ mod tests {
         CoordinateTag, atom, bare, byte_atom, compound,
     };
     use application_identity::type_identity::vocabulary::{NameForm, OwnerForm};
-    use service_surface::{ServiceMethod, ServiceReceiverApplication};
     use language_core::core_vocabulary::{
         CoreVocabulary, CoreVocabularyCatalog, FilesystemService,
     };
     use semantic_vocabulary::{PackageKeyIdentity, ServiceId};
+    use service_surface::{ServiceMethod, ServiceReceiverApplication};
 
     fn id() -> ServiceId {
         ServiceId::new(1).unwrap()

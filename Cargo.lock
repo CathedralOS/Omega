@@ -2143,6 +2143,7 @@ dependencies = [
  "build-providers",
  "calling-conventions",
  "compiler",
+ "component-description",
  "declaration-scope",
  "diagnostics",
  "direct-boundary-bindings",

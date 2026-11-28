@@ -1557,7 +1557,7 @@ impl<'t> Program<'t> {
     /// evaluates as the boundary's ABI promise.
     pub(crate) fn keeps_witness_body(&self, id: MachineId) -> bool {
         self.requirements.contains(&id)
-            || self.unread_rows.contains(&id)
+            || !self.row_is_read(id)
             || self
                 .selections
                 .iter()

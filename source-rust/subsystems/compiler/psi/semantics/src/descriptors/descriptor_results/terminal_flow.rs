@@ -189,12 +189,24 @@ pub(crate) fn residence_rules(
     Some(rules)
 }
 
+#[derive(Clone, Copy)]
+pub(crate) enum RowPurpose {
+    Analysis(DescriptorSlotKind),
+    WriteFrame,
+}
+
+impl From<DescriptorSlotKind> for RowPurpose {
+    fn from(kind: DescriptorSlotKind) -> Self {
+        Self::Analysis(kind)
+    }
+}
+
 pub(crate) fn adapt(
     tracks_native_addresses: bool,
     module: &TerminalModule,
     machines: &[&TerminalMachine],
     machine: &TerminalMachine,
-    slot_kind: DescriptorSlotKind,
+    purpose: impl Into<RowPurpose>,
     selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
     selector_graph: Option<&[DescriptorMachine]>,
     generic_calls: super::GenericCallInputs<'_>,
@@ -213,7 +225,7 @@ pub(crate) fn adapt(
         module,
         machines,
         machine,
-        slot_kind,
+        purpose.into(),
         selected_calls,
         selector_graph,
         generic_calls,
@@ -229,7 +241,7 @@ fn adapt_flow(
     module: &TerminalModule,
     machines: &[&TerminalMachine],
     machine: &TerminalMachine,
-    slot_kind: DescriptorSlotKind,
+    purpose: RowPurpose,
     selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
     selector_graph: Option<&[DescriptorMachine]>,
     generic_calls: super::GenericCallInputs<'_>,
@@ -245,8 +257,14 @@ fn adapt_flow(
     else {
         return None;
     };
-    let scalar_expressions =
-        super::payload_predicates::TerminalScalarExpressions::new(machine);
+    let slot_kind = match purpose {
+        RowPurpose::Analysis(kind) => kind,
+        RowPurpose::WriteFrame => DescriptorSlotKind::BorrowedStorage,
+    };
+    let scalar_premises = matches!(purpose, RowPurpose::Analysis(_));
+    let scalar_expressions = std::cell::LazyCell::new(|| {
+        super::payload_predicates::TerminalScalarExpressions::new(machine)
+    });
     let mut scalar_formals = machine
         .parameters
         .iter()
@@ -283,21 +301,33 @@ fn adapt_flow(
         contents_transfers: BTreeMap::new(),
         payload_invalidations: BTreeMap::new(),
         payload_producers: BTreeMap::new(),
-        payload_entry_predicates: Some((
-            semantic_vocabulary::PropositionContext::from_value_types_and_places(
-                machine
-                    .parameters
-                    .iter()
-                    .chain(&machine.contract.erased_scalar_formals)
-                    .map(|value| (value.id, value.scalar_type)),
-                machine
-                    .structural_places
-                    .iter()
-                    .map(|place| (place.id, place.kind)),
-            )
-            .ok()?,
-            machine.contract.requires.clone(),
-        )),
+        payload_entry_predicates: {
+            let formals = machine
+                .parameters
+                .iter()
+                .chain(&machine.contract.erased_scalar_formals);
+            let types = formals.clone().map(|value| (value.id, value.scalar_type));
+            if scalar_premises {
+                Some((
+                    semantic_vocabulary::PropositionContext::from_value_types_and_places(
+                        types,
+                        machine
+                            .structural_places
+                            .iter()
+                            .map(|place| (place.id, place.kind)),
+                    )
+                    .ok()?,
+                    machine.contract.requires.clone(),
+                ))
+            } else {
+                // Conflicting declarations still make the body unreadable. Ordered,
+                // distinct scalar IDs cannot conflict. adapt_places checks place IDs.
+                if !formals.is_sorted_by(|a, b| a.id < b.id) {
+                    semantic_vocabulary::PropositionContext::from_value_types(types).ok()?;
+                }
+                None
+            }
+        },
         scalar_payload_writes: BTreeMap::new(),
         scalar_payload_reads: BTreeMap::new(),
         unsigned_index_literals: Vec::new(),
@@ -333,7 +363,8 @@ fn adapt_flow(
             *failure_detail = None;
             let position = (block.id, u32::try_from(index).ok()?);
             *failure_position = Some(position);
-            if let Some(postconditions) = super::scalar_contracts::terminal_postconditions(
+            if scalar_premises
+                && let Some(postconditions) = super::scalar_contracts::terminal_postconditions(
                 module,
                 machine,
                 operation,
@@ -382,7 +413,7 @@ fn adapt_flow(
                 && let Some(destination) = location(&graph, destination, path, field)
             {
                 step.scalar_value_stores.push((destination.clone(), source));
-                if let Some(value) = scalar_expressions.expression(source) {
+                if scalar_premises && let Some(value) = scalar_expressions.expression(source) {
                     graph
                         .scalar_payload_writes
                         .entry(position)
@@ -1362,7 +1393,7 @@ fn adapt_flow(
                 OperationKind::EstablishPrimitiveLocal { value, .. } => {
                     let destination = location(&graph, result?.place, &[], None)?;
                     step.scalar_value_stores.push((destination.clone(), *value));
-                    if let Some(value) = scalar_expressions.expression(*value) {
+                    if scalar_premises && let Some(value) = scalar_expressions.expression(*value) {
                         graph
                             .scalar_payload_writes
                             .entry(position)
@@ -1386,7 +1417,9 @@ fn adapt_flow(
                             )?;
                             let destination = location(&graph, result.place, &path, None)?;
                             step.scalar_value_stores.push((destination.clone(), *value));
-                            if let Some(value) = scalar_expressions.expression(*value) {
+                            if scalar_premises
+                                && let Some(value) = scalar_expressions.expression(*value)
+                            {
                                 graph
                                     .scalar_payload_writes
                                     .entry(position)
@@ -1518,7 +1551,9 @@ fn adapt_flow(
                         };
                         if let RecordFieldValue::Scalar { value, .. } = &field.value {
                             step.scalar_value_stores.push((destination.clone(), *value));
-                            if let Some(value) = scalar_expressions.expression(*value) {
+                            if scalar_premises
+                                && let Some(value) = scalar_expressions.expression(*value)
+                            {
                                 graph
                                     .scalar_payload_writes
                                     .entry(position)
