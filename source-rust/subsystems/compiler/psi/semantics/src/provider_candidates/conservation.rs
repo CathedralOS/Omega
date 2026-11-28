@@ -13,6 +13,18 @@ pub fn verify(
     module: &TerminalModule,
     candidate: &ProviderCandidateConformance,
 ) -> Result<(), &'static str> {
+    if let Some(machine) = match_declared_guarantees(module, candidate)? {
+        forwarding::checked_returns(module, machine)?;
+    }
+    Ok(())
+}
+
+/// Match a provider's promised equations to the boundary's formal places.
+/// A module receiver checks the returned machine's actual returns alongside every other body.
+pub(crate) fn match_declared_guarantees<'m>(
+    module: &'m TerminalModule,
+    candidate: &ProviderCandidateConformance,
+) -> Result<Option<&'m TerminalMachine>, &'static str> {
     let boundary = module
         .boundary_machine(candidate.boundary)
         .ok_or("content provider requirement is missing")?;
@@ -21,7 +33,7 @@ pub fn verify(
         .iter()
         .any(|row| matches!(row, BoundaryContentGuarantee::Conservation(_)))
     {
-        return Ok(());
+        return Ok(None);
     }
     let machine = module
         .machine(candidate.candidate)
@@ -49,7 +61,7 @@ pub fn verify(
             return Err("selected provider does not promise the exact declared content equation");
         }
     }
-    forwarding::checked_returns(module, machine).map(|_| ())
+    Ok(Some(machine))
 }
 
 type FormalPlace = (PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>));
