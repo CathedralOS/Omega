@@ -5,7 +5,7 @@
 pub(super) mod comparison;
 pub(super) mod condition;
 
-use super::facts::Facts;
+use super::facts::BranchFacts;
 use super::spin::{CellUpdate, Operand, SpinCondition};
 use crate::entry_values::TerminalScalarValue as Scalar;
 use semantic_vocabulary::{
@@ -92,10 +92,21 @@ pub(super) enum ScalarFact {
     Observation {
         occurrence: usize,
         scalar_type: ScalarType,
+        pending_provider: bool,
     },
 }
 
 impl ScalarFact {
+    pub(super) fn awaits_provider(self) -> bool {
+        matches!(
+            self,
+            Self::Observation {
+                pending_provider: true,
+                ..
+            }
+        )
+    }
+
     pub(super) fn term(self) -> Option<ScalarTerm> {
         Some(match self {
             ScalarFact::EntryInput(input) => ScalarTerm::Value {
@@ -164,8 +175,8 @@ impl ScalarFact {
 /// checked scalar evaluation available for computations on constrained inputs.
 pub(super) fn entry_scalars(
     machine: &terminal_psi::TerminalMachine,
-) -> Facts<semantic_vocabulary::ValueId, ScalarFact> {
-    let mut values = Facts::default();
+) -> BranchFacts<semantic_vocabulary::ValueId, ScalarFact> {
+    let mut values = BranchFacts::default();
     for formal in &machine.parameters {
         values.insert(formal.id, ScalarFact::EntryInput(*formal));
     }

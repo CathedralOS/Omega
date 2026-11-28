@@ -1,9 +1,8 @@
 //! `size_of<T>()` and `align_of<T>()` report the layout the selected policy
 //! laid out for the target (layouts/plans.md, "Queries consume the same exact
 //! schema, target and layout-policy application as placement and ABI").
-//! The positive runs in native code and in the Psi interpreter; its twin
-//! differs only in the queried record, which the C policy cannot lay out, and
-//! must be refused rather than receive a fabricated measurement.
+//! The value form observes the borrowed location and can appear in the
+//! guarantee on the machine that returns its alignment.
 
 #[path = "support/declared_exit.rs"]
 mod declared_exit;
@@ -17,8 +16,8 @@ fn fixture(path: &str) -> PathBuf {
     support::repository_root().join(path)
 }
 
-fn check(directory: &Path) -> (Output, String) {
-    let output = project::omega(directory, &["--check", "main.omg"]);
+fn check(directory: &Path, entry: &str) -> (Output, String) {
+    let output = project::omega(directory, &["--check", entry]);
     let report = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
@@ -52,11 +51,30 @@ fn a_layout_query_of_a_record_the_policy_cannot_lay_out_is_refused() {
     let project = fixture(
         "source-rust/application/tests/fixtures/layouts/fail/c_layout_unsupported_size_query",
     );
-    let (output, report) = check(&project);
+    let (output, report) = check(&project, "main.omg");
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains("layout policy for `Nested`")
             && report.contains("does not retain its complete 64-entry carrier"),
+        "{report}"
+    );
+}
+
+#[test]
+fn a_call_returns_the_borrowed_locations_alignment_in_native_and_psi() {
+    let project =
+        fixture("source-rust/application/tests/fixtures/layouts/run/borrowed_alignment_contract");
+    declared_exit::assert_declared_exit(&project, "build.omg");
+}
+
+#[test]
+fn a_literal_cannot_stand_in_for_a_borrowed_locations_alignment() {
+    let project =
+        fixture("source-rust/application/tests/fixtures/layouts/fail/borrowed_alignment_contract");
+    let (output, report) = check(&project, "build.omg");
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("cannot prove ensures contract for exit from alignment"),
         "{report}"
     );
 }

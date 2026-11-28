@@ -67,38 +67,6 @@ pub(crate) mod codec_bytes {
                 .to_le_bytes(),
         );
     }
-
-    pub(crate) fn option<T>(
-        bytes: &mut Vec<u8>,
-        value: Option<T>,
-        encode: impl FnOnce(&mut Vec<u8>, T),
-    ) {
-        match value {
-            None => bytes.push(0),
-            Some(value) => {
-                bytes.push(1);
-                encode(bytes, value);
-            }
-        }
-    }
-
-    pub(crate) fn list<'a, T: 'a>(
-        bytes: &mut Vec<u8>,
-        values: &'a [T],
-        artifact: &'static str,
-        mut encode: impl FnMut(&mut Vec<u8>, &'a T),
-    ) {
-        length(bytes, values.len(), artifact);
-        for value in values {
-            encode(bytes, value);
-        }
-    }
-
-    pub(crate) fn domain_identity(domain: &[u8], content: &[u8]) -> [u8; 32] {
-        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(domain);
-        digest.raw(content);
-        digest.finish()
-    }
 }
 
 pub mod constraints;
@@ -130,32 +98,24 @@ pub use recovery::{
     FixedViewCopy, FixedViewCopyDestination, FixedViewCopyPlan, FixedViewCopyPolicy,
     FunctionRecoveryClassification, FunctionSpillChoices, NoAdmittedRecoveryReason,
     PressureContender, PressureRecoveryClassification, PressureRematerializationPolicy,
-    PressureResident, RecoveryClassification, RecoveryClassificationIdentity,
-    RecoveryClassificationPlan, RecoveryClassificationPolicy, RecoveryFutureUse,
-    RecoveryVictimRole, SpillChoice, SpillChoiceIdentity, SpillChoicePlan, SpillChoicePolicy,
-    classification, fixed_view_copy, fixed_view_copy_identity, recovery_classification_identity,
-    spill_choice, spill_choice_identity,
+    PressureResident, RecoveryClassification, RecoveryClassificationPlan,
+    RecoveryClassificationPolicy, RecoveryFutureUse, RecoveryVictimRole, SpillChoice,
+    SpillChoicePlan, SpillChoicePolicy, classification, fixed_view_copy, spill_choice,
 };
 
 use std::sync::Arc;
 
-use optimization_core::{
-    OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage,
-    PostAllocationOptimizationManifestIdentity,
-};
+use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::{
     FrameAbiPreservationConvention, PhysicalRegisterModelIdentity, RegisterClassId, RegisterUnitId,
-    RegisterViewId, RegisterWriteSemantics, Sha256RegisterDigest,
-    TargetRegisterEnvironmentIdentity, write_semantics_tag,
+    RegisterViewId, RegisterWriteSemantics, TargetRegisterEnvironmentIdentity,
 };
 use selected_instructions::{
     CurrentSelectedProgram, LiveRangePlan, PreAllocationMachineEffectPlan, SelectedBlockId,
-    SelectedInstructionId, SelectedInstructionPlan, VirtualFixedConstraintSite, VirtualRegisterId,
+    SelectedInstructionId, SelectedInstructionPlan, VirtualRegisterId,
 };
 use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 use target::NativeTarget;
-
-use crate::codec_bytes::{domain_identity, length, push_encoded};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AllocatedProgram {
@@ -187,62 +147,7 @@ pub struct AllocatedProgramFacts<'program> {
     pub effects: &'program Arc<PreAllocationMachineEffectPlan>, // Pre-allocation machine effects
     pub ranges: &'program LiveRangePlan,            // Live-range plan
     pub legality: &'program AllocationLegalityPlan, // Allocation-legality plan
-    pub homes: &'program RegisterHomePlan,          // Register-home plan
-    pub homes_identity: RegisterHomeIdentity,       // Register-home plan identity
-}
-
-identity_newtype! { pub struct RegisterHomeIdentity(pub(crate) [u8; 32]); }
-identity_newtype! { pub struct AbstractSpillAccessConstraintPlanIdentity([u8; 32]); }
-
-pub fn register_home_identity(plan: &RegisterHomePlan) -> RegisterHomeIdentity {
-    RegisterHomeIdentity(domain_identity(
-        b"omega.terminal-register-homes.v8\0",
-        &encode_terminal_register_home_content(plan),
-    ))
-}
-
-pub(crate) fn encode_terminal_register_home_content(plan: &RegisterHomePlan) -> Vec<u8> {
-    let mut bytes = Vec::new();
-    bytes.extend_from_slice(&plan.register_environment.bytes());
-    bytes.extend_from_slice(&plan.allocator_availability.bytes());
-    length(&mut bytes, plan.functions.len(), "register-home identity");
-    for function in &plan.functions {
-        push_encoded(&mut bytes, function.machine.get().to_le_bytes());
-        length(
-            &mut bytes,
-            function.assignments.len(),
-            "register-home identity",
-        );
-        for assignment in &function.assignments {
-            push_encoded(&mut bytes, assignment.virtual_register.0.to_le_bytes());
-            push_encoded(&mut bytes, assignment.class.0.to_le_bytes());
-            push_encoded(&mut bytes, assignment.view.0.to_le_bytes());
-        }
-    }
-    bytes
-}
-
-pub(crate) fn encode_fixed_constraint_site_identity(
-    bytes: &mut Vec<u8>,
-    site: VirtualFixedConstraintSite,
-) {
-    match site {
-        VirtualFixedConstraintSite::Entry => bytes.push(0),
-        VirtualFixedConstraintSite::Operand {
-            position,
-            point,
-            instruction,
-            operand,
-            access,
-        } => {
-            bytes.push(1);
-            push_encoded(bytes, position.0.to_le_bytes());
-            push_encoded(bytes, point.0.to_le_bytes());
-            push_encoded(bytes, instruction.0.to_le_bytes());
-            push_encoded(bytes, operand.to_le_bytes());
-            bytes.push(access.access_tag());
-        }
-    }
+    pub homes: &'program Arc<RegisterHomePlan>,     // Register-home plan
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -311,8 +216,6 @@ pub struct FixedPrecoloredSourceSegmentHome {
     pub view: RegisterViewId,                // Assigned physical register view
 }
 
-identity_newtype! { pub struct AllocatedCalleeSavedRequirementIdentity([u8; 32]); }
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AllocatedCalleeSavedRequirementPolicy {
     AllocatedSelectedWritesIntersectAbiPreservationV1,
@@ -338,40 +241,6 @@ pub enum CalleeSavedModificationWitness {
     },
 }
 
-pub fn encode_callee_saved_modification_witness_identity<H: Sha256RegisterDigest + ?Sized>(
-    hasher: &mut H,
-    witness: CalleeSavedModificationWitness,
-) {
-    match witness {
-        CalleeSavedModificationWitness::OperandDefinition {
-            block,
-            instruction,
-            operand,
-            virtual_register,
-            home_view,
-            write_semantics,
-        } => {
-            hasher.byte(0);
-            hasher.raw(&block.0.to_le_bytes());
-            hasher.raw(&instruction.0.to_le_bytes());
-            hasher.raw(&operand.to_le_bytes());
-            hasher.raw(&virtual_register.0.to_le_bytes());
-            hasher.raw(&home_view.0.to_le_bytes());
-            hasher.byte(write_semantics_tag(write_semantics));
-        }
-        CalleeSavedModificationWitness::ImplicitDefinition { block, instruction } => {
-            hasher.byte(1);
-            hasher.raw(&block.0.to_le_bytes());
-            hasher.raw(&instruction.0.to_le_bytes());
-        }
-        CalleeSavedModificationWitness::ImplicitClobber { block, instruction } => {
-            hasher.byte(2);
-            hasher.raw(&block.0.to_le_bytes());
-            hasher.raw(&instruction.0.to_le_bytes());
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AllocatedCalleeSavedUnitRequirement {
     pub unit: RegisterUnitId, // Modified physical register unit
@@ -387,8 +256,8 @@ pub struct FunctionAllocatedCalleeSavedRequirements {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AllocatedCalleeSavedRequirementPlan {
     pub selected: Arc<SelectedInstructionPlan>, // Selected instruction plan
-    pub homes: RegisterHomeIdentity,            // Register-home plan digest
-    pub post_allocation_manifest: PostAllocationOptimizationManifestIdentity, // Manifest digest
+    pub homes: Arc<RegisterHomePlan>,           // Register homes the requirements read
+    pub post_allocation_manifest: Arc<PostAllocationOptimizationManifest>, // Allocation manifest
     pub register_environment: TargetRegisterEnvironmentIdentity, // Register environment digest
     pub physical_register_model: PhysicalRegisterModelIdentity, // Physical register model digest
     pub target: NativeTarget,                   // Target architecture and format
@@ -411,67 +280,14 @@ impl AllocatedCalleeSavedRequirementPlan {
 }
 
 /// The allocation's settled preservation facts, without its executable graph.
-/// Later forms share this exact body and the identity its producer sealed.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AllocatedCalleeSavedRequirements {
-    pub plan: Arc<AllocatedCalleeSavedRequirementPlan>,
-    pub identity: AllocatedCalleeSavedRequirementIdentity,
-}
-
-impl AllocatedCalleeSavedRequirements {
-    pub fn plan(&self) -> &AllocatedCalleeSavedRequirementPlan {
-        &self.plan
-    }
-
-    pub const fn identity(&self) -> AllocatedCalleeSavedRequirementIdentity {
-        self.identity
-    }
-}
-
-pub fn allocated_callee_saved_requirement_identity(
-    plan: &AllocatedCalleeSavedRequirementPlan,
-) -> AllocatedCalleeSavedRequirementIdentity {
-    let mut hasher =
-        digest_encoder::DomainDigestEncoder::new(b"omega.allocated-callee-saved-requirements.v3");
-    hasher.raw(&plan.homes.bytes());
-    hasher.raw(&plan.post_allocation_manifest.bytes());
-    hasher.raw(&plan.register_environment.bytes());
-    hasher.raw(&plan.physical_register_model.bytes());
-    hasher.raw(&plan.target.identity_bytes());
-    hasher.byte(plan.abi.abi_tag());
-    register_model::sha256_register_units(&mut hasher, &plan.callee_saved_units);
-    hasher.byte(match plan.policy {
-        AllocatedCalleeSavedRequirementPolicy::AllocatedSelectedWritesIntersectAbiPreservationV1 => 0,
-    });
-    hasher.raw(&plan.budget.encode());
-    hasher.raw(&plan.usage.encode());
-    register_model::sha256_length(&mut hasher, plan.functions.len());
-    for function in &plan.functions {
-        hasher.raw(&function.machine.get().to_le_bytes());
-        register_model::sha256_length(&mut hasher, function.modified_units.len());
-        for requirement in &function.modified_units {
-            hasher.raw(&requirement.unit.0.to_le_bytes());
-            register_model::sha256_length(&mut hasher, requirement.witnesses.len());
-            for witness in &requirement.witnesses {
-                encode_callee_saved_modification_witness_identity(&mut hasher, *witness);
-            }
-        }
-    }
-    AllocatedCalleeSavedRequirementIdentity::from_bytes(hasher.finish())
-}
-
-pub mod identity {
-    pub use crate::{
-        AbstractSpillAccessConstraintPlanIdentity, RegisterHomeIdentity, register_home_identity,
-    };
-}
+/// Later forms share this exact body and compare it structurally.
+pub type AllocatedCalleeSavedRequirements = Arc<AllocatedCalleeSavedRequirementPlan>;
 
 pub mod preservation {
     pub use crate::{
-        AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedRequirementPlan,
-        AllocatedCalleeSavedRequirementPolicy, AllocatedCalleeSavedUnitRequirement,
-        CalleeSavedModificationWitness, FunctionAllocatedCalleeSavedRequirements,
-        encode_callee_saved_modification_witness_identity,
+        AllocatedCalleeSavedRequirementPlan, AllocatedCalleeSavedRequirementPolicy,
+        AllocatedCalleeSavedUnitRequirement, CalleeSavedModificationWitness,
+        FunctionAllocatedCalleeSavedRequirements,
     };
 }
 
@@ -500,136 +316,10 @@ pub mod register_homes {
     pub use crate::*;
 }
 
-#[cfg(test)]
-mod tests {
-    use super::register_home_identity;
-    use crate::{
-        AllocatorAvailabilityIdentity, CalleeSavedModificationWitness, FunctionRegisterHomes,
-        RegisterHomePlan, VirtualRegisterHome,
-    };
-    use register_model::{
-        RegisterClassId, RegisterViewId, RegisterWriteSemantics, TargetRegisterEnvironmentIdentity,
-    };
-    use selected_instructions::{
-        SelectedBlockId, SelectedInstructionId, VirtualRegisterId, test_support::placeholder_plan,
-    };
-    use semantic_vocabulary::MachineId;
-    use sha2::Digest;
-
-    type Mutation = fn(&mut RegisterHomePlan);
-
-    fn plan() -> RegisterHomePlan {
-        RegisterHomePlan {
-            selected: placeholder_plan(1),
-            register_environment: TargetRegisterEnvironmentIdentity::from_bytes([3; 32]),
-            allocator_availability: AllocatorAvailabilityIdentity::from_bytes([4; 32]),
-            functions: vec![
-                FunctionRegisterHomes {
-                    machine: MachineId::new(1).unwrap(),
-                    assignments: vec![VirtualRegisterHome {
-                        virtual_register: VirtualRegisterId(0),
-                        class: RegisterClassId(1),
-                        view: RegisterViewId(2),
-                    }],
-                },
-                FunctionRegisterHomes {
-                    machine: MachineId::new(2).unwrap(),
-                    assignments: Vec::new(),
-                },
-            ],
-        }
-    }
-
-    #[test]
-    fn identity_binds_every_home_domain() {
-        let baseline = register_home_identity(&plan());
-        assert_eq!(baseline, register_home_identity(&plan()));
-        let mutations: Vec<Mutation> = vec![
-            |plan| {
-                plan.register_environment = TargetRegisterEnvironmentIdentity::from_bytes([6; 32])
-            },
-            |plan| plan.allocator_availability = AllocatorAvailabilityIdentity::from_bytes([7; 32]),
-            |plan| plan.functions[0].machine = MachineId::new(2).unwrap(),
-            |plan| plan.functions[0].assignments[0].virtual_register = VirtualRegisterId(1),
-            |plan| plan.functions[0].assignments[0].class = RegisterClassId(2),
-            |plan| plan.functions[0].assignments[0].view = RegisterViewId(3),
-            |plan| plan.functions[0].assignments.clear(),
-            |plan| plan.functions.clear(),
-            |plan| {
-                plan.functions.pop();
-            },
-            |plan| plan.functions[1].machine = MachineId::new(3).unwrap(),
-        ];
-        for mutate in mutations {
-            let mut changed = plan();
-            mutate(&mut changed);
-            assert_ne!(baseline, register_home_identity(&changed));
-        }
-    }
-
-    fn witness_digest(witness: CalleeSavedModificationWitness) -> [u8; 32] {
-        let mut hasher = sha2::Sha256::new();
-        crate::encode_callee_saved_modification_witness_identity(&mut hasher, witness);
-        hasher.finalize().into()
-    }
-
-    fn digest_of(bytes: &[u8]) -> [u8; 32] {
-        let mut hasher = sha2::Sha256::new();
-        hasher.update(bytes);
-        hasher.finalize().into()
-    }
-
-    #[test]
-    fn callee_saved_modification_witness_identity_bytes_are_pinned() {
-        let operand_definition =
-            |write_semantics| CalleeSavedModificationWitness::OperandDefinition {
-                block: SelectedBlockId(0x0403_0201),
-                instruction: SelectedInstructionId(0x0807_0605),
-                operand: 0x0a09,
-                virtual_register: VirtualRegisterId(0x0e0d_0c0b),
-                home_view: RegisterViewId(0x100f),
-                write_semantics,
-            };
-        let write_semantics_tags: [(RegisterWriteSemantics, u8); 6] = [
-            (RegisterWriteSemantics::ExactView, 0),
-            (RegisterWriteSemantics::PreservesUnwritten, 1),
-            (RegisterWriteSemantics::ZeroExtendsParent, 2),
-            (RegisterWriteSemantics::ZeroExtendsWithinUnit, 3),
-            (RegisterWriteSemantics::Discards, 4),
-            (RegisterWriteSemantics::InstructionDefined, 5),
-        ];
-        for (write_semantics, tag) in write_semantics_tags {
-            assert_eq!(
-                witness_digest(operand_definition(write_semantics)),
-                digest_of(&[
-                    0, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c,
-                    0x0d, 0x0e, 0x0f, 0x10, tag,
-                ]),
-                "{write_semantics:?}",
-            );
-        }
-        assert_eq!(
-            witness_digest(CalleeSavedModificationWitness::ImplicitDefinition {
-                block: SelectedBlockId(0x0403_0201),
-                instruction: SelectedInstructionId(0x0807_0605),
-            }),
-            digest_of(&[1, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]),
-        );
-        assert_eq!(
-            witness_digest(CalleeSavedModificationWitness::ImplicitClobber {
-                block: SelectedBlockId(0x0403_0201),
-                instruction: SelectedInstructionId(0x0807_0605),
-            }),
-            digest_of(&[2, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]),
-        );
-    }
-}
-
 mod pressure_rematerialization;
 pub use pressure_rematerialization::{
     FunctionPressureRematerialization, PressureRematerializationAction,
     PressureRematerializationPlan, PressureRematerializationRewrite,
-    pressure_rematerialization_identity,
 };
 
 pub mod literal_fold;

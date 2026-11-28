@@ -9,7 +9,7 @@ use terminal_check_tables::Checked;
 
 use super::Program;
 use crate::declare::provider_selections::{
-    ProviderSelections, SourceProviderSelection, SourceProviderSelections,
+    ProviderSelections, ProviderUse, SourceProviderSelection, SourceProviderSelections,
 };
 
 impl<'source> Program<'source> {
@@ -44,7 +44,7 @@ impl<'source> Program<'source> {
             .map(supply_key)
             .collect::<std::collections::BTreeSet<_>>();
         for selected in selected.choices {
-            if selected.target.is_empty()
+            if matches!(&selected.use_as, ProviderUse::Selection { target, .. } if target.is_empty())
                 || !typed.symbols.symbols().nodes().is_valid(selected.provider)
             {
                 return Err(crate::read::unavailable(
@@ -196,6 +196,7 @@ impl<'source> Program<'source> {
                         "provider lost its checked conformance questions",
                     )
                 })?;
+            let mut members = Vec::new();
             for question in questions {
                 let (
                     Some(candidate),
@@ -229,9 +230,16 @@ impl<'source> Program<'source> {
                 if supplied_keys.insert(supply_key(&row)) {
                     self.supplied.push(row);
                 }
+                if matches!(selected.use_as, ProviderUse::Export) {
+                    members.push(terminal_psi::ProviderExportMember {
+                        boundary: candidate.boundary,
+                        machine,
+                    });
+                }
             }
             prepared.rows.push(SourceProviderSelection {
-                target: selected.target.clone(),
+                use_as: selected.use_as.clone(),
+                members,
                 schema_declaration: typed
                     .normalized_hermetic_symbol_identity(scope.declaration.symbol)
                     .map_err(|reason| crate::read::unavailable(context, reason))?,
@@ -250,7 +258,6 @@ impl<'source> Program<'source> {
                     typed, provider,
                 )
                 .map_err(|reason| crate::read::unavailable(context, reason.to_string()))?,
-                composition_mode: selected.composition_mode,
             });
             self.admitted_declarations.include(provider);
             self.admitted_declarations.include(scope.declaration.symbol);

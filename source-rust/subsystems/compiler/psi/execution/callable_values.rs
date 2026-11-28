@@ -50,6 +50,9 @@ pub struct TerminalDeclarationEnvelope {
 pub struct TerminalCallableContract {
     pub id: CallableContractId,
     pub identity: TerminalIdentityIndex,
+    /// A named requirement admits only descriptors already bound to its route.
+    /// A structural callable has no such restriction on its supplier.
+    pub requirement: Option<TerminalIdentityIndex>,
     pub scalar_parameters: Vec<ValueDeclaration>,
     pub parameter_order: Vec<BoundaryParameterKind>,
     pub structural_parameters: Vec<StructuralParameterDeclaration>,
@@ -101,11 +104,7 @@ pub struct TerminalCallableEnvelope {
     pub termination: TerminalCallableTermination,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum TerminalCallableInvocation {
-    Parameter(u32),
-    Service(ServiceId),
-}
+pub type TerminalCallableInvocation = semantic_vocabulary::SynchronousInvocation<ServiceId>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalCallableTermination {

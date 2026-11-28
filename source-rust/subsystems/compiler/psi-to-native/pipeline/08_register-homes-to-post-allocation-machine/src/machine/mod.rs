@@ -127,7 +127,7 @@ pub use plan::{PostAllocationMachineError, ValidatedPostAllocationMachinePlan};
 /// }
 /// ```
 pub fn stage_optimized_post_allocation_machine_plan(
-    allocated: &allocation::RetainedAllocation,
+    allocated: &allocated_body::AllocatedBody,
 ) -> Result<StagedOptimizedPostAllocationMachinePlan, OptimizedPostAllocationMachinePipelineError> {
     let allocation = allocated.facts();
     let environment = allocation.environment;

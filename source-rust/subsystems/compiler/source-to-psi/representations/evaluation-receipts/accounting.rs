@@ -4,7 +4,9 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use build_model::values::BuildTimeValue;
-use checked_program_to_psi::{CheckedSourceCall, ProducedTerminalProgram, SourceInvocationSite};
+use published_source_invocation::{
+    CheckedSourceCall, PublishedInvocationProgram, PublishedSourceInvocation, SourceInvocationSite,
+};
 use typed_trees::source_state;
 
 use build_time_evaluation::scalars::PURE_PSI_WORK_BUDGET;
@@ -48,6 +50,11 @@ impl PureEvaluationRecord {
 }
 
 /// A completed invocation keeps its checked source site and execution charge.
+/// Receipt consumers cannot issue the publisher's checked call and program pair.
+///
+/// ```compile_fail,E0432
+/// use source_invocation_issuer::PUBLICATION;
+/// ```
 #[derive(Debug, Clone)]
 pub struct PureTerminalEvaluationReceipt {
     site: CheckedSourceCall,
@@ -78,12 +85,13 @@ pub struct RecordedSourceInvocation {
 impl RecordedSourceInvocation {
     pub fn record(
         call: SourceInvocationInputs<'_>,
-        program: &ProducedTerminalProgram,
+        published: PublishedSourceInvocation<'_>,
         admission: build_model::admission::AdmittedCompilerEvaluation,
         meter: &build_model::work::EvaluationWorkMeter,
         run: Result<build_time_evaluation::invocations::InvocationOutcome, String>,
     ) -> Result<Self, String> {
-        let checked = call.site.check(program)?;
+        let (checked, program) = published.into_parts();
+        checked.require_site(&call.site)?;
         let account = meter
             .payment()
             .invocation()
@@ -188,7 +196,7 @@ impl PureTerminalEvaluationReceipt {
         }
         Ok(())
     }
-    pub fn require_program(&self, program: &ProducedTerminalProgram) -> Result<(), String> {
+    pub fn require_program(&self, program: PublishedInvocationProgram<'_>) -> Result<(), String> {
         let code = program.view();
         let entry = code
             .module()

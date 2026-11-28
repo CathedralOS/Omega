@@ -440,7 +440,17 @@ fn reopened_program_can_be_interpreted_and_compiled_after_the_source_is_gone() {
     }
     let inspected = command(&["psi", "inspect", "--artifact"], length);
     assert!(inspected.status.success(), "{inspected:?}");
-    let withheld = command(&["run"], length);
+    // Without producer trust the host still interprets the program, contained,
+    // but it compiles native code only for an artifact it trusts.
+    let contained = command(&["run"], length);
+    assert!(contained.status.success(), "{contained:?}");
+    assert!(
+        String::from_utf8_lossy(&contained.stderr)
+            .lines()
+            .any(|line| line == "Psi exit 0"),
+        "{contained:?}"
+    );
+    let withheld = command(&[], length);
     assert!(!withheld.status.success());
     assert!(String::from_utf8_lossy(&withheld.stderr).contains("requires --trusted-artifact"));
     let mut wrong = manifest.clone();

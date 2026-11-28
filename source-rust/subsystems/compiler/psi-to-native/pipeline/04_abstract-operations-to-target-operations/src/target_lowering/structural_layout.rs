@@ -70,12 +70,17 @@ impl PrimitiveProjection {
     }
 }
 
+pub(crate) enum ReferenceEndpoint {
+    Storage(Option<StructuralTypeId>),
+    BorrowedArgument(StructuralTypeId),
+}
+
 #[allow(clippy::type_complexity)]
 pub(crate) fn reference_referent_projection(
     mut root: StructuralTypeId,
     mut path: &[StructuralPathSegment],
     requested: StructuralAccess,
-    expected: Option<StructuralTypeId>,
+    endpoint: ReferenceEndpoint,
     declarations: &StructuralLayouts<'_>,
 ) -> Result<(StructuralTypeId, ValueShape, u32, Vec<RuntimeIndex>), LoweringError> {
     let mut runs = Vec::new();
@@ -108,6 +113,23 @@ pub(crate) fn reference_referent_projection(
             return Err(LoweringError::UnsupportedStructuralReference(root));
         }
     }
+    let expected = match endpoint {
+        ReferenceEndpoint::Storage(expected) => expected,
+        ReferenceEndpoint::BorrowedArgument(formal) => {
+            if path.is_empty()
+                && root == formal
+                && let Some(pointer) = declarations.get(root).and_then(|ty| {
+                    calling_conventions::terminal_layout::opaque_borrow_transport(
+                        &ty.shape, requested,
+                    )
+                })
+            {
+                // Forwarding the whole referent needs only the address reached above.
+                return Ok((root, pointer, 0, runs));
+            }
+            Some(formal)
+        }
+    };
     let (selected, shape, offset, indices) =
         runtime_borrowed_projection(root, path, requested, expected, declarations)?;
     runs.extend(indices);
@@ -1396,6 +1418,56 @@ mod placed_geometry_tests {
     }
 
     #[test]
+    fn forwarding_an_opaque_referent_requires_no_backing_layout() {
+        let opaque = StructuralTypeId::new(1).unwrap();
+        let reference = StructuralTypeId::new(2).unwrap();
+        let declarations = [
+            (opaque, StructuralTypeShape::Opaque),
+            (
+                reference,
+                StructuralTypeShape::Reference {
+                    referent: opaque,
+                    access: StructuralAccess::MutableBorrow,
+                },
+            ),
+        ]
+        .map(|(id, shape)| StructuralTypeDeclaration {
+            id,
+            shape,
+            declaration_identity: Default::default(),
+            identity: Default::default(),
+            quotient_carrier: None,
+            requires: Vec::new(),
+            owns_linear_claim: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+            no_code_affine_cleanup: true,
+            descriptor_cleanup: false,
+            nominal_cleanup: None,
+            scalar_restriction: None,
+        });
+        let layouts = StructuralLayouts::new(&declarations).unwrap();
+        let path = [StructuralPathSegment::Referent];
+        let project = |endpoint| {
+            reference_referent_projection(
+                reference,
+                &path,
+                StructuralAccess::MutableBorrow,
+                endpoint,
+                &layouts,
+            )
+        };
+        let (selected, transport, offset, indices) =
+            project(ReferenceEndpoint::BorrowedArgument(opaque)).unwrap();
+        assert_eq!(
+            (selected, transport, offset),
+            (opaque, ValueShape::integer(8, 8), 0)
+        );
+        assert!(indices.is_empty());
+        assert!(project(ReferenceEndpoint::Storage(Some(opaque))).is_err());
+        assert!(project(ReferenceEndpoint::BorrowedArgument(reference)).is_err());
+    }
+
+    #[test]
     fn typed_byte_element_loan_retains_exact_expected_carrier() {
         let integer =
             semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
@@ -1432,7 +1504,7 @@ mod placed_geometry_tests {
             root,
             &path,
             StructuralAccess::SharedBorrow,
-            Some(types[2].id),
+            ReferenceEndpoint::Storage(Some(types[2].id)),
             &declarations,
         )
         .unwrap();
@@ -1444,7 +1516,7 @@ mod placed_geometry_tests {
                     root,
                     &path,
                     StructuralAccess::SharedBorrow,
-                    Some(wrong),
+                    ReferenceEndpoint::Storage(Some(wrong)),
                     &declarations
                 )
                 .is_err()

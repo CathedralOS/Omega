@@ -530,8 +530,10 @@ fn selection_honors_the_stored_call_plan_without_recomputing_it() {
         },
         placement: stored.parameters[position as usize].clone(),
     };
+    let crossing = semantic_vocabulary::SuspensionCrossingId::new(3).unwrap();
     let row = TargetUnitOperation::Call {
         psi_operation: op(2),
+        suspension_crossing: Some(crossing),
         origin: target_operations::NativeCallOrigin::Authored,
         target: target_operations::NativeCallTarget::Machine(MachineId::new(2).unwrap()),
         call_plan: stored.clone(),
@@ -554,6 +556,7 @@ fn selection_honors_the_stored_call_plan_without_recomputing_it() {
         panic!("call");
     };
     assert_eq!(call.call_plan, stored);
+    assert_eq!(call.suspension_crossing, Some(crossing));
     assert!(call.stored_plan_placements(policy).is_some());
     // An argument placed somewhere the stored plan does not put it is refused,
     // even where that placement is what a recomputed plan would choose.
@@ -647,7 +650,9 @@ fn retained_call_descriptor_origins_do_not_need_old_bodies_but_audit_does() {
             1,
             vec![
                 AbstractOperation::CallStructural {
+                    opening: None,
                     psi_operation: op(1),
+                    suspension_crossing: None,
                     callee: callee.into(),
                     arguments: Vec::new(),
                     structural_arguments: vec![terminal_psi::StructuralArgument {
@@ -698,6 +703,7 @@ fn retained_call_descriptor_origins_do_not_need_old_bodies_but_audit_does() {
     }];
     let row = TargetUnitOperation::Call {
         psi_operation: op(1),
+        suspension_crossing: None,
         origin: target_operations::NativeCallOrigin::Authored,
         target: target_operations::NativeCallTarget::Machine(callee),
         call_plan: calling_conventions::evaluate_call_plan(
@@ -2061,6 +2067,7 @@ fn qualified_numeric_replay_needs_the_module_and_actual_numeric_meaning() {
         result_reference_regions: vec![],
         result_lifetimes: Some(vec![]),
         requires: vec![],
+        membership_requires: Vec::new(),
         membership_ensures: Vec::new(),
         normal_qualifications: vec![],
         scalar_domain_requirements: vec![],

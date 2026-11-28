@@ -192,6 +192,10 @@ pub(crate) struct ReferenceStorage {
     pub(crate) placed: Option<target_operations::TargetAccessInterpretation>,
 }
 
+#[path = "references/package_fields.rs"]
+mod package_fields;
+pub(crate) use package_fields::OpenedReferenceField;
+
 pub(crate) struct ReferentProjection {
     pub(crate) carrier_type: StructuralTypeId,
     pub(crate) referent: StructuralTypeId,
@@ -269,7 +273,7 @@ pub(crate) fn window_projection(
         root_type,
         &path[..=crossing],
         required_access,
-        None,
+        crate::target_lowering::structural_layout::ReferenceEndpoint::Storage(None),
         types,
     )
     .ok()?;
@@ -331,7 +335,9 @@ pub(crate) fn reference_call_argument(
             root_type,
             &argument.path,
             argument.access,
-            Some(declaration.structural_type),
+            crate::target_lowering::structural_layout::ReferenceEndpoint::BorrowedArgument(
+                declaration.structural_type,
+            ),
             types,
         )?;
     let indices = super::scalar_sources::runtime_indices(
@@ -352,6 +358,7 @@ pub(crate) fn reference_call_argument(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     Ok(TargetStructuralArgument {
+        opened_referent: None,
         place: argument.place,
         access: argument.access,
         path: argument.path.clone(),
@@ -1017,6 +1024,7 @@ mod copies {
         result: &StructuralOperationResult,
         source: PlaceId,
         path: &abstract_operations::StructuralCopyPath,
+        package: Option<OpenedReferenceField>,
     ) -> Result<BTreeMap<(PlaceId, Vec<StructuralPathSegment>), ReferenceStorage>, LoweringError>
     {
         let mut copied = BTreeMap::new();
@@ -1038,7 +1046,8 @@ mod copies {
                 .ok_or(LoweringError::unsupported_control_flow(function.machine))?,
             ),
         };
-        if leaf_type(types, source_type, &path) != Some(result.structural_type)
+        let storage_type = package.map_or(result.structural_type, |field| field.storage_type);
+        if leaf_type(types, source_type, &path) != Some(storage_type)
             || live
                 .references
                 .keys()
@@ -1046,6 +1055,19 @@ mod copies {
             || live.structural_homes.contains_key(&result.place)
         {
             return Err(LoweringError::unsupported_control_flow(function.machine));
+        }
+        if is_native_window(function, types, live, source, &path) {
+            // The asserted address identifies the outer cell. The stored
+            // reference gets its backing from the checked read at this cut.
+            let invalid = || LoweringError::unsupported_control_flow(function.machine);
+            for relative in leaf_paths(types, result.structural_type, 4096).ok_or_else(invalid)? {
+                let mut selected = path.to_vec();
+                selected.extend_from_slice(&relative);
+                let resident = observations::observe(function, live, types, source, &selected)
+                    .ok_or_else(invalid)?;
+                copied.insert((result.place, relative), resident);
+            }
+            return Ok(copied);
         }
         let cursors = storage_regions(function, types, live, source, &path)?;
         let mut candidates: BTreeMap<Vec<StructuralPathSegment>, Vec<ReferenceStorage>> =
@@ -1059,7 +1081,7 @@ mod copies {
                 &prefix,
             )
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-            if leaf_type(types, root, &prefix) != Some(result.structural_type) {
+            if leaf_type(types, root, &prefix) != Some(storage_type) {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             for ((resident, path), original) in &live.references {
@@ -1072,6 +1094,12 @@ mod copies {
                 if relative.contains(&StructuralPathSegment::Referent) {
                     continue;
                 }
+                let mut original = original.clone();
+                if let Some(package) = package
+                    && (!relative.is_empty() || !package.open(&mut original))
+                {
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
+                }
                 let carrier_type = leaf_type(types, result.structural_type, relative)
                     .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
                 if carrier_type != original.carrier_type
@@ -1083,7 +1111,7 @@ mod copies {
                 candidates
                     .entry(relative.to_vec())
                     .or_default()
-                    .push(original.clone());
+                    .push(original);
             }
         }
         for (relative, alternatives) in candidates {
@@ -1173,8 +1201,7 @@ mod observations {
                 .observations
                 .get(&function.machine)?
                 .get(&live.reference_position)?;
-            let current = sources_at_storage(snapshot, &location);
-            let current = current?;
+            let current = sources_at_storage(snapshot, &location)?;
             for source in current {
                 let origin = if let Some(slot) = source.captured_entry_slot() {
                     let contract = function.structural_parameter(slot.root)?.structural_type;
@@ -1232,6 +1259,56 @@ mod observations {
                                     .path
                                     .iter()
                                     .cloned()
+                                    .map(terminal_psi::ReferenceOriginProjection::Exact)
+                                    .collect(),
+                                extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+                            }
+                        }
+                        DescriptorSourceOrigin::Backing(DescriptorCallOrigin::NativeAddress {
+                            machine,
+                            operation,
+                            carrier,
+                            projection,
+                            ..
+                        }) => {
+                            let path = projection.captured_address_path().ok()?;
+                            let (StructuralPathSegment::Referent, cell) = path.split_last()? else {
+                                return None;
+                            };
+                            let StructuralTypeShape::Reference {
+                                referent: base,
+                                access,
+                            } = types.get(*carrier)?.shape
+                            else {
+                                return None;
+                            };
+                            if projection.is_native_enclosing_storage()
+                                || !matches!(
+                                    types.get(carrier_type)?.shape,
+                                    StructuralTypeShape::Reference {
+                                        access: StructuralAccess::SharedBorrow,
+                                        ..
+                                    }
+                                )
+                                || leaf_type(types, base, cell) != Some(carrier_type)
+                                || !terminal_semantics::reference_source_projection_accessible(
+                                    types.values().copied(),
+                                    base,
+                                    types.get(base)?.multiplicity,
+                                    access,
+                                    &path,
+                                    StructuralAccess::SharedBorrow,
+                                )
+                            {
+                                return None;
+                            }
+                            target_operations::TargetReferenceOrigin {
+                                base: target_operations::TargetReferenceOriginBase::NativeAddress {
+                                    machine: *machine,
+                                    operation: *operation,
+                                },
+                                path: path
+                                    .into_iter()
                                     .map(terminal_psi::ReferenceOriginProjection::Exact)
                                     .collect(),
                                 extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
@@ -1340,9 +1417,18 @@ mod stored_calls {
         Incoming(StructuralArgument),
         Backing(StructuralArgument),
         Provider(target_operations::TargetReferenceOrigin),
+        Native {
+            machine: MachineId,
+            operation: semantic_vocabulary::OperationId,
+            carrier: StructuralTypeId,
+        },
     }
 
     pub(crate) struct StoredEffects {
+        pub(super) native_roots: BTreeMap<
+            (MachineId, semantic_vocabulary::OperationId),
+            Vec<target_operations::TargetReferenceOrigin>,
+        >,
         machines: BTreeMap<MachineId, Result<Vec<Effect>, &'static str>>,
         provider_outputs: BTreeMap<(BoundaryMachineId, u32), (StructuralTypeId, StructuralAccess)>,
         pub(crate) observations: BTreeMap<
@@ -1398,6 +1484,81 @@ mod stored_calls {
         }
     }
 
+    /// Read the newly formed loan from the normal descriptor graph. Its origins
+    /// already reflect the instruction that exposed each address, including
+    /// temporary references that have since been released or replaced.
+    fn native_root(
+        types: &StructuralTypeLookup<'_>,
+        graph: &terminal_semantics::descriptor_results::DescriptorMachine,
+        effects: &StoredEffects,
+        result: PlaceId,
+        source: terminal_semantics::descriptor_results::DescriptorSourceOrigin,
+    ) -> Option<target_operations::TargetReferenceOrigin> {
+        use target_operations::{TargetReferenceOrigin, TargetReferenceOriginBase as Base};
+        use terminal_semantics::descriptor_lifetimes::descriptor_path;
+        use terminal_semantics::descriptor_results::{
+            DescriptorCallOrigin as Origin, DescriptorSourceOrigin as Source,
+        };
+        let incoming = |slot: &terminal_semantics::descriptor_lifetimes::DescriptorLocation| {
+            Some(Base::IncomingContents {
+                root: slot.root,
+                slot: descriptor_path(
+                    types.catalog(),
+                    *graph.place_types.get(&slot.root)?,
+                    &slot.path,
+                )?,
+            })
+        };
+        let (base, projection) = match source {
+            Source::Backing(Origin::Argument { source, projection }) => {
+                (Base::Storage { root: source }, projection)
+            }
+            Source::Backing(Origin::NativeAddress {
+                machine,
+                operation,
+                projection,
+                ..
+            }) => (Base::NativeAddress { machine, operation }, projection),
+            Source::Backing(Origin::Invocation {
+                carrier_type,
+                projection,
+            }) => (
+                Base::Invocation {
+                    root: result,
+                    carrier_type,
+                },
+                projection,
+            ),
+            Source::IncomingSlot(slot) => (
+                incoming(&slot)?,
+                terminal_semantics::storage::borrowed_storage::Projection::new(&[]),
+            ),
+            Source::IncomingContents { query, projection } => {
+                (incoming(&query.exact_location()?)?, projection)
+            }
+            Source::Provider(provider) => return effects.provider_origin(&provider),
+            _ => return None,
+        };
+        let path = projection.captured_storage_path();
+        let extent = if path.is_some() && !projection.is_native_enclosing_storage() {
+            semantic_vocabulary::ReferenceOriginExtent::Projected
+        } else {
+            semantic_vocabulary::ReferenceOriginExtent::WithinRegion
+        };
+        let path = path
+            .unwrap_or(projection.path)
+            .into_iter()
+            .map(|step| {
+                if step.runtime_index().is_some() {
+                    terminal_psi::ReferenceOriginProjection::Element
+                } else {
+                    terminal_psi::ReferenceOriginProjection::Exact(step)
+                }
+            })
+            .collect();
+        Some(TargetReferenceOrigin { base, path, extent })
+    }
+
     fn writable_slots(function: &AbstractFunction, types: &StructuralTypeLookup<'_>) -> bool {
         function.structural_parameters.iter().any(|parameter| {
             DescriptorSlotKind::References
@@ -1437,6 +1598,14 @@ mod stored_calls {
                 projection,
             } => eprintln!(
                 "CHECKSITE stored-reference-origin machine={machine:?} kind=invocation carrier={carrier_type:?} projection={projection:?}"
+            ),
+            DescriptorStoredOrigin::NativeAddress {
+                machine: owner,
+                operation,
+                place,
+                ..
+            } => eprintln!(
+                "CHECKSITE stored-reference-origin machine={machine:?} kind=native-address owner={owner:?} operation={operation:?} place={place:?}"
             ),
             DescriptorStoredOrigin::AccessFormation {
                 machine: owner,
@@ -1488,6 +1657,7 @@ mod stored_calls {
             .filter(|function| writable_slots(function, types))
             .collect::<Vec<_>>();
         let mut effects = StoredEffects {
+            native_roots: BTreeMap::new(),
             provider_outputs: BTreeMap::new(),
             observations: BTreeMap::new(),
             access_results: BTreeMap::new(),
@@ -1586,6 +1756,47 @@ mod stored_calls {
         let mut analysis = DescriptorAnalysis::with_reference_slots(types.catalog(), &graph);
         let has_access_views = !types.catalog().access_views().is_empty();
         for machine in &graph {
+            if let Some(function) = functions.get(&machine.id) {
+                for block in &function.blocks {
+                    for (index, operation) in block.operations.iter().enumerate() {
+                        let AbstractOperation::BorrowAt {
+                            psi_operation,
+                            result,
+                            ..
+                        } = operation
+                        else {
+                            continue;
+                        };
+                        let Some(next) = u32::try_from(index)
+                            .ok()
+                            .and_then(|index| index.checked_add(1))
+                        else {
+                            continue;
+                        };
+                        let location =
+                            terminal_semantics::descriptor_lifetimes::DescriptorLocation::whole(
+                                result.place,
+                            );
+                        let origins = analysis
+                            .symbolic_source_origins(machine.id, (block.block, next), &location)
+                            .and_then(|origins| {
+                                origins
+                                    .into_iter()
+                                    .map(|origin| {
+                                        native_root(types, machine, &effects, result.place, origin)
+                                    })
+                                    .collect::<Option<Vec<_>>>()
+                            });
+                        if let Some(mut origins) = origins.filter(|origins| !origins.is_empty()) {
+                            origins.sort_unstable();
+                            origins.dedup();
+                            effects
+                                .native_roots
+                                .insert((machine.id, *psi_operation), origins);
+                        }
+                    }
+                }
+            }
             effects
                 .observations
                 .insert(machine.id, analysis.source_observations(machine.id));
@@ -1693,6 +1904,12 @@ mod stored_calls {
                             | DescriptorStoredOrigin::IncomingContents { .. } => return Err("stored-reference captured incoming contents have no physical metadata conversion"),
                             DescriptorStoredOrigin::ProducedContents(_) => return Err("a generic call result has no concrete reference origin"),
                             DescriptorStoredOrigin::Literal { .. } => return Err("stored-reference literal origin has no physical metadata conversion"),
+                            DescriptorStoredOrigin::NativeAddress { machine, operation, carrier, projection, .. } => {
+                                if !projection.path.is_empty() || projection.window.is_some() || projection.indirect {
+                                    return Err("stored native reference has an unresolved projection");
+                                }
+                                sources.push(Source::Native { machine, operation, carrier });
+                            }
                             DescriptorStoredOrigin::AccessFormation { .. } => return Err("stored-reference access formation has no physical metadata conversion"),
                             DescriptorStoredOrigin::Carried { .. } => return Err("stored-reference carried sequence roster has no physical metadata conversion"),
                         }
@@ -1843,6 +2060,24 @@ mod stored_calls {
                             carrier_type,
                             referent,
                             placed: super::access_source(function, live, types, &source),
+                        }
+                    }
+                    Source::Native {
+                        machine,
+                        operation,
+                        carrier,
+                    } => {
+                        let inner = super::referent(types, *carrier)
+                            .ok_or_else(|| invalid("stored native borrow has no referent"))?;
+                        ReferenceStorage {
+                            root: ReferenceRoot::Alternatives(vec![target_operations::TargetReferenceOrigin {
+                                base: target_operations::TargetReferenceOriginBase::NativeAddress { machine: *machine, operation: *operation },
+                                path: Vec::new(),
+                                extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+                            }]),
+                            carrier_type: *carrier,
+                            referent: inner,
+                            placed: None,
                         }
                     }
                     Source::Provider(origin) => {
@@ -1997,6 +2232,177 @@ fn formation_indices(
     )
 }
 
+/// Create the descriptor in the same home used by checked RAM borrows. A raw
+/// address supplies an external origin. An upgrade inherits the source loan.
+pub(crate) fn establish_trusted(
+    operation: &AbstractOperation,
+    site: &mut RowSite<'_>,
+) -> Result<(), LoweringError> {
+    let (function, types, live, operations, provenance) = site.parts();
+    let invalid = || LoweringError::unsupported_control_flow(function.machine);
+    let (psi_operation, result) = match operation {
+        AbstractOperation::BorrowAt {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::UpgradeMutability {
+            psi_operation,
+            result,
+            ..
+        } => (*psi_operation, result),
+        _ => return Err(invalid()),
+    };
+    let result_shape = &types.get(result.structural_type).ok_or_else(invalid)?.shape;
+    if result.multiplicity != StructuralMultiplicity::Affine
+        || !result.claims.is_empty()
+        || !result.qualification_establishments.is_empty()
+        || live.structural_homes.contains_key(&result.place)
+        || live.references.contains_key(&(result.place, Vec::new()))
+    {
+        return Err(invalid());
+    }
+    let result_home = super::aggregate_results::home(psi_operation, result, types)?;
+    let targeted = match operation {
+        AbstractOperation::UpgradeMutability { source, .. }
+            if result_shape.is_view_descriptor() =>
+        {
+            let (selected, indices) =
+                crate::target_lowering::scalar::descriptor_operands::descriptor_projection(
+                    function,
+                    types,
+                    live.element_view_backings(),
+                    source,
+                )?;
+            let formal = function.arrival_parameter(source.place);
+            let formal_access = formal
+                .filter(|_| source.path.is_empty())
+                .map(|param| param.access);
+            let from = &types.get(selected).ok_or_else(invalid)?.shape;
+            let occurrence = formal_access
+                .filter(|access| *access != StructuralAccess::Owned)
+                .or_else(|| {
+                    let multiplicity = formal
+                        .map(|param| param.multiplicity)
+                        .or_else(|| {
+                            live.structural_homes
+                                .get(&source.place)
+                                .map(|home| home.multiplicity())
+                        })
+                        .or_else(|| {
+                            live.view_result(function, source.place)
+                                .map(|result| result.multiplicity)
+                        })?;
+                    terminal_semantics::descriptor_results::descriptor_value_access(
+                        types.values().copied(),
+                        selected,
+                        multiplicity,
+                    )
+                });
+            if source.access != StructuralAccess::SharedBorrow
+                || !calling_conventions::terminal_layout::is_native_view_descriptor_at(
+                    from,
+                    formal_access,
+                )
+                || !calling_conventions::terminal_layout::is_native_view_descriptor(result_shape)
+                || !terminal_semantics::mutability_upgrade_shapes_match(
+                    from,
+                    occurrence,
+                    result_shape,
+                )
+            {
+                return Err(invalid());
+            }
+            TargetUnitOperation::UpgradeMutability {
+                psi_operation,
+                result_home: result_home.clone(),
+                source: source.clone(),
+                indices,
+            }
+        }
+        AbstractOperation::BorrowAt { address, .. } => {
+            let StructuralTypeShape::Reference { access, referent } = *result_shape else {
+                return Err(invalid());
+            };
+            if !matches!(
+                access,
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            ) {
+                return Err(invalid());
+            }
+            let scalar = super::scalar_sources::source(*address, function, live)?.scalar_type();
+            if !terminal_psi::StorageLocationQuery::Address.admits_result(scalar) {
+                return Err(invalid());
+            }
+            let origins = live
+                .stored_reference_effects
+                .native_roots
+                .get(&(function.machine, psi_operation))
+                .cloned()
+                .ok_or_else(invalid)?;
+            live.references.insert(
+                (result.place, Vec::new()),
+                ReferenceStorage {
+                    root: ReferenceRoot::Alternatives(origins),
+                    carrier_type: result.structural_type,
+                    referent,
+                    placed: None,
+                },
+            );
+            TargetUnitOperation::BorrowAt {
+                psi_operation,
+                result_home: result_home.clone(),
+                address: *address,
+            }
+        }
+        AbstractOperation::UpgradeMutability { source, .. } => {
+            let StructuralTypeShape::Reference { referent, .. } = *result_shape else {
+                return Err(invalid());
+            };
+            if source.access != StructuralAccess::SharedBorrow {
+                return Err(invalid());
+            }
+            let from = source_contract(function, live, source.place)
+                .and_then(|root| leaf_type(types, root, &source.path))
+                .ok_or_else(invalid)?;
+            if !terminal_semantics::mutability_upgrade_shapes_match(
+                &types.get(from).ok_or_else(invalid)?.shape,
+                None,
+                result_shape,
+            ) {
+                return Err(invalid());
+            }
+            // Retain the descriptor's actual backing and storage codec. The
+            // final dereference selects its pointee, including projected loans.
+            let mut pointee = source.clone();
+            pointee.path.push(StructuralPathSegment::Referent);
+            let root = normalized_source(function, live, types, &pointee)?;
+            let placed = access_source(function, live, types, &pointee);
+            let indices = formation_indices(function, live, types, &pointee)?;
+            live.references.insert(
+                (result.place, Vec::new()),
+                ReferenceStorage {
+                    root,
+                    carrier_type: result.structural_type,
+                    referent,
+                    placed,
+                },
+            );
+            TargetUnitOperation::UpgradeMutability {
+                psi_operation,
+                result_home: result_home.clone(),
+                source: pointee,
+                indices,
+            }
+        }
+        _ => return Err(invalid()),
+    };
+    live.structural_homes.insert(result.place, result_home);
+    operations.push(targeted);
+    provenance.operations.push(psi_operation);
+    Ok(())
+}
+
 pub(crate) fn establish(
     operation: &AbstractOperation,
     site: &mut RowSite<'_>,
@@ -2086,9 +2492,9 @@ pub(crate) fn establish(
     Ok(())
 }
 
-/// `view as @[T; N]` forms a shared reference whose native value addresses
-/// the view's payload. The reference borrows the view, so the view stays the
-/// root of its custody.
+/// `view as @[T; N]` forms a shared or mutable reference whose native value
+/// addresses the view's payload, so a write through it lands in that payload.
+/// The reference borrows the view, so the view stays the root of its custody.
 pub(crate) fn establish_fixed_array_view(
     operation: &AbstractOperation,
     site: &mut RowSite<'_>,
@@ -2123,7 +2529,10 @@ pub(crate) fn establish_fixed_array_view(
         .is_some_and(|leaf| leaf.shape.is_view_descriptor());
     if !fixed
         || !view
-        || source.access != StructuralAccess::SharedBorrow
+        || !matches!(
+            source.access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        )
         || result.multiplicity != StructuralMultiplicity::Affine
         || live.structural_homes.contains_key(&result.place)
         || live
@@ -2407,6 +2816,30 @@ pub(crate) fn window_descriptors(
     Ok(descriptors)
 }
 
+/// An asserted native address has no local home to hold its pointee's
+/// descriptor metadata. The checked storage observations describe its contents.
+pub(crate) fn is_native_window(
+    function: &AbstractFunction,
+    types: &StructuralTypeLookup<'_>,
+    live: &LiveDefinitions,
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+) -> bool {
+    path.contains(&StructuralPathSegment::Referent)
+        && window_descriptors(function, types, live, place, path).is_ok_and(|descriptors| {
+            descriptors.iter().all(|leaf| {
+                let origins = leaf.root.origins();
+                !origins.is_empty()
+                    && origins.iter().all(|origin| {
+                        matches!(
+                            origin.base,
+                            target_operations::TargetReferenceOriginBase::NativeAddress { .. }
+                        )
+                    })
+            })
+        })
+}
+
 pub(crate) fn window_storage(
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
@@ -2464,13 +2897,16 @@ pub(crate) fn subtree_leaves(
 
 pub(crate) fn relocate_leaves(
     live: &mut LiveDefinitions,
-    result_place: PlaceId,
+    result_place: Option<PlaceId>,
     relocations: Vec<(ReferenceStorage, Vec<StructuralPathSegment>)>,
     moved: BTreeSet<(PlaceId, Vec<StructuralPathSegment>)>,
 ) {
     for source in moved {
         live.references.remove(&source);
     }
+    let Some(result_place) = result_place else {
+        return;
+    };
     for (descriptor, destination) in relocations {
         live.references
             .insert((result_place, destination), descriptor);
@@ -2591,11 +3027,12 @@ pub(crate) fn call_results(
         let mut candidates = Vec::with_capacity(mapping.sources.len());
         let mut public_interpretations = Vec::with_capacity(mapping.sources.len());
         for binding in &mapping.sources {
-            let (source, transfers_existing) = match &binding.origin {
+            let (source, transfers_existing, upgraded) = match &binding.origin {
                 terminal_semantics::ReferenceCallOrigin::Parameter {
                     source,
                     transfers_existing,
-                } => (source, *transfers_existing),
+                    upgraded_mutability,
+                } => (source, *transfers_existing, *upgraded_mutability),
                 terminal_semantics::ReferenceCallOrigin::Invocation {
                     carrier_type,
                     path: origin_path,
@@ -2630,7 +3067,11 @@ pub(crate) fn call_results(
                     continue;
                 }
             };
-            if !access_covers(source.access, result_access) {
+            if !(access_covers(source.access, result_access)
+                || upgraded
+                    && source.access == StructuralAccess::SharedBorrow
+                    && result_access == StructuralAccess::MutableBorrow)
+            {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             let Some(suffix) =

@@ -4,6 +4,7 @@
 use crate::read::refuse_at;
 
 mod argument_types;
+mod extents;
 
 use crate::body::Qualification;
 use crate::source_state::SourceTypeApplication;
@@ -76,37 +77,6 @@ pub(super) fn source_sequence_view(
 }
 
 impl Program<'_> {
-    /// A symbolic extent names a constant input of this checking body. Its
-    /// scalar value is not a layout or an input owned by another machine.
-    pub(super) fn extent_input(
-        &self,
-        machine: MachineId,
-        owner: MachineId,
-        value: semantic_vocabulary::ValueId,
-    ) -> Checked<super::ConstBinding> {
-        let unavailable = |detail| refuse_at(machine, Unserved::Type(detail));
-        if owner != machine {
-            return Err(unavailable(
-                "fixed-array length names another machine's input",
-            ));
-        }
-        let binding = self
-            .const_scope
-            .iter()
-            .find(|binding| binding.owner == owner && binding.value == value)
-            .copied()
-            .ok_or_else(|| unavailable("fixed-array length has no owned constant input"))?;
-        if !matches!(binding.scalar_type, ScalarType::Integer(integer)
-            if !integer.is_address() && integer.sign() == IntegerSign::Unsigned
-                && integer.bits().is_some_and(|bits| bits <= 64))
-        {
-            return Err(unavailable(
-                "fixed-array length needs an unsigned input of at most 64 bits",
-            ));
-        }
-        Ok(binding)
-    }
-
     /// The exact element storage of a closed byte array. Whole-value domains
     /// stay on its source expression and do not change this storage geometry;
     /// only an explicit range forms a descriptor loan.
@@ -562,8 +532,10 @@ impl Program<'_> {
     ) -> Checked<Option<Expression>> {
         use terminal_psi::StructuralAccess;
         let unavailable = |detail| refuse_at(machine, Unserved::Expression(detail));
-        let Some((ValueType::Record(array, _, _), StructuralAccess::SharedBorrow)) =
-            self.reference_referent(machine, expected)?
+        let Some((
+            ValueType::Record(array, _, _),
+            access @ (StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
+        )) = self.reference_referent(machine, expected)?
         else {
             return Ok(None);
         };
@@ -616,15 +588,17 @@ impl Program<'_> {
         ) {
             return Ok(None);
         }
+        // The reference lends exactly the view's own access: a shared view
+        // gives a shared reference and a mutable view a mutable one.
         let same_element = match self.data_type(machine, view_row)?.shape {
             StorageShape::ElementView {
                 element,
                 qualification: Qualification::NONE,
-                access: Some(StructuralAccess::SharedBorrow),
-            } => element == array_element,
+                access: Some(view_access),
+            } if view_access == access => element == array_element,
             StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
-                access: Some(StructuralAccess::SharedBorrow),
-            }) => matches!(
+                access: Some(view_access),
+            }) if view_access == access => matches!(
                 self.data_type(machine, array_element)?.shape,
                 StorageShape::PrimitiveScalar {
                     scalar_type: ScalarType::Integer(integer),
@@ -633,7 +607,7 @@ impl Program<'_> {
             ),
             _ => {
                 return Err(unavailable(
-                    "fixed-array reference to a view that is not a plain shared view",
+                    "fixed-array reference to a view that is not a plain view of the same access",
                 ));
             }
         };
@@ -1145,7 +1119,7 @@ impl Program<'_> {
         }
         let constant_input_owner = self.storage_constant_input_owner(machine, &shape)?;
         let identity = super::places::storage_identity_for_inputs(identity, constant_input_owner);
-        let id = self.records.push(RecordType {
+        let record_type = RecordType {
             multiplicity: crate::body::source_multiplicity(
                 self.typed.stored_value_multiplicity(reference),
             ),
@@ -1155,11 +1129,11 @@ impl Program<'_> {
             requires: Vec::new(),
             authored_layout: false,
             erased: Vec::new(),
-        });
+        };
         let mut source = physical_source_application(application);
         source.constant_input_owner = constant_input_owner;
         source.region_owner = self.lifetime_owner;
-        self.record_sources.push(source);
+        let id = self.push_record_row(record_type, source);
         Ok(ValueType::Record(id, Qualification::NONE, regions))
     }
 
@@ -1170,98 +1144,7 @@ impl Program<'_> {
         element: TypeReferenceHandle,
         extent: &FixedArrayLength,
     ) -> Checked<ValueType> {
-        use crate::source_state::constant_recipes::DeclaredArrayExtent;
-
-        let unserved = |reason| refuse_at(machine, Unserved::Type(reason));
-        // `[T; N]` names either a const parameter the enclosing declaration
-        // binds, or a constant (`const N: u64 = measure();`). Only a constant
-        // has a declaration to read a value from.
-        let named_constant = matches!(extent, FixedArrayLength::ConstParameter { symbol, .. }
-            if self.typed.symbols.symbols().nodes().is_valid(*symbol)
-                && self.typed.symbols.get(*symbol).kind == symbols::SymbolKind::Const);
-        let length = if let FixedArrayLength::ConstParameter { symbol, .. } = extent
-            && !named_constant
-        {
-            let key = (symbol.arena_index(), symbol.generation());
-            let position = self
-                .const_scope
-                .binary_search_by_key(&key, |binding| {
-                    (binding.symbol.arena_index(), binding.symbol.generation())
-                })
-                .map_err(|_| unserved("array extent without an owned const input"))?;
-            let binding = self.const_scope[position];
-            let Some(integer) = binding.scalar_type.as_integer() else {
-                return Err(unserved("array extent const input is not an integer"));
-            };
-            if integer.is_address()
-                || integer.sign() != IntegerSign::Unsigned
-                || integer.bits().is_none_or(|bits| bits > 64)
-            {
-                return Err(unserved(
-                    "array extent const input needs an unsigned carrier of at most 64 bits",
-                ));
-            }
-            ArrayExtent::Parameter {
-                owner: binding.owner,
-                value: binding.value,
-            }
-        } else {
-            match self.typed.declared_array_extent(reference) {
-                Some(DeclaredArrayExtent::Literal(length)) => ArrayExtent::Literal(length),
-                Some(DeclaredArrayExtent::Recipe(recipe)) => {
-                    let recipe = self.typed.constant_recipes.get(recipe);
-                    let contexts = self
-                        .typed
-                        .constant_expression_contexts
-                        .span_or_empty(recipe.contexts);
-                    let Some([context]) = contexts.as_array() else {
-                        return Err(unserved(
-                            "array extent has no unique retained evaluation context",
-                        ));
-                    };
-                    ArrayExtent::Application(
-                        self.scalar_evaluation(
-                            machine,
-                            context.evaluation_entry,
-                            context.evaluation_expression,
-                            context.result_type,
-                        )?
-                        .0,
-                    )
-                }
-                // The source driver evaluates a constant the request reaches
-                // before stage 04 freezes the trees. One that observes the
-                // target's layout keeps its checked initializer as an
-                // application extent so each deployment closes its length.
-                None if named_constant => {
-                    if let FixedArrayLength::ConstParameter { symbol, .. } = extent
-                        && let Some(constant) = self.typed.const_declaration_by_symbol(*symbol)
-                        && constant.pending_target_observation
-                        && constant.evaluated_value.is_none()
-                    {
-                        let (application, scalar_type) =
-                            self.deferred_scalar_constant(machine, constant)?;
-                        if !matches!(
-                            scalar_type,
-                            ScalarType::Integer(integer)
-                                if !integer.is_address()
-                                    && integer.sign() == IntegerSign::Unsigned
-                                    && integer.bits().is_some_and(|bits| bits <= 64)
-                        ) {
-                            return Err(unserved(
-                                "array extent constant needs an unsigned carrier of at most 64 bits",
-                            ));
-                        }
-                        ArrayExtent::Application(application)
-                    } else {
-                        return Err(unserved(
-                            "array extent that names a constant with no evaluated array length",
-                        ));
-                    }
-                }
-                None => return Err(unserved("unresolved array extent")),
-            }
-        };
+        let length = self.array_extent(machine, reference, extent)?;
         let value = self.value_type(machine, element)?;
         let (element, qualification) = self.collection_element_storage(machine, element, value)?;
         let shape = StorageShape::FixedArray {
@@ -1279,7 +1162,7 @@ impl Program<'_> {
         let identity = self.storage_identity(machine, &application)?;
         let constant_input_owner = self.storage_constant_input_owner(machine, &shape)?;
         let identity = super::places::storage_identity_for_inputs(identity, constant_input_owner);
-        let id = self.records.push(RecordType {
+        let record_type = RecordType {
             multiplicity,
             cleanup: None,
             identity,
@@ -1287,10 +1170,10 @@ impl Program<'_> {
             requires: Vec::new(),
             authored_layout: false,
             erased: Vec::new(),
-        });
+        };
         let mut source = physical_source_application(application);
         source.constant_input_owner = constant_input_owner;
-        self.record_sources.push(source);
+        let id = self.push_record_row(record_type, source);
         // The row is the element's carrier; the regions its elements hold
         // belong to the array value's type, as a record's do (`regions`).
         Ok(ValueType::Record(id, Qualification::NONE, value.regions()))
@@ -1361,7 +1244,7 @@ impl Program<'_> {
         // identity. Keep the same substitutions for the row and its source.
         let application = self.storage_source_application(reference);
         let identity = self.storage_identity(machine, &application)?;
-        let id = self.records.push(RecordType {
+        let record_type = RecordType {
             multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             cleanup: None,
             identity,
@@ -1372,10 +1255,8 @@ impl Program<'_> {
             requires: Vec::new(),
             authored_layout: false,
             erased: Vec::new(),
-        });
-        self.record_sources
-            .push(physical_source_application(application));
-        Ok(id)
+        };
+        Ok(self.push_record_row(record_type, physical_source_application(application)))
     }
 
     fn storage_identity(

@@ -6,10 +6,11 @@
 // collapsing into flat field names.
 
 use semantic_vocabulary::{
-    BlockId, CanonicalStructuralPathSegment, OperationId, PlaceId, StructuralTypeId,
+    BlockId, CanonicalStructuralPathSegment, OperationId, PlaceId, StructuralFieldId,
+    StructuralTypeId,
 };
 use terminal_psi::{
-    StructuralAccess, StructuralMultiplicity, StructuralOperationResult,
+    StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralOperationResult,
     StructuralParameterDeclaration, StructuralPathSegment,
 };
 
@@ -104,3 +105,29 @@ impl From<StructuralParameterDeclaration> for StructuralScalarStoreDestination {
 }
 
 pub type StructuralWindowRoot = StructuralScalarStoreDestination;
+
+/// Operand types fixed by this record construction's checked package witnesses.
+/// The public declaration continues to determine field order, offsets and storage.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct InstantiatedFieldTypes(Box<[(StructuralFieldId, StructuralFieldType)]>);
+
+impl InstantiatedFieldTypes {
+    /// Field identities are module-wide. One construction stores only the fields
+    /// whose types depend on its witnesses, in canonical identity order.
+    pub fn from_fields(mut fields: Vec<(StructuralFieldId, StructuralFieldType)>) -> Option<Self> {
+        fields.sort_unstable_by_key(|(id, _)| *id);
+        if fields.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+            return None;
+        }
+        Some(Self(fields.into_boxed_slice()))
+    }
+
+    pub fn get(&self, id: StructuralFieldId) -> Option<&StructuralFieldType> {
+        let index = self.0.binary_search_by_key(&id, |(key, _)| *key).ok()?;
+        Some(&self.0[index].1)
+    }
+
+    pub fn fields(&self) -> &[(StructuralFieldId, StructuralFieldType)] {
+        &self.0
+    }
+}

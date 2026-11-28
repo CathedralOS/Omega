@@ -13,6 +13,8 @@ use terminal_psi::{StructuralAccess, StructuralTypeDeclaration, TerminalCallable
 use crate::descriptor_lifetimes::{DescriptorLocation, DescriptorPathSegment, DescriptorPosition};
 use crate::descriptor_results::{DescriptorAnalysis, DescriptorDefinition, DescriptorMachine};
 
+mod packages;
+pub use packages::{PackageCallableSites, opened_stored_callable_definition};
 mod reachable;
 mod terminal;
 pub use reachable::{
@@ -81,6 +83,7 @@ pub enum CallableDefinition {
     Stored {
         position: DescriptorPosition,
         location: DescriptorLocation,
+        storage_contract: Option<CallableContractId>,
     },
     Invocation(DescriptorPosition),
     Opaque,
@@ -101,6 +104,7 @@ pub struct CallableInvocationRecord {
 
 #[derive(Default)]
 pub struct CallableValueBody {
+    pub package_sites: PackageCallableSites,
     pub scalar_parameters: Vec<(ValueId, ScalarType)>,
     pub structural_parameters: Vec<(StructuralTypeId, terminal_psi::StructuralAccess)>,
     pub scalar_result: Option<ScalarType>,
@@ -284,8 +288,14 @@ enum Source {
     Value(CallableValueQuery),
     Constructed(MachineDescriptorId),
     Input(CallableFormalInput),
-    Invocation(CallableInvocation, Option<DescriptorLocation>),
+    Invocation(CallableInvocation, CallOutput),
     Ceiling,
+}
+
+#[derive(Clone)]
+enum CallOutput {
+    Result(Option<DescriptorLocation>),
+    WrittenArgument(DescriptorLocation),
 }
 
 enum CallableActualValue {
@@ -572,11 +582,14 @@ impl<'p> CallableValueView<'p> {
                     .structural_parameters
                     .iter()
                     .zip(&invocation.structural_actual_types)
-                    .all(|(formal, actual)| {
-                        self.structural_actual_matches(
-                            *actual,
-                            (formal.structural_type, formal.access),
-                        )
+                    .enumerate()
+                    .all(|(index, (formal, actual))| {
+                        (body.package_sites.stored_argument(invocation, index) == Some(actual.0)
+                            && actual.1 == formal.access)
+                            || self.structural_actual_matches(
+                                *actual,
+                                (formal.structural_type, formal.access),
+                            )
                     })
             {
                 return Err("callable invocation actuals disagree with its authored contract");
@@ -696,6 +709,7 @@ impl<'p> CallableValueView<'p> {
         invocation: &CallableInvocation,
     ) -> CallableValueResult<()> {
         let body = self.body(callee)?;
+        let package = &self.body(caller)?.package_sites;
         if invocation.scalar_arguments.len() != body.scalar_parameters.len()
             || invocation.structural_arguments.len() != body.structural_parameters.len()
             || invocation.structural_actual_types.len() != body.structural_parameters.len()
@@ -703,7 +717,12 @@ impl<'p> CallableValueView<'p> {
                 .structural_actual_types
                 .iter()
                 .zip(&body.structural_parameters)
-                .all(|(actual, formal)| self.structural_actual_matches(*actual, *formal))
+                .enumerate()
+                .all(|(index, (actual, formal))| {
+                    self.structural_actual_matches(*actual, *formal)
+                        || (package.stored_argument(invocation, index) == Some(actual.0)
+                            && actual.1 == formal.1)
+                })
         {
             return Err("callable invocation actuals do not match the selected formal telescope");
         }
@@ -828,18 +847,20 @@ impl<'p> CallableValueView<'p> {
                     CallableDefinition::Incoming(block) => {
                         return self.incoming(*machine, *block, *value, *contract);
                     }
-                    CallableDefinition::Stored { position, location } => {
-                        Source::Value(CallableValueQuery::Storage {
-                            machine: *machine,
-                            position: *position,
-                            location: location.clone(),
-                            contract: *contract,
-                        })
-                    }
+                    CallableDefinition::Stored {
+                        position,
+                        location,
+                        storage_contract,
+                    } => Source::Value(CallableValueQuery::Storage {
+                        machine: *machine,
+                        position: *position,
+                        location: location.clone(),
+                        contract: storage_contract.unwrap_or(*contract),
+                    }),
                     CallableDefinition::Invocation(position) => Source::Invocation(
                         self.bound(body.primary_invocation(*position)?)?
                             .into_owned(),
-                        None,
+                        CallOutput::Result(None),
                     ),
                     CallableDefinition::Opaque => Source::Ceiling,
                     CallableDefinition::Unsupported => {
@@ -903,6 +924,66 @@ impl<'p> CallableValueView<'p> {
         Ok(result)
     }
 
+    /// When a direct callee writes a callable field in its sole mutable
+    /// argument, read that record's selected field at each normal exit.
+    /// Formal inputs that reach those exits are read at the call's entry.
+    fn written_argument(
+        &self,
+        analysis: &mut DescriptorAnalysis<'_>,
+        caller: MachineId,
+        at: DescriptorPosition,
+        stored: &DescriptorLocation,
+    ) -> Option<Source> {
+        let invocation = self.body(caller).ok()?.primary_invocation(at).ok()?;
+        let CallableInvocationTarget::Machine(callee) = invocation.target else {
+            return None;
+        };
+        let [actual] = invocation.structural_arguments.as_slice() else {
+            return None;
+        };
+        let [(_, StructuralAccess::MutableBorrow)] = invocation.structural_actual_types.as_slice()
+        else {
+            return None;
+        };
+        let base = analysis.location(caller, at, actual)?;
+        DescriptorLocation::captured(base.root, &base.path)?;
+        let flow = self.flow(callee).ok()?;
+        let formal = flow.places.iter().find(|p| {
+            matches!(
+                p.definition,
+                DescriptorDefinition::Parameter {
+                    position: 0,
+                    access: StructuralAccess::MutableBorrow,
+                    ..
+                }
+            )
+        })?;
+        let output = stored.transported(&base, &DescriptorLocation::whole(formal.place))?;
+        DescriptorLocation::captured(output.root, &output.path)?;
+        let (DescriptorPathSegment::Field(_), owner) = output.path.split_last()? else {
+            return None;
+        };
+        let body = self.body(callee).ok()?;
+        let writes_callable = flow.flow.values().any(|step| {
+            step.scalar_value_stores.iter().any(|(target, value)| {
+                let Some((DescriptorPathSegment::Field(_), parent)) = target.path.split_last()
+                else {
+                    return false;
+                };
+                target.root == formal.place
+                    && parent == owner
+                    && matches!(body.scalar_type(*value), Some(ScalarType::Callable(_)))
+            })
+        });
+        if !writes_callable || flow.normal_exits.is_empty() {
+            return None;
+        }
+        Some(Source::Invocation(
+            invocation.clone(),
+            CallOutput::WrittenArgument(output),
+        ))
+    }
+
     fn stored_sources(
         &self,
         machine: MachineId,
@@ -954,6 +1035,7 @@ impl<'p> CallableValueView<'p> {
         // The existing version proof is a fast path for a single definition
         // that reaches every incoming path. Branch-dependent definitions fall
         // through to the general reaching-definition equations below.
+        let package = &self.body(machine)?.package_sites;
         if !unresolved_address
             && let Some(sources) = crate::descriptor_results::unchanged_stored_projection_sources_in(
                 self.structural_types,
@@ -968,20 +1050,23 @@ impl<'p> CallableValueView<'p> {
                         .into_iter()
                         .flatten()
                         .filter_map(|(written, term)| match term {
-                            ScalarTerm::Value { id, scalar_type }
-                                if *scalar_type == ScalarType::Callable(contract) =>
+                            ScalarTerm::Value {
+                                id,
+                                scalar_type: ScalarType::Callable(actual),
+                            } if *actual == contract
+                                || package.admits_write(producer, written, contract, *actual) =>
                             {
-                                Some((written.clone(), *id))
+                                Some((written.clone(), (*id, *actual)))
                             }
                             _ => None,
                         })
                         .collect()
                 },
             )
-            && let [value] = sources.as_slice()
+            && let [(value, actual)] = sources.as_slice()
         {
             return Ok(vec![Source::Value(
-                self.scalar_query(machine, *value, contract)?,
+                self.scalar_query(machine, *value, *actual)?,
             )]);
         }
         let reach = crate::descriptors::descriptor_results::payload_reachability::predecessors(
@@ -1040,10 +1125,15 @@ impl<'p> CallableValueView<'p> {
                     let ScalarTerm::Value { id, scalar_type } = &writes[0].1 else {
                         return Err("callable storage write is not a code value");
                     };
-                    if *scalar_type != ScalarType::Callable(contract) {
+                    let ScalarType::Callable(actual) = *scalar_type else {
+                        return Err("callable storage write changes its exact contract");
+                    };
+                    if actual != contract
+                        && !package.admits_write(*producer, &arrival, contract, actual)
+                    {
                         return Err("callable storage write changes its exact contract");
                     }
-                    result.push(Source::Value(self.scalar_query(machine, *id, contract)?));
+                    result.push(Source::Value(self.scalar_query(machine, *id, actual)?));
                     continue;
                 }
                 if unresolved_address
@@ -1062,7 +1152,7 @@ impl<'p> CallableValueView<'p> {
                     result.push(Source::Invocation(
                         self.bound(body.primary_invocation(*producer)?)?
                             .into_owned(),
-                        Some(arrival.clone()),
+                        CallOutput::Result(Some(arrival.clone())),
                     ));
                     continue;
                 }
@@ -1104,7 +1194,12 @@ impl<'p> CallableValueView<'p> {
                             }))
                     });
                 result.push(if invalidated {
-                    Source::Ceiling
+                    if unresolved_address {
+                        Source::Ceiling
+                    } else {
+                        self.written_argument(&mut analysis, machine, *producer, &arrival)
+                            .unwrap_or(Source::Ceiling)
+                    }
                 } else {
                     Source::Value(CallableValueQuery::Storage {
                         machine,
@@ -1238,7 +1333,7 @@ impl Solver<'_, '_> {
         &mut self,
         caller: MachineId,
         invocation: &CallableInvocation,
-        projection: &Option<DescriptorLocation>,
+        output: &CallOutput,
         result_contract: CallableContractId,
     ) -> CallableValueResult<CallableValuePossibilities> {
         self.program.validate_occurrence(caller, invocation)?;
@@ -1260,7 +1355,13 @@ impl Solver<'_, '_> {
                         .catalog
                         .descriptor(descriptor)
                         .ok_or("callable selection descriptor is absent or stale")?;
-                    if descriptor.contract != contract {
+                    if descriptor.contract != contract
+                        && !self
+                            .program
+                            .body(caller)?
+                            .package_sites
+                            .admits_descriptor(invocation, descriptor.contract)
+                    {
                         return Err("callable selection descriptor changes its contract");
                     }
                     insert_ordered(&mut machines, descriptor.machine);
@@ -1272,10 +1373,25 @@ impl Solver<'_, '_> {
         }
         for machine in machines {
             self.program.validate_actuals(caller, machine, invocation)?;
-            for returned in self
-                .program
-                .result_queries(machine, projection, result_contract)?
-            {
+            let outputs = match output {
+                CallOutput::Result(projection) => {
+                    self.program
+                        .result_queries(machine, projection, result_contract)?
+                }
+                CallOutput::WrittenArgument(location) => self
+                    .program
+                    .flow(machine)?
+                    .normal_exits
+                    .iter()
+                    .map(|position| CallableValueQuery::Storage {
+                        machine,
+                        position: *position,
+                        location: location.clone(),
+                        contract: result_contract,
+                    })
+                    .collect(),
+            };
+            for returned in outputs {
                 let values = self.read(returned)?;
                 if self.reached_inputs.is_some() {
                     result.join(values);

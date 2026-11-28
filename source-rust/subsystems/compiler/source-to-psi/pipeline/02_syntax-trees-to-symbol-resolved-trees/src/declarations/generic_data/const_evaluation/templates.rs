@@ -359,7 +359,9 @@ impl<'syntax> TypeInputWalk<'syntax> {
                     },
                 );
             }
-            TypeReferenceNode::Named(_) | TypeReferenceNode::Unit => {}
+            TypeReferenceNode::Named(_)
+            | TypeReferenceNode::SomeOpening(_)
+            | TypeReferenceNode::Unit => {}
         }
     }
 }
@@ -625,7 +627,9 @@ pub(in crate::resolution::declarations::generic_data) fn normalize_template_type
         TypeReferenceNode::StaticSelection(_) => Err(
             "a scoped type selection must resolve before scalar template normalization".to_owned(),
         ),
-        TypeReferenceNode::Named(_) | TypeReferenceNode::Unit => Ok(()),
+        TypeReferenceNode::SomeOpening(_)
+        | TypeReferenceNode::Named(_)
+        | TypeReferenceNode::Unit => Ok(()),
     }
 }
 
@@ -802,7 +806,9 @@ fn visit_type_positions(
                 },
             );
         }
-        TypeReferenceNode::Named(_) | TypeReferenceNode::Unit => {}
+        TypeReferenceNode::Named(_)
+        | TypeReferenceNode::SomeOpening(_)
+        | TypeReferenceNode::Unit => {}
     }
 }
 

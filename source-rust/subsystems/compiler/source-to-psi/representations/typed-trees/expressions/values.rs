@@ -78,7 +78,7 @@ pub mod const_integer {
         BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable, TableNamePath,
     };
     use bignum::BigInt;
-    use numeric_literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
+    use numeric_literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
     use numerics::arithmetic::ArithmeticDomain;
 
     /// What exact evaluation found for one integer calculation.
@@ -295,26 +295,17 @@ pub mod const_integer {
         expressions: &ExpressionTable,
         expression: ExpressionHandle,
     ) -> Option<IntegerLiteral> {
-        if !matches!(
-            expressions.expression(expression),
-            ExpressionNode::Binary(_)
-        ) {
-            return None;
+        match expressions.expression(expression) {
+            ExpressionNode::Integer(literal) => return Some(literal.clone()),
+            ExpressionNode::Binary(_) => {}
+            _ => return None,
         }
         let ExactInteger::Value { value, landing } =
             exact_value(expressions, expression, Operators::Ring, &|_| None)
         else {
             return None;
         };
-        let literal = match value.to_i64() {
-            Some(narrow) => IntegerLiteral::from_value(narrow),
-            None => IntegerLiteral::from_parts(
-                value.is_negative(),
-                IntegerRadix::Decimal,
-                &value.abs().to_string(),
-            )
-            .ok()?,
-        };
+        let literal = IntegerLiteral::from_integer(value);
         Some(match landing {
             Some(landing) => literal.with_landing(landing),
             None => literal,
@@ -325,6 +316,7 @@ pub mod const_integer {
     mod tests {
         use super::super::expression::TableBinaryExpression;
         use super::*;
+        use numeric_literals::IntegerRadix;
 
         fn landed(value: i64, name: &str) -> IntegerLiteral {
             IntegerLiteral::from_value(value).with_landing(IntegerLanding {
@@ -391,10 +383,14 @@ pub mod const_integer {
             ] {
                 assert_eq!(calculation(left, operator, right), None);
             }
-            // One literal is not a calculation: its reader takes it as is.
+        }
+
+        #[test]
+        fn a_closed_literal_keeps_its_declared_integer_type() {
             let mut expressions = ExpressionTable::default();
-            let literal = expressions.insert(ExpressionNode::Integer(anonymous(3)));
-            assert!(closed_literal(&expressions, literal).is_none());
+            let value = landed(3, "u64");
+            let literal = expressions.insert(ExpressionNode::Integer(value.clone()));
+            assert_eq!(closed_literal(&expressions, literal), Some(value));
         }
 
         fn carrier(name: &str, domain: ArithmeticDomain) -> IntegerLanding {
@@ -1405,7 +1401,7 @@ pub mod expression {
                 &mut self,
             ) -> impl Iterator<Item = &mut StaticMachineArgument> {
                 if let Some(request) = &mut self.installed_interrupt_operation {
-                    request.invalidate_preparation();
+                    request.prepared = None;
                 }
                 self.native_code_layout
                     .iter_mut()
@@ -1458,7 +1454,7 @@ pub mod expression {
                 &mut self,
             ) -> impl Iterator<Item = &mut StaticMachineArgument> {
                 if let Some(request) = &mut self.installed_interrupt_operation {
-                    request.invalidate_preparation();
+                    request.prepared = None;
                 }
                 self.installed_interrupt_operation
                     .iter_mut()
@@ -2306,6 +2302,7 @@ pub mod expression {
                         self.insert(ExpressionNode::Cast(TableCastExpression {
                             value,
                             target_type: cast.target_type,
+                            operand_type: cast.operand_type,
                             recast_storage_type: cast.recast_storage_type,
                             result_type: cast.result_type,
                             target_label,
@@ -2473,6 +2470,7 @@ pub mod expression {
                         let fields =
                             self.copy_struct_literal_fields(source, &literal, retain, copies);
                         self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
+                            package: literal.package,
                             zero_omitted_fields: literal.zero_omitted_fields,
                             application_type: literal.application_type,
                             type_name: literal.type_name,
@@ -4926,6 +4924,8 @@ pub mod expression {
     pub struct TableCastExpression {
         pub value: ExpressionHandle,
         pub target_type: crate::source_state::types::TypeReferenceHandle,
+        /// Declared operand carrier of a value cast, before conversion.
+        pub operand_type: crate::source_state::types::TypeReferenceHandle,
         /// Root storage whose geometry an explicit recast must establish.
         pub recast_storage_type: crate::source_state::types::TypeReferenceHandle,
         pub result_type: crate::source_state::types::TypeReferenceHandle,
@@ -5069,10 +5069,7 @@ pub mod expression {
 
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
     pub struct InstalledInterruptOperationRequest {
-        pub registrar_application:
-            crate::source_state::static_applications::StaticMachineApplicationHandle,
-        pub registrar_target: SymbolHandle,
-        pub registrar_receiving_scope: crate::source_state::trait_definition::RetainedTraitScope,
+        pub prepared: Option<Box<PreparedInterruptRegistration>>,
         pub registrar_selection:
             Option<crate::source_selections::AuthoredDeclarationSelectionOccurrenceId>,
         pub registrar_trait: SymbolHandle,
@@ -5080,13 +5077,13 @@ pub mod expression {
         pub timer_slot: StaticMachineArgument,
     }
 
-    impl InstalledInterruptOperationRequest {
-        pub fn invalidate_preparation(&mut self) {
-            self.registrar_application =
-                crate::source_state::static_applications::StaticMachineApplicationHandle::invalid();
-            self.registrar_target = SymbolHandle::invalid();
-            self.registrar_receiving_scope = Default::default();
-        }
+    /// One installation owns its registrar application, receiving scope and private slot.
+    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+    pub struct PreparedInterruptRegistration {
+        pub application: crate::source_state::static_applications::StaticMachineApplicationHandle,
+        pub target: SymbolHandle,
+        pub receiving_scope: crate::source_state::trait_definition::RetainedTraitScope,
+        pub timer_slot: application_identity::callback_declarations::PrivateCallbackSlotSelection,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
@@ -5221,6 +5218,18 @@ pub mod expression {
                     symbols::SymbolKind::Conformance | symbols::SymbolKind::ConformanceParameter
                 )
         }
+
+        /// A resolved bare path describes its declaration, not a partly
+        /// supplied application. The lexical spelling adds no identity.
+        pub fn is_bare_declaration(&self) -> bool {
+            self.symbol.is_valid()
+                && self.type_reference == Default::default()
+                && self.authored_machine_application == Default::default()
+                && self.authored_selection.is_none()
+                && self.application.is_none()
+                && self.const_literal.is_none()
+                && self.evidence_projection.is_none()
+        }
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
@@ -5286,8 +5295,35 @@ pub mod expression {
         }
     }
 
+    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+    pub struct PackageConstruction {
+        /// One concrete type per hidden binder, in declaration order.
+        pub witnesses: Vec<crate::source_state::types::TypeReferenceHandle>,
+        /// Input types after substituting the visible arguments and these witnesses.
+        pub fields: Vec<PackageFieldType>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+    pub struct PackageFieldType {
+        pub symbol: SymbolHandle,
+        pub ty: crate::source_state::types::TypeReferenceHandle,
+    }
+
+    impl PackageConstruction {
+        pub fn type_references_mut(
+            &mut self,
+        ) -> impl Iterator<Item = &mut crate::source_state::types::TypeReferenceHandle> {
+            self.witnesses
+                .iter_mut()
+                .chain(self.fields.iter_mut().map(|field| &mut field.ty))
+        }
+    }
+
     #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
     pub struct TableStructLiteral {
+        /// Construction instantiates the declaration's hidden types in binder order.
+        /// These arguments belong to this value, outside its public application type.
+        pub package: Option<Box<PackageConstruction>>,
         /// A final source `..` requests ordinary zero values for missing runtime fields.
         pub zero_omitted_fields: bool,
         pub application_type: crate::source_state::types::TypeReferenceHandle,

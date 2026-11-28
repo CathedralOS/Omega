@@ -3,6 +3,27 @@ use arena::IdTable;
 use semantic_vocabulary::{IntegerSign, OperationId};
 use terminal_check_tables::values::{ValueOrigin, ValueRow};
 
+// A later machine must keep the reduced proof limit after an earlier goal
+// exhausted the shared allowance, including across another result batch.
+#[test]
+fn result_searches_carry_the_spent_proof_allowance_forward_once() {
+    let mut activity = ProofSearchActivity::default();
+    let mut exhausted = activity.continuation();
+    exhausted.exhausted_steps = EXHAUSTED_SCOPE_ALLOWANCE;
+    activity.record_continuation_work(&mut exhausted);
+    assert!(activity.finish_continuation(exhausted));
+
+    let context = PropositionContext::default();
+    let values = IdTable::<ValueId, ValueRow>::default();
+    let mut next = activity.continuation();
+    let mut prover = Prover::new(&context, &[], &[], &values, &mut next);
+    prover.prove(&Proposition::Truth).unwrap();
+    assert_eq!(prover.step_limit() as usize, EXHAUSTED_SCOPE_STEP_BUDGET);
+    activity.record_continuation_work(&mut next);
+    assert!(!activity.finish_continuation(next));
+    assert_eq!(activity.exhausted_steps, EXHAUSTED_SCOPE_ALLOWANCE);
+}
+
 mod exact_fact_index {
     use super::*;
 
@@ -1088,6 +1109,120 @@ fn a_later_named_result_can_bound_the_same_expression_more_tightly() {
     let goal = Proposition::LessOrEqual(expression, limit);
     proof_admission::accept_certificate(&context, &goal, &assumptions, &axioms, &proof.unwrap())
         .unwrap();
+}
+
+#[test]
+fn wrapping_product_bounds_stop_at_the_first_overflowing_input() {
+    let integer = IntegerType::new(IntegerSign::Signed, 8).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let mut values = IdTable::default();
+    let [input, result] = [
+        ValueOrigin::MachineParameter { position: 0 },
+        ValueOrigin::Operation(OperationId::new(1).unwrap()),
+    ]
+    .map(|origin| {
+        let id = values.push(ValueRow {
+            scalar_type,
+            origin,
+            rigid: None,
+        });
+        ScalarTerm::value(id, scalar_type)
+    });
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let literal = |n| ScalarTerm::integer(integer, IntegerValue::Signed(n)).unwrap();
+    let product =
+        ScalarTerm::wrapping_integer_multiply(integer, literal(3), input.clone()).unwrap();
+    let axioms = [Proposition::Equal(result.clone(), product)];
+    for upper in [42, 43] {
+        let assumptions = [
+            Proposition::LessOrEqual(literal(0), input.clone()),
+            Proposition::LessOrEqual(input.clone(), literal(upper)),
+        ];
+        let mut activity = ProofSearchActivity::default();
+        let mut prover = Prover::new(&context, &assumptions, &axioms, &values, &mut activity);
+        let lower = Proposition::LessOrEqual(literal(0), result.clone());
+        if upper == 43 {
+            assert!(prover.prove(&lower).is_err(), "3 * 43 wraps to -127");
+            continue;
+        }
+        for goal in [
+            lower,
+            Proposition::LessOrEqual(result.clone(), literal(126)),
+        ] {
+            let proof = prover.prove(&goal).unwrap();
+            proof_admission::accept_certificate(&context, &goal, &assumptions, &axioms, &proof)
+                .unwrap();
+        }
+    }
+}
+
+#[test]
+fn wrapping_decimal_division_and_remainder_propagate_checked_bounds() {
+    let integer = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let mut values = IdTable::default();
+    let [input, result] = [
+        ValueOrigin::MachineParameter { position: 0 },
+        ValueOrigin::Operation(OperationId::new(1).unwrap()),
+    ]
+    .map(|origin| {
+        let id = values.push(ValueRow {
+            scalar_type,
+            origin,
+            rigid: None,
+        });
+        ScalarTerm::value(id, scalar_type)
+    });
+    let literal = |n| ScalarTerm::integer(integer, IntegerValue::Signed(n)).unwrap();
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let quotient =
+        ScalarTerm::wrapping_integer_divide(integer, input.clone(), literal(10)).unwrap();
+    let remainder =
+        ScalarTerm::wrapping_integer_remainder(integer, input.clone(), literal(10)).unwrap();
+    for (expression, goal, lower_bound, provable) in [
+        (
+            quotient.clone(),
+            Proposition::LessThan(literal(0), result.clone()),
+            10,
+            true,
+        ),
+        (
+            quotient,
+            Proposition::LessThan(literal(0), result.clone()),
+            9,
+            false,
+        ),
+        (
+            remainder.clone(),
+            Proposition::LessOrEqual(literal(0), result.clone()),
+            0,
+            true,
+        ),
+        (
+            remainder,
+            Proposition::LessOrEqual(literal(0), result.clone()),
+            -1,
+            false,
+        ),
+    ] {
+        let assumptions = [Proposition::LessOrEqual(
+            literal(lower_bound),
+            input.clone(),
+        )];
+        let axioms = [Proposition::Equal(result.clone(), expression)];
+        let mut activity = ProofSearchActivity::default();
+        let proof =
+            Prover::new(&context, &assumptions, &axioms, &values, &mut activity).prove(&goal);
+        assert_eq!(proof.is_ok(), provable);
+        if let Ok(proof) = proof {
+            proof_admission::accept_certificate(&context, &goal, &assumptions, &axioms, &proof)
+                .unwrap();
+        }
+    }
 }
 
 #[test]

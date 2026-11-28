@@ -1621,6 +1621,7 @@ pub(crate) mod expression {
                                     typed::expression::TableCastExpression {
                                         value,
                                         target_type,
+                                        operand_type: Default::default(),
                                         recast_storage_type: Default::default(),
                                         result_type: typed::types::TypeReferenceHandle::invalid(),
                                         target_label,
@@ -2218,6 +2219,7 @@ pub(crate) mod expression {
                             Ok(self.target().insert(
                                 typed::expression::ExpressionNode::StructLiteral(
                                     typed::expression::TableStructLiteral {
+                                        package: None,
                                         zero_omitted_fields: struct_literal.zero_omitted_fields,
                                         application_type,
                                         type_name: lower_name(&struct_literal.type_name),
@@ -3176,9 +3178,7 @@ pub(crate) mod expression {
                         _ => Err(fail("lost its already-selected field")),
                     };
                 }
-                if !program.symbols.symbols().nodes().is_valid(selected)
-                    || program.symbols.get(selected).kind != SymbolKind::Field
-                {
+                if !program.is_record_field_declaration(selected) {
                     return Err(fail("has a missing, stale or non-field declaration"));
                 }
                 if let Target::Resolved(previous) = target {
@@ -3224,6 +3224,7 @@ pub(crate) mod expression {
                 match expressions.expression(callee) {
                     ExpressionNode::Member(member) => {
                         declared_receiver_field(program, expressions, member, 0).is_some()
+                            || operation_field(program, expressions, member).is_some()
                     }
                     _ => false,
                 }
@@ -3334,7 +3335,37 @@ pub(crate) mod expression {
                             },
                         )
                     })
+                    .or_else(|| {
+                        program
+                            .and_then(|p| operation_field(p, expressions, member))
+                            .map(|symbol| (symbol, None))
+                    })
                     .unwrap_or_else(|| (member.member_symbol, member.case_variant.clone()))
+            }
+
+            fn operation_field(
+                program: &resolved::SymbolResolvedTrees,
+                expressions: &resolved::expression::ExpressionTable,
+                member: &TableMemberExpression,
+            ) -> Option<SymbolHandle> {
+                if member.position.is_some() || member.case_variant.is_some() {
+                    return None;
+                }
+                let receiver = declared_type(program, expressions, member.receiver, 0)?;
+                let TypeReference::Named { symbol, .. } = peel(program, receiver) else {
+                    return None;
+                };
+                let owner = program.roots.trait_definition(*symbol)?;
+                let mut matches = program
+                    .trait_machine_signatures(owner.machines)
+                    .iter()
+                    .filter(|op| {
+                        op.name.as_str() == member.member.as_str()
+                            && op.symbol.is_valid()
+                            && program.symbols.get(op.symbol).parent == *symbol
+                    });
+                let field = matches.next()?.symbol;
+                matches.next().is_none().then_some(field)
             }
 
             fn declared_receiver_field<'program>(

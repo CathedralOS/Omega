@@ -3,12 +3,12 @@
 /*
 We assign physical register homes and execute admitted register-pressure
 recovery over the selected instruction program. `stage_register_allocation`
-in `register_allocation.rs` consumes the `SelectedAllocationInput` from
+in `register_allocation.rs` consumes the `SelectedBody` from
 selected instruction optimization. It carries the current program, its
 validated analyses and its `SelectedOptimizationRecord`. The entry point
 runs the allocation procedure the selected allocation-recovery catalog entry
 names (or plain assignment), falls back to runtime spilling under remaining
-pressure, and publishes one validated `RetainedAllocation` carrying the
+pressure, and publishes one `AllocationResult` carrying the
 current allocated program and its checked facts. The manifest records the
 preceding optimization phase for validation.
 */
@@ -25,8 +25,8 @@ fresh liveness, live-range, and legality checks before its homes are accepted.
 */
 
 /*
-- Native stage 06 (`selected-instructions-to-selected-instructions`) supplies `SelectedAllocationInput`.
-- Native stage 08 (`register-homes-to-post-allocation-machine`) consumes `RetainedAllocation` (`output.rs`) and `ValidatedAllocatedCalleeSavedRequirements` (`preservation.rs`).
+- Native stage 06 (`selected-instructions-to-selected-instructions`) supplies `SelectedBody`.
+- Native stage 08 (`register-homes-to-post-allocation-machine`) consumes the issued `allocated_body::AllocatedBody`; replay evidence stays with the driver.
 - Flat module layout:
   - `register_allocation.rs`: the stage entrance: select the recovery catalog entry, take the legality analysis, run the procedure the entry names, admit the result.
   - `assignment.rs`: baseline homes, the three allocation procedures, runtime-spill recovery, and post-allocation manifest staging.
@@ -43,7 +43,6 @@ fresh liveness, live-range, and legality checks before its homes are accepted.
 
 use selected_instruction_analyses as analyses;
 pub(crate) use selected_instruction_analyses::*;
-use selected_instructions::FixedViewCopyIdentity;
 
 #[macro_use]
 mod assignment;
@@ -108,7 +107,7 @@ pub use rewrites::{
     PressureRematerializationPolicy, RuntimeRematerializationError, RuntimeSpillError,
     RuntimeSpillSpanPolicy, RuntimeSplitError, ValidatedFixedOccurrences,
     ValidatedPressureRematerialization, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
-    ValidatedRuntimeSplit, fixed_view_copy_identity, materialize_selected_fixed_occurrences,
+    ValidatedRuntimeSplit, materialize_selected_fixed_occurrences,
     probe_optimized_fixed_precolored_segment_homes, rematerialize_selected_active_resident,
     rematerialize_selected_runtime_value, spill_selected_runtime_value,
     spill_selected_runtime_value_with_crossing_status, split_selected_runtime_value,
@@ -124,8 +123,7 @@ pub(crate) use assignment::baseline::{
     StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterFixedViewCopies,
 };
 pub use assignment::home_assignment::{
-    AssignedRegisterHomes, FunctionRegisterHomes, RegisterHomeIdentity, RegisterHomePlan,
-    VirtualRegisterHome, register_home_identity,
+    AssignedRegisterHomes, FunctionRegisterHomes, RegisterHomePlan, VirtualRegisterHome,
 };
 pub(crate) use assignment::home_assignment::{
     RegisterHomeError, RegisterHomeReceipt, assign_register_homes,
@@ -145,7 +143,7 @@ pub(crate) use rewrites::{
 };
 
 pub(crate) use output::AllocationAdmissionError;
-pub use output::{AllocationOutput, RetainedAllocation};
+pub use output::{AllocationOutput, AllocationResult, RetainedAllocation};
 
 pub use preservation::{
     AllocatedCalleeSavedRequirementError, AllocatedCalleeSavedRequirementPolicy,

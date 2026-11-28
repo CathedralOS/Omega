@@ -55,6 +55,89 @@ pub(super) fn semantic_reference(
     }
 }
 
+/// Why a static machine argument selects no machine of its parameter.
+enum SelectedMachine {
+    Unserved(&'static str),
+    Rejected(&'static str),
+}
+
+/// The machine a static machine argument of a record application selects,
+/// when it has exactly the formals and result `required` declares once the
+/// application's arguments `bindings` stand for the declaration's binders.
+fn selected_sampler(
+    typed: &crate::source_state::TypedTrees,
+    required: &crate::source_state::signature::StateSignature,
+    argument: TypeReferenceHandle,
+    bindings: &[(SymbolHandle, TypeReferenceHandle)],
+) -> Result<SymbolHandle, SelectedMachine> {
+    use SelectedMachine::{Rejected, Unserved};
+    let TypeReferenceNode::Named { symbol, .. } =
+        typed.type_reference_table.type_reference(argument)
+    else {
+        return Err(Unserved("record machine argument that names no machine"));
+    };
+    let machine = (symbol.is_valid()
+        && typed.symbols.get(*symbol).kind == symbols::SymbolKind::Machine)
+        .then(|| typed.machine_by_symbol(*symbol))
+        .flatten()
+        .ok_or(Unserved("record machine argument that names no machine"))?;
+    if !typed.machine_type_parameters(machine).is_empty() {
+        return Err(Unserved("record machine argument that is generic"));
+    }
+    let entry = typed
+        .machine_states(machine)
+        .first()
+        .ok_or(Unserved("record machine argument without its entry"))?;
+    let same = |selected: TypeReferenceHandle, declared: TypeReferenceHandle| {
+        let expected = typed.type_identity_with_simultaneous_substitutions(
+            crate::source_state::type_identity::TypeIdentityRequest {
+                substitutions: bindings,
+                ..crate::source_state::type_identity::TypeIdentityRequest::ordinary(declared)
+            },
+        );
+        selected.is_valid()
+            && declared.is_valid()
+            && typed.normalized_type_identity(selected) == expected
+    };
+    let formals = typed
+        .state_parameters
+        .span(entry.parameters)
+        .unwrap_or_default();
+    let declared = typed
+        .state_parameters
+        .span(required.parameters)
+        .unwrap_or_default();
+    if formals.len() != declared.len()
+        || formals
+            .iter()
+            .zip(declared.iter())
+            .any(|(formal, declared)| !same(formal.type_reference, declared.type_reference))
+        || !same(entry.return_type, required.return_type)
+    {
+        // generics.md: "The selected argument must satisfy the full
+        // callable contract."
+        return Err(Rejected(
+            "a static machine argument must have its parameter's formals and result",
+        ));
+    }
+    // A record selection is itself a use of the machine contract, even if
+    // this program only projects the state and never calls the sampler.
+    // As for a concrete machine passed to a mathematical template, a
+    // conditional definition needs evidence at the required input domain.
+    let clauses = typed.machine_contracts(machine);
+    let entry_clauses = typed.state_contracts(entry);
+    if clauses.len() != machine.contracts.len() || entry_clauses.len() != entry.contracts.len() {
+        return Err(Unserved("record machine argument lost its contracts"));
+    }
+    if clauses.iter().chain(entry_clauses).any(|clause| {
+        clause.kind == crate::source_state::signature::SignatureContractKind::Requires
+            && (!clause.facts.is_empty() || clause.binding.is_some())
+    }) {
+        return Err(Unserved("record machine argument with an unproved premise"));
+    }
+    Ok(machine.symbol)
+}
+
 pub(super) fn source_application(
     typed: &crate::source_state::TypedTrees,
     data: &DataDefinition,
@@ -70,6 +153,19 @@ pub(super) fn source_application_in_scope(
     reference: TypeReferenceHandle,
     machine: MachineId,
     scope: std::sync::Arc<crate::source_state::SourceTypeScope>,
+) -> Checked<SourceTypeApplication> {
+    checked_source_application(typed, data, reference, machine, scope, false)
+}
+
+/// The storage reader retains the region of a directly substituted type argument.
+/// Other callers use the region-free entrance above for nominal equations.
+fn checked_source_application(
+    typed: &crate::source_state::TypedTrees,
+    data: &DataDefinition,
+    reference: TypeReferenceHandle,
+    machine: MachineId,
+    scope: std::sync::Arc<crate::source_state::SourceTypeScope>,
+    borrowed_storage: bool,
 ) -> Checked<SourceTypeApplication> {
     use crate::source_state::data::TypeParameterKind;
     let unavailable = |detail| refuse_at(machine, Unserved::Type(detail));
@@ -133,9 +229,16 @@ pub(super) fn source_application_in_scope(
         let template = typed
             .unique_data_definition_by_symbol(*base_symbol)
             .ok_or_else(|| malformed(machine, "record application has no unique template"))?;
-        if !lifetime_arguments.is_empty() || !template.lifetime_parameters.is_empty() {
-            return Err(unavailable(
-                "record application with type and lifetime arguments",
+        // Specializing the value/type arguments must not change the set of
+        // lifetime binders. The use of this record carries their actual
+        // regions, not the shared storage description.
+        if template.lifetime_parameters != data.lifetime_parameters
+            || (!lifetime_arguments.is_empty()
+                && lifetime_arguments.len() != template.lifetime_parameters.len())
+        {
+            return Err(malformed(
+                machine,
+                "record application changed its lifetime binders",
             ));
         }
         if !template.conformance_bounds.is_empty() || !data.conformance_bounds.is_empty() {
@@ -178,7 +281,11 @@ pub(super) fn source_application_in_scope(
         for (parameter, argument) in parameters.iter().zip(arguments) {
             if !parameter.symbol.is_valid()
                 || typed.symbols.get(parameter.symbol).parent != template.symbol
-                || typed.symbols.get(parameter.symbol).kind != symbols::SymbolKind::TypeParameter
+                || typed.symbols.get(parameter.symbol).kind
+                    != match parameter.kind {
+                        TypeParameterKind::Machine { .. } => symbols::SymbolKind::MachineParameter,
+                        _ => symbols::SymbolKind::TypeParameter,
+                    }
                 || !typed
                     .type_reference_table
                     .contains_type_reference(*argument)
@@ -214,10 +321,42 @@ pub(super) fn source_application_in_scope(
                     },
                 )?;
             }
-            match parameter.kind {
+            match &parameter.kind {
                 TypeParameterKind::Type => {}
-                TypeParameterKind::Const { type_reference }
-                | TypeParameterKind::Value { type_reference } => {
+                // A static machine argument selects one declared machine with
+                // exactly the parameter's formals and result at the
+                // application's other arguments. Its symbol is the whole
+                // argument: it names no regions and no further binder.
+                TypeParameterKind::Machine {
+                    contract:
+                        crate::source_state::data::MachineParameterContract::Structural(required),
+                } => {
+                    let bindings = parameters
+                        .iter()
+                        .zip(arguments)
+                        .map(|(parameter, argument)| (parameter.symbol, *argument))
+                        .collect::<Vec<_>>();
+                    selected_sampler(typed, required, *argument, &bindings).map_err(|stop| {
+                        match stop {
+                            SelectedMachine::Unserved(what) => unavailable(what),
+                            SelectedMachine::Rejected(rule) => crate::reject(
+                                machine,
+                                crate::SourceOrigin::of(
+                                    typed
+                                        .symbols
+                                        .symbol_source_span(parameter.symbol)
+                                        .unwrap_or_default(),
+                                ),
+                                rule,
+                            ),
+                        }
+                    })?;
+                    binders.push(parameter.symbol);
+                    substitutions.push((parameter.symbol, *argument));
+                    continue;
+                }
+                &TypeParameterKind::Const { type_reference }
+                | &TypeParameterKind::Value { type_reference } => {
                     let carrier = match typed.type_reference_table.type_reference(type_reference) {
                         TypeReferenceNode::Named { symbol, .. } => {
                             match typed.symbols.builtin_type_atom(*symbol) {
@@ -248,11 +387,16 @@ pub(super) fn source_application_in_scope(
                                 "record const argument with an unsupported canonical carrier",
                             ));
                         }
-                        let value =
-                            crate::source_state::canonical_const_argument_value(typed, *argument)
-                                .ok_or_else(|| {
-                                unavailable("record const argument has no canonical value")
-                            })?;
+                        let supplied = scope
+                            .supplied_type_reference(typed, *argument)
+                            .map_err(|reason| malformed(machine, reason))?;
+                        let value = crate::source_state::canonical_const_argument_value(
+                            typed,
+                            supplied.reference,
+                        )
+                        .ok_or_else(|| {
+                            unavailable("record const argument has no canonical value")
+                        })?;
                         let bindings = parameters
                             .iter()
                             .zip(arguments)
@@ -299,10 +443,10 @@ pub(super) fn source_application_in_scope(
                 ));
                 return Err(refusal);
             }
-            // Ordinary nominal identities erase regions. Do not let a new
-            // byte/reference reader turn that storage key into lifetime
-            // correspondence until this same application owner retains it.
-            if scope.region_free_type_identity(typed, *argument).is_none() {
+            if scope.region_free_type_identity(typed, *argument).is_none()
+                && !(borrowed_storage
+                    && retained_argument_region(typed, &scope, *argument).is_some())
+            {
                 return Err(unavailable(
                     "record application whose reference regions are not retained",
                 ));
@@ -317,7 +461,15 @@ pub(super) fn source_application_in_scope(
                 "record application repeats a template binder",
             ));
         }
-        validate_applied_members(typed, template, data, semantic, &substitutions, machine)?;
+        validate_applied_members(
+            typed,
+            template,
+            data,
+            semantic,
+            &substitutions,
+            machine,
+            &scope,
+        )?;
     } else {
         match typed.type_reference_table.type_reference(semantic) {
             TypeReferenceNode::Named { symbol, .. } if *symbol == data.symbol => {}
@@ -345,6 +497,66 @@ pub(super) fn source_application_in_scope(
     })
 }
 
+/// A type argument can supply one region directly, through a reference or a
+/// named data type. Its other components must be region-free so this slot
+/// accounts for every lifetime that field substitution must preserve.
+pub(super) fn retained_argument_region(
+    typed: &crate::source_state::TypedTrees,
+    scope: &std::sync::Arc<crate::source_state::SourceTypeScope>,
+    reference: TypeReferenceHandle,
+) -> Option<crate::source_state::type_identity::LifetimeParameterIdentity> {
+    use crate::source_state::type_identity::{
+        lifetime_parameter_identity, lifetime_parameter_name,
+    };
+    let table = &typed.type_reference_table;
+    let (tag, children) = match table.type_reference(reference) {
+        TypeReferenceNode::Reference {
+            referee,
+            lifetime: Some(tag),
+            ..
+        } => (tag, std::slice::from_ref(referee)),
+        TypeReferenceNode::Generic {
+            base_symbol,
+            lifetime_arguments,
+            arguments,
+            ..
+        } => {
+            let [tag] = lifetime_arguments.as_slice() else {
+                return None;
+            };
+            let declaration = typed.unique_data_definition_by_symbol(*base_symbol)?;
+            if declaration.lifetime_parameters.len() != 1
+                || typed.data_type_parameters(declaration).len() != arguments.len()
+            {
+                return None;
+            }
+            (tag, table.type_reference_handles(*arguments))
+        }
+        _ => return None,
+    };
+    for child in children {
+        let supplied = scope.supplied_type_reference(typed, *child).ok()?;
+        if !crate::source_state::domain::index_argument_is_closed(typed, supplied.reference) {
+            return None;
+        }
+        supplied
+            .scope
+            .region_free_type_identity(typed, supplied.reference)?;
+    }
+    let owner = table.operand_lifetime_owner(reference);
+    let parameter = match table.operand_lifetimes(reference) {
+        [parameter] if parameter.declaration.is_valid() => *parameter,
+        [] if owner.is_valid() => lifetime_parameter_identity(typed, owner, tag.as_str())?,
+        _ => return None,
+    };
+    if owner.is_valid()
+        && lifetime_parameter_identity(typed, owner, tag.as_str()) != Some(parameter)
+    {
+        return None;
+    }
+    (lifetime_parameter_name(typed, parameter)?.as_str() == tag.as_str()).then_some(parameter)
+}
+
 fn validate_applied_members(
     typed: &crate::source_state::TypedTrees,
     template: &DataDefinition,
@@ -352,11 +564,43 @@ fn validate_applied_members(
     reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     machine: MachineId,
+    scope: &std::sync::Arc<crate::source_state::SourceTypeScope>,
 ) -> Checked<()> {
     use crate::source_state::data::{DataField, DataMember};
     use crate::source_state::type_identity::TypeIdentityRequest;
     // Views keep authored handles; nominal instances own fresh children.
     // Both must retain the exact source member and its selected owner.
+    let has_borrow = substitutions
+        .iter()
+        .any(|(_, argument)| scope.region_free_type_identity(typed, *argument).is_none());
+    let applied_scope = has_borrow.then(|| crate::source_state::SourceTypeScope {
+        substitutions: substitutions.to_vec(),
+        parent: Some(scope.clone()),
+        rigid_parameters: Vec::new(),
+    });
+    let same_regions = |expected, actual| {
+        let Some(applied_scope) = &applied_scope else {
+            return true;
+        };
+        if applied_scope
+            .region_free_type_identity(typed, expected)
+            .is_some()
+        {
+            return scope.region_free_type_identity(typed, actual).is_some();
+        }
+        // The selected field must carry the same region as the type argument
+        // substituted for this template parameter.
+        let TypeReferenceNode::Named { symbol, .. } =
+            typed.type_reference_table.type_reference(expected)
+        else {
+            return false;
+        };
+        substitutions
+            .iter()
+            .find(|(binder, _)| binder == symbol)
+            .and_then(|(_, argument)| retained_argument_region(typed, scope, *argument))
+            .is_some_and(|region| retained_argument_region(typed, scope, actual) == Some(region))
+    };
     let same_field = |expected: &DataField, actual: &DataField, owner| {
         typed.data_constructor_field(reference, template.symbol, expected.symbol) == Some(actual)
             && (selected.symbol != template.symbol || expected.symbol == actual.symbol)
@@ -372,6 +616,7 @@ fn validate_applied_members(
             && typed
                 .type_reference_table
                 .contains_type_reference(actual.type_reference)
+            && same_regions(expected.type_reference, actual.type_reference)
             && typed.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
                 type_reference: expected.type_reference,
                 binders: &[],
@@ -474,6 +719,20 @@ fn same_substitutions(
                             let right = right.scope.index_identity(typed, *right_argument);
                             left.is_some() && left == right
                         }
+                        // A static machine argument is the machine it names.
+                        TypeParameterKind::Machine { .. } => {
+                            let named = |argument: &TypeReferenceHandle| match typed
+                                .type_reference_table
+                                .type_reference(*argument)
+                            {
+                                TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => {
+                                    Some(*symbol)
+                                }
+                                _ => None,
+                            };
+                            let left = named(left_argument);
+                            left.is_some() && left == named(right_argument)
+                        }
                         _ => false,
                     }
                 },
@@ -487,12 +746,13 @@ impl Program<'_> {
         reference: TypeReferenceHandle,
         machine: MachineId,
     ) -> Checked<SourceTypeApplication> {
-        source_application_in_scope(
+        checked_source_application(
             self.typed,
             data,
             reference,
             machine,
             self.source_scope.clone(),
+            true,
         )
     }
 
@@ -684,7 +944,13 @@ impl Program<'_> {
                     "access plan subject has no retained data declaration",
                 )
             })?;
-        let actual = self.source_record_application(data, subject, machine)?;
+        let actual = source_application_in_scope(
+            self.typed,
+            data,
+            subject,
+            machine,
+            self.source_scope.clone(),
+        )?;
         let same = match &source.application {
             Some(retained) => {
                 // A policy on T describes T's fields in any representation.
@@ -898,6 +1164,34 @@ impl Program<'_> {
                 machine,
                 Construct::Machine,
             )?;
+            if self
+                .witness_index(source.declaration)
+                .is_ok_and(|index| self.package_witnesses[index].1 == record)
+            {
+                let reference = source
+                    .application
+                    .as_ref()
+                    .ok_or_else(|| {
+                        malformed(machine, "abstract package referent lost its source type")
+                    })?
+                    .reference;
+                if !matches!(declaration.shape, crate::StorageShape::Opaque)
+                    || self.typed.package_qualified_type_identity_text(reference)
+                        != declaration.identity
+                    || self
+                        .typed
+                        .type_reference_table
+                        .type_reference(reference)
+                        .as_named_symbol()
+                        != Some(source.declaration)
+                {
+                    return Err(malformed(
+                        machine,
+                        "abstract package referent changed its binder",
+                    ));
+                }
+                continue;
+            }
             if let crate::StorageShape::TypeParameter(rigid) = declaration.shape {
                 let retained = self
                     .rigid_storage

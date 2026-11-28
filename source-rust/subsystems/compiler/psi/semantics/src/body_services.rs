@@ -176,6 +176,10 @@ fn body_service_reaches_with<Program: ServiceProgram>(
     let mut rows = vec![Vec::new(); machines.len()];
     let mut predecessors = vec![Vec::new(); machines.len()];
     for (position, machine) in module.machines.iter().enumerate() {
+        for operation in machine.operations() {
+            let required = crate::storage::native_borrows::required_services(module, operation)?;
+            union(&mut rows[position], &required);
+        }
         let body = program.body(machine.id)?;
         if let Some(reason) = body
             .invocations

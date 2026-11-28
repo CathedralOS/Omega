@@ -128,12 +128,17 @@ and providers. A missing adapter refuses execution.
 
 **Implementation status.** The [standalone contract](../../wiki/spec/build/embedding.md#standalone-interpretation)
 specifies bare `omega run app.psi` and confines both source and saved Products
-to the caller’s working directory by default. The current Rust CLI still
-requires `--trusted-artifact <manifest-id>` to run saved Psi. With no explicit
-run directory mappings it supplies the host filesystem namespace and enables
-matching-host adapters for admitted providers. The contained embedding
-currently refuses filesystem delegation. The CLI defaults and confined
-filesystem work are tracked in [PSI-UNTRUSTED-INTERPRETATION](../../TASKS.md#psi-untrusted-interpretation).
+to the caller’s working directory by default. Without `--trusted-artifact`,
+the Rust CLI interprets saved Psi contained. It gets the host's reviewed
+package bindings, standard streams and the working directory read/write at
+`/`; explicit run directory mappings replace that mount. It gets no native
+provider, network, program launch or native compilation.
+`--trusted-artifact <manifest-id>` runs saved Psi on the trusted route. A
+source or trusted run of a Linux program on its matching Linux host, with no
+native provider, gets the same working-directory default. Source and trusted
+runs outside that path, including Windows on Windows and runs with native
+providers, still select the host filesystem when no mapping was requested.
+Track this implementation gap in [PSI-UNTRUSTED-INTERPRETATION](../../TASKS.md#psi-untrusted-interpretation).
 
 ```bash
 mbx run -p omega -- packages update --project samples/cli/basics/cli_mvp --target macos_arm64
@@ -215,8 +220,11 @@ separately produced components is refused during compilation for interpretation
 native images. Streams are forwarded afterwards, not live.
 
 Compilation emits requested products and diagnostics, not debug dumps.
-`--timings` prints command-stage durations and total elapsed time to stderr;
-otherwise no timings are collected.
+`--timings` prints the command timeline and total elapsed time to stderr.
+For source builds it also prints the measured Product stages with their input
+and output forms. Each phase row sums its recorded durations and gives the
+number of measurements in `[n=…]`. Nested phases and parallel workers can
+cover the same elapsed interval. Use the command timeline for wall time.
 `--report-file <path>` writes the compile report (product, target, summary and
 publication lines) to a plain-text file. For a native publication, it includes
 the launchable executable path, the program’s process-exit capability and the

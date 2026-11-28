@@ -10,7 +10,45 @@ use semantic_vocabulary::BoundaryCompletion;
 use service_surface::{
     ServiceEntryAuthorityFlow, ServiceProgressEstablishmentRouteKind, ServiceProgressSubject,
 };
-use service_surface::{ServiceResultProjection, ServiceSynchronousInvocation};
+use service_surface::{ServiceMembershipProjection, ServiceSynchronousInvocation};
+
+pub(in crate::encoding) fn encode_membership(
+    encoder: &mut Encoder,
+    membership: &service_surface::ServiceDomainMembership,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.field("path", |encoder| {
+        // Bare projections are the established normal-result format. An
+        // input begins with its source ordinal before the same projections.
+        let input = match membership.subject {
+            service_surface::ServiceMembershipSubject::Input(index) => Some(index),
+            service_surface::ServiceMembershipSubject::NormalResult => None,
+        };
+        let prefix = usize::from(input.is_some());
+        encoder.sequence_by_index(membership.path.len() + prefix, |encoder, ordinal| {
+            if ordinal == 0
+                && let Some(index) = input
+            {
+                encoder.tag("input", 4);
+                return encoder.u32_field("index", index);
+            }
+            match &membership.path[ordinal - prefix] {
+                ServiceMembershipProjection::Field(identity) => {
+                    encoder.tag("field", 1);
+                    encoder.string_field("identity", identity)
+                }
+                ServiceMembershipProjection::Case(identity) => {
+                    encoder.tag("case", 2);
+                    encoder.string_field("identity", identity)
+                }
+                ServiceMembershipProjection::FixedIndex(index) => {
+                    encoder.tag("fixed_index", 3);
+                    encoder.u64_field("index", *index)
+                }
+            }
+        })
+    })?;
+    encoder.string_field("domain", &membership.domain)
+}
 
 pub(in crate::encoding::encode) fn method(
     encoder: &mut Encoder,
@@ -75,26 +113,8 @@ pub(in crate::encoding::encode) fn method(
             encoder.field("value", |encoder| encoder.string(value))
         })
     })?;
-    encoder.field("normal_result_memberships", |encoder| {
-        encoder.sequence(&method.normal_result_memberships, |encoder, membership| {
-            encoder.field("path", |encoder| {
-                encoder.sequence(&membership.path, |encoder, step| match step {
-                    ServiceResultProjection::Field(identity) => {
-                        encoder.tag("field", 1);
-                        encoder.string_field("identity", identity)
-                    }
-                    ServiceResultProjection::Case(identity) => {
-                        encoder.tag("case", 2);
-                        encoder.string_field("identity", identity)
-                    }
-                    ServiceResultProjection::FixedIndex(index) => {
-                        encoder.tag("fixed_index", 3);
-                        encoder.u64_field("index", *index)
-                    }
-                })
-            })?;
-            encoder.string_field("domain", &membership.domain)
-        })
+    encoder.field("domain_memberships", |encoder| {
+        encoder.sequence(&method.domain_memberships, encode_membership)
     })?;
     encoder.field("result_claims", |encoder| {
         encoder.sequence(&method.result_claims, |encoder, claim| {
@@ -119,6 +139,12 @@ pub(in crate::encoding::encode) fn method(
                 ServiceSynchronousInvocation::Parameter(position) => {
                     encoder.tag("parameter", 1);
                     encoder.u32_field("position", *position)
+                }
+                ServiceSynchronousInvocation::ProjectedParameter { parameter, path } => {
+                    encoder.tag("projected_parameter", 3);
+                    crate::encoding::encode::values::effects::encode_invocation_path(
+                        encoder, *parameter, path,
+                    )
                 }
                 ServiceSynchronousInvocation::Service(name) => {
                     encoder.tag("service", 2);

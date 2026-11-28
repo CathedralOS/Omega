@@ -55,7 +55,22 @@ impl Program<'_> {
             return self.domain_entry(id, slots, handle, cast, entry, source);
         }
         if let Some(access) = cast.form.recast_access() {
-            if access != ReferenceAccess::Shared {
+            // A view of exactly `N` elements casts to `@mutable [T; N]` over
+            // the same elements, so its writes land in the view's backing
+            // with no establishment to defer. Every other exclusive recast
+            // still needs establishment and handback evidence.
+            let fixed_window = access == ReferenceAccess::Mutable
+                && self
+                    .typed
+                    .type_reference_table
+                    .contains_type_reference(cast.target_type)
+                && matches!(
+                    self.typed
+                        .type_reference_table
+                        .type_reference(cast.target_type),
+                    TypeReferenceNode::FixedArray { .. }
+                );
+            if access != ReferenceAccess::Shared && !fixed_window {
                 return unserved(
                     "exclusive storage view without establishment and handback evidence",
                 );
@@ -88,6 +103,11 @@ impl Program<'_> {
             if let Some(fixed) = self.view_fixed_array(id, slots, cast, expected, source)? {
                 return Ok(fixed);
             }
+            if fixed_window {
+                return unserved(
+                    "exclusive storage view without establishment and handback evidence",
+                );
+            }
             return self.borrow_value(id, slots, handle, expected, source);
         }
         if cast.semantic_domain_symbol.is_valid() || !cast.semantic_domain.is_empty() {
@@ -111,6 +131,7 @@ impl Program<'_> {
             return Ok(Expression {
                 call_context: None,
                 kind: ExpressionKind::Record {
+                    package_witnesses: Vec::new(),
                     fields: vec![(0, operand)],
                     erased: Vec::new(),
                 },
@@ -154,7 +175,7 @@ impl Program<'_> {
                     Some(integer),
                     super::types::AnonymousLanding::ExplicitAs,
                 )?;
-                let owner = self.symbols.get(id).copied().unwrap_or_default();
+                let owner = self.machine_symbol(id)?;
                 self.complete_anonymous_operators(id, owner, &evaluated.operators)?;
                 Expression {
                     call_context: None,
@@ -254,7 +275,7 @@ impl Program<'_> {
                     domain: ArithmeticDomain::Exact,
                 },
                 operand,
-                source,
+                handle,
             )?
         } else if let (Some(ScalarType::IeeeFloat(from)), Some(ScalarType::Integer(to))) =
             (source_type.scalar(), target.scalar())
@@ -294,7 +315,7 @@ impl Program<'_> {
                     domain: ArithmeticDomain::Exact,
                 },
                 operand,
-                source,
+                handle,
             )?
         } else if let (Some(ScalarType::Integer(from)), Some(ScalarType::IeeeFloat(to))) =
             (source_type.scalar(), target.scalar())
@@ -340,7 +361,7 @@ impl Program<'_> {
                     domain: ArithmeticDomain::Exact,
                 },
                 operand,
-                source,
+                handle,
             )?
         } else {
             let (Some(ScalarType::Integer(from)), Some(carrier @ ScalarType::Integer(to))) =
@@ -385,8 +406,14 @@ impl Program<'_> {
         id: MachineId,
         meaning: numerics::intrinsics::NumericIntrinsic,
         operand: Expression,
-        source: SourceOrigin,
+        handle: ExpressionHandle,
     ) -> Checked<Expression> {
+        let span = self.typed.expression_table.source_span(handle);
+        let source = self.authored_node(
+            id,
+            crate::source_state::SourceNode::Expression(handle),
+            span,
+        )?;
         let unavailable = |detail| refuse_at(id, Unserved::Expression(detail));
         let declaration = terminal_semantics::numeric_primitives::declaration_path(meaning)
             .map_err(unavailable)?;
@@ -618,10 +645,13 @@ impl Program<'_> {
         if Policy::of_domain(cast.domain).is_some() {
             return Ok(DomainSet::EMPTY);
         }
-        let selected = crate::body::DomainInstance {
-            declaration: cast.semantic_domain_symbol,
-            identity: cast.semantic_domain_id,
-        };
+        let selected = self.supplied_domain_instance(
+            id,
+            DomainInstance {
+                declaration: cast.semantic_domain_symbol,
+                identity: cast.semantic_domain_id,
+            },
+        )?;
         let definition = self.domain_theory(id, selected)?;
         if definition.alias.is_none() {
             return Ok(DomainSet::EMPTY.with(selected).expect("one domain fits"));
@@ -1014,6 +1044,7 @@ mod tests {
         TableCastExpression {
             value: ExpressionHandle::invalid(),
             target_type: TypeReferenceHandle::invalid(),
+            operand_type: Default::default(),
             recast_storage_type: Default::default(),
             result_type: TypeReferenceHandle::invalid(),
             target_label: arena::HandleSpan::empty(),

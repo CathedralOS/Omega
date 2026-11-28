@@ -38,18 +38,17 @@ const REGISTRATIONS_POISONED: &str = "Build registration lock was poisoned";
 
 pub struct IssuedBuildRequest {
     request: BuildRequest,
-    forwarded: Option<FrozenBuildBinding>,
-    programs: Vec<package_compilation::DelegatedProgram>,
+    backing: crate::DependencyBacking,
     _storage: Option<EvaluationStorageLease>,
 }
 
 impl IssuedBuildRequest {
     pub fn forwarded(&self) -> Option<&FrozenBuildBinding> {
-        self.forwarded.as_ref()
+        self.backing.frozen.as_ref()
     }
 
-    pub fn delegated_programs(&self) -> &[package_compilation::DelegatedProgram] {
-        &self.programs
+    pub fn dependency_backing(&self) -> &crate::DependencyBacking {
+        &self.backing
     }
 
     pub fn request(&self) -> &BuildRequest {
@@ -76,6 +75,8 @@ impl BuildValidationRequest {
 }
 
 pub struct TerminalBuildRequestHost {
+    network: package_compilation::build_execution::BuildNetworkInvocation,
+    datagrams: Option<super::network::Datagrams>,
     programs: Arc<super::programs::ProgramInstallation>,
     filesystem: Arc<super::filesystem::TerminalBuildFilesystemHost>,
     inputs: InputBindings,
@@ -134,6 +135,8 @@ impl TerminalBuildRequestHost {
         artifact: terminal_codec::TerminalExecutionView<'_>,
         requests: &TerminalBuildRequests,
         programs: Arc<super::programs::ProgramInstallation>,
+        network: package_compilation::build_execution::BuildNetworkInvocation,
+        datagrams: Option<super::network::Datagrams>,
         filesystem: Arc<super::filesystem::TerminalBuildFilesystemHost>,
         original: TerminalStructuralValue,
         diagnostic_output_bytes: Option<u64>,
@@ -149,6 +152,8 @@ impl TerminalBuildRequestHost {
             None
         };
         Ok(Arc::new(Self {
+            network,
+            datagrams,
             programs,
             filesystem,
             artifact: artifact.custody_identity(),
@@ -421,16 +426,13 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         storage: &mut [terminal_interpreter::TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
         crate::host::require_effect_owner(effect, &self.host.artifact)?;
-        let launch = self.host.calls.iter().find_map(|call| {
-            if crate::host::is_call_at(effect, call.site)
-                && let Operation::LaunchProgram { program } = call.action
-            {
-                Some(program)
-            } else {
-                None
-            }
-        });
-        if let Some(program) = launch {
+        let action = self
+            .host
+            .calls
+            .iter()
+            .find(|call| crate::host::is_call_at(effect, call.site))
+            .map(|call| call.action);
+        if let Some(Operation::LaunchProgram { program }) = action {
             if !bytes.is_empty() {
                 return Err(TerminalEffectRejection::new(
                     "program arguments may only borrow immutable byte views",
@@ -441,6 +443,22 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 .programs
                 .run(program, storage, &self.host.filesystem)
                 .map_err(TerminalEffectRejection::new);
+        }
+        if action == Some(Operation::ReceiveDatagram) {
+            let [buffer] = bytes else {
+                return Err(TerminalEffectRejection::new(
+                    "datagram receive needs one writable byte window",
+                ));
+            };
+            if !storage.is_empty() || buffer.argument_index() != 0 {
+                return Err(TerminalEffectRejection::new(
+                    "unexpected storage in datagram receive",
+                ));
+            }
+            let peer = self.host.datagrams.as_ref().ok_or_else(|| {
+                TerminalEffectRejection::new("Build receive has no admitted network peer")
+            })?;
+            return peer.receive(buffer.bytes_mut());
         }
         if !bytes.is_empty() || !storage.is_empty() {
             return Err(TerminalEffectRejection::new(
@@ -472,6 +490,27 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             .iter()
             .find(|call| crate::host::is_call_at(effect, call.site))
             .ok_or_else(|| refuse("Build request has no source-issued protocol call"))?;
+        if call.action == Operation::SendDatagram {
+            let ([], [_], [Some(bytes)], terminal_psi::BoundaryMachineResult::Scalar(result)) = (
+                arguments.as_slice(),
+                structural_arguments.as_slice(),
+                byte_sequence_arguments.as_slice(),
+                result,
+            ) else {
+                return Err(refuse("network send differs from its admitted signature"));
+            };
+            if result.scalar_type != semantic_vocabulary::ScalarType::Boolean {
+                return Err(refuse("network send must return a boolean"));
+            }
+            let peer = self
+                .host
+                .datagrams
+                .as_ref()
+                .ok_or_else(|| refuse("Build send has no admitted network peer"))?;
+            return Ok(TerminalEffectResult::Scalar(TerminalScalarValue::Boolean(
+                peer.send(bytes)?,
+            )));
+        }
         if call.action == Operation::SandboxWrite {
             let ([], [_], [Some(bytes)], terminal_psi::BoundaryMachineResult::Unit) = (
                 arguments.as_slice(),
@@ -536,7 +575,10 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             }
             return Ok(TerminalEffectResult::Unit);
         }
-        if let Operation::ForwardProgram { program } = call.action {
+        if matches!(
+            call.action,
+            Operation::InheritNetwork | Operation::ForwardProgram { .. }
+        ) {
             let ([], [], [], terminal_psi::BoundaryMachineResult::Structural(result)) = (
                 arguments.as_slice(),
                 structural_arguments.as_slice(),
@@ -544,14 +586,18 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 result,
             ) else {
                 return Err(refuse(
-                    "program delegation requires one nominal selection and an opaque result",
+                    "dependency delegation requires a checked selection and an opaque result",
                 ));
             };
-            return self
-                .host
-                .options
-                .forward_program(program, result.structural_type, self.host.account.as_ref())
-                .map(TerminalEffectResult::Structural);
+            let options = &self.host.options;
+            let ty = result.structural_type;
+            let account = self.host.account.as_ref();
+            let marker = if let Operation::ForwardProgram { program } = call.action {
+                options.forward_program(program, ty, account)?
+            } else {
+                options.inherit_network(ty, account)?
+            };
+            return Ok(TerminalEffectResult::Structural(marker));
         }
         let returns_structural = matches!(
             call.action,
@@ -601,9 +647,12 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             Operation::ExtendReach | Operation::ExtendWorkspace => (0, 3),
             Operation::PathDependency | Operation::BundledDependency => (1, 4),
             Operation::GitDependency => (2, 6),
-            Operation::ForwardProgram { .. }
+            Operation::InheritNetwork
+            | Operation::ForwardProgram { .. }
             | Operation::ConfigureTestFixture
             | Operation::ConfigureTestEngine
+            | Operation::SendDatagram
+            | Operation::ReceiveDatagram
             | Operation::SandboxWrite
             | Operation::LogLine
             | Operation::PrepareDependency
@@ -685,7 +734,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 )
                 .map(TerminalEffectResult::Structural);
         }
-        let (max_reach, forwarded_programs) = if matches!(
+        let options = if matches!(
             call.action,
             Operation::PathDependency
                 | Operation::BundledDependency
@@ -700,7 +749,9 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         } else {
             Default::default()
         };
-        let programs = forwarded_programs
+        let max_reach = options.reach;
+        let programs = options
+            .programs
             .into_iter()
             .map(|program| {
                 self.host
@@ -809,6 +860,8 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             }
             Operation::ConfigureTestFixture
             | Operation::ConfigureTestEngine
+            | Operation::SendDatagram
+            | Operation::ReceiveDatagram
             | Operation::SandboxWrite
             | Operation::LogLine
             | Operation::PrepareDependency
@@ -821,6 +874,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             | Operation::CopyBytes
             | Operation::ExtendWorkspace
             | Operation::ExtendReach
+            | Operation::InheritNetwork
             | Operation::ForwardProgram { .. } => {
                 return Err(refuse(
                     "Build input binding or service set already returned",
@@ -883,9 +937,13 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             _ => None,
         };
         requests.push(IssuedBuildRequest {
-            programs,
             request,
-            forwarded,
+            backing: crate::DependencyBacking {
+                frozen: forwarded,
+                programs,
+                network: (options.inherit_network && self.host.network.is_granted())
+                    .then(|| Arc::new(self.host.network)),
+            },
             _storage: storage,
         });
         let Some((purpose, structural_type)) = registered else {

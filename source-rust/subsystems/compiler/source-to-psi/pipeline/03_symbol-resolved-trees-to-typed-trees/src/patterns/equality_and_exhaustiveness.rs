@@ -2837,7 +2837,8 @@ pub(crate) mod proposition {
                     find_data_type_parameter(lowerer, symbol).and_then(|parameter| match parameter
                         .kind
                     {
-                        resolved::data::TypeParameterKind::Type => Some(ArgumentKind::Type),
+                        resolved::data::TypeParameterKind::Type
+                        | resolved::data::TypeParameterKind::SomeType => Some(ArgumentKind::Type),
                         resolved::data::TypeParameterKind::Const { .. }
                         | resolved::data::TypeParameterKind::Value { .. } => {
                             Some(ArgumentKind::Const)
@@ -2904,6 +2905,7 @@ pub(crate) mod proposition {
                             Some(type_reference)
                         }
                         resolved::data::TypeParameterKind::Type
+                        | resolved::data::TypeParameterKind::SomeType
                         | resolved::data::TypeParameterKind::Implementation
                         | resolved::data::TypeParameterKind::Machine { .. }
                         | resolved::data::TypeParameterKind::Proof { .. }

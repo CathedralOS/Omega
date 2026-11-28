@@ -6,6 +6,9 @@ mod request_outcome;
 mod runtime_consent;
 pub use provider_correspondence::trust::selected_provider_grants;
 pub use request_outcome::CompilerRequestOutcome;
+pub use runtime_consent::{
+    RealizedServicePermissions, reviewed_nominal_identity, reviewed_service_declaration,
+};
 
 use diagnostics::Diagnostic;
 use psi_authorization::{
@@ -151,6 +154,12 @@ pub enum Program<'a> {
         program: AuthorizedTerminalArtifact,
         target: NativeTarget<'a>,
     },
+    /// Saved Psi the host admitted only for contained interpretation. It
+    /// supports `CompileRequest::Runtime` alone.
+    ContainedPsi {
+        program: psi_authorization::ContainedTerminalArtifact,
+        target: NativeTarget<'a>,
+    },
 }
 
 pub enum Artifact {
@@ -177,6 +186,14 @@ pub fn compile(
     request: CompileRequest<'_>,
     options: CompileOptions<'_>,
 ) -> Result<CompileOutput, stage_validators::NativeValidationError> {
+    compile_with_timings(request, options, &mut Default::default())
+}
+
+pub fn compile_with_timings(
+    request: CompileRequest<'_>,
+    options: CompileOptions<'_>,
+    timings: &mut source_compiler::CompileTimings,
+) -> Result<CompileOutput, stage_validators::NativeValidationError> {
     let none = stage_validators::StageValidatorRequest::default();
     let validators = options.validators.unwrap_or(&none);
     match request {
@@ -185,10 +202,11 @@ pub fn compile(
                 source.product.calling_targets,
                 |_| "this product emits Psi before target operations",
             )?;
-            let artifact = source_to_psi::compile_with_declaration_usage(
+            let artifact = source_to_psi::compile_with_timings(
                 source,
                 options.advisories,
                 options.declaration_usage,
+                timings,
             )?;
             Ok(CompileOutput {
                 artifact: Artifact::Psi(artifact),
@@ -204,11 +222,7 @@ pub fn compile(
                 |_| "runtime admission stops before target lowering",
             )?;
             let admitted = program
-                .prepare(
-                    options.advisories,
-                    options.declaration_usage,
-                    &mut Default::default(),
-                )?
+                .prepare(options.advisories, options.declaration_usage, timings)?
                 .admit_runtime(entry_memory, &mut Vec::new())?;
             Ok(CompileOutput {
                 artifact: Artifact::Runtime(product_publication::CompletedProduct::from_runtime(
@@ -221,13 +235,15 @@ pub fn compile(
             program,
             entry_memory,
         } => {
+            if matches!(program, Program::ContainedPsi { .. }) {
+                return Err(vec![Diagnostic::error(
+                    "native compilation requires producer trust; a contained program only runs on the interpreter",
+                )]
+                .into());
+            }
             let application = program.application().clone();
             let emitted = program
-                .prepare(
-                    options.advisories,
-                    options.declaration_usage,
-                    &mut Default::default(),
-                )?
+                .prepare(options.advisories, options.declaration_usage, timings)?
                 .emit(entry_memory, validators)?;
             Ok(CompileOutput {
                 artifact: Artifact::Native(product_publication::CompletedProduct::from_native(
@@ -262,14 +278,14 @@ impl Program<'_> {
 
     fn profile(&self) -> target::TargetProfile {
         match self {
-            Self::Psi { target, .. } => target.profile,
+            Self::Psi { target, .. } | Self::ContainedPsi { target, .. } => target.profile,
             Self::Source { target, .. } | Self::CheckedSource { target, .. } => target.profile,
         }
     }
 
     fn application(&self) -> &target::NativeApplicationMetadata {
         match self {
-            Self::Psi { target, .. } => &target.application,
+            Self::Psi { target, .. } | Self::ContainedPsi { target, .. } => &target.application,
             Self::Source { target, .. } | Self::CheckedSource { target, .. } => {
                 &target.settings.application
             }
@@ -285,6 +301,9 @@ impl Program<'_> {
         match self {
             Self::Psi { program, target } => {
                 native_compiler::prepare_saved_program(program, target)
+            }
+            Self::ContainedPsi { program, target } => {
+                native_compiler::prepare_contained_saved_program(program, target)
             }
             Self::Source {
                 source,

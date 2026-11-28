@@ -39,11 +39,50 @@ pub(crate) struct BuildCompanions {
     pub native_formations: Vec<NativeBindingFormation>,
 }
 
-/// One emitted boundary call of a toolchain Build protocol.
-struct ProtocolCall<'a> {
-    site: BuildCallSite,
-    /// The protocol operation's declared name.
-    name: &'a str,
+/// Classify the declaration once. Each invocation still supplies its own site and operands.
+#[derive(Clone, Copy)]
+enum BoundaryOperation<'a> {
+    Selection(&'a str),
+    Request(Result<TerminalBuildRequestOperation, &'a str>),
+    Filesystem(Result<TerminalBuildFilesystemOperation, &'a str>),
+    ProductQuery(Result<TerminalBuildQueryOperation, &'a str>),
+    Program { launcher: bool },
+}
+
+fn classify(source: &TypedTrees, symbol: SymbolHandle) -> Option<BoundaryOperation<'_>> {
+    let declaration = source
+        .closed_requirement_application(symbol)
+        .map_or(symbol, |application| application.template);
+    let (owner, requirement) = source.trait_machine_signature(declaration)?;
+    let name = requirement.name.as_str();
+    if owner.is_boundary {
+        if let Some(action) = installed_request_operation(source, owner.symbol, name) {
+            return Some(BoundaryOperation::Request(Ok(action)));
+        }
+        if let Some(action) = installed_filesystem_operation(source, owner.symbol, name) {
+            return Some(BoundaryOperation::Filesystem(Ok(action)));
+        }
+    }
+    if is_installed_launcher(source, owner.symbol, name) {
+        return Some(BoundaryOperation::Program { launcher: true });
+    }
+    let protocol =
+        |name| owner.is_boundary && is_build_protocol(&source.symbols, owner.symbol, name);
+    if protocol(SELECTION_PROTOCOL) {
+        Some(BoundaryOperation::Selection(name))
+    } else if protocol("BuildRequestOperations") {
+        Some(if name == "forward_program" {
+            BoundaryOperation::Program { launcher: false }
+        } else {
+            BoundaryOperation::Request(request_operation(name))
+        })
+    } else if protocol("BuildFilesystemOperations") {
+        Some(BoundaryOperation::Filesystem(filesystem_operation(name)))
+    } else if protocol("BuildProductOperations") {
+        Some(BoundaryOperation::ProductQuery(query_operation(name)))
+    } else {
+        None
+    }
 }
 
 fn refused(detail: impl std::fmt::Display) -> Diagnostic {
@@ -61,251 +100,222 @@ pub(crate) fn produce(
     capture_declared_inputs(accepted, module, &mut companions)?;
     let mut shapes = NativeLocatorShapes::new(module)?;
     let mut native_authors = None;
-    let mut designated = 0;
+    let mut protocols = elaboration.boundaries.map(|_, &symbol| (symbol, None));
+    let mut operands: Vec<_> = correspondence
+        .designated
+        .iter()
+        .flat_map(|(machine, rows)| {
+            rows.iter()
+                .map(move |(operation, operands)| ((machine, *operation), Some(operands)))
+        })
+        .collect();
+    operands.sort_unstable_by_key(|(site, _)| *site);
     for machine in &module.machines {
         for invocation in machine.boundary_invocations() {
             let boundary = invocation.boundary;
-            // A boundary this elaboration cannot name is no toolchain
-            // protocol operation: it gets no row, and the Build host refuses
-            // a protocol call that has none.
-            let Some((owner, requirement)) =
-                elaboration
-                    .boundaries
-                    .get(boundary)
-                    .and_then(|requirement| {
-                        let declaration = source
-                            .closed_requirement_application(*requirement)
-                            .map_or(*requirement, |application| application.template);
-                        source.trait_machine_signature(declaration)
-                    })
-            else {
+            let Some((symbol, cached)) = protocols.get_mut(boundary) else {
                 continue;
             };
-            let protocol =
-                |name| owner.is_boundary && is_build_protocol(&source.symbols, owner.symbol, name);
-            let (stream, file_operation) = if owner.is_boundary {
-                let operation = requirement.name.as_str();
-                (
-                    sandbox_stream_operation(source, owner.symbol, operation),
-                    installed_filesystem_operation(source, owner.symbol, operation),
-                )
-            } else {
-                (None, None)
-            };
-            let launcher = is_installed_launcher(source, owner.symbol, requirement.name.as_str());
-            if stream.is_none()
-                && file_operation.is_none()
-                && !launcher
-                && ![
-                    SELECTION_PROTOCOL,
-                    "BuildRequestOperations",
-                    "BuildFilesystemOperations",
-                    "BuildProductOperations",
-                ]
-                .into_iter()
-                .any(protocol)
-            {
+            let Some(protocol) = *cached.get_or_insert_with(|| classify(source, *symbol)) else {
                 continue;
-            }
+            };
             let InvocationSite::Operation(operation) = invocation.site else {
                 return Err(refused(
                     "a Build host request has no ordinary boundary operation",
                 ));
             };
-            let call = ProtocolCall {
-                site: BuildCallSite {
-                    machine: machine.id,
-                    operation,
-                    boundary,
-                },
-                name: requirement.name.as_str(),
+            let site = BuildCallSite {
+                machine: machine.id,
+                operation,
+                boundary,
             };
-            if let Some(action) = stream {
-                companions.requests.push(TerminalBuildRequestCall {
-                    site: call.site,
-                    action,
-                });
-            } else if let Some(action) = file_operation {
-                companions.filesystem.push(TerminalBuildFilesystemCall {
-                    site: call.site,
-                    action,
-                });
-            } else if launcher
-                || (protocol("BuildRequestOperations") && call.name == "forward_program")
-            {
-                let application = elaboration
-                    .boundaries
-                    .get(boundary)
-                    .and_then(|symbol| source.closed_requirement_application(*symbol))
-                    .ok_or_else(|| refused("program launcher requires one closed program type"))?;
-                let Some([argument]) = application.local_arguments.as_array() else {
-                    return Err(refused("program launcher requires one closed program type"));
-                };
-                let crate::source_state::types::TypeReferenceNode::Named { symbol, .. } = source
-                    .type_reference_table
-                    .type_reference(argument.type_reference())
-                else {
-                    return Err(refused(
-                        "ProgramLaunch requires an exact nominal data declaration",
-                    ));
-                };
-                let authored = source.symbols.authored_origin(*symbol);
-                if source.unique_data_definition_by_symbol(authored).is_none() {
-                    return Err(refused(
-                        "ProgramLaunch requires an exact nominal data declaration",
-                    ));
-                }
-                let program = authored_span(source, authored)?;
-                companions.requests.push(TerminalBuildRequestCall {
-                    site: call.site,
-                    action: if launcher {
-                        TerminalBuildRequestOperation::LaunchProgram { program }
-                    } else {
-                        TerminalBuildRequestOperation::ForwardProgram { program }
-                    },
-                });
-            } else if protocol(SELECTION_PROTOCOL) {
-                designated += 1;
-                let designated = designated_selection(correspondence, &call)?;
-                let selection = source
-                    .expression_table
-                    .build_selection_call(designated.request)
-                    .ok_or_else(|| refused("a Build selection lost its designated operands"))?;
-                if call.name != selection.operation.requirement_name() {
-                    return Err(refused(
-                        "a Build selection changed its exact protocol requirement",
-                    ));
-                }
-                if matches!(
-                    selection.operation,
-                    SelectionProtocolOperation::DescribeParameter
-                        | SelectionProtocolOperation::DescribeField
-                ) {
-                    let BuildSelectionRequest::Declaration(request) = &selection.request else {
-                        return Err(refused("a declaration query lost its selected operand"));
+            match protocol {
+                BoundaryOperation::Program { launcher } => {
+                    let application =
+                        source
+                            .closed_requirement_application(*symbol)
+                            .ok_or_else(|| {
+                                refused("program launcher requires one closed program type")
+                            })?;
+                    let Some([argument]) = application.local_arguments.as_array() else {
+                        return Err(refused("program launcher requires one closed program type"));
                     };
-                    request.validate_shape().map_err(refused)?;
-                    let (operation, 0) = request
-                        .operation
-                        .product_recording_operation()
-                        .ok_or_else(|| refused("a declaration query has another request role"))?
+                    let crate::source_state::types::TypeReferenceNode::Named { symbol, .. } =
+                        source
+                            .type_reference_table
+                            .type_reference(argument.type_reference())
                     else {
-                        return Err(refused("a declaration query has ordinary operands"));
-                    };
-                    if operation != selection.operation {
-                        return Err(refused("a declaration query changed its description role"));
-                    }
-                    let terminal_psi::BoundaryMachineResult::Structural(result) = &elaboration
-                        .module
-                        .boundary_machine(boundary)
-                        .ok_or_else(|| refused("a declaration query lost its boundary"))?
-                        .result
-                    else {
-                        return Err(refused("a declaration query has no record result"));
-                    };
-                    let result_shape = collect_shape(module, result.structural_type, &mut shapes)?;
-                    companions.queries.push(TerminalBuildQueryCall {
-                        site: call.site,
-                        action: if operation == SelectionProtocolOperation::DescribeParameter {
-                            TerminalBuildQueryOperation::Parameter
-                        } else {
-                            TerminalBuildQueryOperation::Field
-                        },
-                        occurrence: request.source_span,
-                        request: Some(Arc::clone(request)),
-                        selecting_machine: Some(authored_span(
-                            source,
-                            *elaboration
-                                .machines
-                                .get(designated.selecting)
-                                .ok_or_else(|| {
-                                    refused("a declaration query lost its selecting machine")
-                                })?,
-                        )?),
-                        result_shape: Some(result_shape),
-                    });
-                    continue;
-                }
-                let row = binding(accepted, module, &call, &mut shapes, designated, selection)?;
-                if row.action == TerminalBuildBindingOperation::BindNative {
-                    let BuildSelectionRequest::Declaration(request) = &row.request else {
                         return Err(refused(
-                            "a native Build binding lost its requirement request",
+                            "ProgramLaunch requires an exact nominal data declaration",
                         ));
                     };
-                    let author = native_authors
-                        .get_or_insert_with(|| {
-                            crate::source_state::product_operand::ProductRequestAuthors::new(source)
-                        })
-                        .resolve(row.selecting_machine.ok_or_else(|| {
-                            refused("a native Build binding lost its selecting machine")
-                        })?)
-                        .map_err(refused)?;
-                    let root = match elaboration.module.entry {
-                        Some(terminal_psi::TargetMachineCallable::Machine(root)) => {
-                            elaboration.machines.get(root).copied()
+                    let authored = source.symbols.authored_origin(*symbol);
+                    if source.unique_data_definition_by_symbol(authored).is_none() {
+                        return Err(refused(
+                            "ProgramLaunch requires an exact nominal data declaration",
+                        ));
+                    }
+                    let program = authored_span(source, authored)?;
+                    companions.requests.push(TerminalBuildRequestCall {
+                        site,
+                        action: if launcher {
+                            TerminalBuildRequestOperation::LaunchProgram { program }
+                        } else {
+                            TerminalBuildRequestOperation::ForwardProgram { program }
+                        },
+                    });
+                }
+                BoundaryOperation::Selection(name) => {
+                    let designated = operands
+                        .binary_search_by_key(&(site.machine, site.operation), |(site, _)| *site)
+                        .ok()
+                        .and_then(|i| operands[i].1.take())
+                        .ok_or_else(|| {
+                            refused("a Build selection call carries no designated operands")
+                        })?;
+                    let selection = source
+                        .expression_table
+                        .build_selection_call(designated.request)
+                        .ok_or_else(|| refused("a Build selection lost its designated operands"))?;
+                    if name != selection.operation.requirement_name() {
+                        return Err(refused(
+                            "a Build selection changed its exact protocol requirement",
+                        ));
+                    }
+                    if matches!(
+                        selection.operation,
+                        SelectionProtocolOperation::DescribeParameter
+                            | SelectionProtocolOperation::DescribeField
+                    ) {
+                        let BuildSelectionRequest::Declaration(request) = &selection.request else {
+                            return Err(refused("a declaration query lost its selected operand"));
+                        };
+                        request.validate_shape().map_err(refused)?;
+                        let (operation, 0) = request
+                            .operation
+                            .product_recording_operation()
+                            .ok_or_else(|| {
+                                refused("a declaration query has another request role")
+                            })?
+                        else {
+                            return Err(refused("a declaration query has ordinary operands"));
+                        };
+                        if operation != selection.operation {
+                            return Err(refused(
+                                "a declaration query changed its description role",
+                            ));
                         }
-                        _ => None,
+                        let terminal_psi::BoundaryMachineResult::Structural(result) = &elaboration
+                            .module
+                            .boundary_machine(boundary)
+                            .ok_or_else(|| refused("a declaration query lost its boundary"))?
+                            .result
+                        else {
+                            return Err(refused("a declaration query has no record result"));
+                        };
+                        let result_shape =
+                            collect_shape(module, result.structural_type, &mut shapes)?;
+                        companions.queries.push(TerminalBuildQueryCall {
+                            site,
+                            action: if operation == SelectionProtocolOperation::DescribeParameter {
+                                TerminalBuildQueryOperation::Parameter
+                            } else {
+                                TerminalBuildQueryOperation::Field
+                            },
+                            occurrence: request.source_span,
+                            request: Some(Arc::clone(request)),
+                            selecting_machine: Some(authored_span(
+                                source,
+                                *elaboration.machines.get(designated.selecting).ok_or_else(
+                                    || refused("a declaration query lost its selecting machine"),
+                                )?,
+                            )?),
+                            result_shape: Some(result_shape),
+                        });
+                        continue;
                     }
-                    .ok_or_else(|| refused("a native Build binding has no exact Build root"))?;
-                    let formation = crate::source_state::product_operand::native_binding_formation(
-                        source,
-                        author,
-                        Some(root),
-                        Arc::clone(request),
-                    )
-                    .map_err(refused)?;
-                    if !companions.native_formations.contains(&formation) {
-                        companions.native_formations.push(formation);
+                    let row = binding(accepted, module, site, &mut shapes, designated, selection)?;
+                    if row.action == TerminalBuildBindingOperation::BindNative {
+                        let BuildSelectionRequest::Declaration(request) = &row.request else {
+                            return Err(refused(
+                                "a native Build binding lost its requirement request",
+                            ));
+                        };
+                        let author = native_authors
+                            .get_or_insert_with(|| {
+                                crate::source_state::product_operand::ProductRequestAuthors::new(
+                                    source,
+                                )
+                            })
+                            .resolve(row.selecting_machine.ok_or_else(|| {
+                                refused("a native Build binding lost its selecting machine")
+                            })?)
+                            .map_err(refused)?;
+                        let root = match elaboration.module.entry {
+                            Some(terminal_psi::TargetMachineCallable::Machine(root)) => {
+                                elaboration.machines.get(root).copied()
+                            }
+                            _ => None,
+                        }
+                        .ok_or_else(|| refused("a native Build binding has no exact Build root"))?;
+                        let formation =
+                            crate::source_state::product_operand::native_binding_formation(
+                                source,
+                                author,
+                                Some(root),
+                                Arc::clone(request),
+                            )
+                            .map_err(refused)?;
+                        if !companions.native_formations.contains(&formation) {
+                            companions.native_formations.push(formation);
+                        }
                     }
+                    if let BuildSelectionRequest::Declaration(request) = &row.request
+                        && !companions.declarations.contains(request)
+                    {
+                        companions.declarations.push(Arc::clone(request));
+                    }
+                    companions.bindings.push(row);
                 }
-                if let BuildSelectionRequest::Declaration(request) = &row.request
-                    && !companions.declarations.contains(request)
-                {
-                    companions.declarations.push(Arc::clone(request));
+                BoundaryOperation::Request(action) => {
+                    companions.requests.push(TerminalBuildRequestCall {
+                        site,
+                        action: action.map_err(|name| unknown("BuildRequestOperations", name))?,
+                    });
                 }
-                companions.bindings.push(row);
-            } else if protocol("BuildRequestOperations") {
-                let row = TerminalBuildRequestCall {
-                    site: call.site,
-                    action: request_operation(call.name)?,
-                };
-                companions.requests.push(row);
-            } else if protocol("BuildFilesystemOperations") {
-                let row = TerminalBuildFilesystemCall {
-                    site: call.site,
-                    action: filesystem_operation(call.name)?,
-                };
-                companions.filesystem.push(row);
-            } else if protocol("BuildProductOperations") {
-                let occurrence = elaboration
-                    .sources
-                    .get(call.site.machine)
-                    .and_then(|sources| sources.operations.get(call.site.operation))
-                    .copied()
-                    .ok_or_else(|| refused("a Build product query lost its source row"))?
-                    .span()
-                    .ok_or_else(|| refused("a Build product query has no authored occurrence"))?;
-                let row = TerminalBuildQueryCall {
-                    site: call.site,
-                    action: query_operation(call.name)?,
-                    occurrence,
-                    request: None,
-                    selecting_machine: None,
-                    result_shape: None,
-                };
-                companions.queries.push(row);
+                BoundaryOperation::Filesystem(action) => {
+                    companions.filesystem.push(TerminalBuildFilesystemCall {
+                        site,
+                        action: action
+                            .map_err(|name| unknown("BuildFilesystemOperations", name))?,
+                    });
+                }
+                BoundaryOperation::ProductQuery(action) => {
+                    let occurrence = elaboration
+                        .sources
+                        .get(site.machine)
+                        .and_then(|sources| sources.operations.get(site.operation))
+                        .copied()
+                        .ok_or_else(|| refused("a Build product query lost its source row"))?
+                        .span()
+                        .ok_or_else(|| {
+                            refused("a Build product query has no authored occurrence")
+                        })?;
+                    let row = TerminalBuildQueryCall {
+                        site,
+                        action: action.map_err(|name| unknown("BuildProductOperations", name))?,
+                        occurrence,
+                        request: None,
+                        selecting_machine: None,
+                        result_shape: None,
+                    };
+                    companions.queries.push(row);
+                }
             }
         }
     }
     // Every reference the reader carried must have reached a selection call.
-    let carried: usize = accepted
-        .correspondence()
-        .designated
-        .iter()
-        .map(|(_, rows)| rows.len())
-        .sum();
-    if carried != designated {
+    if operands.iter().any(|(_, operand)| operand.is_some()) {
         return Err(refused(
             "a Build selection's designated operands reached no selection call",
         ));
@@ -329,16 +339,28 @@ fn declared_in_companion(
 }
 
 /// A matching declaration in a user package or a modified toolchain file cannot
-/// acquire a stream service. Call-site and artifact custody are attached above.
-fn sandbox_stream_operation(
+/// acquire a host service. Call-site and artifact custody are attached above.
+fn installed_request_operation(
     source: &TypedTrees,
     owner: SymbolHandle,
     operation: &str,
 ) -> Option<TerminalBuildRequestOperation> {
-    (source.symbols.name(owner) == "SandboxOutput"
-        && operation == "write"
-        && declared_in_companion(source, owner, BuildCompanionFile::SandboxStreams))
-    .then_some(TerminalBuildRequestOperation::SandboxWrite)
+    let (file, action) = match (source.symbols.name(owner), operation) {
+        ("SandboxOutput", "write") => (
+            BuildCompanionFile::SandboxStreams,
+            TerminalBuildRequestOperation::SandboxWrite,
+        ),
+        ("DatagramReplies", "receive") => (
+            BuildCompanionFile::SandboxDatagram,
+            TerminalBuildRequestOperation::ReceiveDatagram,
+        ),
+        ("Datagram", "send") => (
+            BuildCompanionFile::SandboxDatagram,
+            TerminalBuildRequestOperation::SendDatagram,
+        ),
+        _ => return None,
+    };
+    declared_in_companion(source, owner, file).then_some(action)
 }
 
 /// The invocation may supply the installed system's public filesystem operations.
@@ -394,26 +416,10 @@ fn is_installed_launcher(source: &TypedTrees, owner: SymbolHandle, operation: &s
         && declared_in_companion(source, owner, BuildCompanionFile::BuildProgram)
 }
 
-fn designated_selection<'a>(
-    correspondence: &'a lowered_source_publication::SourceFormCorrespondence,
-    call: &ProtocolCall<'_>,
-) -> Result<&'a lowered_source_publication::DesignatedOperands, Diagnostic> {
-    correspondence
-        .designated
-        .get(call.site.machine)
-        .and_then(|sources| {
-            sources
-                .iter()
-                .find(|(operation, _)| *operation == call.site.operation)
-        })
-        .map(|(_, designated)| designated)
-        .ok_or_else(|| refused("a Build selection call carries no designated operands"))
-}
-
 fn binding(
     accepted: &AcceptedTerminalSource,
     module: &TerminalModule,
-    call: &ProtocolCall<'_>,
+    site: BuildCallSite,
     shapes: &mut NativeLocatorShapes,
     designated: &lowered_source_publication::DesignatedOperands,
     selection: &crate::source_state::expression::BuildSelectionCall,
@@ -497,7 +503,7 @@ fn binding(
         TerminalBuildBindingOperation::BindNative => {
             Some(TerminalBuildBindingOperand::NativeLocator(native_locator(
                 accepted,
-                call.site.boundary,
+                site.boundary,
                 module,
                 shapes,
             )?))
@@ -505,14 +511,14 @@ fn binding(
         TerminalBuildBindingOperation::SelectProviderOption
         | TerminalBuildBindingOperation::SelectProvider => Some(provider_option(
             accepted,
-            call.site.boundary,
+            site.boundary,
             module,
             action == TerminalBuildBindingOperation::SelectProvider,
         )?),
         _ => None,
     };
     Ok(TerminalBuildBindingCall {
-        site: call.site,
+        site,
         action,
         request,
         selecting_machine,
@@ -564,12 +570,13 @@ fn unknown(protocol: &str, operation: &str) -> Diagnostic {
     ))
 }
 
-fn request_operation(name: &str) -> Result<TerminalBuildRequestOperation, Diagnostic> {
+fn request_operation(name: &str) -> Result<TerminalBuildRequestOperation, &str> {
     use TerminalBuildRequestOperation as Request;
     Ok(match name {
         "extend_workspace" => Request::ExtendWorkspace,
         "copy_bytes" => Request::CopyBytes,
         "artifact_only" => Request::ArtifactOnly,
+        "inherit_network" => Request::InheritNetwork,
         "register_path_dependency" => Request::PathDependency,
         "register_bundled_dependency" => Request::BundledDependency,
         "register_git_dependency" => Request::GitDependency,
@@ -582,11 +589,11 @@ fn request_operation(name: &str) -> Result<TerminalBuildRequestOperation, Diagno
         "write_log" => Request::LogLine,
         "configure_test_fixture" => Request::ConfigureTestFixture,
         "configure_test_engine" => Request::ConfigureTestEngine,
-        other => return Err(unknown("BuildRequestOperations", other)),
+        other => return Err(other),
     })
 }
 
-fn filesystem_operation(name: &str) -> Result<TerminalBuildFilesystemOperation, Diagnostic> {
+fn filesystem_operation(name: &str) -> Result<TerminalBuildFilesystemOperation, &str> {
     use TerminalBuildFilesystemOperation as Operation;
     Ok(match name {
         "forward_directory" => Operation::ForwardDirectory,
@@ -604,18 +611,18 @@ fn filesystem_operation(name: &str) -> Result<TerminalBuildFilesystemOperation, 
         "complete" => Operation::Complete,
         "fail" => Operation::Fail,
         "required_path" => Operation::RequiredPath,
-        other => return Err(unknown("BuildFilesystemOperations", other)),
+        other => return Err(other),
     })
 }
 
-fn query_operation(name: &str) -> Result<TerminalBuildQueryOperation, Diagnostic> {
+fn query_operation(name: &str) -> Result<TerminalBuildQueryOperation, &str> {
     Ok(match name {
         "entry" => TerminalBuildQueryOperation::Entry,
         "schema" => TerminalBuildQueryOperation::Schema,
         "provider" => TerminalBuildQueryOperation::Provider,
         "schema_path" => TerminalBuildQueryOperation::SchemaPath,
         "provider_path" => TerminalBuildQueryOperation::ProviderPath,
-        other => return Err(unknown("BuildProductOperations", other)),
+        other => return Err(other),
     })
 }
 

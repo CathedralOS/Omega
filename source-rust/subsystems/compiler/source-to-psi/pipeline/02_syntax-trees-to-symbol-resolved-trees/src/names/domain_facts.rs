@@ -968,6 +968,18 @@ impl ProofExpressionContext<'_> {
             }
             ExpressionNode::Name(path) => {
                 if path.static_application.is_valid() {
+                    if let Some(written) = super::propositions::foundation_arguments(
+                        self.symbols,
+                        SymbolHandle::invalid(),
+                        self.local_type_parameters.unwrap_or(&[]),
+                        self.child_type_references,
+                        self.expression_table,
+                        expression,
+                    ) {
+                        for argument in written {
+                            self.assign(argument);
+                        }
+                    }
                     return;
                 }
                 if path.head_symbol.is_valid() || path.symbol.is_valid() {

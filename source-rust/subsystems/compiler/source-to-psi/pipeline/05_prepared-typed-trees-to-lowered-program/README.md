@@ -13,6 +13,8 @@ Build, see
 
 Each emitted Psi machine carries the instruction catalog target required by its source body. When recursive transitions share a machine, their bodies must admit a common target.
 
+For a supplier export, this stage records which checked implementation supplies each member of the exported requirement. A target's private provider selection is separate, even when the two records satisfy the same requirement.
+
 Data that contains itself by value has no storage, so a machine over it never
 runs. Such declarations take a second route: [mathematics.rs](src/mathematics.rs)
 reads them with the same reader, in a reader of its own so none of them is
@@ -409,8 +411,26 @@ own `ensures` beyond its requirement's is kept before its caller-facing
 contract becomes the requirement's (`realized_ensures`), and lowering hands
 it to the other members of the same implementation as
 `MachineTables::realized_guarantees`, so a law's body can use what its
-comparison ensures of itself. What an
-operation ensures does not stop a clause naming it; a precondition does.
+comparison ensures of itself. In the copy of a machine generic over
+`E satisfies EqualImpliesIdentity<T>`, a clause's `E::equals` keeps the row
+specialization selected (`StaticRequirementDispatch`) and is read as that
+implementation's row (`dispatched_row`); `Identity::<T>` there is the type
+the copy's specialization binds `T` to; and a law cited as
+`E::identity_of_equal` has the requirement's header at the implementation's
+own arguments. A row the compiler synthesized for an implementation that
+authors no `equals` is instead read as its checked body, however a clause
+names it: `CoinEq::equals(@a, @b)`, the requirement's `equals(@left,
+@right)` read for a member, or `E::equals` in a copy
+(`synthesized_comparison`, `unfold_synthesized_comparison`). That body is
+stage 03's field-by-field expansion, so the clause states the field
+comparisons `a == b` does ([contracts](../../../../../../wiki/spec/proofs/contracts.md#equality-bridges-and-comparison-facts):
+"Compiler-synthesized structural equality is proof-transparent through its
+ordinary checked body"). Each operand must lend a formal in scope, as
+`@a` of a by-value formal or a shared borrowed formal. A copied
+requirement's `Identity::<T>` names the implementation's type at the
+implementation's header, where stage 02 wrote it (`copied_requirement`).
+What an operation ensures does not stop a clause naming it; a precondition
+does.
 `tools/ratchets/clause_term_readers.txt` counts the functions in `read/` that
 return a clause term, so the number can only fall.
 
@@ -469,6 +489,16 @@ unserved forms are refused explicitly. Callable values and boundary calls keep
 their complete declared contracts; retaining one does not supply an executable
 implementation or prove its obligations. A
 refusal anywhere in the compilation refuses the whole compilation.
+For an [assembly-bodied machine](../../../../../../wiki/spec/language/assembly.md#explicit-control-flow),
+[the instruction reader](src/read/assembly.rs) tracks which working-register
+slots a reached move has initialized. An explicit `transition -> finish;`
+carries those values as scalar parameters of the next Psi block. A local
+`requires` becomes an ordinary block invariant. Every incoming edge must prove
+it. `ret;` identifies the returned scalar and its register view for the
+selected calling plan. The current body reader serves a straight-line chain
+with one initialized result register. Conditional branches, register entry
+bindings, and hardware flag restoration still require additional lowering.
+
 The base subset is machines with one state and a complete body whose
 formals, locals and result are builtin integers (`i8` to `u64`) or `bool`.
 Such a body may use:
@@ -578,6 +608,11 @@ operational checks; providers are judged separately as supplies. Other
 selected declarations, including ordinary traits and operator families, are
 refused.
 
+A closed caller-controlled park names its sealed core declaration, the
+selected reply type and the call's suspension crossing. Lowering obtains
+that declaration through the generated machine's source template. A
+similarly named package declaration does not acquire its execution meaning.
+
 A supply (`Supply { slot, provider }`) names a boundary trait or one of its
 requirements and the provider chosen for it, by a Build selection or by
 supply settlement for a requirement the compilation reaches. The provider
@@ -589,6 +624,10 @@ and `ensures`, service reach, callback entries, crash routes) before
 accepting the compilation. A slot that is not a boundary trait or
 requirement, and a provider with no machine or several for a requirement,
 are refused by name.
+
+For a body that calls a field of a parameter, its inferred `invokes` row
+names that field. Passing the enclosing record into a helper substitutes the
+actual record at the helper's parameter path; it does not charge its siblings.
 
 A machine that states `satisfies Trait::requirement` owes the same witness
 wherever it is judged, as a supply, a subject declaration or a callee
@@ -770,7 +809,9 @@ operand value is representable in `T` (a wider carrier of the same sign, or
 unsigned to a wider signed one), and otherwise `IntegerExactCast` with an
 `OperationSafety` obligation ("exact widening, or narrowing with
 representability proved"). A cast to the operand's own carrier converts
-nothing and is its operand.
+nothing and is its operand. When a cast involves a floating-point carrier, the
+reader attaches the cast expression and its lexical owner to the call of the
+sealed Core conversion. The checker still requires exact representability.
 
 The reader decides from what the typed trees record, never from the cast's
 spelling: a recast (`CastForm::Recast`), a cast with a domain symbol, a cast
@@ -1212,7 +1253,9 @@ call forms for it.
 - **A loan** is the argument for a borrowed formal: `@place` or `@mutable
   place` with the formal's access, the place a slot or a field path beneath
   one (`ExpressionKind::Borrow`), or a borrowed formal of the caller named
-  whole, which reborrows its referent (`set(value)`). The call passes the
+  whole, which reborrows its referent (`set(value)`). A shared value parameter
+  also borrows an owned place of the same type for the duration of the call.
+  The call passes the
   lent place itself as a structural argument with the loan's access, the
   invocation row names that exact place, and one `Loan` obligation is
   minted at the point before the call: captured place, access, and lender
@@ -1246,7 +1289,7 @@ refuses, by name, what the slice does not serve:
 | `@write T`, a reference with a named lifetime, an `[erased]` reference, `mutable` on a shared reference, a reference of a requirement, a referent of a type parameter | `parameter write-only reference parameter`, `parameter reference parameter with a named lifetime`, `parameter erased reference parameter`, `parameter mutable binding of a shared reference`, `parameter reference parameter of a requirement`, `parameter reference to a value of a type parameter` |
 | a reference local, a reference result or field, a reference anywhere but a formal | `type reference` |
 | a borrow anywhere but the argument for a borrowed formal | `expression borrow` |
-| an argument for a borrowed formal that is not a borrow, a borrow with another access than its formal's, of a value that is not a place, of a case payload | `call argument for a borrowed formal that is not a borrow`, `call borrow whose access differs from its formal's`, `call borrow of a value that is not a place`, `call borrow of a case payload` |
+| an owned argument that requires an explicit loan, a borrow with another access than its formal's, of a value that is not a place, of a case payload | `call argument for a borrowed formal that is not a borrow`, `call borrow whose access differs from its formal's`, `call borrow of a value that is not a place`, `call borrow of a case payload` |
 | `@mutable` of a binding that is not `mutable` (an exclusive reborrow of a shared reference is the checker's conflict) | `call exclusive loan of an immutable binding` |
 | another argument of the same call that names a lent slot (`f(@mutable a, a)`): the lowered form forms every loan at the call, so it does not say that the read runs while the loan is live. A shared loan beside a shared loan is not refused: a nested call's `@a` in `f(g(@a), @a)` reborrows and moves nothing | `call argument that names storage another argument lends` |
 | a loan that would give an SSA local a home inside the right of `&&` or `||` or a value `match` arm, so on some paths only | `call loan of a value local on some paths only` |
@@ -1376,6 +1419,17 @@ retains its target observation.
   identity. An erased scalar formal is a value after the result pseudo-value
   and travels in neither lane.
 - **Callees** are `MachineId`s reached from a `SymbolKind::Machine` symbol.
+  `read/machine.rs` `reserve_row` gives each one a row in every machine table
+  at once, and only the row's owner answers for it: `machine_symbol`,
+  `machine_signature` and `machine_names` refuse an identity that holds no
+  row, such as a diagnostic identity from `next_identity` or a row
+  `abandon_row` removed. Readers call those accessors rather than refusing a
+  missing row with a message of their own. When a selection requires a typed
+  machine declaration, `required_machine` looks up its exact symbol.
+  In `read/places.rs`, `push_record_row` gives each storage type and its
+  source the same record ID. The reader retrieves them with `record_type`
+  and `record_source`. The signature reader retrieves bodies through
+  `read/signature.rs` `Converter::body`.
 - No table here is keyed by text; text appears only in `Refusal::detail`.
 
 ## Evaluation order and control
@@ -1492,8 +1546,8 @@ implies none.
 read: the strongly connected sets of the call graph. Nesting plays no part
 ([control flow](../../../../../../wiki/spec/terminal-psi/control_flow.md):
 "Source nesting does not bound the component or justify any edge."). Each
-machine still gets its own Terminal machine, and a machine on a cycle holds
-its whole component in its own graph
+machine still has its own callable entry. A machine that implements the loop
+holds its whole component in its own graph
 (control flow: "Constant-stack terminal cycles may become block backedges"):
 
 - **The entry** holds the machine's formals as machine parameters and jumps
@@ -1511,6 +1565,14 @@ its whole component in its own graph
 Each member has its own entry and its own graph. When two entries produce
 identical checking tables for places or scalar values, the compiler stores
 one copy of that table. Updating one entry leaves the other entry's rows intact.
+
+For a ranked group returning an owned record, a single member called from
+outside the group can hold the loop. Another entry can execute its own body
+and call toward that member when the calls form a finite chain. Lowering
+checks each internal call's actual rank against the immutable integer its
+caller received at entry. If they differ, that caller keeps its full loop
+and the checker judges the transfer under the caller's own contract. An
+outer entry can reach a helper with a narrower range than that helper admits.
 
 **`requires` at a head.** A member's `requires` clauses, each formal
 replaced by the head's parameter, are the head's one row in the module's

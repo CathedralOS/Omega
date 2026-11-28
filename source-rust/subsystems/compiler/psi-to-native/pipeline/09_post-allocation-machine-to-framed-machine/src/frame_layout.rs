@@ -150,7 +150,7 @@ fn derive_frame_layout(
     policy: TargetFrameLayoutPolicy,
 ) -> Result<TargetFrameLayoutPlan, TargetFrameLayoutError> {
     let machine_plan = machine;
-    let requirement_plan = requirements.plan();
+    let requirement_plan: &register_homes::AllocatedCalleeSavedRequirementPlan = requirements;
     let storage_plan = storage.plan();
     if machine_plan.target != environment.target()
         || machine_plan.register_environment != environment.identity()
@@ -161,7 +161,7 @@ fn derive_frame_layout(
         || requirement_plan.register_environment != environment.identity()
         || requirement_plan.physical_register_model != environment.physical().identity()
         || requirement_plan.target != environment.target()
-        || storage_plan.callee_saved_requirements != requirements.identity()
+        || storage_plan.callee_saved_requirements != *requirements
         || storage_plan.register_environment != environment.identity()
         || storage_plan.physical_register_model != environment.physical().identity()
         || storage_plan.target != environment.target()
@@ -220,8 +220,8 @@ fn derive_frame_layout(
 
     Ok(TargetFrameLayoutPlan {
         post_allocation_machine: Arc::clone(machine),
-        callee_saved_requirements: requirements.identity(),
-        callee_save_storage: storage.receipt().identity(),
+        callee_saved_requirements: Arc::clone(requirements),
+        callee_save_storage: storage.shared_plan(),
         register_environment: environment.identity(),
         physical_register_model: environment.physical().identity(),
         target: environment.target(),

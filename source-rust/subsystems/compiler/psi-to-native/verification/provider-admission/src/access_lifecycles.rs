@@ -16,10 +16,11 @@ use super::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedTerminalMechanism,
     AdmissionSource, SettledCompilerBuiltin, TerminalAuthorityPolicy,
 };
-use crate::provider_installation::{AdmittedInstalledProviderCall, AdmittedProviderInstallation};
+use crate::AdmittedProviderInstallation;
 use diagnostics::Diagnostic;
 use layout_plans::LayoutPlacementReport;
 use native_intrinsics::CompilerIntrinsicExecutionIdentity;
+use operation_evidence::provider_calls::InstalledProviderCallEvidence;
 use semantic_vocabulary::{InvocationSite, MachineId, OperationId, StructuralTypeId};
 use terminal_psi::{
     CheckedBoundaryExecution, OperationKind, StructuralAccess, StructuralArgument,
@@ -33,6 +34,7 @@ use terminal_semantics::descriptor_results::{
 
 pub(super) fn settle_native_lifecycles<'execution>(
     input: &AdmissionSource,
+    reached: &[(MachineId, OperationId)],
     installation: Option<&AdmittedProviderInstallation>,
     policy: &TerminalAuthorityPolicy,
 ) -> Result<
@@ -62,22 +64,16 @@ pub(super) fn settle_native_lifecycles<'execution>(
     if primitive_plans.is_empty() {
         return Ok((Vec::new(), Vec::new()));
     }
-    let reached_functions: std::collections::BTreeMap<
-        MachineId,
-        &abstract_operations::AbstractFunction,
-    > = input
-        .plan()
-        .functions
-        .iter()
-        .map(|function| (function.machine, function))
-        .collect();
     let mut graph = None;
     let mut settlements = Vec::new();
     let mut mechanisms = Vec::new();
     for machine in &module.machines {
-        let Some(function) = reached_functions.get(&machine.id) else {
+        let first = reached.partition_point(|(id, _)| *id < machine.id);
+        let count = reached[first..].partition_point(|(id, _)| *id == machine.id);
+        let operations = &reached[first..first + count];
+        if operations.is_empty() {
             continue;
-        };
+        }
         for block in &machine.blocks {
             for (ordinal, operation) in block.operations.iter().enumerate() {
                 let OperationKind::BoundaryCall {
@@ -91,9 +87,9 @@ pub(super) fn settle_native_lifecycles<'execution>(
                 let Some(&plan) = primitive_plans.get(boundary) else {
                     continue;
                 };
-                if !function
-                    .operations()
-                    .any(|lowered| lowered.psi_operation() == Some(operation.id))
+                if operations
+                    .binary_search_by_key(&operation.id, |(_, id)| *id)
+                    .is_err()
                 {
                     continue;
                 }
@@ -180,9 +176,7 @@ pub(super) fn settle_empty_releases<'execution>(
     let mut mechanisms = Vec::new();
     let mut reached: Vec<_> = input
         .plan()
-        .functions
-        .iter()
-        .flat_map(|function| function.operations())
+        .operations()
         .filter_map(|operation| match operation {
             abstract_operations::AbstractOperation::BoundaryCall { boundary, .. } => {
                 Some(*boundary)
@@ -418,23 +412,23 @@ fn bind_profile(
             .and_then(|block| block.operations.get(original.producer.1 as usize))
             .ok_or("profile producer operation is absent")?;
         let call = selected_profile_call(
-            installation.installed_calls(),
+            &installation.installed_calls,
             caller,
             producer.id,
             requirement.boundary,
         )?;
-        if call.result() != &producer.result
-            || call.result().as_structural().is_none_or(|result| {
+        if call.result != producer.result
+            || call.result.as_structural().is_none_or(|result| {
                 result.place != original.payload.root || result.structural_type != *profile_type
             })
         {
             return Err("profile is not the complete original selected-call result");
         }
-        let [borrowed_storage] = call.structural_arguments() else {
+        let [borrowed_storage] = call.structural_arguments.as_slice() else {
             return Err("profile call has no exact borrowed extent input");
         };
         if borrowed_storage.access != StructuralAccess::SharedBorrow
-            || !call.scalar_arguments().is_empty()
+            || !call.scalar_arguments.is_empty()
         {
             return Err("profile call differs from its shared extent contract");
         }
@@ -473,18 +467,18 @@ fn bind_profile(
 }
 
 fn selected_profile_call(
-    calls: &[AdmittedInstalledProviderCall],
+    calls: &[InstalledProviderCallEvidence],
     caller: MachineId,
     producer: OperationId,
     requirement: semantic_vocabulary::BoundaryMachineId,
-) -> Result<&AdmittedInstalledProviderCall, &'static str> {
+) -> Result<&InstalledProviderCallEvidence, &'static str> {
     let mut matching = calls.iter().filter(|call| {
-        call.caller() == caller && call.invocation_site() == InvocationSite::Operation(producer)
+        call.caller == caller && call.invocation_site == InvocationSite::Operation(producer)
     });
     let call = matching
         .next()
         .ok_or("profile was not produced by an installed selected-provider call")?;
-    if matching.next().is_some() || call.boundary() != requirement {
+    if matching.next().is_some() || call.boundary != requirement {
         return Err("profile producer does not name the exact selected supply requirement");
     }
     Ok(call)
@@ -541,10 +535,10 @@ mod tests {
         ProviderRefinement, ProviderSignature, TerminalIdentityIndex,
     };
 
-    fn call() -> AdmittedInstalledProviderCall {
+    fn call() -> InstalledProviderCallEvidence {
         let identity = TerminalIdentityIndex(1);
         let boundary = BoundaryMachineId::new(7).unwrap();
-        AdmittedInstalledProviderCall {
+        InstalledProviderCallEvidence {
             caller: MachineId::new(3).unwrap(),
             invocation_site: InvocationSite::Operation(OperationId::new(11).unwrap()),
             boundary,
@@ -575,9 +569,9 @@ mod tests {
     #[test]
     fn profile_binding_requires_the_exact_selected_call_occurrence() {
         let call = call();
-        let caller = call.caller();
-        let operation = call.invocation_site().operation().unwrap();
-        let boundary = call.boundary();
+        let caller = call.caller;
+        let operation = call.invocation_site.operation().unwrap();
+        let boundary = call.boundary;
         assert!(
             selected_profile_call(std::slice::from_ref(&call), caller, operation, boundary).is_ok()
         );

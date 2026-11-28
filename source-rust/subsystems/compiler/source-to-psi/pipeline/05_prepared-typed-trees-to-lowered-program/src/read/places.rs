@@ -40,6 +40,14 @@ use crate::{SourceOrigin, Unserved};
 
 /// Different checking machines own different const-input storage rows.
 /// Their labels must be unique; type equality still uses source applications.
+/// The refusal of a structural type identity that holds no record row.
+fn missing_record(machine: MachineId) -> terminal_check_tables::Refusal {
+    refuse_at(
+        machine,
+        Unserved::Type("structural type identity has no record row"),
+    )
+}
+
 pub(super) fn storage_identity_for_inputs(identity: String, owner: Option<MachineId>) -> String {
     match owner {
         Some(owner) => format!("{identity} (checking machine {})", owner.get()),
@@ -51,6 +59,7 @@ pub(super) fn storage_identity_for_inputs(identity: String, owner: Option<Machin
 /// and each case with its payload fields, in declaration order, beside the
 /// `RecordType` row of the same identity. Only the reader holds symbols; the
 /// body holds positions.
+#[cfg_attr(test, derive(Default))]
 pub(super) struct RecordSource {
     /// Symbolic array lengths name inputs of this checking machine. Closed
     /// storage has no such owner and may be shared across machine readings.
@@ -107,12 +116,50 @@ pub(super) enum Member {
 }
 
 impl Program<'_> {
+    /// A structural type and its source share the identity used for field and case lookups.
+    pub(super) fn push_record_row(
+        &mut self,
+        record: RecordType,
+        source: RecordSource,
+    ) -> StructuralTypeId {
+        let id = self.records.push(record);
+        self.record_sources.push(source);
+        id
+    }
+
+    /// The storage row at `record`, with `machine` anchoring a missing-row refusal.
+    pub(super) fn record_type(
+        &self,
+        machine: MachineId,
+        record: StructuralTypeId,
+    ) -> Checked<&crate::body::RecordType> {
+        self.records
+            .get(record)
+            .ok_or_else(|| missing_record(machine))
+    }
+
+    /// The source declaration and application pushed beside `record`.
+    pub(super) fn record_source(
+        &self,
+        machine: MachineId,
+        record: StructuralTypeId,
+    ) -> Checked<&RecordSource> {
+        self.record_sources
+            .get(record)
+            .ok_or_else(|| missing_record(machine))
+    }
+
     /// The data declaration a `Named` type's symbol resolves to, when it is
     /// one. A symbol of kind `Data` with no declaration in the typed trees is
     /// not a record this route can read and stays with the scalar route's
     /// refusal.
     pub(super) fn data_declaration(&self, symbol: SymbolHandle) -> Option<&DataDefinition> {
-        if !symbol.is_valid() || self.typed.symbols.get(symbol).kind != SymbolKind::Data {
+        if !symbol.is_valid()
+            || !matches!(
+                self.typed.symbols.get(symbol).kind,
+                SymbolKind::Data | SymbolKind::Trait
+            )
+        {
             return None;
         }
         self.typed.data_definition_by_symbol(symbol)
@@ -169,9 +216,110 @@ impl Program<'_> {
             return self.record_definition(id, data, None);
         }
         let application = self.source_record_application(data, reference, id)?;
-        let regions = self.occurrence_regions(id, data, semantic)?;
+        let regions = self.applied_record_regions(id, data, semantic, &application)?;
         self.record_definition(id, data, Some(application))
             .map(|value_type| with_regions(value_type, regions))
+    }
+
+    fn applied_record_regions(
+        &mut self,
+        id: MachineId,
+        data: &DataDefinition,
+        semantic: crate::source_state::types::TypeReferenceHandle,
+        application: &crate::source_state::SourceTypeApplication,
+    ) -> Checked<crate::body::Regions> {
+        let typed = self.typed;
+        if application.substitutions.iter().all(|(_, argument)| {
+            application
+                .scope
+                .region_free_type_identity(typed, *argument)
+                .is_some()
+        }) {
+            return self.occurrence_regions(id, data, semantic);
+        }
+        if !data.lifetime_parameters.is_empty() {
+            // A reference-valued type argument adds another region to the
+            // named regions. Keep refusing until both are represented.
+            return Err(refuse_at(
+                id,
+                Unserved::Type(
+                    "record occurrence with both declared regions and a borrowed type argument",
+                ),
+            ));
+        }
+        // The stored application may have been shared by occurrences at
+        // different lifetimes. Read this occurrence's actual arguments.
+        let TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } = typed.type_reference_table.type_reference(semantic)
+        else {
+            return Err(refuse_at(
+                id,
+                Unserved::Type("record occurrence lost its borrowed type argument"),
+            ));
+        };
+        let supplied = typed
+            .type_reference_table
+            .type_reference_handles(*arguments);
+        if supplied.len() != application.substitutions.len() {
+            return Err(refuse_at(
+                id,
+                Unserved::Type("record occurrence lost its borrowed argument tuple"),
+            ));
+        }
+        let mut tuple = Vec::new();
+        for ((binder, original), supplied) in application.substitutions.iter().zip(supplied) {
+            if typed.symbols.get(*binder).parent != *base_symbol
+                || application.scope.type_identity(typed, *original)
+                    != application.scope.type_identity(typed, *supplied)
+            {
+                return Err(refuse_at(
+                    id,
+                    Unserved::Type("record occurrence changed its template binder"),
+                ));
+            }
+            if application
+                .scope
+                .region_free_type_identity(typed, *original)
+                .is_some()
+            {
+                if application
+                    .scope
+                    .region_free_type_identity(typed, *supplied)
+                    .is_none()
+                {
+                    return Err(refuse_at(
+                        id,
+                        Unserved::Type("record occurrence introduced a borrowed argument"),
+                    ));
+                }
+                continue;
+            }
+            // One slot can be substituted simultaneously at every field.
+            // Several region-bearing arguments need independent declaration-local
+            // slots even if their original concrete lifetimes coincide.
+            if !tuple.is_empty() {
+                return Err(refuse_at(
+                    id,
+                    Unserved::Type("record application with multiple borrowed type arguments"),
+                ));
+            }
+            let actual = super::source_records::retained_argument_region(
+                typed,
+                &application.scope,
+                *supplied,
+            )
+            .ok_or_else(|| {
+                refuse_at(
+                    id,
+                    Unserved::Type("record occurrence lost its borrow region"),
+                )
+            })?;
+            tuple.push(super::regions::Region::Parameter(actual));
+        }
+        Ok(self.intern_regions(tuple))
     }
 
     /// The regions a type occurrence applies `data` at. `Message<'a>` names
@@ -311,6 +459,44 @@ impl Program<'_> {
         application: Option<crate::source_state::SourceTypeApplication>,
     ) -> Checked<ValueType> {
         let typed = self.typed;
+        let unserved = |what| refuse_at(id, Unserved::Type(what));
+        if data.package_parameters.is_empty() {
+            return self.read_record_definition(id, data, application);
+        }
+        let hidden = typed
+            .data_type_parameters
+            .span(data.package_parameters)
+            .ok_or_else(|| unserved("package declaration lost its hidden type roster"))?;
+        if hidden.iter().any(|parameter| {
+            parameter.kind != crate::source_state::data::TypeParameterKind::Type
+                || !typed.symbols.symbols().nodes().is_valid(parameter.symbol)
+                || typed.symbols.get(parameter.symbol).kind != SymbolKind::TypeParameter
+                || typed.symbols.get(parameter.symbol).parent != data.symbol
+        }) {
+            return Err(unserved(
+                "package field scope contains a foreign or non-type parameter",
+            ));
+        }
+        // The declaration binds S for both its field types and the custody
+        // predicates emitted for those fields, including a nested Owner<S>.
+        let scope = std::sync::Arc::new(crate::source_state::SourceTypeScope {
+            parent: Some(self.source_scope.clone()),
+            substitutions: Vec::new(),
+            rigid_parameters: hidden.iter().map(|parameter| parameter.symbol).collect(),
+        });
+        let outer = std::mem::replace(&mut self.source_scope, scope);
+        let read = self.read_record_definition(id, data, application);
+        self.source_scope = outer;
+        read
+    }
+
+    fn read_record_definition(
+        &mut self,
+        id: MachineId,
+        data: &DataDefinition,
+        application: Option<crate::source_state::SourceTypeApplication>,
+    ) -> Checked<ValueType> {
+        let typed = self.typed;
         let symbol = data.symbol;
         self.served(id, symbol)?;
         let same =
@@ -399,9 +585,7 @@ impl Program<'_> {
                 let enclosing = std::mem::replace(&mut self.lifetime_owner, symbol);
                 let read = (|| {
                     if let Some(application) = &application {
-                        for (_, argument) in &application.substitutions {
-                            self.value_type(id, *argument)?;
-                        }
+                        self.admit_record_argument_types(id, symbol, application)?;
                     }
                     self.declared_members(id, typed.data_members(data))
                 })();
@@ -454,7 +638,7 @@ impl Program<'_> {
                     "applied, constrained or boundary data that contains itself",
                 ));
             }
-            let record = self.records.push(RecordType {
+            let record_type = RecordType {
                 multiplicity: crate::body::source_multiplicity(data.properties.multiplicity),
                 cleanup: None,
                 identity: identity.clone(),
@@ -462,8 +646,8 @@ impl Program<'_> {
                 requires: Vec::new(),
                 authored_layout: false,
                 erased: Vec::new(),
-            });
-            self.record_sources.push(RecordSource {
+            };
+            let source = RecordSource {
                 constant_input_owner: None,
                 declaration: symbol,
                 cleanup: None,
@@ -472,7 +656,8 @@ impl Program<'_> {
                 fields: Vec::new(),
                 cases: Vec::new(),
                 erased: Vec::new(),
-            });
+            };
+            let record = self.push_record_row(record_type, source);
             if let Err(position) = self.self_containing.binary_search(&record) {
                 self.self_containing.insert(position, record);
             }
@@ -495,20 +680,25 @@ impl Program<'_> {
                 let template = typed
                     .unique_data_definition_by_symbol(symbol)
                     .ok_or_else(|| unserved("applied data lost its template"))?;
-                for (parameter, argument) in typed
-                    .data_type_parameters(template)
-                    .iter()
-                    .zip(&application.substitutions)
+                // An open descriptor may be forwarded under its original
+                // binders. Read the actual placement when the data application
+                // has been formed at its closed arguments.
+                if typed.core_vocabulary(template.symbol)
+                    == Some(language_core::core_vocabulary::CoreVocabulary::Run)
                 {
-                    if matches!(
-                        parameter.kind,
-                        crate::source_state::data::TypeParameterKind::Type
-                    ) {
-                        self.value_type(id, argument.1)?;
+                    let [(_, placement), (_, schema)] = application.substitutions.as_slice() else {
+                        return Err(unserved("run needs its placement and value type"));
+                    };
+                    if application.scope.argument_is_closed(typed, *placement) {
+                        let at = self.declared_at(symbol);
+                        if application.scope.argument_is_closed(typed, *schema) {
+                            self.resident_index(id, at, *placement, *schema)?;
+                        } else {
+                            self.qualified_storage_placement(id, at, *placement)?;
+                        }
                     }
-                    // source_application checks each const against its carrier;
-                    // a const is not itself a runtime value type to read here.
                 }
+                self.admit_record_argument_types(id, symbol, application)?;
             }
             // The supplied types are admitted above; the members are read as
             // fields of this declaration, which state their lifetimes.
@@ -641,7 +831,7 @@ impl Program<'_> {
             (left, right) => left.or(right),
         };
         let identity = storage_identity_for_inputs(identity, constant_input_owner);
-        let record: StructuralTypeId = self.records.push(RecordType {
+        let record_type = RecordType {
             multiplicity: crate::body::source_multiplicity(data.properties.multiplicity),
             cleanup: None,
             identity,
@@ -653,8 +843,8 @@ impl Program<'_> {
                     .is_some()
             }),
             erased: erased_fields,
-        });
-        self.record_sources.push(RecordSource {
+        };
+        let source = RecordSource {
             constant_input_owner,
             declaration: symbol,
             cleanup: data.cleanup_selection,
@@ -663,7 +853,9 @@ impl Program<'_> {
             fields: field_symbols,
             cases: case_symbols,
             erased: erased_symbols,
-        });
+        };
+        let record = self.push_record_row(record_type, source);
+        self.retain_package_schema(id, record, data)?;
         if application.is_none() && data.predicate_subject_type.is_valid() {
             self.record_application(id, record, data.predicate_subject_type)?;
         }
@@ -818,12 +1010,7 @@ impl Program<'_> {
     pub(crate) fn finish_cleanup_selections(&mut self) -> Checked<()> {
         while let Some((record, executable)) = self.pending_cleanup.pop() {
             let diagnostic = self.next_identity()?;
-            let definition = self.typed.machine_by_symbol(executable).ok_or_else(|| {
-                refuse_at(
-                    diagnostic,
-                    Unserved::Declaration("selected cleanup has no machine body"),
-                )
-            })?;
+            let definition = self.required_machine(diagnostic, executable, "selected cleanup")?;
             if crate::is_generic_template(self.typed, definition) {
                 return Err(refuse_at(
                     diagnostic,
@@ -1039,7 +1226,6 @@ impl Program<'_> {
                     Unserved::Typing("applied data without an argument for its value parameter"),
                 ));
             };
-            let scalar_type = self.scalar_type(id, type_reference)?;
             if let TypeReferenceNode::Named { symbol, .. } =
                 self.typed.type_reference_table.type_reference(*argument)
                 && self
@@ -1049,12 +1235,44 @@ impl Program<'_> {
             {
                 owner = Some(id);
             }
-            bound.push((
-                parameter.symbol,
-                self.bound_scalar_value(id, scalar_type, *argument, true)?,
-            ));
+            // Only authored data clauses consume these scalar terms. A record
+            // with no such clauses still keeps its checked index and its owner.
+            if !template.requires_facts.is_empty() {
+                let scalar_type = self.scalar_type(id, type_reference)?;
+                bound.push((
+                    parameter.symbol,
+                    self.bound_scalar_value(id, scalar_type, *argument, true)?,
+                ));
+            }
         }
         Ok((bound, owner))
+    }
+
+    /// Fresh and cached records admit the same types. The source application
+    /// has already checked constant and machine arguments against their binders.
+    fn admit_record_argument_types(
+        &mut self,
+        id: MachineId,
+        declaration: SymbolHandle,
+        application: &crate::source_state::SourceTypeApplication,
+    ) -> Checked<()> {
+        let typed = self.typed;
+        let template = typed
+            .unique_data_definition_by_symbol(declaration)
+            .ok_or_else(|| refuse_at(id, Unserved::Typing("applied data lost its template")))?;
+        for (parameter, (_, argument)) in typed
+            .data_type_parameters(template)
+            .iter()
+            .zip(&application.substitutions)
+        {
+            if matches!(
+                parameter.kind,
+                crate::source_state::data::TypeParameterKind::Type
+            ) {
+                self.value_type(id, *argument)?;
+            }
+        }
+        Ok(())
     }
 
     fn source(&self, id: MachineId, record: StructuralTypeId) -> Checked<&RecordSource> {
@@ -1461,10 +1679,20 @@ impl Program<'_> {
         &mut self,
         id: MachineId,
         slots: &[Slot],
+        expression: crate::source_state::expression::ExpressionHandle,
         member: &TableMemberExpression,
         source: SourceOrigin,
         access: Access,
     ) -> Checked<Expression> {
+        let source = if self.typed.package_projection(expression).is_some() {
+            self.authored_node(
+                id,
+                crate::source_state::SourceNode::Expression(expression),
+                self.typed.expression_table.source_span(expression),
+            )?
+        } else {
+            source
+        };
         if let crate::source_state::expression::MemberSelection::CollectionMeasure(measure) =
             member.selection
         {
@@ -1521,7 +1749,18 @@ impl Program<'_> {
             match self.member_of(id, record, member.selection.field_symbol())? {
                 Member::Field(field) => Expression {
                     call_context: None,
-                    result: Some(self.field_type(id, record, regions, field)?),
+                    result: Some(
+                        match self.opened_field_type(
+                            id,
+                            member.selection.field_symbol(),
+                            record.record(),
+                            regions,
+                            source,
+                        )? {
+                            Some(opened) => opened,
+                            None => self.field_type(id, record, regions, field)?,
+                        },
+                    ),
                     kind: ExpressionKind::Field { base, field },
                     source,
                 },
@@ -1562,8 +1801,16 @@ impl Program<'_> {
         if !literal.type_symbol.is_valid() {
             return Err(spelling("record literal without a type symbol"));
         }
-        if self.data_declaration(literal.type_symbol).is_none() {
-            return Err(unserved("literal of a type that is not a data declaration"));
+        let declaration = self
+            .data_declaration(literal.type_symbol)
+            .ok_or_else(|| unserved("literal of a type that is not a data declaration"))?;
+        let package = super::packages::check_construction(self.typed, id, declaration, literal)?;
+        let mut package_witnesses = Vec::new();
+        if let Some(evidence) = literal.package.as_deref() {
+            for &ty in &evidence.witnesses {
+                let value = self.value_type(id, ty)?;
+                package_witnesses.push(self.storage_type(id, ty, value)?);
+            }
         }
         let applications = [
             literal.application_type,
@@ -1717,7 +1964,16 @@ impl Program<'_> {
             if std::mem::replace(&mut seen[position], true) {
                 return Err(typing("record literal names a field twice"));
             }
-            let field_type = declared[position];
+            let storage_type = declared[position];
+            let field_type = if let Some(package) = &package {
+                let concrete = package
+                    .get(&field.field_symbol)
+                    .ok_or_else(|| typing("package literal lacks its concrete field type"))?;
+                let concrete = self.value_type(id, *concrete)?;
+                self.substitute(concrete, &substitution)
+            } else {
+                storage_type
+            };
             let operand = self.expression(id, slots, field.value, Some(field_type))?;
             if !self.agrees(operand.result, Some(field_type)) {
                 return Err(self.mistyped(
@@ -1727,6 +1983,19 @@ impl Program<'_> {
                     Some(field_type),
                     operand.result,
                     "record literal field type",
+                ));
+            }
+            if field_type != storage_type
+                && !self.agrees(operand.result, Some(storage_type))
+                && !self.package_field_storage_agrees(
+                    literal.type_symbol,
+                    &package_witnesses,
+                    storage_type,
+                    field_type,
+                )
+            {
+                return Err(unserved(
+                    "package field has no checked uniform representation",
                 ));
             }
             fields.push((position, operand));
@@ -1758,6 +2027,7 @@ impl Program<'_> {
             call_context: None,
             kind: match case {
                 None => ExpressionKind::Record {
+                    package_witnesses,
                     fields,
                     erased: erased_terms,
                 },
@@ -1843,6 +2113,7 @@ impl Program<'_> {
                         }
                         match case {
                             None => ExpressionKind::Record {
+                                package_witnesses: Vec::new(),
                                 fields,
                                 erased: Vec::new(),
                             },

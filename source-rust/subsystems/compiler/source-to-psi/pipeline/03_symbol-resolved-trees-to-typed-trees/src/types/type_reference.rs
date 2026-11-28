@@ -2877,11 +2877,15 @@ pub(crate) mod direct {
     ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
         let source = &source_trees.tables.bodies.expressions;
         if let resolved::expression::ExpressionNode::Call(call) = source.expression(expression)
-            && !call.receiver.is_valid()
-            && crate::expressions::proposition::is_proposition_call_target(
-                &source_trees.symbols,
-                call.target_symbol,
-            )
+            && (source_trees
+                .symbols
+                .fixed_core_declaration_for_symbol(call.target_symbol)
+                == Some(symbols::FixedCoreDeclaration::Identity)
+                || (!call.receiver.is_valid()
+                    && crate::expressions::proposition::is_proposition_call_target(
+                        &source_trees.symbols,
+                        call.target_symbol,
+                    )))
         {
             return crate::expressions::expression::lower_expression_handle_from_table_in_fact_position(
                 source_trees,
@@ -3016,6 +3020,15 @@ pub(crate) mod direct {
                 Ok(typed_trees
                     .type_reference_table
                     .insert(typed::types::TypeReferenceNode::Slice { element_type }))
+            }
+            // Naming a hidden slot does not turn a bare package into a public
+            // application, including when its ordinary lifetimes were elided.
+            resolved::types::TypeReference::Generic(generic)
+                if generic.opens_bare_package() =>
+            {
+                super::lower_named_type_reference(
+                    source_trees, typed_trees, generic.base_symbol, &generic.base_name, exposure,
+                )
             }
             resolved::types::TypeReference::Generic(generic) => {
                 if generic.arguments.is_empty()
@@ -4515,6 +4528,79 @@ pub(crate) fn retain_type_reference_selection(
         })
 }
 
+/// A closed trait used as a value has one ordinary field per named requirement.
+/// Retain the requirement's own symbol and callable type so projections cannot
+/// substitute a different route with the same signature. Declarations needing
+/// other evidence have no storage shape until that evidence can be represented.
+fn retain_operation_record(
+    source: &resolved::SymbolResolvedTrees,
+    typed: &mut typed::TypedTrees,
+    symbol: SymbolHandle,
+) {
+    if !source.symbols.symbols().nodes().is_valid(symbol)
+        || source.symbols.get(symbol).kind != symbols::SymbolKind::Trait
+        || typed.data_definition_by_symbol(symbol).is_some()
+    {
+        return;
+    }
+    let Some(owner) = source.roots.trait_definition(symbol) else {
+        return;
+    };
+    if !owner.lifetime_parameters.is_empty()
+        || !owner.type_parameters.is_empty()
+        || !owner.conformance_bounds.is_empty()
+        || !owner.requires.is_empty()
+        || owner.refines.is_some()
+        || !owner.refinement_clauses.is_empty()
+        || owner.machines.is_empty()
+        || source
+            .symbols
+            .child_handles(symbol)
+            .into_iter()
+            .flatten()
+            .any(|field| source.symbols.get(field).kind == symbols::SymbolKind::Field)
+    {
+        return;
+    }
+    let operations = source.trait_machine_signatures(owner.machines);
+    if operations.iter().any(|op| {
+        !op.symbol.is_valid()
+            || source.symbols.get(op.symbol).parent != symbol
+            || !op.lifetime_parameters.is_empty()
+            || !op.type_parameters.is_empty()
+            || !op.conformance_bounds.is_empty()
+    }) {
+        return;
+    }
+    let mut record = typed::data::DataDefinition {
+        symbol,
+        name: crate::lowerer::name::lower_name(&owner.name),
+        is_public: owner.is_public,
+        ..Default::default()
+    };
+    for operation in operations {
+        let tables = &mut typed.tables;
+        let contract = tables.runtime_callable_lowering.requirement(
+            &mut tables.runtime_callable_contracts,
+            operation.symbol,
+            symbol,
+        );
+        let type_reference = typed
+            .type_reference_table
+            .insert(typed::types::TypeReferenceNode::Callable { contract });
+        typed.push_data_member(
+            &mut record,
+            typed::data::DataMember::Field(typed::data::DataField {
+                symbol: operation.symbol,
+                name: crate::lowerer::name::lower_name(&operation.name),
+                type_reference,
+                ..Default::default()
+            }),
+        );
+    }
+    typed.push_data_definition(record);
+}
+
 pub(crate) fn lower_named_type_reference(
     source_trees: &resolved::SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
@@ -4542,6 +4628,22 @@ pub(crate) fn lower_named_type_reference(
         exposure,
         AuthoredDeclarationSelectionKind::TypeReference,
     )?;
+    if source_trees.symbols.symbols().nodes().is_valid(symbol)
+        && source_trees.symbols.get(symbol).kind == symbols::SymbolKind::State
+        && let owner = source_trees.symbols.get(symbol).parent
+        && source_trees.symbols.symbols().nodes().is_valid(owner)
+        && source_trees.symbols.get(owner).kind == symbols::SymbolKind::Trait
+    {
+        let tables = &mut typed_trees.tables;
+        let contract = tables.runtime_callable_lowering.requirement(
+            &mut tables.runtime_callable_contracts,
+            symbol,
+            owner,
+        );
+        return Ok(typed_trees
+            .type_reference_table
+            .insert(typed::types::TypeReferenceNode::Callable { contract }));
+    }
     let reference =
         typed_trees
             .type_reference_table
@@ -4549,6 +4651,7 @@ pub(crate) fn lower_named_type_reference(
                 symbol,
                 name: crate::lowerer::name::lower_name(name),
             });
+    retain_operation_record(source_trees, typed_trees, symbol);
     if source_trees.const_declaration(symbol).is_some() {
         typed_trees
             .type_reference_table

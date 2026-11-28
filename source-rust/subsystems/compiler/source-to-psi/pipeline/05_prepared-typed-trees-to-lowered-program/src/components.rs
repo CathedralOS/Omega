@@ -128,10 +128,11 @@ fn call_graph(bodies: &IdTable<MachineId, Body>) -> Checked<(CallGraph<'_>, Comp
     Ok((calls, table))
 }
 
-pub(crate) fn components(
+pub(crate) fn components<'a>(
     bodies: &IdTable<MachineId, Body>,
     signatures: &mut IdTable<MachineId, Signature>,
     theorems: &[terminal_psi::TheoremParameter],
+    const_scopes: impl Iterator<Item = (MachineId, &'a [crate::read::ConstBinding])>,
 ) -> Checked<Components> {
     let (calls, mut table) = call_graph(bodies)?;
     rankings::carry(&calls, &table, signatures)?;
@@ -230,8 +231,162 @@ pub(crate) fn components(
     for machine in forwarding {
         table.forward_entry(machine);
     }
+    for (machine, inputs) in const_scopes {
+        if inputs.is_empty() || table.members(machine)? != [machine] {
+            continue;
+        }
+        let signature =
+            terminal_check_tables::row(signatures, machine, machine, Construct::Machine)?;
+        for (slot, value) in signature.formal_values().into_iter().enumerate() {
+            if value.is_some_and(|value| inputs.iter().any(|input| input.value == value))
+                && calls
+                    .calls(index(machine))
+                    .iter()
+                    .filter(|site| site.callee == machine)
+                    .all(|site| {
+                        matches!(site.arguments.get(slot).map(|arg| &arg.kind),
+                        Some(ExpressionKind::Slot(actual)) if *actual == slot)
+                    })
+            {
+                table.forwarded_consts.push((machine, slot));
+            }
+        }
+    }
     share_loop_entries(bodies, signatures, &calls, &mut table)?;
+    share_rank_preserving_entries(signatures, &calls, &mut table);
     Ok(table)
+}
+
+/// One receiver keeps the complete loop. An ordinary entry can reach it through
+/// a bounded chain when every internal successor already reaches the receiver.
+/// Each retained call must also preserve its own entry's rank under that entry's
+/// contract. Lowering checks the actual value before choosing the shorter body.
+fn share_rank_preserving_entries(
+    signatures: &IdTable<MachineId, Signature>,
+    calls: &CallGraph<'_>,
+    components: &mut Components,
+) {
+    let mut forwarding = Vec::new();
+    let mut remaining = Vec::new();
+    let mut ready = Vec::new();
+    for (members, cyclic) in components.callee_first() {
+        if !cyclic
+            || members.len() < 2
+            || !members.iter().all(|&id| {
+                components.can_forward(id)
+                    && !calls.has_designated[index(id)]
+                    && signatures.get(id).is_some_and(|signature| {
+                        matches!(
+                            signature.result,
+                            Some(ValueType::Record(_, _, Regions::NONE))
+                        ) && signature.borrowed.is_empty()
+                            && signature.erased.is_empty()
+                            && signature.ensures.is_empty()
+                            && !signature.has_structural_guarantees()
+                            && rank_formal(signature).is_some()
+                    })
+            })
+        {
+            continue;
+        }
+        let mut entries = members.iter().copied().filter(|&member| {
+            components
+                .callers(index(member))
+                .any(|caller| !components.same_component(caller, index(member)))
+        });
+        let Some(receiver) = entries.next() else {
+            continue;
+        };
+        if entries.next().is_some() {
+            continue;
+        }
+        remaining.clear();
+        remaining.extend(members.iter().map(|&member| {
+            calls
+                .calls(index(member))
+                .iter()
+                .filter(|site| components.same_component(index(member), index(site.callee)))
+                .count()
+        }));
+        ready.push(receiver);
+        while let Some(callee) = ready.pop() {
+            for &(caller, _) in components.call_sites(index(callee)) {
+                if caller == index(receiver) || !components.same_component(caller, index(receiver))
+                {
+                    continue;
+                }
+                let id = MachineId::new(caller as u64 + 1).expect("dense caller identity");
+                let position = members
+                    .binary_search(&id)
+                    .expect("caller in this component");
+                remaining[position] -= 1;
+                if remaining[position] == 0 {
+                    ready.push(id);
+                    forwarding.push(id);
+                }
+            }
+        }
+    }
+    for member in forwarding {
+        components.try_rank_preserving_entry(member);
+    }
+}
+
+fn rank_formal(signature: &Signature) -> Option<usize> {
+    let ranking = signature.ranking.as_ref()?;
+    let [measure] = ranking.measures.as_slice() else {
+        return None;
+    };
+    let ExpressionKind::Slot(position) = measure.kind else {
+        return None;
+    };
+    (ranking.range.is_none()
+        && ranking.fixed_bound.is_none()
+        && matches!(
+            signature.parameters.get(position),
+            Some(ValueType::Scalar(
+                semantic_vocabulary::ScalarType::Integer(_),
+                _
+            ))
+        ))
+    .then_some(position)
+}
+
+/// A condition known only at the receiver cannot justify another entry's rank.
+/// Identity of the immutable integer passed to each internal call establishes
+/// preservation even for inputs the receiver never supplies.
+pub(crate) fn preserves_entry_rank(
+    lowered: &crate::lower::Lowered,
+    members: &[MachineId],
+    signatures: &IdTable<MachineId, Signature>,
+) -> bool {
+    use semantic_vocabulary::TargetMachineCallable;
+    use terminal_check_tables::edges::{Actual, Callee};
+    let Some(signature) = signatures.get(lowered.machine.id) else {
+        return false;
+    };
+    let Some(formal) = rank_formal(signature)
+        .and_then(|position| signature.formal_values().get(position).copied().flatten())
+    else {
+        return false;
+    };
+    lowered
+        .tables
+        .invocations
+        .iter()
+        .all(|(_, call)| match call.callee {
+            Callee::Declared(TargetMachineCallable::Machine(callee))
+                if members.binary_search(&callee).is_ok() =>
+            {
+                signatures
+                    .get(callee)
+                    .and_then(rank_formal)
+                    .and_then(|position| call.actuals.get(position))
+                    == Some(&Actual::Value(formal))
+            }
+            Callee::Declared(_) => true,
+            Callee::Selected { .. } => false,
+        })
 }
 
 /// An ordinary invocation can execute its first body and pass its result
@@ -294,6 +449,7 @@ fn share_loop_entries(
 fn can_forward_result(body: &Body, signature: &Signature) -> bool {
     has_no_owned_structural_slots(body, signature)
         && signature.ensures.is_empty()
+        && signature.membership_requires.is_empty()
         && !signature.has_structural_guarantees()
         && signature.ranking.is_none()
         && signature.termination == Termination::Silent
@@ -629,7 +785,9 @@ fn statements<'body>(statements: &'body [Statement], sites: &mut BodyWalk<'body,
                 expression(value, false, sites);
             }
             // Declarations, erased terms and reference captures call nothing.
-            Statement::Declare { .. }
+            Statement::AssemblyRegister { .. }
+            | Statement::AssemblyAdjacent { .. }
+            | Statement::Declare { .. }
             | Statement::Witness { .. }
             | Statement::CaptureReference { .. } => {}
             Statement::Dispatch {
@@ -712,7 +870,7 @@ fn cyclic_theorems(
 fn target<'body>(target: &'body Target, sites: &mut BodyWalk<'body, '_>) {
     match target {
         Target::Unit | Target::Crash(_) => {}
-        Target::Value(value) => expression(value, true, sites),
+        Target::Value(value) | Target::AssemblyReturn(_, value) => expression(value, true, sites),
     }
 }
 
@@ -769,6 +927,7 @@ fn expression<'body>(value: &'body Expression, terminal: bool, sites: &mut BodyW
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
         | ExpressionKind::Requalify(operand)
+        | ExpressionKind::NativeBorrow { operand, .. }
         | ExpressionKind::Referent(operand)
         | ExpressionKind::Establish { operand, .. }
         | ExpressionKind::CollectionView { base: operand, .. }

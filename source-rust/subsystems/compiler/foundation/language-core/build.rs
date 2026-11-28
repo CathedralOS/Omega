@@ -8,6 +8,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let core = Path::new("../../../../../source/library/core");
     let mut constants = String::new();
     for declaration_file in [
+        "activation",
         "extent",
         "filesystem_authority",
         "float_operations",
@@ -15,6 +16,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "process_exit",
         "process_exit_native",
         "program_image",
+        "reply",
+        "unsafe",
     ] {
         let filename = format!("{declaration_file}.omg");
         let path = core.join(&filename);

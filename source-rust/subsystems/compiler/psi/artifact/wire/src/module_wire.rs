@@ -856,6 +856,7 @@ pub(crate) mod suspension_wire {
             1 => Machine(machine: Id),
             2 => Boundary(boundary: Id),
             5 => Dynamic { interface: U32, slot: U32 },
+            6 => Callable { callee: Id, contract: Id },
         }
         Capture: TerminalSuspensionLoanCapture, "TerminalSuspensionLoanCapture" {
             0 => Unresolved,
@@ -1222,6 +1223,21 @@ pub(crate) mod suspension_wire {
                     Err(CodecError::InvalidTag("TerminalSuspensionCallTarget", tag)) if tag == retired
                 ));
             }
+        }
+
+        #[test]
+        fn suspension_target_binds_the_callable_value_and_its_contract() {
+            let target = TerminalSuspensionCallTarget::Callable {
+                callee: ValueId::new(7).unwrap(),
+                contract: semantic_vocabulary::CallableContractId::new(19).unwrap(),
+            };
+            let mut writer = Writer::default();
+            CallTarget::write(&mut writer, &target).unwrap();
+            let bytes = writer.finish();
+            let mut reader = Reader::new(&bytes);
+            assert_eq!(bytes[0], 6);
+            assert_eq!(CallTarget::read(&mut reader).unwrap(), target);
+            assert_eq!(reader.remaining(), 0);
         }
 
         #[test]
@@ -3715,29 +3731,20 @@ pub(crate) mod target_layout_wire {
 }
 pub(crate) mod task_activation_wire {
 
-    use super::super::CodecError;
-    use super::super::wire::{Reader, Writer};
     use super::super::wire_fields::{
-        Digest, Field, Flag, Id, Index, List, Referent, Scalar, StructuralType, TaskPackage, Text,
+        Digest, Flag, Id, Index, List, Scalar, TaskPackage,
         U32, U64, wire_enum, wire_record,
     };
-    use semantic_vocabulary::AuthoredRecordStorage;
     use terminal_psi::{
-        LayoutApplicationId, TerminalTaskActivationDemand, TerminalTaskActivationDemands,
+        TerminalTaskActivationDemand,
         TerminalTaskCarryStorage, TerminalTaskFrame, TerminalTaskFrameCall, TerminalTaskFrameState,
-        TerminalTaskLayoutRealization, TerminalTaskLiveCarry, TerminalTaskResidentValue,
+        TerminalTaskLiveCarry, TerminalTaskResidentValue,
         TerminalTaskSignatureValue, TerminalTaskStartOperation, TerminalTaskSuspensionCrossing,
-        TerminalTaskTargetLayout, TerminalTaskUnresolvedCall, TerminalTaskUnresolvedCallKind,
+        TerminalTaskUnresolvedCall, TerminalTaskUnresolvedCallKind,
         TerminalTaskValueType,
     };
 
     wire_record! {
-        Demands: TerminalTaskActivationDemands {
-            demands: List<Demand>,
-            structural_types: List<StructuralType>,
-            structural_referents: List<Referent>,
-            target_layout_applications: List<TargetLayout>,
-        }
         Demand: TerminalTaskActivationDemand {
             operation: StartOperation,
             report_fingerprint: U64,
@@ -3797,13 +3804,6 @@ pub(crate) mod task_activation_wire {
             call_ordinal: U32,
             kind: UnresolvedCallKind,
         }
-        TargetLayout: TerminalTaskTargetLayout {
-            id: ApplicationId,
-            record: Id,
-            realizations: List<LayoutRealization>,
-        }
-        LayoutRealization: TerminalTaskLayoutRealization { target: Text, storage: RecordStorage }
-        RecordStorage: AuthoredRecordStorage { byte_size: U64, byte_alignment: U64 }
     }
 
     wire_enum! {
@@ -3825,17 +3825,6 @@ pub(crate) mod task_activation_wire {
         StartOperation: TerminalTaskStartOperation, "TerminalTaskStartOperation" {
             1 => Start,
             2 => TryStart,
-        }
-    }
-
-    struct ApplicationId;
-    impl Field<LayoutApplicationId> for ApplicationId {
-        fn write(writer: &mut Writer, value: &LayoutApplicationId) -> Result<(), CodecError> {
-            writer.u32(value.0);
-            Ok(())
-        }
-        fn read(reader: &mut Reader<'_>) -> Result<LayoutApplicationId, CodecError> {
-            Ok(LayoutApplicationId(reader.u32()?))
         }
     }
 }
@@ -3935,6 +3924,7 @@ module_wire_record! {
             service_schemas,
             program_entry_contracts,
             provider_selections,
+            provider_exports,
             external_providers,
             provider_candidates,
             provider_instance_requirements,
@@ -3952,6 +3942,7 @@ module_wire_record! {
         execution: terminal_psi::ExecutionDeclarations {
             dynamic_dispatch,
             callables,
+            packages,
             unoptimized_behavior,
             declaration_contracts,
             suspension_call_plan_count,
@@ -4009,6 +4000,7 @@ module_wire_record! {
     service_schemas: List<crate::service_schema_wire::Schema>,
     program_entry_contracts: List<crate::service_schema_wire::EntryContract>,
     provider_selections: List<crate::service_schema_wire::ProviderSelection>,
+    provider_exports: List<crate::service_schema_wire::ProviderExport>,
     opaque_representations: List<opaque_representation_wire::Representation>,
     unoptimized_behavior: List<unoptimized_behavior_wire::Behavior>,
     external_providers: List<ExternalProvider>,
@@ -4039,7 +4031,8 @@ module_wire_record! {
     callback_applications: List<callback_application_wire::Application>,
     installed_interrupt_registrations: List<installed_interrupt_wire::Registration>,
     boundary_application_candidates: List<BoundaryCandidate>,
-    task_activation_demands: task_activation_wire::Demands,
+    task_activation_demands: List<task_activation_wire::Demand>,
+    packages: crate::package_wire::Catalog,
 }
 
 wire_record! {

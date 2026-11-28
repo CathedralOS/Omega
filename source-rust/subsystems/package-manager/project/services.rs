@@ -1,5 +1,5 @@
 //! Acquire the exact dependency occurrences requested by a suspended Build.
-use super::{PreparedRequest, SettledSource, SourceHost};
+use super::{PreparedRequest, SettledRegistration, SettledSource, SourceHost};
 use crate::PackageCommandError;
 use crate::resolution::source::{AcquiredBuildSource, AcquiredSourceSelection};
 use build_declarations::{BuildRequest, DependencyPurpose};
@@ -68,12 +68,24 @@ impl SourceServices<'_, '_, '_> {
         if let Some(request) = self.requests.get(&(purpose, ordinal)) {
             return Ok(request.settled);
         }
-        let issued_request = issued.iter().filter(|issued| matches!(issued.request(), BuildRequest::Dependency {purpose: registered, ..} if *registered == purpose)).nth(ordinal);
-        let programs = issued_request
-            .map(IssuedBuildRequest::delegated_programs)
-            .unwrap_or_default();
-        let frozen = issued_request
-            .and_then(IssuedBuildRequest::forwarded)
+        let (backing, alias) = issued
+            .iter()
+            .filter_map(|issued| match issued.request() {
+                BuildRequest::Dependency {
+                    purpose: registered,
+                    alias,
+                    ..
+                } if *registered == purpose => Some((
+                    issued.dependency_backing(),
+                    alias.as_ref().map(|name| name.as_str()),
+                )),
+                _ => None,
+            })
+            .nth(ordinal)
+            .ok_or_else(|| refused("Build dependency has no issued registration"))?;
+        let frozen = backing
+            .frozen
+            .as_ref()
             .map(|binding| {
                 self.host
                     .frozen_library(binding.library())
@@ -97,7 +109,9 @@ impl SourceServices<'_, '_, '_> {
                 self.host.select_workspace(workspace).map_err(failure)?
             }
         };
-        let index = self.host.settle_dependency(&child, purpose, programs)?;
+        let index = self
+            .host
+            .settle_dependency(&child, purpose, backing, alias)?;
         self.requests.insert(
             (purpose, ordinal),
             PreparedRequest {
@@ -196,7 +210,12 @@ impl SourceHost<'_, '_> {
                     self.select_workspace(workspace)?
                 }
             };
-            let index = self.settle_dependency(&child, DependencyPurpose::Build, &[])?;
+            let index = self.settle_dependency(
+                &child,
+                DependencyPurpose::Build,
+                &Default::default(),
+                Some(library.alias.as_str()),
+            )?;
             let input = self.library_input(
                 &self.settled[index],
                 DependencyPurpose::Build,
@@ -208,11 +227,12 @@ impl SourceHost<'_, '_> {
         Ok(supplied)
     }
 
-    fn settle_dependency(
+    pub(super) fn settle_dependency(
         &mut self,
         child: &AcquiredBuildSource,
         purpose: DependencyPurpose,
-        programs: &[package_compilation::DelegatedProgram],
+        backing: &build_execution::DependencyBacking,
+        alias: Option<&str>,
     ) -> Result<usize, CompileFailure> {
         self.acquisitions
             .admit_build_descent(&self.active, child)
@@ -225,12 +245,28 @@ impl SourceHost<'_, '_> {
             child
                 .verify_reused_capture(&self.settled[i].source)
                 .map_err(refused)?;
-            super::require_programs(&self.settled[i].required_programs, programs)
-                .map_err(refused)?;
-            return Ok(i);
+            if let Some(registration) = self.settled[i]
+                .registrations
+                .iter()
+                .find(|r| r.matches(backing))
+            {
+                super::require_programs(&registration.required_programs, &backing.programs)
+                    .map_err(refused)?;
+                return Ok(i);
+            }
+            // An incoming library already carries the settled Product, including
+            // its frozen dependency closure. Forwarding it does not invoke its Build.
+            if let Some(binding) = &backing.frozen {
+                let index = self.frozen_library(binding.library())?;
+                for registration in &self.settled[index].registrations {
+                    super::require_programs(&registration.required_programs, &backing.programs)
+                        .map_err(refused)?;
+                }
+                return Ok(index);
+            }
         }
         let executed = self
-            .member_or_execute(child, purpose, programs)
+            .member_or_execute(child, purpose, backing, alias)
             .map_err(failure)?;
         let child = &executed.receiving;
         let stage = executed.stage;
@@ -241,15 +277,17 @@ impl SourceHost<'_, '_> {
         let settled = resolved.root.settle_dependency(resolved.inputs)?;
         self.session
             .record_source_completion(settled.evaluated().source_completion_accounting.clone());
-        let i = self.settled.len();
-        self.settled.push(SettledSource {
+        self.remember_settled(SettledSource {
             source: child.clone(),
-            required_programs,
+            registrations: vec![SettledRegistration {
+                network: backing.network.clone(),
+                required_programs,
+            }],
             declaration: declared,
             build: settled,
             graph: resolved.sources,
-        });
-        Ok(i)
+        })
+        .map_err(refused)
     }
 }
 

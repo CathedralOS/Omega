@@ -1,3 +1,4 @@
+use {omega}/language/core/byte_observation/byte_observation.omg as bytes;
 use {omega}/language/core/process_authority.omg;
 use {omega}/language/core/process_exit.omg;
 use {system}/clock.omg;
@@ -14,15 +15,9 @@ use {system}/console.omg;
 // Expected exit: 0.
 // Expected output contains: #
 
-domain [u8]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 8]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 3]::Utf8
-requires
-    valid_utf8(self);
+domain [u8; 8]::Ascii requires |bytes|::ascii_only(@self[..]);
+domain [u8; 8]::Utf8 requires |bytes|::valid_utf8(@self[..]);
+domain [u8; 3]::Utf8 requires |bytes|::valid_utf8(@self[..]);
 // FULLY EXACT -- no overflow domain anywhere: the counters are plain i32 and
 // every increment is guard-proven on its DIRECT incoming edge (re-guard hops added
 // where the loop-head guard sits several states upstream). The element values
@@ -38,7 +33,7 @@ requires
 {
     arr: [i32; 8];
     home: [u8; 3] in Utf8;
-    line: [u8; 8] in Utf8;
+    line: [u8; 8] in Ascii;
     i: i32;            // outer pass
     j: i32;            // inner index
     lim: i32;          // inner bound (shrinks each pass; folds bounded from step's guard on i)
@@ -52,19 +47,16 @@ requires
 }
 
 machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |clock|::Clock + |process_authority|::StandardInput + |process_authority|::StandardOutput {
-    |console|::Console::write_line("sort_visualizer: bubble sort animated as bars settling into a staircase");
+    |console|::Console::write_line(@"sort_visualizer: bubble sort animated as bars settling into a staircase"[..]);
     main.arr = [5, 2, 8, 1, 7, 3, 6, 4];
-    main.home = "XXX";
-    main.home[0] = 27;
-    main.home[1] = 91;
-    main.home[2] = 72;
-    main.line = "        ";
+    main.home = [27u8, 91u8, 72u8] as +Utf8;
+    main.line = "        " as +Ascii;
     main.i = 0;
     transition { _ -> block show(main) }
 
     // --- render the array as bars, in place ---
     machine show(main: @mutable Main) {
-        |console|::Console::write(main.home);
+        |console|::Console::write((@main.home as -Utf8)[..]);
         main.ry = 0;
         transition { _ -> block show_row(main) }
     }
@@ -86,11 +78,11 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |clock|:
     // increment (cx < 8 always holds here -- the show_col guard admitted it -- so
     // the else arm is unreachable).
     machine cell_bar(main: @mutable Main) {
-        main.line[main.cx] = 35; // '#'
+        (@mutable main.line as -Ascii)[main.cx] = 35; // '#'
         transition { _ -> block cell_next(main) }
     }
     machine cell_gap(main: @mutable Main) {
-        main.line[main.cx] = 32; // ' '
+        (@mutable main.line as -Ascii)[main.cx] = 32; // ' '
         transition { _ -> block cell_next(main) }
     }
     machine cell_next(main: @mutable Main) {
@@ -103,7 +95,8 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |clock|:
     // write_line is a CALL, so re-guard `ry < 8` afterwards to carry the bound on
     // the direct edge into the increment (ry < 8 always holds inside the row loop).
     machine emit_row(main: @mutable Main) {
-        |console|::Console::write_line(main.line);
+        let text: [u8; 8] in Ascii & Utf8 = main.line as =Ascii +Utf8;
+        |console|::Console::write_line((@text as -Ascii -Utf8)[..]);
         transition main.ry < 8 { true -> block row_bump(main), _ -> block show_done(main) }
     }
     machine row_bump(main: @mutable Main) {
@@ -164,8 +157,8 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |clock|:
     }
 
     machine finish(main: @mutable Main) {
-        |console|::Console::write_line("PASS: 7 bubble-sort passes rendered, array sorted (exit 0)");
-        |console|::Console::write_line("[press Enter to close]");
+        |console|::Console::write_line(@"PASS: 7 bubble-sort passes rendered, array sorted (exit 0)"[..]);
+        |console|::Console::write_line(@"[press Enter to close]"[..]);
         _ = block |console|::Console::read_line(@mutable main.pause[..]);
         |process_exit|::ProcessExit::exit_process(0);
     }

@@ -9,6 +9,8 @@ Versioned magic headers and schema version constants live at this boundary so bo
 
 mod encode;
 mod intrinsic_tags;
+mod limits;
+#[cfg(any(test, feature = "full-policy-recovery"))]
 mod recovery;
 pub use encode::membership::{
     MalformedIdentityExcerpt, PackagePolicyMembershipError, PackagePolicyMembershipFailure,
@@ -17,7 +19,8 @@ pub use encode::membership::{
 pub(crate) use encode::runtime_permission_rows;
 pub use encode::{restricted_build_request_acceptance_text, restricted_build_request_payload};
 
-pub use recovery::PackagePolicyRecoveryLimits;
+pub use limits::PackagePolicyRecoveryLimits;
+#[cfg(any(test, feature = "full-policy-recovery"))]
 pub(crate) use recovery::{PackagePolicyRecoveryError, PackagePolicyRecoveryUsage};
 
 // Calling plans distinguish Darwin integer composites from scalar values.
@@ -36,7 +39,10 @@ pub(crate) const BASELINE_WITH_TYPE_ALIASES: u16 = 64;
 pub(crate) const BASELINE_WITH_CARRIED_TYPES: u16 = 65;
 pub(crate) const BASELINE_WITH_APPLIED_SERVICES: u16 = 66;
 pub(crate) const BASELINE_WITH_UNUSED_GENERIC_IMPORTS: u16 = 67;
-pub const PACKAGE_POLICY_BASELINE_VERSION: u16 = BASELINE_WITH_UNUSED_GENERIC_IMPORTS;
+pub(crate) const BASELINE_WITH_NETWORK_REQUESTS: u16 = 68;
+pub(crate) const BASELINE_WITH_NETWORK_AUTHORITY: u16 = 69;
+pub(crate) const BASELINE_WITH_DATAGRAM_REPLIES: u16 = 70;
+pub const PACKAGE_POLICY_BASELINE_VERSION: u16 = BASELINE_WITH_DATAGRAM_REPLIES;
 pub(crate) const PACKAGE_POLICY_BASELINE_MAGIC: &[u8] = b"OMEGA-PACKAGE-POLICY\0";
 
 pub(crate) const PACKAGE_EXTERNAL_SUPPLY_POLICY_VERSION: u16 = 11;
@@ -54,7 +60,8 @@ pub(crate) const PACKAGE_SELECTED_PROVIDER_POLICY_VERSION: u16 = 35;
 pub(crate) const SELECTED_PROVIDER_POLICY_MAGIC: &[u8] = b"OMEGA-SELECTED-PROVIDER-POLICY\0";
 
 pub(crate) const TERMINAL_POLICY_WITH_NOMINAL_SERVICES: u16 = 19;
-pub(crate) const PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION: u16 = 20;
+pub(crate) const TERMINAL_POLICY_WITH_APPLIED_SERVICES: u16 = 20;
+pub(crate) const PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION: u16 = 21;
 pub(crate) const TERMINAL_PERMISSION_POLICY_MAGIC: &[u8] = b"OMEGA-TERMINAL-PERMISSION-POLICY\0";
 
 pub(crate) const CALLABLE_POLICY_WITH_NOMINAL_SERVICES: u16 = 21;

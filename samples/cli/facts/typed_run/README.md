@@ -48,7 +48,7 @@ by the presence of this first witness.
 
 The ratified
 [`typed-run-cell-transfer-surface`](../../../../wiki/spec/resources/typed_runs.md#split-and-merge-contracts)
-uses total compiler-realized `Run::split` and `Run::merge`. Implement their exact
+uses total compiler-realized `|run|::split` and `|run|::merge`. Implement their exact
 catalog entries and retained custody through both engines under
 **EXTENT-LIBRARY-TRANSFORMS** in [TASKS.md](../../../../TASKS.md).
 The integrated Vec witness must also cover spare-tail restoration when

@@ -88,7 +88,7 @@ requires direction >= -1 && direction < 4 {
 
 machine commands(game: @mutable Game, command: |state_state|::Command) {
     |routing|::clear_intents::<|configuration|::ACTOR_CAPACITY>(@mutable game.intents);
-    |routing|::route_input(@game.controllers, @mutable game.intents, 0, command);
+    |routing|::route_input::<|configuration|::CONTROLLER_CAPACITY, |configuration|::ACTOR_CAPACITY>(@game.controllers, @mutable game.intents, 0, command);
 }
 
 machine autonomy(game: @mutable Game) {

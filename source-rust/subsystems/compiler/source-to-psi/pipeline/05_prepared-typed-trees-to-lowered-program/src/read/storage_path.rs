@@ -69,6 +69,7 @@ pub(super) fn walk<'a, E>(
             | ExpressionKind::Requalify(_)
             | ExpressionKind::Establish { .. }
             | ExpressionKind::ShortCircuit { .. }
+            | ExpressionKind::NativeBorrow { .. }
             | ExpressionKind::Call { .. } => return Ok(place),
         }
     }

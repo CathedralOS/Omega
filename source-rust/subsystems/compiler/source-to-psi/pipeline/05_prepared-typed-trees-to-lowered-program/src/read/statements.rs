@@ -407,6 +407,25 @@ impl Program<'_> {
         match local.role {
             language_core::LocalBindingRole::Value
             | language_core::LocalBindingRole::DispatchSubject => {}
+            language_core::LocalBindingRole::AssemblyRegister => {
+                if local.initial_value.is_valid() || !local.is_mutable {
+                    return unserved("assembly register with an implicit initial value");
+                }
+                return Ok((
+                    Slot {
+                        symbol: local.symbol,
+                        value_type: self.local_type(id, local.type_reference)?,
+                        assignable: true,
+                        homed: false,
+                        erased: false,
+                        borrowed: None,
+                        borrowed_regions: crate::body::Regions::NONE,
+                    },
+                    Statement::AssemblyRegister {
+                        slot: self.next_slot(slots),
+                    },
+                ));
+            }
             language_core::LocalBindingRole::AtomicObservedResult => {
                 return unserved("atomic observed result");
             }

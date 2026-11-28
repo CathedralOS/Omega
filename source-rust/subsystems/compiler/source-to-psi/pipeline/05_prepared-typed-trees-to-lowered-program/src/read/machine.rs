@@ -62,6 +62,14 @@ enum RequirementValues<'a> {
     Rigid,
 }
 
+/// The refusal of an identity that holds no reserved machine row.
+fn missing_row(id: MachineId) -> terminal_check_tables::Refusal {
+    refuse_at(
+        id,
+        Unserved::Machine("machine identity has no reserved row"),
+    )
+}
+
 /// A refusal of what `declaration` writes between `<` and `>`, by the rule
 /// it broke and the declaration's name.
 fn refuse_parameters(
@@ -81,6 +89,20 @@ pub(super) enum ApplicationTypes<'a> {
 }
 
 impl<'t> Program<'t> {
+    pub(crate) fn prepare_call_components(
+        &mut self,
+        bodies: &arena::IdTable<MachineId, Body>,
+    ) -> Checked<crate::components::Components> {
+        crate::prepare_call_components(
+            bodies,
+            &mut self.signatures,
+            &self.theorem_parameters,
+            self.machine_rows
+                .iter()
+                .map(|(machine, row)| (machine, row.context.const_scope.as_slice())),
+        )
+    }
+
     fn boundary_conformer_call_refusal(
         &self,
         id: MachineId,
@@ -406,15 +428,11 @@ impl<'t> Program<'t> {
             // Application copies are private symbols even when their source
             // declaration is public or belongs to an implementation.
             let template = crate::template_of(self.typed, symbol);
-            let declaration = self
-                .typed
-                .machine_by_symbol(template.unwrap_or(symbol))
-                .ok_or_else(|| {
-                    refuse_at(
-                        id,
-                        Unserved::Machine("a local body has no originating declaration"),
-                    )
-                })?;
+            let declaration = self.required_machine(
+                id,
+                template.unwrap_or(symbol),
+                "local body's originating declaration",
+            )?;
             if machine.satisfies.is_empty()
                 && declaration.satisfies.is_empty()
                 && self
@@ -458,7 +476,7 @@ impl<'t> Program<'t> {
     }
 
     pub(super) fn next_identity(&self) -> Checked<MachineId> {
-        MachineId::new(self.symbols.len() as u64 + 1).ok_or_else(|| {
+        MachineId::new(self.machine_rows.len() as u64 + 1).ok_or_else(|| {
             refuse_at(
                 MachineId::new(1).expect("1 is nonzero"),
                 Unserved::Machine("identity overflow"),
@@ -466,23 +484,14 @@ impl<'t> Program<'t> {
         })
     }
 
-    /// Takes the next identity for `symbol` and reserves its row in every
-    /// machine table before its signature is read. A signature can read
-    /// machines of its own, such as a mathematical machine one of its clauses
-    /// applies. Each of those must take a later identity: pushed at this one,
-    /// it would become the machine a call of `symbol` names. The row holds
-    /// placeholders until `complete_row` fills it.
+    /// Reserve the machine before reading its signature. A clause can read
+    /// another machine recursively, which must receive a later identity.
+    /// The symbol and signature columns use the reserved row's identity.
     pub(super) fn reserve_row(&mut self, symbol: SymbolHandle) -> Checked<MachineId> {
         let id = self.next_identity()?;
+        self.machine_rows.push(ReservedMachineRow::default());
         self.symbols.push(symbol);
         self.signatures.push(crate::body::Signature::unread());
-        self.names.push(MachineNames::default());
-        self.value_parameters.push(0);
-        self.value_arguments.push(Vec::new());
-        self.scopes.push(Vec::new());
-        self.source_scopes.push(Default::default());
-        self.const_scopes.push(Vec::new());
-        self.unread_rows.push(id);
         Ok(id)
     }
 
@@ -494,19 +503,16 @@ impl<'t> Program<'t> {
                 Unserved::Machine("a read signature lost its reserved row"),
             )
         };
-        let position = self
-            .unread_rows
-            .iter()
-            .position(|unread| *unread == id)
+        let reserved = self
+            .machine_rows
+            .get_mut(id)
+            .filter(|row| !row.complete)
             .ok_or_else(lost)?;
         *self.signatures.get_mut(id).ok_or_else(lost)? = row.signature;
-        *self.names.get_mut(id).ok_or_else(lost)? = row.names;
-        *self.value_parameters.get_mut(id).ok_or_else(lost)? = row.value_parameters;
-        *self.value_arguments.get_mut(id).ok_or_else(lost)? = row.value_arguments;
-        *self.scopes.get_mut(id).ok_or_else(lost)? = row.scope;
-        *self.source_scopes.get_mut(id).ok_or_else(lost)? = row.source_scope;
-        *self.const_scopes.get_mut(id).ok_or_else(lost)? = row.const_scope;
-        self.unread_rows.remove(position);
+        *reserved = ReservedMachineRow {
+            complete: true,
+            context: row.context,
+        };
         Ok(())
     }
 
@@ -515,18 +521,12 @@ impl<'t> Program<'t> {
     /// row stays unread: lookups by symbol and `read_bodies` skip it, and the
     /// refusal already refuses the compilation.
     pub(super) fn abandon_row(&mut self, id: MachineId) {
-        if self.symbols.len() as u64 != id.get() {
+        if self.machine_rows.len() as u64 != id.get() {
             return;
         }
         self.symbols.pop();
         self.signatures.pop();
-        self.names.pop();
-        self.value_parameters.pop();
-        self.value_arguments.pop();
-        self.scopes.pop();
-        self.source_scopes.pop();
-        self.const_scopes.pop();
-        self.unread_rows.retain(|unread| *unread != id);
+        self.machine_rows.pop();
     }
 
     /// Reserves a row for `symbol`, reads it with `read` and fills it, or
@@ -546,9 +546,76 @@ impl<'t> Program<'t> {
         }
     }
 
+    /// A prepared selection that names a machine must have a declaration for its exact symbol.
+    pub(super) fn required_machine(
+        &self,
+        id: MachineId,
+        symbol: SymbolHandle,
+        role: &str,
+    ) -> Checked<&'t Machine> {
+        self.typed.machine_by_symbol(symbol).ok_or_else(|| {
+            super::unavailable(
+                id,
+                format!("{role} {symbol:?} has no typed machine declaration"),
+            )
+        })
+    }
+
+    /// The typed-tree machine whose row `reserve_row` reserved at `id`.
+    ///
+    /// Only the row tables know which identities hold a row: a diagnostic
+    /// identity taken from `next_identity`, or a row `abandon_row` removed,
+    /// holds none. The reader refuses such an identity here rather than at
+    /// each lookup.
+    pub(crate) fn machine_symbol(&self, id: MachineId) -> Checked<SymbolHandle> {
+        self.symbols.get(id).copied().ok_or_else(|| missing_row(id))
+    }
+
+    /// The signature in `id`'s reserved row: the placeholder until
+    /// `complete_row` fills it (`row_is_read`), the read signature after.
+    pub(crate) fn machine_signature(&self, id: MachineId) -> Checked<&crate::body::Signature> {
+        self.signatures.get(id).ok_or_else(|| missing_row(id))
+    }
+
+    pub(crate) fn machine_context(&self, id: MachineId) -> Option<&MachineContext> {
+        Some(&self.machine_rows.get(id)?.context)
+    }
+
+    /// The source names `complete_row` recorded in `id`'s reserved row.
+    pub(crate) fn machine_names(&self, id: MachineId) -> Checked<&MachineNames> {
+        self.machine_context(id)
+            .map(|row| &row.names)
+            .ok_or_else(|| missing_row(id))
+    }
+
+    pub(super) fn machine_names_mut(&mut self, id: MachineId) -> Option<&mut MachineNames> {
+        Some(&mut self.machine_rows.get_mut(id)?.context.names)
+    }
+
+    /// Move the reader's names and value arguments into the published tables.
+    pub(crate) fn publish_machine_rows(
+        &mut self,
+        elaboration: &mut terminal_check_tables::program::Elaboration,
+    ) {
+        elaboration.names = Default::default();
+        elaboration.value_parameters = Default::default();
+        elaboration.value_arguments = Default::default();
+        for (_, row) in self.machine_rows.iter_mut() {
+            elaboration
+                .names
+                .push(std::mem::take(&mut row.context.names));
+            elaboration
+                .value_parameters
+                .push(row.context.value_parameters);
+            elaboration
+                .value_arguments
+                .push(std::mem::take(&mut row.context.value_arguments));
+        }
+    }
+
     /// Whether `id` names a machine whose signature has been read.
     pub(crate) fn row_is_read(&self, id: MachineId) -> bool {
-        !self.unread_rows.contains(&id)
+        self.machine_rows.get(id).is_some_and(|row| row.complete)
     }
 
     /// Checking a declaration does not call its bare name. A boundary
@@ -818,7 +885,9 @@ impl<'t> Program<'t> {
                 // The signature scope holds every type slot in declaration order,
                 // including the map arguments inherited by a private helper.
                 let arguments =
-                    terminal_check_tables::row(&self.scopes, id, id, Construct::Machine)?
+                    terminal_check_tables::row(&self.machine_rows, id, id, Construct::Machine)?
+                        .context
+                        .scope
                         .iter()
                         .map(|(_, value)| *value)
                         .collect();
@@ -911,12 +980,14 @@ impl<'t> Program<'t> {
         }
         Ok(MachineRow {
             signature,
-            names,
-            value_parameters,
-            value_arguments: Vec::new(),
-            scope,
-            source_scope,
-            const_scope: widths,
+            context: MachineContext {
+                names,
+                value_parameters,
+                value_arguments: Vec::new(),
+                scope,
+                source_scope,
+                const_scope: widths,
+            },
         })
     }
 
@@ -948,9 +1019,12 @@ impl<'t> Program<'t> {
                     bindings.push((parameter.symbol, reference));
                 }
             } else {
-                let scope = self.scopes.get(caller).ok_or_else(|| {
-                    refuse_at(caller, Unserved::Call("map member lost its calling scope"))
-                })?;
+                let scope = self
+                    .machine_context(caller)
+                    .map(|row| &row.scope)
+                    .ok_or_else(|| {
+                        refuse_at(caller, Unserved::Call("map member lost its calling scope"))
+                    })?;
                 for parameter in parameters {
                     let (_, value) = scope
                         .iter()
@@ -985,17 +1059,14 @@ impl<'t> Program<'t> {
         // machine, so this walk cannot itself follow a cycle.
         let mut ancestor = Some(caller);
         while let Some(current) = ancestor {
-            let source = self.symbols.get(current).ok_or_else(|| {
-                refuse_at(
-                    caller,
-                    Unserved::Call("type application has no exact caller"),
-                )
-            })?;
-            if *source == symbol
-                && !self.scopes.get(current).is_some_and(|scope| {
-                    let enclosing: Vec<_> = scope.iter().map(|(_, value)| *value).collect();
-                    self.same_type_arguments(&enclosing, &arguments)
-                })
+            if self.machine_symbol(current)? == symbol
+                && !self
+                    .machine_context(current)
+                    .map(|row| &row.scope)
+                    .is_some_and(|scope| {
+                        let enclosing: Vec<_> = scope.iter().map(|(_, value)| *value).collect();
+                        self.same_type_arguments(&enclosing, &arguments)
+                    })
             {
                 return Err(refuse_at(
                     caller,
@@ -1122,15 +1193,8 @@ impl<'t> Program<'t> {
         let mut source = WitnessRequirement::Declared;
         let id = self.next_identity()?;
         if self.rigid {
-            let machine = self
-                .typed
-                .machine_by_symbol(implementation)
-                .ok_or_else(|| {
-                    refuse_at(
-                        id,
-                        Unserved::Machine("generic witness lost its actual body"),
-                    )
-                })?;
+            let machine =
+                self.required_machine(id, implementation, "generic witness implementation")?;
             self.scope = self.generic_scope(id, machine)?;
             self.retain_rigid_scope();
         }
@@ -1202,12 +1266,8 @@ impl<'t> Program<'t> {
             .map(|(conformance, _)| conformance.symbol);
         let outer_conformance = std::mem::replace(&mut self.witness_conformance, conformance);
         let witnessed = if self.rigid {
-            let implementation = self
-                .typed
-                .machine_by_symbol(implementation)
-                .ok_or_else(|| {
-                    crate::read::unavailable(id, "the refinement check lost its implementation")
-                })?;
+            let implementation =
+                self.required_machine(id, implementation, "refinement implementation")?;
             self.with_method_parameters(id, implementation, declared, |program| {
                 program.witnessed_signature(declared, arguments, expected)
             })
@@ -1286,12 +1346,14 @@ impl<'t> Program<'t> {
         }
         Ok(MachineRow {
             signature,
-            names,
-            value_parameters,
-            value_arguments: arguments.to_vec(),
-            scope: self.scope.clone(),
-            source_scope: self.source_scope.clone(),
-            const_scope: Vec::new(),
+            context: MachineContext {
+                names,
+                value_parameters,
+                value_arguments: arguments.to_vec(),
+                scope: self.scope.clone(),
+                source_scope: self.source_scope.clone(),
+                const_scope: Vec::new(),
+            },
         })
     }
 
@@ -1511,10 +1573,11 @@ impl<'t> Program<'t> {
         for &(known, id) in &self.requirement_headers {
             if known == origin
                 && self.symbols.get(id) == Some(&symbol)
-                && self.value_arguments.get(id).map(Vec::as_slice) == Some(arguments)
-                && self.value_parameters.get(id) == Some(&parameters)
-                && self.scopes.get(id) == Some(&self.scope)
-                && self.source_scopes.get(id) == Some(&self.source_scope)
+                && let Some(row) = self.machine_context(id)
+                && row.value_arguments == arguments
+                && row.value_parameters == parameters
+                && row.scope == self.scope
+                && row.source_scope == self.source_scope
             {
                 return Ok(id);
             }
@@ -1536,103 +1599,19 @@ impl<'t> Program<'t> {
             program.admitted_declarations.include(declared.symbol);
             Ok(MachineRow {
                 signature,
-                names,
-                value_parameters: parameters,
-                value_arguments: arguments.to_vec(),
-                scope: program.scope.clone(),
-                source_scope: program.source_scope.clone(),
-                const_scope: Vec::new(),
+                context: MachineContext {
+                    names,
+                    value_parameters: parameters,
+                    value_arguments: arguments.to_vec(),
+                    scope: program.scope.clone(),
+                    source_scope: program.source_scope.clone(),
+                    const_scope: Vec::new(),
+                },
             })
         })?;
         self.requirements.push(id);
         self.requirement_headers.push((origin, id));
         Ok(id)
-    }
-
-    /// A formal's declared qualification already requires this exact domain.
-    /// Typing records that membership as a contract for both states and
-    /// bodyless requirements. It adds no new predicate here: formal type
-    /// checking enforces the domain, and `signature_predicates` supplies its
-    /// value facts. A fact about another value or domain still needs checking.
-    fn fact_restates_formal_domain(
-        &self,
-        formals: arena::RootRows<'_, StateParameter>,
-        fact: &crate::source_state::domain::ProofFact,
-    ) -> bool {
-        use crate::source_state::domain::ProofFact;
-        use crate::source_state::expression::ExpressionNode;
-        use crate::source_state::types::{
-            DomainConstraintSubject, TypeConstraintNode, TypeReferenceNode,
-        };
-        let typed = self.typed;
-        let ProofFact::Membership(membership) = fact else {
-            return false;
-        };
-        if !membership.domain_symbol.is_valid()
-            || !typed.expression_table.expression_is_valid(membership.value)
-        {
-            return false;
-        }
-        let identity = if membership.semantic_domain.is_valid() {
-            membership.semantic_domain
-        } else {
-            let Some(declaration) = typed
-                .domain_definition(membership.domain_symbol)
-                .filter(|declaration| typed.domain_type_parameters(declaration).is_empty())
-            else {
-                return false;
-            };
-            declaration.semantic_id
-        };
-        if typed
-            .domain_arguments_for_instance(membership.domain_symbol, identity)
-            .is_none()
-        {
-            return false;
-        }
-        let ExpressionNode::Name(path) = typed.expression_table.expression(membership.value) else {
-            return false;
-        };
-        if path.static_application.is_valid()
-            || path.reserved_result_of.is_valid()
-            || typed.expression_table.name_path_members(path.members).len() != 1
-        {
-            return false;
-        }
-        let Some(formal) = path
-            .resolved_symbol()
-            .and_then(|symbol| formals.iter().find(|parameter| parameter.symbol == symbol))
-        else {
-            return false;
-        };
-        let mut reference = formal.type_reference;
-        while reference.is_valid() {
-            match typed.type_reference_table.type_reference(reference) {
-                // Qualification of a borrowed formal belongs to its referent.
-                TypeReferenceNode::Reference { referee, .. } => reference = *referee,
-                TypeReferenceNode::Constrained {
-                    base_type,
-                    constraints,
-                } => {
-                    if typed
-                        .type_reference_table
-                        .constraints(*constraints)
-                        .iter()
-                        .any(|constraint| {
-                            matches!(constraint, TypeConstraintNode::Domain(domain)
-                            if domain.subject == DomainConstraintSubject::Declared
-                                && domain.symbol == membership.domain_symbol
-                                && domain.semantic_id == identity)
-                        })
-                    {
-                        return true;
-                    }
-                    reference = *base_type;
-                }
-                _ => return false,
-            }
-        }
-        false
     }
 
     /// State clauses outside their formals' existing membership remain
@@ -1648,7 +1627,8 @@ impl<'t> Program<'t> {
                     .span_or_empty(contract.facts)
                     .iter()
                     .all(|fact| {
-                        self.fact_restates_formal_domain(typed.state_parameters(state), fact)
+                        self.typed
+                            .fact_restates_formal_domain(typed.state_parameters(state), fact)
                     })
         })
     }
@@ -2558,6 +2538,7 @@ impl<'t> Program<'t> {
             }
             signature.requires = routed.requires;
             signature.ensures = routed.ensures;
+            signature.membership_requires = routed.membership_requires;
             signature.membership_ensures = routed.membership_ensures;
             signature.content_ensures = routed.content_ensures;
             names.requires = routed_names.requires;
@@ -2860,6 +2841,9 @@ impl<'t> Program<'t> {
         if requires {
             // Implicit formal-domain obligations remain alongside inherited
             // inputs. Canonicalization may merge an obligation both declare.
+            signature
+                .membership_requires
+                .extend(inherited.membership_requires);
             let mut clauses = std::mem::take(&mut signature.requires);
             clauses.extend(inherited.requires);
             let mut texts = std::mem::take(&mut names.requires);
@@ -2916,10 +2900,7 @@ impl<'t> Program<'t> {
             .machine_instantiation(machine.symbol)
             .map_err(unserved)?
             .ok_or_else(|| unserved("member lost its exact value application"))?;
-        let template = self
-            .typed
-            .machine_by_symbol(application.template())
-            .ok_or_else(|| unserved("member application lost its template"))?;
+        let template = self.required_machine(id, application.template(), "member template")?;
         let parameters = self.typed.machine_callable_parameters(template);
         let binders = self.value_binder_correspondence(id, &required, (&parameters).into())?;
         let binding = application.binding_application();
@@ -3351,10 +3332,11 @@ impl<'t> Program<'t> {
         for &(known, id) in &self.requirement_headers {
             if known == origin
                 && self.symbols.get(id) == Some(&target)
-                && self.value_arguments.get(id).map(Vec::as_slice) == Some(&[])
-                && self.value_parameters.get(id) == Some(&primitive.immediates())
-                && self.scopes.get(id) == Some(&self.scope)
-                && self.source_scopes.get(id) == Some(&self.source_scope)
+                && let Some(row) = self.machine_context(id)
+                && row.value_arguments.is_empty()
+                && row.value_parameters == primitive.immediates()
+                && row.scope == self.scope
+                && row.source_scope == self.source_scope
             {
                 return Ok(id);
             }
@@ -3488,12 +3470,14 @@ impl<'t> Program<'t> {
                 .extend(type_parameters.iter().map(|parameter| parameter.symbol));
             Ok(MachineRow {
                 signature,
-                names,
-                value_parameters: rigid.len(),
-                value_arguments: Vec::new(),
-                scope: program.scope.clone(),
-                source_scope: program.source_scope.clone(),
-                const_scope: Vec::new(),
+                context: MachineContext {
+                    names,
+                    value_parameters: rigid.len(),
+                    value_arguments: Vec::new(),
+                    scope: program.scope.clone(),
+                    source_scope: program.source_scope.clone(),
+                    const_scope: Vec::new(),
+                },
             })
         })?;
         self.requirements.push(id);
@@ -3576,6 +3560,7 @@ impl<'t> Program<'t> {
             erased: Vec::new(),
             borrowed: Vec::new(),
             result,
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             content_ensures: Vec::new(),
             requires: terminal_semantics::numeric_primitives::requires(meaning)
@@ -4135,6 +4120,7 @@ impl<'t> Program<'t> {
         };
         let mut requires = Vec::new();
         let mut ensures = Vec::new();
+        let mut membership_requires = Vec::new();
         let mut membership_ensures = Vec::new();
         let mut content_ensures = Vec::new();
         let mut requires_text = Vec::new();
@@ -4161,7 +4147,7 @@ impl<'t> Program<'t> {
                 // for `u32`.
                 SignatureContractKind::Requires => {
                     for fact in facts {
-                        if self.fact_restates_formal_domain(formals, fact) {
+                        if self.typed.fact_restates_formal_domain(formals, fact) {
                             continue;
                         }
                         // A clause calling a machine may rely on the clauses
@@ -4170,7 +4156,19 @@ impl<'t> Program<'t> {
                         // hold where its body is read.
                         let saved_requires =
                             std::mem::replace(&mut self.enclosing_requires, requires.clone());
-                        let read = self.contract_clause(id, &required, fact, true);
+                        let read =
+                            if let crate::source_state::domain::ProofFact::Membership(membership) =
+                                fact
+                            {
+                                self.runtime_membership(id, &required, membership).map(
+                                    |(premise, clause)| {
+                                        membership_requires.extend(premise);
+                                        clause
+                                    },
+                                )
+                            } else {
+                                self.contract_clause(id, &required, fact, true)
+                            };
                         self.enclosing_requires = saved_requires;
                         if let Some((clause, text)) = read? {
                             requires.push(clause);
@@ -4366,6 +4364,7 @@ impl<'t> Program<'t> {
                 erased,
                 borrowed,
                 result,
+                membership_requires,
                 membership_ensures,
                 content_ensures,
                 requires,
@@ -4841,9 +4840,10 @@ impl<'t> Program<'t> {
                 statements: Vec::new(),
             });
         }
-        self.scope = self.scopes.get(id).cloned().unwrap_or_default();
-        self.source_scope = self.source_scopes.get(id).cloned().unwrap_or_default();
-        self.const_scope = self.const_scopes.get(id).cloned().unwrap_or_default();
+        let row = self.machine_rows.get(id).ok_or_else(|| missing_row(id))?;
+        self.scope.clone_from(&row.context.scope);
+        self.source_scope.clone_from(&row.context.source_scope);
+        self.const_scope.clone_from(&row.context.const_scope);
         self.lifetime_owner = symbol;
         let formals = span(
             |span| typed.state_parameters.span(span),
@@ -4853,9 +4853,10 @@ impl<'t> Program<'t> {
         )?;
         // A generic check form's value parameters are the formals after the
         // authored ones, as its signature was read.
-        let binders = match self.value_parameters.get(id) {
-            Some(0) | None => Vec::new(),
-            Some(_) => self.value_binders(id, machine)?,
+        let binders = if row.context.value_parameters == 0 {
+            Vec::new()
+        } else {
+            self.value_binders(id, machine)?
         };
         if formals.len() + binders.len() != signature.parameters.len() {
             return Err(refuse_at(
@@ -4914,7 +4915,7 @@ impl<'t> Program<'t> {
             .ok_or_else(|| refuse_at(id, Unserved::Machine("missing signature")))?
             .ranking = ranking;
         let statements = typed.statement_table.statements(state.statement_nodes);
-        if let Some(names) = self.names.get_mut(id) {
+        if let Some(names) = self.machine_names_mut(id) {
             for (position, statement) in statements.iter().enumerate() {
                 if let StatementNode::Transition(transition) = statement {
                     names.exits.push((transition.source_span, position));
@@ -4980,6 +4981,29 @@ impl<'t> Program<'t> {
             self.join_block_slots(&mut slots, &mut slot_names);
             self.block_slot_base = slots.len();
             let read = match statement {
+                StatementNode::Assembly(
+                    crate::source_state::statement::AssemblyControlPoint::Entry(graph),
+                ) => {
+                    let graph = typed.statement_table.assembly(*graph);
+                    let end = position + 1 + graph.statement_count as usize;
+                    if end != statements.len() {
+                        return Err(refuse_at(
+                            id,
+                            Unserved::Statement("inline assembly control flow"),
+                        ));
+                    }
+                    body.extend(self.assembly_machine(
+                        id,
+                        state.symbol,
+                        &slots,
+                        graph,
+                        &statements[position + 1..end],
+                        signature.result,
+                    )?);
+                    completed = true;
+                    position = end;
+                    continue;
+                }
                 StatementNode::Assembly(_) => {
                     return Err(refuse_at(id, Unserved::Statement("assembly")));
                 }
@@ -5028,7 +5052,7 @@ impl<'t> Program<'t> {
                             }
                             completed = true;
                             if let (Some(names), Some(span)) =
-                                (self.names.get_mut(id), expression.source.span())
+                                (self.machine_names_mut(id), expression.source.span())
                             {
                                 names.exits.push((span, position));
                             }
@@ -5154,7 +5178,7 @@ impl<'t> Program<'t> {
             position += 1;
         }
         self.join_block_slots(&mut slots, &mut slot_names);
-        if let Some(names) = self.names.get_mut(id) {
+        if let Some(names) = self.machine_names_mut(id) {
             for statement in &body {
                 bindings(statement, &slot_names, &mut names.bindings);
                 value_exits(statement, &mut names.exits);
@@ -5211,7 +5235,9 @@ fn bindings(statement: &Statement, slot_names: &[String], out: &mut Vec<(SourceS
                 target_spans(target, out);
             }
         }
-        Statement::CaptureReference { .. }
+        Statement::AssemblyRegister { .. }
+        | Statement::AssemblyAdjacent { .. }
+        | Statement::CaptureReference { .. }
         | Statement::Decompose { .. }
         | Statement::Declare { .. }
         | Statement::Witness { .. }
@@ -5231,7 +5257,9 @@ fn value_exits(statement: &Statement, exits: &mut Vec<(SourceSpan, usize)>) {
             .map(|(_, target, source)| (target, *source))
             .chain(default.iter().map(|(target, source)| (target, *source)))
             .collect(),
-        Statement::CaptureReference { .. }
+        Statement::AssemblyRegister { .. }
+        | Statement::AssemblyAdjacent { .. }
+        | Statement::CaptureReference { .. }
         | Statement::Decompose { .. }
         | Statement::Declare { .. }
         | Statement::Witness { .. }
@@ -5241,7 +5269,9 @@ fn value_exits(statement: &Statement, exits: &mut Vec<(SourceSpan, usize)>) {
         | Statement::Evaluate { .. } => Vec::new(),
     };
     for (target, arm) in arms {
-        let (Target::Value(value), Some(arm)) = (target, arm.span()) else {
+        let (Target::Value(value) | Target::AssemblyReturn(_, value), Some(arm)) =
+            (target, arm.span())
+        else {
             continue;
         };
         let Some(span) = value.source.span() else {
@@ -5258,7 +5288,7 @@ fn value_exits(statement: &Statement, exits: &mut Vec<(SourceSpan, usize)>) {
 }
 
 fn target_spans(target: &Target, out: &mut Vec<(SourceSpan, Binder)>) {
-    if let Target::Value(value) = target {
+    if let Target::Value(value) | Target::AssemblyReturn(_, value) = target {
         spans(value, &Binder::ReturnValue, out);
     }
 }
@@ -5359,6 +5389,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
         | ExpressionKind::Requalify(operand)
+        | ExpressionKind::NativeBorrow { operand, .. }
         | ExpressionKind::Referent(operand)
         | ExpressionKind::Establish { operand, .. } => {
             spans(operand, binder, out);
@@ -5438,12 +5469,23 @@ pub(super) struct ValueBinder {
 /// (`Program::complete_row`).
 pub(super) struct MachineRow {
     pub(super) signature: crate::body::Signature,
-    pub(super) names: MachineNames,
-    pub(super) value_parameters: usize,
-    pub(super) value_arguments: Vec<semantic_vocabulary::ScalarTerm>,
+    pub(super) context: MachineContext,
+}
+
+#[derive(Default)]
+pub(crate) struct MachineContext {
+    pub(crate) names: MachineNames,
+    pub(crate) value_parameters: usize,
+    pub(crate) value_arguments: Vec<semantic_vocabulary::ScalarTerm>,
     pub(super) scope: Vec<(SymbolHandle, ValueType)>,
     pub(super) source_scope: std::sync::Arc<crate::source_state::SourceTypeScope>,
     pub(super) const_scope: Vec<super::ConstBinding>,
+}
+
+#[derive(Default)]
+pub(super) struct ReservedMachineRow {
+    complete: bool,
+    context: MachineContext,
 }
 
 /// How a machine's declaration is read.

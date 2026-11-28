@@ -36,6 +36,7 @@ const MAX_CALLER_INSTRUCTIONS_AFTER_INLINE: usize = 65536;
 pub(crate) fn inline_and_simplify(
     functions: &mut [SelectedFunction],
     environment: &ValidatedTargetRegisterEnvironment,
+    has_assembly_return: impl Fn(MachineId) -> bool,
 ) -> Result<(), StructuralRewriteError> {
     if functions.is_empty() {
         return Ok(());
@@ -70,7 +71,11 @@ pub(crate) fn inline_and_simplify(
                 let Some(callee_idx) = machines.function(callee_machine) else {
                     continue;
                 };
-                if callee_idx == caller_idx || in_cycle[callee_idx] {
+                // An authored return observes the real exit plan. Inlining replaces it with an edge.
+                if callee_idx == caller_idx
+                    || in_cycle[callee_idx]
+                    || has_assembly_return(callee_machine)
+                {
                     continue;
                 }
                 let (caller, callee) = borrow_caller_and_callee(functions, caller_idx, callee_idx);
@@ -399,7 +404,10 @@ fn check_inline_eligibility(
     // boundary call. Physical evidence rejoins that boundary occurrence to this
     // exact call, its stack custody and its callee, so the call stays a call,
     // as boundary settlements and normalized foreign calls do above.
-    if !matches!(contract.call.source, NativeCallOrigin::Authored) {
+    // Inlining a suspension would erase the call at which the parent resumes.
+    if !matches!(contract.call.source, NativeCallOrigin::Authored)
+        || contract.call.suspension_crossing.is_some()
+    {
         return None;
     }
     let CallSiteOwner::Operation(call_op) = contract.owner else {
@@ -561,6 +569,9 @@ fn check_inline_eligibility(
     let mut arg_copies = Vec::new();
     let mut used_param_views = BTreeSet::new();
     for reg in &callee.virtual_registers {
+        if matches!(reg.origin, VirtualRegisterOrigin::ActivationOwner) {
+            return None;
+        }
         let is_entry_origin = matches!(
             reg.origin,
             VirtualRegisterOrigin::EntryParameter { .. }
@@ -978,7 +989,8 @@ fn apply_inline(
                 instruction: inst_map[&instruction],
                 source_value,
             },
-            VirtualRegisterOrigin::EntryParameter { .. }
+            VirtualRegisterOrigin::ActivationOwner
+            | VirtualRegisterOrigin::EntryParameter { .. }
             | VirtualRegisterOrigin::StructuralParameter { .. } => {
                 return Err(StructuralRewriteError::custody_because(
                     "unmatched callee entry parameter escaped eligibility check",
@@ -1028,7 +1040,8 @@ fn remap_origin_instruction(origin: &mut VirtualRegisterOrigin, new_inst: Select
         | VirtualRegisterOrigin::InstructionResult { instruction, .. } => {
             *instruction = new_inst;
         }
-        VirtualRegisterOrigin::EntryParameter { .. }
+        VirtualRegisterOrigin::ActivationOwner
+        | VirtualRegisterOrigin::EntryParameter { .. }
         | VirtualRegisterOrigin::StructuralParameter { .. }
         | VirtualRegisterOrigin::BlockParameter { .. } => {}
     }
@@ -1536,6 +1549,7 @@ pub(crate) mod tests {
                     instruction: call_id,
                     owner: CallSiteOwner::Operation(caller_op),
                     call: LegalizedScalarCall {
+                        suspension_crossing: None,
                         source: NativeCallOrigin::Authored,
                         target: NativeCallTarget::Machine(callee_machine),
                         arguments: Vec::new(),
@@ -1829,6 +1843,24 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn keeps_the_call_at_which_a_parked_parent_resumes() {
+        let environment =
+            register_environment::baseline_target_register_environment(NativeTarget::windows_x64())
+                .unwrap();
+        let CallerAndCallee {
+            mut caller, callee, ..
+        } = caller_and_callee(&environment);
+        let crossing = semantic_vocabulary::SuspensionCrossingId::new(4).unwrap();
+        let ordinary = caller.calls[0].call.canonical_bytes();
+        caller.calls[0].call.suspension_crossing = Some(crossing);
+        assert_ne!(ordinary, caller.calls[0].call.canonical_bytes());
+        let expected = caller.calls[0].clone();
+        let mut functions = [caller, callee];
+        inline_and_simplify(&mut functions, &environment, |_| false).unwrap();
+        assert_eq!(functions[0].calls.as_slice(), &[expected]);
+    }
+
+    #[test]
     fn inlines_acyclic_callee_and_contracts_single_predecessor_fallthrough_blocks() {
         let environment =
             register_environment::baseline_target_register_environment(NativeTarget::windows_x64())
@@ -1854,7 +1886,7 @@ pub(crate) mod tests {
             transport: selected_instructions::SelectedValueTransport::Unused,
         };
         successor.bindings.push(binding.clone());
-        inline_and_simplify(&mut with_binding, &environment).unwrap();
+        inline_and_simplify(&mut with_binding, &environment, |_| false).unwrap();
         assert_eq!(with_binding[0].calls.as_slice(), caller.calls.as_slice());
         let SelectedTerminator::Jump { successor, .. } = &with_binding[1].blocks[0].terminator
         else {
@@ -1879,12 +1911,19 @@ pub(crate) mod tests {
                 abi_stack_byte_offset: 32,
             },
         );
-        inline_and_simplify(&mut stack_passed, &environment).unwrap();
+        inline_and_simplify(&mut stack_passed, &environment, |_| false).unwrap();
         assert_eq!(stack_passed[0].calls.as_slice(), caller.calls.as_slice());
         assert_eq!(stack_passed[0].outgoing_arguments.len(), 1);
 
+        let mut hardware_return = [caller.clone(), callee.clone()];
+        inline_and_simplify(&mut hardware_return, &environment, |machine| {
+            machine == callee.machine
+        })
+        .unwrap();
+        assert_eq!(hardware_return[0].calls.as_slice(), caller.calls.as_slice());
+
         let mut functions = vec![caller, callee];
-        inline_and_simplify(&mut functions, &environment).unwrap();
+        inline_and_simplify(&mut functions, &environment, |_| false).unwrap();
 
         let inlined_caller = &functions[0];
         assert!(inlined_caller.ids_are_positions());

@@ -16,15 +16,23 @@ const ANALYSES: &str =
 pub(super) const IMAGE_EMISSION: &str = native!("/pipeline/15_objects-to-image/image-emission");
 pub(super) const NATIVE_ARTIFACT: &str = native!("/pipeline/15_objects-to-image/native-artifact");
 pub(super) const OBJECT_REPLAY: &str = native!("/verification/published-objects");
-pub(super) const PRODUCT_PUBLICATION: &str =
-    "source-rust/subsystems/compiler/build/publication";
+pub(super) const PRODUCT_PUBLICATION: &str = "source-rust/subsystems/compiler/build/publication";
+const BODY_PLAN: &str = native!("/representations/target-operations/body-plan");
+const PLAN_ISSUER: &str = native!("/representations/target-operations/body-plan/issuer");
+const SELECTED_BODY: &str = native!("/representations/selected-instructions/published");
+const SELECTED_FACTS: &str = native!("/representations/selected-instructions/published/facts");
+const SELECTED_BODY_ISSUER: &str =
+    native!("/representations/selected-instructions/published/issuer");
+const ALLOCATED_BODY: &str = native!("/representations/register-homes/published");
+const ALLOCATION_ISSUER: &str = native!("/representations/register-homes/published/issuer");
 /// Program forms instruction selection consumes. Later stages read the facts
 /// they need from the target vocabulary and the physical program instead.
-const EARLIER_FORMS: [&str; 4] = [
+const EARLIER_FORMS: [&str; 5] = [
     native!("/representations/abstract-operations"),
     native!("/representations/abstract-operations/optimization-unit-semantics"),
     native!("/representations/target-operations"),
     native!("/representations/target-operations/legalized-operations"),
+    BODY_PLAN,
 ];
 
 pub(super) fn scoped_readers() -> Vec<Allowance> {
@@ -48,7 +56,6 @@ pub(super) fn scoped_readers() -> Vec<Allowance> {
         stages[6],
         stages[7],
         stages[8],
-        stages[10],
         IMAGE_EMISSION,
     ] {
         readers.push((OBJECT_REPLAY, dependency));
@@ -82,6 +89,84 @@ pub(super) fn rules() -> Vec<Rule> {
             allowed,
         });
     }
+    rules.push(Rule {
+        owners: vec![stages[4]],
+        forbidden: vec![stages[3]],
+        forbidden_packages: vec![],
+        reason: "instruction selection consumes the issued body plan directly",
+        except_package: None,
+        except_owners: vec![],
+        allowed: vec![],
+    });
+    rules.push(Rule {
+        owners: vec![""],
+        forbidden: vec![],
+        forbidden_packages: vec![PLAN_ISSUER],
+        reason: "only target lowering may issue a native body plan",
+        except_package: Some(BODY_PLAN),
+        except_owners: vec![],
+        allowed: vec![Allowance {
+            owner: stages[3],
+            dependency: PLAN_ISSUER,
+        }],
+    });
+    rules.push(Rule {
+        owners: vec![stages[7]],
+        forbidden: vec![stages[6]],
+        forbidden_packages: vec![],
+        reason: "machine lowering consumes the issued allocation representation",
+        except_package: None,
+        except_owners: vec![],
+        allowed: vec![],
+    });
+    rules.push(Rule {
+        owners: vec![""],
+        forbidden: vec![],
+        forbidden_packages: vec![ALLOCATION_ISSUER],
+        reason: "only register allocation may issue an allocated body",
+        except_package: Some(ALLOCATED_BODY),
+        except_owners: vec![],
+        allowed: vec![Allowance {
+            owner: stages[6],
+            dependency: ALLOCATION_ISSUER,
+        }],
+    });
+    rules.push(Rule {
+        owners: vec![stages[6]],
+        forbidden: vec![],
+        forbidden_packages: vec![stages[5]],
+        reason: "allocation consumes the issued selected representation, not the rewrite driver",
+        except_package: None,
+        except_owners: vec![],
+        allowed: vec![],
+    });
+    rules.push(Rule {
+        owners: vec![""],
+        forbidden: vec![],
+        forbidden_packages: vec![SELECTED_BODY_ISSUER],
+        reason: "only selected optimization may issue the completed allocation input",
+        except_package: Some(SELECTED_BODY),
+        except_owners: vec![],
+        allowed: vec![
+            Allowance {
+                owner: stages[5],
+                dependency: SELECTED_BODY_ISSUER,
+            },
+            Allowance {
+                owner: SELECTED_FACTS,
+                dependency: SELECTED_BODY_ISSUER,
+            },
+        ],
+    });
+    rules.push(Rule {
+        owners: vec![ANALYSES],
+        forbidden: vec![],
+        forbidden_packages: vec![SELECTED_BODY],
+        reason: "shared selected analyses consume facts without body publication metadata",
+        except_package: None,
+        except_owners: vec![],
+        allowed: vec![],
+    });
     // Stage 02's abstract program and stage 04's target operations stop at
     // instruction selection. The requested object audit that rejoins them to an
     // emitted object lives in the published-object verifier, outside the pipeline,
@@ -103,6 +188,86 @@ mod tests {
     use super::*;
     use crate::boundary::tests::pkg;
     use crate::boundary::{Metadata, forbidden_dependency_violations};
+
+    #[test]
+    fn selection_can_read_the_plan_and_use_lowering_for_test_fixtures() {
+        let lowering = NATIVE_STAGES[3];
+        let selection = NATIVE_STAGES[4];
+        for (owner, dependency, kind, permitted) in [
+            (selection, BODY_PLAN, None, true),
+            (selection, lowering, Some("dev"), true),
+            (selection, lowering, None, false),
+            (selection, lowering, Some("build"), false),
+            (selection, PLAN_ISSUER, None, false),
+            (DRIVER, PLAN_ISSUER, None, false),
+            (lowering, PLAN_ISSUER, None, true),
+            (BODY_PLAN, PLAN_ISSUER, None, true),
+        ] {
+            let metadata = Metadata {
+                workspace_root: "/repo".into(),
+                packages: vec![pkg("reader", owner, &[("dependency", dependency, kind)])],
+            };
+            let violations = forbidden_dependency_violations(&metadata, &rules()).unwrap();
+            assert_eq!(
+                violations.is_empty(),
+                permitted,
+                "{owner} -> {dependency} ({kind:?}): {violations:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn allocation_reads_the_selected_product_without_its_producer_or_issuer() {
+        for (owner, dependency, permitted) in [
+            (NATIVE_STAGES[6], SELECTED_BODY, true),
+            (NATIVE_STAGES[6], ANALYSES, true),
+            (NATIVE_STAGES[6], NATIVE_STAGES[5], false),
+            (NATIVE_STAGES[6], SELECTED_BODY_ISSUER, false),
+            (DRIVER, SELECTED_BODY_ISSUER, false),
+            (ANALYSES, SELECTED_BODY_ISSUER, false),
+            (ANALYSES, SELECTED_BODY, false),
+            (ANALYSES, SELECTED_FACTS, true),
+            (SELECTED_FACTS, SELECTED_BODY_ISSUER, true),
+            (SELECTED_FACTS, ANALYSES, false),
+            (NATIVE_STAGES[5], SELECTED_BODY_ISSUER, true),
+            (SELECTED_BODY, SELECTED_BODY_ISSUER, true),
+            (SELECTED_BODY, ANALYSES, false),
+        ] {
+            let metadata = Metadata {
+                workspace_root: "/repo".into(),
+                packages: vec![pkg("reader", owner, &[("dependency", dependency, None)])],
+            };
+            let violations = forbidden_dependency_violations(&metadata, &rules()).unwrap();
+            assert_eq!(
+                violations.is_empty(),
+                permitted,
+                "{owner} -> {dependency}: {violations:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn machine_lowering_reads_the_product_without_its_producer_or_issuer() {
+        for (owner, dependency, permitted) in [
+            (NATIVE_STAGES[7], ALLOCATED_BODY, true),
+            (NATIVE_STAGES[7], NATIVE_STAGES[6], false),
+            (NATIVE_STAGES[7], ALLOCATION_ISSUER, false),
+            (DRIVER, ALLOCATION_ISSUER, false),
+            (NATIVE_STAGES[6], ALLOCATION_ISSUER, true),
+            (ALLOCATED_BODY, ALLOCATION_ISSUER, true),
+        ] {
+            let metadata = Metadata {
+                workspace_root: "/repo".into(),
+                packages: vec![pkg("reader", owner, &[("dependency", dependency, None)])],
+            };
+            let violations = forbidden_dependency_violations(&metadata, &rules()).unwrap();
+            assert_eq!(
+                violations.is_empty(),
+                permitted,
+                "{owner} -> {dependency}: {violations:?}"
+            );
+        }
+    }
 
     #[test]
     fn physical_stages_can_read_shared_operands_without_importing_the_earlier_program() {

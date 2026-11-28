@@ -66,6 +66,7 @@ mod join_reads;
 pub(crate) mod machine_order;
 pub(crate) mod operational;
 mod operations;
+mod packages;
 pub(crate) mod places;
 mod ranking;
 pub(crate) mod suspension;
@@ -96,6 +97,7 @@ use crate::{MachineSources, SourceOrigin, Unpositioned, Unserved, refuse, reject
 #[derive(Debug)]
 pub(crate) struct Lowered {
     pub machine: TerminalMachine,
+    pub packages: terminal_psi::TerminalPackageCatalog,
     pub tables: MachineTables,
     /// The write log this machine was lowered with. Production drops it with
     /// the lowering; tests read it to see what each operation stored.
@@ -164,6 +166,7 @@ pub(crate) fn machine(
         bodies,
         component,
         separate_entry,
+        &[],
         signatures,
         outcomes,
         records,
@@ -184,6 +187,7 @@ pub(crate) fn machine_with_read_only_qualifications(
     bodies: &IdTable<MachineId, Body>,
     component: &[MachineId],
     separate_entry: bool,
+    forwarded_consts: &[(MachineId, usize)],
     signatures: Signatures<'_>,
     outcomes: &IdTable<MachineId, Outcome>,
     records: &Records<'_>,
@@ -224,16 +228,23 @@ pub(crate) fn machine_with_read_only_qualifications(
     if requirement {
         lowering.blocks = IdTable::default();
         lowering.sources.blocks = IdTable::default();
-        return lowering.finish(entry, formals, result, contract, structural_types);
-    }
-    if component.is_empty() {
+    } else if component.is_empty() {
         // Even an acyclic body must prove formation of its authored measure.
         lowering.begin_ranking(id)?;
         lowering.body(id, body)?;
     } else {
-        lowering.component(id, bodies, component, &formals, separate_entry)?;
+        lowering.component(
+            id,
+            bodies,
+            component,
+            &formals,
+            separate_entry,
+            forwarded_consts,
+        )?;
     }
-    lowering.finish(entry, formals, result, contract, structural_types)
+    let mut lowered = lowering.finish(entry, formals, result, contract, structural_types)?;
+    terminal_check_tables::bindings::compact_projection_storage(&mut lowered.tables.places);
+    Ok(lowered)
 }
 
 /// A signature's declarations, shared by named bodies and stored callable
@@ -563,6 +574,8 @@ impl<'a> Lowering<'a> {
             designated: Vec::new(),
             source_calls: Vec::new(),
             static_reach_applications: Vec::new(),
+            packages: Default::default(),
+            package_uses: Default::default(),
             source_constructions: Vec::new(),
             source_folded_calls: Vec::new(),
             theorem_applications: Vec::new(),
@@ -889,6 +902,8 @@ struct Lowering<'a> {
     writes: Vec<places::WriteRow>,
     sources: MachineSources,
     designated: Vec<(OperationId, crate::DesignatedOperands)>,
+    packages: terminal_psi::TerminalPackageCatalog,
+    package_uses: packages::PackageUses,
     source_calls: Vec<crate::source_state::SourceCallCorrespondence>,
     theorem_applications: Vec<terminal_psi::TheoremApplication>,
     theorem_citations: Vec<terminal_psi::TheoremCitation>,
@@ -987,6 +1002,7 @@ impl<T> Reached<T> {
 
 #[derive(Default)]
 struct Draft {
+    assembly_exit: Option<terminal_psi::AssemblyExitConstraint>,
     parameters: Vec<ValueDeclaration>,
     structural_parameters: Vec<StructuralParameterDeclaration>,
     operations: Vec<Operation>,
@@ -1060,14 +1076,23 @@ impl<'a> Lowering<'a> {
     }
 
     fn qualify_contract(&self, contract: &mut MachineContract) -> Checked<()> {
-        contract.membership_ensures = self
-            .signature
-            .membership_ensures
-            .iter()
-            .map(|membership| self.qualifications.runtime_membership(self.id, membership))
-            .collect::<Checked<_>>()?;
-        contract.membership_ensures.sort();
-        contract.membership_ensures.dedup();
+        for (source, target) in [
+            (
+                &self.signature.membership_requires,
+                &mut contract.membership_requires,
+            ),
+            (
+                &self.signature.membership_ensures,
+                &mut contract.membership_ensures,
+            ),
+        ] {
+            *target = source
+                .iter()
+                .map(|membership| self.qualifications.runtime_membership(self.id, membership))
+                .collect::<Checked<_>>()?;
+            target.sort();
+            target.dedup();
+        }
         self.qualify_content_equations(contract)?;
         Ok(())
     }
@@ -1138,14 +1163,15 @@ impl<'a> Lowering<'a> {
             // An erased binding evaluates nothing, so it is no executable
             // statement and none is reported for it.
             let first = statements.find_map(|statement| match statement {
-                Statement::Witness { .. } => None,
+                Statement::Witness { .. } | Statement::AssemblyRegister { .. } => None,
                 Statement::Observe { value, .. }
                 | Statement::Bind { value, .. }
                 | Statement::Decompose { subject: value }
                 | Statement::Evaluate {
                     expression: value, ..
                 } => Some(value.source),
-                Statement::Declare { source, .. }
+                Statement::AssemblyAdjacent { source, .. }
+                | Statement::Declare { source, .. }
                 | Statement::Store { source, .. }
                 | Statement::Dispatch { source, .. }
                 | Statement::Arm { source, .. } => Some(*source),
@@ -1210,6 +1236,7 @@ impl<'a> Lowering<'a> {
         component: &[MachineId],
         formals: &Formals,
         separate_entry: bool,
+        forwarded_consts: &[(MachineId, usize)],
     ) -> Checked<()> {
         let entered_bindings = self.slots.clone();
         for member in component {
@@ -1254,6 +1281,12 @@ impl<'a> Lowering<'a> {
                 .collect::<Checked<Vec<_>>>()?;
             for clause in &signature.requires {
                 self.name_clause_contents(clause, &bindings, None)?;
+            }
+            // An unchanged const still denotes the invocation's input. Its
+            // nominal storage and every ordinary call in the loop use that
+            // same SSA value. The head and its arrivals retain every formal.
+            for &(_, slot) in forwarded_consts {
+                self.slots[slot] = entered_bindings[slot];
             }
             self.heads.push(Head {
                 member: *member,
@@ -1326,6 +1359,14 @@ impl<'a> Lowering<'a> {
 
     fn position(&self, index: usize) -> Checked<u32> {
         u32::try_from(index).map_err(|_| self.internal("position exceeds u32"))
+    }
+
+    fn uninitialized_register(&self, source: SourceOrigin) -> Refusal {
+        reject(
+            self.id,
+            source,
+            "assembly reads a register before an instruction or entry binding initialized it",
+        )
     }
 
     fn slot_mut(&mut self, slot: usize) -> Checked<&mut Option<Bound>> {
@@ -1489,6 +1530,7 @@ impl<'a> Lowering<'a> {
             };
             let mut block = Block::plain(block, block_parameters, terminator);
             block.structural_parameters = std::mem::take(&mut draft.structural_parameters);
+            block.assembly_exit = draft.assembly_exit.take();
             block.operations = operations;
             blocks.push(block);
         }
@@ -1565,6 +1607,7 @@ impl<'a> Lowering<'a> {
             theorem_applications: self.theorem_applications,
             theorem_citations: self.theorem_citations,
             static_reach_applications: self.static_reach_applications,
+            packages: self.packages,
             source_constructions: self.source_constructions,
             source_folded_calls: self.source_folded_calls,
             invariants: self.invariants,

@@ -13,7 +13,7 @@ pub struct EncodedProgramContext {
     pub publication: Arc<register_homes::AllocationPublicationFacts>,
     pub phase: post_allocation_machine::PostAllocationMachinePhaseReceipt,
     pub identity: [u8; 32],
-    pub checked_encoding: crate::SelectedFormEncodingIdentity,
+    pub checked_encoding: crate::SelectedFormEncodingHandle,
 }
 impl EncodedProgramContext {
     pub fn physical(&self) -> &register_model::ValidatedPhysicalRegisterModel {

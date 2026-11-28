@@ -4,7 +4,8 @@
 //! that exact formal, even when the type itself enters nothing further.
 
 use semantic_vocabulary::{
-    CallableContractId, InvocationSite, MachineId, ServiceId, TargetMachineCallable,
+    CallableContractId, InvocationPathSegment, InvocationSite, MachineId, ServiceId,
+    TargetMachineCallable,
 };
 use std::borrow::Cow;
 use terminal_check_tables::edges::Callee;
@@ -39,7 +40,7 @@ impl Axis {
     ];
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Permission {
     Entry(Entry),
     MaySuspend,
@@ -208,7 +209,7 @@ fn services(envelope: &TerminalCallableEnvelope) -> Vec<ServiceId> {
         .iter()
         .filter_map(|entry| match entry {
             Entry::Service(service) => Some(*service),
-            Entry::Parameter(_) => None,
+            Entry::Parameter(_) | Entry::ProjectedParameter { .. } => None,
         })
         .collect()
 }
@@ -377,7 +378,7 @@ impl Contributions {
             Axis::Entries => self
                 .entries
                 .iter()
-                .copied()
+                .cloned()
                 .map(Permission::Entry)
                 .collect(),
             Axis::Suspension => self
@@ -450,7 +451,7 @@ impl Calls<'_> {
                 self.foreign("invoked value retained another machine's unsubstituted formal")
             );
         }
-        let (kind, position) = match &input.parameter {
+        let (kind, position, path) = match &input.parameter {
             CallableParameter::Scalar(position) => {
                 if self
                     .caller
@@ -463,17 +464,27 @@ impl Calls<'_> {
                         self.foreign("invoked scalar origin disagrees with its formal contract")
                     );
                 }
-                (BoundaryParameterKind::Scalar, *position)
+                (BoundaryParameterKind::Scalar, *position, Vec::new())
             }
             CallableParameter::Structural { position, path } => {
-                if !path.is_empty() {
-                    return Err(self
-                        .unsupported("invokes needs the exact nested structural parameter path"));
+                let formal = self
+                    .caller
+                    .structural_parameters
+                    .get(*position)
+                    .ok_or_else(|| {
+                        self.foreign("invoked structural origin names no actual formal")
+                    })?;
+                let path = terminal_semantics::callable_envelopes::named_invocation_path(
+                    self.module,
+                    formal.structural_type,
+                    path,
+                )
+                .ok_or_else(|| self.foreign("invoked field has no published storage path"))?;
+                let (contract, _) = self.structural_callable(formal.structural_type, &path)?;
+                if contract != input.contract {
+                    return Err(self.foreign("invoked field differs from the formal callable type"));
                 }
-                if self.caller.structural_parameters.get(*position).is_none() {
-                    return Err(self.foreign("invoked structural origin names no actual formal"));
-                }
-                (BoundaryParameterKind::Structural, *position)
+                (BoundaryParameterKind::Structural, *position, path)
             }
         };
         let authored = self
@@ -485,18 +496,21 @@ impl Calls<'_> {
             .nth(position)
             .map(|(position, _)| position)
             .ok_or_else(|| self.foreign("invoked formal has no authored parameter coordinate"))?;
-        Ok(Entry::Parameter(u32::try_from(authored).map_err(|_| {
-            self.foreign("invoked formal coordinate is too large")
-        })?))
+        let parameter = u32::try_from(authored)
+            .map_err(|_| self.foreign("invoked formal coordinate is too large"))?;
+        Ok(if path.is_empty() {
+            Entry::Parameter(parameter)
+        } else {
+            Entry::ProjectedParameter { parameter, path }
+        })
     }
     /// Preserve symbolic formal origins. Concrete descriptors authenticate a
     /// code value; selecting one never inspects its body to narrow the type.
-    fn holder(
-        &self,
-        contract: CallableContractId,
-        values: &CallableValuePossibilities,
-        reached: &mut Contributions,
-    ) -> Checked<()> {
+    fn holder(&self, query: CallableValueQuery, reached: &mut Contributions) -> Checked<()> {
+        // The resolver checks each concrete selection against the contract at
+        // its construction. A checked package read may bridge that stored type
+        // to an opened type at this call without changing the selected code.
+        let values = self.resolve(query)?;
         if values.descriptors.is_empty()
             && values.inputs.is_empty()
             && values.unresolved_ceilings.is_empty()
@@ -512,17 +526,11 @@ impl Calls<'_> {
                 .ok_or_else(|| {
                     self.foreign("invoked value names no exact constructed descriptor")
                 })?;
-            if descriptor.contract != contract || self.module.machine(descriptor.machine).is_none()
-            {
-                return Err(
-                    self.foreign("invoked descriptor changes its contract or selected code")
-                );
+            if self.module.machine(descriptor.machine).is_none() {
+                return Err(self.foreign("invoked descriptor has no selected machine"));
             }
         }
         for input in &values.inputs {
-            if input.contract != contract {
-                return Err(self.foreign("invoked formal changes its retained contract"));
-            }
             union(&mut reached.entries, [self.formal(input)?]);
         }
         for ceiling in &values.unresolved_ceilings {
@@ -535,9 +543,55 @@ impl Calls<'_> {
         }
         Ok(())
     }
+    fn structural_callable(
+        &self,
+        root: semantic_vocabulary::StructuralTypeId,
+        path: &[InvocationPathSegment],
+    ) -> Checked<(
+        CallableContractId,
+        Vec<terminal_semantics::descriptor_lifetimes::DescriptorPathSegment>,
+    )> {
+        use semantic_vocabulary::CanonicalStructuralPathSegment as Local;
+        use terminal_semantics::descriptor_lifetimes::DescriptorPathSegment as Step;
+        if path.is_empty() {
+            if let Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(
+                semantic_vocabulary::ScalarType::Callable(contract),
+            )) = self
+                .module
+                .types
+                .structural_types
+                .iter()
+                .find(|decl| decl.id == root)
+                .map(|decl| &decl.shape)
+            {
+                return Ok((*contract, Vec::new()));
+            }
+            return Err(
+                self.foreign("invokes names a structural parameter without a callable field")
+            );
+        }
+        let (contract, steps) =
+            terminal_semantics::callable_envelopes::projected_callable(self.module, root, path)
+                .ok_or_else(|| {
+                    self.foreign("invokes names no callable at this structural parameter path")
+                })?;
+        Ok((
+            contract,
+            steps
+                .into_iter()
+                .map(|step| match step {
+                    Local::Field(field) => Step::Field(field),
+                    Local::Case(case) => Step::Case(case),
+                    Local::FixedIndex(index) => Step::FixedIndex(index),
+                    Local::Referent => Step::Referent,
+                })
+                .collect(),
+        ))
+    }
     fn parameter(
         &self,
         position: u32,
+        path: &[InvocationPathSegment],
         site: InvocationSite,
         call: &crate::call_contracts::Invocation<'_>,
         reached: &mut Contributions,
@@ -553,6 +607,9 @@ impl Calls<'_> {
             .filter(|candidate| **candidate == kind)
             .count();
         let (contract, query) = match kind {
+            BoundaryParameterKind::Scalar if !path.is_empty() => {
+                return Err(self.foreign("a scalar callable has no field path"));
+            }
             BoundaryParameterKind::Scalar => {
                 let Some(semantic_vocabulary::ScalarType::Callable(contract)) =
                     call.contract.scalar_parameters.scalar_type(lane)
@@ -579,23 +636,7 @@ impl Calls<'_> {
                     .ok_or_else(|| {
                         self.foreign("invoked parameter lost its exact structural formal")
                     })?;
-                let declaration = self
-                    .module
-                    .types
-                    .structural_types
-                    .iter()
-                    .find(|declaration| declaration.id == formal.structural_type)
-                    .ok_or_else(|| {
-                        self.foreign("invoked structural formal has no declared carrier")
-                    })?;
-                let terminal_psi::StructuralTypeShape::PrimitiveScalar(
-                    semantic_vocabulary::ScalarType::Callable(contract),
-                ) = declaration.shape
-                else {
-                    return Err(self.unsupported(
-                        "invoked structural actual needs an exact nested callable parameter path",
-                    ));
-                };
+                let (contract, suffix) = self.structural_callable(formal.structural_type, path)?;
                 let values = self
                     .values
                     .ok_or_else(|| self.foreign("structural callable origins were not prepared"))?;
@@ -614,13 +655,14 @@ impl Calls<'_> {
                         "structural callable actual differs from its retained invocation",
                     ));
                 }
-                let location = invocation
+                let mut location = invocation
                     .structural_arguments
                     .get(lane)
                     .ok_or_else(|| {
                         self.foreign("invoked structural parameter lost its actual location")
                     })?
                     .clone();
+                location.path.extend(suffix);
                 (
                     contract,
                     CallableValueQuery::Storage {
@@ -638,6 +680,7 @@ impl Calls<'_> {
     fn tail_parameter(
         &self,
         position: u32,
+        path: &[InvocationPathSegment],
         call: &crate::call_contracts::TailCall<'_>,
         reached: &mut Contributions,
     ) -> Checked<()> {
@@ -652,6 +695,9 @@ impl Calls<'_> {
             .filter(|candidate| **candidate == kind)
             .count();
         let (contract, query) = match kind {
+            BoundaryParameterKind::Scalar if !path.is_empty() => {
+                return Err(self.foreign("a scalar callable has no field path"));
+            }
             BoundaryParameterKind::Scalar => {
                 let Some(semantic_vocabulary::ScalarType::Callable(contract)) = call
                     .callee
@@ -680,23 +726,7 @@ impl Calls<'_> {
                     .structural_parameters
                     .get(lane)
                     .ok_or_else(|| self.foreign("tail invokes lost its structural formal"))?;
-                let declaration = self
-                    .module
-                    .types
-                    .structural_types
-                    .iter()
-                    .find(|declaration| declaration.id == formal.structural_type)
-                    .ok_or_else(|| {
-                        self.foreign("tail structural formal has no declared carrier")
-                    })?;
-                let terminal_psi::StructuralTypeShape::PrimitiveScalar(
-                    semantic_vocabulary::ScalarType::Callable(contract),
-                ) = declaration.shape
-                else {
-                    return Err(self.unsupported(
-                        "invoked structural actual needs an exact nested callable parameter path",
-                    ));
-                };
+                let (contract, suffix) = self.structural_callable(formal.structural_type, path)?;
                 let actual = call
                     .structural_arguments
                     .get(lane)
@@ -718,7 +748,7 @@ impl Calls<'_> {
                 {
                     return Err(self.foreign("tail callable actual differs from its formal"));
                 }
-                let location = terminal_semantics::descriptor_lifetimes::descriptor_location(
+                let mut location = terminal_semantics::descriptor_lifetimes::descriptor_location(
                     &self.module.types.structural_types,
                     actual.place,
                     root,
@@ -728,6 +758,7 @@ impl Calls<'_> {
                 .ok_or_else(|| {
                     self.foreign("tail callable actual has no exact descriptor coordinate")
                 })?;
+                location.path.extend(suffix);
                 let position = (
                     call.block.id,
                     u32::try_from(call.block.operations.len())
@@ -753,15 +784,14 @@ impl Calls<'_> {
         query: CallableValueQuery,
         reached: &mut Contributions,
     ) -> Checked<()> {
-        let values = self.resolve(query)?;
-        self.holder(contract, &values, reached)?;
+        self.holder(query, reached)?;
         let envelope = &self.contract(contract)?.envelope;
         self.operational(Envelope::Runtime(envelope), reached)?;
         union(&mut reached.reach, envelope.service_reach.iter().copied());
         for entry in &envelope.invocations {
             match entry {
                 Entry::Service(service) => union(&mut reached.entries, [Entry::Service(*service)]),
-                Entry::Parameter(_) => {
+                Entry::Parameter(_) | Entry::ProjectedParameter { .. } => {
                     return Err(self.unsupported(
                         "nested callable invocation needs its exact invocation actual mapping",
                     ));
@@ -912,7 +942,7 @@ fn validate_requirement_envelopes(
             .iter()
             .filter_map(|entry| match entry {
                 Entry::Service(service) => Some(*service),
-                Entry::Parameter(_) => None,
+                Entry::Parameter(_) | Entry::ProjectedParameter { .. } => None,
             })
             .collect::<Vec<_>>();
         if !matches!(&row.invokes, Ceiling::Authored(expected) if expected == &entries)
@@ -1018,6 +1048,20 @@ fn judge_axes(
         ));
     }
     for machine in &module.machines {
+        for operation in machine.operations() {
+            let required =
+                terminal_semantics::storage::native_borrows::required_services(module, operation)
+                    .map_err(|detail| fault(machine.id, &detail))?;
+            if required
+                .iter()
+                .any(|id| machine.published_service_ceiling.binary_search(id).is_err())
+            {
+                return Err(fault(
+                    machine.id,
+                    "native reference operation exceeds its published service ceiling",
+                ));
+            }
+        }
         let envelope = machine_envelope(elaboration, machine.id)?;
         if let Some(reach) = envelope.reach() {
             well_formed_reach(module, machine.id, reach)?;
@@ -1051,7 +1095,7 @@ fn judge_axes(
                 .into_iter()
                 .filter_map(|entry| match entry {
                     Entry::Service(service) => Some(service),
-                    Entry::Parameter(_) => None,
+                    Entry::Parameter(_) | Entry::ProjectedParameter { .. } => None,
                 })
                 .collect();
             service_row(module, machine.id, &services, false)?;
@@ -1140,13 +1184,13 @@ fn judge_axes(
             envelope
                 .invocations
                 .iter()
-                .any(|entry| matches!(entry, Entry::Parameter(_)))
+                .any(|entry| entry.parameter().is_some())
         })
     }) || elaboration.check_form_envelopes.iter().any(|row| {
         row.envelope
             .invocations
             .iter()
-            .any(|entry| matches!(entry, Entry::Parameter(_)))
+            .any(|entry| entry.parameter().is_some())
     }) || module
         .execution
         .callables
@@ -1157,7 +1201,7 @@ fn judge_axes(
             row.envelope
                 .invocations
                 .iter()
-                .any(|entry| matches!(entry, Entry::Parameter(_)))
+                .any(|entry| entry.parameter().is_some())
         })
         || module
             .execution
@@ -1169,7 +1213,7 @@ fn judge_axes(
                 row.envelope
                     .invocations
                     .iter()
-                    .any(|entry| matches!(entry, Entry::Parameter(_)))
+                    .any(|entry| entry.parameter().is_some())
             });
     let needs_values = needs_values
         || module
@@ -1181,7 +1225,7 @@ fn judge_axes(
                 row.envelope
                     .invocations
                     .iter()
-                    .any(|entry| matches!(entry, Entry::Parameter(_)))
+                    .any(|entry| entry.parameter().is_some())
             });
     let values = needs_values
         .then(|| terminal_callable_values(module))
@@ -1218,7 +1262,9 @@ fn judge_axes(
                 &context,
                 envelope,
                 applied,
-                &mut |position, reached| context.parameter(position, row.site, &call, reached),
+                &mut |position, path, reached| {
+                    context.parameter(position, path, row.site, &call, reached)
+                },
                 &mut |reached| {
                     let Callee::Selected { callable } = call.inputs.callee else {
                         return Ok(());
@@ -1226,12 +1272,14 @@ fn judge_axes(
                     let contract = call.inputs.contract.ok_or_else(|| {
                         context.foreign("selected invocation lost its exact contract")
                     })?;
-                    let origins = context.resolve(CallableValueQuery::Scalar {
-                        machine: caller.id,
-                        value: callable,
-                        contract,
-                    })?;
-                    context.holder(contract, &origins, reached)
+                    context.holder(
+                        CallableValueQuery::Scalar {
+                            machine: caller.id,
+                            value: callable,
+                            contract,
+                        },
+                        reached,
+                    )
                 },
                 (call.inputs.callee, call.inputs.required_contract),
                 &mut found,
@@ -1279,8 +1327,8 @@ fn contain(
         let contributes = reached.row(axis);
         let outside: Vec<_> = contributes
             .iter()
-            .copied()
-            .filter(|permission| ceiling.binary_search(permission).is_err())
+            .filter(|&permission| ceiling.binary_search(permission).is_err())
+            .cloned()
             .collect();
         if !outside.is_empty() {
             found.push(Excess {
@@ -1312,7 +1360,7 @@ fn tail_contribution(
         &context,
         machine_envelope(elaboration, callee)?,
         None,
-        &mut |position, reached| context.tail_parameter(position, &tail, reached),
+        &mut |position, path, reached| context.tail_parameter(position, path, &tail, reached),
         &mut |_| Ok(()),
         (Callee::Declared(callee.into()), None),
         found,
@@ -1330,7 +1378,7 @@ fn contribution(
     context: &Calls<'_>,
     envelope: Envelope<'_>,
     applied: Option<crate::static_reach::ReachContribution>,
-    parameter: &mut dyn FnMut(u32, &mut Contributions) -> Checked<()>,
+    parameter: &mut dyn FnMut(u32, &[InvocationPathSegment], &mut Contributions) -> Checked<()>,
     holder: &mut dyn FnMut(&mut Contributions) -> Checked<()>,
     (callee, required_contract): (Callee, Option<semantic_vocabulary::ContractId>),
     found: &mut Vec<Excess>,
@@ -1355,7 +1403,11 @@ fn contribution(
         for entry in entries {
             match entry {
                 Entry::Service(service) => union(&mut reached.entries, [Entry::Service(service)]),
-                Entry::Parameter(position) => parameter(position, &mut reached)?,
+                Entry::Parameter(position) => parameter(position, &[], &mut reached)?,
+                Entry::ProjectedParameter {
+                    parameter: position,
+                    path,
+                } => parameter(position, &path, &mut reached)?,
             }
         }
     } else if ceiling.entries().is_some() {
@@ -1470,6 +1522,12 @@ fn fixed_refinement_reach(
                     }
                 }
                 for operation in body.operations() {
+                    fixed.extend(
+                        terminal_semantics::storage::native_borrows::required_services(
+                            module, operation,
+                        )
+                        .map_err(|detail| fault(from, &detail))?,
+                    );
                     let service = match &operation.kind {
                         terminal_psi::OperationKind::PortWrite { service, .. } => Some(*service),
                         terminal_psi::OperationKind::RegisterAccess { service, .. } => *service,

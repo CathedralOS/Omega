@@ -397,39 +397,49 @@ fn a_complete_linear_call_transfers_custody_once_without_implicit_disposal() {
         machine.structural_places.pop().unwrap().kind,
         StructuralPlaceKind::Result
     ));
-    let call = Operation::unsuspended(
-        id(1),
-        OperationResult::Unit,
+    machine.blocks[1].terminator = Terminator::ReturnUnit {
+        edge: id(2),
+        cleanup_actions: Vec::new(),
+    };
+    let owner = StructuralArgument::whole(id(2), StructuralAccess::Owned);
+    let transfer = ClaimTransfer {
+        claim: id(2),
+        argument_index: 0,
+        path: Vec::new(),
+    };
+    for kind in [
         OperationKind::CallUnit {
             callee: id(2),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
             erased_proof_arguments: Vec::new(),
-            structural_arguments: vec![StructuralArgument::whole(
-                id(2),
-                StructuralAccess::Owned,
-            )],
-            claim_transfers: vec![ClaimTransfer {
-                claim: id(2),
-                argument_index: 0,
-                path: Vec::new(),
-            }],
+            structural_arguments: vec![owner.clone()],
+            claim_transfers: vec![transfer.clone()],
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
         },
-    );
-    machine.blocks[1].operations.push(call.clone());
-    machine.blocks[1].terminator = Terminator::ReturnUnit {
-        edge: id(2),
-        cleanup_actions: Vec::new(),
-    };
-    let planned = verify(&machine, &types).unwrap();
-    assert!(planned.unavailable.is_empty());
-    assert!(planned.cleanup.is_empty());
-    let mut duplicate = call;
-    duplicate.id = id(2);
-    machine.blocks[1].operations.push(duplicate);
-    assert!(!plan(&machine, &types).unwrap().unavailable.is_empty());
+        OperationKind::CallMachine {
+            callee: id(1),
+            contract: id(1),
+            arguments: Vec::new(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: vec![owner],
+            claim_transfers: vec![transfer],
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    ] {
+        let call = Operation::unsuspended(id(1), OperationResult::Unit, kind);
+        machine.blocks[1].operations = vec![call.clone()];
+        let planned = verify(&machine, &types).unwrap();
+        assert!(planned.unavailable.is_empty());
+        assert!(planned.cleanup.is_empty());
+        let mut duplicate = call;
+        duplicate.id = id(2);
+        machine.blocks[1].operations.push(duplicate);
+        assert!(!plan(&machine, &types).unwrap().unavailable.is_empty());
+    }
 }
 
 #[test]
@@ -911,6 +921,62 @@ fn a_borrowed_successor_keeps_its_owned_backing_until_the_last_use() {
         verify(&machine, &types).is_err(),
         "cleanup cannot destroy a still-borrowed source home"
     );
+}
+
+#[test]
+fn a_backedge_keeps_candidate_and_backing_uses_live_until_their_definition() {
+    use crate::reference_ends::{Candidate, Candidates};
+    use terminal_psi::{Block, Operation, OperationKind, OperationResult, Terminator};
+
+    let mut machine = transferring(&[id(3), id(3)], &[id(3)], Vec::new());
+    let jump = |edge, target, places: &[u64]| Terminator::Jump {
+        edge: id(edge),
+        target: id(target),
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        structural_arguments: places
+            .iter()
+            .map(|&place| StructuralArgument::whole(id(place), StructuralAccess::Owned))
+            .collect(),
+        cleanup_actions: Vec::new(),
+    };
+    machine.blocks[0].terminator = jump(1, 2, &[1]);
+    machine.blocks[1].terminator = jump(2, 3, &[]);
+    machine.blocks[1].operations.push(Operation::unsuspended(
+        id(1),
+        OperationResult::Scalar(terminal_psi::ValueDeclaration {
+            id: id(1),
+            scalar_type: semantic_vocabulary::ScalarType::Boolean,
+            qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+        }),
+        OperationKind::BooleanConstant { value: true },
+    ));
+    machine
+        .blocks
+        .push(Block::plain(id(3), vec![], jump(3, 2, &[3])));
+
+    // Block 3 forwards the header (place 3) back to block 2, where a new
+    // binding begins. The use of place 2 in block 2 must reach block 3.
+    let candidates = Candidates::from([(
+        (id(2), 0),
+        vec![Candidate {
+            argument: StructuralArgument::whole(id(2), StructuralAccess::Owned),
+            unproved_case: None,
+        }],
+    )]);
+    let backing = [((id(2), 1), vec![id(2)])].into();
+    for (candidates, backing, live_across_loop) in [
+        (None, &Default::default(), false),
+        (Some(&candidates), &Default::default(), true),
+        (None, &backing, true),
+    ] {
+        let live = live_entries(&machine, &[], candidates, backing).unwrap();
+        assert_eq!(live[2].contains(id(2)), live_across_loop);
+        assert_eq!(live[0].contains(id(2)), live_across_loop);
+        assert!(live[2].contains(id(3)));
+        assert!(!live[1].contains(id(3)));
+    }
 }
 
 #[test]
@@ -2083,4 +2149,98 @@ fn a_bundle_checks_type_permissions_on_first_use_and_refuses_as_a_walk_alone() {
     assert!(analyses.type_permissions.get().is_none());
     analyses.affine(id(1)).unwrap().plan().unwrap();
     assert!(matches!(analyses.type_permissions.get(), Some(Ok(()))));
+}
+
+/// `verify_with_claims` walks once with claims and answers what `verify` and
+/// `verify_claims` answer alone: for owned roots that relay a value, for
+/// borrowed storage, for machines whose walk without claims stops before the
+/// blocks (no structural value, or only a copyable one), for a schedule
+/// `verify` refuses, and for forged claim rows only the claim walk refuses,
+/// where `verify` keeps the plan of its own walk.
+#[test]
+fn one_walk_with_claims_answers_verify_and_verify_claims_alone() {
+    let mut cases = Vec::new();
+    for linear in [false, true] {
+        cases.push((transfer_only_types(linear), returning_relay(linear)));
+    }
+    cases.push((
+        reconvergence_types(),
+        borrowed_backedge(StructuralAccess::SharedBorrow),
+    ));
+    // No structural value, and a copyable owned value: the walk without
+    // claims stops before the blocks of both.
+    cases.push((reconvergence_types(), transferring(&[], &[], Vec::new())));
+    let mut copyable = reconvergence_types();
+    for declaration in &mut copyable {
+        declaration.multiplicity = terminal_psi::StructuralMultiplicity::Unrestricted;
+    }
+    let mut copied = transferring(
+        &[id(3)],
+        &[id(3)],
+        vec![StructuralArgument::whole(id(1), StructuralAccess::Owned)],
+    );
+    for parameter in copied
+        .contract
+        .structural_parameters
+        .iter_mut()
+        .chain(&mut copied.blocks[1].structural_parameters)
+    {
+        parameter.multiplicity = terminal_psi::StructuralMultiplicity::Unrestricted;
+    }
+    cases.push((copyable, copied));
+    let mut disposes_borrowed = borrowed_backedge(StructuralAccess::SharedBorrow);
+    if let terminal_psi::Terminator::Jump {
+        cleanup_actions, ..
+    } = &mut disposes_borrowed.blocks[1].terminator
+    {
+        cleanup_actions.push(TerminalAffineCleanupAction::RetireHome(id(2)));
+    }
+    cases.push((reconvergence_types(), disposes_borrowed));
+    let mut forged = returning_relay(true);
+    if let terminal_psi::Terminator::ReturnStructural {
+        returned_claims, ..
+    } = &mut forged.blocks[1].terminator
+    {
+        returned_claims[0].claim = id(9);
+    }
+    cases.push((transfer_only_types(true), forged));
+
+    let mut outcomes = Vec::new();
+    let mut stops = Vec::new();
+    for (types, machine) in cases {
+        let mut module = terminal_psi::TerminalModule::for_entry(id(1));
+        module.types.structural_types = types.to_vec();
+        module.machines = vec![machine];
+        let walks = MachineAffine::new(&module, id(1)).unwrap();
+        let machine = &module.machines[0];
+        let types = &module.types.structural_types;
+        stops.push(
+            walk(machine, types, true, Some(&walks), None, None)
+                .is_ok_and(|walked| walked.stops_without_claims),
+        );
+        let alone = walks.verify().map(|mut plan| {
+            plan.claims = None;
+            (plan, walks.verify_claims())
+        });
+        let fused = walks.verify_with_claims();
+        assert_eq!(format!("{fused:?}"), format!("{alone:?}"));
+        outcomes.push(match &fused {
+            Ok((_, Ok(_))) => "both hold",
+            Ok((_, Err(_))) => "claims refused",
+            Err(_) => "verify refused",
+        });
+    }
+    assert_eq!(
+        outcomes,
+        [
+            "both hold",
+            "both hold",
+            "both hold",
+            "both hold",
+            "both hold",
+            "verify refused",
+            "claims refused",
+        ]
+    );
+    assert_eq!(stops, [false, false, false, true, true, false, false]);
 }

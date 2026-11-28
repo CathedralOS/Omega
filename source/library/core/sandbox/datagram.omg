@@ -1,0 +1,25 @@
+use {omega}/language/core/network_authority.omg as authority;
+
+// The invocation supplies the peer. A true result means the local transport
+// accepted the entire datagram. It does not acknowledge receipt by the peer.
+public boundary trait Datagram {
+    machine send(bytes: @[u8]) -> bool
+        reaches |authority|::NetworkSend
+        blocks
+        crashes none;
+}
+
+public data ReceiveResult [copy] {
+    case Received(count: u64);
+    case Unavailable;
+    case TooLarge;
+}
+
+// Receive a reply from the installed peer into the caller's existing window.
+// TooLarge discards one datagram. Only Received changes the window.
+public boundary trait DatagramReplies {
+    machine receive(bytes: @mutable [u8]) -> ReceiveResult
+        reaches |authority|::NetworkReceive
+        blocks
+        crashes none;
+}

@@ -18,8 +18,7 @@ certificates.
 use crate::{
     AbstractAtomicEvent, AbstractBoundaryResult, AbstractCallTarget, AbstractResult,
     AbstractStructuralBinding, AbstractStructuralCallResult, AbstractStructuralCaseSuccessor,
-    AbstractSuccessor, AtomicResidencyEdge, CompletionClaimSource, IntegerArithmetic,
-    IntegerArithmeticOperator, ValueBinding,
+    AbstractSuccessor, AtomicResidencyEdge, CompletionClaimSource, IntegerArithmetic, ValueBinding,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType,
@@ -32,6 +31,15 @@ use terminal_psi::{
     StructuralPlaceDeclaration as PlaceDeclaration, StructuralResultClaimBinding,
     StructuralTypeDeclaration, TerminalAffineCleanupAction as CleanupAction,
 };
+
+/// Type compatibility and stored borrows for an indirect call through an opened package.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OpenedPackageCall {
+    pub admitted_contracts: Vec<semantic_vocabulary::CallableContractId>,
+    /// A dependent argument retains its complete owned carrier type or the
+    /// referent type stored behind a borrowed package field.
+    pub stored_arguments: Vec<(usize, semantic_vocabulary::StructuralTypeId)>,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StructuralStorageDeclaration {
@@ -66,8 +74,32 @@ pub struct ModuleInvocation<'a> {
     pub crash_continuations: &'a [CrashRouteBucket],
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AbstractOperation {    EstablishActivationClaim {
+// Operation identities distinguish the variant and visit its operands in declaration
+// order. Generate the traversal beside the enum so a new operand always participates.
+macro_rules! define_abstract_operations {
+    ($($(#[$variant_attr:meta])* $variant:ident { $($(#[$field_attr:meta])* $field:ident: $ty:ty),* $(,)? }),+ $(,)?) => {
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub enum AbstractOperation {
+            $($(#[$variant_attr])* $variant { $($(#[$field_attr])* $field: $ty),* }),+
+        }
+
+        /// Pass the variant tag and every borrowed field to the caller's macro.
+        #[macro_export]
+        macro_rules! visit_abstract_operation_fields {
+            ($operation:expr, $visit:ident) => {{
+                #[repr(u8)]
+                enum OperationTag { $($variant),+ }
+                match $operation {
+                    $($crate::AbstractOperation::$variant { $($field),* } =>
+                        $visit!(OperationTag::$variant as u8 $(, $field)*)),+
+                }
+            }};
+        }
+    };
+}
+
+define_abstract_operations! {
+    EstablishActivationClaim {
         psi_operation: OperationId,
         result: OperationResult,
         bound: u64,
@@ -172,6 +204,8 @@ pub enum AbstractOperation {    EstablishActivationClaim {
         value: AbstractResult,
     },
     PrimitiveScalarRead {
+        /// Type of the stored scalar before a dependent callable field is opened.
+        storage_scalar: semantic_vocabulary::ScalarType,
         psi_operation: OperationId,
         result: AbstractResult,
         source: PlaceId,
@@ -382,6 +416,8 @@ pub enum AbstractOperation {    EstablishActivationClaim {
         result: OperationResult,
         source: PlaceId,
         path: super::StructuralCopyPath,
+        // The declaration that stores this field when its checked opening gives the copy a fresh type.
+        package_storage_type: Option<semantic_vocabulary::StructuralTypeId>,
     },
     StoreStructuralField {
         disposition: terminal_psi::StructuralStoreDisposition,
@@ -390,6 +426,8 @@ pub enum AbstractOperation {    EstablishActivationClaim {
         path: Vec<StructuralPathSegment>,
         field: Option<semantic_vocabulary::StructuralFieldId>,
         value: StructuralArgument,
+        // The replacement type established by the destination's live package opening.
+        opened_value_type: Option<semantic_vocabulary::StructuralTypeId>,
     },
     AtomicEvent {
         psi_operation: OperationId,
@@ -434,11 +472,14 @@ pub enum AbstractOperation {    EstablishActivationClaim {
     EstablishRecord {
         psi_operation: OperationId,
         result: OperationResult,
+        instantiated: operation_operands::structural_stores::InstantiatedFieldTypes,
         fields: Vec<terminal_psi::RecordFieldInitializer>,
     },
     CallStructural {
         psi_operation: OperationId,
+        suspension_crossing: Option<semantic_vocabulary::SuspensionCrossingId>,
         callee: AbstractCallTarget,
+        opening: Option<OpenedPackageCall>,
         arguments: Vec<ValueId>, // Runtime scalar arguments in exact Terminal call order.
         structural_arguments: Vec<StructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
@@ -458,6 +499,7 @@ pub enum AbstractOperation {    EstablishActivationClaim {
     },
     BoundaryCall {
         psi_operation: OperationId,
+        suspension_crossing: Option<semantic_vocabulary::SuspensionCrossingId>,
         result: AbstractBoundaryResult,
         boundary: BoundaryMachineId,
         arguments: Vec<ValueId>, // Runtime scalar arguments in exact Terminal Psi call order.
@@ -479,6 +521,7 @@ pub enum AbstractOperation {    EstablishActivationClaim {
     },
     Call {
         psi_operation: OperationId,
+        suspension_crossing: Option<semantic_vocabulary::SuspensionCrossingId>,
         result: ValueId,
         scalar_type: ScalarType,
         callee: MachineId,
@@ -678,6 +721,16 @@ pub enum AbstractOperation {    EstablishActivationClaim {
         source: StructuralArgument,
         correspondence: super::AccessReferenceBacking,
     },
+    BorrowAt {
+        psi_operation: OperationId,
+        result: OperationResult,
+        address: ValueId,
+    },
+    UpgradeMutability {
+        psi_operation: OperationId,
+        result: OperationResult,
+        source: StructuralArgument,
+    },
     EstablishReference {
         psi_operation: OperationId,
         result: OperationResult,
@@ -870,7 +923,8 @@ macro_rules! structural_paths_of {
             | AbstractOperation::ReturnStructural {
                 cleanup_actions, ..
             } => cleanup_actions.$iter().map(cleanup_path).collect(),
-            AbstractOperation::EstablishReference { source, .. }
+            AbstractOperation::UpgradeMutability { source, .. }
+            | AbstractOperation::EstablishReference { source, .. }
             | AbstractOperation::EstablishAccessReference { source, .. }
             | AbstractOperation::EstablishElementView { source, .. }
             | AbstractOperation::ElementViewLength { source, .. }
@@ -1043,10 +1097,6 @@ impl AbstractOperation {
         )
     }
 
-    pub fn successor_target(&self, edge: EdgeId) -> Option<BlockId> {
-        self.owned_transfer(edge).map(|(target, _)| target)
-    }
-
     pub fn owned_transfer(&self, edge: EdgeId) -> Option<(BlockId, &[AbstractStructuralBinding])> {
         match self {
             Self::Jump {
@@ -1143,6 +1193,8 @@ impl AbstractOperation {
             | Self::EstablishStructuralLocal { result, .. }
             | Self::EstablishNativeCodeLayout { result, .. }
             | Self::EstablishRecord { result, .. }
+            | Self::BorrowAt { result, .. }
+            | Self::UpgradeMutability { result, .. }
             | Self::EstablishReference { result, .. }
             | Self::EstablishAccessReference { result, .. }
             | Self::ElementViewFixedArray { result, .. }
@@ -1245,6 +1297,8 @@ impl AbstractOperation {
             | Self::EstablishStructuralLocal { psi_operation, .. }
             | Self::EstablishNativeCodeLayout { psi_operation, .. }
             | Self::EstablishRecord { psi_operation, .. }
+            | Self::BorrowAt { psi_operation, .. }
+            | Self::UpgradeMutability { psi_operation, .. }
             | Self::EstablishReference { psi_operation, .. }
             | Self::EstablishAccessReference { psi_operation, .. }
             | Self::ReleaseReference { psi_operation, .. }
@@ -1324,14 +1378,6 @@ impl AbstractOperation {
         })
     }
 
-    pub fn integer_arithmetic_operands(
-        &self,
-        operator: IntegerArithmeticOperator,
-    ) -> Option<IntegerArithmeticOperands> {
-        let operands = self.integer_arithmetic()?;
-        (operands.arithmetic.operator() == operator).then_some(operands)
-    }
-
     pub fn integer_shift(&self) -> Option<IntegerShiftOperands> {
         let Self::IntegerShift {
             psi_operation,
@@ -1356,21 +1402,6 @@ impl AbstractOperation {
             value: *value,
             count: *count,
         })
-    }
-
-    pub fn operates_on_byte_sequence_storage(&self) -> bool {
-        matches!(
-            self,
-            Self::ByteSequenceRead { .. }
-                | Self::ByteSequencePredicate { .. }
-                | Self::ByteSequenceEqual { .. }
-                | Self::StructuralByteSequenceFieldRead { .. }
-                | Self::ByteSequenceWrite { .. }
-                | Self::ByteSequenceSubslice { .. }
-                | Self::ByteSequenceStore { .. }
-                | Self::StructuralByteSequenceFieldStore { .. }
-                | Self::StructuralByteSequenceFieldByteStore { .. }
-        )
     }
 }
 

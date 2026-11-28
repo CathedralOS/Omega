@@ -3,10 +3,7 @@
 use super::Program;
 use crate::body::{Policy, Signature};
 use crate::callables::static_contracts::SourceServiceCeiling;
-use crate::publication::reach::SourceInvocation;
-use crate::publication::{
-    RequirementInvocation, RequirementReview, RequirementReviewMetadata, RequirementService,
-};
+use crate::publication::{RequirementReview, RequirementReviewMetadata, RequirementService};
 use crate::source_state::signature::StateSignature;
 use crate::source_state::trait_definition::{AppliedTraitScope, TraitDefinition};
 use semantic_vocabulary::MachineId;
@@ -153,12 +150,7 @@ impl Program<'_> {
         let synchronous_invocations = envelope
             .invocations
             .iter()
-            .map(|invocation| match invocation {
-                SourceInvocation::Parameter(position) => {
-                    Ok(RequirementInvocation::Parameter(*position))
-                }
-                SourceInvocation::Service(id) => service(*id).map(RequirementInvocation::Service),
-            })
+            .map(|invocation| invocation.try_map_service(|id| service(*id)))
             .collect::<Result<_, _>>()?;
         let terminates = match envelope.termination {
             TerminalCallableTermination::NotGuaranteed => false,
@@ -237,8 +229,8 @@ impl Program<'_> {
             .ok_or("public requirement is missing lowered source parameters")?;
         let rigid_count = match machine {
             Some(id) => *self
-                .value_parameters
-                .get(id)
+                .machine_context(id)
+                .map(|row| &row.value_parameters)
                 .ok_or("public requirement lost its checked value parameter count")?,
             None => self
                 .typed

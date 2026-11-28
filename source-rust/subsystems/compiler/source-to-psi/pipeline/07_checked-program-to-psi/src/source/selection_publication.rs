@@ -1,6 +1,8 @@
 //! Normalize the exact selections of every accepted source form. The output
 //! is a question packet; only receiving execution admission grants permission.
 
+mod package_callables;
+
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;
 
@@ -404,6 +406,42 @@ impl<'source> Questions<'source> {
         }))
     }
 
+    fn cast_reference(
+        &mut self,
+        owner: SymbolHandle,
+        cast: &crate::source_state::expression::TableCastExpression,
+        target: semantic_vocabulary::source_selections::SelectionCallTarget,
+    ) -> Result<SelectionReference, Diagnostic> {
+        use language_core::sealed_intrinsics::SealedIntrinsic;
+        use semantic_vocabulary::source_selections::SelectionCallTarget;
+
+        let SelectionCallTarget::Declared(target @ TargetMachineCallable::Boundary(_)) = target
+        else {
+            return Err(refused(
+                "a carrier cast must select a Core conversion boundary",
+            ));
+        };
+        let typed = self.source.source();
+        let meaning = typed
+            .cast_numeric_conversion(cast)
+            .ok_or_else(|| refused("numeric conversion lost its typed cast carriers"))?;
+        let selected = self.source_target(target)?;
+        if typed.symbols.sealed_intrinsic(selected)
+            != Some(SealedIntrinsic::FloatOperationRequirement)
+            || typed.numeric_intrinsic_execution(selected) != Some(meaning)
+        {
+            return Err(refused(
+                "emitted conversion differs from the exact Core operation for this cast",
+            ));
+        }
+        self.declarations.symbol_reference(
+            &mut self.output,
+            owner,
+            selected,
+            StaticArgumentRole::ValueDependency,
+        )
+    }
+
     fn invocation_reference(
         &mut self,
         owner: SymbolHandle,
@@ -416,9 +454,12 @@ impl<'source> Questions<'source> {
                 if !typed.expression_table.expression_is_valid(expression) {
                     return Err(refused("invocation source expression is stale"));
                 }
-                let crate::source_state::expression::ExpressionNode::Call(call) =
-                    typed.expression_table.expression(expression)
-                else {
+                use crate::source_state::expression::ExpressionNode;
+                let occurrence = typed.expression_table.expression(expression);
+                if let ExpressionNode::Cast(cast) = occurrence {
+                    return self.cast_reference(owner, cast, target);
+                }
+                let ExpressionNode::Call(call) = occurrence else {
                     return Err(refused("emitted invocation source is no call expression"));
                 };
                 let source_target = call
@@ -878,11 +919,8 @@ impl<'source> Questions<'source> {
         let cleanup_bindings = self.cleanup_bindings()?;
         let module = self.module;
         let elaboration = &self.source.closure().elaboration();
-        // Each machine selection joins the source occurrence lowered at its
-        // exact operation. Order the occurrences by that site once, so every
-        // selection reads its own range instead of scanning all of them.
-        let mut constructions = self.source.correspondence().constructions.clone();
-        constructions.sort_unstable_by_key(|(emitted, selected, _, _)| (*emitted, *selected));
+        let correspondence = self.source.correspondence();
+        let constructions = &correspondence.constructions;
         for machine in &module.machines {
             let sources = elaboration.sources.get(machine.id).ok_or_else(|| {
                 refused("source machine lost its emitted identity correspondence")
@@ -1030,16 +1068,20 @@ impl<'source> Questions<'source> {
                     )?;
                 }
             }
+            let folded_calls = &correspondence.folded_calls;
+            let start = folded_calls.partition_point(|(emitted, ..)| *emitted < machine.id);
+            let calls = &folded_calls[start..];
+            let count = calls.partition_point(|(emitted, ..)| *emitted == machine.id);
+            if count == 0 {
+                continue;
+            }
             let mut successors = machine
                 .blocks
                 .iter()
                 .flat_map(|block| block.terminator.successor_edges())
                 .collect::<Vec<_>>();
             successors.sort_unstable_by_key(|(edge, _)| *edge);
-            for &(emitted, edge, owner, node) in &self.source.correspondence().folded_calls {
-                if emitted != machine.id {
-                    continue;
-                }
+            for &(_, edge, owner, node) in &calls[..count] {
                 let Ok(position) = successors.binary_search_by_key(&edge, |(edge, _)| *edge) else {
                     continue;
                 };
@@ -1470,12 +1512,19 @@ impl SymbolRows<DeclarationIdentity> {
     }
 }
 
+#[derive(Default)]
+struct CallableScope {
+    contracts: Vec<RuntimeCallableContractHandle>,
+    /// Exact (state, opened type) bindings captured by this applied field signature.
+    package_bindings: Vec<(SymbolHandle, SymbolHandle)>,
+}
+
 struct Declarations<'source> {
     typed: &'source TypedTrees,
     build_entry_source: Option<&'source source_admission::SourceFile>,
     ids: SymbolRows<SelectionDeclarationId>,
     identities: SymbolRows<DeclarationIdentity>,
-    contracts: SymbolRows<Vec<RuntimeCallableContractHandle>>,
+    contracts: SymbolRows<CallableScope>,
     callable_declarations: HashMap<(SelectionPurpose, String), SelectionDeclarationId>,
     sources: Vec<(SelectionDeclarationId, source_text::SourceSpan)>,
     core_operators: BTreeMap<CoreIntegerOperatorSignature, SelectionDeclarationId>,
@@ -1554,13 +1603,15 @@ impl<'source> Declarations<'source> {
         }
         // Prepare this association once. Only an admitted contract's meaning
         // is normalized, so unrelated generic contracts never become work.
-        let mut contracts: SymbolRows<Vec<RuntimeCallableContractHandle>> =
+        let mut contracts: SymbolRows<CallableScope> =
             SymbolRows::new(source.source().symbols.symbols().nodes().len());
         for (handle, contract) in source.source().runtime_callable_contracts.iter() {
             contracts
-                .get_or_insert_with(contract.signature.symbol, Vec::new)?
+                .get_or_insert_with(contract.signature.symbol, CallableScope::default)?
+                .contracts
                 .push(handle);
         }
+        package_callables::retain_bindings(source.source(), &mut contracts)?;
         let build_entry_source = module
             .entry
             .and_then(|entry| match entry {
@@ -1740,7 +1791,7 @@ impl<'source> Declarations<'source> {
                 .get(&symbol)
                 .ok_or_else(|| refused("callable declaration has no retained full contract"))?;
             let mut identity = None;
-            for &contract in contracts {
+            for &contract in &contracts.contracts {
                 let candidate = self
                     .typed
                     .runtime_callable_contract_identity(contract, &[])
@@ -1907,6 +1958,33 @@ impl<'source> Declarations<'source> {
             SymbolKind::PropositionMachineParameter => SelectionBindingKind::PropositionMachine,
             _ => return Err(refused("resolved local selection names no actual binding")),
         };
+        // A named witness is declared by its value binding. The checked
+        // opening ties this exact witness and value to their lexical state.
+        let scope_owner = if kind == SelectionBindingKind::Type
+            && matches!(
+                self.typed.symbols.get(declared_owner).kind,
+                SymbolKind::Parameter | SymbolKind::Local
+            ) {
+            let state = self.typed.symbols.get(declared_owner).parent;
+            let scoped_witness = self.typed.package_openings.iter().any(|(_, opening)| {
+                opening.state == state
+                    && opening.subject.steps.is_empty()
+                    && matches!(opening.subject.root,
+                        crate::source_state::package_openings::PackageSubjectRoot::Binding(owner)
+                            if owner == declared_owner)
+                    && opening.witnesses.iter().any(|(_, witness)|
+                        matches!(self.typed.type_reference_table.type_reference(*witness),
+                            crate::source_state::types::TypeReferenceNode::Named { symbol: named, .. }
+                                if *named == symbol))
+            });
+            if scoped_witness {
+                state
+            } else {
+                declared_owner
+            }
+        } else {
+            declared_owner
+        };
         // A formal belongs to the entry state, and the body is checked
         // in its machine's lexical scope. Follow the source declarations
         // first. When an enclosing static binder was copied, check the
@@ -1921,12 +1999,12 @@ impl<'source> Declarations<'source> {
                     return Err(refused("local selection has a cyclic lexical scope"));
                 }
                 scopes.push(scope);
-                if scope == declared_owner
+                if scope == scope_owner
                     || self.typed.machine_by_symbol(scope).is_some_and(|machine| {
                         self.typed
                             .machine_states(machine)
                             .iter()
-                            .any(|state| state.symbol == declared_owner)
+                            .any(|state| state.symbol == scope_owner)
                     })
                 {
                     return Ok(true);
@@ -1938,7 +2016,7 @@ impl<'source> Declarations<'source> {
                         .contracts
                         .get(&scope)
                         .into_iter()
-                        .flatten()
+                        .flat_map(|row| &row.contracts)
                         .map(|&handle| self.typed.runtime_callable_contract(handle).lexical_owner);
                     let parent = parents
                         .next()
@@ -1972,7 +2050,12 @@ impl<'source> Declarations<'source> {
                     .typed
                     .executable_application_template(declared_owner)
                     .is_ok_and(|application| application.is_some())
-                && sees_binding(true)?);
+                && sees_binding(true)?)
+            || (kind == SelectionBindingKind::Type
+                && self
+                    .contracts
+                    .get(&lexical_owner)
+                    .is_some_and(|row| row.package_bindings.contains(&(scope_owner, symbol))));
         if !visible {
             let description = |symbol: SymbolHandle| {
                 (
@@ -3280,6 +3363,134 @@ machine entry() reaches Input {}
             meanings.len() >= 2,
             "the two selected callable applications must survive publication: {meanings:?}"
         );
+    }
+
+    #[test]
+    fn implicit_and_named_package_witnesses_belong_to_their_actual_states() {
+        let source = accepted_source(
+            "data Pair<'a, some S> { value: @'a S; }
+             machine implicit(p: @Pair) { p.value; }
+             machine named(p: @Pair<some T>) { p.value; }
+             machine entry() {}",
+            &[],
+        );
+        let typed = source.source();
+        let mut declarations = Declarations::new(&source, source.module()).unwrap();
+        let mut questions = SelectionQuestions::default();
+        let mut checked = Vec::new();
+        for (_, opening) in typed.package_openings.iter() {
+            let machine = typed.symbols.get(opening.state).parent;
+            let sibling = typed
+                .machines()
+                .iter()
+                .find(|other| {
+                    other.symbol != machine && matches!(other.name.as_str(), "implicit" | "named")
+                })
+                .unwrap();
+            let [(_, witness)] = opening.witnesses.as_slice() else {
+                panic!("one hidden type in Pair");
+            };
+            let crate::source_state::types::TypeReferenceNode::Named { symbol, .. } =
+                typed.type_reference_table.type_reference(*witness)
+            else {
+                panic!("each witness has its own type identity");
+            };
+            let owner = typed.symbols.get(*symbol).parent;
+            declarations
+                .local_binding(&mut questions, machine, *symbol, owner)
+                .unwrap();
+            let refusal = declarations
+                .local_binding(&mut questions, sibling.symbol, *symbol, owner)
+                .unwrap_err();
+            assert!(
+                refusal
+                    .message
+                    .contains("outside its actual lexical context"),
+                "{refusal:?}"
+            );
+            checked.push(typed.symbols.name(machine));
+        }
+        checked.sort_unstable();
+        assert_eq!(checked, ["implicit", "named"]);
+    }
+
+    #[test]
+    fn projected_and_repacked_callbacks_capture_only_their_selected_witness() {
+        use crate::source_state::{expression::ExpressionNode, types::TypeReferenceNode};
+
+        let source = accepted_source(
+            "data Read<S> = machine(state: @S) -> u8 reaches none crashes none;
+             data Reader<some S> { read: Read<S>; }
+             machine copy(left: @Reader, right: @Reader) -> Reader {
+                 let other: Reader = Reader { read: right.read };
+                 Reader { read: left.read }
+             }
+             machine entry() {}",
+            &[],
+        );
+        let typed = source.source();
+        let signature = |field| {
+            let TypeReferenceNode::Callable { contract } =
+                typed.type_reference_table.type_reference(field)
+            else {
+                panic!("expected a callback field");
+            };
+            typed.runtime_callable_contract(*contract).signature.symbol
+        };
+        let mut projections = typed.package_projections.iter().map(|field| {
+            let opening = typed.package_opening(field.opening);
+            let [(_, ty)] = opening.witnesses.as_slice() else {
+                panic!("expected one witness");
+            };
+            let TypeReferenceNode::Named { symbol, .. } =
+                typed.type_reference_table.type_reference(*ty)
+            else {
+                panic!("expected an opened witness");
+            };
+            (signature(field.result_type), *symbol, opening.state)
+        });
+        let (right, right_witness, state) = projections.next().unwrap();
+        let (left, left_witness, left_state) = projections.next().unwrap();
+        assert!(projections.next().is_none());
+        assert_eq!(left_state, state);
+        assert_ne!(left_witness, right_witness);
+        let mut received =
+            typed
+                .expression_table
+                .expression_entries()
+                .filter_map(|(_, expression)| {
+                    let ExpressionNode::StructLiteral(literal) = expression else {
+                        return None;
+                    };
+                    let package = literal.package.as_ref()?;
+                    Some(signature(package.fields[0].ty))
+                });
+        let right_copy = received.next().unwrap();
+        let left_copy = received.next().unwrap();
+        assert!(received.next().is_none());
+        assert_ne!(left_copy, left);
+        assert_ne!(right_copy, right);
+        let mut declarations = Declarations::new(&source, source.module()).unwrap();
+        let mut questions = SelectionQuestions::default();
+        for (owner, own, foreign) in [
+            (left, left_witness, right_witness),
+            (right, right_witness, left_witness),
+            (left_copy, left_witness, right_witness),
+            (right_copy, right_witness, left_witness),
+        ] {
+            declarations
+                .local_binding(&mut questions, owner, own, state)
+                .unwrap();
+            let refusal = declarations
+                .local_binding(&mut questions, owner, foreign, state)
+                .unwrap_err();
+            assert!(
+                refusal
+                    .message
+                    .contains("outside its actual lexical context"),
+                "{refusal:?}"
+            );
+        }
     }
 
     #[test]

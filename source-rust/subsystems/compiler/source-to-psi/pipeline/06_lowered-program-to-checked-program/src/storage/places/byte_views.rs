@@ -1194,9 +1194,10 @@ impl<'a> Storage<'a> {
         Ok(())
     }
 
-    /// A shared reference to a view's whole window as `[T; N]`: one affine
-    /// unqualified carrier, formed from a shared view of `T` whose every
-    /// arrival reaches authenticated backing.
+    /// A reference to a view's whole window as `[T; N]`: one affine
+    /// unqualified carrier, formed from a view of `T` with the reference's
+    /// own access, shared or mutable, whose every arrival reaches
+    /// authenticated backing.
     pub(super) fn fixed_array_view(
         &self,
         references: &mut super::DescriptorAnalysis<'a>,
@@ -1211,12 +1212,12 @@ impl<'a> Storage<'a> {
         })?;
         let StructuralTypeShape::Reference {
             referent,
-            access: StructuralAccess::SharedBorrow,
+            access: access @ (StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
         } = self.declaration(result.structural_type, concerns)?.shape
         else {
             return Err(self.unsupported(
                 concerns,
-                "a fixed-array reference that is not a shared reference",
+                "a fixed-array reference that is neither shared nor mutable",
             ));
         };
         let StructuralTypeShape::FixedArray {
@@ -1244,7 +1245,6 @@ impl<'a> Storage<'a> {
                 "a fixed-array reference must produce one affine carrier of its stated extent",
             ));
         }
-        let access = StructuralAccess::SharedBorrow;
         let selected = self.byte_shape(source.place, &source.path, concerns)?;
         let (typed, element) = match selected {
             StructuralTypeShape::ElementView { element, .. } => (true, Some(element)),
@@ -1275,7 +1275,7 @@ impl<'a> Storage<'a> {
         {
             return Err(self.unsupported(
                 concerns,
-                "a fixed-array reference without a matching shared view",
+                "a fixed-array reference without a matching view of its access",
             ));
         }
         self.authenticated_view_backing(

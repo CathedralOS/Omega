@@ -3,6 +3,11 @@
 //! This forms types and selections; the lowered checker still judges fields,
 //! argument admission, generic eligibility and declaration requirements.
 
+mod operand_types;
+mod package;
+
+use operand_types::unify;
+
 use crate::declaration_selection::AuthoredDeclarationSelectionKind;
 use crate::source_state::expression::{
     ExpressionHandle, ExpressionNode, StaticMachineArgument, TableBorrowExpression,
@@ -36,7 +41,15 @@ pub(crate) fn prepare_in_cohort(
         .iter_expressions_from(frontier + 1)
         .map(|(handle, _)| handle)
         .collect();
+    let mut packages = Vec::new();
     for expression in expressions {
+        if let ExpressionNode::StructLiteral(literal) =
+            program.expression_table.expression(expression)
+            && let Some(data) = program.unique_data_definition_by_symbol(literal.type_symbol)
+            && !data.package_parameters.is_empty()
+        {
+            packages.push(expression);
+        }
         infer(program, expression, &mut Vec::new())?;
         let needs_owner = match program.expression_table.expression(expression) {
             ExpressionNode::Borrow(_) | ExpressionNode::Call(_) => true,
@@ -117,6 +130,11 @@ pub(crate) fn prepare_in_cohort(
                 call.authored_machine_application = application;
             }
         }
+    }
+    // Operand types (including fresh borrows) are now available, before the
+    // receiving field types are used to select or check callable values.
+    for literal in packages {
+        package::construct(program, literal)?;
     }
     let mut statements = Vec::new();
     let mut terminal_calls = Vec::new();
@@ -284,7 +302,23 @@ fn retain_borrow_type(
         Some(reference) => Some(reference),
         None => infer(program, borrow.target, &mut Vec::new())?,
     };
-    if let Some(referent) = referent {
+    if let Some(mut referent) = referent {
+        if let Some(indexed) = program.expression_table.indexed_node(borrow.target)
+            && program.expression_table.range_node(indexed.index).is_some()
+            && let Some(collection) = crate::types::typing_queries::declared_expression_type(
+                program,
+                caller,
+                indexed.collection,
+            )
+            && let Some(element_type) =
+                builtin_range_element(program, caller, borrow.target, collection)
+        {
+            // The written access selects the range view. A named slot that
+            // holds that same view can itself be borrowed as an ordinary value.
+            referent = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Slice { element_type });
+        }
         let reference = reference_formation_type(program, referent, borrow.access);
         program
             .type_reference_table
@@ -331,19 +365,15 @@ pub(crate) fn retain_indexed_operand_type(
     Ok(())
 }
 
-fn retain_builtin_range_type(
+/// Only a core range supplies the built-in slice presentation. An overloaded
+/// range keeps the selected machine's result, including any reference layers.
+fn builtin_range_element(
     program: &mut TypedTrees,
     caller: SymbolHandle,
     expression: ExpressionHandle,
     collection: TypeReferenceHandle,
-) -> Result<(), Diagnostic> {
-    // A bare range observes the actual collection's elements,
-    // not one element. Retain its shared view before ordinary callers
-    // and borrow formations ask for its type. A selected user operator
-    // must supply its own result instead of acquiring a builtin type.
-    let Some(count) = builtin(program, BuiltinTypeAtom::U64) else {
-        return Ok(());
-    };
+) -> Option<TypeReferenceHandle> {
+    let count = builtin(program, BuiltinTypeAtom::U64)?;
     let operands = [Some(collection), Some(count), Some(count)];
     if !crate::source_state::operator::resolve_indexed_spelling_for_operands(
         program,
@@ -360,8 +390,17 @@ fn retain_builtin_range_type(
             &operands,
         )
     {
-        return Ok(());
+        return None;
     }
+    crate::types::typing_queries::collection_element_type(program, collection).ok()
+}
+
+fn retain_builtin_range_type(
+    program: &mut TypedTrees,
+    caller: SymbolHandle,
+    expression: ExpressionHandle,
+    collection: TypeReferenceHandle,
+) -> Result<(), Diagnostic> {
     if program.type_reference_table.contains_type_reference(
         program
             .expression_table
@@ -369,9 +408,7 @@ fn retain_builtin_range_type(
     ) {
         return Ok(());
     }
-    let Ok(element_type) =
-        crate::types::typing_queries::collection_element_type(program, collection)
-    else {
+    let Some(element_type) = builtin_range_element(program, caller, expression, collection) else {
         return Ok(());
     };
     let slice = program
@@ -613,7 +650,7 @@ fn infer_call(
     } else {
         &[]
     };
-    let (parameters, formals) =
+    let (parameters, formals, result) =
         if let Some((owner, signature)) = program.trait_machine_signature(call.target) {
             if !owner.type_parameters.is_empty()
                 || !owner.lifetime_parameters.is_empty()
@@ -624,6 +661,7 @@ fn infer_call(
             (
                 program.state_signature_type_parameters(signature).to_vec(),
                 program.state_signature_parameters(signature).to_vec(),
+                signature.return_type,
             )
         } else {
             // The retained declaration owns the written prefix. Complete
@@ -647,12 +685,13 @@ fn infer_call(
             let Some(state) = state else {
                 return Ok(None);
             };
-            if machine.has_bodyless_signature() || machine.type_parameters.len() <= supplied.len() {
+            if machine.type_parameters.len() <= supplied.len() {
                 return Ok(None);
             }
             (
                 program.machine_callable_parameters(machine),
                 program.state_parameters(state).to_vec(),
+                state.return_type,
             )
         };
     let Some(omitted) = parameters.get(supplied.len()..) else {
@@ -683,6 +722,18 @@ fn infer_call(
             &mut Vec::new(),
         )
         .map_err(|error| error.with_source_span(call.source_span))?;
+    }
+    // A borrowed view can name its type only in the result. Its destination
+    // then supplies the argument that the operands leave open.
+    if let Some(expected) = call.expected_result
+        && inferred.iter().any(Option::is_none)
+        && program.type_reference_table.contains_type_reference(result)
+        && program
+            .type_reference_table
+            .contains_type_reference(expected)
+    {
+        unify(program, result, expected, omitted, &mut inferred)
+            .map_err(|error| error.with_source_span(call.source_span))?;
     }
     let Some(inferred) = inferred.into_iter().collect::<Option<Vec<_>>>() else {
         return Ok(None);
@@ -879,22 +930,12 @@ fn builtin(program: &mut TypedTrees, atom: BuiltinTypeAtom) -> Option<TypeRefere
     )
 }
 
-/// Borrowing an existing reference lends its referent again. Range views use
-/// that same formation, preserving their element type and the written access.
+/// Each written reference layer keeps the complete type of its operand.
 fn reference_formation_type(
     program: &mut TypedTrees,
-    mut referee: TypeReferenceHandle,
+    referee: TypeReferenceHandle,
     access: language_core::ReferenceAccess,
 ) -> TypeReferenceHandle {
-    let bare = program
-        .type_reference_table
-        .unconstrained_type_reference(referee);
-    if let TypeReferenceNode::Reference {
-        referee: backing, ..
-    } = program.type_reference_table.type_reference(bare)
-    {
-        referee = *backing;
-    }
     program
         .type_reference_table
         .insert(TypeReferenceNode::Reference {
@@ -911,6 +952,9 @@ fn infer(
 ) -> Result<Option<TypeReferenceHandle>, Diagnostic> {
     if !program.expression_table.expression_is_valid(value) {
         return Ok(None);
+    }
+    if let Some(projection) = program.package_projection(value) {
+        return Ok(Some(projection.result_type));
     }
     let retained = program
         .expression_table
@@ -1036,6 +1080,17 @@ fn infer(
             )
             .ok()
         }),
+        // The owner selects the range operator and its access in retain_borrow_type.
+        ExpressionNode::Borrow(borrow)
+            if program
+                .expression_table
+                .indexed_node(borrow.target)
+                .is_some_and(|indexed| {
+                    program.expression_table.range_node(indexed.index).is_some()
+                }) =>
+        {
+            None
+        }
         ExpressionNode::Borrow(borrow) => infer(program, borrow.target, active)?
             .map(|referee| reference_formation_type(program, referee, borrow.access)),
         ExpressionNode::ArrayLiteral(_) => infer_array(program, value, None, active)?,
@@ -1201,12 +1256,13 @@ fn infer_array(
 }
 
 fn integer_argument(program: &mut TypedTrees, value: usize) -> TypeReferenceHandle {
+    let literal = numeric_literals::IntegerLiteral::from_integer(value.into());
+    let expression = program
+        .expression_table
+        .insert(ExpressionNode::Integer(literal));
     program
         .type_reference_table
-        .insert(TypeReferenceNode::Named {
-            symbol: SymbolHandle::invalid(),
-            name: Identifier::generated(value.to_string()),
-        })
+        .insert(TypeReferenceNode::ConstExpression(expression))
 }
 
 /// A fixed-array field or parameter receives the literal's owned bytes.
@@ -1248,107 +1304,6 @@ fn infer_operand_bindings(
     if let Some(actual) = actual {
         unify(program, formal, actual, parameters, inferred)?;
     }
-    Ok(())
-}
-
-fn unify(
-    program: &mut TypedTrees,
-    formal: TypeReferenceHandle,
-    actual: TypeReferenceHandle,
-    parameters: &[crate::source_state::data::TypeParameter],
-    inferred: &mut [Option<TypeReferenceHandle>],
-) -> Result<(), Diagnostic> {
-    let formal_node = program.type_reference_table.type_reference(formal).clone();
-    let actual_node = program.type_reference_table.type_reference(actual).clone();
-    match (formal_node, actual_node) {
-        (TypeReferenceNode::Named { symbol, .. }, _)
-            if parameters.iter().any(|p| p.symbol == symbol) =>
-        {
-            bind(program, symbol, actual, parameters, inferred)?;
-        }
-        (
-            TypeReferenceNode::Generic {
-                base_symbol: formal,
-                arguments: left,
-                ..
-            },
-            TypeReferenceNode::Generic {
-                base_symbol: actual,
-                arguments: right,
-                ..
-            },
-        ) if formal == actual => {
-            let left = program
-                .type_reference_table
-                .type_reference_handles(left)
-                .to_vec();
-            let right = program
-                .type_reference_table
-                .type_reference_handles(right)
-                .to_vec();
-            if left.len() == right.len() {
-                for (left, right) in left.into_iter().zip(right) {
-                    unify(program, left, right, parameters, inferred)?;
-                }
-            }
-        }
-        (
-            TypeReferenceNode::FixedArray {
-                element_type: left,
-                length: FixedArrayLength::ConstParameter { symbol, .. },
-            },
-            TypeReferenceNode::FixedArray {
-                element_type: right,
-                ..
-            },
-        ) => {
-            if let Some(length) = program.closed_fixed_array_length(actual) {
-                let argument = integer_argument(program, length);
-                bind(program, symbol, argument, parameters, inferred)?;
-            }
-            unify(program, left, right, parameters, inferred)?;
-        }
-        (
-            TypeReferenceNode::FixedArray {
-                element_type: left, ..
-            },
-            TypeReferenceNode::FixedArray {
-                element_type: right,
-                ..
-            },
-        )
-        | (
-            TypeReferenceNode::Reference { referee: left, .. },
-            TypeReferenceNode::Reference { referee: right, .. },
-        ) => {
-            unify(program, left, right, parameters, inferred)?;
-        }
-        _ => {}
-    }
-    Ok(())
-}
-
-fn bind(
-    program: &TypedTrees,
-    symbol: SymbolHandle,
-    actual: TypeReferenceHandle,
-    parameters: &[crate::source_state::data::TypeParameter],
-    inferred: &mut [Option<TypeReferenceHandle>],
-) -> Result<(), Diagnostic> {
-    let Some(position) = parameters
-        .iter()
-        .position(|parameter| parameter.symbol == symbol)
-    else {
-        return Ok(());
-    };
-    if let Some(previous) = inferred[position]
-        && program.normalized_type_identity(previous) != program.normalized_type_identity(actual)
-    {
-        return Err(Diagnostic::error(
-            "constructor or call arguments determine conflicting generic arguments",
-        ));
-    }
-    inferred[position] = Some(actual);
     Ok(())
 }
 
@@ -1414,23 +1369,21 @@ fn call_result(
         let Ok(reference) = program.static_operand_type_reference(argument) else {
             return Ok(None);
         };
-        let reference = if parameter.kind.is_const_or_value() {
-            let Some(value) = program
+        if parameter.kind.is_const_or_value()
+            && program
                 .static_const_literal_from_type_reference(reference)
                 .and_then(|literal| literal.value_u64())
                 .and_then(|value| usize::try_from(value).ok())
-            else {
-                return Ok(None);
-            };
-            integer_argument(program, value)
-        } else {
-            reference
-        };
+                .is_none()
+        {
+            return Ok(None);
+        }
         substitutions.push((parameter.symbol, reference));
     }
     program
+        .tables
         .type_reference_table
-        .instantiate(result, &substitutions)
+        .instantiate(result, &substitutions, &program.tables.expression_table)
         .map(Some)
         .map_err(Diagnostic::error)
 }
@@ -1687,6 +1640,37 @@ mod tests {
                 .operand_lifetime_owner(reference),
             owner
         );
+    }
+
+    #[test]
+    fn a_bodyless_call_infers_its_header_without_inventing_an_unused_argument() {
+        let source = r#"
+            boundary machine exchange<Field, Value>(field: @mutable Field) -> Value;
+            machine caller(field: @mutable u8) -> u32 {
+                let value: u32 = exchange(field);
+                value
+            }
+        "#;
+        let arguments = |text: &str| {
+            let program = checked(&[("main.omg", text)]).unwrap();
+            let call = program
+                .expression_table
+                .expression_entries()
+                .find_map(|(_, node)| match node {
+                    ExpressionNode::Call(call) if call.target.as_str() == "exchange" => Some(call),
+                    _ => None,
+                })
+                .unwrap();
+            program
+                .expression_table
+                .static_machine_application_arguments(call.authored_machine_application)
+                .iter()
+                .map(|argument| program.display_type_reference(argument.type_reference))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(arguments(source), ["u8", "u32"]);
+        let missing = source.replace("exchange<Field, Value>", "exchange<Field, Value, Missing>");
+        assert!(arguments(&missing).is_empty());
     }
 
     #[test]

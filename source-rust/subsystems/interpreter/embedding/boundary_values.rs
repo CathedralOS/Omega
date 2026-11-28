@@ -1361,7 +1361,7 @@ pub(crate) mod results {
     pub enum TerminalExecutionStatus {
         Complete(TerminalExecutionResult),
         SponsorExhausted(WorkBudgetExhausted),
-        AwaitingEffect(TerminalEffectWait),
+        AwaitingEffect(crate::TerminalSuspension),
         HostComputationPending(TerminalEffectWait),
         Crashed(TerminalCrash),
         ExternalCompletion(TerminalExternalCompletion),
@@ -2624,6 +2624,26 @@ pub(crate) mod values {
                 opaque_identity: value.opaque_identity,
                 path: value.path.clone(),
             }
+        }
+    }
+
+    pub(crate) fn scalar_from_view(
+        target: semantic_vocabulary::ScalarType,
+        viewed: terminal_semantics::ScalarViewValue,
+    ) -> Result<TerminalScalarValue, crate::boundary::errors::TerminalInterpretError> {
+        use semantic_vocabulary::ScalarType;
+        use terminal_semantics::ScalarViewValue;
+        match (target, viewed) {
+            (ScalarType::Boolean, ScalarViewValue::Boolean(value)) => {
+                Ok(TerminalScalarValue::Boolean(value))
+            }
+            (ScalarType::Integer(scalar_type), ScalarViewValue::Integer(value)) => {
+                Ok(TerminalScalarValue::Integer { scalar_type, value })
+            }
+            (ScalarType::IeeeFloat(_), ScalarViewValue::IeeeFloat(value)) => {
+                Ok(TerminalScalarValue::IeeeFloat(value))
+            }
+            _ => Err(crate::boundary::errors::malformed()),
         }
     }
 

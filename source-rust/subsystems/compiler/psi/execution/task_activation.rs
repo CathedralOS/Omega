@@ -1,6 +1,4 @@
-use crate::{
-    LayoutApplicationId, StructuralTypeDeclaration, TerminalIdentityIndex,
-};
+use crate::TerminalIdentityIndex;
 use semantic_vocabulary::{ScalarType, StructuralTypeId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -110,25 +108,4 @@ pub struct TerminalTaskActivationDemand {
     pub root_frame: u64,
     pub frames: Vec<TerminalTaskFrame>,
     pub crossings: Vec<TerminalTaskSuspensionCrossing>,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct TerminalTaskActivationDemands {
-    pub demands: Vec<TerminalTaskActivationDemand>,
-    pub structural_types: Vec<StructuralTypeDeclaration>,
-    pub structural_referents: Vec<crate::StructuralReferentIdentity>,
-    pub target_layout_applications: Vec<TerminalTaskTargetLayout>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TerminalTaskTargetLayout {
-    pub id: LayoutApplicationId,
-    pub record: StructuralTypeId,
-    pub realizations: Vec<TerminalTaskLayoutRealization>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TerminalTaskLayoutRealization {
-    pub target: String,
-    pub storage: semantic_vocabulary::AuthoredRecordStorage,
 }

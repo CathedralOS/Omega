@@ -699,6 +699,7 @@ fn expression_type_payloads(owner: &mut impl TypePayloadTransform, expression: E
         }
         ExpressionNode::Cast(cast) => {
             cast.target_type = owner.reference(cast.target_type);
+            cast.operand_type = owner.reference(cast.operand_type);
             cast.result_type = owner.reference(cast.result_type);
             cast.recast_storage_type = owner.reference(cast.recast_storage_type);
             cast.semantic_domain_arguments = owner.reference_span(cast.semantic_domain_arguments);
@@ -707,7 +708,14 @@ fn expression_type_payloads(owner: &mut impl TypePayloadTransform, expression: E
             *reference = owner.reference(*reference)
         }
         ExpressionNode::StructLiteral(literal) => {
-            literal.application_type = owner.reference(literal.application_type)
+            literal.application_type = owner.reference(literal.application_type);
+            for reference in literal
+                .package
+                .iter_mut()
+                .flat_map(|package| package.type_references_mut())
+            {
+                *reference = owner.reference(*reference);
+            }
         }
         ExpressionNode::Match(matched) => {
             let mut arms = owner

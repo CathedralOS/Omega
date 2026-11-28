@@ -502,6 +502,17 @@ pub(crate) mod instance {
                     .is_some_and(|pending| pending.operation == operation)
             }
 
+            pub(super) fn active_instance(
+                &self,
+                operation: OperationId,
+            ) -> Option<&TerminalInstance<'host, 'artifact>> {
+                self.pending
+                    .as_ref()
+                    .filter(|pending| pending.operation == operation)?
+                    .instance
+                    .as_deref()
+            }
+
             pub(crate) fn prepare(
                 &mut self,
                 caller: ComponentCallScope,
@@ -779,6 +790,8 @@ pub(crate) mod instance {
                             }
                         }
                         TerminalExecutionResult::ScalarCase(_)
+                            if execution.returned_claims.is_empty() => {}
+                        TerminalExecutionResult::ScalarCase(_)
                         | TerminalExecutionResult::ScalarArray(_) => {
                             return Err(
                                 "component return requires a selected case or array storage transfer carrier",
@@ -826,90 +839,9 @@ pub(crate) mod instance {
     pub use storage_observation::{
         TerminalObservationRoot, TerminalStorageObservationError, TerminalStorageObservationValue,
     };
-    pub(crate) mod returned_loans {
-        use crate::boundary::values::TerminalStructuralValue;
-        use crate::engine::execution::TerminalExecution;
-        use semantic_vocabulary::{
-            CanonicalStructuralPathSegment as Path, PlaceId, StructuralTypeId,
-        };
-        use terminal_psi::StructuralAccess;
-
-        #[derive(Debug, Clone, PartialEq, Eq)]
-        pub enum TerminalReturnedLoanError {
-            Closed,
-            AdmissionAfterStart,
-            AdmissionAlreadyProvided,
-            NoReferenceResult,
-            AdmissionRequired,
-            NormalReturnRequired,
-            UnknownPath,
-            UnreadableAccess,
-            Execution(crate::TerminalInterpretError),
-        }
-
-        impl From<crate::TerminalInterpretError> for TerminalReturnedLoanError {
-            fn from(error: crate::TerminalInterpretError) -> Self {
-                Self::Execution(error)
-            }
-        }
-
-        pub struct TerminalReturnedLoan<'instance, 'artifact> {
-            execution: &'instance TerminalExecution<'artifact>,
-            carrier: &'instance TerminalStructuralValue,
-            source: PlaceId,
-            path: Vec<Path>,
-            referent: StructuralTypeId,
-            access: StructuralAccess,
-        }
-
-        impl TerminalReturnedLoan<'_, '_> {
-            pub fn access(&self) -> StructuralAccess {
-                self.access
-            }
-            pub fn structural_type(&self) -> StructuralTypeId {
-                self.referent
-            }
-
-            pub fn read_scalar(
-                &self,
-                path: &[Path],
-            ) -> Result<crate::TerminalScalarValue, TerminalReturnedLoanError> {
-                if !matches!(
-                    self.access,
-                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                ) {
-                    return Err(TerminalReturnedLoanError::UnreadableAccess);
-                }
-                let mut complete = self.path.clone();
-                complete.push(Path::Referent);
-                complete.extend_from_slice(path);
-                let types = self.execution.structural_types();
-                let storage_path = terminal_semantics::canonical_structural_storage_path(
-                    types.values(),
-                    self.carrier.structural_type,
-                    &complete,
-                )
-                .ok_or(TerminalReturnedLoanError::UnknownPath)?;
-                let expected = terminal_semantics::primitive_read_projection_type(
-                    types.values(),
-                    self.carrier.structural_type,
-                    &storage_path,
-                )
-                .ok_or(TerminalReturnedLoanError::UnknownPath)?;
-                Ok(self.execution.read_retained_reference_scalar(
-                    self.source,
-                    self.carrier,
-                    &storage_path,
-                    expected,
-                )?)
-            }
-        }
-    }
-    pub use returned_loans::{TerminalReturnedLoan, TerminalReturnedLoanError};
-
-    use std::collections::BTreeMap;
 
     use semantic_vocabulary::BoundaryMachineId;
+    use std::collections::BTreeMap;
     use terminal_work::ExecutionMeter;
 
     use crate::boundary::effects::byte_buffers::TerminalBoundaryByteBuffer;
@@ -1193,7 +1125,7 @@ pub(crate) mod instance {
                     || !execution
                         .awaiting_effect
                         .as_ref()
-                        .is_some_and(|pending| pending.awaiting_provider_readiness)
+                        .is_some_and(|pending| pending.park.is_some())
                     || execution.failure.is_some())
             {
                 return Err(
@@ -1325,6 +1257,57 @@ pub(crate) mod instance {
             meter: &mut dyn ExecutionMeter,
         ) -> Result<TerminalExecutionStatus, TerminalInstanceError> {
             self.invoke_in_scope(meter, psi_provider_selections::ProgressScope::Executable)
+        }
+
+        /// Poll the admitted provider only if this exact visit is still parked.
+        /// A stale notification leaves both the instance and the meter alone.
+        /// A matching notification does not itself mean the provider is ready.
+        pub fn recheck_suspension(
+            &mut self,
+            suspension: &crate::TerminalSuspension,
+            meter: &mut dyn ExecutionMeter,
+        ) -> Result<Option<TerminalExecutionStatus>, TerminalInstanceError> {
+            if self.is_parked_at(suspension) {
+                self.invoke(meter).map(Some)
+            } else {
+                Ok(None)
+            }
+        }
+
+        fn is_parked_at(&self, suspension: &crate::TerminalSuspension) -> bool {
+            // A component call forwards the child's wait. Follow only the
+            // instruction actually stopped on; unrelated bindings cannot answer it.
+            let mut current = self;
+            loop {
+                let Some(execution) = current.execution.as_ref() else {
+                    return false;
+                };
+                if current.closed || current.discard.is_some() || execution.failure.is_some() {
+                    return false;
+                }
+                if let Some(call) = execution.awaiting_effect.as_ref() {
+                    return call.park == Some(suspension.occurrence)
+                        && call.site == suspension.site;
+                }
+                let op = execution
+                    .program
+                    .machines()
+                    .get(&execution.current_machine)
+                    .and_then(|machine| machine.block(&execution.current))
+                    .and_then(|block| block.operations.get(execution.next_operation));
+                let Some(op) = op else { return false };
+                let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = &op.kind else {
+                    return false;
+                };
+                let Some(child) = current
+                    .components
+                    .get(boundary)
+                    .and_then(|binding| binding.active_instance(op.id))
+                else {
+                    return false;
+                };
+                current = child;
+            }
         }
 
         fn invoke_in_scope(
@@ -1870,6 +1853,9 @@ pub(crate) mod program {
         /// or scalar-geometry replacements, the first time execution asks,
         /// and kept unchanged for the life of this program.
         memberships: std::sync::OnceLock<terminal_semantics::IntrinsicMemberships>,
+        package_sites: std::sync::OnceLock<
+            Result<terminal_semantics::packages::CheckedPackageSites, &'static str>,
+        >,
         /// The declaration-dependent part of every primitive store, prepared
         /// for the whole program the first time one runs.
         primitive_stores: std::sync::OnceLock<Vec<PreparedPrimitiveStore>>,
@@ -1965,9 +1951,20 @@ pub(crate) mod program {
                 target_layouts,
                 scalar_geometry,
                 memberships: std::sync::OnceLock::new(),
+                package_sites: std::sync::OnceLock::new(),
                 primitive_stores: std::sync::OnceLock::new(),
                 claim_roster: std::sync::OnceLock::new(),
             }
+        }
+
+        pub(crate) fn package_sites(
+            &self,
+        ) -> Result<&terminal_semantics::packages::CheckedPackageSites, TerminalInterpretError>
+        {
+            self.package_sites
+                .get_or_init(|| terminal_semantics::packages::check_package_sites(&self.catalogs))
+                .as_ref()
+                .map_err(|_| malformed())
         }
 
         fn prepare_memberships(&self) -> terminal_semantics::IntrinsicMemberships {
@@ -2095,6 +2092,7 @@ pub(crate) mod program {
     impl AdmittedTerminalProgram<'_> {
         #[cfg(test)]
         pub(crate) fn fixture_module_mut(&mut self) -> &mut TerminalModule {
+            self.package_sites.take();
             let storage = std::sync::Arc::get_mut(&mut self.catalogs)
                 .expect("fixture construction requires unshared storage");
             let ProgramStorage::Fixture(module) = storage else {
@@ -2304,6 +2302,7 @@ pub(crate) mod program {
         access_view_inputs: &'program [terminal_psi::TerminalAccessViewInput],
         pub result: &'program terminal_psi::TerminalMachineResult,
         requires: &'program [semantic_vocabulary::Proposition],
+        membership_requires: &'program [terminal_psi::RuntimeDomainMembership],
     }
 
     impl TerminalProgramEntry<'_> {
@@ -2324,7 +2323,7 @@ pub(crate) mod program {
             established: &[semantic_vocabulary::Proposition],
         ) -> Result<Option<bool>, String> {
             let mut integers = closed_predicates::ClosedIntegerEvaluator::default();
-            let mut undecided = false;
+            let mut undecided = !self.membership_requires.is_empty();
             for clause in self.requires {
                 if established.contains(clause) {
                     continue;
@@ -2405,6 +2404,7 @@ pub(crate) mod program {
                 access_view_inputs: &self.program.catalogs.access.access_view_inputs,
                 result: &machine.result,
                 requires: &machine.contract.requires,
+                membership_requires: &machine.contract.membership_requires,
             })
         }
 
@@ -2424,6 +2424,31 @@ pub(crate) mod program {
         > {
             self.program.validate_layout_selection(installation)?;
             crate::engine::capabilities::check(&self.program, installation)
+        }
+
+        /// Report the checked call path to each import during the same
+        /// capability walk that computes the entry's requirements.
+        pub fn execution_requirements_with_import_paths(
+            &self,
+            installation: Option<&crate::boundary::effects::TerminalRuntimeSupplies>,
+        ) -> Result<
+            (
+                crate::engine::capabilities::TerminalExecutionRequirements,
+                crate::engine::capabilities::TerminalImportPaths,
+            ),
+            TerminalInterpretError,
+        > {
+            self.program.validate_layout_selection(installation)?;
+            let mut paths = crate::engine::capabilities::TerminalImportPaths::default();
+            let requirements = crate::engine::capabilities::check_with_import_paths(
+                &self.program,
+                installation,
+                &[],
+                None,
+                None,
+                Some(&mut paths),
+            )?;
+            Ok((requirements, paths))
         }
 
         /// Build this program's callable projection once for `providers`, so
@@ -2536,6 +2561,32 @@ pub(crate) mod program {
         ) -> Result<Self, psi_authorization::ArtifactTrustError> {
             let artifact = artifact.into();
             require_produced(artifact)?;
+            Ok(Self::from_admitted(AdmittedTerminalProgram::new(
+                artifact.custody_identity(),
+                std::sync::Arc::new(ProgramStorage::Borrowed(artifact)),
+                None,
+                None,
+            )))
+        }
+
+        /// [`Self::borrow`] that also accepts code the host admitted for
+        /// contained interpretation (`psi_authorization::admit_contained_interpretation`).
+        /// Only that admission marks a module contained, and such a program
+        /// runs contained (see [`Self::is_contained`]): its instances need an
+        /// invocation account and bind only adapters that serve contained
+        /// execution. Compile-time evaluation during runtime admission uses this,
+        /// so a contained program's own policies and scalar conditions run
+        /// under the same containment as the program.
+        pub fn borrow_admitted(
+            artifact: impl Into<terminal_codec::TerminalExecutionView<'artifact>>,
+        ) -> Result<Self, psi_authorization::ArtifactTrustError> {
+            let artifact = artifact.into();
+            if !artifact
+                .closed_module()
+                .admitted_for_contained_interpretation()
+            {
+                require_produced(artifact)?;
+            }
             Ok(Self::from_admitted(AdmittedTerminalProgram::new(
                 artifact.custody_identity(),
                 std::sync::Arc::new(ProgramStorage::Borrowed(artifact)),
@@ -3247,6 +3298,95 @@ pub(crate) mod program {
                     | terminal_psi::CheckedBoundaryExecution::NumericPrimitive
             )
         })
+    }
+
+    #[cfg(test)]
+    mod assembly_return_tests {
+        use super::*;
+        use crate::boundary::effects::TerminalRuntimeSupplyRequest;
+        use crate::engine::calls::frames::tests::empty_program;
+        use semantic_vocabulary::{
+            EdgeId, IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType, ValueId,
+        };
+        use terminal_psi::{
+            AsmRegisterView, AssemblyExitConstraint, Operation, OperationKind, OperationResult,
+            TerminalMachineResult, Terminator, ValueDeclaration,
+        };
+
+        fn artifact(register: &str) -> terminal_codec::CanonicalTerminalArtifact {
+            let mut module = (**empty_program().catalogs).clone();
+            let body = &mut module.machines[0];
+            let (slot, _, _) = language_core::inline_assembly::scratch_register(register).unwrap();
+            let returned = AsmRegisterView::from_scratch_slot(slot).unwrap();
+            let value = ValueDeclaration {
+                id: ValueId::new(1).unwrap(),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+                ),
+                qualifications: Default::default(),
+            };
+            body.contract.result = TerminalMachineResult::Scalar(value);
+            body.assembly_target_requirement = returned.target();
+            body.blocks[0].operations = vec![Operation::unsuspended(
+                OperationId::new(1).unwrap(),
+                OperationResult::Scalar(value),
+                OperationKind::IntegerConstant {
+                    value: IntegerValue::Unsigned(42),
+                },
+            )];
+            body.blocks[0].terminator = Terminator::Return {
+                edge: EdgeId::new(1).unwrap(),
+                value: value.id,
+                cleanup_actions: Vec::new(),
+            };
+            body.blocks[0].assembly_exit = Some(AssemblyExitConstraint::ScalarReturn(returned));
+            let record =
+                terminal_codec::build_identity_optimization_execution_record(&module).unwrap();
+            terminal_codec::CanonicalTerminalArtifact::from_parts(module, record, None).unwrap()
+        }
+
+        #[test]
+        fn a_reached_register_return_requires_its_installed_result_placement() {
+            for (name, correct, wrong) in
+                [("linux_x86_64", "eax", "ecx"), ("macos_arm64", "w0", "w1")]
+            {
+                for (register, compatible) in [(correct, true), (wrong, false)] {
+                    let artifact = artifact(register);
+                    let program = TerminalProgram::borrow(artifact.view()).unwrap();
+                    assert!(matches!(
+                        program.execution_requirements(None),
+                        Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                            "assembly catalog target requirement is not established by the target environment"
+                        ))
+                    ));
+                    let target = psi_target_layouts::terminal_target_context(artifact.view(), name);
+                    let supplies = program
+                        .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+                            entry: None,
+                            installation: None,
+                            host_imports: &[],
+                            external_completions: &[],
+                            target_machines: Some(&target),
+                            target_layouts: None,
+                            native_code_layouts: None,
+                            memory_ordering: None,
+                            x86_flags: None,
+                        })
+                        .unwrap();
+                    let result = program.execution_requirements(Some(&supplies));
+                    if compatible {
+                        result.unwrap();
+                    } else {
+                        assert!(matches!(
+                            result,
+                            Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                                "authored assembly register does not hold this calling convention's scalar result"
+                            ))
+                        ));
+                    }
+                }
+            }
+        }
     }
 
     #[cfg(test)]

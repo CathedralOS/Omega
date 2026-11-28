@@ -609,6 +609,8 @@ pub struct Signature {
     /// right after the scalar formals, which is how `ensures` clauses name
     /// `result`. A record result is the machine's result place.
     pub result: Option<ValueType>,
+    /// Provenance a caller must supply for these exact inputs. Their declared types stay unchanged.
+    pub membership_requires: Vec<RuntimeMembership>,
     /// Facts promised about the normal result, independent of its declared type.
     pub membership_ensures: Vec<RuntimeMembership>,
     /// Normal-return equations whose source domain instances still need their
@@ -809,6 +811,7 @@ impl Signature {
             erased: Vec::new(),
             borrowed: Vec::new(),
             result: None,
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             content_ensures: Vec::new(),
             requires: Vec::new(),
@@ -1019,6 +1022,16 @@ pub struct Body {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
+    /// Reserve this region's private register slot. Its first write supplies its value.
+    AssemblyRegister { slot: usize },
+    /// Transfer to the next assembly block. Its predicates refer to the
+    /// incoming slots in order; lowering binds them to the actual edge.
+    AssemblyAdjacent {
+        slots: Vec<(usize, language_core::inline_assembly::AsmRegisterView)>,
+        requires: Vec<Proposition>,
+        label: String,
+        source: SourceOrigin,
+    },
     /// Evaluate `value` and bind `slot` to it: a local's initializer, or an
     /// assignment of a whole value, which rebinds the slot. A scalar slot
     /// names the value from then on; a record slot names the fresh root that
@@ -1156,6 +1169,9 @@ impl ArmGuard {
 /// What an arm completes the machine with.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Target {
+    /// Return the value established in an assembly register. Target admission
+    /// checks that the selected calling plan returns its scalar in this view.
+    AssemblyReturn(language_core::inline_assembly::AsmRegisterView, Expression),
     /// A value, or a terminal call whose result completes the machine.
     Value(Expression),
     /// Unit completion (`{}` arm).
@@ -1439,6 +1455,7 @@ pub enum ExpressionKind {
     /// position in the record's declaration and its operand; every field
     /// appears exactly once.
     Record {
+        package_witnesses: Vec<StructuralTypeId>,
         fields: Vec<(usize, Expression)>,
         erased: Vec<(StructuralFieldId, Expression)>,
     },
@@ -1567,6 +1584,12 @@ pub enum ExpressionKind {
     /// Cross the existing reference descriptor into its original backing.
     /// This neither moves the referent nor drops the descriptor's loan.
     Referent(Box<Expression>),
+    /// A checked call to one of the native trust-boundary declarations in core.
+    NativeBorrow {
+        operation: language_core::sealed_intrinsics::NativeBorrow,
+        operand: Box<Expression>,
+        services: Vec<semantic_vocabulary::ServiceReachId>,
+    },
     /// Evaluate the selected callable first, then arguments in authored order.
     Call {
         callee: CallTarget,

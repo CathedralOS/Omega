@@ -175,7 +175,7 @@ pub(crate) mod capabilities {
     use crate::boundary::effects::{AdmittedBoundarySupply, TerminalRuntimeSupplies};
     use crate::boundary::errors::{TerminalInterpretError, malformed};
     use crate::embedding::program::AdmittedTerminalProgram;
-    use semantic_vocabulary::{BoundaryMachineId, ExternalCompletionKind};
+    use semantic_vocabulary::{BoundaryMachineId, ExternalCompletionKind, MachineId};
     use std::collections::BTreeSet;
     use terminal_psi::{BoundaryCompletion, OperationKind, Terminator};
     use terminal_semantics::callable_values::{
@@ -186,6 +186,10 @@ pub(crate) mod capabilities {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum TerminalUnsupportedCapability {
+        NativeAddressBorrow {
+            machine: MachineId,
+            operation: &'static str,
+        },
         NativeCodeLayout {
             machine: semantic_vocabulary::MachineId,
         },
@@ -196,6 +200,60 @@ pub(crate) mod capabilities {
             boundary: BoundaryMachineId,
             kind: ExternalCompletionKind,
         },
+    }
+
+    pub(crate) fn native_address_borrow_error(
+        program: &AdmittedTerminalProgram<'_>,
+        machine: MachineId,
+        operation: &terminal_psi::Operation,
+    ) -> TerminalInterpretError {
+        let Some(result) = operation.result.structural() else {
+            return malformed();
+        };
+        let Ok(declaration) = program.structural_declaration(result.structural_type) else {
+            return malformed();
+        };
+        let terminal_psi::StructuralTypeShape::Reference { access, .. } = declaration.shape else {
+            return malformed();
+        };
+        let name = match access {
+            terminal_psi::StructuralAccess::SharedBorrow => "borrow_at",
+            terminal_psi::StructuralAccess::MutableBorrow => "borrow_mutable_at",
+            _ => return malformed(),
+        };
+        TerminalInterpretError::UnsupportedCapability(
+            TerminalUnsupportedCapability::NativeAddressBorrow {
+                machine,
+                operation: name,
+            },
+        )
+    }
+
+    /// One witness per reachable import, sharing caller prefixes from the
+    /// capability walk. Only hosts that request diagnostics allocate this map.
+    #[derive(Default)]
+    pub struct TerminalImportPaths {
+        // Indices are traversal ordinals, independent of module ID ranges.
+        machines: Vec<(MachineId, Option<usize>)>,
+        imports: Vec<(BoundaryMachineId, usize)>,
+    }
+
+    impl TerminalImportPaths {
+        pub fn call_path(&self, boundary: BoundaryMachineId) -> Option<Vec<MachineId>> {
+            let import = self
+                .imports
+                .binary_search_by_key(&boundary, |&(id, _)| id)
+                .ok()?;
+            let mut current = Some(self.imports[import].1);
+            let mut path = Vec::new();
+            while let Some(index) = current {
+                let (machine, parent) = self.machines[index];
+                path.push(machine);
+                current = parent;
+            }
+            path.reverse();
+            Some(path)
+        }
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -352,6 +410,24 @@ pub(crate) mod capabilities {
         scalar_scope: Option<&psi_scalar_applications::ScalarScopeInputs>,
         analysis: Option<&TerminalCallableAnalysis<'_, '_>>,
     ) -> Result<TerminalExecutionRequirements, TerminalInterpretError> {
+        check_with_import_paths(
+            program,
+            installation,
+            private_entry_ram,
+            scalar_scope,
+            analysis,
+            None,
+        )
+    }
+
+    pub(crate) fn check_with_import_paths(
+        program: &AdmittedTerminalProgram,
+        installation: Option<&TerminalRuntimeSupplies>,
+        private_entry_ram: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
+        scalar_scope: Option<&psi_scalar_applications::ScalarScopeInputs>,
+        analysis: Option<&TerminalCallableAnalysis<'_, '_>>,
+        mut paths: Option<&mut TerminalImportPaths>,
+    ) -> Result<TerminalExecutionRequirements, TerminalInterpretError> {
         let entry = program.resolve_entry(installation)?;
         if private_entry_ram.iter().any(|recipe| {
             installation
@@ -381,6 +457,7 @@ pub(crate) mod capabilities {
                 entry,
                 &module_analyses(module),
                 None,
+                paths,
             ),
             Some(analysis) => {
                 if !std::ptr::eq(analysis.module, module) {
@@ -395,10 +472,50 @@ pub(crate) mod capabilities {
                         entry,
                         analyses,
                         Some(&analysis.implementations),
+                        paths.as_deref_mut(),
                     )
                 })
             }
         }
+    }
+
+    /// Reached internal assembly returns use the installed target's ordinary calling
+    /// convention. A boundary candidate must instead satisfy its own selected policy.
+    fn check_assembly_return(
+        program: &AdmittedTerminalProgram,
+        machine: &terminal_psi::TerminalMachine,
+        view: terminal_psi::AsmRegisterView,
+        target: Option<&str>,
+    ) -> Result<(), TerminalInterpretError> {
+        use language_core::native_call::{NativeCallingConvention, target_platform};
+        let reject = TerminalInterpretError::UnsupportedSemanticVariant;
+        if !machine.structural_parameters.is_empty()
+            || !machine.entry_claims.is_empty()
+            || program
+                .catalogs
+                .interfaces
+                .provider_candidates
+                .iter()
+                .any(|row| row.candidate == machine.id)
+        {
+            return Err(reject(
+                "assembly return requires its selected boundary or structural calling plan",
+            ));
+        }
+        let Some((architecture, format)) = target.and_then(target_platform) else {
+            return Err(reject("assembly return requires a concrete native target"));
+        };
+        let convention = NativeCallingConvention::for_target(architecture, format);
+        if !matches!(&machine.result, terminal_psi::TerminalMachineResult::Scalar(result)
+            if matches!(result.scalar_type, semantic_vocabulary::ScalarType::Integer(integer)
+                if !integer.is_address() && integer.bits() == Some(32)))
+            || convention.integer_result_registers().first() != Some(&view.parent())
+        {
+            return Err(reject(
+                "authored assembly register does not hold this calling convention's scalar result",
+            ));
+        }
+        Ok(())
     }
 
     /// The requirements of everything `entry` reaches, read from the module's
@@ -414,7 +531,16 @@ pub(crate) mod capabilities {
         prepared: Option<
             &Option<Vec<terminal_semantics::callable_values::CallableBoundaryImplementation>>,
         >,
+        mut paths: Option<&mut TerminalImportPaths>,
     ) -> Result<TerminalExecutionRequirements, TerminalInterpretError> {
+        let selected_target = installation
+            .and_then(|supplies| supplies.target_machines.as_ref())
+            .map(|selection| selection.target());
+        let layout_target = program
+            .target_layouts
+            .as_ref()
+            .map(|layouts| layouts.target());
+        let target = selected_target.or(layout_target);
         let mut imports = BTreeSet::new();
         let mut missing_providers = BTreeSet::new();
         let mut installation_bound_call = false;
@@ -442,11 +568,27 @@ pub(crate) mod capabilities {
         let mut callable_roots = BTreeSet::from([entry]);
         let mut callable_invocations = None;
         let mut pending = vec![entry];
+        // Filled only while collecting witnesses. Each pending callee receives
+        // the ordinal of the machine that scheduled it.
+        let mut pending_parents = Vec::new();
         let mut visited = BTreeSet::new();
         while let Some(machine_id) = pending.pop() {
+            let parent = pending_parents.pop();
             if !visited.insert(machine_id) {
                 continue;
             }
+            let ordinal = paths.as_deref_mut().map(|paths| {
+                let index = paths.machines.len();
+                paths.machines.push((machine_id, parent));
+                index
+            });
+            let mut record_import = |boundary| {
+                if imports.insert(boundary)
+                    && let (Some(paths), Some(index)) = (paths.as_deref_mut(), ordinal)
+                {
+                    paths.imports.push((boundary, index));
+                }
+            };
             let machine = program.verified_machine(machine_id)?;
             if machine.declaration.is_some()
                 && scalar_scope
@@ -463,22 +605,15 @@ pub(crate) mod capabilities {
                     .map(|parameter| parameter.structural_type),
             );
             let requirement = machine.assembly_target_requirement;
-            if requirement != terminal_psi::RegisterTargetApplicability::Any {
-                let selected = installation
-                    .and_then(|supplies| supplies.target_machines.as_ref())
-                    .map(|selection| selection.target());
-                let layouts = program
-                    .target_layouts
-                    .as_ref()
-                    .map(|layouts| layouts.target());
-                let target = selected.or(layouts);
-                if selected.zip(layouts).is_some_and(|(a, b)| a != b)
-                    || target.is_none_or(|target| !requirement.accepts_target_name(target))
-                {
-                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                        "assembly catalog target requirement is not established by the target environment",
-                    ));
-                }
+            if requirement != terminal_psi::RegisterTargetApplicability::Any
+                && (selected_target
+                    .zip(layout_target)
+                    .is_some_and(|(a, b)| a != b)
+                    || target.is_none_or(|target| !requirement.accepts_target_name(target)))
+            {
+                return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "assembly catalog target requirement is not established by the target environment",
+                ));
             }
             // `TerminalMachine::block` scans the machine's blocks, so this walk
             // over every reachable block finds each one through a sorted index.
@@ -503,6 +638,11 @@ pub(crate) mod capabilities {
                     continue;
                 }
                 let block = &machine.blocks[position];
+                if let Some(terminal_psi::AssemblyExitConstraint::ScalarReturn(view)) =
+                    block.assembly_exit
+                {
+                    check_assembly_return(program, machine, view, target)?;
+                }
                 storage_roots.extend(
                     block
                         .structural_parameters
@@ -530,6 +670,11 @@ pub(crate) mod capabilities {
                         scalar_applications.insert(application);
                     }
                     let callee = match &operation.kind {
+                        OperationKind::BorrowAt { .. } => {
+                            return Err(native_address_borrow_error(
+                                program, machine_id, operation,
+                            ));
+                        }
                         OperationKind::EstablishNativeCodeLayout { machine } => {
                             if installation
                                 .and_then(|supplies| supplies.native_code_layouts.as_ref())
@@ -715,7 +860,7 @@ pub(crate) mod capabilities {
                                     | AdmittedBoundarySupply::DeferredComponent
                                     | AdmittedBoundarySupply::ComponentProvider { .. },
                                 ) => {
-                                    imports.insert(*boundary);
+                                    record_import(*boundary);
                                     None
                                 }
                                 None if declaration.service_reach_is_installation_bound
@@ -725,7 +870,7 @@ pub(crate) mod capabilities {
                                     None
                                 }
                                 None => {
-                                    imports.insert(*boundary);
+                                    record_import(*boundary);
                                     None
                                 }
                             }
@@ -788,6 +933,14 @@ pub(crate) mod capabilities {
                         .filter_map(|action| action.invoked_machine()),
                 );
             }
+            if let Some(index) = ordinal {
+                pending_parents.resize(pending.len(), index);
+            }
+        }
+        if let Some(paths) = paths {
+            paths
+                .imports
+                .sort_unstable_by_key(|&(boundary, _)| boundary);
         }
         if !access_candidates.is_empty() {
             let graph = terminal_access_origin_graph(&program.catalogs, &[]);
@@ -909,6 +1062,7 @@ pub(crate) mod capabilities {
             };
             let block_id = BlockId::new(1).unwrap();
             let block = Block {
+                assembly_exit: None,
                 id: block_id,
                 parameters: Vec::new(),
                 erased_scalar_formals: Vec::new(),
@@ -1649,6 +1803,43 @@ pub(crate) mod capabilities {
         }
 
         #[test]
+        fn ordinary_assembly_plan_cannot_admit_a_boundary_candidate() {
+            let mut program = program();
+            use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, ValueId};
+            let candidate = MachineId::new(2).unwrap();
+            let mut body = machine(0, Vec::new());
+            body.contract.result = TerminalMachineResult::Scalar(terminal_psi::ValueDeclaration {
+                id: ValueId::new(1).unwrap(),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+                ),
+                qualifications: Default::default(),
+            });
+            let view = terminal_psi::AsmRegisterView::from_scratch_slot(0).unwrap();
+            let target = Some("linux_x86_64");
+            set_machine(&mut program, candidate, body);
+            check_assembly_return(
+                &program,
+                program.verified_machine(candidate).unwrap(),
+                view,
+                target,
+            )
+            .unwrap();
+            add_provider(&mut program, BoundaryMachineId::new(1).unwrap());
+            assert!(matches!(
+                check_assembly_return(
+                    &program,
+                    program.verified_machine(candidate).unwrap(),
+                    view,
+                    target,
+                ),
+                Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "assembly return requires its selected boundary or structural calling plan"
+                ))
+            ));
+        }
+
+        #[test]
         fn capability_graph_requires_environment_for_reachable_catalog_target() {
             let mut program = program();
             let mut demanding = machine(1, Vec::new());
@@ -1689,6 +1880,108 @@ pub(crate) mod capabilities {
                     },
                 ))
             );
+        }
+
+        #[test]
+        fn native_address_formation_is_refused_only_when_reachable() {
+            let mut program = program();
+            let entry = MachineId::new(1).unwrap();
+            let helper = MachineId::new(2).unwrap();
+            let operand = semantic_vocabulary::ValueId::new(1).unwrap();
+            let reference = PlaceId::new(1).unwrap();
+            let reference_type = StructuralTypeId::new(1).unwrap();
+            let mut forming = machine(
+                0,
+                vec![
+                    OperationKind::IntegerConstant {
+                        value: semantic_vocabulary::IntegerValue::Unsigned(0),
+                    },
+                    OperationKind::BorrowAt { address: operand },
+                    OperationKind::ReleaseReference {
+                        source: reference,
+                        path: Vec::new(),
+                    },
+                ],
+            );
+            forming
+                .structural_places
+                .push(terminal_psi::StructuralPlaceDeclaration {
+                    id: reference,
+                    kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                        producer: OperationId::new(2).unwrap(),
+                        structural_type: reference_type,
+                    },
+                });
+            forming.blocks[0].operations[0].result =
+                OperationResult::Scalar(terminal_psi::ValueDeclaration {
+                    id: operand,
+                    scalar_type: semantic_vocabulary::ScalarType::Integer(
+                        semantic_vocabulary::IntegerType::address(64).unwrap(),
+                    ),
+                    qualifications: Default::default(),
+                });
+            forming.blocks[0].operations[1].result =
+                OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                    place: PlaceId::new(1).unwrap(),
+                    structural_type: StructuralTypeId::new(1).unwrap(),
+                    multiplicity: StructuralMultiplicity::Affine,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                    qualification_establishments: Vec::new(),
+                    claims: Vec::new(),
+                });
+            set_machine(&mut program, entry, machine(0, Vec::new()));
+            set_machine(&mut program, helper, forming.clone());
+            check(&program, None).expect("the reachable entry is empty");
+
+            let boundary = BoundaryMachineId::new(1).unwrap();
+            add_provider(&mut program, boundary);
+            let installation = TerminalRuntimeSupplies {
+                provider_selections: None,
+                x86_flags: None,
+                memory_ordering: None,
+                code_identity: program.identity.clone(),
+                entry: None,
+                supplies: BTreeMap::from([(
+                    boundary,
+                    AdmittedBoundarySupply::CheckedProvider(helper),
+                )]),
+                folded_constant_target: None,
+                target_machines: None,
+                target_layouts: None,
+                native_code_layouts: None,
+            };
+            for (entry_body, refused, supplies) in [
+                (machine(0, vec![unit_call(helper)]), helper, None),
+                (
+                    machine(0, vec![boundary_call(boundary)]),
+                    helper,
+                    Some(&installation),
+                ),
+                (forming, entry, None),
+            ] {
+                set_machine(&mut program, entry, entry_body);
+                for (access, operation) in [
+                    (StructuralAccess::SharedBorrow, "borrow_at"),
+                    (StructuralAccess::MutableBorrow, "borrow_mutable_at"),
+                ] {
+                    program.fixture_module_mut().types.structural_types[0].shape =
+                        terminal_psi::StructuralTypeShape::Reference {
+                            referent: StructuralTypeId::new(2).unwrap(),
+                            access,
+                        };
+                    assert_eq!(
+                        check(&program, supplies),
+                        Err(TerminalInterpretError::UnsupportedCapability(
+                            TerminalUnsupportedCapability::NativeAddressBorrow {
+                                machine: refused,
+                                operation
+                            }
+                        ))
+                    );
+                }
+            }
         }
 
         #[test]
@@ -2219,9 +2512,47 @@ pub(crate) mod capabilities {
         }
 
         #[test]
+        fn import_witnesses_from_recursive_helpers_remain_rooted_and_deterministic() {
+            let mut program = program();
+            let [entry, left, right, shared] = [1, 2, 3, 4].map(|id| MachineId::new(id).unwrap());
+            let boundary = BoundaryMachineId::new(1).unwrap();
+            for (caller, operations) in [
+                (entry, vec![unit_call(left), unit_call(right)]),
+                (left, vec![unit_call(shared)]),
+                (right, vec![unit_call(shared)]),
+                (
+                    shared,
+                    vec![unit_call(entry), unit_call(right), boundary_call(boundary)],
+                ),
+            ] {
+                set_machine(&mut program, caller, machine(0, operations));
+            }
+
+            let witness = || {
+                let mut paths = TerminalImportPaths::default();
+                let requirements =
+                    check_with_import_paths(&program, None, &[], None, None, Some(&mut paths))
+                        .unwrap();
+                assert_eq!(requirements.imports, vec![boundary]);
+                assert_eq!(paths.machines.len(), 4);
+                assert_eq!(paths.machines[0], (entry, None));
+                for (index, (_, parent)) in paths.machines.iter().enumerate().skip(1) {
+                    assert!(parent.is_some_and(|parent| parent < index));
+                }
+                paths.call_path(boundary).unwrap()
+            };
+            let path = witness();
+            assert_eq!(path.len(), 3);
+            assert_eq!(path.first(), Some(&entry));
+            assert_eq!(path.last(), Some(&shared));
+            assert_eq!(path, witness());
+        }
+
+        #[test]
         fn capability_graph_demands_successor_cleanup_import() {
             let (mut program, action) = import_cleanup_program();
             let entry = program.fixture_module_mut().machines.first_mut().unwrap();
+            let entry_id = entry.id;
             let successor = BlockId::new(2).unwrap();
             let mut destination = entry.blocks[0].clone();
             destination.id = successor;
@@ -2240,9 +2571,14 @@ pub(crate) mod capabilities {
                 structural_arguments: Vec::new(),
                 cleanup_actions: vec![action],
             };
+            let mut paths = TerminalImportPaths::default();
+            let requirements =
+                check_with_import_paths(&program, None, &[], None, None, Some(&mut paths)).unwrap();
+            let imported = BoundaryMachineId::new(1).unwrap();
+            assert_eq!(requirements.imports, vec![imported]);
             assert_eq!(
-                check(&program, None).unwrap().imports,
-                vec![BoundaryMachineId::new(1).unwrap()]
+                paths.call_path(imported),
+                Some(vec![entry_id, MachineId::new(2).unwrap()])
             );
         }
 
@@ -2713,6 +3049,9 @@ pub(crate) mod execution {
     pub struct TerminalExecution<'artifact> {
         pub(crate) float_evaluation: crate::float_result_policy::FloatEvaluation,
         pub(crate) issued_layout_target: Option<Box<crate::layout_target::IssuedLayoutTarget>>,
+        /// Concrete reference types at the checked call's exact argument storage homes.
+        /// Used only while preparing that call, before the callee starts.
+        pub(crate) opened_call_references: RuntimeRows<StructuralRuntimePlace, StructuralTypeId>,
         pub(crate) call_observations: Option<Box<crate::call_observations::CallObservations>>,
         pub(crate) scalar_applications: Option<psi_scalar_applications::ScalarApplicationValues>,
         pub(crate) scalar_entry_checks: Option<psi_scalar_applications::ScalarEntryChecks>,
@@ -2761,8 +3100,13 @@ pub(crate) mod execution {
             RuntimeRows<StructuralRuntimePlace, StructuralByteArrayStorage>,
         pub(crate) array_initialization: ArrayInitialization,
         pub(crate) structural_cases: RuntimeRows<StructuralRuntimePlace, StructuralCaseContents>,
+        /// Concrete record storage installed at an authenticated package field.
+        pub(crate) package_owner_storage:
+            RuntimeRows<StructuralRuntimePlace, semantic_vocabulary::StructuralTypeId>,
         pub(crate) structural_host_atoms:
             RuntimeRows<StructuralRuntimePlace, HostStructuralPayload>,
+        pub(crate) component_byte_arrays:
+            RuntimeRows<StructuralRuntimePlace, crate::component_byte_loans::ComponentByteArray>,
         pub(crate) component_lent_host_atoms: RuntimeRows<StructuralRuntimePlace, ()>,
         pub(crate) component_borrowed_addresses: RuntimeRows<
             crate::storage::storage_addresses::ScalarStorageAddressKey,
@@ -2783,6 +3127,7 @@ pub(crate) mod execution {
         pub(crate) next_operation: usize,
         pub(crate) call_stack: Vec<SuspendedCall>,
         pub(crate) awaiting_effect: Option<Box<crate::engine::calls::PendingBoundaryCall>>,
+        pub(crate) last_park: u64,
         pub(crate) result: Option<TerminalExecutionResult>,
         pub(crate) returned_byte_sequence: Option<ByteSequenceBinding>,
         pub(crate) returned_element_view: Option<crate::storage::element_views::ElementView>,
@@ -2921,6 +3266,7 @@ pub(crate) mod execution {
         },
         Structural {
             result: StructuralOperationResult,
+            opened_owner: Option<semantic_vocabulary::CallableContractId>,
             claim_origin: ResultClaimOrigin,
             expected_reference_backings: Vec<Vec<crate::storage::reference::ReferenceBacking>>,
             preserved_projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
@@ -3228,7 +3574,9 @@ pub(crate) mod execution {
                 structural_byte_storage: RuntimeRows::new(account.as_ref()),
                 array_initialization: ArrayInitialization::new(account.as_ref()),
                 structural_cases: RuntimeRows::new(account.as_ref()),
+                package_owner_storage: RuntimeRows::new(account.as_ref()),
                 structural_host_atoms: RuntimeRows::new(account.as_ref()),
+                component_byte_arrays: RuntimeRows::new(account.as_ref()),
                 component_lent_host_atoms: RuntimeRows::new(account.as_ref()),
                 component_borrowed_addresses: RuntimeRows::new(account.as_ref()),
                 next_host_atom_collection_size: 1024,
@@ -3243,12 +3591,14 @@ pub(crate) mod execution {
                 access_view_occurrences,
                 current_machine,
                 current,
+                opened_call_references: RuntimeRows::new(account.as_ref()),
                 next_operation: 0,
                 entry_results: None,
                 scalar_applications: None,
                 scalar_entry_checks: None,
                 call_stack: Vec::new(),
                 awaiting_effect: None,
+                last_park: 0,
                 result: None,
                 returned_byte_sequence: None,
                 returned_element_view: None,
@@ -3835,14 +4185,8 @@ pub(crate) mod execution {
                     {
                         return meter_status(error);
                     }
-                    let selected;
-                    let operation = if operation.kind.runtime_indexes().is_empty() {
-                        operation
-                    } else {
-                        selected = self.select_runtime_elements(operation)?;
-                        &selected
-                    };
-                    self.validate_case_projections(operation)?;
+                    let selected = self.select_operation_projections(operation)?;
+                    let operation = selected.as_ref();
                     if self.call_observations.is_some()
                         && let Some(call) = terminal_psi::direct_call_parts(&operation.kind)
                     {
@@ -3872,6 +4216,15 @@ pub(crate) mod execution {
                                         }
                                         OperationKind::StorageAddress { ref source } => {
                                             self.execute_storage_address(operation, source)?;
+                                            OperationFlow::Advance
+                                        }
+                                        OperationKind::BorrowAt { .. } => {
+                                            return Err(crate::engine::capabilities::native_address_borrow_error(
+                                                &self.program, self.current_machine, operation,
+                                            ));
+                                        }
+                                        OperationKind::UpgradeMutability { ref source } => {
+                                            self.upgrade_mutability(operation, source)?;
                                             OperationFlow::Advance
                                         }
                                         OperationKind::EstablishAccessReference { ref source, .. } => {
@@ -4035,10 +4388,7 @@ pub(crate) mod execution {
                                         ReleaseActivationClaim => flow execute_release_activation_claim,
                                         SplitActivationClaim => flow execute_split_activation_claim,
                                         MergeActivationClaim => flow execute_merge_activation_claim,
-                                        CallStructuralScalar => flow execute_call_structural_scalar,
-                                        CallStructural => flow execute_call_structural,
-                                        CallStructuralWithScalarArguments => flow execute_call_structural_with_scalar_arguments,
-                                        CallUnit => flow execute_call_unit,
+                                        CallStructuralScalar | CallStructural | CallStructuralWithScalarArguments | CallUnit => flow execute_direct_structural_call,
                                         StructuralScalarFieldStore => flow execute_structural_scalar_field_store,
                                         MoveStructuralField => advance execute_move_structural_field,
                                         MoveStructuralValue | TransformContent => advance execute_move_structural_value,
@@ -4124,8 +4474,9 @@ pub(crate) mod execution {
                     Terminator::StructuralCase { .. } => {
                         self.settle_structural_case(terminator, meter)?
                     }
-                    Terminator::Return { .. } => self.settle_return(terminator, meter)?,
-                    Terminator::ReturnUnit { .. } => self.settle_return_unit(terminator, meter)?,
+                    Terminator::Return { .. } | Terminator::ReturnUnit { .. } => {
+                        self.settle_return(terminator, meter)?
+                    }
                     Terminator::ReturnStructural { .. } => {
                         self.settle_return_structural(terminator, meter)?
                     }
@@ -4327,7 +4678,7 @@ pub(crate) mod scalar_operations {
         };
         use semantic_vocabulary::ScalarType;
         use terminal_psi::OperationKind;
-        use terminal_semantics::{ScalarRepresentationViewPair, ScalarViewValue};
+        use terminal_semantics::ScalarRepresentationViewPair;
 
         impl TerminalExecution<'_> {
             pub(crate) fn execute_ieee_float_constant(
@@ -4375,18 +4726,7 @@ pub(crate) mod scalar_operations {
                     ScalarRepresentationViewPair::classify(source_type, result.scalar_type)
                         .and_then(|pair| pair.view(source_value))
                         .ok_or(malformed())?;
-                let value = match (viewed, result.scalar_type) {
-                    (ScalarViewValue::Boolean(value), ScalarType::Boolean) => {
-                        TerminalScalarValue::Boolean(value)
-                    }
-                    (ScalarViewValue::Integer(value), ScalarType::Integer(scalar_type)) => {
-                        TerminalScalarValue::Integer { scalar_type, value }
-                    }
-                    (ScalarViewValue::IeeeFloat(value), ScalarType::IeeeFloat(_)) => {
-                        TerminalScalarValue::IeeeFloat(value)
-                    }
-                    _ => return Err(malformed()),
-                };
+                let value = crate::boundary::values::scalar_from_view(result.scalar_type, viewed)?;
                 self.values.insert(result.id, value)?;
                 Ok(OperationFlow::Advance)
             }

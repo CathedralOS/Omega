@@ -13,7 +13,7 @@ The obsolete checked-source production request interfaces have been removed.
 // Crate-wide aliases for sibling stages and the shared test fixtures.
 mod build;
 mod production;
-pub mod provider_choice_inputs;
+pub use provider_choice_inputs;
 pub mod provider_supply;
 mod source;
 #[cfg(test)]
@@ -146,11 +146,12 @@ pub use lowered_source_publication::provider_selections::{
     ProviderSelectionInput as TerminalProviderSelectionInput,
     ProviderSelections as TerminalProviderSelections,
 };
+pub use prepared_source::ConstantRead;
 pub use production::accepted::{
-    AcceptedTerminalSource, ConstantRead, DeclaredBoundaryRequirement, PreparedTerminalPublication,
+    AcceptedTerminalSource, DeclaredBoundaryRequirement, PreparedTerminalPublication,
     boundary_requirements_declared_for,
 };
-pub use production::invocation_site::{CheckedSourceCall, SourceInvocationSite};
+pub use published_source_invocation::{CheckedSourceCall, SourceInvocationSite};
 pub use terminal_semantics::callable_values::CallableBoundaryImplementation;
 
 pub(crate) use build::bindings::{build_filesystem, build_provider, build_queries, build_requests};

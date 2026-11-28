@@ -257,6 +257,22 @@ fn u32_value() -> ValueType {
     ValueType::plain(u32_type())
 }
 
+#[test]
+fn a_copy_bound_permits_replacing_a_field_with_a_borrowed_copy() {
+    let source = super::boundary_calls::typed(
+        "data Slot<T [copy]> { value: T; }
+         machine entry<T [copy]>(slot: @mutable Slot<T>, fresh: @T) {
+             slot.value = $fresh;
+         }",
+    );
+    let verdict = judge(crate::lowering::elaborate_generic(
+        &source,
+        super::boundary_calls::entry(&source),
+    ))
+    .unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
 /// One machine with a `u32` result: its formals, contract and statements.
 struct Shape {
     parameters: Vec<ValueType>,
@@ -278,6 +294,7 @@ fn lowered(machines: Vec<Shape>, contracts: &[u64]) -> crate::lowering::Elaborat
             statements: machine.statements,
         });
         signatures.push(Signature {
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             content_ensures: Vec::new(),
             operational: Default::default(),
@@ -596,6 +613,7 @@ fn rigid_result_transport(
     let mut signatures = IdTable::default();
     for (position, output) in [result_type, input_type].into_iter().enumerate() {
         signatures.push(Signature {
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             content_ensures: Vec::new(),
             operational: Default::default(),
@@ -932,6 +950,7 @@ fn a_real_helper_cannot_supply_an_unresolved_requirements_service_reach() {
             },
         });
         signatures.push(Signature {
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             content_ensures: Vec::new(),
             operational: Default::default(),
@@ -1870,7 +1889,7 @@ fn a_generic_empty_case_has_no_live_payload_contents() {
             &form.module.types.structural_types,
             &graph,
         );
-    let contents = analysis.result_contents(machine.id).unwrap();
+    let contents = analysis.result_contents(&form.module, machine.id).unwrap();
     assert!(
         terminal_semantics::reference_result_contents(
             &form.module.types.structural_types,

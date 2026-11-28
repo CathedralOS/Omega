@@ -81,6 +81,7 @@ pub(crate) struct PreparedApplication {
     template: SymbolHandle,
     enclosing_capture: bool,
     fixed: Option<Vec<semantic_vocabulary::ServiceId>>,
+    operational: Option<[terminal_psi::ContractDependency<bool, Vec<u32>>; 2]>,
     parameter_kinds: Vec<u8>,
     telescope: Vec<PreparedParameter>,
 }
@@ -373,6 +374,13 @@ pub(crate) fn declare(
                     if let Some(application) = &mut application
                         && machine.module_invocations().any(|call| call.static_reach_binding.is_some())
                     {
+                        application.operational = Some(terminal_semantics::calls::operational_dependencies::direct(
+                            &elaboration.module, machine, |binder| match application.telescope.get(binder as usize)? {
+                                PreparedParameter::Machine { upper_bound_may_suspend, upper_bound_may_block, .. } =>
+                                    Some([*upper_bound_may_suspend, *upper_bound_may_block]),
+                                _ => None,
+                            },
+                        )?);
                         application.fixed = Some(terminal_semantics::static_reach::fixed_specialization_reach(
                             &elaboration.module, machine,
                         )?);
@@ -394,8 +402,8 @@ pub(crate) fn declare(
                         return Err("generic reach has multiple originating static binders");
                     }
                     if program
-                        .value_arguments
-                        .get(*requirement)
+                        .machine_context(*requirement)
+                        .map(|row| &row.value_arguments)
                         .is_none_or(|arguments| !arguments.is_empty())
                     {
                         return Err(
@@ -1059,6 +1067,7 @@ fn application(
         template,
         enclosing_capture,
         fixed: None,
+        operational: None,
         parameter_kinds: Vec::with_capacity(bindings.len()),
         telescope: Vec::with_capacity(bindings.len()),
     });
@@ -1288,6 +1297,13 @@ pub(crate) fn access_caller_route(
             Some(&application.commitment),
         );
         (application.template, identity)
+    } else if selected.is_bare_declaration() && !typed.machine_type_parameters(machine).is_empty() {
+        // The exact template's issuer is already checked against each
+        // specialization. This is not a closed callable commitment.
+        (
+            NominalDeclarationIdentity::new(nominal(typed, sources, machine.symbol, identities)?),
+            callable,
+        )
     } else {
         use crate::source_state::data::TypeParameterKind;
         use crate::source_state::static_applications::{
@@ -1549,8 +1565,9 @@ pub(crate) fn close_specializations_with_bases(
                 // prevents the compilation from reaching publication.
                 return Ok(());
             };
-            let suspension_dependency = machine.published_may_suspend.into();
-            let blocking_dependency = machine.published_may_block.into();
+            let [suspension_dependency, blocking_dependency] = application.operational.unwrap_or_else(|| [
+                machine.published_may_suspend.into(), machine.published_may_block.into(),
+            ]);
             let has_static_calls = application.fixed.is_some();
             let fixed = application
                 .fixed
@@ -1825,13 +1842,16 @@ pub(crate) fn boundary(
 
     let intrinsic = match execution {
         CheckedBoundaryExecution::LayoutTargetFacts => Some(SealedIntrinsic::LayoutTargetFacts),
+        CheckedBoundaryExecution::OwnedActivation(operation) => {
+            Some(SealedIntrinsic::OwnedActivation(operation))
+        }
         CheckedBoundaryExecution::NumericPrimitive => {
             Some(SealedIntrinsic::FloatOperationRequirement)
         }
         _ => None,
     };
     if let Some(intrinsic) = intrinsic {
-        if typed.symbols.sealed_intrinsic(symbol) != Some(intrinsic) {
+        if typed.sealed_callable(symbol) != Some(intrinsic) {
             return Err(Diagnostic::error(
                 "primitive publisher lost its exact catalog declaration",
             ));
@@ -2047,6 +2067,29 @@ fn top_level_boundary(
         published,
     )
     .map_err(Diagnostic::error)?;
+    let (specialization, method_arguments) = if let Some(row) = typed.machine_specialization(symbol)
+    {
+        let (application, prepared) =
+            application(typed, &sources, symbol, row.template, &[], identities)
+                .map_err(Diagnostic::error)?;
+        let prepared =
+            prepared.ok_or_else(|| Diagnostic::error("primitive has no closed argument record"))?;
+        let arguments = prepared
+            .telescope
+            .iter()
+            .map(|parameter| match parameter {
+                PreparedParameter::Ready(ClosedReachParameter::Type { argument }) => Ok(
+                    terminal_psi::ClosedReachArgument::Type(identities.intern(argument)),
+                ),
+                _ => Err(Diagnostic::error(
+                    "primitive has an unsupported generic argument kind",
+                )),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        (Some(application), arguments)
+    } else {
+        (None, Vec::new())
+    };
     let source = CheckedMachineDeclaration {
         machine: owner.clone(),
         state: NominalDeclarationIdentity::new(
@@ -2063,7 +2106,7 @@ fn top_level_boundary(
         contract,
         published_may_suspend: operational[0],
         published_may_block: operational[1],
-        specialization: None,
+        specialization,
     };
     Ok((
         owner,
@@ -2071,7 +2114,7 @@ fn top_level_boundary(
             service_declaration: service_declaration.unwrap_or(contract),
             source,
             execution,
-            method_arguments: Vec::new(),
+            method_arguments,
         },
     ))
 }
@@ -2217,36 +2260,47 @@ fn commit_structural_guarantees(
             commitment,
         )?;
     }
-    if signature.membership_ensures.is_empty() {
-        return Ok(());
-    }
-    let typed =
-        typed.ok_or("normal-result membership lost its exact source declaration context")?;
-    b"normal-result-memberships.v1".hash(commitment);
-    signature.membership_ensures.len().hash(commitment);
-    for membership in &signature.membership_ensures {
-        use crate::body::RuntimeMembershipSubject;
-        let identity =
-            crate::qualifications::domain_identity(typed, sources, membership.domain, identities)?;
-        identities
-            .text(identity)
-            .ok_or("normal-result membership lost its canonical domain application")?
-            .hash(commitment);
-        match &membership.subject {
-            RuntimeMembershipSubject::Scalar(subject) => {
-                0u8.hash(commitment);
-                subject.hash(commitment);
-            }
-            RuntimeMembershipSubject::Structural {
-                root,
-                path,
-                version,
-                ..
-            } => {
-                1u8.hash(commitment);
-                root.hash(commitment);
-                path.hash(commitment);
-                version.hash(commitment);
+    for (tag, memberships) in [
+        (&b"entry-memberships.v1"[..], &signature.membership_requires),
+        (
+            &b"normal-result-memberships.v1"[..],
+            &signature.membership_ensures,
+        ),
+    ] {
+        if memberships.is_empty() {
+            continue;
+        }
+        let typed = typed.ok_or("membership contract lost its exact source declaration context")?;
+        tag.hash(commitment);
+        memberships.len().hash(commitment);
+        for membership in memberships {
+            use crate::body::RuntimeMembershipSubject;
+            let identity = crate::qualifications::domain_identity(
+                typed,
+                sources,
+                membership.domain,
+                identities,
+            )?;
+            identities
+                .text(identity)
+                .ok_or("routed membership lost its canonical domain application")?
+                .hash(commitment);
+            match &membership.subject {
+                RuntimeMembershipSubject::Scalar(subject) => {
+                    0u8.hash(commitment);
+                    subject.hash(commitment);
+                }
+                RuntimeMembershipSubject::Structural {
+                    root,
+                    path,
+                    version,
+                    ..
+                } => {
+                    1u8.hash(commitment);
+                    root.hash(commitment);
+                    path.hash(commitment);
+                    version.hash(commitment);
+                }
             }
         }
     }
@@ -2451,7 +2505,6 @@ pub(super) fn invocation_local(
 #[derive(Debug, Clone)]
 pub(crate) struct BoundaryDeclarationSource {
     pub callable: String,
-    pub owner: String,
     machine: String,
     state: String,
     semantic: String,
@@ -2545,7 +2598,6 @@ pub(crate) fn boundary_source(
     };
     Ok(BoundaryDeclarationSource {
         callable,
-        owner: nominal_text(owner)?,
         machine: nominal_text(machine)?,
         state: nominal_text(entry)?,
         semantic: typed
@@ -2608,17 +2660,18 @@ pub(crate) fn boundary_declaration(
     if content_rows != signature.content_ensures.len() {
         return Err("boundary declaration lost an authored content guarantee");
     }
-    let sources = if !signature.has_structural_guarantees() {
-        Vec::new()
-    } else {
-        source_admission::source_identity::toolchain_source_identities(
-            typed
-                .ok_or("normal-result membership lost its source context")?
-                .symbols
-                .source_files(),
-        )
-        .map_err(|_| "normal-result membership lost its toolchain source identity")?
-    };
+    let sources =
+        if !signature.has_structural_guarantees() && signature.membership_requires.is_empty() {
+            Vec::new()
+        } else {
+            source_admission::source_identity::toolchain_source_identities(
+                typed
+                    .ok_or("routed membership lost its source context")?
+                    .symbols
+                    .source_files(),
+            )
+            .map_err(|_| "routed membership lost its toolchain source identity")?
+        };
     commit_structural_guarantees(typed, &sources, signature, identities, &mut commitment)?;
     proof.crash_routes.hash(&mut commitment);
     signature.termination.hash(&mut commitment);
@@ -2674,6 +2727,11 @@ pub(crate) fn provider_declaration(
     0xffu8.hash(&mut commitment);
     for invocation in &envelope.invocations {
         match invocation {
+            terminal_psi::TerminalCallableInvocation::ProjectedParameter { parameter, path } => {
+                2u8.hash(&mut commitment);
+                parameter.hash(&mut commitment);
+                path.hash(&mut commitment);
+            }
             terminal_psi::TerminalCallableInvocation::Parameter(position) => {
                 0u8.hash(&mut commitment);
                 position.hash(&mut commitment);
@@ -2754,7 +2812,6 @@ pub(crate) fn intrinsic_boundary_source(
     };
     Ok(BoundaryDeclarationSource {
         callable: intrinsic.requirement_identity,
-        owner: nominal.clone(),
         machine: nominal.clone(),
         state: nominal,
         semantic: typed

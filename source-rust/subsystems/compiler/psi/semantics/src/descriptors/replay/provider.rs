@@ -25,6 +25,41 @@ impl<Dependency> DescriptorProviderOrigin<Dependency> {
     }
 }
 
+impl DescriptorAnalysis<'_> {
+    /// The permission of a provider-returned descriptor immediately before
+    /// this action. Earlier cleanups on the same edge may have replaced it.
+    pub fn provider_access_at_invocation(
+        &mut self,
+        module: &terminal_psi::TerminalModule,
+        machine: &terminal_psi::TerminalMachine,
+        position: DescriptorPosition,
+        action: DescriptorInvocationOwner,
+        descriptor: &DescriptorLocation,
+    ) -> Result<Option<terminal_psi::StructuralAccess>, &'static str> {
+        self.replay
+            .prepare_states(machine.id)
+            .ok_or("provider descriptor has no checked snapshots")?;
+        let body = self
+            .replay
+            .machine(machine.id)
+            .ok_or("provider descriptor machine is absent")?;
+        let state = self
+            .replay
+            .invocation_state(machine.id, position, action)
+            .ok_or("provider descriptor action has no reachable prestate")?;
+        let Some(origins) = self
+            .replay
+            .read(body, state, descriptor)
+            .and_then(|value| self.replay.symbolic(body, value))
+        else {
+            return Ok(None);
+        };
+        crate::references::reference_completion::provider_loan_access(
+            module, machine, descriptor, &origins,
+        )
+    }
+}
+
 impl Replay<'_> {
     pub(crate) fn substitute_lifetime_dependencies(
         &self,

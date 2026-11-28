@@ -59,6 +59,7 @@ pub(crate) mod scalar_graph {
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let target_operations::TargetUnitOperation::Call {
                     psi_operation,
+                    suspension_crossing,
                     origin,
                     target,
                     call_plan,
@@ -129,6 +130,7 @@ pub(crate) mod scalar_graph {
                     }));
                 }
                 Ok(LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
+                    suspension_crossing: *suspension_crossing,
                     descriptor_origins,
                     access_bindings: access_bindings.clone(),
                     target: *target,
@@ -152,6 +154,7 @@ pub(crate) mod scalar_graph {
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let target_operations::TargetUnitOperation::NormalizedForeignCall {
                     psi_operation,
+                    suspension_crossing,
                     boundary,
                     provider_execution,
                     binding,
@@ -173,6 +176,7 @@ pub(crate) mod scalar_graph {
                         .collect();
                 Ok(LegalizedScalarInstructionKind::NormalizedForeignCall(
                     legalized_operations::LegalizedNormalizedForeignCall {
+                        suspension_crossing: *suspension_crossing,
                         boundary: *boundary,
                         provider_execution: *provider_execution,
                         binding: binding.clone(),
@@ -439,6 +443,7 @@ pub(crate) mod scalar_graph {
                 targeted: &target_operations::TargetUnitOperation,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let target_operations::TargetUnitOperation::PrimitiveScalarRead {
+                    storage_scalar,
                     psi_operation,
                     source,
                     path,
@@ -451,6 +456,7 @@ pub(crate) mod scalar_graph {
                 // The producer retained the selector's scalar source, stride,
                 // extent and proof key.
                 Ok(LegalizedScalarInstructionKind::PrimitiveScalarRead {
+                    storage_scalar: *storage_scalar,
                     source: *source,
                     path: path.clone(),
                     indices: crate::preparation::legalization::runtime_indices::retained_operands(
@@ -1007,6 +1013,7 @@ pub(crate) mod scalar_graph {
                         obligation,
                     }];
                     let read = TargetUnitOperation::PrimitiveScalarRead {
+                        storage_scalar: scalar_type,
                         psi_operation: operation,
                         result: abstract_operations::AbstractResult {
                             value: ValueId::new(5).unwrap(),
@@ -1055,12 +1062,16 @@ pub(crate) mod scalar_graph {
                     let legalized_operations::LegalizedScalarInstructionKind::PrimitiveScalarRead {
                         source,
                         path: actual_path,
+                        storage_scalar,
                         indices,
                     } = lowered_read
                     else {
                         panic!("read");
                     };
-                    assert_eq!((source, actual_path), (place, path.clone()));
+                    assert_eq!(
+                        (source, actual_path, storage_scalar),
+                        (place, path.clone(), scalar_type)
+                    );
                     assert_eq!(
                         (
                             indices[0].operand.value,
@@ -1115,8 +1126,19 @@ pub(crate) mod scalar_graph {
             targeted: &target_operations::TargetUnitOperation,
         ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
             use target_operations::TargetUnitOperation as Target;
-            let (operation, home, indices) = match targeted {
-                Target::EstablishReference {
+            let (operation, home, indices): (_, _, &[_]) = match targeted {
+                Target::BorrowAt {
+                    psi_operation,
+                    result_home,
+                    ..
+                } => (*psi_operation, result_home, &[]),
+                Target::UpgradeMutability {
+                    psi_operation,
+                    result_home,
+                    indices,
+                    ..
+                }
+                | Target::EstablishReference {
                     psi_operation,
                     result_home,
                     indices,
@@ -1140,6 +1162,19 @@ pub(crate) mod scalar_graph {
             let shape = home.layout.shape();
             // Formation already owns its result contract and selector geometry.
             Ok(match targeted {
+                Target::BorrowAt { address, .. } => LegalizedScalarInstructionKind::BorrowAt {
+                    result: result.clone(),
+                    address: *address,
+                    shape,
+                },
+                Target::UpgradeMutability { source, .. } => {
+                    LegalizedScalarInstructionKind::UpgradeMutability {
+                        result: result.clone(),
+                        source: source.clone(),
+                        indices,
+                        shape,
+                    }
+                }
                 Target::EstablishReference {
                     source, storage, ..
                 } => LegalizedScalarInstructionKind::EstablishReference {
@@ -1284,7 +1319,7 @@ pub(crate) fn derive_target_function_rosters(
         target.functions.iter().map(|function| {
             (
                 function.graph.structural_types.as_ref(),
-                function.graph.structural_types.owned_sequence_bounds(),
+                function.graph.structural_types.storage_inputs(),
             )
         }),
         target.target,
@@ -1295,7 +1330,7 @@ pub(crate) fn derive_target_function_rosters(
         let geometry = geometries
             .get(
                 &function.graph.structural_types,
-                function.graph.structural_types.owned_sequence_bounds(),
+                function.graph.structural_types.storage_inputs(),
             )
             .ok_or_else(LegalizationError::custody)?;
         let mut blocks = Vec::with_capacity(function.graph.blocks.len());

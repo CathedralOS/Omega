@@ -2532,11 +2532,10 @@ pub(crate) mod physical_requirement {
     }
 }
 pub(crate) mod receipt {
-    use crate::allocation::{RegisterHomePlan, RegisterHomeReceipt, register_home_identity};
+    use crate::allocation::{RegisterHomePlan, RegisterHomeReceipt};
 
     pub(crate) fn build(plan: &RegisterHomePlan) -> RegisterHomeReceipt {
         RegisterHomeReceipt {
-            identity: register_home_identity(plan),
             register_environment: plan.register_environment,
             allocator_availability: plan.allocator_availability,
             function_count: plan.functions.len(),
@@ -2550,10 +2549,7 @@ pub(crate) mod receipt {
 }
 
 use register_homes::AllocatorAvailabilityIdentity;
-pub use register_homes::{
-    FunctionRegisterHomes, RegisterHomeIdentity, RegisterHomePlan, VirtualRegisterHome,
-    register_home_identity,
-};
+pub use register_homes::{FunctionRegisterHomes, RegisterHomePlan, VirtualRegisterHome};
 use register_model::TargetRegisterEnvironmentIdentity;
 
 pub(crate) fn assign_register_homes(
@@ -2581,7 +2577,6 @@ pub(crate) fn assign_register_homes_reusing(
 copy_receipt! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct RegisterHomeReceipt {
-        pub(crate) identity: RegisterHomeIdentity,
         pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
         pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
         pub(crate) function_count: usize,
@@ -2601,6 +2596,11 @@ impl AssignedRegisterHomes {
     }
 
     pub fn plan(&self) -> &RegisterHomePlan {
+        &self.plan
+    }
+
+    /// The shared plan itself, for records that keep and compare it.
+    pub fn plan_handle(&self) -> &std::sync::Arc<RegisterHomePlan> {
         &self.plan
     }
     receipt_accessor_rows!(ref AssignedRegisterHomes {

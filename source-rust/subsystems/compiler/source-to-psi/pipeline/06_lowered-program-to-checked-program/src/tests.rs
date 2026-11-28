@@ -110,6 +110,7 @@ mod runtime_indexed_elements;
 mod scalar_joins;
 mod semiring_identity;
 mod seq_laws;
+mod sequence;
 mod sequence_regions;
 mod source_operators;
 mod stored_references;
@@ -279,6 +280,7 @@ fn lower(machines: Vec<Machine>) -> Checked<crate::lowering::Elaboration> {
             statements: machine.statements,
         });
         signatures.push(Signature {
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             content_ensures: Vec::new(),
             operational: Default::default(),
@@ -306,6 +308,23 @@ fn run(machines: Vec<Machine>) -> (crate::lowering::Elaboration, Discharge) {
     let mut elaboration = lower(machines).unwrap();
     let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     (elaboration, result)
+}
+
+fn assert_routed_input_violation(verdict: RouteVerdict, source: &str, call: &str) {
+    let RouteVerdict::Rejected { violations, .. } = verdict else {
+        panic!("expected an input requirement violation at {call}: {verdict:?}");
+    };
+    let [violation] = &violations[..] else {
+        panic!("expected one input requirement violation: {violations:?}");
+    };
+    assert!(
+        violation
+            .statement
+            .starts_with("call does not establish the routed membership of its actual input"),
+        "{violation:?}"
+    );
+    let span = violation.site.expect("the authored call has a span").span;
+    assert_eq!(&source[span.start..span.end], call);
 }
 
 /// The route's verdict on `machines`, which must reject the program.
@@ -408,7 +427,7 @@ fn assert_kernel_accepted(
                 class: ObligationClass::Derivable,
             },
             &resolve(&evidence.assumptions),
-            &resolve(&evidence.axioms),
+            &crate::formed_observation_axioms(goal, resolve(&evidence.axioms)),
             EvidenceRoute::CertificateDerived(certificate.as_ref()),
         )
     };
@@ -1165,7 +1184,7 @@ fn a_published_clause_with_no_normal_return_holds_vacuously() {
             kind: ObligationKind::PublishedGuarantee { clause: 0 },
             created_at: ProgramPoint::BlockEntry(id(1)),
         });
-    let verdict = crate::published(&tables, id(1), clause, 0, &[None]);
+    let verdict = crate::published(&tables, &Default::default(), id(1), clause, 0, &[None]);
     assert_eq!(verdict, Ok(Discharged::EveryExit(Vec::new())));
 }
 
@@ -1488,6 +1507,7 @@ fn read(base: Expression, field: usize) -> Expression {
 fn point_of(x: Expression, y: Expression) -> Expression {
     of_type(
         ExpressionKind::Record {
+            package_witnesses: Vec::new(),
             erased: Vec::new(),
             fields: vec![(0, x), (1, y)],
         },
@@ -1522,6 +1542,32 @@ fn bounded() -> Shaped {
 
 fn elaborate_places(machines: Vec<Shaped>) -> crate::lowering::Elaboration {
     elaborate_over(machines, &records())
+}
+
+#[test]
+fn checked_program_refuses_a_package_site_without_a_producing_operation() {
+    let mut elaboration = elaborate_places(vec![bounded()]);
+    elaboration
+        .module
+        .execution
+        .packages
+        .sites
+        .push(terminal_psi::TerminalPackageSite {
+            machine: id(1),
+            operation: OperationId::new(9999).unwrap(),
+            event: terminal_psi::TerminalPackageEvent::Construct {
+                witnesses: Vec::new(),
+            },
+        });
+    let refusal = match crate::judge(Ok(elaboration)) {
+        Err(refusal) => refusal,
+        Ok(_) => panic!("unreplayed package evidence reached a Stage06 verdict"),
+    };
+    assert_eq!(
+        refusal.reason,
+        terminal_check_tables::RefusalReason::ForeignIdentity
+    );
+    assert_eq!(refusal.detail, "package site names an absent operation");
 }
 
 fn affine_records() -> IdTable<StructuralTypeId, RecordType> {
@@ -2049,6 +2095,7 @@ fn elaborate_over(
             statements: machine.statements,
         });
         signatures.push(Signature {
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             content_ensures: Vec::new(),
             operational: Default::default(),
@@ -2854,6 +2901,7 @@ fn a_whole_assignment_replaces_every_leaf_after_constructing_its_operands() {
                 2,
                 of_type(
                     ExpressionKind::Record {
+                        package_witnesses: Vec::new(),
                         erased: Vec::new(),
                         fields: vec![(0, place(1, point())), (1, place(1, point()))],
                     },
@@ -3836,6 +3884,7 @@ fn a_membership_test_establishes_its_case_on_its_true_edge_and_a_write_to_the_su
         0,
         of_type(
             ExpressionKind::Record {
+                package_witnesses: Vec::new(),
                 erased: Vec::new(),
                 fields: vec![(0, case_of(DOT, vec![(0, unsigned(3))]))],
             },
@@ -4213,6 +4262,7 @@ fn domains<'a>(
 fn literal_of(record: u64, fields: Vec<Expression>) -> Expression {
     of_type(
         ExpressionKind::Record {
+            package_witnesses: Vec::new(),
             erased: Vec::new(),
             fields: fields.into_iter().enumerate().collect(),
         },
@@ -6538,6 +6588,7 @@ mod generic_bodies {
                 statements: machine.statements,
             });
             signatures.push(Signature {
+                membership_requires: Vec::new(),
                 membership_ensures: Vec::new(),
                 content_ensures: Vec::new(),
                 operational: Default::default(),
@@ -7144,6 +7195,7 @@ fn crashing_below_ten(
         ],
     });
     signatures.push(Signature {
+        membership_requires: Vec::new(),
         membership_ensures: Vec::new(),
         content_ensures: Vec::new(),
         operational: Default::default(),
@@ -7181,6 +7233,88 @@ fn below(value: u128) -> terminal_psi::CrashRouteGuard {
             bound(u32_type(), IntegerValue::Unsigned(value)),
         ),
     ))
+}
+
+#[test]
+fn inferred_crashes_update_ordinary_self_and_no_normal_calls_atomically() {
+    use terminal_psi::{OperationKind, Terminator};
+
+    let caller = machine(
+        vec![u32_type(), u32_type()],
+        vec![returns(call(2, vec![slot(1, u32_type())]))],
+    );
+    let target = machine(vec![u32_type()], vec![returns(slot(0, u32_type()))]);
+    let mut elaboration = lower(vec![caller, target]).unwrap();
+    let ordinary = elaboration.module.machines[0].blocks[0]
+        .operations
+        .iter()
+        .find(|op| op.kind.direct_callee() == Some(id(2)))
+        .unwrap();
+    let mut self_call = ordinary.clone();
+    let OperationKind::Call { arguments, .. } = &mut self_call.kind else {
+        panic!("expected a scalar call");
+    };
+    arguments[0] = id(1);
+    let target_block = &mut elaboration.module.machines[1].blocks[0];
+    target_block.operations.push(self_call);
+    target_block.terminator = Terminator::InvokeNoNormal {
+        edge: target_block.terminator.edge(),
+        static_reach_binding: None,
+        required_contract: None,
+        callee: id(2),
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        structural_arguments: Vec::new(),
+        claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    };
+
+    let incoming = crate::crashes::IncomingCalls::index(&elaboration);
+    let calls = incoming.get(id(2)).unwrap();
+    let routes = trap_when(vec![below(10)]);
+    let before = elaboration.module.machines.clone();
+    crate::crashes::publish(
+        &mut elaboration,
+        id(2),
+        routes.clone(),
+        calls,
+        &mut Default::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        elaboration.module.machines, before,
+        "the last caller lacks an actual"
+    );
+
+    let Terminator::InvokeNoNormal { arguments, .. } =
+        &mut elaboration.module.machines[1].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    arguments.push(id(1));
+    crate::crashes::publish(
+        &mut elaboration,
+        id(2),
+        routes.clone(),
+        calls,
+        &mut Default::default(),
+    )
+    .unwrap();
+    assert_eq!(elaboration.module.machines[1].contract.crash_routes, routes);
+    let calls: Vec<_> = elaboration
+        .module
+        .machines
+        .iter()
+        .flat_map(|machine| machine.module_invocations())
+        .collect();
+    assert_eq!(calls.len(), 3);
+    for (call, actual) in calls.iter().zip([id(2), id(1), id(1)]) {
+        let expected =
+            terminal_codec::contract_forms::substituted_routes(&routes, &[actual], &[]).unwrap();
+        assert_eq!(call.inputs.crash_continuations, expected);
+    }
 }
 
 #[test]
@@ -7237,6 +7371,7 @@ fn crashing_at_zero(requires: Vec<Proposition>) -> (crate::lowering::Elaboration
         ],
     });
     signatures.push(Signature {
+        membership_requires: Vec::new(),
         membership_ensures: Vec::new(),
         content_ensures: Vec::new(),
         operational: Default::default(),
@@ -7293,6 +7428,7 @@ fn calling_a_zero_route(requires: Vec<Proposition>) -> (crate::lowering::Elabora
         statements: vec![returns(call(2, vec![slot(0, u32_type())]))],
     });
     signatures.push(Signature {
+        membership_requires: Vec::new(),
         membership_ensures: Vec::new(),
         content_ensures: Vec::new(),
         operational: Default::default(),
@@ -7321,6 +7457,7 @@ fn calling_a_zero_route(requires: Vec<Proposition>) -> (crate::lowering::Elabora
         ],
     });
     signatures.push(Signature {
+        membership_requires: Vec::new(),
         membership_ensures: Vec::new(),
         content_ensures: Vec::new(),
         operational: Default::default(),
@@ -7426,6 +7563,7 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
             statements: vec![returns(call(2, vec![slot(0, u32_type())]))],
         });
         signatures.push(Signature {
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             content_ensures: Vec::new(),
             operational: Default::default(),
@@ -7454,6 +7592,7 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
             ],
         });
         signatures.push(Signature {
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             content_ensures: Vec::new(),
             operational: Default::default(),

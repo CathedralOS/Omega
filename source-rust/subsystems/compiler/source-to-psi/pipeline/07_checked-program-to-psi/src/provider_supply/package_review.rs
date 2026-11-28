@@ -7,12 +7,13 @@ use diagnostics::Diagnostic;
 use semantic_vocabulary::MachineId;
 
 impl AcceptedTerminalSource {
-    pub fn source_package_review_requirements(
+    pub(super) fn source_package_review_requirements(
         &self,
         target: &str,
         supplies: &[crate::provider_choice_inputs::NativeBuildSupply],
         declared: &[DeclaredBoundaryRequirement],
         provider_bodies: impl IntoIterator<Item = MachineId>,
+        admitted_paths: Vec<psi_provider_selections::dependency_reach::AdmittedUnsafeCall>,
     ) -> SourcePackageReviewRequirements {
         let unavailable = |what: &str| {
             vec![Diagnostic::error(format!(
@@ -61,10 +62,19 @@ impl AcceptedTerminalSource {
                         .declaration_type_parameters(selection.requirement)
                         .is_empty();
                 let before = bindings.applications.len();
-                for row in declared.iter().filter(|row| {
-                    row.slot == selection.subject
-                        && !(generic_import && row.requirement == selection.requirement)
-                }) {
+                let slot = (
+                    selection.subject.arena_index(),
+                    selection.subject.generation(),
+                );
+                let start = declared
+                    .partition_point(|row| (row.slot.arena_index(), row.slot.generation()) < slot);
+                for row in declared[start..]
+                    .iter()
+                    .take_while(|row| row.slot == selection.subject)
+                {
+                    if generic_import && row.requirement == selection.requirement {
+                        continue;
+                    }
                     let binding = supply
                         .materialization_for(typed, row.requirement)
                         .map_err(|reason| vec![Diagnostic::error(reason)])?;
@@ -92,6 +102,10 @@ impl AcceptedTerminalSource {
             }
             Ok(bindings)
         })();
-        SourcePackageReviewRequirements { numeric, bindings }
+        SourcePackageReviewRequirements {
+            numeric,
+            bindings,
+            admitted_paths,
+        }
     }
 }

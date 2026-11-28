@@ -116,6 +116,9 @@ impl Lowering<'_> {
                         *current = match bound {
                             Some(Bound::Scalar(id)) => ScalarTerm::Value { id, scalar_type },
                             Some(Bound::Erased(witness)) => witness.term(&self.erased_applications),
+                            Some(Bound::UninitializedRegister) => {
+                                return Err(self.uninitialized_register(expression.source));
+                            }
                             _ => {
                                 return Err(refuse(
                                     self.id,
@@ -136,6 +139,9 @@ impl Lowering<'_> {
                 match *self.slot_mut(*slot)? {
                     Some(Bound::Scalar(value)) => Ok(Witness::Value(value, scalar_type)),
                     Some(Bound::Erased(witness)) => Ok(witness),
+                    Some(Bound::UninitializedRegister) => {
+                        Err(self.uninitialized_register(expression.source))
+                    }
                     Some(Bound::Home(_) | Bound::Record(_) | Bound::Observed(_)) | None => {
                         Err(refuse(
                             self.id,
@@ -529,10 +535,16 @@ impl Lowering<'_> {
                     Some(Bound::Erased(_)) => {
                         Err(self.internal("an erased binding is read as a runtime value"))
                     }
+                    Some(Bound::UninitializedRegister) => {
+                        Err(self.uninitialized_register(expression.source))
+                    }
                     None => Err(self.internal("a slot is read before it is bound")),
                 }
             }
             ExpressionKind::Index { base, index } => self.read_index(base, index, expression),
+            ExpressionKind::NativeBorrow { .. } => {
+                Err(self.internal("a native reference requires structural result storage"))
+            }
             ExpressionKind::Referent(_) => self.read_referent(expression),
             ExpressionKind::Field { base, field } => self.read_field(base, *field, expression),
             ExpressionKind::StorageLocation {

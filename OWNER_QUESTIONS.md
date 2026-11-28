@@ -65,4 +65,41 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-None.
+### 1. Which state universe does core `Real` admit?
+
+When a proof library represents a real number by sampling its own mathematical
+state, which state types can project into the public `Real`? A rational state
+and a function from natural numbers to rationals both live in `Type<0>`. A
+state that itself carries a small type and a value of that type lives in
+`Type<1>`. A library author needs to know whether both levels can enter the
+same equality theorem.
+
+The current contract says “the quotient carrier consists of regular sequences
+over the admissible state types and sampler selections.” It selects the named
+sampler and requires exact regularity and convergence evidence. For the total
+carrier to retain `S : Type<u>` as a field, the carrier must live at least in
+`Type<u+1>`. The quotient lives at the maximum of the carrier and relation
+levels. The existing public declaration is nullary. Neither its interface nor
+the sequence contract specifies the range of `u`. Public levels must follow
+from the declared interface. The foundation has no cumulative universes or
+implicit resizing. [Sequences](wiki/spec/proofs/quotients.md#cauchy-sequences-and-the-real-quotient),
+[total carriers](wiki/spec/proofs/quotients.md#families-relations-and-evidence),
+[quotient levels](wiki/spec/proofs/quotients.md#set-quotient-foundation),
+[public level inference](wiki/spec/proofs/mathematical_bindings.md#universes-and-mathematical-function-types),
+[foundation](wiki/spec/proofs/kernel_metatheory.md), [core declaration](source/library/core/real.omg)
+
+Two possible additions would give clients different guarantees.
+
+1. “Core `Real` admits a state type `S : Type<0>`.” Both specified generators
+   project into one closed quotient. States whose types live at higher levels
+   fall outside this interface.
+2. “Core `Real` has a public level parameter `u` and admits states
+   `S : Type<u>` at that application.” For each `u`, two generators at that
+   level project into the same quotient. Distinct level applications denote
+   distinct quotient types. If clients must compare projections across levels,
+   the interface also needs a checked comparison or transport between them.
+
+Which range and cross-level comparison contract should core publish? Both
+choices preserve the selected state type, named sampler, exact sequence and
+regularity evidence. Supporting earlier type-valued fields in mathematical
+records is compiler work under either choice. [Implementation task](TASKS.md#p3---terminal-psi-proofs-and-observation)

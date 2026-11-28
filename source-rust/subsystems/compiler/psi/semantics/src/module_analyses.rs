@@ -12,8 +12,8 @@
 //! bundle exists nothing can edit the module, so a shared row always describes
 //! the current body. The bundle shares only data derived from the module,
 //! never a verdict, under two rules:
-//! - A closure that reaches a body with a dynamic call adapts each row against
-//!   that closure's own rows, so the rows can differ from closure to closure.
+//! - A body with a dynamic call resolves its selector against the closure's
+//!   complete initial rows, so its targets can differ from closure to closure.
 //!   `descriptor_closure` returns those rows as `DescriptorRows::Owned` and
 //!   never stores them.
 //! - A row that fails keeps its own error. A closure that reaches it is
@@ -51,7 +51,7 @@ use crate::descriptors::descriptor_results::{
 use crate::synchronous_calls::SynchronousCallGraph;
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 type RowResult = Result<DescriptorMachine, DescriptorGraphError>;
 type BoundaryCall = (semantic_vocabulary::BoundaryMachineId, MachineId);
@@ -447,6 +447,7 @@ struct ReachedMachines {
 /// Everything derived from one immutable module that several checks read.
 /// See the module documentation for what may be shared.
 pub struct ModuleAnalyses<'m> {
+    tracks_native_addresses: bool,
     module: &'m TerminalModule,
     machine_slots: MachineSlots,
     /// The module's machines sorted by identity, as row adaptation reads them.
@@ -469,6 +470,8 @@ pub struct ModuleAnalyses<'m> {
     /// The callable values of every machine with no boundary body selected.
     /// Each binding set reads them through `bound_callable_values`.
     callable_values: OnceLock<Result<CallableValueRows, CallableValuePreparationError>>,
+    /// The instantiated field and call types for each verified package use.
+    package_sites: OnceLock<Result<crate::packages::CheckedPackageSites, &'static str>>,
 }
 
 impl<'m> ModuleAnalyses<'m> {
@@ -481,6 +484,9 @@ impl<'m> ModuleAnalyses<'m> {
             .map(|(_, slot)| &module.machines[*slot])
             .collect();
         Ok(Self {
+            tracks_native_addresses: crate::storage::native_borrows::tracks_native_addresses(
+                module,
+            ),
             module,
             machine_slots,
             roster,
@@ -491,7 +497,16 @@ impl<'m> ModuleAnalyses<'m> {
             fences: crate::plain_affine::CallFences::new(module),
             type_permissions: crate::plain_affine::TypePermissions::new(),
             callable_values: OnceLock::new(),
+            package_sites: OnceLock::new(),
         })
+    }
+
+    /// Replay the package sites once for all consumers of this module's analyses.
+    pub fn package_sites(&self) -> Result<&crate::packages::CheckedPackageSites, &'static str> {
+        self.package_sites
+            .get_or_init(|| crate::packages::check_package_sites(self.module))
+            .as_ref()
+            .map_err(|reason| *reason)
     }
 
     pub fn module(&self) -> &'m TerminalModule {
@@ -586,8 +601,8 @@ impl<'m> ModuleAnalyses<'m> {
     /// them in module order, then a call target the module does not declare.
     ///
     /// The rows are shared unless a reached body with a successful row calls
-    /// dynamically. Then each row is adapted against this closure's rows and
-    /// returned as `DescriptorRows::Owned`.
+    /// dynamically. Then the dynamic callers are adapted against the initial
+    /// closure and the full set is returned as `DescriptorRows::Owned`.
     pub fn descriptor_closure(
         &self,
         kind: DescriptorSlotKind,
@@ -639,12 +654,7 @@ impl<'m> ModuleAnalyses<'m> {
         kind: DescriptorSlotKind,
         rows: &'s DescriptorRows<'_>,
     ) -> DescriptorAnalysis<'s> {
-        let mut analysis = DescriptorAnalysis::with_type_index(
-            &self.module.types.structural_types,
-            self.types(),
-            rows.view(),
-            kind,
-        );
+        let mut analysis = DescriptorAnalysis::with_type_index(self, rows.view(), kind);
         if kind == DescriptorSlotKind::BorrowedStorage {
             let replays = self.replays.get_or_init(|| {
                 ModuleSummaries::for_family(self.module, self.family(kind).identity)
@@ -750,7 +760,13 @@ impl<'m> ModuleAnalyses<'m> {
         generic_calls: GenericCallInputs<'_>,
         closure_rows: Option<&[DescriptorMachine]>,
     ) -> RowResult {
+        #[cfg(test)]
+        if closure_rows.is_some() {
+            tests::SECOND_PASS_BODIES
+                .with_borrow_mut(|bodies| bodies.push(self.module.machines[slot].id));
+        }
         terminal_flow::adapt(
+            self.tracks_native_addresses,
             self.module,
             &self.roster,
             &self.module.machines[slot],
@@ -792,9 +808,8 @@ impl<'m> ModuleAnalyses<'m> {
         reached
     }
 
-    /// When a successful row's body calls dynamically, adapts every
-    /// successful row again against those rows and lists the failures after
-    /// them. Otherwise returns the rows unchanged.
+    /// Only dynamic callers read the initial graph. Resolve all their targets
+    /// before replacing any row, then append initial failures in their original order.
     fn readapt_dynamic(
         &self,
         kind: DescriptorSlotKind,
@@ -802,11 +817,24 @@ impl<'m> ModuleAnalyses<'m> {
         selected_calls: &[BoundaryCall],
         generic_calls: GenericCallInputs<'_>,
     ) -> Vec<RowResult> {
-        if !rows
+        let dynamic_slots = self.dynamic_slots.get();
+        if dynamic_slots.is_some_and(|slots| slots.is_empty()) {
+            return rows;
+        }
+        let callers: Vec<_> = rows
             .iter()
             .filter_map(|row| row.as_ref().ok())
-            .any(|row| self.machine(row.id).is_some_and(body_calls_dynamically))
-        {
+            .enumerate()
+            .filter_map(|(index, row)| {
+                let slot = self.machine_slots.slot(row.id)?;
+                let dynamic = dynamic_slots.map_or_else(
+                    || body_calls_dynamically(&self.module.machines[slot]),
+                    |slots| slots.binary_search(&slot).is_ok(),
+                );
+                dynamic.then_some((index, slot))
+            })
+            .collect();
+        if callers.is_empty() {
             return rows;
         }
         let mut initial = Vec::with_capacity(rows.len());
@@ -817,15 +845,19 @@ impl<'m> ModuleAnalyses<'m> {
                 Err(error) => failures.push(Err(error)),
             }
         }
-        let mut rows = Vec::with_capacity(initial.len() + failures.len());
-        for row in &initial {
-            let Some(slot) = self.machine_slots.slot(row.id) else {
-                rows.push(Err(DescriptorGraphError::MissingOrAmbiguousMachine(row.id)));
-                continue;
-            };
-            rows.push(self.adapt(kind, slot, selected_calls, generic_calls, Some(&initial)));
+        let replacements: Vec<_> = callers
+            .into_iter()
+            .map(|(index, slot)| {
+                (
+                    index,
+                    self.adapt(kind, slot, selected_calls, generic_calls, Some(&initial)),
+                )
+            })
+            .collect();
+        let mut rows: Vec<_> = initial.into_iter().map(Ok).chain(failures).collect();
+        for (index, row) in replacements {
+            rows[index] = row;
         }
-        rows.extend(failures);
         rows
     }
 }

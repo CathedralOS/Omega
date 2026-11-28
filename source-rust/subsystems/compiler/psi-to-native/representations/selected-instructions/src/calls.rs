@@ -892,6 +892,7 @@ pub mod normalized_foreign {
                     instruction: SelectedInstructionId(1),
                     invocation_site: operation.into(),
                     call: target_vocabulary::LegalizedNormalizedForeignCall {
+                        suspension_crossing: None,
                         boundary,
                         provider_execution:
                             target_vocabulary::ExternalExecutionBinding::NativeBinding(
@@ -1610,6 +1611,121 @@ pub mod ordinary {
     }
 }
 
+/// An internal call may need inputs in addition to its source parameters.
+/// Keep all inputs before the first result so register constraints and encoded
+/// effects use the same operand numbering on direct and indirect calls.
+pub mod private_inputs {
+    use crate::MachineEncodedEffects;
+    use register_model::{
+        RegisterInstructionConstraint, RegisterOperandAccess, RegisterOperandConstraint,
+        RegisterView, ValidatedPhysicalRegisterModel,
+    };
+
+    pub fn execution_owner(physical: &ValidatedPhysicalRegisterModel) -> Option<&RegisterView> {
+        physical
+            .model()
+            .view_named(match physical.model().architecture {
+                target::Architecture::Aarch64 => "x19",
+                target::Architecture::X86_64 => "r12",
+            })
+    }
+
+    pub fn owner_pointer_type(view: &RegisterView) -> Option<semantic_vocabulary::ScalarType> {
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, view.bits)
+            .ok()
+            .map(semantic_vocabulary::ScalarType::Integer)
+    }
+
+    /// The transfer has the same machine instructions as an ordinary call,
+    /// but the called code also reads the execution owner's incoming pointer.
+    pub fn with_owner_effects(base: &MachineEncodedEffects) -> Option<MachineEncodedEffects> {
+        let mut effects = base.clone();
+        let position = u16::try_from(effects.external_operand_reads.len()).ok()?;
+        effects.external_operand_reads.push(position);
+        for output in &mut effects.external_operand_writes {
+            *output = output.checked_add(1)?;
+        }
+        Some(effects)
+    }
+
+    /// Separate the private input before checking the target's ordinary call
+    /// template. It must be the last input, and must not also be an output.
+    pub fn ordinary_operands<'a>(
+        physical: &ValidatedPhysicalRegisterModel,
+        views: &'a [register_model::RegisterViewId],
+        effects: &'a MachineEncodedEffects,
+    ) -> Option<(
+        std::borrow::Cow<'a, [register_model::RegisterViewId]>,
+        std::borrow::Cow<'a, MachineEncodedEffects>,
+    )> {
+        use std::borrow::Cow;
+        let owner = execution_owner(physical)?.id;
+        let Some(position) = views.iter().position(|view| *view == owner) else {
+            return Some((Cow::Borrowed(views), Cow::Borrowed(effects)));
+        };
+        if views[position + 1..].contains(&owner)
+            || effects.external_operand_reads.last().copied() != u16::try_from(position).ok()
+            || effects.external_operand_reads.len() != position.checked_add(1)?
+        {
+            return None;
+        }
+        let mut remaining = views.to_vec();
+        remaining.remove(position);
+        let mut ordinary = effects.clone();
+        ordinary.external_operand_reads.pop();
+        for output in &mut ordinary.external_operand_writes {
+            if usize::from(*output) <= position {
+                return None;
+            }
+            *output -= 1;
+        }
+        Some((Cow::Owned(remaining), Cow::Owned(ordinary)))
+    }
+
+    pub fn add(
+        base: &RegisterInstructionConstraint,
+        view: &RegisterView,
+        physical: &ValidatedPhysicalRegisterModel,
+    ) -> Option<RegisterInstructionConstraint> {
+        for operand in &base.operands {
+            if let Some(id) = operand.fixed_view
+                && physical.model().view(id)?.footprints_overlap(view)
+            {
+                return None;
+            }
+        }
+        let mut row = base.clone();
+        let position = row
+            .operands
+            .iter()
+            .take_while(|operand| operand.access == RegisterOperandAccess::Use)
+            .count();
+        let added = u16::try_from(position).ok()?;
+        for operand in &mut row.operands {
+            if let Some(tied) = &mut operand.tied_to
+                && *tied >= added
+            {
+                *tied = tied.checked_add(1)?;
+            }
+        }
+        row.operands.insert(
+            position,
+            RegisterOperandConstraint {
+                operand: position.try_into().ok()?,
+                access: RegisterOperandAccess::Use,
+                class: view.class,
+                fixed_view: Some(view.id),
+                tied_to: None,
+                early_clobber: false,
+            },
+        );
+        for (position, operand) in row.operands.iter_mut().enumerate() {
+            operand.operand = position.try_into().ok()?;
+        }
+        Some(row)
+    }
+}
+
 pub mod dynamic {
 
     use crate::{
@@ -1618,8 +1734,7 @@ pub mod dynamic {
         SelectedCallTarget, SelectedFunction, SelectedInstruction,
     };
     use register_model::{
-        RegisterInstructionConstraint, RegisterOperandAccess, RegisterOperandConstraint,
-        ValidatedPhysicalRegisterModel,
+        RegisterInstructionConstraint, RegisterOperandAccess, ValidatedPhysicalRegisterModel,
     };
 
     pub fn call_record<'function>(
@@ -1636,43 +1751,21 @@ pub mod dynamic {
             .then_some(record)
     }
 
-    pub fn instantiate_constraint(
-        base: &RegisterInstructionConstraint,
+    pub fn selector(
         physical: &ValidatedPhysicalRegisterModel,
-    ) -> Option<RegisterInstructionConstraint> {
+    ) -> Option<&register_model::RegisterView> {
         let name = match physical.model().architecture {
             target::Architecture::Aarch64 => "x16",
             target::Architecture::X86_64 => "r11",
         };
-        let selector = physical.model().view_named(name)?;
-        if base
-            .operands
-            .iter()
-            .any(|operand| operand.fixed_view == Some(selector.id))
-        {
-            return None;
-        }
-        let mut row = base.clone();
-        let position = row
-            .operands
-            .iter()
-            .take_while(|operand| operand.access == RegisterOperandAccess::Use)
-            .count();
-        row.operands.insert(
-            position,
-            RegisterOperandConstraint {
-                operand: position.try_into().ok()?,
-                access: RegisterOperandAccess::Use,
-                class: selector.class,
-                fixed_view: Some(selector.id),
-                tied_to: None,
-                early_clobber: false,
-            },
-        );
-        for (position, operand) in row.operands.iter_mut().enumerate() {
-            operand.operand = position.try_into().ok()?;
-        }
-        Some(row)
+        physical.model().view_named(name)
+    }
+
+    pub fn instantiate_constraint(
+        base: &RegisterInstructionConstraint,
+        physical: &ValidatedPhysicalRegisterModel,
+    ) -> Option<RegisterInstructionConstraint> {
+        super::private_inputs::add(base, selector(physical)?, physical)
     }
 
     pub fn instantiate_declaration(

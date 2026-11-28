@@ -69,6 +69,109 @@ pub struct TerminalProgramEntryContract {
     pub physical_source_digest: [u8; 32],
 }
 
+/// A supplier explicitly publishes this closed operation record. Its members
+/// name checked candidates, not every candidate used by their implementations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalProviderExport {
+    pub schema_declaration: TerminalIdentityIndex,
+    pub schema_application: TerminalIdentityIndex,
+    pub provider_declaration: TerminalIdentityIndex,
+    pub provider_identity: TerminalIdentityIndex,
+    pub members: Vec<ProviderExportMember>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ProviderExportMember {
+    pub boundary: semantic_vocabulary::BoundaryMachineId,
+    pub machine: semantic_vocabulary::MachineId,
+}
+
+impl TerminalProviderExport {
+    /// A candidate may be an internal dependency. Only the members of this
+    /// declared record, proved for this schema and this provider, are exported.
+    pub fn check_members(&self, module: &crate::TerminalModule) -> Result<(), &'static str> {
+        self.check_member_contracts(module, |_, _| Ok(()))
+    }
+
+    /// Apply the receiver's contract check to the boundary and public method
+    /// matched by the same checked provider and closed requirement identity.
+    pub fn check_member_contracts(
+        &self,
+        module: &crate::TerminalModule,
+        mut check: impl FnMut(
+            semantic_vocabulary::BoundaryMachineId,
+            &service_surface::ServiceMethod,
+        ) -> Result<(), &'static str>,
+    ) -> Result<(), &'static str> {
+        let schema = module
+            .service_schema(self.schema_declaration, self.schema_application)
+            .map_err(|_| "export does not name a closed schema")?;
+        if [self.provider_declaration, self.provider_identity]
+            .iter()
+            .any(|&id| module.identities.text(id).is_none_or(str::is_empty))
+        {
+            return Err("export does not identify its provider");
+        }
+        if self.members.len() != schema.surface.methods.len()
+            || !self
+                .members
+                .windows(2)
+                .all(|w| w[0].boundary < w[1].boundary)
+        {
+            return Err("export must provide one checked member per requirement");
+        }
+        let mut provided = Vec::with_capacity(self.members.len());
+        let candidates = &module.interfaces.provider_candidates;
+        for member in &self.members {
+            let start = candidates.partition_point(|row| row.boundary < member.boundary);
+            let mut matched = candidates[start..]
+                .iter()
+                .take_while(|row| row.boundary == member.boundary)
+                .filter(|row| {
+                    row.candidate == member.machine
+                        && row.provider_identity == self.provider_identity
+                        && row.provider_declaration.identity() == self.provider_declaration
+                });
+            let (Some(row), None) = (matched.next(), matched.next()) else {
+                return Err("exported member is not this provider's checked candidate");
+            };
+            let requirement = module
+                .identities
+                .text(row.source_requirement_identity)
+                .ok_or("unknown exported requirement")?;
+            let receiving = if row.declaration_application.is_absent() {
+                None
+            } else {
+                Some(
+                    module
+                        .identities
+                        .text(row.declaration_application)
+                        .ok_or("unknown exported application")?,
+                )
+            };
+            if !schema
+                .surface
+                .matches_receiving_application(requirement, receiving)
+            {
+                return Err("exported member belongs to a different schema application");
+            }
+            provided.push((requirement, member.boundary));
+        }
+        provided.sort_unstable();
+        let mut required = schema.surface.methods.iter().collect::<Vec<_>>();
+        required.sort_unstable_by_key(|method| {
+            schema.surface.identity_text(method.requirement_identity)
+        });
+        for ((identity, boundary), method) in provided.into_iter().zip(required) {
+            if identity != schema.surface.identity_text(method.requirement_identity) {
+                return Err("exported members differ from the closed requirement record");
+            }
+            check(boundary, method)?;
+        }
+        Ok(())
+    }
+}
+
 /// Build precedence has already selected this source provider declaration.
 /// Its nominal owner and its semantic implementation identity stay distinct.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -93,64 +196,154 @@ impl crate::TerminalModule {
         &self,
         service: semantic_vocabulary::ServiceId,
     ) -> Result<language_core::core_vocabulary::FilesystemService, String> {
-        use application_identity::type_identity::encoding::{CoordinateTag, atom, bare, compound};
-        use application_identity::type_identity::vocabulary::{NameForm, OwnerForm};
-        use language_core::core_vocabulary::{CoreVocabulary, CoreVocabularyCatalog};
+        use language_core::bundled_files::{BundledFile, core_revision};
+        use language_core::core_vocabulary::CoreVocabulary;
+        let service = self.service(service).ok_or("missing filesystem service")?;
+        match self.bundled_marker_service(
+            service,
+            BundledFile::CoreFilesystemAuthority,
+            &core_revision::FILESYSTEM_AUTHORITY,
+            None,
+        )? {
+            CoreVocabulary::FilesystemService(kind) => Ok(kind),
+            _ => Err("filesystem service is absent from the core catalog".into()),
+        }
+    }
 
-        let mut services = self.interfaces.services.iter().filter(|row| row.id == service);
-        let (Some(service), None) = (services.next(), services.next()) else {
-            return Err("filesystem service has no unique retained declaration".into());
+    /// An unused source declaration has no retained service application. When
+    /// present, verify the full installed marker and its parent before classifying it.
+    pub fn retained_core_unsafe_service(
+        &self,
+        atom: language_core::core_vocabulary::UnsafeAtom,
+    ) -> Result<Option<&crate::ServiceDeclaration>, String> {
+        use language_core::core_vocabulary::{CoreVocabulary, CoreVocabularyCatalog};
+        let declaration = CoreVocabularyCatalog::declaration(CoreVocabulary::UnsafeAtom(atom))
+            .ok_or("missing Core unsafe declaration")?;
+        let expected = marker_application(declaration.declaration);
+        if self
+            .interfaces
+            .services
+            .iter()
+            .any(|row| self.identities.text(row.identity) == Some(expected.as_str()))
+        {
+            self.core_unsafe_service(atom).map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Resolve the installed atom and its authentic Unsafe parent, including
+    /// their exact toolchain source revision in this artifact's namespace.
+    pub fn core_unsafe_service(
+        &self,
+        atom: language_core::core_vocabulary::UnsafeAtom,
+    ) -> Result<&crate::ServiceDeclaration, String> {
+        use language_core::bundled_files::{BundledFile, core_revision};
+        use language_core::core_vocabulary::{CoreVocabulary, CoreVocabularyCatalog};
+        let resolve = |role, parent| {
+            let name = CoreVocabularyCatalog::declaration(role)
+                .ok_or("missing Core unsafe declaration")?
+                .declaration;
+            let expected = marker_application(name);
+            let mut matches = self
+                .interfaces
+                .services
+                .iter()
+                .filter(|row| self.identities.text(row.identity) == Some(expected.as_str()));
+            let (Some(service), None) = (matches.next(), matches.next()) else {
+                return Err(format!(
+                    "native borrow requires one installed Core service for {name}"
+                ));
+            };
+            let actual = self.bundled_marker_service(
+                service,
+                BundledFile::CoreUnsafe,
+                &core_revision::UNSAFE,
+                parent,
+            )?;
+            if actual != role {
+                return Err(format!("installed service differs from Core {name}"));
+            }
+            Ok(service)
         };
-        if !service.parents.is_empty() {
-            return Err("core filesystem capability has unexpected parent services".into());
+        let parent = resolve(CoreVocabulary::UnsafeService, None)?;
+        resolve(CoreVocabulary::UnsafeAtom(atom), Some(parent))
+    }
+
+    fn bundled_marker_service(
+        &self,
+        service: &crate::ServiceDeclaration,
+        file: language_core::bundled_files::BundledFile,
+        revision: &[u8; 32],
+        parent: Option<&crate::ServiceDeclaration>,
+    ) -> Result<language_core::core_vocabulary::CoreVocabulary, String> {
+        use application_identity::type_identity::encoding::{
+            CoordinateTag, atom, byte_atom, compound,
+        };
+        use application_identity::type_identity::vocabulary::{NameForm, OwnerForm};
+        use language_core::core_vocabulary::CoreVocabularyCatalog;
+        let mut declarations = self
+            .interfaces
+            .services
+            .iter()
+            .filter(|row| row.id == service.id);
+        if declarations.next() != Some(service) || declarations.next().is_some() {
+            return Err("Core service has no unique retained declaration".into());
         }
         let mut schemas = self
-            .interfaces.service_schemas
+            .interfaces
+            .service_schemas
             .iter()
             .filter(|row| row.application == service.identity);
         let (Some(schema), None) = (schemas.next(), schemas.next()) else {
-            return Err("filesystem service has no unique retained schema application".into());
+            return Err("Core service has no unique retained schema application".into());
         };
-        let schema = self.service_schema(schema.declaration, schema.application)?;
-        let declaration = self
-            .identities
-            .text(schema.declaration)
-            .ok_or("filesystem service has no retained exact owner")?;
-        let kind = read_core_filesystem_declaration(declaration)?;
-        let catalog = CoreVocabularyCatalog::declaration(CoreVocabulary::FilesystemService(kind))
-            .ok_or("filesystem service is absent from the core catalog")?;
-        let descriptive = compound(
+        let surface = &self
+            .service_schema(schema.declaration, schema.application)?
+            .surface;
+        let name = surface.identity_text(surface.trait_name);
+        let role = CoreVocabularyCatalog::classify_bundled(file, name)
+            .ok_or("service is absent from the expected Core file")?;
+        let declaration = compound(
             NameForm::Nominal,
             [
-                bare(OwnerForm::Toolchain),
-                atom(CoordinateTag::Path, catalog.declaration),
+                byte_atom(OwnerForm::ToolchainSource, revision),
+                atom(CoordinateTag::Path, name),
             ],
         );
-        let application = compound(
-            CoordinateTag::TraitApplication,
-            [
-                atom(CoordinateTag::Declaration, &descriptive),
-                compound(CoordinateTag::Arguments, []),
-                compound(CoordinateTag::Lifetimes, []),
-            ],
-        );
-        let surface = &schema.surface;
-        let [root] = surface.receiver_applications.as_slice() else {
-            return Err("core filesystem capability has unexpected receiver applications".into());
-        };
-        if self.identities.text(service.identity) != Some(application.as_str())
+        let application = marker_application(name);
+        if self.identities.text(schema.declaration) != Some(declaration.as_str())
+            || self.identities.text(service.identity) != Some(application.as_str())
             || surface.trait_package_identity.is_some()
-            || surface.identity_text(surface.trait_name) != catalog.declaration
             || !surface.methods.is_empty()
-            || !root.argument_identities.is_empty()
-            || !root.lifetime_argument_identities.is_empty()
-            || !root.requirement_identities.is_empty()
+            || surface.receiver_applications.iter().any(|row| {
+                row.trait_package_identity.is_some()
+                    || !row.argument_identities.is_empty()
+                    || !row.lifetime_argument_identities.is_empty()
+                    || !row.requirement_identities.is_empty()
+            })
         {
             return Err(
-                "filesystem service differs from its exact core capability contract".into(),
+                "service differs from its exact Core marker declaration or application".into(),
             );
         }
-        Ok(kind)
+        match (
+            parent,
+            service.parents.as_slice(),
+            surface.receiver_applications.as_slice(),
+        ) {
+            (None, [], [_]) => {}
+            (Some(parent), [id], [_, ancestor])
+                if *id == parent.id
+                    && self.identities.text(parent.identity)
+                        == Some(surface.identity_text(ancestor.application))
+                    && self.identities.text(parent.identity)
+                        == Some(
+                            marker_application(surface.identity_text(ancestor.trait_name)).as_str(),
+                        ) => {}
+            _ => return Err("Core service differs from its exact parent declaration".into()),
+        }
+        Ok(role)
     }
 
     pub fn service_schema(
@@ -182,6 +375,11 @@ impl crate::TerminalModule {
         }
         row.surface.validate_receiver_applications()?;
         for method in &row.surface.methods {
+            service_surface::ServiceDomainMembership::validate_entries(
+                &method.domain_memberships,
+                method.parameter_count,
+                method.has_result,
+            )?;
             ServiceSynchronousInvocation::validate_entries(
                 &method.synchronous_invocations,
                 method.parameter_count,
@@ -282,92 +480,21 @@ impl crate::TerminalModule {
     }
 }
 
-fn read_core_filesystem_declaration(
-    identity: &str,
-) -> Result<language_core::core_vocabulary::FilesystemService, String> {
-    use application_identity::type_identity::vocabulary::{OwnerForm, TypeForm};
-    use application_identity::type_identity::{
-        TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError, visit_type_identity_package_owners,
-    };
-    use language_core::core_vocabulary::{
-        CoreVocabulary, CoreVocabularyCatalog, FilesystemService,
-    };
-
-    struct Declaration {
-        depth: usize,
-        remaining: usize,
-        service: Option<FilesystemService>,
-    }
-    impl TypeIdentityPackageOwnerVisitor for Declaration {
-        fn enter(&mut self) -> Result<(), TypeIdentityVisitError> {
-            if self.depth == 128 {
-                return Err(TypeIdentityVisitError::ResourceLimitExceeded);
-            }
-            self.depth += 1;
-            Ok(())
-        }
-        fn leave(&mut self) {
-            self.depth -= 1;
-        }
-        fn reserve(&mut self, bytes: usize) -> Result<(), TypeIdentityVisitError> {
-            self.remaining = self
-                .remaining
-                .checked_sub(bytes)
-                .ok_or(TypeIdentityVisitError::ResourceLimitExceeded)?;
-            Ok(())
-        }
-        fn package_owner(&mut self, _: [u8; 32]) -> Result<(), TypeIdentityVisitError> {
-            Err(TypeIdentityVisitError::UnknownPackage)
-        }
-        fn embedded_name(&mut self, _: &str) -> Result<(), TypeIdentityVisitError> {
-            Ok(())
-        }
-        fn enter_type(&mut self, form: TypeForm) -> Result<(), TypeIdentityVisitError> {
-            if form != TypeForm::Nominal {
-                return Err(TypeIdentityVisitError::MalformedIdentity);
-            }
-            Ok(())
-        }
-        fn nominal_declaration(
-            &mut self,
-            owner: OwnerForm,
-            digest: Option<[u8; 32]>,
-            path: &str,
-        ) -> Result<(), TypeIdentityVisitError> {
-            if owner != OwnerForm::ToolchainSource || self.service.is_some() {
-                return Err(TypeIdentityVisitError::MalformedIdentity);
-            }
-            for service in FilesystemService::ALL {
-                let site =
-                    CoreVocabularyCatalog::declaration(CoreVocabulary::FilesystemService(service))
-                        .ok_or(TypeIdentityVisitError::UnsupportedEmbeddedName)?;
-                if site.declaration != path {
-                    continue;
-                }
-                if site.source != language_core::bundled_files::BundledFile::CoreFilesystemAuthority
-                {
-                    return Err(TypeIdentityVisitError::UnsupportedEmbeddedName);
-                }
-                let revision = language_core::bundled_files::core_revision::FILESYSTEM_AUTHORITY;
-                if digest != Some(revision) {
-                    return Err(TypeIdentityVisitError::UnsupportedEmbeddedName);
-                }
-                self.service = Some(service);
-                return Ok(());
-            }
-            Err(TypeIdentityVisitError::UnsupportedEmbeddedName)
-        }
-    }
-    let mut declaration = Declaration {
-        depth: 0,
-        remaining: identity.len(),
-        service: None,
-    };
-    visit_type_identity_package_owners(identity, &mut declaration)
-        .map_err(|_| "filesystem service is not an exact receiver-bundled core declaration")?;
-    declaration
-        .service
-        .ok_or_else(|| "filesystem service has no exact core declaration".into())
+fn marker_application(name: &str) -> String {
+    use application_identity::type_identity::encoding::{CoordinateTag, atom, bare, compound};
+    use application_identity::type_identity::vocabulary::{NameForm, OwnerForm};
+    let declared = compound(
+        NameForm::Nominal,
+        [bare(OwnerForm::Toolchain), atom(CoordinateTag::Path, name)],
+    );
+    compound(
+        CoordinateTag::TraitApplication,
+        [
+            atom(CoordinateTag::Declaration, &declared),
+            compound(CoordinateTag::Arguments, []),
+            compound(CoordinateTag::Lifetimes, []),
+        ],
+    )
 }
 
 #[cfg(test)]
@@ -378,11 +505,11 @@ mod tests {
         CoordinateTag, atom, bare, byte_atom, compound,
     };
     use application_identity::type_identity::vocabulary::{NameForm, OwnerForm};
-    use service_surface::{ServiceMethod, ServiceReceiverApplication};
     use language_core::core_vocabulary::{
         CoreVocabulary, CoreVocabularyCatalog, FilesystemService,
     };
     use semantic_vocabulary::{PackageKeyIdentity, ServiceId};
+    use service_surface::{ServiceMethod, ServiceReceiverApplication};
 
     fn id() -> ServiceId {
         ServiceId::new(1).unwrap()

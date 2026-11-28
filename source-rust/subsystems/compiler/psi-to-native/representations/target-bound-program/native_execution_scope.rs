@@ -64,7 +64,7 @@ pub struct NativeScopeSource {
 
 impl NativeScopeSource {
     pub fn admit(
-        authorization: &psi_authorization::AuthorizedTerminalArtifact,
+        authorization: &psi_authorization::AdmittedTerminalArtifact,
         root: NativeRoot,
         selection: Arc<SelectedProviderPlanFacts>,
         adapters: SelectedProviderAdapters,
@@ -122,7 +122,7 @@ impl NativeScopeSource {
 
     pub fn program<'a>(
         self: &'a Arc<Self>,
-        authorization: &'a psi_authorization::AuthorizedTerminalArtifact,
+        authorization: &'a psi_authorization::AdmittedTerminalArtifact,
     ) -> Result<NativeScopeBinding<'a>, Vec<Diagnostic>> {
         if self.artifact != authorization.identity() {
             return Err(vec![Diagnostic::error(
@@ -131,6 +131,15 @@ impl NativeScopeSource {
         }
         NativeScopeBinding::checked(authorization.artifact(), self, self.root.callable(), None)
     }
+}
+
+/// The internal convention selected for an assembly body and its proved scalar result view.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssemblyCallingPlan {
+    pub machine: MachineId,
+    pub result: terminal_psi::AsmRegisterView,
+    pub assembly_register_versions: Vec<operation_operands::values::AssemblyRegisterVersion>,
+    pub call: calling_conventions::CallPlan,
 }
 
 /// A root or private entry, resolved against one target before the traversal starts.
@@ -194,11 +203,17 @@ impl<'a> NativeScopeBinding<'a> {
         self.source.adapters.rows()
     }
 
+    pub fn profile(&self) -> target::TargetProfile {
+        self.source.root.target()
+    }
+
     pub fn bind_target_reach(
         self,
         emitted: ExecutionReach,
         selected_candidate_positions: Vec<usize>,
+        mut assembly_returns: Vec<AssemblyCallingPlan>,
     ) -> Result<NativeExecutionScope, String> {
+        assembly_returns.sort_unstable_by_key(|plan| plan.machine);
         let reach = TargetBoundReach::bind(
             self.artifact,
             self.targets,
@@ -209,6 +224,7 @@ impl<'a> NativeScopeBinding<'a> {
             self.parent.map(NativeExecutionScope::reach),
         )?;
         Ok(NativeExecutionScope {
+            assembly_returns,
             reach,
             source: Arc::clone(self.source),
             program_entry: self.parent.is_none(),
@@ -222,6 +238,7 @@ impl<'a> NativeScopeBinding<'a> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeExecutionScope {
+    assembly_returns: Vec<AssemblyCallingPlan>,
     reach: TargetBoundReach,
     source: Arc<NativeScopeSource>,
     program_entry: bool,
@@ -229,6 +246,13 @@ pub struct NativeExecutionScope {
 }
 
 impl NativeExecutionScope {
+    pub fn assembly_call_plan(&self, machine: MachineId) -> Option<&AssemblyCallingPlan> {
+        self.assembly_returns
+            .binary_search_by_key(&machine, |plan| plan.machine)
+            .ok()
+            .map(|index| &self.assembly_returns[index])
+    }
+
     pub fn artifact_identity(&self) -> TerminalArtifactIdentity {
         self.source.artifact
     }
@@ -311,14 +335,14 @@ impl NativeExecutionScope {
 
 /// The authorized program and the providers selected for its reachable boundaries.
 pub struct ScopedProviderSelection {
-    authorization: psi_authorization::AuthorizedTerminalArtifact,
+    authorization: psi_authorization::AdmittedTerminalArtifact,
     scope: NativeExecutionScope,
     selection: Arc<SelectedProviderPlanFacts>,
 }
 
 impl ScopedProviderSelection {
     pub fn bind(
-        authorization: &psi_authorization::AuthorizedTerminalArtifact,
+        authorization: &psi_authorization::AdmittedTerminalArtifact,
         source: &Arc<NativeScopeSource>,
         mut scope: NativeExecutionScope,
         leaves: &[direct_boundary_bindings::DirectBoundaryLeaf],
@@ -346,7 +370,7 @@ impl ScopedProviderSelection {
         })
     }
 
-    pub const fn authorization(&self) -> &psi_authorization::AuthorizedTerminalArtifact {
+    pub const fn authorization(&self) -> &psi_authorization::AdmittedTerminalArtifact {
         &self.authorization
     }
     pub const fn scope(&self) -> &NativeExecutionScope {

@@ -277,12 +277,21 @@ borrowed result; those need their own carriers and are refused. A bare
 borrowed entry annotation supplies no host storage either. See
 [component arguments](instructions/calls.rs).
 
+A component receiving a mutable byte slice borrows the caller's original array
+cells for that invocation. The slice retains its bounds and element addresses
+when forwarded. Returning a sum with a scalar payload translates its selected
+case and field declarations into the caller's artifact. The offline Build
+network recording exercises both operations in one call.
+
 Lending an opaque object gives the guest no field cells. Local scalar and
 atomic stores and subtree replacement under those borrowed homes are refused
 before any detached payload is made; host effects still act on the original
 object. Owned materialized inputs use complete checked contents in the child's
-declaration space. Borrowed materialized storage still needs its own transfer
-carrier.
+declaration space. Borrowed scalar records can lend their original cells for
+the duration of a synchronous component call. A shared reference permits
+atomic stores to a guest-owned atomic field. Two arguments that borrow that
+field observe the same updates, including after a nested call. Host-backed
+atomic storage needs a host operation that preserves atomicity.
 
 `poll_host_computation` returns `HostComputationPending` when a synchronous
 host operation needs executor work before it can return. The invocation, its
@@ -292,6 +301,15 @@ a work slice, not a source-language suspension, and it cannot authorize
 component installation. External provider readiness goes through
 `poll_effect_readiness` and needs a checked suspension crossing. The Build
 application, not either interpreter hook, schedules product queries.
+
+When a checked call actually parks, `AwaitingEffect` identifies both the
+instruction and this visit to it. Polling a still-parked call reports the
+same occurrence; another activation or a later visit to the same instruction
+reports a different one. Observing it does not answer the provider or grant
+permission to resume. An event loop can pass it to `recheck_suspension`:
+a stale notification does not poll any provider, and a matching notification
+polls the original provider rather than declaring it ready. A work-budget
+pause has no suspension occurrence.
 
 The host reads storage through `TerminalInstance::observe_storage`. It selects
 a root and a canonical declaration path. On normal return the root may be the
@@ -318,8 +336,11 @@ accounting.
   reserve before copying, and whole-owner writeback moves the reservation with
   the bytes. Retirement releases live bytes, not consumed work.
 - [Runtime rows](memory/primitives.rs) own one cell per live
-  scalar or structural table entry, including staged call/edge bindings and
-  cleanup copies. New entries and overlapping copies reserve first;
+  scalar or structural table entry, including staged call/edge bindings. Cleanup preflight borrows the live
+  frame and reserves a cell for each staged change to a home, claim or
+  affine frontier entry. Projected edge transfers keep those reservations
+  until the edge charge succeeds or the attempt ends.
+  New entries and overlapping copies reserve first;
   replacements keep their cell, frame moves carry the lease, and table joins
   transfer reservations without charging again.
 - Root activations and suspended call headers each reserve one

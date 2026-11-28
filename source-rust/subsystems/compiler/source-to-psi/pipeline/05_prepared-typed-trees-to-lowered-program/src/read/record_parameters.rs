@@ -150,9 +150,7 @@ impl Program<'_> {
             })?;
         if !self
             .typed
-            .declaration_type_parameters(*self.symbols.get(id).ok_or_else(|| {
-                crate::read::unavailable(id, "const record caller has no source declaration")
-            })?)
+            .declaration_type_parameters(self.machine_symbol(id)?)
             .iter()
             .any(|parameter| parameter.symbol == receiver)
         {
@@ -236,12 +234,14 @@ impl Program<'_> {
             program.retain_requirement_policy(id, signature, signature.symbol)?;
             Ok(super::machine::MachineRow {
                 signature: lowered,
-                names,
-                value_parameters: 0,
-                value_arguments: arguments.to_vec(),
-                scope: Vec::new(),
-                source_scope: program.source_scope.clone(),
-                const_scope: Vec::new(),
+                context: super::machine::MachineContext {
+                    names,
+                    value_parameters: 0,
+                    value_arguments: arguments.to_vec(),
+                    scope: Vec::new(),
+                    source_scope: program.source_scope.clone(),
+                    const_scope: Vec::new(),
+                },
             })
         })?;
         self.requirements.push(id);
@@ -274,9 +274,7 @@ impl Program<'_> {
             terminal_check_tables::program::SelectedStaticRecordOperand,
         )>,
     > {
-        let owner = *self.symbols.get(id).ok_or_else(|| {
-            crate::read::unavailable(id, "selected record has no actual source caller")
-        })?;
+        let owner = self.machine_symbol(id)?;
         self.typed
             .source_call_record_operand(
                 owner,
@@ -691,7 +689,9 @@ mod tests {
             .machine(fixture.caller)
             .expect("form the complete static schema binder profiles");
         assert_eq!(
-            program.value_parameters.get(caller),
+            program
+                .machine_context(caller)
+                .map(|row| &row.value_parameters),
             Some(&0),
             "static records are not fake scalar formals"
         );
@@ -863,12 +863,20 @@ mod tests {
                 record
             );
             assert_eq!(
-                program.source_scopes.len(),
+                program.machine_rows.len(),
                 program.symbols.len(),
                 "every allocated machine retains its own source scope row"
             );
-            assert_eq!(program.source_scopes.get(record), Some(&source_scope));
-            assert_eq!(program.source_scopes.get(ordinary), Some(&source_scope));
+            assert_eq!(
+                program.machine_context(record).map(|row| &row.source_scope),
+                Some(&source_scope)
+            );
+            assert_eq!(
+                program
+                    .machine_context(ordinary)
+                    .map(|row| &row.source_scope),
+                Some(&source_scope)
+            );
             assert_eq!(
                 program.symbols.get(record),
                 Some(&signature.symbol),
@@ -886,7 +894,7 @@ mod tests {
                 ordinary,
                 "later record allocation cannot redirect the declared header"
             );
-            assert_eq!(program.source_scopes.len(), program.symbols.len());
+            assert_eq!(program.machine_rows.len(), program.symbols.len());
         }
     }
 
@@ -923,10 +931,10 @@ mod tests {
         assert_eq!(program.symbols.get(callable), Some(&signature.symbol));
         assert_eq!(program.symbols.get(record), Some(&signature.symbol));
         assert_eq!(program.symbols.get(public), Some(&signature.symbol));
-        assert_eq!(program.source_scopes.len(), program.symbols.len());
+        assert_eq!(program.machine_rows.len(), program.symbols.len());
         for target in [callable, record, public] {
             assert_eq!(
-                program.source_scopes.get(target),
+                program.machine_context(target).map(|row| &row.source_scope),
                 Some(&program.source_scope)
             );
         }

@@ -9,7 +9,8 @@ This crate reads and writes the complete program, validates incoming records, co
 - [semantic_module.rs](src/semantic_module.rs) runs canonical ordering,
   representation checks, encoding, decoding and semantic identity.
   The `*_wire` files beside it handle individual payloads; [foundation_validation.rs](src/foundation_validation.rs)
-  checks representation shape and [wire_fields.rs](src/wire_fields.rs) defines fields specific to complete programs.
+  checks representation shape and passes the complete module to the shared
+  [content verifier](../../semantics/src/content_transformations.rs). [wire_fields.rs](src/wire_fields.rs) defines fields specific to complete programs.
 - [closed_types.rs](src/closed_types.rs) records the closed integer types one
   complete encoding retains.
 
@@ -94,6 +95,13 @@ The lowered-form checker's judgments that execution relies on (structural
 memberships, external-completion providers and dynamic view results) run in
 `sealing::prepare_received_execution` instead, once, when the receiving host
 authorizes a received module for execution.
+
+Foundation validation still refuses a move or leaf copy whose result keeps a
+domain its source no longer holds at that point. A call or store before the
+transfer can take a grant away; `structural_qualifications::validate` compares
+only each place's declared domains and does not see it.
+`terminal_semantics::descriptor_results::validate_transfer_source_memberships`
+replays the machine up to the transfer to check it.
 
 Run the codec's tests with:
 

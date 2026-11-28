@@ -185,7 +185,7 @@ pub(crate) mod record {
         }
 
         pub(crate) struct PreparedConstructorOperands {
-            homes: Vec<(StructuralArgument, ArrayRetirement)>,
+            homes: Vec<(Option<semantic_vocabulary::PlaceId>, ArrayRetirement)>,
             frontier: BTreeSet<StructuralAffineDiscard>,
             claims: BTreeMap<semantic_vocabulary::ClaimId, LiveClaim>,
         }
@@ -195,10 +195,10 @@ pub(crate) mod record {
                 self,
                 execution: &mut TerminalExecution<'_>,
             ) -> Result<(), TerminalInterpretError> {
-                for (argument, retirement) in self.homes {
+                for (whole_place, retirement) in self.homes {
                     execution.prune_subtree(retirement)?;
-                    if argument.path.is_empty() {
-                        execution.structural_values.remove(&argument.place);
+                    if let Some(place) = whole_place {
+                        execution.structural_values.remove(&place);
                     }
                 }
                 execution.live_affine_frontier = self.frontier;
@@ -587,7 +587,7 @@ pub(crate) mod record {
                             argument,
                         )?;
                         Ok((
-                            argument.clone(),
+                            argument.path.is_empty().then_some(argument.place),
                             self.prepare_subtree_retirement(&StructuralRuntimePlace::from(&child))?,
                         ))
                     })
@@ -781,13 +781,55 @@ pub(crate) mod record {
                 multiplicity: StructuralMultiplicity,
                 identity_cursor: &mut Option<u64>,
             ) -> Result<StagedOwnedValue, TerminalInterpretError> {
+                self.stage_owned_value_for_move(
+                    source,
+                    structural_type,
+                    multiplicity,
+                    identity_cursor,
+                    None,
+                )
+            }
+
+            pub(crate) fn stage_owned_value_for_move(
+                &self,
+                source: &StructuralArgument,
+                structural_type: StructuralTypeId,
+                multiplicity: StructuralMultiplicity,
+                identity_cursor: &mut Option<u64>,
+                operation: Option<&terminal_psi::Operation>,
+            ) -> Result<StagedOwnedValue, TerminalInterpretError> {
                 if source.access != StructuralAccess::Owned {
                     return Err(TerminalInterpretError::ClaimTransferMismatch);
                 }
                 let child = ConstructorValue::resolve(self, source)?;
-                if child.structural_type() != structural_type {
-                    return Err(malformed());
-                }
+                let (whole, projected) = child.memberships();
+                let (qualifications, projected_qualifications) =
+                    if child.structural_type() == structural_type {
+                        (whole.to_vec(), projected.to_vec())
+                    } else {
+                        let operation = operation.ok_or_else(malformed)?;
+                        let machine = self.program.verified_machine(self.current_machine)?;
+                        let public = terminal_semantics::structural_qualifications::Memberships {
+                            whole: whole.to_vec(),
+                            projected: projected.to_vec(),
+                        };
+                        let result = operation.result.structural().ok_or_else(malformed)?;
+                        if result.structural_type != structural_type
+                            || !self.program.package_sites()?.moved_owner_carries(
+                                &self.program.catalogs,
+                                machine,
+                                operation,
+                                child.structural_type(),
+                                &public,
+                            )
+                        {
+                            return Err(malformed());
+                        }
+                        (
+                            result.qualifications.clone(),
+                            result.projected_qualifications.clone(),
+                        )
+                    };
                 if let ConstructorValue::Access(value) = &child
                     && crate::engine::custody::has_live_loan(
                         self.reference_referents.as_map(),
@@ -804,14 +846,13 @@ pub(crate) mod record {
                     .iter()
                     .map(|(_, claim)| claim.path.clone())
                     .collect::<Vec<_>>();
-                let (qualifications, projected_qualifications) = child.memberships();
                 let retained = TerminalStructuralValue {
                     opaque_identity: self
                         .local_structural_identities
                         .allocate_staged(identity_cursor)?,
                     structural_type,
-                    qualifications: qualifications.to_vec(),
-                    projected_qualifications: projected_qualifications.to_vec(),
+                    qualifications,
+                    projected_qualifications,
                     path: Vec::new(),
                 };
                 let transfers_custody = !claims.is_empty()
@@ -843,10 +884,10 @@ pub(crate) mod record {
                     additional_input_qualifications: Vec::new(),
                     qualification_establishments: Vec::new(),
                     claims: claims
-                        .iter()
+                        .into_iter()
                         .map(|(identity, claim)| StructuralResultClaimBinding {
-                            claim: *identity,
-                            path: claim.path.clone(),
+                            claim: identity,
+                            path: claim.path,
                         })
                         .collect(),
                 };
@@ -1147,6 +1188,7 @@ pub(crate) mod record {
         crate::storage::byte_sequences::binding::ByteOwnerHome,
         ByteSequenceView,
     )>,
+    pub(super) package_owner_storage: RuntimeRows<StructuralRuntimePlace, StructuralTypeId>,
     cases: RuntimeRows<
         StructuralRuntimePlace,
         crate::boundary::structural_inputs::case_membership::StructuralCaseContents,
@@ -1273,6 +1315,7 @@ pub(crate) mod record {
                     (byte_arrays, structural_byte_storage),
                     (array_initialization.rows, array_initialization.rows),
                     (cases, structural_cases),
+                    (package_owner_storage, package_owner_storage),
                 )
             };
             (@measure $self:expr, $custody:expr; $(($($l:ident).+, $($r:ident).+),)*) => {{
@@ -1287,6 +1330,32 @@ pub(crate) mod record {
         }
 
         impl ConstructorStorage {
+            pub(crate) fn publish_construction(
+                self,
+                execution: &mut TerminalExecution<'_>,
+                result: &terminal_psi::StructuralOperationResult,
+                value: TerminalStructuralValue,
+                operands: &[(
+                    &terminal_psi::StructuralArgument,
+                    Vec<StructuralPathSegment>,
+                )],
+                mut frontier: std::collections::BTreeSet<terminal_psi::StructuralAffineDiscard>,
+                consumed: &[terminal_psi::StructuralArgument],
+            ) -> Result<(), TerminalInterpretError> {
+                let claims = execution.stage_constructor_claims(
+                    super::ResultClaimOrigin::Construction,
+                    result,
+                    operands,
+                    &mut frontier,
+                    &|current| self.case_at_projection(execution, &value, &current.path),
+                )?;
+                let retirement =
+                    execution.prepare_constructor_operands(frontier, consumed, claims)?;
+                self.publish(execution)?;
+                execution.structural_values.insert(result.place, value)?;
+                retirement.commit(execution)
+            }
+
             pub(crate) fn retain_storage(
                 &self,
                 retained: &mut crate::storage::structural_storage::RetainedStorage,
@@ -1361,6 +1430,7 @@ pub(crate) mod record {
                         ),
                     owner_writes: Vec::new(),
                     cases: RuntimeRows::new(account),
+                    package_owner_storage: RuntimeRows::new(account),
                 }
             }
 
@@ -1383,6 +1453,9 @@ pub(crate) mod record {
                 let relocate = |home: &StructuralRuntimePlace| {
                     relocate_place(&source, destination, home).ok_or_else(malformed)
                 };
+                for (home, ty) in &original.package_owner_storage {
+                    self.package_owner_storage.insert(relocate(home)?, *ty)?;
+                }
                 for (home, root) in &original.original_roots {
                     self.original_roots.insert(relocate(home)?, *root)?;
                 }
@@ -2090,6 +2163,9 @@ pub(crate) mod record {
                 relocate_cells!(execution.structural_host_atoms, |_h, atom, target| {
                     self.host_atoms.insert(target, *atom)?;
                 });
+                relocate_cells!(execution.package_owner_storage, |_h, ty, target| {
+                    self.package_owner_storage.insert(target, *ty)?;
+                });
                 relocate_cells!(execution.structural_cases, |_h, case, target| {
                     self.cases.insert(target, *case)?;
                 });
@@ -2467,17 +2543,14 @@ pub(crate) mod record {
                 // Each element delivered the declared domains. Keep the same
                 // family on the aggregate so a checked index can project it.
                 value.projected_qualifications = result.projected_qualifications.clone();
-                let claims = self.stage_constructor_claims(
-                    super::ResultClaimOrigin::Construction,
+                staged.publish_construction(
+                    self,
                     result,
+                    value,
                     &claim_operands,
-                    &mut frontier,
-                    &|current| staged.case_at_projection(self, &value, &current.path),
+                    frontier,
+                    &consumed,
                 )?;
-                let retirement = self.prepare_constructor_operands(frontier, &consumed, claims)?;
-                staged.publish(self)?;
-                self.structural_values.insert(result.place, value)?;
-                retirement.commit(self)?;
                 self.local_structural_identities.commit_cursor(cursor);
                 Ok(crate::engine::execution::OperationFlow::Advance)
             }
@@ -2488,6 +2561,7 @@ pub(crate) mod record {
     impl TerminalExecution<'_> {
         pub(crate) fn establish_record(
             &mut self,
+            operation: semantic_vocabulary::OperationId,
             result: &terminal_psi::StructuralOperationResult,
             fields: &[terminal_psi::RecordFieldInitializer],
         ) -> Result<(), TerminalInterpretError> {
@@ -2520,16 +2594,23 @@ pub(crate) mod record {
             let mut consumed = Vec::new();
             let mut claim_operands = Vec::new();
             let mut frontier = self.live_affine_frontier.clone();
+            let checked = self.program.package_sites()?;
             for (binding, declaration) in fields.iter().zip(declarations) {
                 if binding.field != declaration.id || declaration.relevance.is_erased() {
                     return Err(malformed());
                 }
+                let field_type = checked
+                    .field_type(self.current_machine, operation, binding.field)
+                    .unwrap_or(&declaration.field_type);
                 match &binding.value {
                     terminal_psi::RecordFieldValue::Scalar { value: operand, .. } => {
-                        let scalar = self.values.get(operand).copied().ok_or(malformed())?;
-                        if declaration.field_type.scalar_type() != Some(scalar.scalar_type())
-                            || !terminal_scalar_belongs_to_type(scalar)
-                        {
+                        let scalar = self.scalar_value(*operand)?;
+                        let matches = field_type.scalar_type() == Some(scalar.scalar_type())
+                            || checked.repacked_field(self.current_machine, operation, binding.field).is_some_and(|origin| {
+                                matches!(scalar.scalar_type(), semantic_vocabulary::ScalarType::Callable(actual)
+                                    if checked.admits_descriptor(&self.program.catalogs, self.current_machine, origin, actual))
+                            });
+                        if !matches || !terminal_scalar_belongs_to_type(scalar) {
                             return Err(malformed());
                         }
                         storage.stage_scalar_endpoint(
@@ -2571,7 +2652,7 @@ pub(crate) mod record {
                             continue;
                         }
                         if argument.access != StructuralAccess::Owned
-                            || declaration.field_type
+                            || *field_type
                                 != StructuralFieldType::Structural(child.structural_type())
                         {
                             return Err(malformed());
@@ -2580,16 +2661,22 @@ pub(crate) mod record {
                             self.stage_constructor_operand(argument, &mut frontier, &mut consumed)?;
                         let mut member_path = value.path.clone();
                         member_path.push(StructuralPathSegment::Field(declaration.identity));
-                        storage.stage(
-                            self,
-                            argument,
-                            &child,
-                            &StructuralRuntimePlace {
-                                opaque_identity: value.opaque_identity,
-                                path: member_path,
-                            },
-                            transfers_custody,
-                        )?;
+                        let home = StructuralRuntimePlace {
+                            opaque_identity: value.opaque_identity,
+                            path: member_path,
+                        };
+                        storage.stage(self, argument, &child, &home, transfers_custody)?;
+                        if *field_type != declaration.field_type
+                            && matches!(
+                                self.structural_declaration(child.structural_type())?.shape,
+                                StructuralTypeShape::Record { .. }
+                            )
+                            && !storage.package_owner_storage.contains_key(&home)
+                        {
+                            storage
+                                .package_owner_storage
+                                .insert(home, child.structural_type())?;
+                        }
                     }
                 }
             }
@@ -2600,17 +2687,14 @@ pub(crate) mod record {
                 &value,
                 &result.projected_qualifications,
             )?;
-            let claims = self.stage_constructor_claims(
-                ResultClaimOrigin::Construction,
+            storage.publish_construction(
+                self,
                 result,
+                value,
                 &claim_operands,
-                &mut frontier,
-                &|current| storage.case_at_projection(self, &value, &current.path),
+                frontier,
+                &consumed,
             )?;
-            let retirement = self.prepare_constructor_operands(frontier, &consumed, claims)?;
-            storage.publish(self)?;
-            self.structural_values.insert(result.place, value)?;
-            retirement.commit(self)?;
             Ok(())
         }
         pub(crate) fn stage_owned_value_arguments(
@@ -2745,15 +2829,13 @@ pub(crate) mod scalar_array {
                 self.get(place).is_some()
             }
 
-            pub(crate) fn keys(&self) -> impl Iterator<Item = &PlaceId> {
-                self.rows
-                    .iter()
-                    .filter(|(_, binding)| binding.live)
-                    .map(|(place, _)| place)
-            }
-
             pub(crate) fn remove(&mut self, place: &PlaceId) {
-                self.retire_packed_home(place);
+                if let Some(binding) = self.rows.get_mut(place)
+                    && binding.live
+                {
+                    binding.live = false;
+                    self.live_count -= 1;
+                }
             }
 
             pub(crate) fn publish(
@@ -2795,36 +2877,6 @@ pub(crate) mod scalar_array {
             pub(crate) fn collect_retired(&mut self, mut retained: impl FnMut(PlaceId) -> bool) {
                 self.rows
                     .retain(|place, binding| binding.live || retained(*place));
-            }
-        }
-
-        pub(crate) trait PackedHomeRetirement {
-            fn contains_packed_home(&self, place: &PlaceId) -> bool;
-            fn retire_packed_home(&mut self, place: &PlaceId);
-        }
-
-        impl PackedHomeRetirement for ScalarArrayBindings {
-            fn contains_packed_home(&self, place: &PlaceId) -> bool {
-                self.contains_key(place)
-            }
-
-            fn retire_packed_home(&mut self, place: &PlaceId) {
-                if let Some(binding) = self.rows.get_mut(place)
-                    && binding.live
-                {
-                    binding.live = false;
-                    self.live_count -= 1;
-                }
-            }
-        }
-
-        impl PackedHomeRetirement for std::collections::BTreeSet<PlaceId> {
-            fn contains_packed_home(&self, place: &PlaceId) -> bool {
-                self.contains(place)
-            }
-
-            fn retire_packed_home(&mut self, place: &PlaceId) {
-                self.remove(place);
             }
         }
 
@@ -2898,7 +2950,7 @@ pub(crate) mod scalar_array {
                     2,
                     "one payload cell and one home row"
                 );
-                arrays.retire_packed_home(&place);
+                arrays.remove(&place);
                 assert_eq!(
                     sponsor.live_storage_cells(),
                     2,
@@ -3851,7 +3903,7 @@ pub(crate) mod scalar_array {
             }
         }
     }
-    pub(crate) use bindings::{PackedHomeRetirement, ScalarArrayBindings};
+    pub(crate) use bindings::ScalarArrayBindings;
     pub(crate) use loans::borrowed_array_memberships_match;
     use std::rc::Rc;
     use std::sync::Arc;
@@ -4986,6 +5038,9 @@ pub(crate) mod structural_storage {
             pub leaves: Vec<StorageLeaf>,
             pub requires_erased_establishment: bool,
             pub requires_atomic_storage: bool,
+            // Component calls can lend the actual cell. Snapshot and replacement paths
+            // still exclude shared atomic leaves from their ordinary scalar contents.
+            lend_atomic_cells: bool,
             // Read-only selection retains the actual backing root and the
             // logical prefix crossed to reach it. Capture must not replay a
             // stored-length index as inline storage beneath the outer record.
@@ -5106,18 +5161,46 @@ pub(crate) mod structural_storage {
             replacement: Option<&[TerminalBoundaryStorageValue]>,
             prefix: &[Path],
         ) -> Result<StorageDescription, TerminalInterpretError> {
-            let mut leaves = StorageDescription::default();
-            collect(
-                execution,
-                referent.structural_type,
-                &StructuralRuntimePlace::from(referent),
-                access,
-                replacement,
-                None,
-                &mut prefix.to_vec(),
-                &mut leaves,
-            )?;
-            Ok(leaves)
+            let mut description = StorageDescription::default();
+            description.collect(execution, referent, access, replacement, prefix)?;
+            Ok(description)
+        }
+
+        /// A loan keeps the original backing. Include shared atomic leaves so
+        /// checked atomic events in the borrower can observe that same cell.
+        pub(crate) fn describe_loan(
+            execution: &TerminalExecution,
+            referent: &TerminalStructuralValue,
+            access: StructuralAccess,
+        ) -> Result<StorageDescription, TerminalInterpretError> {
+            let mut description = StorageDescription {
+                lend_atomic_cells: true,
+                ..Default::default()
+            };
+            description.collect(execution, referent, access, None, &[])?;
+            Ok(description)
+        }
+
+        impl StorageDescription {
+            fn collect(
+                &mut self,
+                execution: &TerminalExecution,
+                referent: &TerminalStructuralValue,
+                access: StructuralAccess,
+                replacement: Option<&[TerminalBoundaryStorageValue]>,
+                prefix: &[Path],
+            ) -> Result<(), TerminalInterpretError> {
+                collect(
+                    execution,
+                    referent.structural_type,
+                    &StructuralRuntimePlace::from(referent),
+                    access,
+                    replacement,
+                    None,
+                    &mut prefix.to_vec(),
+                    self,
+                )
+            }
         }
 
         pub(crate) fn select(
@@ -5178,7 +5261,7 @@ pub(crate) mod structural_storage {
                 }),
                 StructuralTypeShape::AtomicCell(cell) => {
                     leaves.requires_atomic_storage = true;
-                    if access == StructuralAccess::MutableBorrow {
+                    if leaves.lend_atomic_cells || access == StructuralAccess::MutableBorrow {
                         leaves.leaves.push(StorageLeaf {
                             path: path.clone(),
                             kind: StorageLeafKind::Scalar {
@@ -5437,7 +5520,8 @@ pub(crate) mod structural_storage {
                     StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_)
                 );
                 leaves.requires_atomic_storage |= atomic;
-                if atomic && access != StructuralAccess::MutableBorrow {
+                if atomic && !leaves.lend_atomic_cells && access != StructuralAccess::MutableBorrow
+                {
                     continue;
                 }
                 path.push(Path::Field(field.id));
@@ -6701,6 +6785,8 @@ pub(crate) mod structural_storage {
             self.array_initialization.reclaim_orphan_records(&mut roots);
             self.structural_scalar_fields
                 .retain(|key, _| roots.contains(&key.parent.opaque_identity));
+            self.package_owner_storage
+                .retain(|home, _| roots.contains(&home.opaque_identity));
         }
     }
 }

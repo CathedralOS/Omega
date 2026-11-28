@@ -162,13 +162,21 @@ pub(super) fn classify(
     update: Option<CellUpdate<ScalarFact>>,
     requirements: &[Proposition],
 ) -> Observation {
-    classify_entries(
+    let observation = classify_entries(
         memory,
         location,
         condition.comparison.pivot.scalar_type(),
         requirements,
         |initial, facts| condition.failure(initial, pivot_input, update, facts),
-    )
+    );
+    if observation == Observation::Unproved
+        && (pivot_input.is_some_and(ScalarFact::awaits_provider)
+            || update.is_some_and(|update| update.try_map(|word| (!word.awaits_provider()).then_some(word)).is_none()))
+    {
+        Observation::PendingProvider
+    } else {
+        observation
+    }
 }
 
 fn classify_entries(
@@ -200,15 +208,20 @@ fn observation(
 ) -> Observation {
     let mut all_block = true;
     let mut can_block = false;
+    let mut awaits_provider = false;
     let visited = stored.visit_witnesses(ty, |value, when| {
         let facts = evidence.with_witness(when);
         let cause = failure(Some(value), &facts);
         all_block &= cause == Some(ProgressFailure::Deadlock);
-        can_block |= cause.is_some();
+        if cause == Some(ProgressFailure::Unproved) && value.awaits_provider() {
+            awaits_provider = true;
+        } else {
+            can_block |= cause.is_some();
+        }
     });
     let unresolved = failure(None, evidence);
     let unresolved_can_block = unresolved.is_some();
-    if stored.includes_pending_provider() && unresolved_can_block {
+    if awaits_provider || stored.includes_pending_provider() && unresolved_can_block {
         return if can_block {
             Observation::Unproved
         } else {

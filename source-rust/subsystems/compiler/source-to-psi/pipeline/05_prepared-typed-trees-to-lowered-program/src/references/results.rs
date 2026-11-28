@@ -7,10 +7,10 @@ use crate::{Unserved, refuse};
 use semantic_vocabulary::MachineId;
 use terminal_check_tables::{Checked, Construct, Refusal};
 use terminal_psi::TerminalModule;
-use terminal_semantics::ModuleAnalyses;
 use terminal_semantics::descriptor_results::{
     DescriptorAnalysis, DescriptorGraphError, DescriptorSlotKind, ModuleSummaries,
 };
+use terminal_semantics::{DescriptorRows, ModuleAnalyses};
 
 /// The nominal calls of the reference-parent graph: none. `ModuleSummaries`
 /// checks a graph's nominal calls by address, so the table and the analyses
@@ -30,12 +30,11 @@ fn module_summaries(module: &TerminalModule) -> ModuleSummaries<'_> {
 /// A fresh analysis over `graph`, a closure built from `module` without
 /// nominal calls, sharing `summaries` (`module_summaries` of that module).
 fn shared_analysis<'a>(
-    module: &'a TerminalModule,
-    graph: &'a [terminal_semantics::descriptor_results::DescriptorMachine],
+    analyses: &'a ModuleAnalyses<'_>,
+    graph: &'a DescriptorRows<'_>,
     summaries: &'a ModuleSummaries<'a>,
 ) -> DescriptorAnalysis<'a> {
-    let mut analysis =
-        DescriptorAnalysis::with_borrowed_storage_slots(&module.types.structural_types, graph);
+    let mut analysis = analyses.analysis(DescriptorSlotKind::BorrowedStorage, graph);
     analysis.share_summaries(summaries, &NO_NOMINAL_CALLS);
     analysis
 }
@@ -66,7 +65,7 @@ pub(crate) fn publish(
             &elaboration.static_schemas,
         )?;
         let module = &elaboration.module;
-        publish_retained_call_loans(
+        let upgraded_views = publish_retained_call_loans(
             module,
             &mut elaboration.tables,
             &mut elaboration.sources,
@@ -80,6 +79,7 @@ pub(crate) fn publish(
             &elaboration.sources,
             &elaboration.names,
             &successor_loans,
+            &upgraded_views,
             &elaboration.static_schemas,
             parallel,
         )
@@ -154,6 +154,13 @@ pub(crate) fn publish_requirements(
     Ok(())
 }
 
+struct UpgradedViewLoan {
+    machine: MachineId,
+    obligation: semantic_vocabulary::ObligationId,
+    point: terminal_check_tables::ProgramPoint,
+    descriptor: terminal_semantics::descriptor_lifetimes::DescriptorLocation,
+}
+
 /// A returned reference keeps only the storage its published origin names
 /// borrowed: `pick(@mutable grid, i)` returning `@mutable grid.cells[i].x` retains
 /// `grid.cells`, not `grid`. The call's own argument loan covers the whole
@@ -167,7 +174,7 @@ fn publish_retained_call_loans(
     tables: &mut terminal_check_tables::CheckTables,
     sources: &mut arena::IdTable<MachineId, terminal_check_tables::program::MachineSources>,
     parallel: bool,
-) -> Checked<()> {
+) -> Checked<Vec<UpgradedViewLoan>> {
     use terminal_check_tables::ProgramPoint;
     use terminal_check_tables::obligations::{Lender, ObligationKind, ObligationRow};
     let contains_borrowed = |ty| {
@@ -200,7 +207,7 @@ fn publish_retained_call_loans(
         .collect();
     callers.sort_unstable();
     if callers.is_empty() {
-        return Ok(());
+        return Ok(Vec::new());
     }
     // A caller's retained regions come from its callees' actual returns, so
     // the one closure covers every body that returns a reference.
@@ -222,6 +229,7 @@ fn publish_retained_call_loans(
         )
         .map_err(|error| graph_unavailable(module, error))?;
     struct RetainedLoanInsert {
+        parent_view: Option<terminal_semantics::descriptor_lifetimes::DescriptorLocation>,
         captured_arg: terminal_psi::StructuralArgument,
         access: language_core::ReferenceAccess,
         lender: Lender,
@@ -282,7 +290,7 @@ fn publish_retained_call_loans(
                         let argument = arguments.get(retained.position).ok_or_else(|| {
                             unavailable("retained call loan has no actual argument")
                         })?;
-                        if retained.path == argument.path {
+                        if retained.path == argument.path && !retained.upgraded_mutability {
                             continue;
                         }
                         let access = reference_access(argument.access).ok_or_else(|| {
@@ -317,12 +325,18 @@ fn publish_retained_call_loans(
                                     unavailable("retained call loan has no source origin")
                                 })?;
                         inserts.push(RetainedLoanInsert {
+                            parent_view: retained
+                                .upgraded_view_descriptor(module, machine, argument),
                             captured_arg: terminal_psi::StructuralArgument {
                                 place: argument.place,
                                 path: retained.path,
                                 access: argument.access,
                             },
-                            access,
+                            access: if retained.upgraded_mutability {
+                                language_core::ReferenceAccess::Mutable
+                            } else {
+                                access
+                            },
                             lender,
                             origin,
                             point,
@@ -348,6 +362,7 @@ fn publish_retained_call_loans(
         } else {
             caller_machines.into_iter().map(solve_caller).collect()
         };
+    let mut upgraded_views = Vec::new();
     for result in per_caller {
         let (machine_id, inserts) = result?;
         if inserts.is_empty() {
@@ -379,6 +394,14 @@ fn publish_retained_call_loans(
                 },
                 created_at: insert.point,
             });
+            if let Some(descriptor) = insert.parent_view {
+                upgraded_views.push(UpgradedViewLoan {
+                    machine: machine_id,
+                    obligation,
+                    point: insert.point,
+                    descriptor,
+                });
+            }
             if machine_sources.obligations.push(insert.origin) != obligation {
                 return Err(unavailable(
                     "retained call loan and source coordinates differ",
@@ -386,7 +409,7 @@ fn publish_retained_call_loans(
             }
         }
     }
-    Ok(())
+    Ok(upgraded_views)
 }
 
 /// A real reborrow on a block edge keeps its exact formation occurrence.
@@ -622,8 +645,9 @@ fn publish_results(
     // A returned generic value can carry a loan from a view inside an input
     // record. Keep those views during replay, even though the return header
     // names only the references found by `reference_result_contents`.
-    let mut analysis =
-        DescriptorAnalysis::with_borrowed_storage_slots(&module.types.structural_types, &graph);
+    let analyses = ModuleAnalyses::new(module).map_err(|error| graph_unavailable(module, error))?;
+    let graph = DescriptorRows::from(graph);
+    let mut analysis = analyses.analysis(DescriptorSlotKind::BorrowedStorage, &graph);
     let mut published = Vec::with_capacity(selected.len());
     for id in selected {
         let machine = module
@@ -633,15 +657,26 @@ fn publish_results(
             .result
             .structural()
             .ok_or_else(|| unavailable(id, "reference result lost its structural declaration"))?;
-        let contents = analysis.result_contents(id).ok_or_else(|| {
+        let contents = analysis.result_contents(module, id).ok_or_else(|| {
             analysis
                 .preparation_error(id)
                 .map(|error| graph_unavailable(module, error))
                 .unwrap_or_else(|| {
-                    unavailable(
-                        id,
-                        "reference result has no complete actual return-source correspondence",
-                    )
+                    use terminal_semantics::descriptor_results::LocalReturnBacking;
+                    match analysis.local_return_backing(id) {
+                        LocalReturnBacking::EveryReturn => crate::reject(
+                            id,
+                            crate::SourceOrigin::Unpositioned(crate::Unpositioned::MachineEntry),
+                            "returned loan would outlive its local backing storage",
+                        ),
+                        LocalReturnBacking::Alternative => {
+                            unavailable(id, "a returned loan may outlive its local backing storage")
+                        }
+                        LocalReturnBacking::Unobserved => unavailable(
+                            id,
+                            "reference result has no complete actual return-source correspondence",
+                        ),
+                    }
                 })
         })?;
         let mappings = terminal_semantics::reference_result_contents(
@@ -745,6 +780,7 @@ fn publish_parents(
     sources_ref: &arena::IdTable<MachineId, terminal_check_tables::program::MachineSources>,
     names_ref: &arena::IdTable<MachineId, crate::MachineNames>,
     successor_loans: &[SuccessorLoan],
+    upgraded_views: &[UpgradedViewLoan],
     schemas: &[terminal_check_tables::contracts::StaticSchemaQuestion],
     parallel: bool,
 ) -> Checked<()> {
@@ -859,18 +895,25 @@ fn publish_parents(
             let mut before = ProgramPoint::BlockEntry(block.id);
             for operation in &block.operations {
                 if let terminal_psi::OperationKind::EstablishElementView { source, .. }
-                | terminal_psi::OperationKind::EstablishMutableElementView { source, .. } =
-                    &operation.kind
+                | terminal_psi::OperationKind::EstablishMutableElementView { source, .. }
+                | terminal_psi::OperationKind::UpgradeMutability { source } = &operation.kind
                     && let Some(root) = machine.structural_place_type(source.place)
                     && let Some(tip) = terminal_semantics::runtime_structural_path_tip(
                         module.types.structural_types.iter(),
                         root,
                         &source.path,
                     )
-                    && terminal_semantics::descriptor_results::is_descriptor(
-                        module.types.structural_types.iter(),
-                        tip.id,
-                    )
+                    && if matches!(
+                        operation.kind,
+                        terminal_psi::OperationKind::UpgradeMutability { .. }
+                    ) {
+                        tip.shape.is_view_descriptor()
+                    } else {
+                        terminal_semantics::descriptor_results::is_descriptor(
+                            module.types.structural_types.iter(),
+                            tip.id,
+                        )
+                    }
                 {
                     view_reborrows.push(operation.id);
                 }
@@ -945,6 +988,14 @@ fn publish_parents(
                 })? = Some((row.created_at, descriptor));
             }
         }
+        for view in upgraded_views
+            .iter()
+            .filter(|view| view.machine == machine.id)
+        {
+            *children.get_mut(view.obligation).ok_or_else(|| {
+                unavailable(machine.id, "upgraded call result lost its child row")
+            })? = Some((view.point, view.descriptor.clone()));
+        }
         if view_reborrows.is_empty() && children.iter().all(|(_, child)| child.is_none()) {
             continue;
         }
@@ -960,6 +1011,8 @@ fn publish_parents(
         &terminal_check_tables::contracts::scoped_requirement_addresses(&module.machines, schemas),
     )
         .map_err(|error| graph_unavailable(module, error))?;
+    let analyses = ModuleAnalyses::new(module).map_err(|error| graph_unavailable(module, error))?;
+    let graph = DescriptorRows::from(graph);
     let summaries = &module_summaries(module);
     let solve_machine = |query: (
         &terminal_psi::TerminalMachine,
@@ -974,7 +1027,7 @@ fn publish_parents(
         // Calls share one immutable graph and the module's callee summaries.
         // Saved storage states are needed only while finding the parents of
         // this machine's loans.
-        let mut analysis = shared_analysis(module, &graph, summaries);
+        let mut analysis = shared_analysis(&analyses, &graph, summaries);
         let flow = analysis
             .flow_arc(machine.id)
             .map_err(|error| graph_unavailable(module, error))?;
@@ -996,33 +1049,80 @@ fn publish_parents(
                 if let Some(after_pos) = pos_u32.checked_add(1) {
                     op_positions.push((operation.id, (block.id, after_pos)));
                 }
-                if let terminal_psi::OperationKind::EstablishReference { source, .. }
-                | terminal_psi::OperationKind::EstablishElementView { source, .. }
-                | terminal_psi::OperationKind::EstablishMutableElementView { source, .. } =
-                    &operation.kind
-                {
+                use terminal_psi::OperationKind as Op;
+                let formation = match &operation.kind {
+                    Op::EstablishReference { source, .. }
+                    | Op::EstablishElementView { source, .. }
+                    | Op::EstablishMutableElementView { source, .. }
+                    | Op::UpgradeMutability { source } => {
+                        let ty = machine.structural_place_type(source.place).ok_or_else(|| {
+                            unavailable(
+                                machine.id,
+                                "reference formation has no source storage type",
+                            )
+                        })?;
+                        let mut path = terminal_semantics::resolved_structural_path(
+                            module.types.structural_types.iter(),
+                            ty,
+                            &source.path,
+                        )
+                        .map_err(|reason| unavailable(machine.id, reason))?;
+                        let access = if matches!(operation.kind, Op::UpgradeMutability { .. }) {
+                            if view_reborrows.binary_search(&operation.id).is_err() {
+                                path.push(terminal_check_tables::bindings::Segment::Referent);
+                            }
+                            language_core::ReferenceAccess::Mutable
+                        } else {
+                            reference_access(source.access).ok_or_else(|| {
+                                unavailable(
+                                    machine.id,
+                                    "reference formation has no borrowed access",
+                                )
+                            })?
+                        };
+                        Some((source.place, path, access))
+                    }
+                    Op::BorrowAt { .. } => {
+                        let result = operation.result.as_structural().ok_or_else(|| {
+                            unavailable(machine.id, "native reference has no result descriptor")
+                        })?;
+                        let ty =
+                            module
+                                .structural_type(result.structural_type)
+                                .ok_or_else(|| {
+                                    unavailable(
+                                        machine.id,
+                                        "native reference result has no structural type",
+                                    )
+                                })?;
+                        let terminal_psi::StructuralTypeShape::Reference { access, .. } = ty.shape
+                        else {
+                            return Err(unavailable(
+                                machine.id,
+                                "native borrow result is not a reference",
+                            ));
+                        };
+                        Some((
+                            result.place,
+                            Vec::new(),
+                            reference_access(access).ok_or_else(|| {
+                                unavailable(machine.id, "native reference has no borrowed access")
+                            })?,
+                        ))
+                    }
+                    _ => None,
+                };
+                if let Some((root, source_path, expected_access)) = formation {
                     let result = operation.result.as_structural().ok_or_else(|| {
                         unavailable(
                             machine.id,
                             "reference formation has no actual descriptor result",
                         )
                     })?;
-                    let ty = machine.structural_place_type(source.place).ok_or_else(|| {
-                        unavailable(machine.id, "reference formation has no source storage type")
-                    })?;
-                    let source_path = terminal_semantics::resolved_structural_path(
-                        module.types.structural_types.iter(),
-                        ty,
-                        &source.path,
-                    )
-                    .map_err(|reason| unavailable(machine.id, reason))?;
-                    let expected_access = reference_access(source.access).ok_or_else(|| {
-                        unavailable(machine.id, "reference formation has no borrowed access")
-                    })?;
                     let mut matching = Vec::new();
                     for (_, loan) in loan_index.at(before) {
                         if loan.access == expected_access
-                            && loan.root == source.place
+                            && loan.root == root
                             && loan.path == source_path
                         {
                             matching.push(loan.id);
@@ -1035,13 +1135,13 @@ fn publish_parents(
                         ));
                     };
                     if view_reborrows.binary_search(&operation.id).is_ok() {
-                        let source_location = DescriptorLocation::captured(
-                            source.place,
-                            &source_path,
-                        )
-                        .ok_or_else(|| {
-                            unavailable(machine.id, "view formation has no exact parent descriptor")
-                        })?;
+                        let source_location = DescriptorLocation::captured(root, &source_path)
+                            .ok_or_else(|| {
+                                unavailable(
+                                    machine.id,
+                                    "view formation has no exact parent descriptor",
+                                )
+                            })?;
                         *children.get_mut(*identity).ok_or_else(|| {
                             unavailable(machine.id, "view formation lost its parent child row")
                         })? = Some((before, source_location));
@@ -1118,7 +1218,8 @@ fn publish_parents(
                         let argument = arguments.get(retained.position).ok_or_else(|| {
                             unavailable(machine.id, "retained call loan lost its argument")
                         })?;
-                        let id = if retained.path == argument.path {
+                        let id = if retained.path == argument.path && !retained.upgraded_mutability
+                        {
                             own.get(retained.position).copied().flatten()
                         } else {
                             let access = reference_access(argument.access).ok_or_else(|| {
@@ -1135,7 +1236,11 @@ fn publish_parents(
                                 &loan_index,
                                 before,
                                 &region,
-                                access,
+                                if retained.upgraded_mutability {
+                                    language_core::ReferenceAccess::Mutable
+                                } else {
+                                    access
+                                },
                                 &claimed,
                             )
                             .map_err(|reason| unavailable(machine.id, reason))?;

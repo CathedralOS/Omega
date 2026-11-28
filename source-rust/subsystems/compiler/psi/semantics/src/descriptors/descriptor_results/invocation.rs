@@ -88,6 +88,7 @@ pub fn machine_invocation_for_signature(
         }
     }
     Some(DescriptorInvocation {
+        native_address_arguments: Vec::new(),
         scalar_arguments: Vec::new(),
         owner,
         target: DescriptorInvocationTarget::Machine(callee.machine),
@@ -98,24 +99,99 @@ pub fn machine_invocation_for_signature(
 }
 
 impl DescriptorMachine {
+    /// Record the backing of scalar actuals when the callee can publish a
+    /// reference through its result or a writable structural parameter.
+    pub fn bind_native_address_arguments<S: std::borrow::Borrow<StructuralArgument>>(
+        &self,
+        call: &mut DescriptorInvocation,
+        types: &[StructuralTypeDeclaration],
+        position: DescriptorPosition,
+        structural_parameters: &[terminal_psi::StructuralParameterDeclaration],
+        result: Option<&terminal_psi::StructuralOperationResult>,
+        scalar_bindings: impl IntoIterator<Item = (ValueId, ValueId)>,
+        mut address_origin: impl FnMut(
+            ValueId,
+        )
+            -> crate::storage::native_borrows::NativeAddressOrigin<S>,
+        tracks_native_addresses: bool,
+    ) -> Option<()> {
+        let returns_reference = result.is_some_and(|result| {
+            terminal_psi::structural_type_contains_reference(types, result.structural_type)
+        });
+        let writes_reference = structural_parameters.iter().any(|formal| {
+            matches!(
+                formal.access,
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            ) && terminal_psi::structural_type_contains_reference(types, formal.structural_type)
+        });
+        if returns_reference || writes_reference || tracks_native_addresses {
+            for (formal, actual) in scalar_bindings {
+                let origin = address_origin(actual);
+                call.native_address_arguments.push(
+                    self.native_address_actual(
+                        types,
+                        position,
+                        formal,
+                        origin
+                            .observed_sources()
+                            .map(|(at, source)| (at, source.borrow())),
+                        origin.exact,
+                        origin.parameters.clone(),
+                        origin.opaque,
+                    )?,
+                );
+            }
+        }
+        Some(())
+    }
+
+    pub(crate) fn bind_terminal_native_addresses(
+        &self,
+        tracks_native_addresses: bool,
+        call: &mut DescriptorInvocation,
+        module: &TerminalModule,
+        caller: &TerminalMachine,
+        callee: &TerminalMachine,
+        position: DescriptorPosition,
+        arguments: &[ValueId],
+        result: Option<&terminal_psi::StructuralOperationResult>,
+    ) -> Option<()> {
+        self.bind_native_address_arguments(
+            call,
+            &module.types.structural_types,
+            position,
+            &callee.structural_parameters,
+            result,
+            callee
+                .parameters
+                .iter()
+                .map(|formal| formal.id)
+                .zip(arguments.iter().copied()),
+            |actual| crate::storage::native_borrows::address_origin(module, caller, actual),
+            tracks_native_addresses,
+        )
+    }
+
     // A call that never returns can still read or write its arguments.
     // Both call forms use the shared signature checks and retain the
     // complete parameter list and supplied arguments at the pre-call cut.
     pub(crate) fn direct_invocation(
         &self,
+        tracks_native_addresses: bool,
+        caller: &TerminalMachine,
+        position: DescriptorPosition,
         module: &TerminalModule,
-        machines: &[&TerminalMachine],
+        callee: &TerminalMachine,
         slot_kind: DescriptorSlotKind,
-        invocation: terminal_psi::ModuleInvocation<'_>,
+        site: semantic_vocabulary::InvocationSite,
+        inputs: terminal_psi::ModuleInvocationInputs<'_>,
         result: Option<&terminal_psi::StructuralOperationResult>,
         selector: impl Fn(ValueId) -> Option<ScalarTerm>,
     ) -> Option<DescriptorInvocation> {
-        let inputs = invocation.inputs;
-        let callee = terminal_graph_machine(machines, inputs.callee)?;
-        if callee.parameters.len() != inputs.arguments.len() {
+        if callee.id != inputs.callee || callee.parameters.len() != inputs.arguments.len() {
             return None;
         }
-        let owner = match invocation.site {
+        let owner = match site {
             semantic_vocabulary::InvocationSite::Operation(operation) => {
                 DescriptorInvocationOwner::Operation(operation)
             }
@@ -124,17 +200,46 @@ impl DescriptorMachine {
             }
             _ => return None,
         };
-        let mut call = machine_invocation(
-            owner,
-            &module.types.structural_types,
-            slot_kind,
+        // A witness can retain only the checked header of a non-returning
+        // callee. Its arguments are still observed at the terminal edge,
+        // but there is no callee body from which to infer writes.
+        let mut call = if matches!(owner, DescriptorInvocationOwner::InvokeNoNormal(_))
+            && callee.blocks.is_empty()
+        {
+            let header = crate::requirement_reference_result(module, callee.id).ok()??;
+            public_invocation_at(
+                owner,
+                &module.types.structural_types,
+                slot_kind,
+                &header,
+                Vec::new(),
+                inputs.structural_arguments,
+                result,
+                |place| self.place_types.get(&place).copied(),
+            )?
+        } else {
+            machine_invocation(
+                owner,
+                &module.types.structural_types,
+                slot_kind,
+                callee,
+                inputs.structural_arguments,
+                result,
+                inputs
+                    .structural_arguments
+                    .iter()
+                    .map(|actual| self.place_types.get(&actual.place).copied()),
+            )?
+        };
+        self.bind_terminal_native_addresses(
+            tracks_native_addresses,
+            &mut call,
+            module,
+            caller,
             callee,
-            inputs.structural_arguments,
+            position,
+            inputs.arguments,
             result,
-            inputs
-                .structural_arguments
-                .iter()
-                .map(|actual| self.place_types.get(&actual.place).copied()),
         )?;
         call.scalar_arguments = descriptor_scalar_arguments(
             callee
@@ -158,6 +263,28 @@ pub fn public_invocation(
     result: Option<&terminal_psi::StructuralOperationResult>,
     place_types: &BTreeMap<PlaceId, StructuralTypeId>,
 ) -> Option<DescriptorInvocation> {
+    public_invocation_at(
+        DescriptorInvocationOwner::Operation(operation),
+        types,
+        slot_kind,
+        slot,
+        realizations,
+        actuals,
+        result,
+        |place| place_types.get(&place).copied(),
+    )
+}
+
+fn public_invocation_at(
+    owner: DescriptorInvocationOwner,
+    types: &[StructuralTypeDeclaration],
+    slot_kind: DescriptorSlotKind,
+    slot: &impl terminal_psi::ReferenceResultShape,
+    realizations: Vec<MachineId>,
+    actuals: &[StructuralArgument],
+    result: Option<&terminal_psi::StructuralOperationResult>,
+    place_type: impl Fn(PlaceId) -> Option<StructuralTypeId>,
+) -> Option<DescriptorInvocation> {
     if actuals.len() != slot.structural_parameter_count() {
         return None;
     }
@@ -169,7 +296,7 @@ pub fn public_invocation(
         if actual.access != access {
             return None;
         }
-        let root = *place_types.get(&actual.place)?;
+        let root = place_type(actual.place)?;
         arguments.push(descriptor_location(
             types,
             actual.place,
@@ -200,12 +327,15 @@ pub fn public_invocation(
             return None;
         }
         results = public_result_slots(types, slot_kind, slot, result.place)?;
-    } else if matches!(slot.result().as_ref(), BoundaryMachineResult::Structural(_)) {
+    } else if matches!(owner, DescriptorInvocationOwner::Operation(_))
+        && matches!(slot.result().as_ref(), BoundaryMachineResult::Structural(_))
+    {
         return None;
     }
     Some(DescriptorInvocation {
+        native_address_arguments: Vec::new(),
         scalar_arguments: Vec::new(),
-        owner: DescriptorInvocationOwner::Operation(operation),
+        owner,
         target: DescriptorInvocationTarget::Public {
             effects_machine: None,
             realizations,
@@ -282,8 +412,7 @@ pub(crate) fn public_result_slots(
             let index = match region.origin {
                 TerminalDynamicReferenceOrigin::Parameter { argument_index } => argument_index,
                 TerminalDynamicReferenceOrigin::Invocation { carrier_type } => {
-                    let mut projection = Projection::new(&region.source_path);
-                    projection.forget_address();
+                    let projection = Projection::declared_reference_region(&region.source_path);
                     origins.push(DescriptorStoredOrigin::Invocation {
                         carrier_type,
                         projection,

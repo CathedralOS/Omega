@@ -16,6 +16,11 @@ mod error {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum LoweringError {
         InvalidDescriptorTableOperation(semantic_vocabulary::OperationId),
+        UnsupportedAssemblyAdjacency {
+            machine: MachineId,
+            block: BlockId,
+            reason: &'static str,
+        },
         UnclosedScalarConditions,
         UnclosedScalarApplication(semantic_vocabulary::ScalarApplicationId),
         ScalarApplicationCarrierMismatch(semantic_vocabulary::OperationId),
@@ -34,6 +39,7 @@ mod error {
         InvalidPrimitiveLocalEstablishment(semantic_vocabulary::OperationId),
         InvalidPrimitiveScalarRead(semantic_vocabulary::OperationId),
         InvalidStructuralCaseMembership(semantic_vocabulary::OperationId),
+        DuplicatePackageField(semantic_vocabulary::OperationId),
         SemanticIdentity(CodecError),
         UnsupportedPayloadlessCase(semantic_vocabulary::OperationId),
         InvalidStructuralLeafCopy {
@@ -139,6 +145,7 @@ fn structural_result(
     result.ok_or(invalid(operation.id))
 }
 
+mod assembly_adjacency;
 mod scalars;
 mod storage;
 
@@ -166,6 +173,8 @@ mod machine {
             pub(super) fn lower(
                 operation: &Operation,
                 machine: &TerminalMachine,
+                module: &terminal_psi::TerminalModule,
+                packages: &terminal_semantics::packages::CheckedPackageSites,
             ) -> Result<AbstractOperation, LoweringError> {
                 Ok(match operation.kind.clone() {
                     OperationKind::SelectMachine { descriptor } => {
@@ -206,7 +215,29 @@ mod machine {
                         crash_continuations,
                         ..
                     } => AbstractOperation::CallStructural {
+                        opening: packages
+                            .invocation_contract(machine.id, operation.id)
+                            .map(|_| -> Result<_, LoweringError> {
+                                let admitted_contracts = packages
+                                    .admitted_invocation_contracts(module, machine.id, operation.id)
+                                    .ok_or(LoweringError::UnsupportedDynamicDispatch(
+                                        operation.id,
+                                    ))?;
+                                let stored_arguments = (0..structural_arguments.len())
+                                    .filter_map(|position| {
+                                        packages
+                                            .invocation_argument(machine.id, operation.id, position)
+                                            .map(|ty| (position, ty))
+                                    })
+                                    .collect();
+                                Ok(abstract_operations::OpenedPackageCall {
+                                    admitted_contracts,
+                                    stored_arguments,
+                                })
+                            })
+                            .transpose()?,
                         psi_operation: operation.id,
+                        suspension_crossing: operation.suspension_crossing,
                         callee: AbstractCallTarget::Callable { callee, contract },
                         arguments,
                         structural_arguments,
@@ -239,7 +270,9 @@ mod machine {
                         crash_continuations,
                         ..
                     } => AbstractOperation::CallStructural {
+                        opening: None,
                         psi_operation: operation.id,
+                        suspension_crossing: operation.suspension_crossing,
                         callee: AbstractCallTarget::Dynamic {
                             selector,
                             interface,
@@ -275,7 +308,9 @@ mod machine {
                         requirement_obligations,
                         crash_continuations,
                     } => AbstractOperation::CallStructural {
+                        opening: None,
                         psi_operation: operation.id,
+                        suspension_crossing: operation.suspension_crossing,
                         callee: callee.into(),
                         arguments,
                         structural_arguments,
@@ -296,7 +331,9 @@ mod machine {
                     } => {
                         let result = operation.result.expect_scalar();
                         AbstractOperation::CallStructural {
+                            opening: None,
                             psi_operation: operation.id,
+                            suspension_crossing: operation.suspension_crossing,
                             result: AbstractStructuralCallResult::Scalar(result.into()),
                             callee: callee.into(),
                             arguments,
@@ -333,7 +370,9 @@ mod machine {
                             _ => Vec::new(),
                         };
                         AbstractOperation::CallStructural {
+                            opening: None,
                             psi_operation: operation.id,
+                            suspension_crossing: operation.suspension_crossing,
                             result: AbstractStructuralCallResult::Structural {
                                 result,
                                 selected_evidence,
@@ -380,6 +419,7 @@ mod machine {
                         completion_claim_sources.sort();
                         AbstractOperation::BoundaryCall {
                             psi_operation: operation.id,
+                            suspension_crossing: operation.suspension_crossing,
                             result: match &operation.result {
                                 terminal_psi::OperationResult::Unit => {
                                     abstract_operations::AbstractBoundaryResult::Unit
@@ -411,6 +451,7 @@ mod machine {
                         crash_continuations,
                     } => AbstractOperation::Call {
                         psi_operation: operation.id,
+                        suspension_crossing: operation.suspension_crossing,
                         result: operation.result.expect_scalar().id,
                         scalar_type: operation.result.expect_scalar().scalar_type,
                         callee,
@@ -628,8 +669,9 @@ mod machine {
                 block: &terminal_psi::Block,
                 machine: &TerminalMachine,
                 module: &terminal_psi::TerminalModule,
+                packages: &terminal_semantics::packages::CheckedPackageSites,
                 structural_types: &[terminal_psi::StructuralTypeDeclaration],
-                scalar_applications: Option<&psi_scalar_applications::AdmittedScalarApplications>,
+                scalar_applications: Option<&psi_scalar_applications::ScalarApplicationValues>,
                 access_view_plans: &[terminal_psi::TerminalAccessViewPlan],
                 value_types: &BTreeMap<semantic_vocabulary::ValueId, ScalarType>,
                 byte_sequence_literals: &[StructuralLiteral<'_>],
@@ -785,7 +827,9 @@ mod machine {
                     OperationKind::SelectImplementation { .. }
                     | OperationKind::SelectMachine { .. }
                     | OperationKind::CallDynamic { .. }
-                    | OperationKind::CallMachine { .. } => calls::lower(operation, machine),
+                    | OperationKind::CallMachine { .. } => {
+                        calls::lower(operation, machine, module, packages)
+                    }
                     OperationKind::StorageAddress { source } | OperationKind::StorageAlignment { source } => {
                         let query = if matches!(operation.kind, OperationKind::StorageAddress { .. }) {
                             terminal_psi::StorageLocationQuery::Address
@@ -829,6 +873,30 @@ mod machine {
                             path: source.path.clone(),
                         })
                     }
+                    OperationKind::BorrowAt { address } => {
+                        let result = operation
+                            .result
+                            .structural()
+                            .cloned()
+                            .ok_or(LoweringError::UnsupportedReferenceCustody(operation.id))?;
+                        Ok(AbstractOperation::BorrowAt {
+                            psi_operation: operation.id,
+                            result,
+                            address: *address,
+                        })
+                    }
+                    OperationKind::UpgradeMutability { source } => {
+                        let result = operation
+                            .result
+                            .structural()
+                            .cloned()
+                            .ok_or(LoweringError::UnsupportedReferenceCustody(operation.id))?;
+                        Ok(AbstractOperation::UpgradeMutability {
+                            psi_operation: operation.id,
+                            result,
+                            source: source.clone(),
+                        })
+                    }
                     OperationKind::EstablishReference { source, storage } => {
                         let Some(result) = operation.result.structural().cloned() else {
                             return Err(LoweringError::UnsupportedReferenceCustody(operation.id));
@@ -865,6 +933,7 @@ mod machine {
                     | OperationKind::PrimitiveScalarRead { .. } => super::primitive_storage::lower(
                         operation,
                         machine,
+                        packages,
                         structural_types,
                         value_types,
                     ),
@@ -1219,6 +1288,7 @@ mod machine {
                         operation,
                         block,
                         machine,
+                        packages,
                         structural_types,
                         byte_sequence_literals,
                         unit_affine_locals,
@@ -1228,7 +1298,7 @@ mod machine {
                     | OperationKind::CallStructuralScalar { .. }
                     | terminal_psi::call_structural_pair_pattern!(..)
                     | OperationKind::BoundaryCall { .. }
-                    | OperationKind::Call { .. } => calls::lower(operation, machine),
+                    | OperationKind::Call { .. } => calls::lower(operation, machine, module, packages),
                     OperationKind::PortWrite { .. }
                     | OperationKind::RegisterAccess { .. }
                     | OperationKind::ActivateTaskRegister { .. }
@@ -1250,7 +1320,7 @@ mod machine {
                         )
                     }
                     terminal_psi::move_or_store_structural_field_pattern!() => {
-                        borrowed_windows::lower(operation, machine, structural_types)
+                        borrowed_windows::lower(operation, machine, structural_types, packages)
                     }
                     OperationKind::TransformContent {
                         source,
@@ -1346,6 +1416,7 @@ mod machine {
                             machine,
                             module,
                             structural_types,
+                            packages,
                             *source,
                             abstract_operations::StructuralCopyPath::Ordinary(path.clone()),
                         )
@@ -1356,6 +1427,7 @@ mod machine {
                             machine,
                             module,
                             structural_types,
+                            packages,
                             *source,
                             abstract_operations::StructuralCopyPath::Case(path.clone()),
                         )
@@ -1443,8 +1515,9 @@ mod machine {
             block: &terminal_psi::Block,
             machine: &TerminalMachine,
             module: &terminal_psi::TerminalModule,
+            packages: &terminal_semantics::packages::CheckedPackageSites,
             structural_types: &[terminal_psi::StructuralTypeDeclaration],
-            scalar_applications: Option<&psi_scalar_applications::AdmittedScalarApplications>,
+            scalar_applications: Option<&psi_scalar_applications::ScalarApplicationValues>,
             access_view_plans: &[terminal_psi::TerminalAccessViewPlan],
             value_types: &BTreeMap<semantic_vocabulary::ValueId, ScalarType>,
             byte_sequence_literals: &[StructuralLiteral<'_>],
@@ -1457,6 +1530,7 @@ mod machine {
                 block,
                 machine,
                 module,
+                packages,
                 structural_types,
                 scalar_applications,
                 access_view_plans,
@@ -1779,7 +1853,8 @@ mod machine {
         module: &terminal_psi::TerminalModule,
         machine: &TerminalMachine,
         structural_types: &[StructuralTypeDeclaration],
-        scalar_applications: Option<&psi_scalar_applications::AdmittedScalarApplications>,
+        scalar_applications: Option<&psi_scalar_applications::ScalarApplicationValues>,
+        packages: &terminal_semantics::packages::CheckedPackageSites,
     ) -> Result<AbstractFunction, LoweringError> {
         let result = machine.result.scalar();
         let blocks = machine
@@ -1834,6 +1909,7 @@ mod machine {
                     block,
                     machine,
                     module,
+                    packages,
                     structural_types,
                     scalar_applications,
                     &module.access.access_view_plans,
@@ -1860,6 +1936,7 @@ mod machine {
             });
         }
 
+        let lowered_blocks = super::assembly_adjacency::physical_blocks(machine, lowered_blocks)?;
         Ok(AbstractFunction {
             machine: machine.id,
             attachment: machine.attachment,
@@ -1900,7 +1977,7 @@ pub(crate) fn lower_selected_module(
     entry: semantic_vocabulary::MachineId,
     structural_types: Vec<terminal_psi::StructuralTypeDeclaration>,
     scope: Option<&target_bound_program::TargetBoundReach>,
-    scalar_applications: Option<&psi_scalar_applications::AdmittedScalarApplications>,
+    scalar_applications: Option<&psi_scalar_applications::ScalarApplicationValues>,
     layouts: Option<&psi_target_layouts::AdmittedTargetLayouts>,
 ) -> Result<AbstractOperationPlan, LoweringError> {
     if !module.scalars.scalar_applications.conditions.is_empty() && scalar_applications.is_none() {
@@ -1954,11 +2031,24 @@ pub(crate) fn lower_selected_module(
             )
         })?,
     };
+    let packages = terminal_semantics::packages::check_package_sites(module).map_err(|reason| {
+        LoweringError::SemanticIdentity(terminal_codec::CodecError::MalformedStructuralFoundation(
+            reason,
+        ))
+    })?;
     let functions = module
         .machines
         .iter()
         .filter(|machine| scope.is_none_or(|scope| scope.contains_machine(machine.id)))
-        .map(|machine| lower_machine(module, machine, &structural_types, scalar_applications))
+        .map(|machine| {
+            lower_machine(
+                module,
+                machine,
+                &structural_types,
+                scalar_applications,
+                &packages,
+            )
+        })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(AbstractOperationPlan {
         psi: terminal_psi_identity(module).map_err(LoweringError::SemanticIdentity)?,
@@ -1973,7 +2063,8 @@ pub(crate) fn lower_selected_module(
         .map_err(LoweringError::SemanticIdentity)?
         .with_quotients(module.types.quotients.clone())
         .map_err(LoweringError::SemanticIdentity)?
-        .with_owned_sequence_bounds(owned_sequence_bounds),
+        .with_owned_sequence_bounds(owned_sequence_bounds)
+        .with_package_witnesses(&module.execution.packages),
         boundary_machines: module
             .interfaces.boundary_machines
             .iter()

@@ -41,6 +41,16 @@ pub fn reconstruct_psi_optimization_unit_seed(
     plan: &AbstractOperationPlan,
     work_schedule: WorkScheduleIdentity,
 ) -> Result<PsiOptimizationUnit, OptimizationUnitBuildError> {
+    reconstruct_psi_optimization_unit_with_inputs(plan, work_schedule, None, None, None)
+}
+
+pub fn reconstruct_psi_optimization_unit_with_inputs(
+    plan: &AbstractOperationPlan,
+    work_schedule: WorkScheduleIdentity,
+    lowering_target: Option<&str>,
+    scalar_values: Option<&[u8]>,
+    scope_provider_closure: Option<[u8; 32]>,
+) -> Result<PsiOptimizationUnit, OptimizationUnitBuildError> {
     let functions = plan
         .functions
         .iter()
@@ -58,6 +68,14 @@ pub fn reconstruct_psi_optimization_unit_seed(
         identity: OptimizationUnitIdentity::from_canonical_bytes(b"pending canonical content"),
         psi: plan.psi,
         work_schedule,
+        scope_provider_closure,
+        lowering_target: lowering_target.map(str::to_owned),
+        scalar_values_digest: scalar_values.map(|bytes| {
+            wire::digest_encoder::DomainDigestEncoder::content(
+                b"omega.native-scalar-application-values.v1\0",
+                bytes,
+            )
+        }),
         entry: plan.entry,
         structural_types: plan.structural_types.clone(),
         structural_domains: Arc::new([]),
@@ -70,7 +88,10 @@ pub fn reconstruct_psi_optimization_unit_seed(
         accepted_obligation_facts: Vec::new(),
         identities: plan.identities.clone(),
         runtime_evidence: None,
-        functions,
+        functions: super::OptimizationFunctions {
+            rows: functions,
+            digest: super::identity::unit_encoding::function_digest(&plan.functions),
+        },
     };
     unit.identity = recompute_psi_optimization_unit_identity(&unit);
     Ok(unit)
@@ -640,6 +661,8 @@ pub fn operation_definition(operation: &AbstractOperation) -> Option<(ValueId, S
         | O::ReturnUnit { .. }
         | O::ReturnStructural { .. }
         | O::EstablishAccessReference { .. }
+        | O::BorrowAt { .. }
+        | O::UpgradeMutability { .. }
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
         | O::InvokeNoNormal { .. }
@@ -694,6 +717,8 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
             .collect(),
         O::EstablishStructuralArray { .. } => Vec::new(),
         O::EstablishScalarArray { elements, .. } => elements.clone(),
+        O::BorrowAt { address, .. } => vec![*address],
+        O::UpgradeMutability { .. } => Vec::new(),
         O::EstablishReference { storage, .. } => {
             storage.iter().map(|view| view.byte_offset).collect()
         }
@@ -960,7 +985,11 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
             places.insert(*source);
             places.insert(result.place);
         }
-        O::EstablishReference { result, source, .. }
+        O::BorrowAt { result, .. } => {
+            places.insert(result.place);
+        }
+        O::UpgradeMutability { result, source, .. }
+        | O::EstablishReference { result, source, .. }
         | O::MoveStructuralValue { result, source, .. }
         | O::EstablishAccessReference { result, source, .. } => {
             places.insert(result.place);
@@ -1178,6 +1207,8 @@ pub fn operation_ownership(operation: &AbstractOperation) -> Vec<OwnershipEvent>
         | O::Conditional { .. }
         | O::StructuralCase { .. }
         | O::EstablishAccessReference { .. }
+        | O::BorrowAt { .. }
+        | O::UpgradeMutability { .. }
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
         | O::EliminateEmpty { .. } => Vec::new(),

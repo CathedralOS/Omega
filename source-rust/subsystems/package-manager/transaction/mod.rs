@@ -356,6 +356,7 @@ impl<'workspace, 'storage> PackageCommandPreparation<'workspace, 'storage> {
         self,
         session: &mut crate::PackageBuildSession,
         programs: package_compilation::build_execution::BuildProgramInvocation,
+        network: package_compilation::build_execution::BuildNetworkInvocation,
     ) -> Result<CommandSourceReview<'workspace, 'storage>, PackageCommandError> {
         let mut rows = self.previous_build_requests();
         let reviewed = if rows.is_empty() {
@@ -387,6 +388,7 @@ impl<'workspace, 'storage> PackageCommandPreparation<'workspace, 'storage> {
         let inputs = crate::project::RootBuildInputs {
             snapshot: self.build_snapshot().cloned(),
             programs,
+            network,
         };
         let result = {
             let mut acquisitions = self.source_acquisitions()?;
@@ -826,6 +828,7 @@ pub enum PackageCommand {
 #[derive(Debug, Clone)]
 pub struct PackageCommandOptions {
     pub programs: package_compilation::build_execution::BuildProgramInvocation,
+    pub network: package_compilation::build_execution::BuildNetworkInvocation,
     pub project_root: PathBuf,
     pub targets: Vec<TargetProfile>, // explicit targets augment every previously accepted target
     pub offline: bool, // use cached recorded Git pins only; never fetch or refresh a selector
@@ -871,6 +874,24 @@ impl PackageCommandError {
         accounting: SourceCompletionAccounting,
     ) -> Self {
         self.accounting.append(accounting);
+        self
+    }
+
+    /// A single source can run under several requester-local aliases with
+    /// different grants. Retain the issued name when an activation fails.
+    pub(crate) fn in_dependency_registration(mut self, name: &str) -> Self {
+        if let PackageCommandCause::Compilation(
+            CompileFailure::Diagnostics(rows)
+            | CompileFailure::SourceCompletion {
+                diagnostics: rows, ..
+            },
+        ) = &mut self.cause
+        {
+            let context = format!("dependency registration `{name}` failed: ");
+            for diagnostic in rows {
+                diagnostic.message.insert_str(0, &context);
+            }
+        }
         self
     }
 

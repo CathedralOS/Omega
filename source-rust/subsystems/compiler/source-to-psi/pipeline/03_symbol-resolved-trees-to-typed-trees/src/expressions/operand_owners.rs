@@ -11,200 +11,46 @@
     already-closed declarations are not re-traversed.
 */
 
-use crate::lowerer::{TypingCohort, symbol_key};
+use crate::lowerer::TypingCohort;
 use crate::source_state::TypedTrees;
 use crate::source_state::expression::{ExpressionHandle, ExpressionNode};
-use crate::source_state::mathematical::MathematicalTypeHandle;
 use crate::source_state::references::{
-    ProgramOperandOwners, TypedReferences, collect_program_operand_owners, visit_program,
+    DeclarationSelection, ProgramOperandOwners, ScopedOccurrences, TypedReferences,
+    collect_program_operand_owners, collect_selected_program_operand_owners, visit_program,
 };
 use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 use symbols::{SymbolHandle, SymbolKind};
 
-struct ScopedOccurrenceRow<Element> {
-    owner: SymbolHandle,
-    reference: arena::Handle<Element>,
-    next: usize,
-}
-
-struct ScopedOccurrences<Element> {
-    heads: Vec<usize>,
-    rows: Vec<ScopedOccurrenceRow<Element>>,
-}
-
-impl<Element> Default for ScopedOccurrences<Element> {
-    fn default() -> Self {
-        Self {
-            heads: Vec::new(),
-            rows: Vec::new(),
-        }
-    }
-}
-
-impl<Element> ScopedOccurrences<Element> {
-    fn insert(&mut self, owner: SymbolHandle, reference: arena::Handle<Element>) -> bool {
-        let slot = reference.arena_index() as usize;
-        if self.heads.len() <= slot {
-            self.heads.resize(slot + 1, 0);
-        }
-        let mut last = None;
-        let mut link = self.heads[slot];
-        while let Some(row) = link.checked_sub(1) {
-            let retained = &self.rows[row];
-            if retained.owner == owner && retained.reference == reference {
-                return false;
-            }
-            last = Some(row);
-            link = retained.next;
-        }
-        self.rows.push(ScopedOccurrenceRow {
-            owner,
-            reference,
-            next: 0,
-        });
-        let appended = self.rows.len();
-        match last {
-            Some(row) => self.rows[row].next = appended,
-            None => self.heads[slot] = appended,
-        }
-        true
-    }
-
-    fn owners(&self, reference: arena::Handle<Element>) -> impl Iterator<Item = SymbolHandle> + '_ {
-        let mut link = self
-            .heads
-            .get(reference.arena_index() as usize)
-            .copied()
-            .unwrap_or(0);
-        std::iter::from_fn(move || {
-            while let Some(row) = link.checked_sub(1) {
-                let retained = &self.rows[row];
-                link = retained.next;
-                if retained.reference == reference {
-                    return Some(retained.owner);
-                }
-            }
-            None
-        })
-    }
-}
-
-/// Operand owners of one program state, for one `close_typed_cohort` pass.
-/// A pass that writes the program makes the table stale for later passes.
-pub(crate) struct CohortOperandOwners {
-    full: Option<ProgramOperandOwners>,
-    types: ScopedOccurrences<TypeReferenceNode>,
-    expressions: ScopedOccurrences<ExpressionNode>,
-}
+/// The owners visible to a single pass, from the exact snapshot it reads.
+pub(crate) struct CohortOperandOwners(ProgramOperandOwners);
 
 impl CohortOperandOwners {
-    /// Collect owners for the entire program (used by standalone unit tests).
     pub(crate) fn full(program: &TypedTrees) -> Self {
-        Self {
-            full: Some(collect_program_operand_owners(program)),
-            types: ScopedOccurrences::default(),
-            expressions: ScopedOccurrences::default(),
-        }
+        Self(collect_program_operand_owners(program))
     }
 
-    /// Collect owners for `cohort`: full parallel walk when fresh, or declarations in `cohort`
-    /// only when continuing a retained base.
     pub(crate) fn collect(program: &TypedTrees, cohort: &TypingCohort<'_>) -> Self {
         if cohort.is_fresh() {
             return Self::full(program);
         }
-        let mut collector = CohortOwnerCollector::new(cohort.declaration_keys(program));
-        visit_program(program, &mut collector);
-        Self {
-            full: None,
-            types: collector.types,
-            expressions: collector.expressions,
-        }
+        Self(collect_selected_program_operand_owners(
+            program,
+            cohort.declarations(program),
+        ))
     }
 
-    pub(crate) fn expression_owners<'a>(
-        &'a self,
+    pub(crate) fn expression_owners(
+        &self,
         expression: ExpressionHandle,
-    ) -> Box<dyn Iterator<Item = SymbolHandle> + 'a> {
-        match &self.full {
-            Some(full) => Box::new(full.expression_owners(expression)),
-            None => Box::new(self.expressions.owners(expression)),
-        }
+    ) -> impl Iterator<Item = SymbolHandle> + '_ {
+        self.0.expression_owners(expression)
     }
 
-    pub(crate) fn type_owners<'a>(
-        &'a self,
+    pub(crate) fn type_owners(
+        &self,
         reference: TypeReferenceHandle,
-    ) -> Box<dyn Iterator<Item = SymbolHandle> + 'a> {
-        match &self.full {
-            Some(full) => Box::new(full.type_owners(reference)),
-            None => Box::new(self.types.owners(reference)),
-        }
-    }
-}
-
-struct CohortOwnerCollector {
-    selected: Vec<(u32, u32)>,
-    owner: SymbolHandle,
-    outer_owners: Vec<SymbolHandle>,
-    types: ScopedOccurrences<TypeReferenceNode>,
-    expressions: ScopedOccurrences<ExpressionNode>,
-    seen_mathematical: ScopedOccurrences<crate::source_state::mathematical::MathematicalType>,
-}
-
-impl CohortOwnerCollector {
-    fn new(selected: Vec<(u32, u32)>) -> Self {
-        Self {
-            selected,
-            owner: SymbolHandle::invalid(),
-            outer_owners: Vec::new(),
-            types: ScopedOccurrences::default(),
-            expressions: ScopedOccurrences::default(),
-            seen_mathematical: ScopedOccurrences::default(),
-        }
-    }
-}
-
-impl Extend<SymbolHandle> for CohortOwnerCollector {
-    fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, _: T) {}
-}
-
-impl TypedReferences for CohortOwnerCollector {
-    fn collects_symbols(&self) -> bool {
-        false
-    }
-
-    fn declaration(&mut self, symbol: SymbolHandle) -> bool {
-        if self.selected.binary_search(&symbol_key(symbol)).is_err() {
-            return false;
-        }
-        self.owner = symbol;
-        true
-    }
-
-    fn enter_lexical_scope(&mut self, owner: SymbolHandle) {
-        self.outer_owners.push(self.owner);
-        if owner.is_valid() {
-            self.owner = owner;
-        }
-    }
-
-    fn leave_lexical_scope(&mut self) {
-        if let Some(owner) = self.outer_owners.pop() {
-            self.owner = owner;
-        }
-    }
-
-    fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
-        self.types.insert(self.owner, reference)
-    }
-
-    fn expression(&mut self, expression: ExpressionHandle) -> bool {
-        self.expressions.insert(self.owner, expression)
-    }
-
-    fn mathematical_type(&mut self, reference: MathematicalTypeHandle) -> bool {
-        self.seen_mathematical.insert(self.owner, reference)
+    ) -> impl Iterator<Item = SymbolHandle> + '_ {
+        self.0.type_owners(reference)
     }
 }
 
@@ -237,7 +83,7 @@ pub(crate) fn retain_cohort_static_argument_contexts(
     }
 
     struct CohortCalls {
-        selected: Vec<(u32, u32)>,
+        selected: DeclarationSelection,
         expression_frontier: usize,
         owner: SymbolHandle,
         outer: Vec<SymbolHandle>,
@@ -255,7 +101,7 @@ pub(crate) fn retain_cohort_static_argument_contexts(
             false
         }
         fn declaration(&mut self, owner: SymbolHandle) -> bool {
-            if self.selected.binary_search(&symbol_key(owner)).is_err() {
+            if !self.selected.contains(owner) {
                 return false;
             }
             self.owner = owner;
@@ -285,7 +131,7 @@ pub(crate) fn retain_cohort_static_argument_contexts(
     }
 
     let mut collector = CohortCalls {
-        selected: cohort.declaration_keys(program),
+        selected: cohort.declarations(program),
         expression_frontier: cohort.typed_expressions,
         owner: SymbolHandle::invalid(),
         outer: Vec::new(),

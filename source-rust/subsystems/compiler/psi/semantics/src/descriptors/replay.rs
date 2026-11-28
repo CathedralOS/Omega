@@ -21,8 +21,29 @@ pub(crate) mod module_summaries;
 pub(crate) mod provider;
 pub(crate) mod summary_interface;
 use crate::runtime_structural_path_tip;
-pub use analysis::{DescriptorAnalysis, DescriptorSourceObservation, DescriptorSourceObservations};
+pub use analysis::{
+    DescriptorAnalysis, DescriptorSourceObservation, DescriptorSourceObservations,
+    LocalReturnBacking,
+};
 use engine::Replay;
+
+/// A physical place, or the native storage reached by a scalar formal.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum StorageWriteTarget {
+    Storage(DescriptorLocation),
+    NativeAddress(semantic_vocabulary::ValueId),
+    Unlocated,
+}
+
+impl StorageWriteTarget {
+    pub(crate) fn contains(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Storage(root), Self::Storage(location)) => root.contains(location),
+            _ => self == other,
+        }
+    }
+}
+
 pub use module_summaries::ModuleSummaries;
 use terminal_psi::find_structural_type;
 
@@ -35,6 +56,8 @@ pub struct DescriptorResultContents {
     /// The flow retains all possible input loans for these descriptors.
     /// This lifetime account supplies no unique spatial origin.
     pub unresolved_slots: Vec<Vec<DescriptorPathSegment>>,
+    /// Concrete referents at return slots reached from checked package initializers.
+    pub(crate) package_referents: crate::packages::ReturnedReferences,
     pub(crate) case_facts: case_flow::ResultCases,
 }
 
@@ -71,6 +94,17 @@ pub enum DescriptorStoredOrigin {
     },
     Provider(DescriptorProviderOrigin<DescriptorStoredOrigin>),
     AccessFormation {
+        machine: MachineId,
+        operation: semantic_vocabulary::OperationId,
+        place: PlaceId,
+        carrier: StructuralTypeId,
+        projection: Projection,
+    },
+    NativeAddress {
+        /// An independent native alternative has no tracked lifetime source.
+        opaque: bool,
+        exact_parameters: bool,
+        parameters: Vec<semantic_vocabulary::ValueId>,
         machine: MachineId,
         operation: semantic_vocabulary::OperationId,
         place: PlaceId,

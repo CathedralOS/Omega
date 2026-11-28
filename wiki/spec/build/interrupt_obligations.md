@@ -61,6 +61,35 @@ operation is emitted and behaves as specified. The
 [delivery controls](../../drafts/designs/runtime_provider_authority.md#acceptance)
 keep those evidence claims separate.
 
+## Enabling interrupts after x86 table publication
+
+The bundled x86 installer checks that maskable interrupts are disabled and
+keeps them disabled while publishing the interrupt table. On success it
+enters the selected `Work` callback with the mask unchanged and the table,
+stacks and context still live. If validation refuses the table, the installer
+returns without publishing it or calling `Work`.
+
+`Work`, or a helper it calls, may explicitly enable maskable interrupts through
+the target's provider. At that operation the caller must establish both the
+controller authority for the current CPU and the target's readiness conditions,
+including the installed handlers and stacks for the interrupts that can now
+arrive. These checks also apply at a lower-level instruction route. The target
+architecture defines the mask transition. The target package defines when its
+kernel is ready. Restoring a saved mask follows the [existing guard rules](#mask-providers-and-initial-authority).
+
+The installer's reach includes its own hardware operations and the selected
+callback's checked reach. An enable operation contributes `InterruptControl`
+through `Work` to the installer. Selecting work whose checked reach excludes
+`InterruptControl` adds no such service. The permission to operate on this CPU
+must still come from the controller authority.
+[Static callback reach](../language/effects.md#static-callback-reach-dependencies) ·
+[Privileged services](permissions.md#privileged-services)
+
+For timer deadlock checks, match the installed timer and CPU to the interval
+in which that timer can interrupt the work. Table publication leaves the CPU
+mask unchanged. An interval can begin only when the effective mask and timer
+configuration permit delivery.
+
 ## Mask and acknowledgement custody
 
 `InterruptMaskGuard` and `InterruptAcknowledgement` are independent opaque

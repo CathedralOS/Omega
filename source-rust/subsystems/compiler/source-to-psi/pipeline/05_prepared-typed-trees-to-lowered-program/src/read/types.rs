@@ -185,12 +185,35 @@ impl<'t> Program<'t> {
         id: MachineId,
         domain: crate::body::DomainInstance,
     ) -> Checked<&'t crate::source_state::domain::DomainDefinition> {
-        self.domain_theory_in_scope(
-            id,
-            domain,
-            (self.reading_schema || self.is_generic_check_form())
-                .then_some(self.source_scope.as_ref()),
-        )
+        let scope = self.source_scope.as_ref();
+        if self.reading_schema || self.is_generic_check_form() {
+            return self.domain_theory_in_scope(id, domain, Some(scope));
+        }
+        // An erased package can retain Resident<P, S> on its stored carrier.
+        // Only hidden types bound in this exact declaration or opening can
+        // justify a symbolic application when reading an ordinary machine.
+        let scoped_package = self
+            .typed
+            .domain_application(domain.declaration, domain.identity)
+            .filter(|application| !application.is_closed)
+            .is_some_and(|application| {
+                let mut hidden = crate::source_state::SourceTypeScope::default();
+                for frame in std::iter::successors(Some(scope), |frame| frame.parent.as_deref()) {
+                    hidden.rigid_parameters.extend(
+                        frame
+                            .rigid_parameters
+                            .iter()
+                            .copied()
+                            .filter(|parameter| self.is_package_witness_symbol(*parameter)),
+                    );
+                }
+                !hidden.rigid_parameters.is_empty()
+                    && application
+                        .arguments
+                        .iter()
+                        .all(|argument| hidden.admits_argument(self.typed, *argument))
+            });
+        self.domain_theory_in_scope(id, domain, scoped_package.then_some(scope))
     }
 
     /// A generic schema quantifies its own indices. Their prepared application
@@ -985,17 +1008,23 @@ impl Program<'_> {
         id: MachineId,
         handle: TypeReferenceHandle,
     ) -> Checked<ValueType> {
-        // A declared structural premise may define an otherwise rigid
-        // parameter. Read its constructor under the preceding source frame;
-        // a sibling actual cannot rewrite that constructor's arguments.
+        if let Some(witness) = self.package_witness_type(id, handle)? {
+            return Ok(witness);
+        }
+        // A machine premise or an applied data invariant can supply a type
+        // parameter. The data binder need not appear in the machine's value
+        // scope. Read its argument in the frame where that argument was written.
         if let Some(TypeReferenceNode::Named { symbol, .. }) = self
             .typed
             .contains_type_reference(handle)
             .then(|| self.typed.type_reference_table.type_reference(handle))
+            && self.typed.symbols.symbols().nodes().is_valid(*symbol)
+            && self.typed.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter
             && self
                 .scope
                 .iter()
-                .any(|(binder, bound)| binder == symbol && matches!(bound, ValueType::Rigid(_)))
+                .find(|(binder, _)| binder == symbol)
+                .is_none_or(|(_, bound)| matches!(bound, ValueType::Rigid(_)))
         {
             let supplied = self
                 .source_scope
@@ -1094,15 +1123,9 @@ impl Program<'_> {
         {
             return self.qualified_type(id, *base_type, *constraints);
         }
-        // `Inner<'a>`: data applied at lifetime arguments and nothing else
-        // is the declaration's one record row, because a lifetime argument
-        // is an erased region; the regions it names are part of the value
-        // type (`places::occurrence_regions`, `regions`). The
-        // application itself is checked against the declaration and the
-        // owner of the lifetimes it names (`lifetime_application`). An
-        // application with a type, const or machine argument, or of data
-        // that declares one, stays with the scalar route's refusal (`type
-        // generic application`).
+        // An explicit lifetime belongs to this occurrence, even if other
+        // arguments select a shared record layout. Check those lifetimes
+        // against the template before using the applied record's storage.
         if handle.is_valid()
             && let TypeReferenceNode::Generic {
                 base_symbol,
@@ -1110,11 +1133,14 @@ impl Program<'_> {
                 arguments,
                 ..
             } = self.typed.type_reference_table.type_reference(handle)
-            && arguments.is_empty()
             && base_symbol.is_valid()
             && self.typed.symbols.builtin_type_atom(*base_symbol).is_none()
             && let Some(data) = self.data_declaration(*base_symbol)
-            && data.type_parameters.is_empty()
+            && ((arguments.is_empty() && data.type_parameters.is_empty())
+                || (!lifetime_arguments.is_empty()
+                    && !arguments.is_empty()
+                    && (self.typed.data_application_definition(handle).is_some()
+                        || self.typed.closed_data_definition(handle).is_some())))
         {
             use super::places::RetainedLifetime;
             use crate::source_state::type_identity::{
@@ -1219,10 +1245,13 @@ impl Program<'_> {
                     if domain.subject == DomainConstraintSubject::Declared =>
                 {
                     self.named_domain(id, domain)?;
-                    let instance = crate::body::DomainInstance {
-                        declaration: domain.symbol,
-                        identity: domain.semantic_id,
-                    };
+                    let instance = self.supplied_domain_instance(
+                        id,
+                        crate::body::DomainInstance {
+                            declaration: domain.symbol,
+                            identity: domain.semantic_id,
+                        },
+                    )?;
                     written = written.with(instance).ok_or_else(|| {
                         refuse_at(id, Unserved::Type("constrained by one domain twice or by more than four declared domains"),
                         )
@@ -1243,6 +1272,78 @@ impl Program<'_> {
             }
         }
         Ok(qualification)
+    }
+
+    /// Resolve a forwarded domain telescope to its prepared application in the
+    /// supplying scope. An out-of-scope argument still owes the ordinary check.
+    pub(super) fn supplied_domain_instance(
+        &self,
+        id: MachineId,
+        domain: crate::body::DomainInstance,
+    ) -> Checked<crate::body::DomainInstance> {
+        let typed = self.typed;
+        let Some(application) = typed
+            .domain_application(domain.declaration, domain.identity)
+            .filter(|application| !application.is_closed)
+        else {
+            return Ok(domain);
+        };
+        let scope = &self.source_scope;
+        let mut arguments = Vec::with_capacity(application.arguments.len());
+        for &argument in &application.arguments {
+            let held = scope
+                .supplied_type_reference(typed, argument)
+                .map_err(|detail| refuse_at(id, Unserved::Type(detail)))?;
+            // Reading a composite type in the outer frame can still leave
+            // another substitution unresolved. Its raw handle is not evidence.
+            let identity = scope.type_identity(typed, argument);
+            if !identity.is_valid()
+                || !scope.admits_argument(typed, argument)
+                || identity != typed.normalized_type_identity(held.reference)
+            {
+                return Ok(domain);
+            }
+            arguments.push(held.reference);
+        }
+        if arguments == application.arguments {
+            return Ok(domain);
+        }
+        let definition = typed.domain_definition(domain.declaration).ok_or_else(|| {
+            refuse_at(
+                id,
+                Unserved::Type("forwarded domain without its declaration"),
+            )
+        })?;
+        let label = crate::source_state::domain::indexed_domain_instance_name(
+            typed,
+            definition,
+            typed.domain_type_parameters(definition),
+            &arguments,
+        )
+        .map_err(|_| {
+            refuse_at(
+                id,
+                Unserved::Type("forwarded domain without its complete coordinate"),
+            )
+        })?;
+        let identity = typed
+            .semantic_domains
+            .lookup(&label)
+            .filter(|&identity| {
+                typed
+                    .domain_application(domain.declaration, identity)
+                    .is_some()
+            })
+            .ok_or_else(|| {
+                refuse_at(
+                    id,
+                    Unserved::Type("forwarded domain without its prepared application"),
+                )
+            })?;
+        Ok(crate::body::DomainInstance {
+            declaration: domain.declaration,
+            identity,
+        })
     }
 
     pub(super) fn with_refinement(
@@ -1478,7 +1579,30 @@ impl Program<'_> {
         let subject =
             match self.logical_byte_domain_carrier(id, definition.target_type, Some(plain))? {
                 Some(subject) => subject,
-                None => self.value_type(id, definition.target_type)?,
+                None => {
+                    // A domain on a bare lifetime-parameterized record describes
+                    // that declaration, not a new elided loan. The qualified
+                    // occurrence already carries its exact record and regions.
+                    if let TypeReferenceNode::Named { symbol, .. } = typed
+                        .type_reference_table
+                        .type_reference(definition.target_type)
+                        && self.data_declaration(*symbol).is_some_and(|data| {
+                            !data.lifetime_parameters.is_empty()
+                                && data.type_parameters.is_empty()
+                                && data.generic_instance.is_none()
+                        })
+                    {
+                        let previous = std::mem::replace(
+                            &mut self.elision,
+                            super::regions::Elision::Declaration,
+                        );
+                        let subject = self.value_type(id, definition.target_type);
+                        self.elision = previous;
+                        super::places::with_regions(subject?, plain.regions())
+                    } else {
+                        self.value_type(id, definition.target_type)?
+                    }
+                }
             };
         let mut required = subject.qualification();
         let parent = parent.map(|parent| crate::body::DomainInstance {

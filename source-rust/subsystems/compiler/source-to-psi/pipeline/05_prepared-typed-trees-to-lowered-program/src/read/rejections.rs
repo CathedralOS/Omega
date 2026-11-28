@@ -71,17 +71,21 @@ pub(super) enum Destination {
     Assigned,
     /// The element type of the array an array literal constructs.
     ArrayElement,
+    AtomicOperand,
+    Referent,
 }
 
 impl Destination {
     const fn named(self) -> &'static str {
         match self {
             Self::Parameter => "the parameter it is passed for",
+            Self::AtomicOperand => "the atomic cell",
             Self::Result => "the machine's result",
             Self::MatchArm => "the match's common result type",
             Self::Field => "the field it initializes",
             Self::Local => "the local it initializes",
             Self::Assigned => "the place it is assigned to",
+            Self::Referent => "the borrow's referent type",
             Self::ArrayElement => "the array element it initializes",
         }
     }
@@ -380,7 +384,16 @@ impl Program<'_> {
     ) -> Option<(String, String)> {
         use crate::source_state::expression::ExpressionNode;
 
-        let carrier = self.typed.primitive_type_reference(carrier)?;
+        let Some(carrier) = self.typed.primitive_type_reference(carrier) else {
+            let carrier = self.typed.normalized_type_identity_text(carrier);
+            let expected =
+                crate::source_state::canonical_const_argument_value(self.typed, expected)?;
+            let found = crate::source_state::canonical_const_argument_value(self.typed, found)?;
+            return (expected.type_name == carrier
+                && found.type_name == carrier
+                && expected.encoding != found.encoding)
+                .then_some((expected.display, found.display));
+        };
         let value = |reference| {
             let operand = self
                 .typed
@@ -786,7 +799,7 @@ mod tests {
         let typed = TypedTrees::default();
         let mut program = Program::new(&typed, false);
         let id = MachineId::new(1).unwrap();
-        let element = program.records.push(RecordType {
+        let element_type = RecordType {
             identity: "u8".into(),
             shape: StorageShape::PrimitiveScalar {
                 scalar_type: ScalarType::Integer(
@@ -799,9 +812,10 @@ mod tests {
             requires: Vec::new(),
             authored_layout: false,
             erased: Vec::new(),
-        });
+        };
+        let element = program.push_record_row(element_type, Default::default());
         let mut array = |length| {
-            ValueType::record(program.records.push(RecordType {
+            let array_type = RecordType {
                 shape: StorageShape::FixedArray {
                     element,
                     qualification: Qualification::NONE,
@@ -813,7 +827,8 @@ mod tests {
                 requires: Vec::new(),
                 authored_layout: false,
                 erased: Vec::new(),
-            }))
+            };
+            ValueType::record(program.push_record_row(array_type, Default::default()))
         };
         let three = array(ArrayExtent::Literal(3));
         let four = array(ArrayExtent::Literal(4));

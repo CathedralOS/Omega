@@ -74,10 +74,12 @@ fn unavailable_judgment(construct: &str) -> diagnostics::Diagnostic {
 }
 
 mod declarations {
+    pub(crate) mod applied_callable_signatures;
     pub(crate) mod constant_initializers;
     pub(crate) mod constructor_applications;
     pub(crate) mod contracts_and_signatures;
     pub(crate) mod items;
+    pub(crate) mod package_fields;
 }
 
 mod patterns {
@@ -116,6 +118,10 @@ mod operand_owner_tests;
 mod undeclared_type_name_tests;
 
 #[cfg(test)]
+#[path = "../tests/unit/installed_interrupt_tests.rs"]
+mod installed_interrupt_tests;
+
+#[cfg(test)]
 #[path = "../tests/unit/bodyless_headers_tests.rs"]
 mod bodyless_headers_tests;
 
@@ -141,6 +147,8 @@ pub(crate) mod expressions {
     pub(crate) mod expression_meanings;
     pub(crate) mod operand_owners;
     pub(crate) mod operator_calls;
+    pub(crate) mod package_escapes;
+    pub(crate) mod package_openings;
     pub(crate) mod runtime_callables;
 
     pub(crate) use crate::expressions::call_and_product_selections::{

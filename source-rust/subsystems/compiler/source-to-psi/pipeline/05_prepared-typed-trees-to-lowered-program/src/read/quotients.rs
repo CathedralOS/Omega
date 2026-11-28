@@ -30,7 +30,9 @@ use crate::source_state::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, QuotientOperationKind,
     QuotientOperationRequest, StaticMachineArgument, TableCallExpression,
 };
-use crate::source_state::proposition::{PropositionBody, PropositionFormula};
+use crate::source_state::proposition::{
+    PropositionBody, PropositionDefinition, PropositionFormula,
+};
 use crate::source_state::signature::SignatureContractKind;
 use crate::source_state::state::State;
 use crate::source_state::statement::{
@@ -105,7 +107,7 @@ pub(crate) enum LiftArgument {
     Computed(Expression),
 }
 
-impl Program<'_> {
+impl<'t> Program<'t> {
     /// The quotient operation the body of machine `id` is, when the body is
     /// exactly one.
     pub(super) fn lifted_operation(
@@ -184,9 +186,7 @@ impl Program<'_> {
             .ok_or_else(|| unserved("quotient operation lost its machine's parameters"))?;
         let representative_id = self.machine(representative)?;
         let parameter_types = self
-            .signatures
-            .get(representative_id)
-            .ok_or_else(|| unserved("quotient representative machine lost its signature"))?
+            .machine_signature(representative_id)?
             .parameters
             .clone();
         // A computed argument is lowered over the machine's formals, each a
@@ -250,61 +250,17 @@ impl Program<'_> {
             .find(|quotient| quotient.record == record)
     }
 
-    /// Reads a quotient declaration over mathematical data as a type of the
-    /// mathematical signature.
-    pub(super) fn quotient_record(
+    /// Both quotient forms check the declared relation in the scope of its two carrier values.
+    fn quotient_relation(
         &mut self,
         id: MachineId,
         symbol: SymbolHandle,
-        data: &DataDefinition,
-    ) -> Checked<ValueType> {
-        if let Some(known) = self
-            .quotients
-            .iter()
-            .find(|quotient| quotient.declaration == symbol)
-        {
-            return Ok(ValueType::record(known.record));
-        }
+        carrier_type: ValueType,
+    ) -> Checked<(&'t PropositionDefinition, Proposition)> {
         let typed = self.typed;
         let unserved = |what| refuse_at(id, Unserved::Type(what));
-        let quotient = data
-            .quotient
-            .as_ref()
-            .ok_or_else(|| unserved("quotient data lost its quotient"))?;
-        if !data.type_parameters.is_empty()
-            || !data.lifetime_parameters.is_empty()
-            || !data.requires_facts.is_empty()
-            || data.cleanup_selection.is_some()
-        {
-            return Err(unserved("generic or constrained quotient data"));
-        }
-        if !closed_application(quotient) {
-            return Err(unserved(
-                "application of a generic quotient whose relation or conformance does not close at its arguments",
-            ));
-        }
-        let identity = typed
-            .normalized_nominal_type_identity(symbol)
-            .and_then(|identity| typed.type_identity_text(identity))
-            .filter(|identity| !identity.is_empty())
-            .ok_or_else(|| unserved("data without a complete application identity"))?;
-        let carrier_type = self.value_type(id, quotient.carrier)?;
-        let ValueType::Record(carrier, ..) = carrier_type else {
-            return Err(unserved("quotient of something that is not data"));
-        };
-        let carrier_declared =
-            terminal_check_tables::row(&self.record_sources, carrier, id, Construct::Machine)?
-                .declaration;
-        if !typed
-            .unique_data_definition_by_symbol(carrier_declared)
-            .is_some_and(|declared| self.is_mathematical_data(declared))
-        {
-            return Err(unserved("quotient of data that has storage"));
-        }
-        // The relation is a named proposition declared as one formula over
-        // two values of the carrier.
         let relation = typed
-            .proposition_definition_by_symbol(quotient.relation_symbol)
+            .proposition_definition_by_symbol(symbol)
             .ok_or_else(|| unserved("quotient relation that is no declared proposition"))?;
         let PropositionBody::Transparent {
             proposition: PropositionFormula::BooleanExpression(formula),
@@ -365,7 +321,62 @@ impl Program<'_> {
         });
         let read = self.clause(id, &scope, *formula);
         self.applied_propositions.pop();
-        let formula = read?;
+        Ok((relation, read?))
+    }
+
+    /// Reads a quotient declaration over mathematical data as a type of the
+    /// mathematical signature.
+    pub(super) fn quotient_record(
+        &mut self,
+        id: MachineId,
+        symbol: SymbolHandle,
+        data: &DataDefinition,
+    ) -> Checked<ValueType> {
+        if let Some(known) = self
+            .quotients
+            .iter()
+            .find(|quotient| quotient.declaration == symbol)
+        {
+            return Ok(ValueType::record(known.record));
+        }
+        let typed = self.typed;
+        let unserved = |what| refuse_at(id, Unserved::Type(what));
+        let quotient = data
+            .quotient
+            .as_ref()
+            .ok_or_else(|| unserved("quotient data lost its quotient"))?;
+        if !data.type_parameters.is_empty()
+            || !data.lifetime_parameters.is_empty()
+            || !data.requires_facts.is_empty()
+            || data.cleanup_selection.is_some()
+        {
+            return Err(unserved("generic or constrained quotient data"));
+        }
+        if !closed_application(quotient) {
+            return Err(unserved(
+                "application of a generic quotient whose relation or conformance does not close at its arguments",
+            ));
+        }
+        let identity = typed
+            .normalized_nominal_type_identity(symbol)
+            .and_then(|identity| typed.type_identity_text(identity))
+            .filter(|identity| !identity.is_empty())
+            .ok_or_else(|| unserved("data without a complete application identity"))?;
+        let carrier_type = self.value_type(id, quotient.carrier)?;
+        let ValueType::Record(carrier, ..) = carrier_type else {
+            return Err(unserved("quotient of something that is not data"));
+        };
+        let carrier_declared =
+            terminal_check_tables::row(&self.record_sources, carrier, id, Construct::Machine)?
+                .declaration;
+        if !typed
+            .unique_data_definition_by_symbol(carrier_declared)
+            .is_some_and(|declared| self.is_mathematical_data(declared))
+        {
+            return Err(unserved("quotient of data that has storage"));
+        }
+        let (relation, formula) =
+            self.quotient_relation(id, quotient.relation_symbol, carrier_type)?;
         let selection = quotient
             .equivalence
             .as_ref()
@@ -430,7 +441,7 @@ impl Program<'_> {
                 )
             })
             .collect();
-        let record = self.records.push(RecordType {
+        let record_type = RecordType {
             multiplicity: crate::body::source_multiplicity(data.properties.multiplicity),
             cleanup: None,
             identity: identity.clone(),
@@ -438,8 +449,8 @@ impl Program<'_> {
             requires: Vec::new(),
             authored_layout: false,
             erased: Vec::new(),
-        });
-        self.record_sources.push(RecordSource {
+        };
+        let source = RecordSource {
             constant_input_owner: None,
             declaration: symbol,
             cleanup: None,
@@ -448,7 +459,8 @@ impl Program<'_> {
             fields: Vec::new(),
             cases: Vec::new(),
             erased: Vec::new(),
-        });
+        };
+        let record = self.push_record_row(record_type, source);
         if let Err(position) = self.value_records.binary_search(&record) {
             self.value_records.insert(position, record);
         }
@@ -636,68 +648,7 @@ impl Program<'_> {
             ),
             _ => None,
         };
-        let relation = typed
-            .proposition_definition_by_symbol(quotient.relation_symbol)
-            .ok_or_else(|| unserved("quotient relation that is no declared proposition"))?;
-        let PropositionBody::Transparent {
-            proposition: PropositionFormula::BooleanExpression(formula),
-        } = &relation.body
-        else {
-            return Err(unserved("quotient relation declared without a formula"));
-        };
-        if !relation.binders.is_empty() {
-            return Err(unserved("quotient relation with a binder"));
-        }
-        let parameters = typed
-            .state_parameters
-            .span(relation.parameters)
-            .ok_or_else(|| unserved("quotient relation lost its parameters"))?;
-        let mut slots = Vec::with_capacity(parameters.len());
-        for parameter in parameters.iter() {
-            let (value_type, erased, reference) = self.formal(id, parameter)?;
-            if value_type != carrier_type || erased || reference.is_some() {
-                return Err(unserved(
-                    "quotient relation over something other than two values of its carrier",
-                ));
-            }
-            slots.push(Slot {
-                symbol: parameter.symbol,
-                value_type,
-                assignable: false,
-                homed: false,
-                erased: false,
-                borrowed: None,
-                borrowed_regions: crate::body::Regions::NONE,
-            });
-        }
-        if slots.len() != 2 {
-            return Err(unserved(
-                "quotient relation over something other than two values of its carrier",
-            ));
-        }
-        let values = crate::body::formal_values(
-            slots
-                .iter()
-                .map(|slot| (slot.value_type, slot.erased, slot.borrowed.is_some())),
-            None,
-        );
-        let scope = ClauseScope {
-            slots: &slots,
-            values: &values,
-            bound: &[],
-            owner: relation.symbol,
-            result: ResultTerm::Absent("result in a relation"),
-            subject: None,
-            formal_fields: true,
-            logical: None,
-        };
-        self.applied_propositions.push(AppliedProposition {
-            declaration: Some(relation.symbol),
-            arguments: Vec::new(),
-        });
-        let read = self.clause(id, &scope, *formula);
-        self.applied_propositions.pop();
-        let _formula = read?;
+        let (relation, _) = self.quotient_relation(id, quotient.relation_symbol, carrier_type)?;
         let selection = quotient
             .equivalence
             .as_ref()
@@ -755,7 +706,7 @@ impl Program<'_> {
         self.fields_minted += 1;
         let field_id = StructuralFieldId::new(self.fields_minted)
             .ok_or_else(|| unserved("field identity overflow"))?;
-        let record = self.records.push(RecordType {
+        let record_type = RecordType {
             multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             cleanup: None,
             identity: identity.clone(),
@@ -768,11 +719,11 @@ impl Program<'_> {
             requires: Vec::new(),
             authored_layout: false,
             erased: Vec::new(),
-        });
+        };
         // Use the quotient's own declaration symbol so record/source rosters
         // and reflection identities match while no authored field symbol can
         // ever match it for direct member projection or struct literals.
-        self.record_sources.push(RecordSource {
+        let source = RecordSource {
             constant_input_owner: None,
             declaration: symbol,
             cleanup: None,
@@ -781,7 +732,8 @@ impl Program<'_> {
             fields: vec![symbol],
             cases: Vec::new(),
             erased: Vec::new(),
-        });
+        };
+        let record = self.push_record_row(record_type, source);
         if let Err(position) = self.value_records.binary_search(&record) {
             self.value_records.insert(position, record);
         }
@@ -861,11 +813,7 @@ impl Program<'_> {
                 && sig.operational.suspension != Some(true)
                 && sig.operational.blocking != Some(true)
         };
-        let rep_sig = self
-            .signatures
-            .get(rep_id)
-            .ok_or_else(|| unserved("quotient representative machine lost its signature"))?
-            .clone();
+        let rep_sig = self.machine_signature(rep_id)?.clone();
         if !is_pure_terminating(&rep_sig)
             || !rep_sig.erased.is_empty()
             || !rep_sig.borrowed.is_empty()
@@ -874,21 +822,14 @@ impl Program<'_> {
                 "quotient representative operation must be pure, terminating, and value-taking",
             ));
         }
-        let cong_sig = self
-            .signatures
-            .get(cong_id)
-            .ok_or_else(|| unserved("quotient congruence theorem lost its signature"))?
-            .clone();
+        let cong_sig = self.machine_signature(cong_id)?.clone();
         if cong_sig.result.is_some() || !is_pure_terminating(&cong_sig) {
             return Err(unserved(
                 "quotient congruence theorem must be resultless, pure, and terminating",
             ));
         }
         if let Some((_, transport_id)) = transport {
-            let transport_sig = self
-                .signatures
-                .get(transport_id)
-                .ok_or_else(|| unserved("quotient transport theorem lost its signature"))?;
+            let transport_sig = self.machine_signature(transport_id)?;
             if transport_sig.result.is_some() || !is_pure_terminating(transport_sig) {
                 return Err(unserved(
                     "quotient transport theorem must be resultless, pure, and terminating",
@@ -1001,6 +942,7 @@ impl Program<'_> {
             Ok(Expression {
                 call_context: None,
                 kind: ExpressionKind::Record {
+                    package_witnesses: Vec::new(),
                     fields: vec![(0, call_expr)],
                     erased: Vec::new(),
                 },

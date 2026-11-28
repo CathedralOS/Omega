@@ -472,14 +472,40 @@ pub(crate) fn current_selected_payload_contract(
     path: &[StructuralPathSegment],
     source: &impl Fn(PlaceId) -> Option<PayloadMembershipContract>,
 ) -> Result<PayloadMembershipContract, &'static str> {
+    selected_payload_contract_in(
+        types,
+        domains,
+        &mut DescriptorAnalysis::new(types, graph),
+        descriptor_machine(graph, identity),
+        identity,
+        position,
+        root,
+        path,
+        source,
+    )
+}
+
+/// The memberships the payload at `root.path` holds just before `position`,
+/// replaying the calls and stores of `identity` that precede it. `analysis`
+/// reads the descriptor rows that contain `descriptor`.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn selected_payload_contract_in(
+    types: &[StructuralTypeDeclaration],
+    domains: &[terminal_psi::StructuralDomainDeclaration],
+    analysis: &mut DescriptorAnalysis<'_>,
+    descriptor: Option<&DescriptorMachine>,
+    identity: MachineId,
+    position: DescriptorPosition,
+    root: PlaceId,
+    path: &[StructuralPathSegment],
+    source: &impl Fn(PlaceId) -> Option<PayloadMembershipContract>,
+) -> Result<PayloadMembershipContract, &'static str> {
     let root_contract = source(root).ok_or("selected payload root is absent")?;
     let query = descriptor_contents_query(types, root, root_contract.carrier, path, None)
         .ok_or("selected payload path has no typed coordinate")?;
-    let mut analysis = DescriptorAnalysis::new(types, graph);
     let targets = analysis
         .payload_targets(identity, position, &query)
         .ok_or("selected payload backing is unresolved")?;
-    let descriptor = descriptor_machine(graph, identity);
     let incoming = descriptor.and_then(|machine| incoming_flow(&machine.flow));
     let mut replay = HistoryReplay::default();
     let mut history_failure = None;
@@ -489,7 +515,7 @@ pub(crate) fn current_selected_payload_contract(
             domains,
             descriptor,
             incoming.as_ref(),
-            &mut analysis,
+            analysis,
             position,
             place,
             source,

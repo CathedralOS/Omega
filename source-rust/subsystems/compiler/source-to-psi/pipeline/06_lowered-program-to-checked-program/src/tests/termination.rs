@@ -8,6 +8,61 @@
 use super::*;
 use terminal_psi::{TerminalNaturalRankComparison, TerminalRankedScc};
 
+#[test]
+fn a_ranked_helper_must_keep_its_measure_even_on_inputs_its_caller_never_supplies() {
+    let source = r#"
+data Parcel { value: u64; }
+machine launch(parcel: Parcel) -> Parcel { travel(parcel, 4u64) }
+machine travel(parcel: Parcel, n: u64) -> Parcel
+terminates by n
+requires n <= 5u64
+{
+    transition n > 0u64 && n < 5u64 {
+        true -> step(parcel, n - 1u64),
+        _ -> parcel
+    }
+    machine step(parcel: Parcel, n: u64) -> Parcel
+    terminates by n
+    requires n <= 4u64
+    { relay(parcel, n) }
+    machine relay(parcel: Parcel, n: u64) -> Parcel
+    terminates by n
+    requires n <= 5u64
+    { travel(parcel, n) }
+}
+"#;
+    let good = super::entryless::judged(source, false);
+    let RouteVerdict::Accepted(accepted) = good else {
+        panic!("{good:?}")
+    };
+    let elaboration = accepted.elaboration();
+    for (name, has_loop) in [("travel", true), ("step", false), ("relay", false)] {
+        let (id, _) = elaboration
+            .names
+            .iter()
+            .find(|(_, row)| row.machine == name)
+            .unwrap();
+        assert_eq!(
+            elaboration.module.machine(id).unwrap().ranked_scc.is_some(),
+            has_loop,
+            "{name}"
+        );
+    }
+    // travel passes at most 3, but step's own input contract admits 4.
+    // At that entry a call with 5 satisfies relay's input and raises the rank.
+    let raises_rank = source.replace(
+        "{ relay(parcel, n) }",
+        "{ transition n == 4u64 { true -> relay(parcel, n + 1u64), _ -> relay(parcel, n) } }",
+    );
+    let verdict = super::entryless::judged(&raises_rank, false);
+    assert!(
+        matches!(verdict, RouteVerdict::Rejected { ref unproved, .. } if
+        unproved.iter().any(|row| matches!(row.kind, ObligationKind::RankComparison { .. })
+            && row.statement.contains("machine `step`"))),
+        "{verdict:?}"
+    );
+}
+
 fn ranked(kind: &ObligationKind) -> bool {
     matches!(
         kind,
@@ -168,6 +223,7 @@ fn lower_ranked(
         ],
     });
     signatures.push(Signature {
+        membership_requires: Vec::new(),
         membership_ensures: Vec::new(),
         content_ensures: Vec::new(),
         operational: Default::default(),

@@ -23,6 +23,8 @@ enum InvocationEntry {
     Receiver,
     Separate,
     Forward,
+    /// Use an ordinary entry only when its lowered calls pass the original rank value.
+    ForwardPreservingRank,
 }
 
 pub(crate) struct Components {
@@ -34,6 +36,8 @@ pub(crate) struct Components {
     caller_offsets: Vec<usize>,
     callers: Vec<(usize, usize)>,
     invocation_entries: Vec<InvocationEntry>,
+    /// Entry scalar bindings retained unchanged at every self-transfer.
+    pub(super) forwarded_consts: Vec<(MachineId, usize)>,
     #[cfg(test)]
     discovery_edge_visits: usize,
 }
@@ -166,9 +170,20 @@ impl Components {
             caller_offsets: reverse_offsets,
             callers: reverse_calls,
             invocation_entries: vec![InvocationEntry::LoopHead; count],
+            forwarded_consts: Vec::new(),
             #[cfg(test)]
             discovery_edge_visits,
         }
+    }
+
+    pub(crate) fn forwarded_consts(&self, machine: MachineId) -> &[(MachineId, usize)] {
+        let first = self
+            .forwarded_consts
+            .partition_point(|(owner, _)| *owner < machine);
+        let end = self
+            .forwarded_consts
+            .partition_point(|(owner, _)| *owner <= machine);
+        &self.forwarded_consts[first..end]
     }
 
     /// Records which components lie on or call into an unranked cycle, in
@@ -223,6 +238,14 @@ impl Components {
         if *entry == InvocationEntry::LoopHead {
             *entry = InvocationEntry::Forward;
         }
+    }
+
+    pub(super) fn try_rank_preserving_entry(&mut self, machine: MachineId) {
+        self.invocation_entries[index(machine)] = InvocationEntry::ForwardPreservingRank;
+    }
+
+    pub(crate) fn needs_rank_identity(&self, machine: MachineId) -> bool {
+        self.invocation_entries[index(machine)] == InvocationEntry::ForwardPreservingRank
     }
 
     /// The ordinary entry of a forwarder executes in its receiver's component.

@@ -152,7 +152,7 @@ fn describe_calls(
         inhabitation,
         // Inference adds entry requirements between machines, so a summary
         // replayed for one machine may not describe the module the next sees.
-        None,
+        crate::minted::ClaimRows::Deferred,
         |prepared, tables| {
             describe_arrivals(
                 prepared,

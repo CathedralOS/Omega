@@ -112,6 +112,324 @@ fn actual_generic_catalog_source_produces_complete_typed_schemas() {
 }
 
 #[test]
+fn sealed_native_borrow_headers_require_the_exact_typed_declaration_and_unsafe_reach() {
+    use language_core::sealed_intrinsics::NativeBorrow;
+    use source_admission::SourceOrigin;
+    const SOURCE: &str = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../../source/library/core/unsafe.omg"
+    ));
+    let mut program = typed_at(SOURCE, "unsafe.omg", SourceOrigin::Toolchain)
+        .expect("the Core native borrow declarations resolve and type");
+    let machines = [
+        ("borrow_at", NativeBorrow::SharedAt),
+        ("borrow_mutable_at", NativeBorrow::MutableAt),
+        ("upgrade_mutability", NativeBorrow::Upgrade),
+    ]
+    .map(|(name, operation)| {
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap();
+        let (actual, schema) = program
+            .compiler_primitive_schema(machine.symbol)
+            .unwrap_or_else(|error| {
+                panic!(
+                    "{name}: {error:?}; row={:?}; shape={machine:#?}",
+                    program
+                        .service_reach_rows
+                        .services(machine.service_reach_row)
+                )
+            })
+            .expect("genuine native borrow identity");
+        assert_eq!(actual, CompilerPrimitive::NativeBorrow(operation));
+        assert!(program.type_identity_text(schema).is_some());
+        (machine.symbol, machine.service_reach_row)
+    });
+    let mutable = machines[1].0;
+    let index = program
+        .machines()
+        .iter()
+        .position(|machine| machine.symbol == mutable)
+        .unwrap();
+    program.machine_mut(index).service_reach_row = machines[0].1;
+    assert!(
+        program.compiler_primitive_schema(mutable).is_err(),
+        "removing write reach must lose compiler supply"
+    );
+    assert!(typed_at(SOURCE, "unsafe.omg", SourceOrigin::User).is_err());
+    assert!(
+        typed_at(
+            &format!("{SOURCE}\n// edited"),
+            "unsafe.omg",
+            SourceOrigin::Toolchain
+        )
+        .is_err()
+    );
+}
+
+fn native_borrow_trees(text: &str) -> crate::source_state::TypedTrees {
+    super::build_purpose::frontier_with_core(
+        text,
+        "machine build_entry() {}",
+        source_provenance::DependencyScope::Product,
+        &[(
+            "unsafe.omg",
+            "native",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../../../../source/library/core/unsafe.omg"
+            )),
+        )],
+    )
+}
+
+fn lowered_native_borrow(
+    text: &str,
+) -> terminal_check_tables::Checked<terminal_check_tables::program::Elaboration> {
+    let typed = crate::prepare_fixture(native_borrow_trees(text));
+    let main = super::build_purpose::symbol(typed.trees(), "main");
+    let lowered = crate::lowering::prepare_compilation(
+        &typed,
+        super::build_purpose::roster(
+            &[main],
+            &[Some(super::build_purpose::package())],
+            source_provenance::DependencyScope::Product,
+        ),
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .unwrap();
+    let terminal_check_tables::TerminalCompilation::Prepared(compilation) = lowered.program else {
+        panic!(
+            "native borrow application failed formation: {:?}",
+            lowered.program
+        );
+    };
+    compilation.closure
+}
+
+#[test]
+fn upgrading_a_shared_slice_lowers_the_existing_descriptor_with_its_geometry() {
+    use terminal_psi::StructuralAccess::{MutableBorrow, SharedBorrow};
+    for element in ["u8", "u32"] {
+        let text = format!(
+            r#"use {{omega}}/language/core/unsafe.omg as native;
+machine main(input: @[{element}]) {{
+    let writable: @mutable [{element}] = |native|::upgrade_mutability::<[{element}]>(input);
+}}
+"#
+        );
+        let module = lowered_native_borrow(&text).unwrap().module;
+        let upgrades = module
+            .machines
+            .iter()
+            .flat_map(|machine| {
+                machine.operations().filter_map(move |operation| {
+                    let terminal_psi::OperationKind::UpgradeMutability { source } = &operation.kind
+                    else {
+                        return None;
+                    };
+                    Some((machine, source, operation.result.as_structural().unwrap()))
+                })
+            })
+            .collect::<Vec<_>>();
+        let [(machine, source, result)] = upgrades.as_slice() else {
+            panic!("expected one descriptor upgrade for [{element}]");
+        };
+        assert!(source.path.is_empty());
+        assert_eq!(source.access, SharedBorrow);
+        let input = module
+            .structural_type(machine.structural_place_type(source.place).unwrap())
+            .unwrap();
+        let output = module.structural_type(result.structural_type).unwrap();
+        assert!(input.shape.is_view_descriptor());
+        assert_eq!(
+            terminal_semantics::stored_reference_access(&output.shape),
+            Some(MutableBorrow)
+        );
+        assert!(terminal_semantics::mutability_upgrade_shapes_match(
+            &input.shape,
+            Some(source.access),
+            &output.shape
+        ));
+    }
+}
+
+#[test]
+fn a_returned_upgraded_slice_keeps_its_callers_window() {
+    let program = native_borrow_trees(
+        r#"use {omega}/language/core/unsafe.omg as native;
+
+machine upgraded(shared: @[u32]) -> @mutable [u32] {
+    |native|::upgrade_mutability::<[u32]>(shared)
+}
+machine mark(window: @mutable [u32]) crashes Trap {
+    transition window.length == 2u64 { true -> store(window), false -> wrong() }
+    machine store(window: @mutable [u32])
+    requires window.length == 2u64
+    {
+        window[0u64] = 65538u32;
+        window[1u64] = 131075u32;
+    }
+    machine wrong() crashes Trap { crash Trap; }
+}
+machine main() crashes Trap {
+    let mutable items: [u32; 4] = [11u32, 23u32, 47u32, 59u32];
+    let writable: @mutable [u32] = upgraded(@items[1..3]);
+    mark(writable);
+    transition items[0u64] == 11u32 && items[1u64] == 65538u32
+        && items[2u64] == 131075u32 && items[3u64] == 59u32 {
+        true -> done(), false -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}
+"#,
+    );
+    let mut verdicts = judge_observed(&program);
+    let Ok(crate::RouteVerdict::Accepted(accepted)) = verdicts.remove(0) else {
+        panic!("returned upgrade did not retain its caller's window");
+    };
+    execute_observed(accepted, None);
+}
+
+#[test]
+fn an_upgraded_slice_still_conflicts_with_other_live_views_of_its_window() {
+    let common = r#"use {omega}/language/core/unsafe.omg as native;
+machine use_both(a: @mutable [u32], b: @[u32]) {}
+"#;
+    for application in [
+        r#"machine main() {
+    let mutable cells: [u32; 4] = [1u32, 2u32, 3u32, 4u32];
+    let shared: @[u32] = @cells[1..3];
+    let alias: @[u32] = @cells[1..3];
+    let writable: @mutable [u32] = |native|::upgrade_mutability::<[u32]>(shared);
+    use_both(writable, alias);
+}"#,
+        r#"machine main() {
+    let mutable cells: [u32; 4] = [1u32, 2u32, 3u32, 4u32];
+    forward(@cells[1..3]);
+}
+machine forward(shared: @[u32]) {
+    let writable: @mutable [u32] = |native|::upgrade_mutability::<[u32]>(shared);
+    use_both(writable, shared);
+}"#,
+    ] {
+        let verdicts = judge_observed(&native_borrow_trees(&format!("{common}{application}")));
+        assert!(verdicts.iter().any(|verdict| matches!(verdict,
+            Ok(crate::RouteVerdict::Rejected { conflicts, .. })
+                if conflicts.iter().any(|row| row.conflict == crate::LoanConflict::ObserveWhileExclusive)
+                    && conflicts.iter().all(|row| row.conflict != crate::LoanConflict::ReleaseBeforeChildren)
+        )), "{verdicts:?}");
+    }
+}
+
+#[test]
+fn a_returned_upgrade_borrows_the_payload_of_its_original_record_field() {
+    let source = r#"
+use {omega}/language/core/unsafe.omg as native;
+data Window<'a> { cells: @'a [u32]; stamp: u8; }
+machine upgraded<'a>(holder: @Window<'a>) -> @'a mutable [u32] {
+    |native|::upgrade_mutability::<[u32]>(holder.cells)
+}
+machine use_window(result: @mutable [u32]) {}
+machine use_both(result: @mutable [u32], other: @[u32]) {}
+machine forward<'a>(cells: @'a [u32]) {
+    let mutable holder: Window<'a> = Window { cells: cells, stamp: 0u8 };
+    let result: @mutable [u32] = upgraded(@holder);
+    holder.stamp = 1u8;
+    use_window(result);
+}
+machine main() {
+    let mutable cells: [u32; 4] = [3u32, 5u32, 7u32, 11u32];
+    forward(@cells[1..3]);
+}
+"#;
+    let verdicts = judge_observed(&native_borrow_trees(source));
+    assert!(
+        matches!(verdicts.as_slice(), [Ok(crate::RouteVerdict::Accepted(_))]),
+        "{verdicts:?}"
+    );
+
+    let aliased = source.replace("use_window(result);", "use_both(result, holder.cells);");
+    let verdicts = judge_observed(&native_borrow_trees(&aliased));
+    assert!(
+        matches!(verdicts.as_slice(), [Ok(crate::RouteVerdict::Rejected { conflicts, .. })]
+        if conflicts.iter().any(|row| row.conflict == crate::LoanConflict::ObserveWhileExclusive)),
+        "{verdicts:?}"
+    );
+}
+
+#[test]
+fn a_bare_address_cannot_supply_the_length_of_a_slice() {
+    let fixed = native_borrow_trees(
+        r#"use {omega}/language/core/unsafe.omg as native;
+machine main(location: address) -> @[u8; 4] { |native|::borrow_at::<[u8; 4]>(location) }"#,
+    );
+    assert!(matches!(
+        judge_observed(&fixed).as_slice(),
+        [Ok(crate::RouteVerdict::Accepted(_))]
+    ));
+    for (operation, access) in [("borrow_at", "@"), ("borrow_mutable_at", "@mutable ")] {
+        let source = format!(
+            r#"use {{omega}}/language/core/unsafe.omg as native;
+machine main(location: address) {{ let view: {access}[u8] = |native|::{operation}::<[u8]>(location); }}"#
+        );
+        let refusal = lowered_native_borrow(&source).unwrap_err();
+        assert!(
+            refusal
+                .detail
+                .contains("a raw address supplies no slice length"),
+            "{refusal:?}"
+        );
+    }
+}
+
+#[test]
+fn installation_reach_recovers_an_upgrades_core_service_and_parent_from_psi() {
+    use language_core::core_vocabulary::UnsafeAtom::BorrowMutabilityUpgrade;
+    let typed = native_borrow_trees(
+        r#"use {omega}/language/core/unsafe.omg as native;
+machine main(byte: @u8) {
+    let writable: @mutable u8 = |native|::upgrade_mutability::<u8>(byte);
+    $writable = 1u8;
+}"#,
+    );
+    let Ok(crate::RouteVerdict::Accepted(accepted)) = judge_observed(&typed).remove(0) else {
+        panic!("upgrading a borrowed formal must produce a checked module");
+    };
+    let mut module = accepted.elaboration.module;
+    let child = module
+        .core_unsafe_service(BorrowMutabilityUpgrade)
+        .unwrap()
+        .clone();
+    let [parent] = child.parents.as_slice() else {
+        panic!("one Unsafe parent");
+    };
+    let terminal_psi::TargetMachineCallable::Machine(entry) = module.entry.unwrap() else {
+        panic!("machine entry");
+    };
+    let recovered = terminal_semantics::synchronous_calls::call_analyses(&module)
+        .unwrap()
+        .calls()
+        .service_reach_from(entry, &[])
+        .unwrap();
+    assert_eq!(recovered.concrete, [*parent, child.id]);
+    let slot = module
+        .interfaces
+        .services
+        .iter_mut()
+        .find(|row| row.id == child.id)
+        .unwrap();
+    slot.parents.clear();
+    assert!(
+        module.core_unsafe_service(BorrowMutabilityUpgrade).is_err(),
+        "a copied child without the authentic parent cannot supply the capability"
+    );
+}
+
+#[test]
 fn real_byte_observation_headers_publish_complete_terminating_schemas() {
     const SOURCE: &str = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

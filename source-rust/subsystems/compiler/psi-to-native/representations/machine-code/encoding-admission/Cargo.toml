@@ -25,4 +25,5 @@ semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 
 [dev-dependencies]
 post-allocation-machine = { path = "../../post-allocation-machine", features = ["test-support"] }
+machine-code = { path = "..", features = ["test-support"] }
 register-homes = { path = "../../register-homes" }

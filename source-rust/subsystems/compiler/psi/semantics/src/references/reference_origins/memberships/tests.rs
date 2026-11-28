@@ -72,6 +72,7 @@ fn unresolved_views_keep_loans_without_becoming_reference_authority() {
         }],
         unknown_contents: Vec::new(),
         unresolved_slots: vec![Vec::new()],
+        package_referents: Default::default(),
         case_facts: Default::default(),
     };
     assert_eq!(
@@ -131,6 +132,7 @@ fn returning_an_indexed_generic_value_requires_read_access_to_its_backing() {
             }],
         }],
         unresolved_slots: Vec::new(),
+        package_referents: Default::default(),
         case_facts: Default::default(),
     };
     let check = |types: &[StructuralTypeDeclaration],
@@ -183,6 +185,7 @@ fn mapping(extent: ReferenceOriginExtent) -> ReferenceCallResult {
                     access: StructuralAccess::SharedBorrow,
                 },
                 transfers_existing: false,
+                upgraded_mutability: false,
             },
             suffix: Vec::new(),
             endpoint: StructuralTypeId::new(1).unwrap(),

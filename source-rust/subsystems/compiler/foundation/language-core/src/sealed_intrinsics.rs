@@ -48,6 +48,8 @@ pub enum SealedIntrinsic {
     LayoutStorageData,
     /// Core `layout.omg`'s `layout_target_facts` snapshot query.
     LayoutTargetFacts,
+    /// A control transfer that the execution owner, not a selected foreign provider, serves.
+    OwnedActivation(ActivationOperation),
     /// Core's ordinary identity body also records an exact private-slot placement.
     PrivateLayoutPlacement,
     /// Core `layout.omg`'s free placed `read` or `write` primitive.
@@ -87,6 +89,20 @@ pub enum CompilerPrimitive {
     FloatSemantics,
     NaturalRanking,
     Collection(CollectionPrimitive),
+    NativeBorrow(NativeBorrow),
+}
+
+/// Formation of an ordinary typed reference at an explicit native trust boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum NativeBorrow {
+    SharedAt,
+    MutableAt,
+    Upgrade,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ActivationOperation {
+    Park,
 }
 
 /// The checked packed-integer instructions. Each one is the contract of one
@@ -357,6 +373,26 @@ const ROWS: &[SealedIntrinsicRow] = &[
         "IdentityImpliesEqual",
         BundledFile::CoreEquality,
         SealedIntrinsic::EqualityEvidence,
+    ),
+    row(
+        "unsafe.omg",
+        "borrow_at",
+        BundledFile::CoreUnsafe,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::NativeBorrow(NativeBorrow::SharedAt)),
+    ),
+    row(
+        "unsafe.omg",
+        "borrow_mutable_at",
+        BundledFile::CoreUnsafe,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::NativeBorrow(
+            NativeBorrow::MutableAt,
+        )),
+    ),
+    row(
+        "unsafe.omg",
+        "upgrade_mutability",
+        BundledFile::CoreUnsafe,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::NativeBorrow(NativeBorrow::Upgrade)),
     ),
     row(
         "indexing/indexing.omg",
@@ -872,6 +908,12 @@ const ROWS: &[SealedIntrinsicRow] = &[
         source: BundledFile::CoreStaticInterrupt,
         intrinsic: SealedIntrinsic::StaticInterrupt(StaticInterruptOperation::FinishCompletion),
     },
+    row(
+        "activation.omg",
+        "park",
+        BundledFile::CoreActivation,
+        SealedIntrinsic::OwnedActivation(ActivationOperation::Park),
+    ),
     SealedIntrinsicRow {
         file: "task.omg",
         declaration: SealedDeclaration::Exact("TaskRuntime::start"),

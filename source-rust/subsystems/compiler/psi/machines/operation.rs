@@ -123,6 +123,16 @@ pub enum OperationKind {    ActivateTaskRegister {
     EstablishNativeCodeLayout {
         machine: MachineId,
     },
+    /// Establish a typed native reference from an address. The structural
+    /// result determines the referent and shared or mutable access.
+    BorrowAt {
+        address: ValueId,
+    },
+    /// Reborrow the selected shared reference or typed view with exclusive access while
+    /// preserving its referent, bounds and remaining lifetime.
+    UpgradeMutability {
+        source: StructuralArgument,
+    },
     StorageAddress {
         source: StructuralArgument,
     },

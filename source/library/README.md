@@ -44,6 +44,10 @@ The specified import for the numeric laws is
 library migration is tracked under `PROOF-KERNEL-CORE` in [TASKS.md](../../TASKS.md).
 [Mathematical declarations](../../wiki/spec/proofs/mathematical_bindings.md#importing-the-mathematical-foundation)
 
+Core's constructive `Real` needs a public bound on the state types a regular
+rational sequence may carry. The owner question records how that bound affects
+which projections share a quotient. [State universes for core Real](../../OWNER_QUESTIONS.md#1-which-state-universe-does-core-real-admit)
+
 ## Core integer and float APIs
 
 Import the files that declare the carrier queries and bit conversions.
@@ -99,6 +103,12 @@ instance. Growth accounts for its selected service, failure outcome, live elemen
 and old/replacement backing. Automatic reclamation must satisfy the ordinary
 infallible, terminating, nonblocking and nonsuspending cleanup contract;
 otherwise release is explicit.
+
+Use `capacity_for::<T>(bytes)` from `{system}/vec.omg` to plan backing for
+ordinary native elements. It counts whole array elements, including native
+padding. Zero-byte elements have a logical limit of 2⁶⁴ − 1. Given a borrowed
+`Vec<T>`, `length` reads its live element count and `capacity` counts whole cells
+across its live and spare backing.
 
 Import `{allocation}/bump/bump.omg` to call `|bump|::open(backing)`.
 Import `{allocation}/vec/vec.omg` to call `|vec|::open(backing, capacity)`

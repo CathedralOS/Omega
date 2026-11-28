@@ -602,10 +602,14 @@ fn failed_invocations_and_observation_decoding_retain_the_actual_charge() {
         address_model: None,
     };
     let fail = source.realized_machine_named("fail").unwrap().symbol;
+    let fail_entry = prepared.entry(fail, fail, &[]).unwrap();
+    let other_program = fail_entry.produce_invocation().unwrap();
+    assert!(matches!(
+        fail_entry.accepted().check_invocation(&entry.source_invocation_inputs().site, &produced),
+        Err(reason) if reason == "evaluation receipt has another accepted code owner"
+    ));
     let mut before_execution = SourceCompletionAccounting::default();
-    let refusal = prepared
-        .entry(fail, fail, &[])
-        .unwrap()
+    let refusal = fail_entry
         .invoke_recorded(target, &mut before_execution)
         .unwrap_err();
     assert!(
@@ -643,7 +647,45 @@ fn failed_invocations_and_observation_decoding_retain_the_actual_charge() {
         let [PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
             panic!("expected the actual invocation receipt: {refusal}");
         };
-        receipt.require_program(&produced).unwrap();
+        receipt
+            .require_program(produced.invocation_program())
+            .unwrap();
+
+        let wrong_admission =
+            "compiler-evaluation admission names a different artifact, target or invocation";
+        assert_eq!(
+            receipt
+                .require_program(other_program.invocation_program())
+                .unwrap_err(),
+            wrong_admission
+        );
+        assert_eq!(
+            receipt
+                .admission()
+                .require_invocation(
+                    produced.view(),
+                    Some("windows_x86_64"),
+                    module.entry.unwrap()
+                )
+                .unwrap_err(),
+            wrong_admission
+        );
+
+        let mut current = entry.source_invocation_inputs();
+        let other_arguments = Arc::from(current.arguments.as_ref());
+        current.arguments = &other_arguments;
+        assert_eq!(
+            receipt.require_site(&current).unwrap_err(),
+            "evaluation receipt belongs to another call's inputs"
+        );
+
+        let mut current = entry.source_invocation_inputs();
+        let other_inputs = Arc::from(current.inputs.as_ref());
+        current.inputs = &other_inputs;
+        assert_eq!(
+            receipt.require_site(&current).unwrap_err(),
+            "evaluation receipt belongs to another call's inputs"
+        );
         assert!(
             matches!(receipt.outcome(), PureTerminalEvaluationOutcome::Failed { reason } if *reason == refusal)
         );
@@ -1165,28 +1207,38 @@ fn a_refused_call_frozen_with_its_siblings_reports_what_it_reports_alone() {
 
 #[test]
 fn a_refused_constant_in_a_shared_round_keeps_its_own_diagnostics() {
-    // `GOOD` and `BAD` read nothing of each other, so `main` evaluates them
-    // in one round with their callers frozen together. `only_bad` evaluates
-    // `BAD` alone. The request fails with the same diagnostics both ways.
+    // All three initializers are ready together. BAD must report its isolated
+    // diagnostic after GOOD runs, even if LATER has already finished checking.
     let text = "const GOOD: u32 = good();
         machine good() -> u32 crashes none { 3u32 }
         const BAD: u8 = bump(255u8);
         machine bump(value: u8) -> u8 crashes none { value + 1u8 }
-        machine main() -> u32 crashes none { let held: u8 = BAD; GOOD }
+        const LATER: u32 = good();
+        machine main() -> u32 crashes none { let held: u8 = BAD; let later: u32 = LATER; GOOD }
         machine only_bad() -> u8 crashes none { BAD }";
-    let refusal = |entry: &str| {
+    let run = |entry: &str| {
         let mut typed = typed_source(text);
         let entry = typed.realized_machine_named(entry).unwrap().symbol;
         let mut accounting = SourceCompletionAccounting::default();
-        evaluate(&mut typed, request(&[entry]), None, &mut accounting)
-            .expect_err("the checker refuses `bump`")
+        let diagnostics = evaluate(&mut typed, request(&[entry]), None, &mut accounting)
+            .expect_err("the checker refuses `bump`");
+        accounting.validate_charges().unwrap();
+        (
+            diagnostics,
+            evaluations(&typed, &accounting),
+            charges(&accounting),
+        )
     };
-    let shared = refusal("main");
+    let alone = run("only_bad").0;
     assert!(
-        diagnostics::join_messages(&shared).contains("constant `BAD` evaluation"),
-        "{shared:?}"
+        diagnostics::join_messages(&alone).contains("constant `BAD` evaluation"),
+        "{alone:?}"
     );
-    assert_eq!(shared, refusal("only_bad"));
+    let serial = run("main");
+    assert_eq!(serial.0, alone);
+    assert_eq!(serial.1, [("GOOD".to_owned(), 3)]);
+    let workers = worker_budget::ExecutionBudget::with_workers(3).unwrap();
+    assert_eq!(workers.run(|| run("main")), serial);
 }
 
 #[test]

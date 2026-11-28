@@ -90,6 +90,8 @@ fn argument_source(argument: &Expression) -> SourceOrigin {
     }
 }
 
+mod native_borrows;
+
 impl<'t> Program<'t> {
     /// An applied signature can only describe the call that owns its source operands.
     fn owns_call_arguments(
@@ -528,10 +530,7 @@ impl<'t> Program<'t> {
         {
             return Err(unserved("named member belongs to another implementation"));
         }
-        let machine = self
-            .typed
-            .machine_by_symbol(capture.instance)
-            .ok_or_else(|| unserved("named capture lost its actual machine"))?;
+        let machine = self.required_machine(id, capture.instance, "captured instance")?;
         let Some([entry]) = self.typed.machine_states(machine).as_array() else {
             return Err(unserved("named capture without one actual entry"));
         };
@@ -700,6 +699,71 @@ impl<'t> Program<'t> {
         Err(refuse_at(id, Unserved::Call("without a bound target")))
     }
 
+    fn read_call_mode(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        call: StaticArgumentCall<'_>,
+        source: SourceOrigin,
+        expected: Option<ValueType>,
+    ) -> Checked<Option<Expression>> {
+        // Both typed call nodes carry these fields. Their argument spans belong
+        // to different tables and are opened only after validating the mode.
+        macro_rules! dispatch {
+            ($call:ident) => {
+                (
+                    $call.runtime_call,
+                    $call.target_symbol,
+                    &$call.machine_arguments,
+                    $call.evidence_arguments.is_empty(),
+                    $call.authored_machine_application.is_valid()
+                        || $call.installed_interrupt_operation.is_some()
+                        || $call.static_requirement_dispatch.is_some()
+                        || $call.static_machine_parameter.is_valid(),
+                )
+            };
+        }
+        let (runtime, target, machine_arguments, no_evidence, static_dispatch) = match call {
+            StaticArgumentCall::Statement(call) => dispatch!(call),
+            StaticArgumentCall::Expression(_, call) => dispatch!(call),
+        };
+        let typed = self.typed;
+        let arguments = || match call {
+            StaticArgumentCall::Statement(call) => {
+                typed.statement_table.expression_handles(call.arguments)
+            }
+            StaticArgumentCall::Expression(_, call) => {
+                typed.expression_table.expression_handles(call.arguments)
+            }
+        };
+        if let Some(runtime) = runtime {
+            if target.is_valid() || !machine_arguments.is_empty() || !no_evidence || static_dispatch
+            {
+                return Err(refuse_at(
+                    id,
+                    Unserved::Call("runtime call with static dispatch or evidence"),
+                ));
+            }
+            return self
+                .runtime_call(id, slots, runtime, arguments(), source, expected)
+                .map(Some);
+        }
+        self.bound_target(id, target)?;
+        if no_evidence
+            && !matches!(call, StaticArgumentCall::Expression(_, call) if call.receiver.is_valid())
+        {
+            return self.mathematical_application(
+                id,
+                slots,
+                target,
+                machine_arguments,
+                arguments(),
+                source,
+            );
+        }
+        Ok(None)
+    }
+
     pub(super) fn call_statement(
         &mut self,
         id: MachineId,
@@ -720,37 +784,10 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let unserved = |what| Err(refuse_at(id, Unserved::Call(what)));
-        if let Some(runtime) = call.runtime_call {
-            if call.target_symbol.is_valid()
-                || call.authored_machine_application.is_valid()
-                || !call.machine_arguments.is_empty()
-                || !call.evidence_arguments.is_empty()
-                || call.installed_interrupt_operation.is_some()
-                || call.static_requirement_dispatch.is_some()
-                || call.static_machine_parameter.is_valid()
-            {
-                return unserved("runtime call with static dispatch or evidence");
-            }
-            let arguments = self
-                .typed
-                .statement_table
-                .expression_handles(call.arguments);
-            return self.runtime_call(id, slots, runtime, arguments, source, None);
-        }
-        self.bound_target(id, call.target_symbol)?;
-        if call.evidence_arguments.is_empty()
-            && let Some(applied) = self.mathematical_application(
-                id,
-                slots,
-                call.target_symbol,
-                &call.machine_arguments,
-                self.typed
-                    .statement_table
-                    .expression_handles(call.arguments),
-                source,
-            )?
+        if let Some(read) =
+            self.read_call_mode(id, slots, StaticArgumentCall::Statement(call), source, None)?
         {
-            return Ok(applied);
+            return Ok(read);
         }
         if let Some(dispatch) = &call.static_requirement_dispatch {
             return self.requirement_call(
@@ -868,38 +905,14 @@ impl<'t> Program<'t> {
             );
         }
         let unserved = |what| Err(refuse_at(id, Unserved::Call(what)));
-        if let Some(runtime) = call.runtime_call {
-            if call.target_symbol.is_valid()
-                || call.authored_machine_application.is_valid()
-                || !call.machine_arguments.is_empty()
-                || !call.evidence_arguments.is_empty()
-                || call.installed_interrupt_operation.is_some()
-                || call.static_requirement_dispatch.is_some()
-                || call.static_machine_parameter.is_valid()
-            {
-                return unserved("runtime call with static dispatch or evidence");
-            }
-            let arguments = self
-                .typed
-                .expression_table
-                .expression_handles(call.arguments);
-            return self.runtime_call(id, slots, runtime, arguments, source, expected);
-        }
-        self.bound_target(id, call.target_symbol)?;
-        if !call.receiver.is_valid()
-            && call.evidence_arguments.is_empty()
-            && let Some(applied) = self.mathematical_application(
-                id,
-                slots,
-                call.target_symbol,
-                &call.machine_arguments,
-                self.typed
-                    .expression_table
-                    .expression_handles(call.arguments),
-                source,
-            )?
-        {
-            return Ok(applied);
+        if let Some(read) = self.read_call_mode(
+            id,
+            slots,
+            StaticArgumentCall::Expression(handle, call),
+            source,
+            expected,
+        )? {
+            return Ok(read);
         }
         // The integer carrier query is answered only through its fields in a
         // static condition (`carriers`); its own body is no answer to run.
@@ -947,9 +960,7 @@ impl<'t> Program<'t> {
                 return unserved("private placement requires its sealed core machine");
             }
             if self.publication != terminal_codec::TerminalPublication::LayoutPolicyInvocation {
-                let Some(&caller) = self.symbols.get(id) else {
-                    return unserved("private placement has no source caller");
-                };
+                let caller = self.machine_symbol(id)?;
                 self.exact_toolchain_sources()
                     .map_err(str::to_owned)
                     .and_then(|sources| {
@@ -1069,6 +1080,31 @@ impl<'t> Program<'t> {
         self.retain_static_reach(id, read, static_reach_binding)
     }
 
+    /// A borrowed slice's location query selects its first live element.
+    pub(super) fn alignment_view_element(
+        &mut self,
+        id: MachineId,
+        record: semantic_vocabulary::StructuralTypeId,
+    ) -> Checked<Option<semantic_vocabulary::StructuralTypeId>> {
+        use crate::body::StorageShape;
+        use semantic_vocabulary::ScalarType;
+        use terminal_psi::ByteSequenceCarrier;
+        Ok(match self.data_type(id, record)?.shape {
+            StorageShape::ElementView { element, .. } => Some(element),
+            StorageShape::ByteSequence(
+                ByteSequenceCarrier::BorrowedView { .. } | ByteSequenceCarrier::BoundedView { .. },
+            ) => {
+                let byte = semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    8,
+                )
+                .expect("u8 is valid");
+                Some(self.plain_scalar_storage(id, ScalarType::Integer(byte))?)
+            }
+            _ => None,
+        })
+    }
+
     /// Capture a live location once. Borrowed slices keep the first-element
     /// obligation even when no scalar value is loaded from the element.
     fn storage_location(
@@ -1079,9 +1115,7 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
         query: terminal_psi::StorageLocationQuery,
     ) -> Checked<Expression> {
-        use crate::body::StorageShape;
         use semantic_vocabulary::ScalarType;
-        use terminal_psi::ByteSequenceCarrier;
         use terminal_psi::StorageLocationQuery;
         let invalid = || {
             crate::reject(
@@ -1117,7 +1151,7 @@ impl<'t> Program<'t> {
         };
         let mut first_element = None;
         if let Some(ty @ ValueType::Record(record, _, _)) = place.result {
-            if let Some((referent, _)) = self.reference_referent(id, ty)? {
+            if !reference && let Some((referent, _)) = self.reference_referent(id, ty)? {
                 reference = true;
                 place = Expression {
                     call_context: None,
@@ -1126,21 +1160,7 @@ impl<'t> Program<'t> {
                     kind: ExpressionKind::Referent(Box::new(place)),
                 };
             } else if query == StorageLocationQuery::Alignment {
-                first_element = match self.data_type(id, record)?.shape {
-                    StorageShape::ElementView { element, .. } => Some(element),
-                    StorageShape::ByteSequence(
-                        ByteSequenceCarrier::BorrowedView { .. }
-                        | ByteSequenceCarrier::BoundedView { .. },
-                    ) => {
-                        let byte = semantic_vocabulary::IntegerType::new(
-                            semantic_vocabulary::IntegerSign::Unsigned,
-                            8,
-                        )
-                        .expect("u8 is valid");
-                        Some(self.plain_scalar_storage(id, ScalarType::Integer(byte))?)
-                    }
-                    _ => None,
-                };
+                first_element = self.alignment_view_element(id, record)?;
             }
         }
         if query == StorageLocationQuery::Address && !reference {
@@ -1565,12 +1585,7 @@ impl<'t> Program<'t> {
         let readiness = match readiness {
             Some(requirement) => {
                 let typed = self.typed;
-                let lexical_owner = *self.symbols.get(id).ok_or_else(|| {
-                    refuse_at(
-                        id,
-                        Unserved::Call("Build provider readiness without its selecting machine"),
-                    )
-                })?;
+                let lexical_owner = self.machine_symbol(id)?;
                 let scope = typed
                     .build_provider_requirement_scope(requirement, lexical_owner)
                     .map_err(|reason| refuse_at(id, Unserved::Call(reason)))?;
@@ -1789,12 +1804,7 @@ impl<'t> Program<'t> {
     ) -> Checked<Expression> {
         let (callee, dispatch, operand, operand_owner, value_arguments, static_record) = selection;
         let unserved = |what| Err(refuse_at(id, Unserved::Call(what)));
-        let machine = *self.symbols.get(callee).ok_or_else(|| {
-            refuse_at(
-                id,
-                Unserved::Call("selected body lost its exact source declaration"),
-            )
-        })?;
+        let machine = self.machine_symbol(callee)?;
         // The requirement's clauses name rows of the selected body's
         // implementation, such as the `equals` a law is about.
         let conformance = self
@@ -1925,10 +1935,7 @@ impl<'t> Program<'t> {
                 );
             }
         };
-        let machine = self
-            .typed
-            .machine_by_symbol(body)
-            .ok_or_else(|| refuse_at(id, Unserved::Call("named call lost its actual body")))?;
+        let machine = self.required_machine(id, body, "named call target")?;
         let Some([entry]) = self.typed.machine_states(machine).as_array() else {
             return Err(refuse_at(
                 id,
@@ -1942,12 +1949,7 @@ impl<'t> Program<'t> {
             realization_machine: body,
             realization_state: entry.symbol,
         };
-        let lexical_owner = *self.symbols.get(id).ok_or_else(|| {
-            refuse_at(
-                id,
-                Unserved::Call("named member lost its actual source caller"),
-            )
-        })?;
+        let lexical_owner = self.machine_symbol(id)?;
         let (operand, supplier) = self
             .typed
             .source_call_selected_operand(lexical_owner, call)
@@ -2285,12 +2287,7 @@ impl<'t> Program<'t> {
             ));
         }
         self.direct_selection(id, call.target, call.selection, call.binding)?;
-        let caller = self.symbols.get(id).copied().ok_or_else(|| {
-            refuse_at(
-                id,
-                Unserved::Call("generic application has no source caller"),
-            )
-        })?;
+        let caller = self.machine_symbol(id)?;
         let arguments = self.application_arguments(
             id,
             caller,
@@ -2469,6 +2466,9 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
     ) -> Checked<CallBinding<'t>> {
         let invocation = self.static_invocation(call);
+        if let Some(formed) = self.native_borrow(id, slots, &invocation, source)? {
+            return Ok(CallBinding::Generic(formed));
+        }
         self.requirement_callbacks(id, invocation.target, invocation.application)?;
         if let Some(application) = self.theorem_application(id, slots, call, invocation, source)? {
             return Ok(CallBinding::Generic(application));
@@ -2539,9 +2539,7 @@ impl<'t> Program<'t> {
                 )?;
                 Vec::new()
             } else {
-                let caller = self.symbols.get(id).copied().ok_or_else(|| {
-                    refuse_at(id, Unserved::Call("packed operation has no source caller"))
-                })?;
+                let caller = self.machine_symbol(id)?;
                 let application = self.application_arguments(
                     id,
                     caller,
@@ -2591,7 +2589,7 @@ impl<'t> Program<'t> {
         )?;
         let (authored, binding) =
             self.static_machine_target(id, invocation.target, invocation.binder)?;
-        let caller = self.symbols.get(id).copied().unwrap_or_default();
+        let caller = self.machine_symbol(id)?;
         let member = self
             .typed
             .source_conformance_call_member(caller, call)
@@ -2690,11 +2688,7 @@ impl<'t> Program<'t> {
                 ));
             }
             let application = table.static_machine_application(invocation.application);
-            let caller = self
-                .symbols
-                .get(id)
-                .copied()
-                .ok_or_else(|| unavailable("logical application has no exact source caller"))?;
+            let caller = self.machine_symbol(id)?;
             if (caller != application.lexical_owner
                 && self
                     .typed
@@ -3092,11 +3086,7 @@ impl<'t> Program<'t> {
         } else {
             self.requirement(requirement, &value_arguments)?
         };
-        let owner = self
-            .symbols
-            .get(id)
-            .copied()
-            .ok_or_else(|| unserved("static callback has no caller"))?;
+        let owner = self.machine_symbol(id)?;
         let parameters = self.typed.declaration_type_parameters(owner);
         let mut parameter = record.as_ref().map_or(target, |(receiver, _, _)| *receiver);
         while parameter.is_valid()
@@ -3891,10 +3881,11 @@ impl<'t> Program<'t> {
             }
             .filter(|symbol| symbol.is_valid())
             .map(|symbol| self.typed.symbols.name(symbol).to_owned());
-            if let Some(names) = self.names.get_mut(id) {
+            let typed = self.typed;
+            if let Some(names) = self.machine_names_mut(id) {
                 let shown = arguments
                     .iter()
-                    .map(|argument| self.typed.expression_table.display_name(*argument))
+                    .map(|argument| typed.expression_table.display_name(*argument))
                     .collect();
                 names.calls.push((span, shown));
                 names.callees.extend(callee.map(|name| (span, name)));
@@ -3904,7 +3895,10 @@ impl<'t> Program<'t> {
         let mut lenders = Vec::new();
         for (argument, (declared, erased, borrowed)) in arguments.iter().zip(&formals) {
             let formal = self.substitute(*declared, &bound);
-            let formal = &self.argument_context(formal, &free, &bound);
+            let context = self
+                .instantiated_call_type(id, &callee, formal, const_sources)?
+                .unwrap_or(formal);
+            let formal = &self.argument_context(context, &free, &bound);
             // The argument for an erased formal is a term, not a
             // computation; the argument for a borrowed formal is a loan of
             // a place.
@@ -3943,7 +3937,7 @@ impl<'t> Program<'t> {
         read.extend_from_slice(const_values);
         self.check_lent_actuals(id, slots, &read)?;
         if let Some(span) = source.span()
-            && let Some(names) = self.names.get_mut(id)
+            && let Some(names) = self.machine_names_mut(id)
         {
             for (position, lender) in lenders {
                 names.loans.push((span, position, lender));
@@ -4045,7 +4039,7 @@ impl<'t> Program<'t> {
         let mut result = declared_result.map(|result| self.substitute(result, &bound));
         if let Some(declared) = result
             && let Some(instantiated) =
-                self.instantiated_nominal_result(id, &callee, declared, const_sources)?
+                self.instantiated_call_type(id, &callee, declared, const_sources)?
         {
             let correspondence = self
                 .nominal_call_type(
@@ -4262,14 +4256,23 @@ impl<'t> Program<'t> {
         }
         // Evaluate the supplied value once. A reference descriptor carries
         // the permission to cross into its backing, whether it came from a
-        // binding, a field or another helper call. An ordinary owned value
-        // still needs an explicit borrow of its place.
+        // binding, a field or another helper call. A shared parameter can
+        // also lend an owned place of the declared referent type.
         let (operand, access, explicit) = match node {
             ExpressionNode::Borrow(borrow) => {
                 (beneath.unwrap_or(borrow.target), borrow.access, true)
             }
             _ => (argument, formal.access, false),
         };
+        if explicit {
+            self.require_borrow_layers(id, argument, expected, source)?;
+        }
+        // A nested borrowed parameter lends a slot whose contents are themselves
+        // a reference. Forwarding an existing loan crosses its outer layer once.
+        let forwards_slot = !explicit
+            && formal.referent == crate::body::BorrowedReferent::Value
+            && self.reference_referent(id, expected)?.is_some()
+            && !matches!(self.node(id, operand)?, ExpressionNode::Cast(cast) if cast.form.is_recast());
         // A recast forms its written reference presentation over the same
         // captured storage. Its source still runs once and keeps its type.
         let (mut place, presentation) = match self.node(id, operand)? {
@@ -4317,23 +4320,30 @@ impl<'t> Program<'t> {
                     Some(presentation),
                 )
             }
-            _ => (
-                self.place(
+            _ if forwards_slot => {
+                let place = self.referenced_place(id, slots, operand, source)?.ok_or_else(||
+                    crate::reject(id, source, "a borrowed parameter needs an existing reference or an explicit loan of a place"))?;
+                (place, None)
+            }
+            _ => {
+                let retain_descriptor = if explicit {
+                    self.reference_referent(id, expected)?.is_some()
+                } else {
+                    formal.access == ReferenceAccess::Shared && self.is_borrowed_view(expected)
+                };
+                let place = self.place(
                     id,
                     slots,
                     operand,
-                    (!explicit
-                        && formal.access == ReferenceAccess::Shared
-                        && self.is_borrowed_view(expected))
-                    .then_some(expected),
+                    retain_descriptor.then_some(expected),
                     if access == ReferenceAccess::Shared {
                         Access::Borrow
                     } else {
                         Access::Write
                     },
-                )?,
-                None,
-            ),
+                )?;
+                (place, None)
+            }
         };
         // A write-only loan cannot supply observation to its callee, even
         // when the caller's own source place holds stronger access.
@@ -4406,8 +4416,12 @@ impl<'t> Program<'t> {
                 self.typed.expression_table.display_name(argument),
             ));
         }
+        // An explicit borrow can lend the reference slot itself. Keep that
+        // layer when the formal's referent is the stored reference type.
         if let Some(value_type) = place.result
             && let Some((referent, _)) = self.reference_referent(id, value_type)?
+            && !forwards_slot
+            && (!explicit || !self.same_type(Some(value_type), expected))
         {
             place = Expression {
                 call_context: None,
@@ -4453,7 +4467,12 @@ impl<'t> Program<'t> {
         if !crossed {
             if let Some(slot) = slot {
                 let lender = &slots[slot];
-                if !explicit && lender.borrowed.is_none() {
+                if !explicit
+                    && lender.borrowed.is_none()
+                    && !(formal.access == ReferenceAccess::Shared
+                        && formal.referent == crate::body::BorrowedReferent::Value
+                        && self.same_type(place.result, expected))
+                {
                     return unserved("argument for a borrowed formal that is not a borrow");
                 }
                 if access == ReferenceAccess::Mutable
@@ -4463,7 +4482,26 @@ impl<'t> Program<'t> {
                     return unserved("exclusive loan of an immutable binding");
                 }
             } else if !(explicit && matches!(root.kind, ExpressionKind::OwnedTemporary { .. })) {
-                return unserved("borrow of a value that is not a place");
+                // A reference produced here (including the inner @ in @@x) has
+                // its own descriptor. Borrowing that complete value gives it
+                // an invocation-owned home, with the normal temporary lifetime.
+                if !explicit
+                    || !std::ptr::eq(root, &place)
+                    || self.reference_referent(id, expected)?.is_none()
+                    || !self.same_type(place.result, expected)
+                {
+                    return unserved("borrow of a value that is not a place");
+                }
+                place = Expression {
+                    call_context: None,
+                    source: place.source,
+                    result: place.result,
+                    kind: ExpressionKind::OwnedTemporary {
+                        occurrence: operand,
+                        value: Box::new(place),
+                        scalar_home: None,
+                    },
+                };
             }
         }
         let lender_text = self.typed.expression_table.display_name(argument);
@@ -4919,6 +4957,7 @@ impl Touches<'_> {
             | ExpressionKind::Boolean(_) => Ok(false),
             ExpressionKind::OwnedTemporary { value: operand, .. }
             | ExpressionKind::Not(operand)
+            | ExpressionKind::NativeBorrow { operand, .. }
             | ExpressionKind::BitwiseNot(operand)
             | ExpressionKind::Cast(operand)
             | ExpressionKind::Requalify(operand)

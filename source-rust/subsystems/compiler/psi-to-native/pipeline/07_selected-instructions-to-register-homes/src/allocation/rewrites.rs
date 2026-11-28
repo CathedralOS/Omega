@@ -87,7 +87,6 @@ pub(crate) mod rematerialization {
             let rematerialization = match rematerialize_selected_active_resident(
                 selected,
                 source_ranges,
-                &choices,
                 &classifications,
                 source.allocator_availability(),
                 environment.identity(),
@@ -181,17 +180,13 @@ pub(crate) mod rematerialization {
             let manifest = project_post_allocation_optimization_manifest(
                 prefix_custody.source().core(),
                 source.record(),
-                &[
-                    PostAllocationSelectedTransformation::PressureRematerialization(
-                        rematerialization.receipt().identity(),
-                    ),
-                ],
+                &[PostAllocationSelectedTransformation::PressureRematerialization],
                 &ranges,
                 &legality,
                 &homes,
             )
             .map_err(OptimizedActiveResidentRematerializationError::Manifest)?;
-            let custody = custody_receipt(prefix_custody, &homes, &manifest);
+            let custody = custody_receipt(prefix_custody, &homes);
             Ok(StagedOptimizedActiveResidentRematerialization {
                 source,
                 rematerialization,
@@ -205,10 +200,8 @@ pub(crate) mod rematerialization {
         }
     }
     pub(crate) mod custody {
+        use crate::allocation::AssignedRegisterHomes;
         use crate::allocation::ValidatedPressureRematerialization;
-        use crate::allocation::{
-            AssignedRegisterHomes, ValidatedPostAllocationOptimizationManifest,
-        };
         use selected_instruction_analyses::{
             ValidatedAllocationLegality, ValidatedRecoveryClassifications, ValidatedSpillChoices,
         };
@@ -230,13 +223,10 @@ pub(crate) mod rematerialization {
         ) -> StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt {
             StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt {
                 source,
-                choices: choices.receipt().identity(),
                 choice_policy: choices.receipt().policy(),
                 choice_usage: choices.receipt().usage(),
-                classifications: classifications.receipt().identity(),
                 classification_policy: classifications.receipt().policy(),
                 classification_usage: classifications.receipt().usage(),
-                rematerialization: rematerialization.receipt().identity(),
                 rematerialization_policy: rematerialization.receipt().policy(),
                 rematerialization_usage: rematerialization.receipt().usage(),
                 budget: rematerialization.plan().budget,
@@ -250,12 +240,9 @@ pub(crate) mod rematerialization {
         pub(crate) fn custody_receipt(
             prefix: StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt,
             homes: &AssignedRegisterHomes,
-            manifest: &ValidatedPostAllocationOptimizationManifest,
         ) -> StagedOptimizedActiveResidentRematerializationCustodyReceipt {
             StagedOptimizedActiveResidentRematerializationCustodyReceipt {
                 prefix,
-                homes: homes.receipt().identity(),
-                manifest: manifest.record().identity,
                 assignment_count: homes.receipt().assignment_count(),
             }
         }
@@ -271,8 +258,7 @@ pub(crate) mod rematerialization {
         ValidatedPressureRematerialization,
     };
     use register_homes::{
-        PostAllocationOptimizationManifestError, RecoveryClassificationIdentity,
-        RecoveryClassificationPolicy, SpillChoiceIdentity, SpillChoicePolicy,
+        PostAllocationOptimizationManifestError, RecoveryClassificationPolicy, SpillChoicePolicy,
     };
     use selected_instruction_analyses::{
         AllocationLegalityError, LiveRangeError, LivenessError, RecoveryClassificationError,
@@ -280,7 +266,6 @@ pub(crate) mod rematerialization {
         StagedOptimizedAllocationLegalityCustodyReceipt, ValidatedAllocationLegality,
         ValidatedLiveRanges, ValidatedLiveness,
     };
-    use selected_instructions::PressureRematerializationIdentity;
 
     pub(crate) use compute::{
         complete_optimized_active_resident_rematerialization,
@@ -324,20 +309,12 @@ pub(crate) mod rematerialization {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct StagedOptimizedActiveResidentRematerializationCustodyReceipt {
         prefix: StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt,
-        homes: crate::allocation::RegisterHomeIdentity,
-        manifest: optimization_core::PostAllocationOptimizationManifestIdentity,
         assignment_count: usize,
     }
 
     impl StagedOptimizedActiveResidentRematerializationCustodyReceipt {
-        pub const fn rematerialization(&self) -> PressureRematerializationIdentity {
-            self.prefix.rematerialization
-        }
-
         receipt_accessor_rows!(
             StagedOptimizedActiveResidentRematerializationCustodyReceipt {
-                homes: crate::allocation::RegisterHomeIdentity,
-                manifest: optimization_core::PostAllocationOptimizationManifestIdentity,
                 assignment_count: usize,
             }
         );
@@ -369,13 +346,10 @@ pub(crate) mod rematerialization {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub(crate) struct StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt {
         source: StagedOptimizedAllocationLegalityCustodyReceipt,
-        choices: SpillChoiceIdentity,
         choice_policy: SpillChoicePolicy,
         choice_usage: optimization_core::OptimizationWorkUsage,
-        classifications: RecoveryClassificationIdentity,
         classification_policy: RecoveryClassificationPolicy,
         classification_usage: optimization_core::OptimizationWorkUsage,
-        rematerialization: PressureRematerializationIdentity,
         rematerialization_policy: PressureRematerializationPolicy,
         rematerialization_usage: optimization_core::OptimizationWorkUsage,
         budget: OptimizationWorkBudget,
@@ -389,7 +363,6 @@ pub(crate) mod rematerialization {
         receipt_accessor_rows!(
             StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt {
                 source: StagedOptimizedAllocationLegalityCustodyReceipt,
-                rematerialization: PressureRematerializationIdentity,
             }
         );
     }
@@ -1514,7 +1487,6 @@ pub(crate) mod fixed_view {
                 StagedOptimizedFixedViewCopyCustodyReceipt {
                     core: upstream.core(),
                     allocator_availability: upstream.allocator_availability(),
-                    transformation: copies.identity(),
                     policy: copies.policy(),
                     usage: copies.usage(),
                     function_count: copies.function_count(),
@@ -1527,7 +1499,7 @@ pub(crate) mod fixed_view {
 
         use crate::allocation::StagedOptimizedFixedPrecoloredSegmentHomes;
         use crate::allocation::{
-            FixedViewCopyError, FixedViewCopyIdentity, MaterializedFixedViewCopies,
+            FixedViewCopyError, MaterializedFixedViewCopies,
             OptimizedFixedPrecoloredSegmentHomeCustodyError, StagedOptimizedAllocationLegality,
             ValidatedAllocatorAvailability,
         };
@@ -1583,7 +1555,6 @@ pub(crate) mod fixed_view {
         pub struct StagedOptimizedFixedViewCopyCustodyReceipt {
             core: StagedOptimizedCustodyCore,
             allocator_availability: register_homes::AllocatorAvailabilityIdentity,
-            transformation: FixedViewCopyIdentity,
             policy: FixedViewCopyPolicy,
             usage: OptimizationWorkUsage,
             function_count: usize,
@@ -1595,7 +1566,6 @@ pub(crate) mod fixed_view {
 
             receipt_accessor_rows!(StagedOptimizedFixedViewCopyCustodyReceipt {
                 allocator_availability: register_homes::AllocatorAvailabilityIdentity,
-                transformation: FixedViewCopyIdentity,
                 policy: FixedViewCopyPolicy,
                 usage: OptimizationWorkUsage,
                 function_count: usize,
@@ -1674,14 +1644,13 @@ pub(crate) use allocation_recovery::FixedViewCopyDestination;
 pub use allocation_recovery::{
     FixedViewCopy, FixedViewCopyPlan, FixedViewCopyPolicy, MaterializedFixedViewCopies,
     PressureRematerializationError, PressureRematerializationPolicy,
-    ValidatedPressureRematerialization, fixed_view_copy_identity,
-    rematerialize_selected_active_resident,
+    ValidatedPressureRematerialization, rematerialize_selected_active_resident,
 };
 pub(crate) use allocation_recovery::{
     FixedViewCopyError, FixedViewCopyReceipt, FunctionPressureRematerialization,
     PressureRematerializationAction, PressureRematerializationPlan,
     PressureRematerializationReceipt, PressureRematerializationRewrite,
-    materialize_fixed_view_copies, pressure_rematerialization_identity,
+    materialize_fixed_view_copies,
 };
 pub use fixed_occurrences::{
     FixedOccurrencesError, ValidatedFixedOccurrences, materialize_selected_fixed_occurrences,

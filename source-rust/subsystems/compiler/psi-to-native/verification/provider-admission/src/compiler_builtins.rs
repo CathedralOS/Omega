@@ -146,6 +146,10 @@ pub(super) fn settle_compiler_builtins<'request>(
                     unclassified.mechanism(),
                 ))]
             })?;
+        mechanisms.push(AdmittedTerminalMechanism {
+            boundary: boundary.id,
+            mechanism: mechanism.into(),
+        });
         if execution == CompilerBuiltinExecution::HostedExitProcessI32
             && let Some(import) = target_operations::CompilerImport::process_exit(request.profile)
         {
@@ -160,9 +164,12 @@ pub(super) fn settle_compiler_builtins<'request>(
                     "Windows process exit requires the exact checked core primitive",
                 )]);
             }
-            let physical =
-                crate::normalized_foreign_terminal_mechanism(import.locator(), import.entry_plan())
-                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            let physical = crate::normalized_foreign_terminal_mechanism(
+                import.locator(),
+                import.entry_plan(),
+                None,
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
             if super::terminal_authority_policy::reviewed_host_operation(physical)
                 .as_ref()
                 .map(|row| row.disposition())
@@ -179,10 +186,6 @@ pub(super) fn settle_compiler_builtins<'request>(
                     requirement.to_owned(),
                     *provider.plan().identity_digest().as_bytes(),
                 )),
-            });
-            mechanisms.push(AdmittedTerminalMechanism {
-                boundary: boundary.id,
-                mechanism: mechanism.into(),
             });
             continue;
         }
@@ -215,10 +218,6 @@ pub(super) fn settle_compiler_builtins<'request>(
                         "semantic-entry continuation left its executable closure",
                     )]);
                 }
-                mechanisms.push(AdmittedTerminalMechanism {
-                    boundary: boundary.id,
-                    mechanism: mechanism.into(),
-                });
                 continue;
             }
             CompilerBuiltinExecution::ProgramImageRetainedSuffixStart => {
@@ -338,10 +337,6 @@ pub(super) fn settle_compiler_builtins<'request>(
             boundary: boundary.id,
             execution: AdmittedBoundaryExecution::CompilerBuiltin(settled),
             realization: BoundarySettlementRealization::Builtin(realization),
-        });
-        mechanisms.push(AdmittedTerminalMechanism {
-            boundary: boundary.id,
-            mechanism: mechanism.into(),
         });
     }
     Ok((admitted, mechanisms))
@@ -547,12 +542,13 @@ fn validate_access_schema(
         || !method.termination_premises.is_empty()
         || !method.entry_claims.is_empty()
         || !method.result_claims.is_empty()
-        || !method.normal_result_memberships.is_empty()
+        || !method.domain_memberships.is_empty()
         || !method.service_reach.is_empty()
         || !method.synchronous_invocations.is_empty()
         || !boundary.requires.is_empty()
         || !boundary.scalar_requires.is_empty()
         || !boundary.scalar_ensures.is_empty()
+        || !boundary.membership_requires.is_empty()
         || !boundary.membership_ensures.is_empty()
         || !boundary.normal_qualifications.is_empty()
         || !boundary.program_local_root_introductions.is_empty()
@@ -742,6 +738,7 @@ mod selected_completion_contract_tests {
             result_reference_regions: Vec::new(),
             result_lifetimes: None,
             requires: Vec::new(),
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             normal_qualifications: Vec::new(),
             scalar_domain_requirements: Vec::new(),
@@ -865,8 +862,9 @@ mod selected_completion_contract_tests {
         ));
         let mut extra_schema_promise = plan.clone();
         std::sync::Arc::make_mut(&mut extra_schema_promise.schema.declaration).methods[0]
-            .normal_result_memberships
-            .push(service_surface::ServiceNormalResultMembership {
+            .domain_memberships
+            .push(service_surface::ServiceDomainMembership {
+                subject: service_surface::ServiceMembershipSubject::NormalResult,
                 path: Vec::new(),
                 domain: "another-domain-application".into(),
             });

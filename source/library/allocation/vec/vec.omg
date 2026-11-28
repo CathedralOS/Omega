@@ -148,10 +148,10 @@ terminates by remaining
 crashes Trap
 {
     transition remaining > 0 {
-        true -> step::<Role>(original, replacement, count, remaining),
+        true -> step(original, replacement, count, remaining),
         false -> Copied { original: original, replacement: replacement }
     }
-    machine step<Role>(original: |backing|::VacantStorage, replacement: |backing|::VacantStorage,
+    machine step(original: |backing|::VacantStorage, replacement: |backing|::VacantStorage,
         count: u64, remaining: u64) -> Copied
     requires remaining > 0, count <= 4611686018427387903, remaining <= count,
         original.length >= count * 4, replacement.length >= count * 4

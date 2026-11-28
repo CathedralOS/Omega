@@ -18,10 +18,39 @@ pub(super) fn execute(
             "run lost its produced Psi artifact before execution",
         ))?;
     let runtime = report.runtime();
+    if let Some(contained) = report.contained() {
+        return super::contained::execute(
+            contained,
+            program.artifact,
+            target,
+            runtime.map(|provisions| provisions.execution()),
+            input,
+            psi_work_budget,
+            directories,
+        );
+    }
     use terminal_runtime::{
         TerminalFilesystemDelegation as Filesystem, TerminalNativeServiceDelegation as Services,
     };
-    let (filesystem, native_services, native_provider) = if directories.is_empty() {
+    // The working-directory view applies wherever the interpreter performs the
+    // Product's filesystem calls itself: a Linux program on its matching
+    // Linux host, with no native provider. Native code and another target's
+    // filesystem cannot be confined to that view, so those runs keep the host
+    // namespace unless the caller maps directories explicitly
+    // (implementation gap tracked in TASKS.md#psi-untrusted-interpretation).
+    let confinable = Some(report.target) == target::TargetProfile::host_if_supported()
+        && matches!(
+            report.target,
+            target::TargetProfile::LinuxX64 | target::TargetProfile::LinuxArm64
+        )
+        && runtime.is_none_or(|runtime| runtime.published_native_adapters().next().is_none());
+    let (filesystem, native_services, native_provider) = if confinable || !directories.is_empty() {
+        (
+            super::contained::standalone_filesystem(directories)?,
+            Services::Unprovided,
+            None,
+        )
+    } else {
         (
             Filesystem::HostNamespace,
             Services::MatchingHost,
@@ -37,8 +66,6 @@ pub(super) fn execute(
                     .flat_map(|runtime| runtime.published_native_adapters()),
             )),
         )
-    } else {
-        (Filesystem::Mapped(directories), Services::Unprovided, None)
     };
     retained_image_runtime::execute(
         TerminalRuntimeRequest {

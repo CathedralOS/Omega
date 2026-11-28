@@ -128,7 +128,7 @@ pub(crate) mod data_definitions {
                 .data_definitions
                 .get_mut(roster.start())
                 .symbol = replacement;
-            assert_eq!(program.tables.data_definitions.revision(), revision + 1);
+            assert_ne!(program.tables.data_definitions.revision(), revision);
             program.roots.data_definitions = HandleSpan::from_parts(roster.start(), 1);
             assert_fresh_rows(&program, &symbols, &names);
             program.roots.data_definitions = roster;
@@ -604,6 +604,22 @@ pub mod declaration_index {
                 )
             }
 
+            /// An operation record's named field uses the requirement declaration
+            /// itself, not another field with a coincident spelling.
+            pub fn is_record_field_declaration(&self, symbol: SymbolHandle) -> bool {
+                self.symbols.symbols().nodes().is_valid(symbol)
+                    && match self.symbols.get(symbol).kind {
+                        symbols::SymbolKind::Field => true,
+                        symbols::SymbolKind::State => self
+                            .trait_machine_signature(symbol)
+                            .is_some_and(|(owner, _)| {
+                                self.symbols.get(symbol).parent == owner.symbol
+                                    && self.data_definition_by_symbol(owner.symbol).is_some()
+                            }),
+                        _ => false,
+                    }
+            }
+
             pub fn data_field_positions_for_symbol(
                 &self,
                 symbol: SymbolHandle,
@@ -617,9 +633,7 @@ pub mod declaration_index {
                 &self,
                 symbol: SymbolHandle,
             ) -> Option<&crate::source_state::data::DataField> {
-                if !self.symbols.symbols().nodes().is_valid(symbol)
-                    || self.symbols.get(symbol).kind != symbols::SymbolKind::Field
-                {
+                if !self.is_record_field_declaration(symbol) {
                     return None;
                 }
                 let (data, member, payload) = self.with_data_members(|index| {

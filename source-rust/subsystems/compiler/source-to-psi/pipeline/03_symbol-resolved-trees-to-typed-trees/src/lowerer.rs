@@ -7,9 +7,7 @@ seeded continuation (`seeded_continuation`).
 
 use crate::declarations::items::data::lower_data_definition;
 use crate::declarations::items::domain::lower_domain_definition;
-use crate::declarations::items::machine::{
-    lower_machine, lower_token_binding_view, settle_satisfied_declarations_from,
-};
+use crate::declarations::items::machine::{lower_machine, settle_satisfied_declarations_from};
 use crate::declarations::items::mathematical::lower_mathematical_definition;
 use crate::declarations::items::operator::lower_operator_definition;
 use crate::declarations::items::proposition::lower_proposition_definition;
@@ -1752,110 +1750,111 @@ impl<'completed> TypingCohort<'completed> {
         ordinal >= self.typed_machines || self.completes(symbol)
     }
 
-    pub(crate) fn declaration_keys(&self, program: &TypedTrees) -> Vec<(u32, u32)> {
-        let mut keys = Vec::new();
-        keys.extend(
+    pub(crate) fn declarations(
+        &self,
+        program: &TypedTrees,
+    ) -> crate::source_state::references::DeclarationSelection {
+        let mut symbols = Vec::new();
+        symbols.extend(
             program
                 .type_aliases()
                 .iter()
                 .skip(self.type_aliases)
-                .map(|item| symbol_key(item.symbol)),
+                .map(|item| item.symbol),
         );
-        keys.extend(
+        symbols.extend(
             program
                 .data_definitions()
                 .iter()
                 .skip(self.data_definitions)
-                .map(|item| symbol_key(item.symbol)),
+                .map(|item| item.symbol),
         );
-        keys.extend(
+        symbols.extend(
             program
                 .traits()
                 .iter()
                 .skip(self.traits)
-                .map(|item| symbol_key(item.symbol)),
+                .map(|item| item.symbol),
         );
-        keys.extend(
+        symbols.extend(
             program
                 .conformances()
                 .iter()
                 .skip(self.conformances)
-                .map(|item| symbol_key(item.symbol)),
+                .map(|item| item.symbol),
         );
-        keys.extend(
+        symbols.extend(
             program
                 .propositions()
                 .iter()
                 .skip(self.propositions)
-                .map(|item| symbol_key(item.symbol)),
+                .map(|item| item.symbol),
         );
-        keys.extend(
+        symbols.extend(
             program
                 .mathematical_definitions()
                 .iter()
                 .skip(self.mathematical_definitions)
-                .map(|item| symbol_key(item.symbol)),
+                .map(|item| item.symbol),
         );
-        keys.extend(
+        symbols.extend(
             program
                 .measures()
                 .iter()
                 .skip(self.measures)
-                .map(|item| symbol_key(item.symbol)),
+                .map(|item| item.symbol),
         );
-        keys.extend(
+        symbols.extend(
             program
                 .const_declarations()
                 .iter()
                 .skip(self.const_declarations)
-                .map(|item| symbol_key(item.symbol)),
+                .map(|item| item.symbol),
         );
-        keys.extend(
+        symbols.extend(
             program
                 .operators()
                 .iter()
                 .skip(self.operators)
-                .map(|item| symbol_key(item.symbol)),
+                .map(|item| item.symbol),
         );
-        keys.extend(
+        symbols.extend(
             program
                 .machine_token_bindings()
                 .iter()
                 .skip(self.typed_machine_token_bindings)
-                .map(|item| symbol_key(item.symbol)),
+                .map(|item| item.symbol),
         );
-        keys.extend(
+        symbols.extend(
             program
                 .domain_definitions()
                 .iter()
                 .skip(self.domain_definitions)
                 .flat_map(|domain| {
-                    std::iter::once(symbol_key(domain.symbol)).chain(
+                    std::iter::once(domain.symbol).chain(
                         program
                             .domain_operators(domain)
                             .iter()
-                            .map(|operator| symbol_key(operator.symbol)),
+                            .map(|operator| operator.symbol),
                     )
                 }),
         );
-        keys.extend(
+        symbols.extend(
             program
                 .wire_schemas()
                 .iter()
                 .skip(self.wire_schemas)
-                .map(|item| symbol_key(item.symbol)),
+                .map(|item| item.symbol),
         );
-        keys.extend(
+        symbols.extend(
             program
                 .machines()
                 .iter()
                 .skip(self.typed_machines)
-                .map(|item| symbol_key(item.symbol)),
+                .map(|item| item.symbol),
         );
-        keys.extend(self.completed_keys.iter().copied());
-        keys.sort_unstable();
-        keys.dedup();
-        keys
+        symbols.extend(self.completed_machines.iter().copied());
+        crate::source_state::references::DeclarationSelection::from_symbols(symbols)
     }
 
     pub(crate) fn completing(mut self, machines: &'completed [SymbolHandle]) -> Self {
@@ -1946,6 +1945,17 @@ pub(crate) fn type_resolved_cohort(
         )?;
         lowerer.typed_trees.push_mathematical_definition(definition);
     }
+    // A dispatch subject can project through data with an implementation
+    // parameter. Its field type is checked while lowering the machine body
+    // and needs both the requirement and the selected conformance.
+    for trait_definition in source.traits.iter().skip(cohort.traits) {
+        lowerer.typed_trees.begin_declaration_output();
+        lowerer.lower_trait_declaration(trait_definition)?;
+    }
+    for conformance in source.conformances.iter().skip(cohort.conformances) {
+        lowerer.typed_trees.begin_declaration_output();
+        crate::declarations::items::conformance::lower_conformance(lowerer, conformance)?;
+    }
     let completed_positions = source
         .machines
         .iter()
@@ -1981,14 +1991,6 @@ pub(crate) fn type_resolved_cohort(
             })?;
         lowerer.typed_trees.push_operator(operator);
     }
-    for trait_definition in source.traits.iter().skip(cohort.traits) {
-        lowerer.typed_trees.begin_declaration_output();
-        lowerer.lower_trait_declaration(trait_definition)?;
-    }
-    for conformance in source.conformances.iter().skip(cohort.conformances) {
-        lowerer.typed_trees.begin_declaration_output();
-        crate::declarations::items::conformance::lower_conformance(lowerer, conformance)?;
-    }
     for wire_schema in source.wire_schemas.iter().skip(cohort.wire_schemas) {
         lowerer.typed_trees.begin_declaration_output();
         let wire_schema = lowerer.with_type_reference_exposure(
@@ -1997,6 +1999,7 @@ pub(crate) fn type_resolved_cohort(
         )?;
         lowerer.typed_trees.push_wire_schema(wire_schema);
     }
+    crate::expressions::runtime_callables::finish_requirement_types(&mut lowerer.typed_trees)?;
     lowerer.lower_const_initializer_evidence(cohort.const_declarations)
 }
 
@@ -2073,6 +2076,11 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_type_references,
     )?;
+    crate::expressions::package_openings::open_cohort(
+        lowerer.source_trees,
+        &mut lowerer.typed_trees,
+        cohort,
+    )?;
     // Result and effect queries must see the signature of the evaluated callee,
     // including calls in declaration contracts and initializers.
     let mut callable_admission = crate::expressions::runtime_callables::bind_calls_in_cohort(
@@ -2105,9 +2113,7 @@ pub(crate) fn close_typed_cohort(
             cohort,
         );
     if applied_signatures_walk_program {
-        lowerer
-            .typed_trees
-            .prepare_applied_callable_signatures()
+        crate::declarations::applied_callable_signatures::prepare(&mut lowerer.typed_trees)
             .map_err(|message| Diagnostic::error(message.to_owned()))?;
     }
     // Infer unannotated constants whose initializer type is already known
@@ -2142,6 +2148,10 @@ pub(crate) fn close_typed_cohort(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
         cohort.typed_type_references,
+    )?;
+    crate::declarations::package_fields::validate_in_cohort(
+        &lowerer.typed_trees,
+        cohort.data_definitions,
     )?;
     crate::types::type_reference::domain_aliases::retain_member_applications(
         &mut lowerer.typed_trees,
@@ -2203,12 +2213,11 @@ pub(crate) fn close_typed_cohort(
     {
         validate_computed_arguments(lowerer.source_trees)?;
     }
-    let owners = collect_owners(&lowerer.typed_trees);
     crate::expressions::equality_preparation::prepare_in_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
         cohort.conformances,
-        &owners,
+        collect_owners,
     )?;
     crate::declarations::items::provider_defaults::finalize_provider_default_calls_in_cohort(
         &mut lowerer.typed_trees,
@@ -2242,11 +2251,13 @@ pub(crate) fn close_typed_cohort(
     )?;
     // Constructor and cast preparation may finish a callee's retained type.
     // Bind those values before attributing any still-unserved call request.
-    let owners = collect_owners(&lowerer.typed_trees);
     crate::types::typing_queries::defer_unbound_calls_in_cohort(
         &mut lowerer.typed_trees,
         cohort,
-        &owners,
+        collect_owners,
+    )?;
+    crate::expressions::package_escapes::check_cohort(
+        lowerer.source_trees, &lowerer.typed_trees, cohort,
     )?;
     crate::types::undeclared_type_names::defer_undeclared_type_names_in_cohort(
         lowerer.source_trees,
@@ -2494,15 +2505,9 @@ impl Lowerer<'_> {
         &mut self,
         machine: &crate::source_resolved::machine::Machine,
     ) -> Result<(), Diagnostic> {
-        let typed_machine = self
-            .with_type_reference_exposure(Some(machine.interface_exposure), |lowerer| {
-                lower_machine(lowerer, machine)
-            })?;
-        if let Some(view) = lower_token_binding_view(self, machine, &typed_machine)? {
-            self.typed_trees.push_machine_token_binding(view);
-        }
-        self.typed_trees.push_machine(typed_machine);
-        Ok(())
+        self.with_type_reference_exposure(Some(machine.interface_exposure), |lowerer| {
+            lower_machine(lowerer, machine)
+        })
     }
 
     fn lower_trait_declaration(
@@ -2602,6 +2607,8 @@ impl Lowerer<'_> {
 
 fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) -> TypedTrees {
     let TypedTrees {
+        package_openings,
+        package_projections,
         identity: _,
         build_invocation_entry: _,
         excluded_authored_selection_occurrences,
@@ -2644,6 +2651,8 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
     } = typed;
     let mut trees = TypedTrees::with_roots(roots, tables, symbols);
     trees.type_identities = type_identities;
+    trees.package_openings = package_openings;
+    trees.package_projections = package_projections;
     // A request recorded on a declaration stays recorded while the program
     // is extended: its declaration is still unserved, and recording again
     // adds nothing.

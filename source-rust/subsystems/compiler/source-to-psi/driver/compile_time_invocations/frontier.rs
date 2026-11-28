@@ -128,6 +128,10 @@ fn require_no_recorded_work(typed: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
 /// The evaluation requests written inside declarations, each with the
 /// declaration that holds it. One that no declaration owns refuses.
 fn declared_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Diagnostic>> {
+    use typed_trees::source_state::data::TypeParameterKind;
+    use typed_trees::source_state::domain::{index_argument_is_closed, index_argument_is_in_scope};
+    use typed_trees::source_state::types::{FixedArrayLength, TypeReferenceNode};
+
     // Reuse the reference owner's complete type-position inventory rather
     // than searching selected statements or treating a type as only a name.
     let references =
@@ -144,7 +148,6 @@ fn declared_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Diagnostic>> 
     }
     let mut types = Vec::new();
     for reference in references.type_references {
-        use typed_trees::source_state::types::{FixedArrayLength, TypeReferenceNode};
         if typed.layout_storage_arguments(reference).is_some() {
             if typed.plan_laid_layout_for_type(reference).is_none() {
                 types.push((reference, DeferredRequest::LayoutPolicyStorage));
@@ -152,13 +155,15 @@ fn declared_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Diagnostic>> 
             continue;
         }
         match typed.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::ConstExpression(_)
-                if !typed
+            TypeReferenceNode::ConstExpression(expression)
+                if !matches!(
+                    typed.expression_table.expression(*expression),
+                    typed_trees::expression::ExpressionNode::Integer(_)
+                        | typed_trees::expression::ExpressionNode::Boolean(_)
+                ) && !typed
                     .constant_recipe_for_const_application(reference)
                     .is_valid()
-                    && typed_trees::source_state::domain::index_argument_is_closed(
-                        typed, reference,
-                    ) =>
+                    && index_argument_is_closed(typed, reference) =>
             {
                 types.push((reference, DeferredRequest::TypeExpressionEvaluation));
             }
@@ -203,18 +208,42 @@ fn declared_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Diagnostic>> 
         }
     }
     for (reference, request) in types {
-        let before = jobs.len();
-        jobs.extend(
-            owners
-                .type_owners(reference)
-                .filter(|owner| owner.is_valid())
-                .map(|owner| (owner, request)),
-        );
-        if jobs.len() == before {
+        let mut declarations = owners
+            .type_owners(reference)
+            .filter(|owner| owner.is_valid())
+            .peekable();
+        if declarations.peek().is_none() {
             return Err(unsupported(&format!(
                 "outside every declaration, one {}",
                 request.construct()
             )));
+        }
+        let open_extent = match typed.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::FixedArray {
+                length: FixedArrayLength::Expression(argument),
+                ..
+            } if request == DeferredRequest::ArrayExtentEvaluation
+                && !index_argument_is_closed(typed, *argument) =>
+            {
+                Some(*argument)
+            }
+            _ => None,
+        };
+        for owner in declarations {
+            if let Some(argument) = open_extent {
+                // Each application supplies the values of this declaration's
+                // const parameters. Other free inputs still need evaluation.
+                let parameters: Vec<_> = typed
+                    .declaration_type_parameters(owner)
+                    .iter()
+                    .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Const { .. }))
+                    .map(|parameter| parameter.symbol)
+                    .collect();
+                if index_argument_is_in_scope(typed, argument, &[], &[], &parameters) {
+                    continue;
+                }
+            }
+            jobs.push((owner, request));
         }
     }
     Ok(jobs)
@@ -375,17 +404,6 @@ impl PreCheckEvaluation {
         Ok(())
     }
 
-    /// The evaluation continuation of the program `activation` narrowed out
-    /// of a retained base.
-    ///
-    /// Only the activated program's requests are this continuation's to
-    /// account for. The base also holds sources the program did not select,
-    /// and the requests of their declarations stay with the base's own
-    /// continuation; they do not stop a program that holds none of them.
-    pub fn activate_sources(&self, activation: &TypedTrees) -> Result<Self, Vec<Diagnostic>> {
-        Self::require_recorded_requests(activation)?;
-        Ok(self.clone())
-    }
     /// Refuses until every continuation of one typed program has rejoined
     /// the current declaration authority. The program's requests are already
     /// recorded on its declarations (`defer_declared_requests`).

@@ -17,12 +17,12 @@ argument contracts are never valid policy keys.
 
 #[path = "terminal_authority_policy/classification.rs"]
 mod classification;
-#[path = "terminal_authority_policy/darwin_poll.rs"]
-pub(crate) mod darwin_poll;
 #[path = "terminal_authority_policy/external_mechanisms.rs"]
 mod external_mechanisms;
 #[path = "terminal_authority_policy/host_cohorts.rs"]
 mod host_cohorts;
+#[path = "terminal_authority_policy/posix_imports.rs"]
+pub(crate) mod posix_imports;
 #[path = "terminal_authority_policy/posix_operations.rs"]
 mod posix_operations;
 pub(crate) use posix_operations::private_linux_syscall_authority;
@@ -45,12 +45,11 @@ use terminal_authority_receipts::{
 
 pub(crate) use external_mechanisms::{
     conservative_syscall_terminal_mechanism, normalized_foreign_terminal_mechanism,
-    normalized_foreign_terminal_mechanism_with_callback_materializations,
 };
 pub(crate) use host_cohorts::darwin_clock_mechanism_row;
 pub use host_cohorts::{filesystem_host_permission_rows, time_host_permission_rows};
 
-pub(crate) const TERMINAL_AUTHORITY_POLICY_VERSION: u32 = 12;
+pub(crate) const TERMINAL_AUTHORITY_POLICY_VERSION: u32 = 15;
 const POLICY_COMMITMENT_DOMAIN: &[u8] = b"omega.terminal-authority.policy.v3\0";
 const PARAMETERIZED_POLICY_FAMILY_COUNT: u32 = 3;
 const ACCESS_CALLER_RAM_SCALAR_POLICY_V1: &[u8] =
@@ -282,8 +281,10 @@ pub(crate) fn reviewed_host_operation(
         {
             windows_imports::mechanism_row(import)
         }
-        // Darwin poll gains its wait classification from checked call arguments.
-        TerminalMechanismIdentity::NormalizedForeign(import) if darwin_poll::is_poll(import) => {
+        // These imports require a checked contract at every selected occurrence.
+        TerminalMechanismIdentity::NormalizedForeign(import)
+            if posix_imports::Contract::for_import(import).is_some() =>
+        {
             None
         }
         _ => posix_operations::mechanism_row(mechanism),
@@ -619,7 +620,7 @@ mod interrupt_control_tests {
     fn mask_policy_epoch_and_commitment_bind_reviewed_identity() {
         let policy = current_terminal_authority_policy();
         let identity = policy.identity();
-        assert_eq!(identity.version(), 12);
+        assert_eq!(identity.version(), 15);
         assert_eq!(
             identity,
             terminal_authority_policy_with_rows(vec![])
@@ -639,11 +640,15 @@ mod interrupt_control_tests {
             .unwrap()
         };
         let current = review(identity);
-        let old_epoch = TerminalAuthorityPolicyIdentity::from_parts(11, identity.commitment());
+        let old_epoch = TerminalAuthorityPolicyIdentity::from_parts(
+            TERMINAL_AUTHORITY_POLICY_VERSION - 1,
+            identity.commitment(),
+        );
         assert_ne!(current.identity(), review(old_epoch).identity());
         let mut changed = identity.commitment();
         changed[0] ^= 1;
-        let wrong_commitment = TerminalAuthorityPolicyIdentity::from_parts(12, changed);
+        let wrong_commitment =
+            TerminalAuthorityPolicyIdentity::from_parts(TERMINAL_AUTHORITY_POLICY_VERSION, changed);
         assert_ne!(current.identity(), review(wrong_commitment).identity());
     }
 }

@@ -22,6 +22,11 @@ requirement can prove that the wait returns. When progress remains unproved,
 the diagnostic points to the call. A known permanently blocked call receives
 a deadlock diagnostic. [Synchronization checking](../../../psi/semantics/src/synchronization.rs)
 
+Time the synchronization judgment with
+`mbx test --release -p lowered-program-to-checked-program --lib finite_branch_timing -- --ignored --nocapture`.
+It reports the median for 8 to 256 independent branches, with and without a
+reachable private wait. Source compilation and publication happen before the timer starts.
+
 ## Find the code
 
 Start at [`judge_compilation`](src/verdict.rs) to follow the checks in order. [Publication](src/publication.rs) issues the checked program after acceptance.
@@ -45,6 +50,23 @@ is that literal's or value's exact bits, so `0.0f64` is identical to itself
 and not to `-0.0f64`. A float computed by arithmetic stays opaque, and IEEE
 `==` is neither evidence of raw identity nor proved by it
 ([float equality and source identity](../../../../../../wiki/spec/terminal-psi/mathematical_values.md#float-equality-and-source-identity)).
+Builtin `==` of two operands of one integer type is the kernel operation
+`IntegerEquality` at that type, and the
+[same-type integer identity](../../../../../../wiki/spec/terminal-psi/integer_certificates.md#same-type-integer-identity)
+bridge is two signature declarations over it: a proof that `x == y` is true
+gives `Id T x y`, and `x == x` is true for every `x`. Before the goal is
+searched, each comparison a premise or the goal names is tried for a true
+outcome; one that is proved adds the subjects' identity
+([equality.rs](src/proofs/equality.rs), `integer_bridges`). So a law whose
+comparison ensures `result == (left.value == right.value)` proves the record's
+identity from that comparison, and the identity proves the comparison true.
+Mixed types, addresses and other relations get no bridge. A goal that is
+such a comparison, or a conjunction of them and of Boolean comparisons as a
+synthesized record comparison states, is retried one comparison at a time
+as the truth an identity proves when the arithmetic prover leaves it open
+and an Identity is known (`Discharged::Identities`). An equality of two
+pairs gives the equality of each component (`paired`), so a record's
+identity gives each field's.
 
 A law over data that contains itself is judged apart from every machine.
 Stage 05 hands this crate one
@@ -367,7 +389,10 @@ identity-implies-comparison law. Each row's proposition
 is in `MachineTables::propositions`. The kernel gets a row for an obligation
 only when the row's point dominates the obligation's. Requires and guarantees
 go in as assumptions and result equations as semantic axioms, which is how
-the kernel's definition rules cite them.
+the kernel's definition rules cite them. A formed goal's structural observations
+supply their intrinsic bounds after those rows. Proof replay reconstructs the
+same bounds from the consumer's selected locations after checking access and
+index obligations.
 
 ## Clauses over mathematical integers
 
@@ -517,6 +542,21 @@ and callee guarantees are stated over it, so a row for a call the machine
 does not make would be a premise nothing established. An edge row must have
 the source and destination of its terminator's edge, because dominance is
 computed from the edge table.
+
+A call's claim transfers must also be the claims the machine holds at that
+call. The ownership walk reconstructs those claims
+(`MachineAffine::verify_claims` in Psi semantics). In a judged closure it
+runs once per machine, after inference has finished editing the module.
+`examine` ([verdict.rs](src/verdict.rs)) builds one `ModuleAnalyses` over the
+settled module. The affine check (`affine_plan`) plans reference ends only for
+machines with last-use candidates. It verifies every machine’s cleanup schedule
+and claim rows with `verify_with_claims`. The machine checks share
+the same analyses, and `follow_the_lowered_form` reads the claim rows the
+affine check received. Inference (result summaries, input conditions,
+crash routes) replays a machine on a copy of its tables while the module is
+still changing. It checks the same rows but walks no claims
+(`ClaimRows::Deferred`): it reads no claim row, and the machine check of the
+settled module checks every machine's rows again, claims included.
 
 The data `requires` clauses are the goal of every `DataDomain` row and the
 premise a read of an arrived value learns from its type. The checker reads
@@ -1679,19 +1719,18 @@ each do one part, and the fact travels in the module:
   containment judges the ordinary call in each prepared conformance witness
   on both axes; there is no separate callable-refinement checker.
 
-A call of a boundary requirement is "not itself an entry", and the route
-reads no operation that originates one (a call of a callable argument, of a
-stored callable, or an arrival at an inbound entry), so an entry row is
-non-empty only where a clause was written. `Build::application` writes
+A call of a boundary requirement is not itself an entry. Calling a callback
+received as an argument is: the checker follows the value to its formal and
+field, even through a helper that receives the containing record. Two fields
+of that record do not authorize each other's calls. `Build::application` writes
 `invokes BuildRequestOperations` over a requirement that enters nothing: a
 broader ceiling, which its callers are charged.
 
 Not served: a ceiling bound by an installation (`machine service reach bound
 by an installation`), a written ceiling over a requirement that defers its
 reach, a call through a selector value in a module that declares services,
-an `invokes` row that names a parameter path (`machine invokes naming a
-parameter path`: charging a caller needs the binding each call supplies,
-substituted at the call), and an `invokes` row that names a requirement that
+a source-authored `invokes` ceiling naming a nested field (as distinct from
+the inferred path above), and an `invokes` row that names a requirement that
 is not a boundary trait (the module's catalog has identities for boundary
 services only). The composition checks of the entry ceiling (every entry
 reachable through the selected providers fits the calling requirement, and

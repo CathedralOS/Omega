@@ -43,7 +43,12 @@ mod boundary_values;
 mod call_observations;
 #[path = "embedding/layout_target.rs"]
 mod layout_target;
+#[path = "embedding/suspension.rs"]
+mod suspension;
 pub use call_observations::{ObservedTerminalCall, TerminalCallObservation};
+pub use suspension::TerminalSuspension;
+#[path = "memory/component_byte_loans.rs"]
+mod component_byte_loans;
 #[path = "embedding/program.rs"]
 mod embedding;
 #[path = "instructions/calls.rs"]
@@ -152,16 +157,16 @@ pub use embedding::adapters::{
 };
 pub use embedding::instance::{
     TerminalBindingRejection, TerminalComponentBinding, TerminalDiscardStatus, TerminalInstance,
-    TerminalInstanceCloseError, TerminalOutstandingCustody, TerminalInstanceError, TerminalObservationRoot,
-    TerminalProcessExitAdmission, TerminalReturnedLoan, TerminalReturnedLoanError,
-    TerminalStorageObservationError, TerminalStorageObservationValue,
+    TerminalInstanceCloseError, TerminalInstanceError, TerminalObservationRoot,
+    TerminalOutstandingCustody, TerminalProcessExitAdmission, TerminalStorageObservationError,
+    TerminalStorageObservationValue,
 };
 pub use embedding::program::{
     TerminalInstantiation, TerminalProgram, TerminalProgramEntry, TerminalScalarApplicationRequest,
 };
 pub use engine::capabilities::{
     TerminalCallableAnalysis, TerminalExecutionRequirements, TerminalExternalCompletionDemand,
-    TerminalUnsupportedCapability,
+    TerminalImportPaths, TerminalUnsupportedCapability,
 };
 pub use engine::execution::TerminalExecution;
 pub use engine::scalar_operations::float_result_policy;

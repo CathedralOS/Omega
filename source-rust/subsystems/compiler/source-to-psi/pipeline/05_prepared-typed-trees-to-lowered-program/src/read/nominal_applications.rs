@@ -74,11 +74,18 @@ impl Program<'_> {
         let mut remaining = self.records.len();
         while remaining != 0 {
             remaining -= 1;
-            if self.record_sources.get(ty)?.declaration.is_valid() {
+            if self
+                .data_declaration(self.record_sources.get(ty)?.declaration)
+                .is_some()
+            {
                 return Some(ty);
             }
             ty = match self.records.get(ty)?.shape {
-                crate::StorageShape::Reference { referent, .. } => referent,
+                crate::StorageShape::Reference {
+                    referent: child, ..
+                }
+                | crate::StorageShape::ElementView { element: child, .. }
+                | crate::StorageShape::FixedArray { element: child, .. } => child,
                 _ => return None,
             };
         }
@@ -92,7 +99,7 @@ impl Program<'_> {
         source: &SourceTypeApplication,
         callee: MachineId,
     ) -> Option<Vec<ConstInput>> {
-        let inputs = self.const_scopes.get(callee)?;
+        let inputs = self.machine_context(callee).map(|row| &row.const_scope)?;
         let mut pending = vec![(source.reference, source.scope.clone())];
         let mut used = Vec::new();
         let mut visited = std::collections::BTreeSet::new();
@@ -185,9 +192,10 @@ impl Program<'_> {
         Some(used)
     }
 
-    /// Read the callee's declared nominal result at this invocation's actual
-    /// consts, allocating its storage and invariants in the caller's SSA scope.
-    pub(super) fn instantiated_nominal_result(
+    /// Read the declared storage at this invocation’s actual consts. Argument
+    /// formation and result construction both need the caller’s element and
+    /// invariant identities, while the call receipt retains the callee’s declaration.
+    pub(super) fn instantiated_call_type(
         &mut self,
         caller: MachineId,
         callee: &CallTarget,
@@ -199,6 +207,20 @@ impl Program<'_> {
         else {
             return Ok(None);
         };
+        // Array extent equations and rigid type parameters already have their
+        // own call correspondence. Only an applied data constructor introduces
+        // a nominal element whose representation must be read in the caller.
+        let Some(constructor) = self.nominal_constructor(storage) else {
+            return Ok(None);
+        };
+        if self
+            .record_sources
+            .get(constructor)
+            .and_then(|row| row.constant_input_owner)
+            != Some(*callee)
+        {
+            return Ok(None);
+        }
         let Some(source) = self
             .record_sources
             .get(storage)
@@ -214,12 +236,12 @@ impl Program<'_> {
             rigid_parameters: Vec::new(),
         });
         let saved = std::mem::replace(&mut self.source_scope, scope);
-        let result = self.record_at(caller, source.reference);
+        let result = self.value_type(caller, source.reference);
         self.source_scope = saved;
         let ValueType::Record(storage, ..) = result? else {
             return Err(refuse_at(
                 caller,
-                Unserved::Call("instantiated nominal result has no record"),
+                Unserved::Call("instantiated call type has no structural storage"),
             ));
         };
         Ok(Some(ValueType::Record(storage, qualification, regions)))
@@ -244,9 +266,17 @@ impl Program<'_> {
         else {
             return Ok(None);
         };
+        let (Some(actual_constructor), Some(expected_constructor)) = (
+            self.nominal_constructor(actual_type),
+            self.nominal_constructor(expected_type),
+        ) else {
+            return Ok(None);
+        };
+        // Array lengths are checked as geometry at the call. Only inputs of the
+        // data constructor need a nominal correspondence, including phantom indices.
         let Some(expected_source) = self
             .record_sources
-            .get(expected_type)
+            .get(expected_constructor)
             .and_then(|source| source.application.as_ref())
         else {
             return Ok(None);
@@ -266,12 +296,6 @@ impl Program<'_> {
         let Some((actual_application, expected_application)) =
             self.nominal_argument_identity(actual, expected, const_sources)
         else {
-            return Ok(None);
-        };
-        let (Some(actual_constructor), Some(expected_constructor)) = (
-            self.nominal_constructor(actual_type),
-            self.nominal_constructor(expected_type),
-        ) else {
             return Ok(None);
         };
         let symbol = self
@@ -308,11 +332,15 @@ impl Program<'_> {
                     let Some(slot) = slots.get(slot) else {
                         return Ok(None);
                     };
-                    let Some(input) = self.const_scopes.get(caller).and_then(|inputs| {
-                        inputs
-                            .iter()
-                            .find(|input| input.owner == caller && input.symbol == slot.symbol)
-                    }) else {
+                    let Some(input) = self
+                        .machine_context(caller)
+                        .map(|row| &row.const_scope)
+                        .and_then(|inputs| {
+                            inputs
+                                .iter()
+                                .find(|input| input.owner == caller && input.symbol == slot.symbol)
+                        })
+                    else {
                         return Ok(None);
                     };
                     ScalarTerm::value(input.value, input.scalar_type)
@@ -567,10 +595,10 @@ impl Program<'_> {
         for (owner, signature) in self.signatures.iter() {
             for formal in signature.parameters.iter().chain(signature.result.iter()) {
                 if let ValueType::Record(storage, ..) = formal
-                    && self.nominal_constructor(*storage).is_some()
+                    && let Some(constructor) = self.nominal_constructor(*storage)
                     && let Some(source) = self
                         .record_sources
-                        .get(*storage)
+                        .get(constructor)
                         .and_then(|source| source.application.as_ref())
                     && self
                         .nominal_const_inputs(source, owner)

@@ -334,8 +334,10 @@ external submodules use their own gates.
 checkout with `mbx` and authenticates its Cargo artifacts, fingerprints and
 effective Rust flags. It rejects `--cli`: an external executable cannot supply
 the required current-source build evidence. Builds use the checkout's own Cargo
-target directory (`target/`, or `CARGO_TARGET_DIR`). The gate then runs each
-sample's `omega packages update`, builds it and runs it. By default a sample's
+target directory (`target/`, or `CARGO_TARGET_DIR`). By default the gate prepares
+each project's package lock with `omega packages update`, then builds and runs
+the sample. Projects that declare `"package_workflow": "staged"` in `sample.json`
+use the authored Build stages to supply and admit their dependencies. By default a sample's
 inputs are its files, assets and module subdirectories, stopping at nested
 projects with their own `build.omg` or `sample.json`, which are found
 separately. A `source_inputs` list in the sample replaces that default. The
@@ -359,7 +361,18 @@ against the sample's expected result. `native-outputs/` and `psi-outputs/`
 retain raw guest stdout and stderr separately from the CLI diagnostics.
 Their `termination.tsv` records the observed native wait status, trap
 presentation and whether the retained program permits process exit, or the Psi return, exact exit status, crash or incomplete result.
-A Unix wait status exposes only the low byte. A matching byte leaves an explicit Psi process exit unverified, including exits in the range 0 through 255. For a unit return, the gate requires native wait status zero and a retained program whose instructions exclude process exit. A
+A Unix wait status exposes only the low byte of the exit code. On Linux x86-64,
+when `strace` is available and the compiler reports the addresses of the
+program's process-exit instructions, the gate records the execution in
+`native-process.trace`. A single process that exits from a reported instruction
+supplies the full signed argument for comparison with Psi. On macOS a
+single-child observer reads the signed status from Darwin's child-exit signal
+and checks its low byte against the wait status. A nonzero signed status
+distinguishes process exit from a unit return even when the wait byte is zero.
+A signed zero alone leaves an explicit Psi exit unverified. On hosts with only
+a wait byte, a matching byte also leaves an explicit Psi exit unverified. For a unit return, the gate
+requires native wait status zero and a retained program whose instructions
+exclude process exit. A
 failure caused by this checkout's stale package state (an accepted lock or
 review left by an interrupted run or another compiler build) is measured once
 more from a clean review and reported as `retried`; a compiler defect
@@ -384,13 +397,14 @@ evidence folder; the default is one), and `--out <file.json>` writes one row per
 sample with the gate's verdict (`pass`, `checked`, `rejected`, `no-oracle`,
 `not-host-runnable` or `fail`) and, for a failure, its reason.
 
-The sample gate executes a project carrying `input.txt` beside its entry with
-that file as stdin (absent means an empty stream) and then scores the authored
-`expected_native_exit[.<target>].txt`, `expected_stdout.txt` and
-`expected_stderr.txt` files exactly where present, falling back to the
-header oracle for channels without a file. Samples without `input.txt` run
-with empty stdin under the header oracle alone. Every non-execution child in
-both gates still gets an empty stdin. Close stdin
+The sample gate feeds each program its `input.txt`, or an empty stream when
+that file is absent. For every program it checks `expected_stdout.txt` and
+`expected_stderr.txt` byte for byte when present. For termination it reads
+`expected_native_exit.<target>.txt` first, then `expected_native_exit.txt`.
+A signed integer specifies the expected exit status. The value `trap` requires
+the native executable to terminate with its published trap presentation and Psi
+to report a `Trap` crash. The source header supplies expectations for channels
+without a file. Non-execution commands receive empty stdin. Close stdin
 (`< /dev/null`, or `$null |` in PowerShell) on a direct `omega` command run in
 the background: `omega run` forwards stdin and otherwise waits at zero CPU.
 
@@ -487,8 +501,8 @@ active SDK breaks), verifies the pinned toolchain resolves, reports mbx and
 cargo-nextest versions, confirms the claims coordination ref answers, and
 checks `pull.rebase`. Exit 1 means a check failed; warnings are degradations
 with the remedy printed beside them. On Linux, `bash tools/agent_setup.sh`
-installs everything doctor checks for; it is also the setup script for Claude
-Code cloud environments (`if [ -d Omega ]; then bash Omega/tools/agent_setup.sh; fi`).
+installs the tools for the checked-out revision. Use the [cloud baseline
+command](#run-a-linux-cloud-baseline-on-current-main) when a measurement needs current main.
 
 Builds need Git, the pinned Rust toolchain, `mbx` at the version in
 `tools/mbx-version`, and
@@ -532,6 +546,46 @@ If small crates each pause for seconds before parsing, inspect `target/` before
 changing test or compiler architecture: a long-lived `target/debug/deps` with
 hundreds of thousands of stale hashed artifacts makes rustc rescan it per
 crate. `cargo clean` fixes it.
+
+### Run a Linux cloud baseline on current main
+
+From the Omega checkout, prefix the measurement command with the launcher.
+
+```sh
+bash tools/cloud_baseline.sh mbx build --locked -p omega
+```
+
+The launcher fetches main from `origin` (or the public Omega repository when
+the snapshot has no origin), then runs the command in a separate checkout of
+that exact commit. It prints the full commit, effective mbx version, host and
+checkout path to stderr before the command starts. With no arguments, it prints
+a shell command for entering the prepared checkout with the qualified mbx on PATH.
+
+For a saved cloud image that predates the launcher, add the following to the
+environment setup script, running from the Omega checkout. It installs the
+launcher from main even when the image has an old checkout and an old mbx.
+
+```bash
+set -e
+remote=origin
+git remote get-url origin >/dev/null 2>&1 || remote=https://github.com/CathedralOS/Omega.git
+git fetch --no-tags --no-write-fetch-head "$remote" +refs/heads/main:refs/omega/cloud-baseline/main
+launcher=$(mktemp)
+git show refs/omega/cloud-baseline/main:tools/cloud_baseline.sh > "$launcher"
+install -Dm755 "$launcher" "$HOME/.local/bin/omega-baseline"
+rm -f "$launcher"
+```
+
+Then run `~/.local/bin/omega-baseline mbx build --locked -p omega` from the
+snapshot. The installed launcher fetches main on every invocation.
+
+Repeated runs at the same commit reuse the checkout. The installer reuses
+its verified binary when the build inputs match. Persist
+`${XDG_CACHE_HOME:-$HOME/.cache}/omega-mbx` (or the directory named by
+`OMEGA_MBX_INSTALL_CACHE`) across cloud sessions to reuse it on a fresh image.
+A cold cache builds mbx once. A newer main gets a new sibling checkout, so an
+ongoing measurement keeps its source and tool. When finished with a revision,
+use `git worktree remove <printed-checkout-path>` to reclaim its space.
 
 ### Warm build for cloud sessions
 

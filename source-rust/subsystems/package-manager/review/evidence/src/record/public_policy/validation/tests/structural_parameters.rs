@@ -437,3 +437,118 @@ fn saved_effects_keep_applications_distinct_and_reject_another_declarations_rece
             .is_ok()
     );
 }
+
+#[test]
+fn a_network_review_binds_one_endpoint_and_one_payload_limit() {
+    use crate::encoding::restricted_build_request_acceptance_text;
+    use build_consent::{BuildNetworkPeer, RestrictedBuildBounds, RestrictedBuildRequest};
+
+    let mut policy = policy(Some(vec![1, 3]));
+    policy.schema_version = crate::encoding::BASELINE_WITH_UNUSED_GENERIC_IMPORTS;
+    assert_eq!(recover(&policy), Ok(policy.clone()));
+
+    let request_at = |peer: &str, maximum, path: &str| {
+        RestrictedBuildRequest::for_datagram(
+            BuildNetworkPeer::new(peer.parse().unwrap(), maximum).unwrap(),
+            path.to_owned(),
+            RestrictedBuildBounds::from_retained(None, None, vec![], false),
+            Some(policy.target),
+        )
+        .for_target(Some(policy.target))
+    };
+    let request = |peer: &str, maximum| request_at(peer, maximum, "entry -> helper -> send");
+    let endpoint = "[fe80::1%3]:8080";
+    let original = request(endpoint, 512);
+    let review = |request: &RestrictedBuildRequest| {
+        restricted_build_request_acceptance_text(policy.package, policy.target, request).unwrap()
+    };
+    let accepted = review(&original);
+    let renamed = request_at(endpoint, 512, "entry -> private_helper -> send");
+    assert_ne!(original.call_path(), renamed.call_path());
+    assert_eq!(accepted, review(&renamed));
+    assert_ne!(accepted, review(&request("[fe80::1%4]:8080", 512)));
+    assert_ne!(accepted, review(&request("[fe80::1%3]:8081", 512)));
+    assert_ne!(accepted, review(&request(endpoint, 513)));
+    for loopback in ["127.0.0.2:8080", "[::1]:8080", "[::ffff:127.0.0.2]:8080"] {
+        let local = review(&request(loopback, 512));
+        assert!(local.contains("host_network_stack"));
+        assert!(!local.contains("off_machine_network_transmit"));
+    }
+    assert!(
+        accepted.contains("host_network_stack")
+            && accepted.contains("off_machine_network_transmit")
+    );
+    policy.restricted_build_requests.push((&original).into());
+    assert_eq!(
+        recover(&policy),
+        Err(PackagePolicyRecoveryError::InvalidValue)
+    );
+    policy.schema_version = PACKAGE_POLICY_BASELINE_VERSION;
+    assert_eq!(recover(&policy), Ok(policy.clone()));
+    let text = policy.canonical_text().unwrap();
+    let (recovered, _) =
+        PackagePolicyBaseline::recover_text_with_usage(&text, Default::default()).unwrap();
+    assert_eq!(recovered, policy);
+    let rows = policy
+        .acceptance_rows_with_limits(Default::default())
+        .unwrap()
+        .0;
+    let row = rows
+        .iter()
+        .find(|row| row.kind() == PackagePolicyRowKind::RestrictedBuildRequest)
+        .unwrap();
+    assert_eq!(row.canonical_text(), accepted);
+
+    let edited = text.replace(
+        "tag off_machine_network_transmit 15",
+        "tag process_input 13",
+    );
+    assert_ne!(edited, text);
+    assert!(PackagePolicyBaseline::recover_text_with_usage(&edited, Default::default()).is_err());
+    policy.schema_version = crate::encoding::BASELINE_WITH_NETWORK_REQUESTS;
+    assert_eq!(recover(&policy), Ok(policy.clone()));
+    let historical = policy
+        .acceptance_rows_with_limits(Default::default())
+        .unwrap()
+        .0;
+    let old_row = historical
+        .iter()
+        .find(|row| row.kind() == PackagePolicyRowKind::RestrictedBuildRequest)
+        .unwrap();
+    assert!(!old_row.canonical_text().contains("physical_authority"));
+    assert_ne!(old_row.canonical_text(), accepted);
+}
+
+#[test]
+fn receiving_a_udp_reply_requires_a_distinct_current_approval() {
+    use crate::encoding::restricted_build_request_acceptance_text;
+    use build_consent::{
+        BuildNetworkPeer, DatagramAccess, RestrictedBuildBounds, RestrictedBuildRequest,
+    };
+    let mut policy = policy(Some(vec![1, 3]));
+    let peer = BuildNetworkPeer::new("127.0.0.1:9000".parse().unwrap(), 32).unwrap();
+    let request = |access| {
+        RestrictedBuildRequest::for_udp(
+            access,
+            peer,
+            "entry -> datagram".into(),
+            RestrictedBuildBounds::from_retained(None, None, vec![], false),
+            Some(policy.target),
+        )
+        .for_target(Some(policy.target))
+    };
+    let accept = |r: &RestrictedBuildRequest| {
+        restricted_build_request_acceptance_text(policy.package, policy.target, r).unwrap()
+    };
+    let recv = request(DatagramAccess::ReceiveReply);
+    let reviewed = accept(&recv);
+    assert_ne!(reviewed, accept(&request(DatagramAccess::Send)));
+    assert!(reviewed.contains("receive_datagram_reply") && reviewed.contains("host_network_stack"));
+    policy.restricted_build_requests.push((&recv).into());
+    assert_eq!(recover(&policy), Ok(policy.clone()));
+    policy.schema_version = crate::encoding::BASELINE_WITH_NETWORK_AUTHORITY;
+    assert_eq!(
+        recover(&policy),
+        Err(PackagePolicyRecoveryError::InvalidValue)
+    );
+}

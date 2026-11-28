@@ -9,7 +9,7 @@ use crate::source_state::types::{
 };
 use application_identity::const_value::DecodedCanonicalConstValue;
 use language_core::cast_form::{CastEntry, CastEntryKind, CastForm};
-use numeric_literals::{FloatFormat, FloatLiteral, IntegerLanding, IntegerLiteral, IntegerRadix};
+use numeric_literals::{FloatFormat, FloatLiteral, IntegerLanding, IntegerLiteral};
 
 /// The declared domains a carrier qualifies its value with, innermost
 /// first, and the carrier beneath them.
@@ -95,6 +95,7 @@ pub(crate) fn materialize(
         node = ExpressionNode::Cast(TableCastExpression {
             value: program.expression_table.insert(node),
             target_type: input_type,
+            operand_type: Default::default(),
             recast_storage_type: Default::default(),
             result_type,
             target_label: arena::HandleSpan::empty(),
@@ -195,12 +196,7 @@ fn materialize_carrier(
             if Some(*integer_type) != primitive.landed_landing() {
                 return None;
             }
-            let literal = IntegerLiteral::from_parts(
-                value.is_negative(),
-                IntegerRadix::Decimal,
-                &value.abs().to_string(),
-            )
-            .ok()?;
+            let literal = IntegerLiteral::from_integer(value.clone());
             integer_value(program, declared_type, literal)
         }
         DecodedCanonicalConstValue::Boolean(value) => {

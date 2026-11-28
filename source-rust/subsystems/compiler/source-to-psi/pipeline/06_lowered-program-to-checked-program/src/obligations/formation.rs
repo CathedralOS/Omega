@@ -82,15 +82,29 @@ pub fn prepare_replay<'source>(
         .map_err(|error| {
             let fallback = || elaboration.module.machines.first().map(|machine| machine.id)
                 .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity"));
+            use terminal_semantics::scalar_qualifications::ScalarQualificationError;
             let (machine, detail) = match error {
-                terminal_semantics::scalar_qualifications::ScalarQualificationError::DeniedEstablishment(denied) => {
+                ScalarQualificationError::DeniedEstablishment(denied) => {
                     return denied_domain_cast(elaboration, denied);
                 }
-                terminal_semantics::scalar_qualifications::ScalarQualificationError::NormalResultMembership { machine, detail } => (
+                ScalarQualificationError::UnmetInputMembership {
+                    machine,
+                    site,
+                    detail,
+                } => {
+                    let construct = match site {
+                        terminal_psi::CallSite::Operation(operation) => {
+                            Construct::Operation(operation)
+                        }
+                        terminal_psi::CallSite::Edge(edge) => Construct::Edge(edge),
+                    };
+                    return crate::refusal(RefusalReason::Violation, machine, construct, detail);
+                }
+                ScalarQualificationError::NormalResultMembership { machine, detail } => (
                     machine.unwrap_or_else(fallback),
                     format!("domain guarantee for the returned value: {detail}"),
                 ),
-                terminal_semantics::scalar_qualifications::ScalarQualificationError::MalformedMachine { machine, detail } => (
+                ScalarQualificationError::MalformedMachine { machine, detail } => (
                     machine,
                     format!("invalid declared scalar qualifications: {detail}"),
                 ),
@@ -126,7 +140,7 @@ pub fn prepare_replay<'source>(
                     QualificationViolation::Establishment(denied) => {
                         denied_domain_cast(elaboration, denied)
                     }
-                    QualificationViolation::MemoryAccess { machine, operation } => crate::refusal(
+                    QualificationViolation::Operation { machine, operation } => crate::refusal(
                         RefusalReason::Violation,
                         machine,
                         Construct::Operation(operation),
@@ -262,9 +276,10 @@ impl ReplayScope<'_> {
         &mut self,
         machine: MachineId,
         routes: Vec<terminal_psi::CrashRouteBucket>,
+        incoming: &crate::crashes::IncomingCalls,
         activity: &mut crate::ProofSearchActivity,
     ) -> Checked<()> {
-        crate::crashes::publish(self.elaboration, machine, routes, activity)
+        crate::crashes::publish(self.elaboration, machine, routes, incoming, activity)
     }
 
     pub(crate) fn require(
@@ -371,7 +386,7 @@ impl ReplayScope<'_> {
 struct Root {
     place: PlaceId,
     ty: StructuralTypeId,
-    borrowed: bool,
+    access: StructuralAccess,
     result: bool,
     has_entry: bool,
 }
@@ -385,7 +400,7 @@ enum Observation {
         usize,
         Vec<semantic_vocabulary::ScalarReadProjection>,
     ),
-    Extent(usize, Vec<Segment>),
+    Extent(Version, usize, Vec<Segment>),
     BytePredicate(
         Version,
         usize,
@@ -426,7 +441,10 @@ impl crate::known::ProofValues for Facts {
 
 enum BindingError {
     Unsupported(&'static str),
-    Unproved(Refusal),
+    Unproved {
+        error: Refusal,
+        requirement: &'static str,
+    },
 }
 
 impl From<&'static str> for BindingError {
@@ -463,7 +481,7 @@ impl<'a, 'activity> Scope<'a, 'activity> {
             roots: vec![Root {
                 place: subject,
                 ty: carrier,
-                borrowed: false,
+                access: StructuralAccess::Owned,
                 result: false,
                 has_entry: false,
             }],
@@ -509,12 +527,20 @@ impl Scope<'_, '_> {
         ) {
             return Err("contract extent is not a borrowed view".into());
         }
-        // Extents in this representation have no old-version tag. Do not
-        // identify a mutable descriptor's completion extent with its input.
-        if self.completion && (root.borrowed || path.contains(&Segment::Referent)) {
-            return Err("completion extent needs its exact storage version".into());
-        }
-        self.observe(Observation::Extent(index, path), ScalarType::Integer(ty))
+        // A shared loan keeps its descriptor count through completion.
+        // A replaceable descriptor needs a fact about its current count
+        // before a completion clause can use it as an index bound.
+        let stable = root.access == StructuralAccess::SharedBorrow
+            || (root.access == StructuralAccess::Owned && !path.contains(&Segment::Referent));
+        let version = if root.has_entry && (!self.completion || stable) {
+            Version::Entry
+        } else {
+            Version::Current
+        };
+        self.observe(
+            Observation::Extent(version, index, path),
+            ScalarType::Integer(ty),
+        )
     }
 
     fn observe(
@@ -538,11 +564,29 @@ impl Scope<'_, '_> {
         }
         let id = ValueId::new(self.facts.values.len() as u64 + 1)
             .ok_or("contract logical value identity overflow")?;
+        let subject = ScalarTerm::value(id, ty);
+        if let Observation::Indexed(_, _, path) = &observation
+            && let Some(bound) = terminal_semantics::structural_observation_bound(path, &subject)
+        {
+            self.facts.equations.push(bound);
+        }
         self.facts.values.push(Value { observation, ty });
-        Ok(ScalarTerm::value(id, ty))
+        Ok(subject)
     }
 
     fn prove(&mut self, goal: &Proposition) -> Result<(), BindingError> {
+        self.prove_requirement(
+            goal,
+            "contract arithmetic is not proved total before its condition",
+        )
+    }
+
+    fn prove_requirement(
+        &mut self,
+        goal: &Proposition,
+        requirement: &'static str,
+    ) -> Result<(), BindingError> {
+        let unproved = |error| BindingError::Unproved { error, requirement };
         let context =
             PropositionContext::from_value_types(self.facts.values.iter().enumerate().map(
                 |(index, value)| (ValueId::new(index as u64 + 1).expect("nonzero"), value.ty),
@@ -562,7 +606,7 @@ impl Scope<'_, '_> {
             &[],
             self.activity,
         )
-        .map_err(BindingError::Unproved)?;
+        .map_err(unproved)?;
         crate::verify_certificate(
             &context,
             self.diagnostic,
@@ -572,7 +616,7 @@ impl Scope<'_, '_> {
             &self.facts.equations,
             &certificate,
         )
-        .map_err(BindingError::Unproved)?;
+        .map_err(unproved)?;
         Ok(())
     }
 
@@ -598,7 +642,7 @@ impl Scope<'_, '_> {
                 Construct::Machine,
                 &format!("{owner}: contract term formation: {detail}"),
             ),
-            BindingError::Unproved(error) => {
+            BindingError::Unproved { error, requirement } => {
                 let reason = match error.reason {
                     RefusalReason::Unproved(
                         terminal_check_tables::UnprovedCause::NoRuleForGoalForm,
@@ -609,10 +653,7 @@ impl Scope<'_, '_> {
                     reason,
                     self.diagnostic,
                     Construct::Machine,
-                    &format!(
-                        "{owner}: contract arithmetic is not proved total before its condition: {}",
-                        error.detail
-                    ),
+                    &format!("{owner}: {requirement}: {}", error.detail),
                 )
             }
         }
@@ -739,7 +780,7 @@ impl ClauseBindings for Scope<'_, '_> {
         if found != ty {
             return Err("contract field scalar type differs from its declaration".into());
         }
-        let live = root.borrowed || path.contains(&Segment::Referent);
+        let live = root.access != StructuralAccess::Owned || path.contains(&Segment::Referent);
         let version = if root.has_entry && (!self.completion || !live || version == Version::Entry)
         {
             Version::Entry
@@ -765,6 +806,19 @@ impl ClauseBindings for Scope<'_, '_> {
             .map(ScalarReadProjection::from)
             .chain(path.iter().cloned())
             .collect::<Vec<_>>();
+        if path.last() == Some(&ScalarReadProjection::Alignment) {
+            if root.access == StructuralAccess::WriteOnlyBorrow {
+                return Err("location alignment requires a readable storage root".into());
+            }
+            if path
+                .iter()
+                .any(|step| matches!(step, ScalarReadProjection::Static(Segment::Case(_))))
+            {
+                // This scope does not bind an active case. The payload has
+                // storage only while its own case is selected.
+                return Err("location alignment of a payload needs its active case".into());
+            }
+        }
         let mut indices = Vec::new();
         let actual = terminal_semantics::structural_read_type_with_extents(
             self.module.types.structural_types.iter(),
@@ -830,12 +884,14 @@ impl ClauseBindings for Scope<'_, '_> {
                     self.descriptor_extent(root_index, root, descriptor, count)?
                 }
             };
-            self.prove(
+            self.prove_requirement(
                 &terminal_semantics::scalar_index_bound(index, length)
                     .ok_or("contract index has no integer count bound")?,
+                "contract index is not proved within its collection extent",
             )?;
         }
-        let live = root.borrowed || path.contains(&ScalarReadProjection::Referent);
+        let live = root.access != StructuralAccess::Owned
+            || path.contains(&ScalarReadProjection::Referent);
         let version = if root.has_entry && (!self.completion || !live) {
             Version::Entry
         } else {
@@ -922,7 +978,7 @@ impl ClauseBindings for Scope<'_, '_> {
         // These are private logical observations, never a runtime read or a
         // grant of access. Actual storage availability remains independently
         // checked. Completion cannot reuse an entry predicate of live backing.
-        let live = root.borrowed || path.contains(&Segment::Referent);
+        let live = root.access != StructuralAccess::Owned || path.contains(&Segment::Referent);
         let version = if root.has_entry && (!self.completion || !live) {
             Version::Entry
         } else {
@@ -984,7 +1040,7 @@ fn roots(parameters: &[terminal_psi::StructuralParameterDeclaration]) -> Vec<Roo
         .map(|formal| Root {
             place: formal.place,
             ty: formal.structural_type,
-            borrowed: formal.access != StructuralAccess::Owned,
+            access: formal.access,
             result: false,
             has_entry: true,
         })
@@ -1059,7 +1115,7 @@ pub(crate) fn contract(
         scope.roots.push(Root {
             place: result.place,
             ty: result.structural_type,
-            borrowed: false,
+            access: StructuralAccess::Owned,
             result: true,
             has_entry: false,
         });
@@ -1232,7 +1288,7 @@ pub(crate) fn module(
             scope.roots.push(Root {
                 place,
                 ty,
-                borrowed: false,
+                access: StructuralAccess::Owned,
                 result: true,
                 has_entry: false,
             });

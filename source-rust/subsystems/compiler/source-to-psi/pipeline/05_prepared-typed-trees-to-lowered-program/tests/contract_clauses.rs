@@ -431,3 +431,24 @@ fn a_conformance_member_brings_the_route_of_the_machine_it_selects() {
         "{routed:?}"
     );
 }
+
+#[test]
+fn a_record_layout_invariant_uses_the_element_type_of_each_borrow() {
+    let declarations = "data Buffer<T> requires self.bytes == size_of::<[T; 1]>() { bytes: u64; }";
+    let both = format!(
+        "{declarations}
+        machine carry(words: @Buffer<u64>, bytes: @Buffer<u8>) -> bool
+        ensures result == true {{
+            words.bytes == size_of::<[u64; 1]>() && bytes.bytes == size_of::<[u8; 1]>()
+        }}"
+    );
+    Program::of(&both).judged(|_| {}).accepted();
+
+    let incorrect = format!(
+        "{declarations}
+        machine carry(words: @Buffer<u64>) -> u64
+        ensures result == size_of::<[u8; 1]>() {{ words.bytes }}"
+    );
+    let rejection = Program::of(&incorrect).judged(|_| {}).rejected();
+    assert!(!rejection.unproved.is_empty(), "{rejection:?}");
+}

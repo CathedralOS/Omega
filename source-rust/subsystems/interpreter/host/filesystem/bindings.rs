@@ -248,6 +248,14 @@ impl FilesystemContext {
     }
 
     /// The private namespace, when this execution's runner supplies one.
+    /// Whether no call through this namespace reaches the host outside what it
+    /// grants: only standard streams, the runner's private namespace, or
+    /// directory mappings whose paths resolve beneath their retained handles
+    /// without following symbolic links.
+    pub(super) fn confined(&self) -> bool {
+        self.standard_streams_only || self.private.is_some() || self.mapped
+    }
+
     pub(super) fn private(
         &self,
     ) -> Option<&RefCell<native_provider_runtime::PrivateLinuxFilesystem>> {
@@ -1311,6 +1319,7 @@ mod tests {
                 requires: Vec::new(),
                 normal_qualifications: Vec::new(),
                 scalar_domain_requirements: Vec::new(),
+                membership_requires: Vec::new(),
                 membership_ensures: Vec::new(),
                 scalar_requires: Vec::new(),
                 scalar_ensures: Vec::new(),

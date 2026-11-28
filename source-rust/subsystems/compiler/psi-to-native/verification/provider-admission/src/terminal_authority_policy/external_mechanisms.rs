@@ -1,11 +1,9 @@
 /*
 Canonical mechanism identities for normalized-foreign imports and direct syscalls.
 
-`normalized_foreign_terminal_mechanism` and
-`normalized_foreign_terminal_mechanism_with_callback_materializations`
-reconstruct the normalized-foreign role from the retained locator and canonical
-admitted boundary entry plan, rejecting any plan whose revalidation rewrites the
-entry plan.
+`normalized_foreign_terminal_mechanism` verifies the retained entry plan with
+its callback context when supplied. The receipt binds the locator and the
+canonical plan commitment only after validation reproduces the plan.
 
 `conservative_syscall_terminal_mechanism` derives the conservative checked
 syscall argument contract from one verified target-neutral boundary signature on
@@ -30,81 +28,42 @@ const CONSERVATIVE_ARGUMENT_CONTRACT_DOMAIN: &[u8] =
 pub(crate) fn normalized_foreign_terminal_mechanism(
     locator: &target::NormalizedForeignLocator,
     boundary_entry_plan: &BoundaryEntryPlan,
+    callback_context: Option<&calling_conventions::CallbackMaterializationContext>,
 ) -> Result<TerminalMechanismIdentity, String> {
-    let signature = entry_call_signature(boundary_entry_plan);
-    let validated =
-        calling_conventions::validate_boundary_entry_plan(boundary_entry_plan.clone(), &signature)
-            .map_err(|diagnostic| diagnostic.to_string())?;
-    require_canonical_plan(
-        &validated,
-        boundary_entry_plan,
-        "normalized foreign boundary plan is not canonical",
-    )?;
-    Ok(
-        terminal_authority_receipts::NormalizedForeignTerminalMechanismIdentity::from_normalized_locator(
-            locator,
-            build_providers::plans::BoundaryCallingPlanCommitment::from_digest(
-                validated.contract_commitment_digest(),
+    let signature = CallSignature::of_placements(
+        &boundary_entry_plan.call.parameters,
+        boundary_entry_plan.call.result.as_ref(),
+    );
+    let (validated, mismatch) = match callback_context {
+        Some(context) => (
+            calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
+                boundary_entry_plan.clone(),
+                &signature,
+                context,
             ),
-        )
-        .into(),
-    )
-}
-
-pub(crate) fn normalized_foreign_terminal_mechanism_with_callback_materializations(
-    locator: &target::NormalizedForeignLocator,
-    boundary_entry_plan: &BoundaryEntryPlan,
-    context: &calling_conventions::CallbackMaterializationContext,
-) -> Result<TerminalMechanismIdentity, String> {
-    let signature = entry_call_signature(boundary_entry_plan);
-    let validated =
-        calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
-            boundary_entry_plan.clone(),
-            &signature,
-            context,
-        )
-        .map_err(|diagnostic| diagnostic.to_string())?;
-    require_canonical_plan(
-        &validated,
-        boundary_entry_plan,
-        "normalized foreign callback boundary plan is not canonical",
-    )?;
-    Ok(
-        terminal_authority_receipts::NormalizedForeignTerminalMechanismIdentity::from_normalized_locator(
-            locator,
-            build_providers::plans::BoundaryCallingPlanCommitment::from_digest(
-                validated.contract_commitment_digest(),
+            "normalized foreign callback boundary plan is not canonical",
+        ),
+        None => (
+            calling_conventions::validate_boundary_entry_plan(
+                boundary_entry_plan.clone(),
+                &signature,
             ),
-        )
-        .into(),
-    )
-}
-
-fn entry_call_signature(boundary_entry_plan: &BoundaryEntryPlan) -> CallSignature {
-    CallSignature {
-        parameters: boundary_entry_plan
-            .call
-            .parameters
-            .iter()
-            .map(|placement| placement.shape)
-            .collect(),
-        result: boundary_entry_plan
-            .call
-            .result
-            .as_ref()
-            .map(|placement| placement.shape),
-    }
-}
-
-fn require_canonical_plan(
-    validated: &calling_conventions::ValidatedBoundaryEntryPlan,
-    boundary_entry_plan: &BoundaryEntryPlan,
-    reason: &str,
-) -> Result<(), String> {
+            "normalized foreign boundary plan is not canonical",
+        ),
+    };
+    let validated = validated.map_err(|diagnostic| diagnostic.to_string())?;
     if validated.plan() != boundary_entry_plan {
-        return Err(reason.to_owned());
+        return Err(mismatch.into());
     }
-    Ok(())
+    Ok(
+        terminal_authority_receipts::NormalizedForeignTerminalMechanismIdentity::from_normalized_locator(
+            locator,
+            build_providers::plans::BoundaryCallingPlanCommitment::from_digest(
+                validated.contract_commitment_digest(),
+            ),
+        )
+        .into(),
+    )
 }
 
 pub(crate) fn conservative_syscall_terminal_mechanism(

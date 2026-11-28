@@ -197,6 +197,7 @@ fn compile_targets(
     let root_inputs = package_manager::project::RootBuildInputs {
         snapshot,
         programs: arguments.programs.clone(),
+        network: arguments.network,
     };
     let subjects: Box<dyn Iterator<Item = (PathBuf, Option<OpenedProduct>)> + '_> =
         if active.is_empty() {
@@ -221,7 +222,11 @@ fn compile_targets(
         } else {
             let products = timeline.borrow_mut().record("open_products", || {
                 package_manager::project::open_products(
-                    package_manager::project::ProjectInput::File(&arguments.root_path),
+                    if arguments.staged_build {
+                        package_manager::project::ProjectInput::Staged(&arguments.root_path)
+                    } else {
+                        package_manager::project::ProjectInput::File(&arguments.root_path)
+                    },
                     &active,
                     arguments.offline,
                     arguments.timings,
@@ -603,6 +608,16 @@ fn compile_target(
     let mut show_summary = true;
     let kind;
     let rows;
+    let mut timings = if arguments.timings {
+        CompileTimings::enabled()
+    } else {
+        CompileTimings::default()
+    };
+    let print_product_timings = |timings: &CompileTimings| {
+        if timings.is_enabled() {
+            print_phases(&format!("Product ({})", profile.target_name()), timings);
+        }
+    };
     if stage.artifact_only() {
         kind = "build outputs";
         if completed.is_none() || arguments.emit_psi.is_some() {
@@ -621,16 +636,19 @@ fn compile_target(
             stage.deployment_targets(),
             |_| "a portable Psi publication produces no native target operations",
         )?;
-        let Artifact::Psi(artifact) = compiler::compile(
-            CompileRequest::Psi(stage.source()),
-            compiler::CompileOptions {
-                advisories: Some(&mut advisories),
-                declaration_usage: Some(declaration_usage),
-                ..Default::default()
-            },
-        )?
-        .artifact
-        else {
+        let compiled = timeline.borrow_mut().record("compile_psi", || {
+            compiler::compile_with_timings(
+                CompileRequest::Psi(stage.source()),
+                compiler::CompileOptions {
+                    advisories: Some(&mut advisories),
+                    declaration_usage: Some(declaration_usage),
+                    ..Default::default()
+                },
+                &mut timings,
+            )
+        });
+        print_product_timings(&timings);
+        let Artifact::Psi(artifact) = compiled?.artifact else {
             return Err(output_error(
                 "source compilation returned an unexpected product",
             ));
@@ -654,17 +672,10 @@ fn compile_target(
         rows = arguments
             .stage_validators
             .stages_not_produced(&[profile.target_name()], |_| reason)?;
-        let mut timings = if arguments.timings {
-            CompileTimings::enabled()
-        } else {
-            CompileTimings::default()
-        };
         let checked = timeline.borrow_mut().record("product_check", || {
             stage.check_with_declaration_usage(profile, Some(declaration_usage), &mut timings)
         });
-        if arguments.timings {
-            print_phases(&format!("Product ({})", profile.target_name()), &timings);
-        }
+        print_product_timings(&timings);
         // The dependency rechecks ran alongside this check. Settle them
         // before its advisories or refusal are reported.
         settle_rechecks()?;
@@ -672,26 +683,33 @@ fn compile_target(
         test_roster = tests.execute()?;
     } else {
         kind = "native artifact";
-        let program = stage.program(
-            profile,
-            arguments
-                .installation_assumptions
-                .iter()
-                .filter(|row| row.profile() == profile)
-                .cloned()
-                .collect(),
-        )?;
-        let compiled = compiler::compile(
-            CompileRequest::Native {
-                program,
-                entry_memory: &[],
-            },
-            compiler::CompileOptions {
-                validators: Some(&arguments.stage_validators),
-                advisories: Some(&mut advisories),
-                declaration_usage: Some(declaration_usage),
-            },
-        )?;
+        let program = timeline.borrow_mut().record("prepare_native_program", || {
+            stage.program(
+                profile,
+                arguments
+                    .installation_assumptions
+                    .iter()
+                    .filter(|row| row.profile() == profile)
+                    .cloned()
+                    .collect(),
+            )
+        })?;
+        let compiled = timeline.borrow_mut().record("compile_native", || {
+            compiler::compile_with_timings(
+                CompileRequest::Native {
+                    program,
+                    entry_memory: &[],
+                },
+                compiler::CompileOptions {
+                    validators: Some(&arguments.stage_validators),
+                    advisories: Some(&mut advisories),
+                    declaration_usage: Some(declaration_usage),
+                },
+                &mut timings,
+            )
+        });
+        print_product_timings(&timings);
+        let compiled = compiled?;
         rows = compiled.validations;
         let Artifact::Native(product) = compiled.artifact else {
             return Err(output_error(
@@ -709,8 +727,23 @@ fn compile_target(
                     .can_end_the_process()
             })
         });
-        let published = product
-            .publish(&arguments.root_path, directory)
+        if arguments.report_file.is_some()
+            && let Some(artifact) = product.retained_native_artifact()
+        {
+            for site in artifact.image().linux_x64_process_exit_sites() {
+                writeln!(
+                    process_evidence,
+                    "linux-x64-exit-site {:#x}..{:#x}",
+                    site.start, site.end
+                )
+                .unwrap();
+            }
+        }
+        let published = timeline
+            .borrow_mut()
+            .record("publish_native", || {
+                product.publish(&arguments.root_path, directory)
+            })
             .map_err(output_error)?;
         if let Some(artifact) = published.artifact() {
             writeln!(
@@ -915,9 +948,10 @@ fn batch_outcome(
 fn print_phases(scope: &str, timings: &CompileTimings) {
     for phase in timings.phases() {
         eprintln!(
-            "{:>10.3} ms  {scope} / {}",
+            "{:>10.3} ms  {scope} / {}  [n={}]",
             phase.microseconds as f64 / 1_000.0,
-            phase.phase
+            phase.phase,
+            phase.measurements
         );
     }
 }

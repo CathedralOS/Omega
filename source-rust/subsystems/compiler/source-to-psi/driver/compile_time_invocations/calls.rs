@@ -65,7 +65,7 @@ impl PreparedBuildMachineEntry {
     pub(crate) fn source_invocation_inputs(&self) -> SourceInvocationInputs<'_> {
         SourceInvocationInputs {
             site: production::SourceInvocationSite {
-                accepted: &self.accepted,
+                source: self.accepted.source(),
                 request_source: &self.source,
                 machine: self.symbol,
                 requester: self.requester,
@@ -336,6 +336,15 @@ impl PreparedBuildMachineProgram {
     /// refusal is always the one the call gets alone.
     pub(crate) fn judge_shared(&self, plan: &PlannedCall) -> Option<PreparedBuildMachineEntry> {
         let (frozen, typed) = self.round_callers.as_deref()?.take(plan)?;
+        self.judge_frozen_caller(plan, frozen, typed)
+    }
+
+    fn judge_frozen_caller(
+        &self,
+        plan: &PlannedCall,
+        frozen: prepared_typed_trees_to_lowered_program::PreparedTypedTrees,
+        typed: typed_call::TypedCall,
+    ) -> Option<PreparedBuildMachineEntry> {
         let declaration = plan.declaration(&self.source).ok()?;
         let accepted = judge_lowered_source::FrozenSource {
             program: frozen,
@@ -364,20 +373,38 @@ impl PreparedBuildMachineProgram {
         &self,
         plan: &PlannedCall,
     ) -> Result<PreparedBuildMachineEntry, Vec<Diagnostic>> {
-        if let Some(entry) = self.judge_shared(plan) {
-            return Ok(entry);
+        self.planned_judgment(plan)()
+    }
+
+    /// Reserve the frozen caller in demand order. The returned job can judge
+    /// it on any budget worker without changing which occurrence an equal
+    /// plan receives or which diagnostic an isolated refusal reports.
+    pub(super) fn planned_judgment<'a>(
+        &'a self,
+        plan: &'a PlannedCall,
+    ) -> impl FnOnce() -> Result<PreparedBuildMachineEntry, Vec<Diagnostic>> + Send + 'a {
+        let shared = self
+            .round_callers
+            .as_ref()
+            .and_then(|callers| callers.take(plan));
+        move || {
+            if let Some((frozen, typed)) = shared
+                && let Some(entry) = self.judge_frozen_caller(plan, frozen, typed)
+            {
+                return Ok(entry);
+            }
+            self.prepare_call(
+                plan.requester,
+                plan.declaration(&self.source)?,
+                &plan.call,
+                crate::source_state::expression::ExpressionHandle::invalid(),
+                &plan.arguments,
+                plan.selected
+                    .as_ref()
+                    .map(|(selection, owner)| (selection, *owner)),
+                &[],
+            )
         }
-        self.prepare_call(
-            plan.requester,
-            plan.declaration(&self.source)?,
-            &plan.call,
-            crate::source_state::expression::ExpressionHandle::invalid(),
-            &plan.arguments,
-            plan.selected
-                .as_ref()
-                .map(|(selection, owner)| (selection, *owner)),
-            &[],
-        )
     }
 
     /// Checks that the judgment of `typed`'s caller accepted that caller and
@@ -668,7 +695,7 @@ impl PreparedBuildMachineProgram {
             requester,
             callee: PlannedCallee::Machine(machine.symbol),
             call,
-            arguments: arguments.to_vec(),
+            arguments: Arc::from(arguments),
             selected: None,
             target: None,
         })
@@ -787,7 +814,7 @@ impl PreparedBuildMachineProgram {
             requester,
             callee: PlannedCallee::Requirement(requirement),
             call: typed_call::declaration_call(signature.symbol, signature.name.clone()),
-            arguments: arguments.to_vec(),
+            arguments: Arc::from(arguments),
             selected: Some((selection.clone(), selection_owner)),
             target: None,
         })

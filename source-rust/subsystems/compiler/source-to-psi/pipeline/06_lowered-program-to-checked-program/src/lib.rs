@@ -249,8 +249,8 @@ pub struct Evidence {
     pub goal: Proposition,
     /// The knowledge rows passed as the certificate's assumptions, by index.
     pub assumptions: Vec<KnowledgeId>,
-    /// The knowledge rows passed as its semantic axioms (operation result
-    /// equations), by index.
+    /// Program-point semantic axioms, in certificate order. Intrinsic bounds
+    /// of the consumer's formed goal follow these rows during verification.
     pub axioms: Vec<KnowledgeId>,
     pub certificate: CertificateEnvelope,
     /// The kernel's acceptance, including whether the mathematical core
@@ -272,6 +272,9 @@ pub enum Discharged {
     RetainedMembership,
     /// A typed source Identity checked against its actual mathematical term.
     Identity(equality::Judgment),
+    /// A conjunction of same-type integer comparisons, each the truth that
+    /// identity of its operands proves.
+    Identities(Vec<equality::Judgment>),
     /// The result conserves the declared projection of every listed owned entry claim on all normal returns.
     ConservedContent(Vec<semantic_vocabulary::ClaimId>),
     /// A certificate the kernel accepted.
@@ -341,6 +344,7 @@ impl Discharged {
         match self {
             Self::Certificate(evidence) => Some(evidence),
             Self::Identity(_)
+            | Self::Identities(_)
             | Self::Law(_)
             | Self::ConservedContent(_)
             | Self::TargetCondition(_)
@@ -493,7 +497,8 @@ impl Discharge {
                     obligation,
                     evidence.goal.clone(),
                     resolve(&evidence.assumptions)?,
-                    resolve(&evidence.axioms)?,
+                    formed_observation_axioms(&evidence.goal, resolve(&evidence.axioms)?)
+                        .into_owned(),
                     evidence.certificate.clone(),
                 )
                 .map_err(|error| Refusal {
@@ -728,6 +733,13 @@ pub(crate) fn finish_discharge<'m>(
         inferred_results,
     } = prepared;
     let module = view.module;
+    analyses.package_sites().map_err(|detail| Refusal {
+        reason: RefusalReason::ForeignIdentity,
+        site: terminal_check_tables::RefusalSite::Program,
+        source_span: None,
+        detail: detail.to_owned(),
+        obligation: None,
+    })?;
     let formed = formation::FormedModule::new(
         module,
         view.nominal_calls,
@@ -940,10 +952,10 @@ impl Unreached {
         }
     }
 
-    pub(crate) fn mark_result(&mut self, machine: MachineId) {
-        if let Some(result) = self.results.get_mut(machine) {
-            *result = true;
-        }
+    pub(crate) fn mark_result(&mut self, machine: MachineId) -> bool {
+        self.results
+            .get_mut(machine)
+            .is_some_and(|result| !std::mem::replace(result, true))
     }
 }
 
@@ -1012,7 +1024,7 @@ fn machine(
         id,
         tables,
         inhabitation,
-        Some(summaries),
+        minted::ClaimRows::Module(summaries),
         |prepared, tables| {
             check_prepared_machine(
                 prepared,
@@ -1129,6 +1141,16 @@ fn check_prepared_machine(
         )
         .map_err(|detail| refusal(RefusalReason::Unestablished, id, Construct::Machine, detail))?;
     let mut knowledge = KnowledgeIndex::new(graph, tables, id)?;
+    let has_call_congruence = tables
+        .knowledge
+        .iter()
+        .any(|(_, row)| matches!(row.justification, Justification::CallCongruence { .. }));
+    let identity_known = tables.knowledge.iter().any(|(_, row)| {
+        matches!(
+            tables.propositions.get(row.proposition),
+            Some(Proposition::DeclarationIdentity(_))
+        )
+    });
     for (index, (obligation, row)) in tables.obligations.iter().enumerate() {
         if decided[index].is_some() {
             continue;
@@ -1278,25 +1300,70 @@ fn check_prepared_machine(
                 },
                 _ => None,
             };
-            let comparison = match truth {
-                Some((left, right))
-                    if left.scalar_type() == ScalarType::Boolean
-                        && right.scalar_type() == ScalarType::Boolean
-                        && tables.knowledge.iter().any(|(_, row)| {
-                            matches!(row.justification, Justification::CallCongruence { .. })
-                        }) =>
+            let boolean = |term: ScalarTerm| ClauseValue {
+                carrier: ClauseCarrier::Scalar(ScalarType::Boolean),
+                operand: ClauseOperand::Scalar(term),
+            };
+            // `x == y` over one builtin integer type is the truth of that
+            // comparison, which identity of its operands proves
+            // (contracts.md: "Conversely, that identity establishes that the
+            // same comparison is true"), and so is `x == y` over `bool`. A
+            // conjunction of such comparisons, as a synthesized record
+            // comparison states, is proved one comparison at a time.
+            let identical_truth = |part: &Proposition| match part {
+                Proposition::Equal(left, right)
+                    if let (ScalarType::Integer(scalar_type), ScalarType::Integer(other)) =
+                        (left.scalar_type(), right.scalar_type())
+                        && scalar_type == other
+                        && !scalar_type.is_address() =>
                 {
-                    let value = |term: ScalarTerm| ClauseValue {
-                        carrier: ClauseCarrier::Scalar(ScalarType::Boolean),
-                        operand: ClauseOperand::Scalar(term),
-                    };
                     Some(ClauseIdentity {
-                        values: vec![value(left), value(right)],
+                        values: vec![
+                            boolean(ScalarTerm::IntegerEqual {
+                                scalar_type,
+                                left: Box::new(left.clone()),
+                                right: Box::new(right.clone()),
+                            }),
+                            boolean(ScalarTerm::Boolean(true)),
+                        ],
+                        left: 0,
+                        right: 1,
+                    })
+                }
+                // Two Booleans are equal exactly when they are identical.
+                Proposition::Equal(left, right)
+                    if left.scalar_type() == ScalarType::Boolean
+                        && right.scalar_type() == ScalarType::Boolean =>
+                {
+                    Some(ClauseIdentity {
+                        values: vec![boolean(left.clone()), boolean(right.clone())],
                         left: 0,
                         right: 1,
                     })
                 }
                 _ => None,
+            };
+            let comparisons = match truth {
+                Some((left, right))
+                    if left.scalar_type() == ScalarType::Boolean
+                        && right.scalar_type() == ScalarType::Boolean
+                        && has_call_congruence =>
+                {
+                    vec![ClauseIdentity {
+                        values: vec![boolean(left), boolean(right)],
+                        left: 0,
+                        right: 1,
+                    }]
+                }
+                _ if identity_known => match &goal {
+                    Proposition::Conjunction(parts) => parts
+                        .iter()
+                        .map(identical_truth)
+                        .collect::<Option<Vec<_>>>()
+                        .unwrap_or_default(),
+                    part => identical_truth(part).into_iter().collect(),
+                },
+                _ => Vec::new(),
             };
             let decided = decide_indexed(
                 context,
@@ -1311,17 +1378,36 @@ fn check_prepared_machine(
                 activity,
             )
             .map(Discharged::Certificate);
-            match (decided, comparison) {
-                (Err(unproved), Some(clause)) => {
-                    let identity = match row.kind {
-                        ObligationKind::NormalGuarantee { exit, .. } => {
-                            let mut at_exit = storage.at_return(
-                                references,
-                                tables,
-                                exit,
-                                Construct::Obligation(obligation),
-                            )?;
-                            equality::discharge(
+            match decided {
+                Err(unproved)
+                    if matches!(unproved.reason, RefusalReason::Unproved(_))
+                        && !comparisons.is_empty() =>
+                {
+                    let mut identities = Vec::with_capacity(comparisons.len());
+                    for clause in &comparisons {
+                        let identity = match row.kind {
+                            ObligationKind::NormalGuarantee { exit, .. } => {
+                                let mut at_exit = storage.at_return(
+                                    references,
+                                    tables,
+                                    exit,
+                                    Construct::Obligation(obligation),
+                                )?;
+                                equality::discharge(
+                                    module,
+                                    lowered,
+                                    tables,
+                                    graph,
+                                    storage,
+                                    row.created_at,
+                                    obligation,
+                                    clause,
+                                    law_instances.instances,
+                                    law_instances.identities,
+                                    &mut at_exit,
+                                )
+                            }
+                            _ => equality::discharge(
                                 module,
                                 lowered,
                                 tables,
@@ -1329,29 +1415,20 @@ fn check_prepared_machine(
                                 storage,
                                 row.created_at,
                                 obligation,
-                                &clause,
+                                clause,
                                 law_instances.instances,
                                 law_instances.identities,
-                                &mut at_exit,
-                            )
-                        }
-                        _ => equality::discharge(
-                            module,
-                            lowered,
-                            tables,
-                            graph,
-                            storage,
-                            row.created_at,
-                            obligation,
-                            &clause,
-                            law_instances.instances,
-                            law_instances.identities,
-                            &mut storage.at_entry(references, tables),
-                        ),
-                    };
-                    identity.map(Discharged::Identity).map_err(|_| unproved)
+                                &mut storage.at_entry(references, tables),
+                            ),
+                        };
+                        identities.push(identity.map_err(|_| unproved.clone())?);
+                    }
+                    Ok(match <[_; 1]>::try_from(identities) {
+                        Ok([identity]) => Discharged::Identity(identity),
+                        Err(identities) => Discharged::Identities(identities),
+                    })
                 }
-                (decided, _) => decided,
+                decided => decided,
             }
         });
         decided[index] = Some(verdict);
@@ -1391,7 +1468,14 @@ fn check_prepared_machine(
         if decided[index].is_none()
             && let ObligationKind::PublishedGuarantee { clause } = row.kind
         {
-            decided[index] = Some(published(tables, id, obligation, clause, &decided));
+            decided[index] = Some(published(
+                tables,
+                prepared.normal_guarantees,
+                id,
+                obligation,
+                clause,
+                &decided,
+            ));
         }
     }
     // A store or a zero establishment that was not shown to keep a clause
@@ -1770,13 +1854,14 @@ fn fill_knowledge<'a>(
             )?;
             // Cleanup is Unit and its actual is Owned. As for an ordinary
             // owned input, guarantees denote the captured invocation inputs.
-            let propositions = ensures
-                .map(|(position, clause)| {
-                    substitute(clause, &mut inputs)
-                        .map(|proposition| (position, proposition))
-                        .map_err(|unbound| unbound.refusal(id, Construct::Invocation(invocation)))
-                })
-                .collect::<Checked<Vec<_>>>()?;
+            let mut propositions = Vec::new();
+            for (position, clause) in ensures {
+                if let Some(bound) = returned_guarantee(clause, &mut inputs)
+                    .map_err(|unbound| unbound.refusal(id, Construct::Invocation(invocation)))?
+                {
+                    propositions.push((position, bound));
+                }
+            }
             for (clause, proposition) in propositions {
                 push_knowledge(
                     tables,
@@ -1843,19 +1928,20 @@ fn fill_knowledge<'a>(
         )?;
         // Resolve each guarantee against this invocation's retained inputs and
         // returned storage before mutating the caller's knowledge table.
-        let propositions = ensures
-            .map(|(position, ensures)| {
-                substitute(
-                    ensures,
-                    &mut ErasedTerms {
-                        terms: &erased,
-                        runtime: &mut returned,
-                    },
-                )
-                .map(|proposition| (position, proposition))
-                .map_err(|unbound| unbound.refusal(id, Construct::Invocation(invocation)))
-            })
-            .collect::<Checked<Vec<_>>>()?;
+        let mut propositions = Vec::new();
+        for (position, clause) in ensures {
+            if let Some(bound) = returned_guarantee(
+                clause,
+                &mut ErasedTerms {
+                    terms: &erased,
+                    runtime: &mut returned,
+                },
+            )
+            .map_err(|unbound| unbound.refusal(id, Construct::Invocation(invocation)))?
+            {
+                propositions.push((position, bound));
+            }
+        }
         // An argument the statement cannot name leaves the call opaque.
         let applied = applied
             .iter()
@@ -2002,6 +2088,7 @@ struct PreparedMachine<'scope, 'analysis> {
     graph: &'scope Graph,
     context: &'scope PropositionContext,
     ranking_bindings: &'scope rankings::Bindings,
+    normal_guarantees: &'scope minted::NormalGuarantees,
     storage: &'scope places::Storage<'analysis>,
     references: &'scope mut terminal_semantics::descriptor_results::DescriptorAnalysis<'analysis>,
 }
@@ -2087,8 +2174,15 @@ pub(crate) fn prepare(
 ) -> Checked<Prepared<'static>> {
     let module = formed.source();
     let inhabitation = prepare_inhabitation(module, id)?;
-    with_prepared_machine(formed, id, tables, &inhabitation, None, |_, _| Ok(()))
-        .map(|(prepared, ())| prepared)
+    with_prepared_machine(
+        formed,
+        id,
+        tables,
+        &inhabitation,
+        minted::ClaimRows::Alone,
+        |_, _| Ok(()),
+    )
+    .map(|(prepared, ())| prepared)
 }
 
 fn prepare_inhabitation(
@@ -2110,14 +2204,17 @@ fn prepare_inhabitation(
 
 /// Keep analysis within one invocation while a caller checks the prepared
 /// machine. The returned values own no borrow of this local working state.
+/// `rows` says where the row check takes the machine's claims from; only a
+/// machine check of the settled module shares the module's replays.
 fn with_prepared_machine<'r, Outcome>(
     formed: formation::FormedModule<'_>,
     id: MachineId,
     tables: &mut MachineTables,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
-    summaries: Option<&ModuleReplays<'r, '_>>,
+    rows: minted::ClaimRows<'_, 'r, '_>,
     check: impl FnOnce(PreparedMachine<'_, '_>, &mut MachineTables) -> Checked<Outcome>,
 ) -> Checked<(Prepared<'r>, Outcome)> {
+    let summaries = rows.replays();
     let module = formed.source();
     let machines = &module.machines;
     let lowered = terminal_machine(machines, id, id)?;
@@ -2127,7 +2224,8 @@ fn with_prepared_machine<'r, Outcome>(
     // owes, at its points, or deciding every row proves nothing (`minted`).
     // A consumer re-checking a saved proof decides rows too, so it checks
     // them the same way.
-    minted::follow_the_lowered_form(id, module, lowered, tables, &types, inhabitation, summaries)?;
+    let normal_guarantees =
+        minted::follow_the_lowered_form(id, module, lowered, tables, &types, inhabitation, rows)?;
     let graph = Graph::new(id, lowered, tables)?;
     theorems::validate(module, lowered, tables, &graph)?;
     // A machine check of the module the replays were built from reads the
@@ -2146,7 +2244,7 @@ fn with_prepared_machine<'r, Outcome>(
         formed.schemas,
     )?;
     let (context, ranking_bindings, result) = {
-        let own_index;
+        let independent;
         let (mut references, type_index) = match shared {
             Some((analyses, summaries)) => {
                 let mut references = analyses.analysis(
@@ -2162,15 +2260,20 @@ fn with_prepared_machine<'r, Outcome>(
                 (references, analyses.types())
             }
             None => {
-                own_index = terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
-                    &module.types.structural_types,
-                );
+                independent = terminal_semantics::ModuleAnalyses::new(module).map_err(|error| {
+                    refusal(
+                        RefusalReason::Unsupported,
+                        id,
+                        Construct::Machine,
+                        &error.in_module(module),
+                    )
+                })?;
                 (
-                    terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
-                        &module.types.structural_types,
-                        reference_graph.view(),
+                    independent.analysis(
+                        terminal_semantics::descriptor_results::DescriptorSlotKind::BorrowedStorage,
+                        &reference_graph,
                     ),
-                    &own_index,
+                    independent.types(),
                 )
             }
         };
@@ -2251,6 +2354,7 @@ fn with_prepared_machine<'r, Outcome>(
                 graph: &graph,
                 context: &context,
                 ranking_bindings: &ranking_bindings,
+                normal_guarantees: &normal_guarantees,
                 storage: &storage,
                 references: &mut references,
             },
@@ -2277,6 +2381,7 @@ fn with_prepared_machine<'r, Outcome>(
 /// must establish the published guarantees."
 fn published(
     tables: &MachineTables,
+    guarantees: &minted::NormalGuarantees,
     id: MachineId,
     published: ObligationId,
     clause: u32,
@@ -2295,15 +2400,7 @@ fn published(
         if row.destination != Destination::Return {
             continue;
         }
-        let guarantee = tables.obligations.iter().find(|(_, candidate)| {
-            candidate.kind
-                == ObligationKind::NormalGuarantee {
-                    exit: edge,
-                    clause,
-                    published,
-                }
-        });
-        let Some((obligation, _)) = guarantee else {
+        let Some(obligation) = guarantees.get(edge, clause, published) else {
             return Err(unproved(
                 "a normal return owes no guarantee for this clause",
             ));
@@ -2313,6 +2410,7 @@ fn published(
             Some(Some(Ok(
                 Discharged::Certificate(_)
                 | Discharged::Identity(_)
+                | Discharged::Identities(_)
                 | Discharged::Law(_)
                 | Discharged::ConservedContent(_),
             ))) => exits.push(obligation),
@@ -2475,6 +2573,19 @@ pub(crate) use terminal_semantics::substitution::clauses::{
     CaseAnswer, ClauseBindings as Bindings, substitute_clause as substitute,
     substitute_clause_term as bound,
 };
+
+/// A callee must prove every guarantee. A caller can use a guarantee as
+/// knowledge only when its post-call storage gives every term an identity.
+fn returned_guarantee(
+    clause: &Proposition,
+    bindings: &mut dyn Bindings<Error = Unbound>,
+) -> Result<Option<Proposition>, Unbound> {
+    match substitute(clause, bindings) {
+        Ok(proposition) => Ok(Some(proposition)),
+        Err(Unbound::Unproved(_)) => Ok(None),
+        Err(error) => Err(error),
+    }
+}
 
 /// Express a machine input contract in the same vocabulary when assuming it
 /// at entry and when proving it is forwarded intact. An observable field has
@@ -3092,7 +3203,7 @@ fn decide(
             obligation,
             &goal,
             &narrowed.assumptions,
-            &narrowed.axioms,
+            &narrowed.axioms_for(&goal),
             unreached,
             activity,
         )
@@ -3106,7 +3217,7 @@ fn decide(
         obligation,
         &goal,
         &hypotheses.assumptions,
-        &hypotheses.axioms,
+        &hypotheses.axioms_for(&goal),
         unreached,
         activity,
     )?;
@@ -3136,7 +3247,7 @@ fn decide_indexed(
                 obligation,
                 &goal,
                 &narrowed.assumptions,
-                &narrowed.axioms,
+                &narrowed.axioms_for(&goal),
                 unreached,
                 activity,
             ) {
@@ -3150,7 +3261,7 @@ fn decide_indexed(
                 obligation,
                 &goal,
                 &full.assumptions,
-                &full.axioms,
+                &full.axioms_for(&goal),
                 unreached,
                 activity,
             )?;
@@ -3164,7 +3275,7 @@ fn decide_indexed(
                 obligation,
                 &goal,
                 &hypotheses.assumptions,
-                &hypotheses.axioms,
+                &hypotheses.axioms_for(&goal),
                 unreached,
                 activity,
             )?;
@@ -3945,6 +4056,13 @@ fn search_certificate(
             UnprovedCause::GoalStepsExhausted {
                 limit: prover.step_limit(),
             }
+        } else if prover.establishes_opposite_boolean(goal) {
+            return unproved(
+                id,
+                obligation,
+                UnprovedCause::NoDerivation,
+                "the established Boolean value is the opposite of the required value".to_owned(),
+            );
         } else if prover.has_rules_for(goal) && !prover.beyond_rules(goal, unreached) {
             UnprovedCause::NoDerivation
         } else {
@@ -3982,6 +4100,27 @@ fn unproved(
     }
 }
 
+/// Kernel axioms for an already formed obligation. Its observations retain
+/// their own bounds regardless of what the enclosing comparison asks for.
+/// Observation facts follow the graph facts in first occurrence order so
+/// explicit proof replay can reconstruct the same positions.
+fn formed_observation_axioms<'a>(
+    goal: &Proposition,
+    graph_axioms: impl Into<std::borrow::Cow<'a, [Proposition]>>,
+) -> std::borrow::Cow<'a, [Proposition]> {
+    let mut axioms = graph_axioms.into();
+    let graph_count = axioms.len();
+    goal.visit_scalar_terms(|subject| {
+        if let ScalarTerm::StructuralRead { path, .. } = subject
+            && let Some(bound) = terminal_semantics::structural_observation_bound(path, subject)
+            && !axioms[graph_count..].contains(&bound)
+        {
+            axioms.to_mut().push(bound);
+        }
+    });
+    axioms
+}
+
 /// The knowledge available where an obligation sits, split as the kernel
 /// takes it: assumptions and semantic axioms, with their rows.
 pub(crate) struct Hypotheses {
@@ -3989,6 +4128,12 @@ pub(crate) struct Hypotheses {
     pub(crate) axiom_rows: Vec<KnowledgeId>,
     pub(crate) assumptions: Vec<Proposition>,
     pub(crate) axioms: Vec<Proposition>,
+}
+
+impl Hypotheses {
+    fn axioms_for(&self, formed_goal: &Proposition) -> std::borrow::Cow<'_, [Proposition]> {
+        formed_observation_axioms(formed_goal, self.axioms.as_slice())
+    }
 }
 
 pub(crate) fn hypotheses(
@@ -4060,7 +4205,7 @@ pub(crate) fn verify(
         obligation,
         &goal,
         &hypotheses.assumptions,
-        &hypotheses.axioms,
+        &hypotheses.axioms_for(&goal),
         &certificate,
     )?;
     Ok(Evidence {

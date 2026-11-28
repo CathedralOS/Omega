@@ -14,18 +14,7 @@ use sha2::{Digest, Sha256};
 pub const CASE_TAG_BYTE_SIZE: u64 = 4;
 pub const CASE_TAG_BYTE_ALIGNMENT: u64 = 4;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Architecture {
-    Aarch64,
-    X86_64,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ObjectFormat {
-    Elf,
-    MachO,
-    Coff,
-}
+pub use language_core::native_call::{Architecture, ObjectFormat};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
 pub enum TargetProfile {

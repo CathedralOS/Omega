@@ -91,13 +91,27 @@ pub fn compile_with_declaration_usage(
     advisories: Option<&mut Vec<Diagnostic>>,
     declaration_usage: Option<&mut DeclarationUsageAdvisories>,
 ) -> Result<PublishedPsi, Vec<Diagnostic>> {
+    compile_with_timings(
+        source,
+        advisories,
+        declaration_usage,
+        &mut CompileTimings::default(),
+    )
+}
+
+pub fn compile_with_timings(
+    source: StageSource<'_>,
+    advisories: Option<&mut Vec<Diagnostic>>,
+    declaration_usage: Option<&mut DeclarationUsageAdvisories>,
+    timings: &mut CompileTimings,
+) -> Result<PublishedPsi, Vec<Diagnostic>> {
     driver::publish_stage(
         source,
         ProductEntry::BuildBindings,
         advisories,
         declaration_usage,
         &mut Default::default(),
-        &mut CompileTimings::default(),
+        timings,
     )
     .and_then(|(artifact, checked)| {
         checked.admit_dependency_uses()?;
@@ -304,7 +318,8 @@ impl CheckedPackageDeclarations {
         // A provider already realized during normalization needs no additional
         // body judgment during settlement. Both belong to this accepted roster.
         for choice in &roster.normalization.providers {
-            if choice.target == target {
+            if matches!(&choice.use_as, prepared_typed_trees_to_lowered_program::provider_selections::ProviderUse::Selection { target: selected, .. } if selected == target)
+            {
                 let schema = choice.schema.scope(source).ok_or_else(|| {
                     vec![Diagnostic::error(
                         "checked provider selection lost its source schema",

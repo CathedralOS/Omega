@@ -243,7 +243,9 @@ impl<'program> ResolvedSignatureInputs<'program> {
                             .map(|argument| (nested, &argument.type_reference)),
                     );
                 }
-                TypeParameterKind::Type | TypeParameterKind::Implementation => {}
+                TypeParameterKind::Type
+                | TypeParameterKind::SomeType
+                | TypeParameterKind::Implementation => {}
             }
         }
         for contract in program.signature_contracts(signature.contracts) {

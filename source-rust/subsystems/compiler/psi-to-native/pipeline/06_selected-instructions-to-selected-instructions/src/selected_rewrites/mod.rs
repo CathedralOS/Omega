@@ -7,8 +7,8 @@ When no executed optimization rule is selected that is the whole result; when
 one is, it stages allocation legality and runs the selected catalog slice from
 `rewrites.rs` (`run_selected_lowering_optimizations` or
 `run_pre_allocation_optimizations`). Either way register allocation receives one
-`SelectedAllocationInput` (the current program, its analyses and its
-`SelectedOptimizationRecord`) inside `SelectedInstructionOptimizationOutput`.
+`SelectedBody` (the current program, its analyses and its
+`SelectedOptimizationRecord`). The driver retains the optional replay output separately.
 */
 
 /*
@@ -26,7 +26,7 @@ and explicitly requested validators.
 
 /*
 - Native stage 05 (`target-operations-to-selected-instructions`) supplies `SelectedOptimizationInput`.
-- Native stage 07 (`selected-instructions-to-register-homes`) consumes the allocation input from `SelectedInstructionOptimizationOutput`. Validators can request `SelectedOptimizationReplay`.
+- Native stage 07 (`selected-instructions-to-register-homes`) consumes `SelectedBody`. The driver forwards `SelectedOptimizationReplay` only to requested verification.
 - Flat module layout:
   - `selected_optimization.rs`: stage admission, catalog phase dispatch, restaging the rewritten program for allocation, `SelectedInstructionOptimizationOutput` and the opt-in `SelectedOptimizationReplay` validator.
   - `rewrites.rs`: stage rule catalog, shared condition-state/place-storage/window-hazard helpers, and the pre-allocation fixed-point driver.
@@ -42,8 +42,6 @@ and explicitly requested validators.
 
 use selected_instruction_analyses as analyses;
 use selected_instruction_analyses::work_accounting;
-
-use selected_instruction_analyses::codec_bytes;
 
 mod selected_input {
     use crate::selected_rewrites::{
@@ -125,12 +123,12 @@ pub(crate) use analyses::{
 pub(crate) use rewrites::{
     AddressFoldError, ConstantBooleanError, ConstantBranchError, CopiedCallOperandError,
     CopyRemovalError, DeadCompareError, EquivalentCompareError, LiteralFoldPolicy,
-    PairResultDisposition, PairUnitDefRelation, PreAllocationPolicy,
-    PreAllocationTransformationIdentity, RedundantCompareError, RedundantExtensionError,
-    SELECTED_STAGE_RULE_CATALOG, SelectedInstructionPairRule, SelectedLoweringRuleCatalogError,
-    SelectedStageRuleRows, resolve_pre_allocation_rules, resolve_selected_lowering_rules,
-    run_pre_allocation_optimizations, run_selected_lowering_optimizations,
-    validate_pre_allocation_optimization_custody, validate_selected_lowering_optimization_custody,
+    PairResultDisposition, PairUnitDefRelation, PreAllocationPolicy, RedundantCompareError,
+    RedundantExtensionError, SELECTED_STAGE_RULE_CATALOG, SelectedInstructionPairRule,
+    SelectedLoweringRuleCatalogError, SelectedStageRuleRows, resolve_pre_allocation_rules,
+    resolve_selected_lowering_rules, run_pre_allocation_optimizations,
+    run_selected_lowering_optimizations, validate_pre_allocation_optimization_custody,
+    validate_selected_lowering_optimization_custody,
 };
 pub(crate) use rewrites::{
     FunctionLiteralFold, LiteralFoldAction, LiteralFoldError, LiteralFoldPlan,
@@ -144,7 +142,7 @@ pub(crate) use rewrites::{
     ValidatedRedundantCompare, ValidatedRedundantExtension,
 };
 pub use rewrites::{
-    LiteralFoldIdentity, OptimizedLiteralFoldCustodyError, OptimizedPreAllocationCustodyError,
+    OptimizedLiteralFoldCustodyError, OptimizedPreAllocationCustodyError,
     StagedPreAllocationOptimizationCustodyReceipt, StagedPreAllocationOptimizationRun,
     StagedSelectedLoweringOptimizationCustodyReceipt, StagedSelectedLoweringOptimizationRun,
     ValidatedLiteralFold,

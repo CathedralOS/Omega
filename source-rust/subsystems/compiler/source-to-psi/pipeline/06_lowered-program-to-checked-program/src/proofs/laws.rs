@@ -410,6 +410,7 @@ fn judge_laws(
 fn script(law: &Law, case: usize) -> Option<&LawCase> {
     match &law.proof {
         LawProof::Direct(_)
+        | LawProof::UnderPremises { .. }
         | LawProof::Fuel { .. }
         | LawProof::Family { .. }
         | LawProof::Integers
@@ -427,6 +428,59 @@ fn constant(arena: &mut TermArena, declaration: u32) -> TermHandle {
         declaration,
         levels: Vec::new(),
     })
+}
+
+/// Read both projections at the carrier, relation and levels of the checked
+/// quotient definition. Unfolding the relation would lose its selected name.
+pub(crate) fn projected_representatives(
+    arena: &mut TermArena,
+    signature: &Signature,
+    quotient: TermHandle,
+    left: TermHandle,
+    right: TermHandle,
+) -> Option<(proof_admission::QuotientFamily, [TermHandle; 2])> {
+    let Term::Constant {
+        declaration,
+        levels,
+    } = arena.get(quotient)
+    else {
+        return None;
+    };
+    let definition = signature.get(declaration)?;
+    if levels.len() != definition.level_arity as usize {
+        return None;
+    }
+    let mut body = definition.body?;
+    if !levels.is_empty() {
+        body = proof_admission::instantiate_levels(arena, body, &levels).ok()?;
+    }
+    let (head, arguments) = super::equality::spine(arena, body);
+    let Term::Constant {
+        declaration: proof_admission::QUOTIENT,
+        levels,
+    } = arena.get(head)
+    else {
+        return None;
+    };
+    let [carrier, relation] = arguments.as_slice() else {
+        return None;
+    };
+    let family = proof_admission::QuotientFamily {
+        levels: levels.try_into().ok()?,
+        carrier: *carrier,
+        relation: *relation,
+    };
+    let mut representative = |side| {
+        let Term::Apply { argument, .. } = arena.get(side) else {
+            return None;
+        };
+        let projected = family.project(arena, argument);
+        arena
+            .structurally_equal(projected, side)
+            .then_some(argument)
+    };
+    let pair = [representative(left)?, representative(right)?];
+    Some((family, pair))
 }
 
 /// The operations whose operands this law's proof may regroup or reorder,
@@ -771,6 +825,29 @@ impl Proving<'_> {
         for &ty in &frame.telescope {
             context = context.extend(ty);
         }
+        // Only the checked second projection of a record supplies its
+        // stored conditions. Each component still has its exact subject.
+        let mut held = frame.evidence.clone();
+        for (at, &ty) in frame.telescope.iter().enumerate() {
+            let Term::Constant { declaration, .. } = self.arena.get(ty) else {
+                continue;
+            };
+            if let Some(SignatureEntryKind::Record {
+                strict_conditions, ..
+            }) = self
+                .entries
+                .get(declaration as usize)
+                .map(|entry| &entry.kind)
+                && *strict_conditions > 0
+            {
+                let record = variable(self.arena, frame.telescope.len() - 1 - at);
+                let proofs = self.arena.insert(Term::Snd { pair: record });
+                held.extend((0..*strict_conditions).map(|index| {
+                    self.arena
+                        .tuple_component(proofs, index, *strict_conditions)
+                }));
+            }
+        }
         let hypotheses = &frame.hypotheses;
         let evidence = Cited {
             arena: self.arena,
@@ -780,7 +857,7 @@ impl Proving<'_> {
             laws: self.laws,
             law: self.law,
             names: &frame.names,
-            held: frame.evidence.clone(),
+            held,
             hypothesis: &|field| hypotheses.get(field as usize).copied().flatten(),
             companions: &frame.companions,
         }
@@ -970,35 +1047,16 @@ impl Proving<'_> {
         let Term::Constant { declaration, .. } = self.arena.get(ty) else {
             return Ok(None);
         };
-        let Some(&SignatureEntryKind::Quotient {
-            carrier, relation, ..
-        }) = self
-            .entries
-            .get(declaration as usize)
-            .map(|entry| &entry.kind)
-        else {
+        if !matches!(
+            self.entries
+                .get(declaration as usize)
+                .map(|entry| &entry.kind),
+            Some(SignatureEntryKind::Quotient { .. })
+        ) {
             return Ok(None);
-        };
-        let family = proof_admission::QuotientFamily {
-            levels: [Level::Constant(0), Level::Constant(0)],
-            carrier: constant(self.arena, carrier),
-            relation: constant(self.arena, relation),
-        };
-        // The representative a side is the class of: the side is the
-        // kernel's projection of it at this carrier and relation, as stage
-        // 05 wrote it. The side is compared as written, because computing
-        // it would replace the relation's name with its formula.
-        let representative = |proving: &mut Self, side: TermHandle| {
-            let Term::Apply { argument, .. } = proving.arena.get(side) else {
-                return None;
-            };
-            let projected = family.project(proving.arena, argument);
-            proving
-                .arena
-                .structurally_equal(projected, side)
-                .then_some(argument)
-        };
-        let (Some(left), Some(right)) = (representative(self, left), representative(self, right))
+        }
+        let Some((family, [left, right])) =
+            projected_representatives(self.arena, context.signature(), ty, left, right)
         else {
             return Ok(None);
         };
@@ -1143,8 +1201,6 @@ impl Proving<'_> {
                 continue;
             };
             let Some(&SignatureEntryKind::Quotient {
-                carrier,
-                relation,
                 laws: [propositional, reflexive, symmetric, transitive],
                 ..
             }) = self
@@ -1154,22 +1210,8 @@ impl Proving<'_> {
             else {
                 continue;
             };
-            let family = proof_admission::QuotientFamily {
-                levels: [Level::Constant(0), Level::Constant(0)],
-                carrier: constant(self.arena, carrier),
-                relation: constant(self.arena, relation),
-            };
-            let representative = |proving: &mut Self, side: TermHandle| {
-                let Term::Apply { argument, .. } = proving.arena.get(side) else {
-                    return None;
-                };
-                let projected = family.project(proving.arena, argument);
-                proving
-                    .arena
-                    .structurally_equal(projected, side)
-                    .then_some(argument)
-            };
-            let (Some(a), Some(b)) = (representative(self, left), representative(self, right))
+            let Some((family, [a, b])) =
+                projected_representatives(self.arena, context.signature(), ty, left, right)
             else {
                 continue;
             };
@@ -2477,6 +2519,14 @@ fn prove_law(
             });
         }
         LawProof::Direct(direct) => proving.case(frame, direct, None)?,
+        LawProof::UnderPremises { body, script } => proving.case(
+            Frame {
+                goal: *body,
+                ..frame
+            },
+            script,
+            None,
+        )?,
         LawProof::Pointwise { row, binders } => {
             let mut context = closed.clone();
             for &ty in &frame.telescope {

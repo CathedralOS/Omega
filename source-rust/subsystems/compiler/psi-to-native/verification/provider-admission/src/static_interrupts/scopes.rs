@@ -35,6 +35,7 @@ pub(super) fn prepare(
     entries: &[AdmittedInstalledInterruptEntry],
     helpers: &[crate::AdmittedInstalledInterruptHelper],
     operations: &[(super::OperationSite, &terminal_psi::Operation)],
+    reached: &[super::OperationSite],
 ) -> Result<Vec<AdmittedInstalledInterruptScope>, String> {
     let mut scopes = Vec::new();
     let module = input.module();
@@ -58,11 +59,6 @@ pub(super) fn prepare(
         request.profile,
     )?;
     let program_calls = if let Some(context) = request.program_provider_context {
-        context.require(
-            artifact.view().identity(),
-            request.profile,
-            request.selected_provider_plans,
-        )?;
         Some(super::super::selected_synchronous_call_graph(
             artifact.view(),
             analyses,
@@ -75,20 +71,6 @@ pub(super) fn prepare(
         None
     };
     let assumed_calls = program_calls.as_ref().unwrap_or(&calls);
-    let mut reached = input
-        .plan()
-        .functions
-        .iter()
-        .flat_map(|function| {
-            function.operations().filter_map(move |operation| {
-                operation
-                    .psi_operation()
-                    .map(|operation| (function.machine, operation))
-            })
-        })
-        .collect::<Vec<_>>();
-    reached.sort_unstable();
-    reached.dedup();
     let mut assumed_entries = Vec::new();
     for assumption in request.installation_assumptions {
         assumption.validate_description()?;

@@ -1,10 +1,10 @@
 /*
     Shared declaration selection before complete symbol assignment.
 
-    `ConstantSelection::new` collects declaration headers, builds a partial
-    namespace with imports and builtin names, and exposes exact lookup for
-    constants, nominal carriers, domains and traits. `with_retained_base` extends
-    the same namespace for generated source. Preparation, initializer handling
+    `ConstantSelection::with_shared_base` collects declaration headers, builds
+    a partial namespace with imports and builtin names, and exposes exact lookup
+    for constants, nominal carriers, domains and traits. Given a retained base,
+    it extends the same namespace for generated source. Preparation, initializer handling
     and resolution share this owner; generic-data synthesis is one consumer.
     Transient symbols remain private and do not escape into normalized syntax.
 */
@@ -30,12 +30,56 @@ use syntax_trees::item::{ConstDefinition, DataDefinition, DataMember, DomainDefi
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum GenericParameterRole {
     Type,
+    PackageWitness,
     Implementation,
     Const,
     Value,
     Machine,
     Proposition,
     Proof,
+}
+
+/// Match authored opening markers with their package slots. Public arguments never
+/// consume a witness slot, even when the declaration interleaves the two kinds.
+pub(crate) fn package_opening_positions<'syntax>(
+    syntax: &'syntax SyntaxTrees,
+    head: &Identifier,
+    formals: &[GenericParameterRole],
+    arguments: &[syntax_trees::types::TypeReferenceHandle],
+) -> Result<Vec<(usize, &'syntax Identifier)>, Diagnostic> {
+    let mut openings = Vec::new();
+    let mut actual = arguments.iter().peekable();
+    for (position, role) in formals.iter().enumerate() {
+        let marker = actual.peek().and_then(|handle| {
+            match syntax.type_references.type_reference(**handle) {
+                syntax_trees::types::TypeReferenceNode::SomeOpening(name) => Some(name),
+                _ => None,
+            }
+        });
+        if *role == GenericParameterRole::PackageWitness {
+            if let Some(name) = marker {
+                openings.push((position, name));
+                actual.next();
+            }
+        } else if let Some(name) = marker {
+            return Err(
+                Diagnostic::error("a named opening must occupy a declared `some` slot")
+                    .with_source_span(name.source_span()),
+            );
+        } else if actual.next().is_none() {
+            return Err(
+                Diagnostic::error("a package annotation omits a public argument")
+                    .with_source_span(head.source_span()),
+            );
+        }
+    }
+    if actual.next().is_some() {
+        return Err(Diagnostic::error(
+            "a package annotation supplies arguments beyond its declared slots",
+        )
+        .with_source_span(head.source_span()));
+    }
+    Ok(openings)
 }
 
 /* Private selection state; transient symbols never escape into normalized syntax. */
@@ -140,6 +184,10 @@ impl<'base> ConstantSelection<'base> {
         self.symbols.same_source_package(left, right)
     }
 
+    /// A selection with no retained base. Resolution builds its one selection
+    /// with `with_shared_base` and threads it to every consumer; only tests
+    /// build a standalone selection.
+    #[cfg(test)]
     pub(crate) fn new(
         syntax: &SyntaxTrees,
         sources: Option<Arc<SourceMap>>,
@@ -1014,6 +1062,9 @@ impl<'base> ConstantSelection<'base> {
                     .type_parameters(result)
                     .iter()
                     .map(|parameter| match parameter.kind {
+                        syntax_trees::item::TypeParameterKind::SomeType => {
+                            GenericParameterRole::PackageWitness
+                        }
                         syntax_trees::item::TypeParameterKind::Type => GenericParameterRole::Type,
                         syntax_trees::item::TypeParameterKind::Implementation => {
                             GenericParameterRole::Implementation
@@ -1068,6 +1119,7 @@ impl<'base> ConstantSelection<'base> {
                 .iter()
                 .map(|parameter| match parameter.kind {
                     Kind::Type => GenericParameterRole::Type,
+                    Kind::SomeType => GenericParameterRole::PackageWitness,
                     Kind::Implementation => GenericParameterRole::Implementation,
                     Kind::Const { .. } => GenericParameterRole::Const,
                     Kind::Value { .. } => GenericParameterRole::Value,

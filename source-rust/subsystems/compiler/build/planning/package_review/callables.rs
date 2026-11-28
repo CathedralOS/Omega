@@ -196,19 +196,15 @@ impl PolicySource<'_> {
     ) -> Result<Option<PackagePolicyCallable>, Vec<Diagnostic>> {
         let exact_sources = self.sources().exact_toolchain_sources();
         let mut reviewed = None;
-        for elaboration in self.accepted().generic_callable_forms(declaration) {
-            let module = &elaboration.module;
+        for form in self.accepted().generic_callable_forms(declaration) {
+            let module = &form.module;
             let Some(TargetMachineCallable::Machine(entry)) = module.entry else {
                 return Err(unavailable("the generic declaration's checked entry"));
             };
-            if elaboration.machines.get(entry) != Some(&declaration) {
+            if form.entry_owner != Some(declaration) {
                 return Err(unavailable("the generic check form's exact source owner"));
             }
-            if elaboration
-                .static_reach_summaries
-                .iter()
-                .any(|row| row.machine == entry && !row.term.parameters.is_empty())
-            {
+            if form.entry_has_static_reach_parameters {
                 return Err(unavailable(
                     "the generic callable's static reach projections",
                 ));
@@ -220,9 +216,8 @@ impl PolicySource<'_> {
                 exact_sources,
                 source_provenance::DependencyScope::Product,
             )?;
-            let rigid_value_parameters = *elaboration
-                .value_parameters
-                .get(entry)
+            let rigid_value_parameters = form
+                .entry_value_parameters
                 .ok_or_else(|| unavailable("the generic callable's checked value telescope"))?;
             let row = self.callable(
                 &CallableInventory {
@@ -739,17 +734,10 @@ pub(super) fn reviewed_invocations(
     identities: &[ReviewedService],
     envelope: &terminal_psi::TerminalCallableEnvelope,
 ) -> Result<Vec<PackageReviewSynchronousInvocation>, Vec<Diagnostic>> {
-    use terminal_psi::TerminalCallableInvocation;
     let mut invocations = envelope
         .invocations
         .iter()
-        .map(|entry| match entry {
-            TerminalCallableInvocation::Parameter(position) => {
-                Ok(PackageReviewSynchronousInvocation::Parameter(*position))
-            }
-            TerminalCallableInvocation::Service(service) => reviewed_service(identities, *service)
-                .map(PackageReviewSynchronousInvocation::Service),
-        })
+        .map(|entry| entry.try_map_service(|service| reviewed_service(identities, *service)))
         .collect::<Result<Vec<_>, _>>()?;
     invocations.sort_unstable();
     Ok(invocations)
@@ -922,17 +910,14 @@ fn mutation(
     header.validate_parameter_order().map_err(unavailable)?;
     let mut paths = Vec::with_capacity(written.len());
     for (ordinal, fields) in written {
-        let position = usize::try_from(*ordinal)
-            .map_err(|_| unavailable("a write frame's structural formal ordinal"))?;
-        let formal = header
-            .structural_parameters
-            .get(position)
-            .ok_or_else(|| unavailable("a write frame's structural formal"))?;
+        let (kind, position) = header
+            .write_formal(*ordinal)
+            .ok_or_else(|| unavailable("a write frame's formal ordinal"))?;
         let authored_position = header
             .parameter_order
             .iter()
             .enumerate()
-            .filter(|(_, kind)| **kind == terminal_psi::BoundaryParameterKind::Structural)
+            .filter(|(_, candidate)| **candidate == kind)
             .nth(position)
             .map(|(position, _)| position)
             .ok_or_else(|| unavailable("a write frame's authored parameter position"))?;
@@ -943,6 +928,18 @@ fn mutation(
             [authored_position.to_string().as_str()],
         )
         .map_err(|_| unavailable("a write frame's parameter identity"))?;
+        if kind == terminal_psi::BoundaryParameterKind::Scalar {
+            if !fields.is_empty() {
+                return Err(unavailable(
+                    "a native write frame containing structural fields",
+                ));
+            }
+            review_evidence::record::write_framed_identity(&mut path, "native-address", [])
+                .map_err(|_| unavailable("a native write frame's target identity"))?;
+            paths.push(path);
+            continue;
+        }
+        let formal = &header.structural_parameters[position];
         let mut tip = Some(formal.structural_type);
         for (position, field) in fields.iter().enumerate() {
             let owner = terminal_psi::unique_structural_declaration(

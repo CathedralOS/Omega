@@ -117,17 +117,18 @@ struct ProviderScan {
     every_target_walked: bool,
 }
 
-/// What the demand walk of any target reads from one accepted module.
-struct ModuleDemand {
+/// The target walk follows prospective provider bodies during lowering and checked ones after judgment.
+struct ModuleDemand<'a> {
+    lowered_conformances: Option<&'a [terminal_check_tables::contracts::StaticConformanceQuestion]>,
     declared: Vec<ReachedBoundaryRequirement>,
     roots: Vec<semantic_vocabulary::MachineId>,
     judged: Vec<JudgedProvider>,
 }
 
-impl ModuleDemand {
+impl<'a> ModuleDemand<'a> {
     fn read_from_elaboration(
         source: &crate::source_state::FrozenTypedTrees,
-        elaboration: &terminal_check_tables::program::Elaboration,
+        elaboration: &'a terminal_check_tables::program::Elaboration,
         roster: &source_roster::SourceCompilationRoster,
     ) -> Result<Self, Vec<Diagnostic>> {
         let declared = production::boundary_requirements_declared_for(source, elaboration)
@@ -161,6 +162,7 @@ impl ModuleDemand {
             })
             .collect();
         Ok(Self {
+            lowered_conformances: Some(&elaboration.static_conformances),
             declared,
             roots,
             judged,
@@ -195,6 +197,7 @@ impl ModuleDemand {
             })
             .collect();
         Ok(Self {
+            lowered_conformances: None,
             declared,
             roots,
             judged,
@@ -211,24 +214,43 @@ impl ModuleDemand {
         target: Option<&str>,
         numeric_support: Option<&language_core::float_operations::NumericTargetCapabilities>,
     ) -> Result<PreparedTargetSupply, Vec<Diagnostic>> {
-        PreparedTargetSupply::prepare(TargetSupplyRequest {
+        // An entryless supplier can still call services from an exported
+        // operation. Follow those bodies just as for a bound program entry.
+        let mut roots = std::borrow::Cow::Borrowed(self.roots.as_slice());
+        if !module.interfaces.provider_exports.is_empty() {
+            let roots = roots.to_mut();
+            roots.extend(
+                module
+                    .interfaces
+                    .provider_exports
+                    .iter()
+                    .flat_map(|record| record.members.iter().map(|member| member.machine)),
+            );
+            roots.sort_unstable();
+            roots.dedup();
+        }
+        let request = TargetSupplyRequest {
             source,
             module,
             declared: &self.declared,
-            roots: &self.roots,
+            roots: &roots,
             judged: &self.judged,
             build,
             native_bindings,
             defaults,
             target,
             numeric_support,
-        })
+        };
+        match self.lowered_conformances {
+            Some(questions) => PreparedTargetSupply::prepare_from_lowered(request, questions),
+            None => PreparedTargetSupply::prepare(request),
+        }
     }
 }
 
 #[allow(clippy::too_many_arguments)]
 fn scan_provider_work(
-    demand: &ModuleDemand,
+    demand: &ModuleDemand<'_>,
     source: &crate::source_state::FrozenTypedTrees,
     module: &terminal_psi::TerminalModule,
     roster: &source_roster::SourceCompilationRoster,

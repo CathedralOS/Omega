@@ -83,6 +83,7 @@ impl<'text> Encoder<'text> {
         Ok(bytes)
     }
 
+    #[cfg(any(test, feature = "full-policy-recovery"))]
     pub(super) fn policy_preallocated(
         expected_length: usize,
     ) -> Result<Self, PackageReviewEncodingError> {
@@ -177,19 +178,29 @@ impl<'text> Encoder<'text> {
         values: &[T],
         encode_value: impl Fn(&mut Self, &T) -> Result<(), PackageReviewEncodingError>,
     ) -> Result<(), PackageReviewEncodingError> {
-        self.policy_elements(values.len())?;
-        let count = u64::try_from(values.len()).map_err(|_| {
+        self.sequence_by_index(values.len(), |encoder, index| {
+            encode_value(encoder, &values[index])
+        })
+    }
+
+    pub(crate) fn sequence_by_index(
+        &mut self,
+        length: usize,
+        encode_value: impl Fn(&mut Self, usize) -> Result<(), PackageReviewEncodingError>,
+    ) -> Result<(), PackageReviewEncodingError> {
+        self.policy_elements(length)?;
+        let count = u64::try_from(length).map_err(|_| {
             PackageReviewEncodingError::new("package policy sequence count overflows")
         })?;
         self.append(&count.to_le_bytes());
         if let Some(text) = &mut self.text {
             text.sequence(count);
         }
-        for value in values {
+        for index in 0..length {
             if let Some(text) = &mut self.text {
                 text.item();
             }
-            let result = encode_value(self, value);
+            let result = encode_value(self, index);
             if let Some(text) = &mut self.text {
                 text.end();
             }

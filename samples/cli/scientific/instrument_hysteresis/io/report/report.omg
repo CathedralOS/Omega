@@ -4,11 +4,11 @@ use {system}/console.omg;
 public machine number(value: i32 in Wrapping) reaches |process_authority|::StandardOutput {
     transition value < 0 {
         true -> negative(value),
-        false -> digits(value, 100000000, false)
+        false -> digits(value, 100000000 as i32 +Wrapping, false)
     }
     machine negative(value: i32 in Wrapping) {
         |console|::Console::write_byte(45);
-        transition { _ -> digits(0 - value, 100000000, false) }
+        transition { _ -> digits(0 - value, 100000000 as i32 +Wrapping, false) }
     }
     machine digits(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) requires divisor > 0 {
         let digit: i32 in Wrapping = value / divisor;
@@ -18,7 +18,7 @@ public machine number(value: i32 in Wrapping) reaches |process_authority|::Stand
         }
     }
     machine emit(value: i32 in Wrapping, divisor: i32 in Wrapping, digit: i32 in Wrapping) requires divisor > 0 {
-        |console|::Console::write_byte((digit + 48) as i32);
+        |console|::Console::write_byte((digit + 48) as -Wrapping);
         transition { _ -> next(value % divisor, divisor, true) }
     }
     machine next(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) requires divisor > 0 {

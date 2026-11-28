@@ -28,6 +28,7 @@ pub(crate) struct CompilerIssuedPackageReview {
     pub(super) source_consumption_commitment: PackageSourceConsumptionCommitment,
     pub(super) selected_build_machine_identity: String,
     pub(super) preparations: Vec<ReviewedPreparation>,
+    pub(super) unsafe_authority: project_build::ReviewedUnsafeAuthority,
     pub(super) build_evaluation_usage: Option<BuildEvaluationUsage>,
     pub(super) build_observation_summary: Option<BuildObservationSummary>,
     pub(super) restricted_build_requests: Vec<RestrictedBuildRequest>, // Normalized restricted build-host requests asked of the host before execution.
@@ -58,6 +59,10 @@ impl CompilerIssuedPackageReview {
 
     pub const fn source_consumption_commitment(&self) -> PackageSourceConsumptionCommitment {
         self.source_consumption_commitment
+    }
+
+    pub fn unsafe_authority(&self) -> &project_build::ReviewedUnsafeAuthority {
+        &self.unsafe_authority
     }
 
     pub fn preparations(&self) -> &[ReviewedPreparation] {
@@ -129,6 +134,10 @@ pub enum PackageSourceVerificationPhase {
 }
 
 impl CompilerIssuedPackageReviewSet {
+    pub(super) fn into_reviews(self) -> Vec<CompilerIssuedPackageReview> {
+        self.reviews
+    }
+
     pub fn reviews(&self) -> &[CompilerIssuedPackageReview] {
         &self.reviews
     }

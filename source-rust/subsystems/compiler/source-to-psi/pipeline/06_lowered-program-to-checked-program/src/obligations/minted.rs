@@ -457,12 +457,34 @@ impl OwedKey {
     }
 }
 
+type ReturnClause = (EdgeId, u32, ObligationId);
+
+#[derive(Default)]
+pub(crate) struct NormalGuarantees {
+    rows: Vec<(ReturnClause, ObligationId)>,
+}
+
+impl NormalGuarantees {
+    pub(crate) fn get(
+        &self,
+        exit: EdgeId,
+        clause: u32,
+        published: ObligationId,
+    ) -> Option<ObligationId> {
+        self.rows
+            .binary_search_by_key(&(exit, clause, published), |(key, _)| *key)
+            .ok()
+            .map(|position| self.rows[position].1)
+    }
+}
+
 struct Minted<'a> {
     machine: MachineId,
     module: &'a terminal_psi::TerminalModule,
     lowered: &'a TerminalMachine,
     cleanup_catalog: &'a crate::owned_cleanup::Catalog<'a>,
-    claims: &'a terminal_semantics::plain_affine::ClaimsPlan,
+    /// `None` for an inference replay (`ClaimRows::Deferred`).
+    claims: Option<&'a terminal_semantics::plain_affine::ClaimsPlan>,
     tables: &'a MachineTables,
     /// Whether the lowered form has claimed each obligation row, by position.
     obligations: Vec<bool>,
@@ -470,6 +492,7 @@ struct Minted<'a> {
     invocations: Vec<(InvocationSite, InvocationId, bool)>,
     /// Owed obligation kinds sorted by key, keeping the first row for duplicates.
     owed_index: Vec<(OwedKey, ObligationId)>,
+    normal_guarantees: NormalGuarantees,
 }
 
 impl Minted<'_> {
@@ -661,55 +684,59 @@ impl Minted<'_> {
         // The receiving walk reconstructs live identities at the exact call
         // cut. A declaration's original root is not its current storage after
         // construction, extraction, stores or an owned block arrival.
-        if let Some(frontier) = self.claims.call_frontier(site) {
-            let held = frontier
-                .iter()
-                .map(|claim| (claim.identity, claim.place, claim.path.as_slice()));
-            let boundary = matches!(
-                inputs.callee,
-                terminal_check_tables::edges::Callee::Declared(
-                    semantic_vocabulary::TargetMachineCallable::Boundary(_)
-                )
-            );
-            let matched = if boundary {
-                if !inputs.claim_transfers.is_empty() {
-                    return Err(
-                        self.foreign(concerns, "a boundary call carries internal claim transfers")
-                    );
-                }
-                terminal_semantics::owned_structure::validate_claim_transfers(
-                    inputs.structural_arguments,
-                    held,
-                    inputs.completion_receipts.iter().map(|receipt| {
-                        (
-                            receipt.claim,
-                            receipt.argument_index,
-                            receipt.path.as_slice(),
-                        )
-                    }),
-                )
-            } else {
-                if !inputs.completion_receipts.is_empty() {
-                    return Err(self.foreign(
-                        concerns,
-                        "an internal call carries boundary completion receipts",
-                    ));
-                }
-                terminal_semantics::owned_structure::validate_claim_transfers(
-                    inputs.structural_arguments,
-                    held,
-                    inputs.claim_transfers.iter().map(|transfer| {
-                        (
-                            transfer.claim,
-                            transfer.argument_index,
-                            transfer.path.as_slice(),
-                        )
-                    }),
-                )
-            };
-            matched.map_err(|detail| self.foreign(concerns, detail))?;
-        } else if !self.claims.call_is_unreachable(site) {
-            return Err(self.foreign(concerns, "a call has no reconstructed claim frontier"));
+        // An inference replay leaves this to the settled module's check.
+        if let Some(claims) = self.claims {
+            if let Some(frontier) = claims.call_frontier(site) {
+                let held = frontier
+                    .iter()
+                    .map(|claim| (claim.identity, claim.place, claim.path.as_slice()));
+                let boundary = matches!(
+                    inputs.callee,
+                    terminal_check_tables::edges::Callee::Declared(
+                        semantic_vocabulary::TargetMachineCallable::Boundary(_)
+                    )
+                );
+                let matched = if boundary {
+                    if !inputs.claim_transfers.is_empty() {
+                        return Err(self.foreign(
+                            concerns,
+                            "a boundary call carries internal claim transfers",
+                        ));
+                    }
+                    terminal_semantics::owned_structure::validate_claim_transfers(
+                        inputs.structural_arguments,
+                        held,
+                        inputs.completion_receipts.iter().map(|receipt| {
+                            (
+                                receipt.claim,
+                                receipt.argument_index,
+                                receipt.path.as_slice(),
+                            )
+                        }),
+                    )
+                } else {
+                    if !inputs.completion_receipts.is_empty() {
+                        return Err(self.foreign(
+                            concerns,
+                            "an internal call carries boundary completion receipts",
+                        ));
+                    }
+                    terminal_semantics::owned_structure::validate_claim_transfers(
+                        inputs.structural_arguments,
+                        held,
+                        inputs.claim_transfers.iter().map(|transfer| {
+                            (
+                                transfer.claim,
+                                transfer.argument_index,
+                                transfer.path.as_slice(),
+                            )
+                        }),
+                    )
+                };
+                matched.map_err(|detail| self.foreign(concerns, detail))?;
+            } else if !claims.call_is_unreachable(site) {
+                return Err(self.foreign(concerns, "a call has no reconstructed claim frontier"));
+            }
         }
         crate::erased_actuals(&call.contract, inputs, self.machine, invocation)?;
         if inputs.arguments.len() != call.contract.scalar_parameters.len()
@@ -831,6 +858,34 @@ pub(crate) fn affine_refusal(
     refusal(reason, machine, concerns, detail)
 }
 
+/// Where `follow_the_lowered_form` takes a machine's claim rows from.
+#[derive(Clone, Copy)]
+pub(crate) enum ClaimRows<'s, 'r, 'm> {
+    /// A machine check of the module these replays were built from: the
+    /// claims its affine check received, else one walk over the module's
+    /// shared analyses.
+    Module(&'s crate::ModuleReplays<'r, 'm>),
+    /// A preparation of one machine by itself (`crate::prepare`) walks its
+    /// claims alone.
+    #[cfg(any(test, feature = "test-support"))]
+    Alone,
+    /// Inference's replay of one machine on a copy of its tables, over a
+    /// module inference is still editing. Inference reads no claim row, and
+    /// `finish_discharge` follows every machine's rows again on the settled
+    /// module with its claims, so the replay walks no claims and leaves each
+    /// call's claim transfers to that check.
+    Deferred,
+}
+
+impl<'s, 'r, 'm> ClaimRows<'s, 'r, 'm> {
+    pub(crate) fn replays(self) -> Option<&'s crate::ModuleReplays<'r, 'm>> {
+        match self {
+            Self::Module(replays) => Some(replays),
+            _ => None,
+        }
+    }
+}
+
 /// Refuses `tables` unless its obligation rows, invocation rows and edge
 /// rows are the ones `lowered` itself owes and states.
 pub(crate) fn follow_the_lowered_form(
@@ -840,8 +895,9 @@ pub(crate) fn follow_the_lowered_form(
     tables: &MachineTables,
     types: &IdTable<ValueId, ScalarType>,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
-    replays: Option<&crate::ModuleReplays<'_, '_>>,
-) -> Checked<()> {
+    rows: ClaimRows<'_, '_, '_>,
+) -> Checked<NormalGuarantees> {
+    let replays = rows.replays();
     values_are_declared(id, lowered, tables)?;
     let returned =
         terminal_semantics::normal_completion::ReturnSources::new(lowered).map_err(|detail| {
@@ -866,11 +922,26 @@ pub(crate) fn follow_the_lowered_form(
             "a call does not have exactly one invocation row",
         ));
     }
-    let mut owed_index = tables
-        .obligations
-        .iter()
-        .filter_map(|(obligation, row)| OwedKey::from_kind(row.kind).map(|key| (key, obligation)))
-        .collect::<Vec<_>>();
+    let mut normal_guarantees = NormalGuarantees::default();
+    let mut owed_index = Vec::new();
+    for (obligation, row) in tables.obligations.iter() {
+        if let ObligationKind::NormalGuarantee {
+            exit,
+            clause,
+            published,
+        } = row.kind
+        {
+            normal_guarantees
+                .rows
+                .push(((exit, clause, published), obligation));
+        } else if let Some(key) = OwedKey::from_kind(row.kind) {
+            owed_index.push((key, obligation));
+        }
+    }
+    // Sorting by obligation ID last retains the first matching row. Its
+    // creation point is checked by claim; a duplicate stays unclaimed.
+    normal_guarantees.rows.sort_unstable();
+    normal_guarantees.rows.dedup_by_key(|(key, _)| *key);
     owed_index.sort_by_key(|(key, _)| *key);
     owed_index.dedup_by_key(|(key, _)| *key);
     // The module's machine check shares one catalog and the claim rows its
@@ -892,9 +963,11 @@ pub(crate) fn follow_the_lowered_form(
         )
     })?;
     let own_claims;
-    let claims = match replays.and_then(|replays| replays.received_claims(module, id)) {
-        Some(received) => received.as_ref().map_err(Clone::clone)?,
-        None => {
+    let received = replays.and_then(|replays| replays.received_claims(module, id));
+    let claims = match (rows, received) {
+        (ClaimRows::Deferred, _) => None,
+        (_, Some(received)) => Some(received.as_ref().map_err(Clone::clone)?),
+        (_, None) => {
             // A machine check of this module walks the closure the module's
             // analyses share; any other caller's walk builds its own.
             let walks = match replays.and_then(|replays| replays.analyses(module)) {
@@ -904,7 +977,7 @@ pub(crate) fn follow_the_lowered_form(
             own_claims = walks
                 .and_then(|walks| walks.verify_claims())
                 .map_err(|error| affine_refusal(id, error))?;
-            &own_claims
+            Some(&own_claims)
         }
     };
     let mut minted = Minted {
@@ -917,6 +990,7 @@ pub(crate) fn follow_the_lowered_form(
         obligations: vec![false; tables.obligations.len()],
         invocations,
         owed_index,
+        normal_guarantees,
     };
 
     // Each logical use owns every premise exactly once, before its successor.
@@ -1271,7 +1345,7 @@ pub(crate) fn follow_the_lowered_form(
             "an invocation row restates no call of this machine",
         ));
     }
-    Ok(())
+    Ok(minted.normal_guarantees)
 }
 
 /// Refuses a value table that is not the values the lowered form declares:
@@ -1367,16 +1441,27 @@ fn values_are_declared(
             detail,
         )
     };
-    let mut declared: Vec<Option<(ScalarType, ValueOrigin)>> = vec![None; tables.values.len()];
+    let mut seen = vec![0u64; tables.values.len().div_ceil(64)];
+    let mut first_mismatch = usize::MAX;
     let mut declare = |value: ValueDeclaration, origin: ValueOrigin| -> Checked<()> {
-        let slot = declared
-            .get_mut(index(value.id.get()))
+        let position = index(value.id.get());
+        let row = tables
+            .values
+            .get(value.id)
             .ok_or_else(|| foreign(value.id, "the lowered form declares a value with no row"))?;
-        if slot.replace((value.scalar_type, origin)).is_some() {
+        let mask = 1u64 << (position % 64);
+        let word = &mut seen[position / 64];
+        if *word & mask != 0 {
             return Err(foreign(
                 value.id,
                 "the lowered form declares one value twice",
             ));
+        }
+        *word |= mask;
+        // Declaration faults take precedence. Report row faults afterwards in
+        // table order, including undeclared rows before the first mismatch.
+        if row.scalar_type != value.scalar_type || row.origin != origin {
+            first_mismatch = first_mismatch.min(position);
         }
         Ok(())
     };
@@ -1402,24 +1487,20 @@ fn values_are_declared(
             }
         }
     }
-    for ((value, row), declared) in tables.values.iter().zip(&declared) {
-        match declared {
-            Some((scalar_type, origin)) => {
-                if row.scalar_type != *scalar_type || row.origin != *origin {
-                    return Err(foreign(
-                        value,
-                        "a value row is not the value the lowered form declares under its identity",
-                    ));
-                }
-            }
-            None => {
-                if !row.origin.is_storage_observation() {
-                    return Err(foreign(
-                        value,
-                        "a value row that nothing in the lowered form declares",
-                    ));
-                }
-            }
+    for (position, (value, row)) in tables.values.iter().enumerate() {
+        if position == first_mismatch {
+            return Err(foreign(
+                value,
+                "a value row is not the value the lowered form declares under its identity",
+            ));
+        }
+        if seen[position / 64] & (1u64 << (position % 64)) == 0
+            && !row.origin.is_storage_observation()
+        {
+            return Err(foreign(
+                value,
+                "a value row that nothing in the lowered form declares",
+            ));
         }
     }
     Ok(())
@@ -1432,16 +1513,15 @@ impl Minted<'_> {
     /// refused with the rows nothing owes.
     fn returns(&mut self, lowered: &TerminalMachine, block: BlockId, exit: EdgeId) -> Checked<()> {
         for (clause, ensures) in lowered.contract.ensures.iter().enumerate() {
+            let clause = crate::position(clause, self.machine)?;
             let kind = ObligationKind::NormalGuarantee {
                 exit,
-                clause: crate::position(clause, self.machine)?,
+                clause,
                 published: ensures.obligation,
             };
-            let (obligation, _) = self
-                .tables
-                .obligations
-                .iter()
-                .find(|(_, row)| row.kind == kind)
+            let obligation = self
+                .normal_guarantees
+                .get(exit, clause, ensures.obligation)
                 .ok_or_else(|| {
                     self.foreign(
                         Construct::Block(block),

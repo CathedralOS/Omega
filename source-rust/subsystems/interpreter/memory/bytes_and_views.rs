@@ -10,7 +10,6 @@
 pub(crate) mod byte_sequences {
     pub(crate) mod binding {
         use crate::boundary::errors::{TerminalInterpretError, malformed};
-        use crate::boundary::structural_inputs::byte_arrays;
         use crate::boundary::structural_inputs::byte_arrays::storage::ArrayStorage;
         use crate::boundary::values::StructuralByteSequenceRuntimeField;
         use crate::boundary::values::TerminalStructuralValue;
@@ -108,7 +107,7 @@ pub(crate) mod byte_sequences {
 
             pub(crate) fn with_descriptor_home(mut self, home: TerminalStructuralValue) -> Self {
                 match &mut self {
-                    Self::Immutable(view) => *view = view.clone().with_descriptor_home(home),
+                    Self::Immutable(view) => view.descriptor_home = Some(home),
                     Self::Representation(view) => {
                         *view =
                             std::sync::Arc::new(view.as_ref().clone().with_descriptor_home(home))
@@ -206,6 +205,100 @@ pub(crate) mod byte_sequences {
                 }
             }
 
+            /// The input descriptor may have a fresh identity. Derive the
+            /// writable window from its recorded original array, then attach
+            /// the new descriptor to that exact window.
+            pub(crate) fn exclusive_view_descriptor(
+                &self,
+                execution: &TerminalExecution<'_>,
+                destination: &TerminalStructuralValue,
+            ) -> Result<Self, TerminalInterpretError> {
+                let Self::Immutable(bytes) = self else {
+                    return Err(malformed());
+                };
+                let window = bytes.original_array().ok_or(
+                    TerminalInterpretError::UnsupportedSemanticVariant(
+                        "upgrade_mutability requires the byte view's writable original storage",
+                    ),
+                )?;
+                let mut referent = TerminalStructuralValue::minted(
+                    window.array.referent.opaque_identity,
+                    destination.structural_type,
+                    Vec::new(),
+                );
+                let start = u64::try_from(window.offset).map_err(|_| malformed())?;
+                let end = start
+                    .checked_add(u64::try_from(window.length).map_err(|_| malformed())?)
+                    .ok_or(malformed())?;
+                referent.path.clone_from(&window.array.referent.path);
+                referent
+                    .path
+                    .push(StructuralPathSegment::FixedRange { start, end });
+                let exclusive = self
+                    .exclusive_reborrow(execution, &referent)?
+                    .with_descriptor_home(destination.clone());
+                exclusive.validate_mutable_referent(execution, destination)?;
+                Ok(exclusive)
+            }
+
+            pub(crate) fn exclusive_reborrow(
+                &self,
+                execution: &TerminalExecution<'_>,
+                referent: &TerminalStructuralValue,
+            ) -> Result<Self, TerminalInterpretError> {
+                match self {
+                    Self::Immutable(bytes) => {
+                        let Some(window) = bytes.original_array() else {
+                            // An owned bounded buffer retains a live home even
+                            // when its shared read descriptor holds a snapshot.
+                            if execution
+                                .structural_declaration(referent.structural_type)?
+                                .shape
+                                .is_bounded_owned_byte_sequence()
+                                && bytes.descriptor_home().is_some_and(|home| {
+                                    bytes.matches_bound_descriptor_home(home, referent)
+                                })
+                            {
+                                return execution.lend_original_byte_owner(referent);
+                            }
+                            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                                "upgrade_mutability requires writable backing for the byte window",
+                            ));
+                        };
+                        let end = window
+                            .offset
+                            .checked_add(window.length)
+                            .ok_or(malformed())?;
+                        if bytes.len() != window.length
+                            || end > execution.stored_byte_array_length(&window.array)?
+                        {
+                            return Err(malformed());
+                        }
+                        let exclusive = Self::MutableArray {
+                            array: window.array.clone(),
+                            array_type: window.array_type,
+                            offset: u64::try_from(window.offset).map_err(|_| malformed())?,
+                            length: u64::try_from(window.length).map_err(|_| malformed())?,
+                            referent: referent.clone(),
+                            descriptor_home: None,
+                        };
+                        exclusive.validate_mutable_referent(execution, referent)?;
+                        Ok(exclusive)
+                    }
+                    Self::Representation(_) => {
+                        Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                            "upgrade_mutability requires a writable byte descriptor",
+                        ))
+                    }
+                    Self::MutableArray { .. }
+                    | Self::MutableField { .. }
+                    | Self::MutableOwner { .. } => {
+                        self.validate_mutable_referent(execution, referent)?;
+                        Ok(self.clone())
+                    }
+                }
+            }
+
             pub(crate) fn validate_presented_referent(
                 &self,
                 execution: &TerminalExecution,
@@ -239,7 +332,7 @@ pub(crate) mod byte_sequences {
                         _ => (
                             referent.path.as_slice(),
                             *offset == 0
-                                && byte_arrays::byte_array_length(&structural_types, *array_type)
+                                && execution.checked_byte_array_extent(array, *array_type)
                                     == Some(*length),
                         ),
                     };
@@ -266,7 +359,8 @@ pub(crate) mod byte_sequences {
                             &referent.qualifications,
                         )
                         .is_some()
-                        && byte_arrays::byte_array_length(&structural_types, *array_type)
+                        && execution
+                            .checked_byte_array_extent(array, *array_type)
                             .is_some_and(|extent| {
                                 offset.checked_add(*length).is_some_and(|end| end <= extent)
                             })
@@ -765,9 +859,9 @@ pub(crate) mod byte_sequences {
                         ..
                     } => {
                         binding.validate_mutable_referent(self, selected)?;
-                        let extent =
-                            byte_arrays::byte_array_length(&self.structural_types(), *array_type)
-                                .ok_or(malformed())?;
+                        let extent = self
+                            .checked_byte_array_extent(array, *array_type)
+                            .ok_or(malformed())?;
                         if self.stored_byte_array_length(array)? as u128 != u128::from(extent)
                             || offset.checked_add(*length).is_none_or(|end| end > extent)
                         {
@@ -2611,7 +2705,6 @@ pub(crate) mod byte_sequences {
         }
     }
     pub(crate) mod write {
-        use crate::boundary::structural_inputs::byte_arrays::byte_array_length;
         use semantic_vocabulary::{IntegerSign, IntegerType, PlaceId, ValueId};
         use terminal_psi::{
             Operation, OperationKind, OperationResult, StructuralAccess, StructuralArgument,
@@ -2729,7 +2822,8 @@ pub(crate) mod byte_sequences {
                     ..
                 } = binding
                 {
-                    let length = byte_array_length(&self.structural_types(), *array_type)
+                    let length = self
+                        .checked_byte_array_extent(array, *array_type)
                         .ok_or(malformed())?;
                     if self.stored_byte_array_length(array)? as u128 != u128::from(length) {
                         return Err(malformed());
@@ -2976,7 +3070,19 @@ pub(crate) mod byte_sequences {
         backing: Arc<ByteSequenceBacking>,
         window: Range<usize>,
         descriptor_home: Option<crate::boundary::values::TerminalStructuralValue>,
-        original_array: Option<OriginalByteArrayWindow>,
+        original_array: Option<ArrayOrigin>,
+    }
+
+    #[derive(Clone)]
+    enum ArrayOrigin {
+        Local(OriginalByteArrayWindow),
+        /// This array lives in a different interpreter instance. Its frame
+        /// coordinates can only be dereferenced there. Retain its actual first
+        /// element address for address observations in the receiving instance.
+        Component {
+            first: Option<Arc<crate::storage::storage_addresses::ScalarStorageAddress>>,
+            start: usize,
+        },
     }
 
     #[derive(Clone)]
@@ -3032,12 +3138,54 @@ pub(crate) mod byte_sequences {
         }
 
         pub(crate) fn with_original_array(mut self, window: OriginalByteArrayWindow) -> Self {
-            self.original_array = Some(window);
+            self.original_array = Some(ArrayOrigin::Local(window));
             self
         }
 
         pub(crate) fn original_array(&self) -> Option<&OriginalByteArrayWindow> {
-            self.original_array.as_ref()
+            match self.original_array.as_ref() {
+                Some(ArrayOrigin::Local(window)) => Some(window),
+                _ => None,
+            }
+        }
+
+        pub(crate) fn lend_array_to_component(
+            &mut self,
+            source: &mut crate::engine::execution::TerminalExecution<'_>,
+        ) -> Result<(), crate::boundary::errors::TerminalInterpretError> {
+            let Some(window) = self.original_array() else {
+                return Ok(());
+            };
+            if self.len() != window.length {
+                return Err(crate::boundary::errors::malformed());
+            }
+            let first = source.lent_array_window_address(window)?;
+            self.original_array = Some(ArrayOrigin::Component {
+                first: first.map(Arc::new),
+                start: self.window.start,
+            });
+            Ok(())
+        }
+
+        pub(crate) fn component_array_address(
+            &self,
+            index: usize,
+        ) -> Option<(
+            &crate::storage::storage_addresses::ScalarStorageAddress,
+            usize,
+        )> {
+            let ArrayOrigin::Component {
+                first: Some(first),
+                start,
+            } = self.original_array.as_ref()?
+            else {
+                return None;
+            };
+            (index < self.len()).then_some(())?;
+            Some((
+                first,
+                self.window.start.checked_sub(*start)?.checked_add(index)?,
+            ))
         }
 
         pub(crate) fn owned_snapshot(&self) -> Self {
@@ -3047,6 +3195,9 @@ pub(crate) mod byte_sequences {
         }
 
         pub(crate) fn original_byte_allocation(&self) -> Option<(u64, usize, usize)> {
+            if self.original_array.is_some() {
+                return None;
+            }
             Some((
                 self.backing.exposure_namespace?,
                 self.backing.storage.bytes().len(),
@@ -3089,7 +3240,7 @@ pub(crate) mod byte_sequences {
         }
 
         pub(crate) fn storage_address_coordinate(&self, index: usize) -> Option<(u64, u64)> {
-            if index >= self.len() {
+            if index >= self.len() || self.original_array.is_some() {
                 return None;
             }
             Some((
@@ -3162,13 +3313,15 @@ pub(crate) mod byte_sequences {
         pub(crate) fn subslice(&self, start: usize, end: usize) -> Option<Self> {
             self.bytes().get(start..end)?;
             let original_array = match &self.original_array {
-                Some(original) => Some(OriginalByteArrayWindow {
-                    array: original.array.clone(),
-                    array_type: original.array_type,
-                    offset: original.offset.checked_add(start)?,
-                    length: end - start,
-                }),
-                None => None,
+                Some(ArrayOrigin::Local(original)) => {
+                    Some(ArrayOrigin::Local(OriginalByteArrayWindow {
+                        array: original.array.clone(),
+                        array_type: original.array_type,
+                        offset: original.offset.checked_add(start)?,
+                        length: end - start,
+                    }))
+                }
+                origin => origin.clone(),
             };
             Some(Self {
                 backing: Arc::clone(&self.backing),
@@ -3518,6 +3671,22 @@ pub(crate) mod element_views {
             }
         }
 
+        fn indexed_path<'path>(
+            &self,
+            path: &'path [StructuralPathSegment],
+        ) -> Result<(usize, &'path [StructuralPathSegment]), TerminalInterpretError> {
+            let Some((StructuralPathSegment::FixedIndex(index), suffix)) = path.split_first()
+            else {
+                return Err(malformed());
+            };
+            let index = usize::try_from(*index).map_err(|_| malformed())?;
+            if index >= self.len() {
+                return Err(malformed());
+            }
+            let position = self.window.start.checked_add(index).ok_or(malformed())?;
+            Ok((position, suffix))
+        }
+
         pub(crate) fn structural_projection(
             &self,
             types: &crate::embedding::program::ProgramDeclarations<
@@ -3532,16 +3701,7 @@ pub(crate) mod element_views {
                 if writing || self.access != StructuralAccess::SharedBorrow {
                     return Err(malformed());
                 }
-                let Some((StructuralPathSegment::FixedIndex(position), suffix)) =
-                    path.split_first()
-                else {
-                    return Err(malformed());
-                };
-                let position = usize::try_from(*position).map_err(|_| malformed())?;
-                if position >= self.len() {
-                    return Err(malformed());
-                }
-                let selected = self.window.start.checked_add(position).ok_or(malformed())?;
+                let (selected, suffix) = self.indexed_path(path)?;
                 return Ok((
                     elements.element(selected).ok_or(malformed())?.clone(),
                     suffix.to_vec(),
@@ -3569,15 +3729,7 @@ pub(crate) mod element_views {
                 }
                 return Ok((collection.clone(), Vec::new()));
             }
-            let Some((StructuralPathSegment::FixedIndex(index), suffix)) = path.split_first()
-            else {
-                return Err(malformed());
-            };
-            let index = usize::try_from(*index).map_err(|_| malformed())?;
-            if index >= self.len() {
-                return Err(malformed());
-            }
-            let selected = self.window.start.checked_add(index).ok_or(malformed())?;
+            let (selected, suffix) = self.indexed_path(path)?;
             let mut path = Vec::with_capacity(path.len());
             path.push(StructuralPathSegment::FixedIndex(
                 u64::try_from(selected).map_err(|_| malformed())?,
@@ -3893,20 +4045,7 @@ pub(crate) mod element_views {
             if !requested.admits_referent(self.access) {
                 return Err(malformed());
             }
-            let Some((StructuralPathSegment::FixedIndex(element_index), suffix)) =
-                path.split_first()
-            else {
-                return Err(malformed());
-            };
-            let element_index = usize::try_from(*element_index).map_err(|_| malformed())?;
-            if element_index >= self.len() {
-                return Err(malformed());
-            }
-            let position = self
-                .window
-                .start
-                .checked_add(element_index)
-                .ok_or(malformed())?;
+            let (position, suffix) = self.indexed_path(path)?;
             if let ElementViewBacking::ImmutableSequence(elements) = &self.backing {
                 if writing || self.access != StructuralAccess::SharedBorrow {
                     return Err(malformed());
@@ -3963,6 +4102,19 @@ pub(crate) mod element_views {
                 .ok_or(malformed())?;
                 execution.resident_element_storage(collection, position, suffix, scalar, !writing)
             }
+        }
+
+        pub(crate) fn exclusive_reborrow(&self) -> Result<Self, TerminalInterpretError> {
+            if self.access != StructuralAccess::SharedBorrow
+                || !matches!(self.backing, ElementViewBacking::Structural { .. })
+            {
+                return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "upgrade_mutability requires an array with writable elements",
+                ));
+            }
+            let mut exclusive = self.clone();
+            exclusive.access = StructuralAccess::MutableBorrow;
+            Ok(exclusive)
         }
 
         pub(crate) fn subslice(
@@ -5010,9 +5162,10 @@ pub(crate) mod element_views {
             Ok(OperationFlow::Advance)
         }
 
-        /// A shared reference to a view's whole window as `[T; extent]`. The
-        /// reference reads the view's own elements through its collection
-        /// loan; nothing is copied.
+        /// A shared or mutable reference to a view's whole window as
+        /// `[T; extent]`. The reference reaches the view's own elements
+        /// through its collection loan; nothing is copied, so a write through
+        /// a mutable reference lands in the view's backing.
         pub(crate) fn execute_element_view_fixed_array(
             &mut self,
             operation: &Operation,
@@ -5072,8 +5225,10 @@ pub(crate) mod element_views {
                 }
                 _ => return Err(malformed()),
             };
-            if access != StructuralAccess::SharedBorrow
-                || result.multiplicity != StructuralMultiplicity::Affine
+            if !matches!(
+                access,
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            ) || result.multiplicity != StructuralMultiplicity::Affine
                 || !matches_view
                 || view.len() != length
                 || u64::try_from(length).ok() != Some(*extent)
@@ -5104,13 +5259,8 @@ pub(crate) mod element_views {
             self.reference_referents.insert(
                 crate::boundary::values::StructuralRuntimePlace::from(&carrier),
                 crate::storage::reference::ReferenceReferent {
-                    placed: None,
-                    view: referent,
-                    primitive_loan: None,
                     collection_loan: Some(loan),
-                    byte_owner: None,
-                    byte_region: None,
-                    aggregate_view: None,
+                    ..crate::storage::reference::ReferenceReferent::from_view(referent)
                 },
             )?;
             self.structural_values.insert(result.place, carrier)?;
@@ -5824,7 +5974,7 @@ pub(crate) mod element_views {
         use terminal_psi::{StructuralAccess, StructuralArgument, StructuralPathSegment};
         use terminal_semantics::{
             ElementRepresentationLeaf, ElementRepresentationRelation, ScalarRepresentationViewPair,
-            ScalarViewValue, scalar_reference_view_value,
+            scalar_reference_view_value,
         };
 
         pub(crate) struct TypedElementView {
@@ -5893,18 +6043,7 @@ pub(crate) mod element_views {
                     ScalarRepresentationViewPair::classify(value.scalar_type(), target)?.view(input)
                 })
                 .ok_or(malformed())?;
-            match (target, output) {
-                (ScalarType::Boolean, ScalarViewValue::Boolean(value)) => {
-                    Ok(TerminalScalarValue::Boolean(value))
-                }
-                (ScalarType::Integer(scalar_type), ScalarViewValue::Integer(value)) => {
-                    Ok(TerminalScalarValue::Integer { scalar_type, value })
-                }
-                (ScalarType::IeeeFloat(_), ScalarViewValue::IeeeFloat(value)) => {
-                    Ok(TerminalScalarValue::IeeeFloat(value))
-                }
-                _ => Err(malformed()),
-            }
+            crate::boundary::values::scalar_from_view(target, output)
         }
 
         impl TerminalExecution<'_> {

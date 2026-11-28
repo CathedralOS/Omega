@@ -456,37 +456,42 @@ impl Program<'_> {
         let reference = self
             .storage_carrier(entry, reference)
             .map_err(|error| error.detail)?;
-        let (reference, access, referent) = match self
-            .typed
-            .type_reference_table
-            .type_reference(reference)
-        {
-            TypeReferenceNode::Reference {
-                referee,
-                access,
-                lifetime,
-            } => {
-                if lifetime.is_some() {
-                    return Err(
-                        "calling ABI reference storage requires its retained named lifetime".into(),
-                    );
+        let (reference, access, referent) =
+            match self.typed.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Reference {
+                    referee,
+                    access,
+                    lifetime,
+                } => {
+                    if let Some(tag) = lifetime {
+                        // The ABI describes the borrowed carrier. Resolve its source
+                        // binder before projecting the representation used for the call.
+                        self.named_reference_region(
+                            entry,
+                            reference,
+                            self.lifetime_owner,
+                            tag.as_str(),
+                        )
+                        .map_err(|error| error.detail)?;
+                    }
+                    let access = match access {
+                        language_core::ReferenceAccess::Shared => StructuralAccess::SharedBorrow,
+                        language_core::ReferenceAccess::Mutable => StructuralAccess::MutableBorrow,
+                        language_core::ReferenceAccess::WriteOnly => {
+                            StructuralAccess::WriteOnlyBorrow
+                        }
+                    };
+                    let (carrier, referent) = self
+                        .borrowed_formal_carrier(entry, reference, *referee)
+                        .map_err(|error| error.detail)?;
+                    (carrier, access, referent)
                 }
-                let access = match access {
-                    language_core::ReferenceAccess::Shared => StructuralAccess::SharedBorrow,
-                    language_core::ReferenceAccess::Mutable => StructuralAccess::MutableBorrow,
-                    language_core::ReferenceAccess::WriteOnly => StructuralAccess::WriteOnlyBorrow,
-                };
-                let (carrier, referent) = self
-                    .borrowed_formal_carrier(entry, reference, *referee)
-                    .map_err(|error| error.detail)?;
-                (carrier, access, referent)
-            }
-            _ => (
-                reference,
-                StructuralAccess::Owned,
-                crate::body::BorrowedReferent::Value,
-            ),
-        };
+                _ => (
+                    reference,
+                    StructuralAccess::Owned,
+                    crate::body::BorrowedReferent::Value,
+                ),
+            };
         let structural_type = if referent == crate::body::BorrowedReferent::Slice
             && access == StructuralAccess::MutableBorrow
         {
@@ -1292,10 +1297,18 @@ mod tests {
             DependencyScope::Product,
             crate::shared_reading(&typed),
         );
-        let ordinary = program.reserve_row(symbol).unwrap();
-        let policy = program.reserve_row(symbol).unwrap();
-        // Both rows are read: only the calling selection distinguishes them.
-        program.unread_rows.clear();
+        let complete = |program: &mut Program<'_>| {
+            program
+                .read_row(symbol, |_, _| {
+                    Ok(crate::read::machine::MachineRow {
+                        signature: crate::body::Signature::unread(),
+                        context: Default::default(),
+                    })
+                })
+                .unwrap()
+        };
+        let ordinary = complete(&mut program);
+        let policy = complete(&mut program);
 
         program.retain_calling_policy_body(policy);
 

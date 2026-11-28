@@ -12,8 +12,7 @@ const NAME: &str = "TargetOperationCorrespondence";
 
 // Each test compiles its own copy so concurrent tests never share a build directory.
 fn project(test: &str, fixture: &str) -> PathBuf {
-    let source = support::repository_root()
-        .join(fixture);
+    let source = support::repository_root().join(fixture);
     let copy = std::env::temp_dir().join(format!(
         "omega-stage-validators-{test}-{}",
         std::process::id()
@@ -199,6 +198,13 @@ fn default_compilation_runs_no_validator() {
     // `validator rows` step, which default compilation never has.
     let (success, console, report) = compile("default", CASE_FIXTURE, &["--timings"]);
     assert!(success, "{console}");
+    for phase in [
+        "timeline / compile_native",
+        "timeline / publish_native",
+        "Psi 06: LoweredProgram -> CheckedProgram",
+    ] {
+        assert!(console.contains(phase), "missing {phase}: {console}");
+    }
     assert!(!console.contains("stage validator"), "{console}");
     assert!(!console.contains("validator rows"), "{console}");
     assert!(!report.contains("stage validator"), "{report}");
@@ -261,7 +267,13 @@ fn failed_target_output_directory_still_reports_and_builds_a_valid_sibling() {
         .arg(outputs.path())
         .arg("--report-file")
         .arg(&report)
-        .args(["--build-input", "build.omg", "--build-input", "main.omg", "build.omg"])
+        .args([
+            "--build-input",
+            "build.omg",
+            "--build-input",
+            "main.omg",
+            "build.omg",
+        ])
         .current_dir(&directory)
         .output()
         .unwrap();

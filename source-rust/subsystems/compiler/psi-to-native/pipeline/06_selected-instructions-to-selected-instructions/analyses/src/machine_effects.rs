@@ -140,6 +140,16 @@ mod facts {
             };
             let mut functions = Vec::with_capacity(source.functions.len());
             for function in &source.functions {
+                let mut calls: Vec<_> = function.calls.iter().collect();
+                calls.sort_unstable_by_key(|call| call.instruction);
+                if let Some(duplicate) = calls
+                    .windows(2)
+                    .find(|pair| pair[0].instruction == pair[1].instruction)
+                {
+                    return Err(MachineEffectError::ConstraintEffectMismatch {
+                        instruction: duplicate[0].instruction,
+                    });
+                }
                 let mut blocks = Vec::with_capacity(function.blocks.len());
                 for block in &function.blocks {
                     let mut instructions = Vec::with_capacity(block.instructions.len() + 1);
@@ -147,6 +157,7 @@ mod facts {
                         instructions.push(compute_instruction(
                             function,
                             instruction,
+                            &calls,
                             physical,
                             constraints,
                             &declarations_by_key,
@@ -157,6 +168,7 @@ mod facts {
                     instructions.push(compute_instruction(
                         function,
                         terminator,
+                        &calls,
                         physical,
                         constraints,
                         &declarations_by_key,
@@ -274,6 +286,7 @@ mod facts {
         fn compute_instruction(
             function: &SelectedFunction,
             instruction: &SelectedInstruction,
+            calls: &[&selected_instructions::SelectedCallContract],
             physical: &ValidatedPhysicalRegisterModel,
             constraints: &PreparedRegisterConstraintCatalog,
             declarations_by_key: &std::collections::BTreeMap<
@@ -292,8 +305,28 @@ mod facts {
                     instruction: instruction.id,
                 });
             }
-            let constraint =
-                super::foreign_call::constraint(function, instruction, physical, constraints)?;
+            let record = instruction.kind.call_target().and_then(|_| {
+                calls
+                    .binary_search_by_key(&instruction.id, |call| call.instruction)
+                    .ok()
+                    .map(|i| calls[i])
+            });
+            if record.is_some_and(|r| {
+                Some(selected_instructions::SelectedCallTarget::from_native(
+                    r.call.target,
+                )) != instruction.kind.call_target()
+            }) {
+                return Err(MachineEffectError::ConstraintEffectMismatch {
+                    instruction: instruction.id,
+                });
+            }
+            let constraint = super::foreign_call::constraint(
+                function,
+                instruction,
+                record,
+                physical,
+                constraints,
+            )?;
             check_operands(function, &instruction.operands, &constraint.operands).map_err(
                 |detail| MachineEffectError::ConstraintOperandMismatch {
                     machine: function.machine,
@@ -314,6 +347,7 @@ mod facts {
             let declaration = super::foreign_call::declaration(
                 function,
                 instruction,
+                record,
                 physical,
                 &constraint,
                 exact_declaration(function.machine, instruction, declarations_by_key)?,
@@ -760,6 +794,7 @@ mod facts {
         pub(super) fn constraint<'catalog>(
             function: &SelectedFunction,
             instruction: &SelectedInstruction,
+            record: Option<&selected_instructions::SelectedCallContract>,
             physical: &ValidatedPhysicalRegisterModel,
             catalog: &'catalog PreparedRegisterConstraintCatalog,
         ) -> Result<Cow<'catalog, RegisterInstructionConstraint>, MachineEffectError> {
@@ -771,17 +806,43 @@ mod facts {
                 instruction.constraint,
             )
             .ok_or_else(invalid)?;
-            if instruction
-                .kind
-                .call_target()
-                .is_some_and(|target| target.indirect_code_offset().is_some())
-            {
-                selected_instructions::calls::dynamic::call_record(function, instruction)
-                    .ok_or_else(invalid)?;
-                return Ok(Cow::Owned(
-                    selected_instructions::calls::dynamic::instantiate_constraint(base, physical)
-                        .ok_or_else(invalid)?,
-                ));
+            if let Some(target) = instruction.kind.call_target() {
+                use selected_instructions::calls::{dynamic, private_inputs};
+                let row = if target.indirect_code_offset().is_some() {
+                    record.ok_or_else(invalid)?;
+                    Cow::Owned(dynamic::instantiate_constraint(base, physical).ok_or_else(invalid)?)
+                } else {
+                    Cow::Borrowed(base)
+                };
+                return if record.is_some_and(|record| record.call.suspension_crossing.is_some()) {
+                    let owner = private_inputs::execution_owner(physical).ok_or_else(invalid)?;
+                    let position = row
+                        .operands
+                        .iter()
+                        .take_while(|operand| {
+                            operand.access == register_model::RegisterOperandAccess::Use
+                        })
+                        .count();
+                    let operand = instruction.operands.get(position).ok_or_else(invalid)?;
+                    let register = function
+                        .virtual_registers
+                        .get(operand.virtual_register.0 as usize)
+                        .ok_or_else(invalid)?;
+                    if register.id != operand.virtual_register
+                        || Some(register.scalar_type) != private_inputs::owner_pointer_type(owner)
+                        || register.definition_site.is_some()
+                        || register.origin
+                            != selected_instructions::VirtualRegisterOrigin::ActivationOwner
+                        || register.entry_fixed_view != Some(owner.id)
+                    {
+                        return Err(invalid());
+                    }
+                    Ok(Cow::Owned(
+                        private_inputs::add(&row, owner, physical).ok_or_else(invalid)?,
+                    ))
+                } else {
+                    Ok(row)
+                };
             }
             if !matches!(
                 instruction.kind,
@@ -808,6 +869,7 @@ mod facts {
         pub(super) fn declaration<'catalog>(
             function: &SelectedFunction,
             instruction: &SelectedInstruction,
+            record: Option<&selected_instructions::SelectedCallContract>,
             physical: &ValidatedPhysicalRegisterModel,
             constraint: &RegisterInstructionConstraint,
             base: &'catalog MachineEffectDeclaration,
@@ -815,19 +877,25 @@ mod facts {
             let invalid = || MachineEffectError::ConstraintEffectMismatch {
                 instruction: instruction.id,
             };
-            if instruction
-                .kind
-                .call_target()
-                .is_some_and(|target| target.indirect_code_offset().is_some())
-            {
-                selected_instructions::calls::dynamic::call_record(function, instruction)
-                    .ok_or_else(invalid)?;
-                return Ok(Cow::Owned(
-                    selected_instructions::calls::dynamic::instantiate_declaration(
-                        base, constraint, physical,
+            if let Some(target) = instruction.kind.call_target() {
+                use selected_instructions::calls::{dynamic, private_inputs};
+                let mut declaration = if target.indirect_code_offset().is_some() {
+                    record.ok_or_else(invalid)?;
+                    Cow::Owned(
+                        dynamic::instantiate_declaration(base, constraint, physical)
+                            .ok_or_else(invalid)?,
                     )
-                    .ok_or_else(invalid)?,
-                ));
+                } else {
+                    Cow::Borrowed(base)
+                };
+                if record.is_some_and(|record| record.call.suspension_crossing.is_some()) {
+                    for alternative in &mut declaration.to_mut().alternatives {
+                        alternative.encoded =
+                            private_inputs::with_owner_effects(&alternative.encoded)
+                                .ok_or_else(invalid)?;
+                    }
+                }
+                return Ok(declaration);
             }
             if !matches!(
                 instruction.kind,
@@ -1170,6 +1238,7 @@ pub(crate) mod indirect_call_tests {
                         OperationId::new(1).unwrap(),
                     ),
                     call: target_vocabulary::LegalizedScalarCall {
+                        suspension_crossing: None,
                         descriptor_origins: Vec::new(),
                         access_bindings: Vec::new(),
                         source: target_vocabulary::NativeCallOrigin::Authored,
@@ -1286,6 +1355,62 @@ pub(crate) mod indirect_call_tests {
                 slot: 2,
             },
         ]
+    }
+
+    #[test]
+    fn suspending_callable_keeps_execution_owner_separate_from_selected_code() {
+        for target in [
+            NativeTarget::linux_x64(),
+            NativeTarget::windows_x64(),
+            NativeTarget::macos_arm64(),
+            NativeTarget::linux_arm64(),
+            NativeTarget::windows_arm64(),
+        ] {
+            let environment = baseline_target_register_environment(target).unwrap();
+            let callee = indirect_targets()[0];
+            let original = selected_call(&environment, target, callee);
+            let view = selected_instructions::calls::private_inputs::execution_owner(
+                environment.physical(),
+            )
+            .unwrap();
+            let owner = VirtualRegisterId(1);
+            let marked = changed(&original, |function| {
+                function.calls[0].call.suspension_crossing =
+                    semantic_vocabulary::SuspensionCrossingId::new(1);
+                function.virtual_registers.push(VirtualRegister {
+                    id: owner,
+                    class: view.class,
+                    origin: VirtualRegisterOrigin::ActivationOwner,
+                    entry_fixed_view: Some(view.id),
+                    definition_site: None,
+                    scalar_type: target_vocabulary::selector_carrier_type(),
+                });
+                let mut operand = function.blocks[0].instructions[0].operands[0];
+                operand.operand = 1;
+                operand.virtual_register = owner;
+                operand.fixed_view = Some(view.id);
+                function.blocks[0].instructions[0].operands.push(operand);
+            });
+            let effects = analyze(&marked, &environment).unwrap();
+            let call = &effects.plan().functions[0].blocks[0].instructions[0];
+            assert!(call.alternatives.iter().all(|alternative| {
+                alternative.encoded.external_operand_reads == [0, 1]
+                    && alternative.encoded.memory
+                        == MachineEncodedMemoryEffect::ReadPointerV1 {
+                            pointer_operand: 0,
+                            byte_count: 8,
+                        }
+            }));
+            let forged = changed(&marked, |function| {
+                function.blocks[0].instructions[0].operands[1].virtual_register =
+                    VirtualRegisterId(0);
+            });
+            assert!(analyze(&forged, &environment).is_err());
+            let missing = changed(&marked, |function| {
+                function.blocks[0].instructions[0].operands.pop();
+            });
+            assert!(analyze(&missing, &environment).is_err());
+        }
     }
 
     #[test]

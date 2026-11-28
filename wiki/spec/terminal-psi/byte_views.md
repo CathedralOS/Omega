@@ -376,8 +376,11 @@ observation.
 
 A by-value `ElementViewRead` requires a `[copy]` element type. The
 compiler rejects moving a non-copy element out of borrowed storage. A shared
-or mutable borrow of an indexed element retains its backing. A range such as
-`@items[start..end]` returns a view with the element type of the input.
+or mutable borrow of an indexed element retains its backing. When a program
+copies a record from a typed slice, each borrowed field keeps its original
+loan through the field's final use. A slice borrowed from an array has its
+own loan on that array. A range such as `@items[start..end]` returns a view
+with the element type of the input.
 Element writes move the supplied
 value in and the displaced element out of its slot under the ordinary
 disposal law for its type; the write supplies no escape for a value whose
@@ -450,6 +453,12 @@ a coincidentally equal index or equal element type does not equate collections.
 The selected declarations determine the scalar carrier, including integer width
 and IEEE format. Erased fields, atomic storage and unreadable reference paths
 cannot be used as ordinary scalar observations.
+
+A terminal alignment observation selects the storage at the end of the path.
+It returns the same `u64` guarantee as a location query at that point.
+The path records indirection through a reference and the checked first element
+of a slice explicitly. Writes to the selected bytes preserve the location.
+Changing a descriptor or moving its backing requires a fresh observation.
 
 This is a logical observation, not an instruction that reevaluates storage.
 An executed read may relate its fresh result to that observation only under its

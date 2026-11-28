@@ -12,8 +12,8 @@ pub mod stage_validators;
 
 pub use driver::inputs::components::ComponentSourcePublication;
 pub use driver::inputs::published_application::{
-    SavedProgramTarget, SourceNativeTarget, prepare_saved_program, prepare_source_program,
-    review_source_providers,
+    SavedProgramTarget, SourceNativeTarget, prepare_contained_saved_program, prepare_saved_program,
+    prepare_source_program, review_source_providers,
 };
 pub use host_provider_inputs::{InstalledPackageProviders, TargetProviderInstallation};
 pub use native_artifact::AdmittedRuntimeProgram;
@@ -45,6 +45,7 @@ pub struct NativeEmission {
 /// A native invocation whose target provider demand was matched to its authorized
 /// program. Its reviewed assumptions travel to the same entry and installation checks.
 pub struct NativeProgram {
+    policy_source: driver::inputs::published_application::ProductPolicySource,
     terminal: RetainedTerminalArtifact,
     suppliers: driver::inputs::components::VerifiedSuppliers,
     permissions: provider_admission::TerminalAuthorityPermissionPolicy,
@@ -114,6 +115,7 @@ impl NativeProgram {
     ) -> Result<T, Vec<Diagnostic>> {
         let Self {
             terminal,
+            policy_source,
             suppliers,
             permissions,
             isolated_execution_grant,
@@ -121,6 +123,7 @@ impl NativeProgram {
         } = self;
         let mut receipts = Vec::new();
         let request = NativeCompileRequest {
+            policy_source,
             suppliers: &suppliers,
             retain_native_stage_inputs,
             installation_assumptions: &installation_assumptions,

@@ -4,21 +4,21 @@ use clock/model/model.omg;
 // At most 16 rows, elapsed and host <=100000: sums <=1.6e11, scaled drift
 // <=1.6e17 and residual products <=3.2e16, all strictly below i64::MAX.
 public machine fit_clock(acquisition: @mutable |model|::Acquisition) {
-    acquisition.numerator = 0;
-    acquisition.denominator = 0;
-    acquisition.residual = 0;
-    transition { _ -> accumulate(acquisition, 1) }
+    acquisition.numerator = 0 as i64 +Wrapping;
+    acquisition.denominator = 0 as i64 +Wrapping;
+    acquisition.residual = 0 as i64 +Wrapping;
+    transition { _ -> accumulate(acquisition, 1 as i64 +Wrapping) }
     machine accumulate(acquisition: @mutable |model|::Acquisition, index: i64 in Wrapping) {
         transition index >= 1 && index < 16 && index < acquisition.count {
             true -> add(acquisition, index),
-            false -> residual(acquisition, 1)
+            false -> residual(acquisition, 1 as i64 +Wrapping)
         }
     }
     machine add(acquisition: @mutable |model|::Acquisition, index: i64 in Wrapping)
     requires index >= 1 && index < 16
     {
-        let ticks: i64 in Wrapping = acquisition.elapsed[index];
-        let host: i64 in Wrapping = acquisition.host[index] - acquisition.host[0];
+        let ticks: i64 in Wrapping = acquisition.elapsed[index as -Wrapping];
+        let host: i64 in Wrapping = acquisition.host[index as -Wrapping] - acquisition.host[0];
         acquisition.numerator = acquisition.numerator + ticks * host;
         acquisition.denominator = acquisition.denominator + ticks * ticks;
         transition { _ -> accumulate(acquisition, index + 1) }
@@ -32,7 +32,7 @@ public machine fit_clock(acquisition: @mutable |model|::Acquisition) {
     machine measure(acquisition: @mutable |model|::Acquisition, index: i64 in Wrapping)
     requires index >= 1 && index < 16
     {
-        let scaled: i64 in Wrapping = (acquisition.host[index] - acquisition.host[0]) * acquisition.denominator - acquisition.elapsed[index] * acquisition.numerator;
+        let scaled: i64 in Wrapping = (acquisition.host[index as -Wrapping] - acquisition.host[0]) * acquisition.denominator - acquisition.elapsed[index as -Wrapping] * acquisition.numerator;
         transition scaled < 0 {
             true -> maximum(acquisition, index, 0 - scaled),
             false -> maximum(acquisition, index, scaled)

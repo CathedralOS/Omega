@@ -8,12 +8,23 @@ use terminal_psi::ArrayExtent;
 impl Program<'_> {
     pub(in crate::read) fn array_argument_storage_matches(
         &self,
+        actual: StructuralTypeId,
+        expected: StructuralTypeId,
+        length_matches: impl Fn(&ArrayExtent, &ArrayExtent) -> bool,
+    ) -> bool {
+        self.array_storage_matches_by(actual, expected, length_matches, |a, b| a == b)
+    }
+
+    /// Compare successive array dimensions, then compare the storage at their leaf.
+    pub(in crate::read) fn array_storage_matches_by(
+        &self,
         mut actual: StructuralTypeId,
         mut expected: StructuralTypeId,
         length_matches: impl Fn(&ArrayExtent, &ArrayExtent) -> bool,
+        leaf_matches: impl Fn(StructuralTypeId, StructuralTypeId) -> bool,
     ) -> bool {
         for _ in 0..=self.records.len() {
-            if actual == expected {
+            if leaf_matches(actual, expected) {
                 return true;
             }
             let (Some(left), Some(right)) = (self.records.get(actual), self.records.get(expected))

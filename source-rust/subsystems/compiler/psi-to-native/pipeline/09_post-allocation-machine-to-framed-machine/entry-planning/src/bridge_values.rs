@@ -425,6 +425,18 @@ impl Encoding {
         extent: u32,
         load: bool,
     ) -> Result<(), Error> {
+        self.copy_indirect_at(bytes, snapshot, pointer, 0, extent, load)
+    }
+
+    pub(crate) fn copy_indirect_at(
+        &self,
+        bytes: &mut AdapterInstructions,
+        snapshot: u32,
+        pointer: u32,
+        member: u32,
+        extent: u32,
+        load: bool,
+    ) -> Result<(), Error> {
         let mut offset = 0_u32;
         while offset < extent {
             let size = widest_word(extent - offset)?;
@@ -433,7 +445,7 @@ impl Encoding {
                 self.memory(bytes, self.scratch, slot, size as u8, true)?;
             }
             self.memory(bytes, self.address_scratch, pointer, 8, true)?;
-            self.pointer_memory(bytes, offset, size as u8, load)?;
+            self.pointer_memory(bytes, frame_offset(member, offset)?, size as u8, load)?;
             if load {
                 self.memory(bytes, self.scratch, slot, size as u8, false)?;
             }

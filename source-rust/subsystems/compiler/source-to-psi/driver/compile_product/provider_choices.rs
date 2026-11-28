@@ -10,18 +10,18 @@ mod tests;
 mod authored_defaults;
 pub use authored_defaults::retain_provider_defaults;
 
-use checked_program_to_psi::provider_supply;
-use checked_program_to_psi::provider_choice_inputs;
-use checked_program_to_psi::provider_choice_inputs::{
-    ProviderSelection, ProviderSelectionSubject, TargetProviderDefaults,
-};
-use checked_program_to_psi::provider_supply::{
-    ProviderSupply, SupplyAuthority, UnchosenSupply, choose_supply,
-};
 use crate::source_state::provider_declarations::ProviderPlanningContext;
 use crate::source_state::service_declarations::projection;
 use crate::source_state::trait_definition::{AppliedTraitScope, TraitApplicationEnvironment};
 use crate::source_state::{FrozenTypedTrees, TypedTrees};
+use checked_program_to_psi::provider_choice_inputs;
+use checked_program_to_psi::provider_choice_inputs::{
+    ProviderSelection, ProviderSelectionSubject, TargetProviderDefaults,
+};
+use checked_program_to_psi::provider_supply;
+use checked_program_to_psi::provider_supply::{
+    ProviderSupply, SupplyAuthority, UnchosenSupply, choose_supply,
+};
 use diagnostics::Diagnostic;
 use std::sync::Arc;
 use symbols::SymbolHandle;
@@ -54,6 +54,73 @@ pub struct PreparedProviderChoices {
     pub selections: Vec<ProviderSelectionInput>,
     pub declaration_roots: Vec<SymbolHandle>,
     pub calling_applications: Vec<TraitApplicationEnvironment>,
+}
+
+/// A runtime-selected record and a Build-selected record need the same
+/// signatures. Only schemas with a Calling policy have a calling plan.
+pub(super) fn include_calling_application(
+    source: &FrozenTypedTrees,
+    schema: &TraitApplicationEnvironment,
+    applications: &mut Vec<TraitApplicationEnvironment>,
+) -> Result<(), Vec<Diagnostic>> {
+    let scope = schema
+        .scope(source)
+        .ok_or_else(|| diagnostic("provider schema scope became stale"))?;
+    if source
+        .boundary_signatures()
+        .calling()
+        .requests()
+        .any(|r| r.boundary == scope.declaration.symbol)
+        && !applications.contains(schema)
+    {
+        applications.push(schema.clone());
+    }
+    Ok(())
+}
+
+/// A supplier names its implementation directly. No target precedence or
+/// search through the other implementations of this requirement is involved.
+pub(super) fn prepare_export(
+    typed: &TypedTrees,
+    export: &ProviderSelection,
+) -> Result<ProviderSelectionInput, Vec<Diagnostic>> {
+    let ProviderSelectionSubject::BoundaryTrait(slot) = &export.subject else {
+        return Err(diagnostic(
+            "a provider export requires a closed operation record",
+        ));
+    };
+    let provider = &export.provider_type;
+    let provider_application = provider
+        .applied
+        .then(|| provider_choice_inputs::source_application(provider.application));
+    let root = if let Some(application) = provider_application {
+        typed
+            .product_operand_applications
+            .get(application)
+            .scope
+            .scope(typed)
+    } else {
+        typed
+            .conformance_by_symbol(provider.symbol)
+            .and_then(|record| AppliedTraitScope::from_conformance(typed, record))
+    }
+    .ok_or_else(|| diagnostic("exported provider has no closed satisfaction"))?;
+    let scope = root.declaring_scope(typed, slot.symbol).ok_or_else(|| {
+        diagnostic("exported provider does not satisfy the requested requirement")
+    })?;
+    if let Some(expected) = &slot.application_identity
+        && application(typed, &scope)? != *expected
+    {
+        return Err(diagnostic(
+            "exported provider satisfies a different requirement application",
+        ));
+    }
+    Ok(ProviderSelectionInput {
+        use_as: prepared_typed_trees_to_lowered_program::provider_selections::ProviderUse::Export,
+        schema: scope.environment(),
+        provider: provider.symbol,
+        provider_application,
+    })
 }
 
 struct SourceCandidate {
@@ -493,7 +560,9 @@ pub(crate) fn prepare_in_scope(
             }
             selected_candidates.push(index);
             selections.push(ProviderSelectionInput {
-                target: target.to_owned(),
+                use_as: prepared_typed_trees_to_lowered_program::provider_selections::ProviderUse::Selection {
+                    target: target.to_owned(), composition_mode: origin.source.composition_mode,
+                },
                 schema: candidate.scope.clone(),
                 provider: candidate.provider,
                 provider_application: origin.source.provider_type.applied.then(|| {
@@ -501,23 +570,11 @@ pub(crate) fn prepare_in_scope(
                         origin.source.provider_type.application,
                     )
                 }),
-                composition_mode: origin.source.composition_mode,
             });
             if !origin.source.provider_type.applied {
                 roots.push(candidate.provider);
             }
-            let scope = candidate
-                .scope
-                .scope(typed)
-                .ok_or_else(|| diagnostic("selected provider schema scope became stale"))?;
-            if source
-                .boundary_signatures()
-                .calling()
-                .requests()
-                .any(|request| request.boundary == scope.declaration.symbol)
-            {
-                applications.push(candidate.scope.clone());
-            }
+            include_calling_application(source, &candidate.scope, &mut applications)?;
         }
     }
     roots.sort_unstable_by_key(|symbol| key(*symbol));

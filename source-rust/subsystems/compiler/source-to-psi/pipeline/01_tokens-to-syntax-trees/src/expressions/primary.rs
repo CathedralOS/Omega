@@ -95,7 +95,7 @@ fn probe_applied_requirement_head<'tokens, 'source>(
             syntax,
             name,
             arguments_start,
-            false,
+            crate::types::references::TypePosition::WithoutDomainSuffix,
         )
         .ok()?;
         if !matches!(

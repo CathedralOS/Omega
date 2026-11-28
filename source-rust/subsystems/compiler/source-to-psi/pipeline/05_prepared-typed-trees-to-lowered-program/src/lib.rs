@@ -1186,11 +1186,7 @@ fn finish_logical_witness<'source>(
     program.prepare_domain_predicates(entry)?;
     let source_selection_questions = capture_source_questions(&mut program, entry)?;
     let services = program.service_map(entry)?;
-    let components = prepare_call_components(
-        &bodies,
-        &mut program.signatures,
-        &program.theorem_parameters,
-    )?;
+    let components = program.prepare_call_components(&bodies)?;
     let mut witness = lower_program(
         Some(entry),
         &bodies,
@@ -1218,10 +1214,8 @@ fn finish_logical_witness<'source>(
     // declarations without deriving executable reach from the synthetic body.
     witness.program.reach.names = services.publish(entry, &mut witness.program.module)?;
     witness.source.records = program.source_record_correspondence(entry)?;
+    program.publish_machine_rows(&mut witness.program);
     witness.program.machines = program.symbols;
-    witness.program.names = program.names;
-    witness.program.value_parameters = program.value_parameters;
-    witness.program.value_arguments = program.value_arguments;
     witness.program.applications = program.applications;
     witness.program.selections = program.selections;
     witness.source.selection_questions = Some(
@@ -1423,11 +1417,7 @@ fn finish_reading_into<'source>(
                 program.application_binders(next)?
             });
         }
-        let components = prepare_call_components(
-            &bodies,
-            &mut program.signatures,
-            &program.theorem_parameters,
-        )?;
+        let components = program.prepare_call_components(&bodies)?;
         program.finish_operational_envelopes(&bodies, &components)?;
         program.prepare_service_bindings(diagnostic)?;
         let more = program.prepare_calling_policies(diagnostic, calling, &mut policies)?;
@@ -1648,8 +1638,8 @@ fn finish_reading_into<'source>(
         .map_err(|refusal| {
             let span = refusal.source_span.or_else(|| {
                 program
-                    .names
-                    .get(refusal.site.in_machine()?.0)
+                    .machine_context(refusal.site.in_machine()?.0)
+                    .map(|row| &row.names)
                     .and_then(|names| names.declared)
             });
             refusal.with_source_span(span)
@@ -1668,14 +1658,12 @@ fn finish_reading_into<'source>(
     // must exist before a crossing can name the borrower's live backing.
     lower::suspension::publish_crossings(&mut elaboration.module).map_err(declaration_error)?;
     source.review_requirements = program.review_requirements(diagnostic, &elaboration.module);
+    program.publish_machine_rows(&mut elaboration);
     elaboration.machines = program.symbols;
     elaboration.private_inputs = private_inputs;
-    elaboration.names = program.names;
     elaboration.selections = program.selections;
     elaboration.applications = program.applications;
-    elaboration.value_parameters = program.value_parameters;
     elaboration.generic_binders = program.generic_binders;
-    elaboration.value_arguments = program.value_arguments;
     elaboration.generic_templates = program.generic_templates;
     elaboration.conformance_witnesses = program.conformance_witnesses;
     let calling = match (policies, descriptions) {
@@ -1779,7 +1767,12 @@ fn lower_generic_for<'source>(
     source: Option<&'source read::Program<'source>>,
 ) -> Checked<PreparedProgram<'source>> {
     let mut machine_signatures = signatures.machines.clone();
-    let components = prepare_call_components(bodies, &mut machine_signatures, signatures.theorems)?;
+    let components = prepare_call_components(
+        bodies,
+        &mut machine_signatures,
+        signatures.theorems,
+        std::iter::empty(),
+    )?;
     let signatures = body::Signatures {
         machines: &machine_signatures,
         ..signatures
@@ -1804,15 +1797,16 @@ fn lower_generic_for<'source>(
 
 /// Validate call positions and prepare the graph once for this body closure.
 /// Progress inference and lowering borrow the same component/ranking data.
-fn prepare_call_components(
+fn prepare_call_components<'a>(
     bodies: &IdTable<MachineId, Body>,
     signatures: &mut IdTable<MachineId, Signature>,
     theorems: &[terminal_psi::TheoremParameter],
+    const_scopes: impl Iterator<Item = (MachineId, &'a [read::ConstBinding])>,
 ) -> Checked<components::Components> {
     for (machine, body) in bodies.iter() {
         lower::operational::positions(machine, body)?;
     }
-    components::components(bodies, signatures, theorems)
+    components::components(bodies, signatures, theorems, const_scopes)
 }
 
 fn lower_program<'source>(
@@ -1940,7 +1934,7 @@ fn lower_program_with_parallel<'source>(
             terminal_psi::TerminalIdentityTableBuilder::for_invocation()
         }
     };
-    let declared = lower::places::declare(
+    let mut declared = lower::places::declare(
         diagnostic,
         records,
         bodies,
@@ -1971,6 +1965,9 @@ fn lower_program_with_parallel<'source>(
         typed_source,
         identities,
     )?;
+    if let Some(program) = declarations {
+        declared.records.field_openings = program.field_openings.clone();
+    }
     let outcomes = body::outcome::outcomes(
         bodies,
         signatures,
@@ -2127,21 +2124,32 @@ fn lower_program_with_parallel<'source>(
                     Unserved::Machine("contract identity overflow"),
                 )
             })?;
-        let mut lowered = lower::machine_with_read_only_qualifications(
-            id,
-            contract,
-            bodies,
-            component,
-            components.has_separate_entry(id),
-            signatures,
-            &outcomes,
-            &declared.records,
-            &module.types.structural_types,
-            callables,
-            boundaries,
-            requirements.contains(&id),
-            &qualifications,
-        )?;
+        let lower_members = |component: &[MachineId]| {
+            lower::machine_with_read_only_qualifications(
+                id,
+                contract,
+                bodies,
+                component,
+                components.has_separate_entry(id),
+                components.forwarded_consts(id),
+                signatures,
+                &outcomes,
+                &declared.records,
+                &module.types.structural_types,
+                callables,
+                boundaries,
+                requirements.contains(&id),
+                &qualifications,
+            )
+        };
+        let mut lowered = if components.needs_rank_identity(id)
+            && let Ok(entry) = lower_members(&[])
+            && components::preserves_entry_rank(&entry, component, signatures.machines)
+        {
+            entry
+        } else {
+            lower_members(component)?
+        };
         if let Some(typed) = typed_source {
             lower::operational::retain_callee_spans(typed, &mut lowered);
         }
@@ -2172,8 +2180,41 @@ fn lower_program_with_parallel<'source>(
         (1..=bodies.len()).map(lower_one).collect()
     };
     drop(loop_rows);
+    if let Some(source) = declarations {
+        module
+            .execution
+            .packages
+            .schemas
+            .clone_from(&source.package_schemas);
+        module
+            .execution
+            .packages
+            .schemas
+            .sort_unstable_by_key(|schema| schema.record);
+    }
     for lowered in lowered_machines {
         let mut lowered = lowered?;
+        let catalog = &mut module.execution.packages;
+        let base = u32::try_from(catalog.openings.len())
+            .map_err(|_| read::unavailable(lowered.machine.id, "too many package openings"))?;
+        catalog.openings.append(&mut lowered.packages.openings);
+        for mut site in lowered.packages.sites.drain(..) {
+            use terminal_psi::TerminalPackageEvent;
+            match &mut site.event {
+                TerminalPackageEvent::Project { opening, .. }
+                | TerminalPackageEvent::Store { opening, .. }
+                | TerminalPackageEvent::Invoke { opening } => {
+                    *opening = opening.checked_add(base).ok_or_else(|| {
+                        read::unavailable(
+                            lowered.machine.id,
+                            "package opening index exceeds its table",
+                        )
+                    })?;
+                }
+                TerminalPackageEvent::Construct { .. } => {}
+            }
+            catalog.sites.push(site);
+        }
         lower::apply_machine_qualifications(&mut lowered, &mut qualifications)?;
         let lowered_id = lowered.machine.id;
         module.machines.push(lowered.machine);
@@ -2257,6 +2298,11 @@ fn lower_program_with_parallel<'source>(
         source.constructions.extend(lowered.source_constructions);
         source.folded_calls.extend(lowered.source_folded_calls);
     }
+    module
+        .execution
+        .packages
+        .sites
+        .sort_unstable_by_key(|site| (site.machine, site.operation));
     if let Some(source) = declarations {
         let proof_scope = std::mem::take(&mut module.scalars.scalar_applications.proof_scope);
         let conditions = std::mem::take(&mut module.scalars.scalar_applications.conditions);
@@ -2678,6 +2724,7 @@ mod publication_scope_tests {
             result: None,
             requires: Vec::new(),
             ensures: Vec::new(),
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             content_ensures: Vec::new(),
             reaches: crate::Ceiling::Inferred,
@@ -2688,7 +2735,8 @@ mod publication_scope_tests {
         });
         let lower = |publication| {
             let mut signatures = signatures.clone();
-            let components = prepare_call_components(&bodies, &mut signatures, &[]).unwrap();
+            let components =
+                prepare_call_components(&bodies, &mut signatures, &[], std::iter::empty()).unwrap();
             lower_program(
                 Some(entry),
                 &bodies,

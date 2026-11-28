@@ -6,14 +6,15 @@ use {omega}/language/core/process_exit.omg;
 data Heap<T> { items: [T; 16]; length: u64; }
 data Popped<T [copy]> [copy] { value: T; }
 
+data HeapOrder<T> = machine(left: @T, right: @T) -> bool;
+
 machine ent_less(left: @u64, right: @u64) -> bool {
     $left < $right
 }
 
 data Main { heap: Heap<u64>; }
 
-machine pop_heap<T [copy], machine Less>(h: @mutable Heap<T>, root: @mutable Popped<T>)
-requires machine Less(left: @T, right: @T) -> bool;
+machine pop_heap<T [copy], const Less: HeapOrder<T>>(h: @mutable Heap<T>, root: @mutable Popped<T>)
     requires h.length >= 1
     requires h.length <= 16
 {
@@ -25,7 +26,7 @@ requires machine Less(left: @T, right: @T) -> bool;
 machine main(main: @mutable Main) reaches |process_exit|::ProcessExit crashes Trap {
     main.heap.length = 0;
     let mutable popped: Popped<u64> = Popped { value: 0 };
-    pop_heap::<ent_less>(@mutable main.heap, @mutable popped);
+    pop_heap::<u64, ent_less>(@mutable main.heap, @mutable popped);
     |process_exit|::ProcessExit::exit_process(0);
 }
 

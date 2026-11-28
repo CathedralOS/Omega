@@ -756,11 +756,11 @@ impl<'program> Program<'program> {
                 if !parameters.is_empty() || !implemented.type_parameters.is_empty() {
                     return Err(unserved("generic reference-row refinement"));
                 }
-                let realization = typed
-                    .machine_by_symbol(row.realization_machine)
-                    .ok_or_else(|| {
-                        unserved("implementation row has no exact selected declaration")
-                    })?;
+                let realization = self.required_machine(
+                    context,
+                    row.realization_machine,
+                    "selected implementation",
+                )?;
                 // A row may select an established conformer's entry only for
                 // the requirement it already implements.
                 if let Some((owner, supplied)) = self.conformer_requirement(context, realization)?
@@ -939,14 +939,8 @@ impl<'program> Program<'program> {
                         "implementation requirement has no portable receiver identity",
                     )
                 })?;
-            let supplied = typed
-                .machine_by_symbol(row.realization_machine)
-                .ok_or_else(|| {
-                    crate::read::unavailable(
-                        context,
-                        "implementation row has no exact selected declaration",
-                    )
-                })?;
+            let supplied =
+                self.required_machine(context, row.realization_machine, "selected implementation")?;
             if row.source == crate::source_state::trait_definition::ConformanceRowSource::Reference
                 && let Some((owner, required)) = self.conformer_requirement(context, supplied)?
             {
@@ -1105,12 +1099,7 @@ impl<'program> Program<'program> {
                             "provider body has ambiguous specialization provenance",
                         ));
                     }
-                    let original = typed.machine_by_symbol(template).ok_or_else(|| {
-                        crate::read::unavailable(
-                            context,
-                            "provider body lost its original declaration",
-                        )
-                    })?;
+                    let original = self.required_machine(context, template, "provider template")?;
                     Some(StaticProviderCandidate {
                         boundary,
                         declaration: symbol,

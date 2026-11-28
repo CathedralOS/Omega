@@ -637,10 +637,14 @@ pub mod reflection {
             let (requirement, declaration, callable) = if let Some((owner, signature)) =
                 typed.trait_machine_signature(selected.symbol)
             {
+                // A bare path describes the requirement declaration, including its
+                // own binders. An applied path must retain the checked instance:
+                // its argument tuple is distinct even if its value types coincide.
+                let closed = typed.closed_requirement_application(signature.symbol);
                 if selected.application.is_some()
-                    || (typed
-                        .closed_requirement_application(selected.symbol)
-                        .is_none()
+                    || (closed.is_none()
+                        && (selected.authored_machine_application.is_valid()
+                            || selected.type_reference.is_valid())
                         && (!typed.trait_type_parameters(owner).is_empty()
                             || !owner.lifetime_parameters.is_empty()
                             || !typed.state_signature_type_parameters(signature).is_empty()
@@ -651,9 +655,7 @@ pub mod reflection {
                             .into(),
                     );
                 }
-                let declaration = typed
-                    .closed_requirement_application(signature.symbol)
-                    .map_or(signature.symbol, |application| application.template);
+                let declaration = closed.map_or(signature.symbol, |application| application.template);
                 (
                     true,
                     declaration,
@@ -673,25 +675,35 @@ pub mod reflection {
                 if selected.symbol != machine.symbol && selected.symbol != entry.symbol {
                     return Err("a callable description cannot select a continuation state".into());
                 }
-                if !selected.type_reference.is_valid()
-                    || !typed
-                        .type_reference_table
-                        .contains_type_reference(selected.type_reference)
+                // A bare generic name describes the family. All other
+                // selections must have the exact prepared application.
+                if !(selected.is_bare_declaration()
+                    && !typed.machine_type_parameters(machine).is_empty())
                 {
-                    return Err(
-                        "a callable description requires its prepared declaration application"
-                            .into(),
-                    );
-                }
-                let declaration = match typed.type_reference_node(selected.type_reference) {
-                    TypeReferenceNode::Named { symbol, .. } => *symbol,
-                    TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
-                    _ => return Err("a callable description lost its selected declaration".into()),
-                };
-                if declaration != machine.symbol {
-                    return Err(
-                        "a callable description has another declaration's application".into(),
-                    );
+                    if !selected.type_reference.is_valid()
+                        || !typed
+                            .type_reference_table
+                            .contains_type_reference(selected.type_reference)
+                    {
+                        return Err(
+                            "a callable description requires its prepared declaration application"
+                                .into(),
+                        );
+                    }
+                    let declaration = match typed.type_reference_node(selected.type_reference) {
+                        TypeReferenceNode::Named { symbol, .. } => *symbol,
+                        TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
+                        _ => {
+                            return Err(
+                                "a callable description lost its selected declaration".into()
+                            );
+                        }
+                    };
+                    if declaration != machine.symbol {
+                        return Err(
+                            "a callable description has another declaration's application".into(),
+                        );
+                    }
                 }
                 let identity = crate::source_state::type_identity::portable_applied_index_identity(
                     typed,

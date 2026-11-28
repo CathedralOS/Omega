@@ -53,9 +53,9 @@ vacant-extent transformations:
 
 | Operation | Checked steps |
 | --- | --- |
-| Push within available capacity | Use `split_vacant_extent` to take one cell's footprint from the front of spare backing; call `Run::initialize_cell`; merge the successful singleton onto the live run with `Run::merge`. |
+| Push within available capacity | Use `split_vacant_extent` to take one cell's footprint from the front of spare backing; call `initialize_cell`, then merge the successful singleton onto the live run with `\|run\|::merge`. |
 | Rejected initialization | Recover the returned vacant cell and original input value; use `merge_vacant_extents` to restore the spare tail before returning the value. The existing live run remains unchanged. |
-| Pop from a nonempty vector | Use `Run::split` at count minus one; extract the last singleton with `Run::extract_cell`; merge its vacated backing onto the front of the spare tail with `merge_vacant_extents`. |
+| Pop from a nonempty vector | Use `\|run\|::split` at count minus one; extract the last singleton with `extract_cell`; merge its vacated backing onto the front of the spare tail with `merge_vacant_extents`. |
 
 The vector's invariant relates both fields to the same allocated region. Taking
 and returning a cell at their shared boundary supplies the adjacency facts for

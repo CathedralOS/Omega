@@ -185,6 +185,8 @@ pub fn derive_component_inventory(
                     | OperationKind::CallDynamic { .. }
                     | OperationKind::CallMachine { .. } => {}
                     OperationKind::EstablishAccessReference { .. }
+                    | OperationKind::BorrowAt { .. }
+                    | OperationKind::UpgradeMutability { .. }
                     | OperationKind::EstablishReference { .. }
                     | OperationKind::ReleaseReference { .. }
                     | OperationKind::PackedIntegerUnary { .. }
@@ -398,6 +400,22 @@ pub fn derive_component_inventory(
         export_contracts.push(ExportContract {
             identity: format!("export:canonical:{}", canonical_entry_label(entry)),
             contract_identity: canonical_entry_contract_identity(entry),
+        });
+    }
+    // These are whole operation records the supplier offers for owned loading.
+    // Individual call candidates below also serve explicit Independent composition;
+    // their presence does not publish their enclosing record.
+    for record in &module.interfaces.provider_exports {
+        let declaration = identity_text(module, record.schema_declaration);
+        let application = identity_text(module, record.schema_application);
+        let mut contract =
+            ::wire::digest_encoder::DomainDigestEncoder::new(b"omega-supplier-record-v1");
+        contract.string(declaration);
+        contract.string(application);
+        let contract_identity = contract.finish();
+        export_contracts.push(ExportContract {
+            identity: format!("export:provider:{}", hex(&contract_identity)),
+            contract_identity,
         });
     }
     for candidate in &module.interfaces.provider_candidates {

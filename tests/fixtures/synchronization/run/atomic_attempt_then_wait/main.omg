@@ -1,0 +1,33 @@
+// A matched attempt can leave the flag held. Clear it on that return path.
+use {omega}/language/core/layout.omg;
+
+data Flag { held: AtomicU32; }
+
+machine await_clear(flag: @Flag) {
+    let observed: u32 = flag.held.load(Receive);
+    transition observed == 1 {
+        true -> await_clear(flag),
+        _ -> done()
+    }
+    machine done() {}
+}
+
+machine prepare(flag: @Flag) {
+    let result: |layout|::AtomicCompareExchangeOnceOutcome<u32> =
+        flag.held.compare_exchange_once(1, 0, ReceivePublish, Receive);
+    transition result {
+        |layout|::AtomicCompareExchangeOnceOutcome::Mismatched { observed } -> done(),
+        |layout|::AtomicCompareExchangeOnceOutcome::Exchanged -> committed(flag),
+        |layout|::AtomicCompareExchangeOnceOutcome::Uncommitted { observed } -> uncommitted(flag)
+    }
+    machine committed(flag: @Flag) {}
+    machine done() {}
+    machine uncommitted(flag: @Flag) { flag.held.store(0, Publish); }
+}
+
+machine main() {
+    let mutable flag: Flag;
+    flag.held.store(1, Publish);
+    prepare(@flag);
+    await_clear(@flag);
+}

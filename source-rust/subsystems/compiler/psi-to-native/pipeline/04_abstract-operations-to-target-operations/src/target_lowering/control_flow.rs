@@ -74,6 +74,7 @@ fn binding_indices(
 
 mod dominance {
     use std::collections::{BTreeSet, VecDeque};
+    use terminal_semantics::control_graph::immediate_dominators;
 
     pub(crate) fn schedule(
         incoming: &[Vec<usize>],
@@ -81,36 +82,22 @@ mod dominance {
         entry: usize,
     ) -> Option<Vec<(usize, Option<usize>)>> {
         let solver_order = reverse_postorder(outgoing, entry)?;
-        if solver_order.len() != incoming.len() {
-            return None;
-        }
-        let dominators = solve_sets(incoming, outgoing, entry, &solver_order)?;
+        let mut roots = vec![false; incoming.len()];
+        *roots.get_mut(entry)? = true;
+        let parents = immediate_dominators(incoming, &solver_order, &roots)?;
+
         let mut order = Vec::with_capacity(incoming.len());
-        let mut visited = BTreeSet::new();
+        let mut visited = roots;
         let mut pending = VecDeque::from([entry]);
         while let Some(position) = pending.pop_front() {
-            if visited.insert(position) {
-                order.push(position);
-                pending.extend(outgoing[position].iter().copied());
+            order.push((position, parents[position]));
+            for &target in &outgoing[position] {
+                if !std::mem::replace(&mut visited[target], true) {
+                    pending.push_back(target);
+                }
             }
         }
-        let depths: Vec<usize> = dominators
-            .iter()
-            .map(|words| words.iter().map(|word| word.count_ones() as usize).sum())
-            .collect();
-        order
-            .into_iter()
-            .map(|position| {
-                if position == entry {
-                    Some((position, None))
-                } else {
-                    dominator_positions(&dominators[position])
-                        .filter(|dominator| *dominator != position)
-                        .max_by_key(|dominator| depths[*dominator])
-                        .map(|dominator| (position, Some(dominator)))
-                }
-            })
-            .collect()
+        Some(order)
     }
 
     // Block numbers can run opposite to control flow. Use graph order for
@@ -132,71 +119,9 @@ mod dominance {
         Some(postorder)
     }
 
-    fn solve_sets(
-        incoming: &[Vec<usize>],
-        outgoing: &[Vec<usize>],
-        entry: usize,
-        order: &[usize],
-    ) -> Option<Vec<Vec<u64>>> {
-        let mut complete = vec![0_u64; incoming.len().max(outgoing.len()).div_ceil(64)];
-        for position in order {
-            complete[*position / 64] |= 1_u64 << (*position % 64);
-        }
-        let mut dominators = vec![complete; incoming.len()];
-        dominators.get_mut(entry)?.fill(0);
-        dominators[entry][entry / 64] |= 1_u64 << (entry % 64);
-        let mut dirty = vec![true; incoming.len()];
-        dirty[entry] = false;
-        let mut pending_count = incoming.len() - 1;
-        while pending_count != 0 {
-            for position in order.iter().copied() {
-                // Clear before evaluation so a changed self-loop stays pending.
-                if !std::mem::replace(dirty.get_mut(position)?, false) {
-                    continue;
-                }
-                pending_count -= 1;
-                let (first, others) = incoming.get(position)?.split_first()?;
-                let mut current = dominators.get(*first)?.clone();
-                for predecessor in others {
-                    for (word, predecessor_word) in
-                        current.iter_mut().zip(dominators.get(*predecessor)?)
-                    {
-                        *word &= *predecessor_word;
-                    }
-                }
-                current[position / 64] |= 1_u64 << (position % 64);
-                if current != dominators[position] {
-                    dominators[position] = current;
-                    for successor in outgoing.get(position)? {
-                        if *successor != entry
-                            && !std::mem::replace(dirty.get_mut(*successor)?, true)
-                        {
-                            pending_count += 1;
-                        }
-                    }
-                }
-            }
-        }
-        Some(dominators)
-    }
-
-    fn dominator_positions(words: &[u64]) -> impl Iterator<Item = usize> + '_ {
-        words.iter().enumerate().flat_map(|(word_index, &word)| {
-            let mut remaining = word;
-            std::iter::from_fn(move || {
-                if remaining == 0 {
-                    return None;
-                }
-                let bit = remaining.trailing_zeros() as usize;
-                remaining &= remaining - 1;
-                Some(word_index * 64 + bit)
-            })
-        })
-    }
-
     #[cfg(test)]
     mod tests {
-        use super::{dominator_positions, schedule};
+        use super::schedule;
         use std::collections::{BTreeSet, VecDeque};
 
         fn original_schedule(
@@ -343,10 +268,6 @@ mod dominance {
                     original_schedule(&incoming, &outgoing, entry),
                 );
             }
-            assert_eq!(
-                dominator_positions(&[1_u64 << 63, 3, 2]).collect::<Vec<_>>(),
-                vec![63, 64, 65, 129]
-            );
         }
     }
 }
@@ -480,6 +401,7 @@ mod program_image {
         let (_, _, live, operations, provenance) = site.parts();
         let AbstractOperation::BoundaryCall {
             psi_operation,
+            suspension_crossing: None,
             result,
             boundary,
             arguments,
@@ -701,6 +623,7 @@ mod run_custody {
             source.place,
             &path.into(),
             root_type,
+            None,
             site,
         )
     }
@@ -2871,8 +2794,12 @@ pub(crate) fn lower(
     }) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let prepared =
-        super::function_signature::prepare_function_signature(function, target, structural_types)?;
+    let prepared = super::function_signature::prepare_function_signature(
+        function,
+        target,
+        structural_types,
+        scalar_abis.get(&function.machine),
+    )?;
     let parameters_by_place = super::function_signature::parameters_by_place(&prepared.parameters);
     let mut definitions = BTreeSet::new();
     for parameter in &function.parameters {
@@ -2968,6 +2895,8 @@ pub(crate) fn lower(
             | AbstractOperation::EstablishRecord { result, .. }
             | AbstractOperation::EstablishZeroedStructural { result, .. }
             | AbstractOperation::EstablishCase { result, .. }
+            | AbstractOperation::BorrowAt { result, .. }
+            | AbstractOperation::UpgradeMutability { result, .. }
             | AbstractOperation::EstablishReference { result, .. }
             | AbstractOperation::EstablishAccessReference { result, .. }
             | AbstractOperation::CallStructural {
@@ -3448,6 +3377,8 @@ pub(crate) fn lower(
         provenance.edges.extend(block.edges);
     }
     Ok(TargetFunction {
+        assembly_return: None,
+        assembly_register_versions: Vec::new(),
         machine: function.machine,
         attachment: function.attachment,
         scalar_abi: None,

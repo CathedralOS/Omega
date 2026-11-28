@@ -502,13 +502,15 @@ pub(crate) mod structural_result_wire {
     };
 
     pub(crate) fn validate_reference_sources(
-        module: &terminal_psi::TerminalModule,
+        analyses: &terminal_semantics::ModuleAnalyses<'_>,
         machine: &terminal_psi::TerminalMachine,
     ) -> Result<(), CodecError> {
+        let module = analyses.module();
         let Some(result) = machine.result.structural() else {
             return Ok(());
         };
         validate_reference_source_order(result)?;
+        let mut needs_package_replay = false;
         for reference in &result.reference_sources {
             let reference_type =
                 crate::sections::semantic_module::module_foundation_validation::validate_structural_path(
@@ -525,7 +527,8 @@ pub(crate) mod structural_result_wire {
             };
             for source in &reference.sources {
                 let root = match source {
-                    terminal_psi::StructuralReferenceOrigin::Parameter(source) => {
+                    terminal_psi::StructuralReferenceOrigin::Parameter(source)
+                    | terminal_psi::StructuralReferenceOrigin::UpgradedParameter(source) => {
                         machine
                             .signature_structural_parameter(source.place)
                             .ok_or(CodecError::MalformedStructuralFoundation(
@@ -541,14 +544,54 @@ pub(crate) mod structural_result_wire {
                     crate::sections::semantic_module::module_foundation_validation::validate_reference_origin_family(
                         module, root, source.path(),
                     )?;
-                if *access != source.access()
-                    || (source.extent() == semantic_vocabulary::ReferenceOriginExtent::Projected
-                        && *referent != endpoint)
-                {
+                if *access != source.access() {
                     return crate::codec_error::malformed(
                         "reference result source has mismatched referent or access",
                     );
                 }
+                if source.extent() == semantic_vocabulary::ReferenceOriginExtent::Projected
+                    && *referent != endpoint
+                {
+                    if terminal_semantics::packages::hidden_reference_referent(
+                        module,
+                        result.structural_type,
+                        &reference.path,
+                    ) != Some(*referent)
+                    {
+                        return crate::codec_error::malformed(
+                            "reference result source has mismatched referent or access",
+                        );
+                    }
+                    needs_package_replay = true;
+                }
+            }
+        }
+        // A complete package can hide the concrete input's type. Recompute
+        // the returned sources from the body before accepting such a header.
+        if needs_package_replay {
+            let actual = (|| {
+                let graph = analyses
+                    .descriptor_closure(
+                        terminal_semantics::descriptor_results::DescriptorSlotKind::BorrowedStorage,
+                        [machine.id],
+                    )
+                    .ok()?;
+                let mut loans = terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
+                    &module.types.structural_types, &graph,
+                );
+                let contents = loans.result_contents(module, machine.id)?;
+                terminal_semantics::reference_result_contents(
+                    &module.types.structural_types,
+                    &machine.structural_parameters,
+                    result,
+                    &contents,
+                )
+                .ok()
+            })();
+            if actual.as_ref() != Some(&result.reference_sources) {
+                return crate::codec_error::malformed(
+                    "reference result source has mismatched referent or access",
+                );
             }
         }
         Ok(())
@@ -699,6 +742,7 @@ pub(crate) mod structural_signature_wire {
             result_lifetimes: Optional<List<crate::module_wire::closed_conformance_wire::ResultLifetime>>,
             requires: List<DomainRequirement>,
             normal_qualifications: List<DomainRequirement>,
+            membership_requires: List<super::contract_wire::Membership>,
             membership_ensures: List<super::contract_wire::Membership>,
             scalar_domain_requirements: List<ScalarDomain>,
             scalar_requires: List<Proposition>,
@@ -786,7 +830,9 @@ pub(crate) mod structural_signature_wire {
         }
     }
 
+    use language_core::sealed_intrinsics::ActivationOperation;
     wire_enum! {
+        ActivationOp: ActivationOperation, "activation control operation" { 0 => Park }
         Execution: CheckedBoundaryExecution, "checked boundary execution" {
             0 => Provider,
             1 => AccessInitialize,
@@ -801,6 +847,7 @@ pub(crate) mod structural_signature_wire {
             10 => HostedPrimitive { operation: HostedOperationWire, requirement: Id },
             11 => NumericPrimitive,
             12 => LayoutTargetFacts,
+            13 => OwnedActivation(operation: ActivationOp),
         }
         Role: BoundaryDeclarationRole, "BoundaryDeclarationRole" { 0 => Callable, 1 => ContractEvidence }
         RequirementKind: BoundaryRequirementKind, "BoundaryRequirementKind" {

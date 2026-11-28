@@ -502,7 +502,6 @@ fn finalize_authored_statement_call_selections(
         }
     }
 
-    let mut call_selection_index = call_selection_index(program);
     for candidate in candidates {
         let occurrence = if let Some(occurrence) = existing_call_occurrence(
             program,
@@ -510,11 +509,10 @@ fn finalize_authored_statement_call_selections(
             Exposure::PrivateImplementation,
             candidate.compiler_partition,
             candidate.target,
-            &call_selection_index,
         )? {
             occurrence
         } else {
-            let occurrence = match candidate.target {
+            match candidate.target {
                 CandidateTarget::Resolved(symbol) => program
                     .record_resolved_authored_declaration_selection_in_partition(
                         candidate.source_span,
@@ -532,62 +530,11 @@ fn finalize_authored_statement_call_selections(
                         binding,
                     ),
             }
-            .map_err(record_diagnostic)?;
-            index_latest_call_selection(program, &mut call_selection_index);
-            occurrence
+            .map_err(record_diagnostic)?
         };
         attach_statement_call_occurrence(program, candidate.site, occurrence)?;
     }
     Ok(())
-}
-
-type CallSelectionKey = (
-    usize,
-    usize,
-    usize,
-    Option<CompilerDerivedSelectionPartition>,
-);
-
-fn call_selection_index(program: &SymbolResolvedTrees) -> HashMap<CallSelectionKey, Vec<usize>> {
-    let mut index = HashMap::default();
-    for (row, selection) in program.authored_declaration_selections().iter().enumerate() {
-        if selection.kind() != Kind::Call {
-            continue;
-        }
-        let span = selection.source_span();
-        index
-            .entry((
-                span.source_id.0,
-                span.span.start,
-                span.span.end,
-                selection.compiler_partition(),
-            ))
-            .or_insert_with(Vec::new)
-            .push(row);
-    }
-    index
-}
-
-fn index_latest_call_selection(
-    program: &SymbolResolvedTrees,
-    index: &mut HashMap<CallSelectionKey, Vec<usize>>,
-) {
-    let Some(selection) = program.authored_declaration_selections().rows().last() else {
-        return;
-    };
-    if selection.kind() != Kind::Call {
-        return;
-    }
-    let span = selection.source_span();
-    index
-        .entry((
-            span.source_id.0,
-            span.span.start,
-            span.span.end,
-            selection.compiler_partition(),
-        ))
-        .or_default()
-        .push(program.authored_declaration_selections().len() - 1);
 }
 
 fn existing_call_occurrence(
@@ -596,22 +543,18 @@ fn existing_call_occurrence(
     exposure: crate::declaration_selection::AuthoredDeclarationSelectionExposure,
     compiler_partition: Option<CompilerDerivedSelectionPartition>,
     target: CandidateTarget,
-    index: &HashMap<CallSelectionKey, Vec<usize>>,
 ) -> Result<Option<AuthoredDeclarationSelectionOccurrenceId>, Diagnostic> {
     use crate::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
 
-    let Some(rows) = index.get(&(
-        source_span.source_id.0,
-        source_span.span.start,
-        source_span.span.end,
-        compiler_partition,
-    )) else {
-        return Ok(None);
-    };
     let mut retained = None;
-    for &row in rows {
-        let selection = program.authored_declaration_selections().rows().at(row);
-        if selection.exposure() != exposure {
+    for selection in program
+        .authored_declaration_selections()
+        .at_source_span(source_span)
+    {
+        if selection.kind() != Kind::Call
+            || selection.compiler_partition() != compiler_partition
+            || selection.exposure() != exposure
+        {
             continue;
         }
         let existing_target = match selection.target() {
@@ -865,23 +808,25 @@ fn selection_already_recorded(
 ) -> bool {
     use crate::source_resolved::AuthoredDeclarationSelectionTarget;
 
-    program.authored_declaration_selections().iter().any(|row| {
-        row.source_span() == candidate.source_span
-            && row.exposure() == candidate.exposure
-            && row.kind() == candidate.kind
-            && row.compiler_partition().is_none()
-            && match (row.target(), candidate.target) {
-                (
-                    AuthoredDeclarationSelectionTarget::Resolved(existing),
-                    CandidateTarget::Resolved(candidate),
-                ) => existing.selected_symbol() == candidate,
-                (
-                    AuthoredDeclarationSelectionTarget::LateBound(existing),
-                    CandidateTarget::LateBound(candidate),
-                ) => existing == candidate,
-                _ => false,
-            }
-    })
+    program
+        .authored_declaration_selections()
+        .at_source_span(candidate.source_span)
+        .any(|row| {
+            row.exposure() == candidate.exposure
+                && row.kind() == candidate.kind
+                && row.compiler_partition().is_none()
+                && match (row.target(), candidate.target) {
+                    (
+                        AuthoredDeclarationSelectionTarget::Resolved(existing),
+                        CandidateTarget::Resolved(candidate),
+                    ) => existing.selected_symbol() == candidate,
+                    (
+                        AuthoredDeclarationSelectionTarget::LateBound(existing),
+                        CandidateTarget::LateBound(candidate),
+                    ) => existing == candidate,
+                    _ => false,
+                }
+        })
 }
 
 fn conformance_bound_candidates(program: &SymbolResolvedTrees) -> Vec<UnattachedCandidate> {
@@ -969,10 +914,9 @@ fn finalize_statement_static_argument_selections(
         for (candidate, path) in candidates {
             let existing = program
                 .authored_declaration_selections()
-                .iter()
+                .at_source_span(candidate.source_span)
                 .filter(|selection| {
-                    selection.source_span() == candidate.source_span
-                        && selection.exposure() == Exposure::PrivateImplementation
+                    selection.exposure() == Exposure::PrivateImplementation
                         && selection.kind() == candidate.kind
                         && selection.compiler_partition() == partition
                 })
@@ -1785,7 +1729,6 @@ fn finalize_expression_groups(
         }
     }
 
-    let mut call_selection_index = call_selection_index(program);
     for group in groups {
         let retained = if group.kind == Kind::Call {
             existing_call_occurrence(
@@ -1794,7 +1737,6 @@ fn finalize_expression_groups(
                 group.exposure,
                 group.compiler_partition,
                 group.target,
-                &call_selection_index,
             )?
         } else {
             None
@@ -1802,7 +1744,7 @@ fn finalize_expression_groups(
         let occurrence = if let Some(occurrence) = retained {
             occurrence
         } else {
-            let occurrence = match group.target {
+            match group.target {
                 CandidateTarget::Resolved(symbol) => program
                     .record_resolved_authored_declaration_selection_in_partition(
                         group.source_span,
@@ -1820,9 +1762,7 @@ fn finalize_expression_groups(
                         binding,
                     ),
             }
-            .map_err(record_diagnostic)?;
-            index_latest_call_selection(program, &mut call_selection_index);
-            occurrence
+            .map_err(record_diagnostic)?
         };
         if let Some(position) = group.top_level_static_argument_position {
             program

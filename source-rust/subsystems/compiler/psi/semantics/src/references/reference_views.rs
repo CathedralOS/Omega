@@ -151,6 +151,57 @@ pub fn descriptor_reborrow_shapes_match(
         && destination_ceiling.is_none_or(|access| requested_access.admits_referent(access))
 }
 
+/// Select the existing shared descriptor that supplies a mutability upgrade.
+/// For a canonical input view, the incoming formal or producing operation
+/// must supply its shared permission.
+pub fn mutability_upgrade_source<'a>(
+    machine: &terminal_psi::TerminalMachine,
+    types: &'a [StructuralTypeDeclaration],
+    source: &terminal_psi::StructuralArgument,
+    destination: &StructuralTypeShape,
+) -> Option<&'a StructuralTypeDeclaration> {
+    if source.access != StructuralAccess::SharedBorrow {
+        return None;
+    }
+    let root = machine.structural_place_type(source.place)?;
+    let input = runtime_structural_path_tip(types.iter(), root, &source.path)?;
+    let permission = if input.shape.is_canonical_view_descriptor() {
+        crate::structural_projection_authority(machine, types, source)
+    } else {
+        None
+    };
+    mutability_upgrade_shapes_match(&input.shape, permission, destination).then_some(input)
+}
+
+/// An unsafe upgrade changes only the permission of an existing descriptor.
+/// A canonical input view takes its source permission from its occurrence.
+/// The result must explicitly carry the borrowed mutable descriptor ABI.
+pub fn mutability_upgrade_shapes_match(
+    source: &StructuralTypeShape,
+    source_occurrence_access: Option<StructuralAccess>,
+    destination: &StructuralTypeShape,
+) -> bool {
+    use StructuralAccess::{MutableBorrow, SharedBorrow};
+    match (source, destination) {
+        (
+            StructuralTypeShape::Reference {
+                referent: from,
+                access: SharedBorrow,
+            },
+            StructuralTypeShape::Reference {
+                referent: to,
+                access: MutableBorrow,
+            },
+        ) => from == to,
+        _ => {
+            descriptor_geometry_matches(source, destination)
+                && stored_reference_access(source).or(source_occurrence_access)
+                    == Some(SharedBorrow)
+                && stored_reference_access(destination) == Some(MutableBorrow)
+        }
+    }
+}
+
 pub fn stored_reference_access(shape: &StructuralTypeShape) -> Option<StructuralAccess> {
     match shape {
         StructuralTypeShape::Reference { access, .. } => Some(*access),
@@ -738,15 +789,25 @@ pub fn reference_source_compatible<'types>(
     else {
         return false;
     };
+    reference_referent_compatible(types, source, *referent, *access)
+}
+
+/// Check the selected referent, including the access-dependent scalar view.
+pub fn reference_referent_compatible<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    source: StructuralTypeId,
+    referent: StructuralTypeId,
+    access: StructuralAccess,
+) -> bool {
     let Some(source_shape) = crate::structural_shape(types.clone(), source) else {
         return false;
     };
-    if source == *referent {
+    if source == referent {
         return true;
     }
-    if crate::structural_shape(types.clone(), *referent).is_some_and(|target| {
-        shared_byte_descriptor_reference_shapes(source_shape, target, *access)
-    }) {
+    if crate::structural_shape(types.clone(), referent)
+        .is_some_and(|target| shared_byte_descriptor_reference_shapes(source_shape, target, access))
+    {
         return true;
     }
     if matches!(
@@ -754,18 +815,18 @@ pub fn reference_source_compatible<'types>(
         StructuralTypeShape::ByteSequence(
             terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
         )
-    ) && crate::structural_declaration(types.clone(), *referent)
+    ) && crate::structural_declaration(types.clone(), referent)
         .is_some_and(|row| row.shape == *source_shape)
     {
         return true;
     }
     let Some(StructuralTypeShape::PrimitiveScalar(target)) =
-        crate::structural_shape(types, *referent)
+        crate::structural_shape(types, referent)
     else {
         return false;
     };
     matches!(source_shape, StructuralTypeShape::PrimitiveScalar(source)
-        if scalar_reference_view_admits(*access, *source, *target))
+        if scalar_reference_view_admits(access, *source, *target))
 }
 #[cfg(test)]
 mod scalar_view_admission_tests;

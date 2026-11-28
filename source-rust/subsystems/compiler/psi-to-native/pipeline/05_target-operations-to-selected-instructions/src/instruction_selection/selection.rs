@@ -100,9 +100,44 @@ pub(crate) mod atomic_access {
             .then_some((form, geometry, closed_logical))
     }
 }
+/// Edges in target order, including each arm of a structural case.
+fn structural_successors(
+    terminator: &legalized_operations::LegalizedScalarTerminator,
+) -> impl Iterator<
+    Item = (
+        semantic_vocabulary::BlockId,
+        &[legalized_operations::LegalizedStructuralBinding],
+    ),
+> {
+    use legalized_operations::LegalizedScalarTerminator as Terminator;
+    let (ordinary, cases) = match terminator {
+        Terminator::Jump { successor, .. } => ([Some(successor), None], &[][..]),
+        Terminator::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => ([Some(when_true), Some(when_false)], &[][..]),
+        Terminator::StructuralCase { cases, .. } => ([None, None], cases.as_slice()),
+        Terminator::EliminateEmpty { .. }
+        | Terminator::Crash { .. }
+        | Terminator::InvokeNoNormal { .. }
+        | Terminator::ExternalCompletion { .. }
+        | Terminator::Return(_)
+        | Terminator::ReturnCleanup { .. } => ([None, None], &[][..]),
+    };
+    ordinary
+        .into_iter()
+        .flatten()
+        .map(|edge| (edge.target, edge.structural_bindings.as_slice()))
+        .chain(
+            cases
+                .iter()
+                .map(|arm| (arm.target, arm.structural_bindings.as_slice())),
+        )
+}
+
 pub(crate) mod block_order {
     use super::SelectedInstructionError;
-    use legalized_operations::LegalizedScalarTerminator;
 
     pub(crate) fn derive(
         source: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
@@ -110,29 +145,11 @@ pub(crate) mod block_order {
         let entry = source
             .block_index(source.entry_block)
             .ok_or(SelectedInstructionError::custody())?;
-        let mut outgoing = Vec::new();
+        let mut outgoing = Vec::with_capacity(source.blocks.len());
         for block in &source.blocks {
-            let targets = match &block.terminator {
-                LegalizedScalarTerminator::EliminateEmpty { .. }
-                | LegalizedScalarTerminator::Crash { .. }
-                | LegalizedScalarTerminator::InvokeNoNormal { .. }
-                | LegalizedScalarTerminator::ExternalCompletion { .. }
-                | LegalizedScalarTerminator::Return(_)
-                | LegalizedScalarTerminator::ReturnCleanup { .. } => Vec::new(),
-                LegalizedScalarTerminator::Jump { successor, .. } => vec![successor.target],
-                LegalizedScalarTerminator::Conditional {
-                    when_true,
-                    when_false,
-                    ..
-                } => vec![when_true.target, when_false.target],
-                LegalizedScalarTerminator::StructuralCase { cases, .. } => {
-                    cases.iter().map(|case| case.target).collect()
-                }
-            };
             outgoing.push(
-                targets
-                    .into_iter()
-                    .map(|target| {
+                super::structural_successors(&block.terminator)
+                    .map(|(target, _)| {
                         source
                             .block_index(target)
                             .ok_or(SelectedInstructionError::custody())
@@ -305,7 +322,6 @@ pub(crate) mod block_order {
 pub(in crate::instruction_selection) use crate::instruction_selection::selection_inputs::byte_concatenation_input;
 pub(in crate::instruction_selection) use crate::instruction_selection::selection_inputs::byte_owner_input;
 pub(crate) mod byte_view_homes {
-    use legalized_operations::LegalizedScalarTerminator;
     use selected_instructions::VirtualRegisterId;
     use semantic_vocabulary::{PlaceId, StructuralPlaceKind, ValueId};
     use std::collections::BTreeSet;
@@ -450,7 +466,7 @@ pub(crate) mod byte_view_homes {
         let mut unbound_edges = 0usize;
         let mut roots: Vec<(PlaceId, ValueId)> = Vec::new();
         for owner in &source.blocks {
-            for (target, successor) in edge_successors(&owner.terminator) {
+            for (target, successor) in super::structural_successors(&owner.terminator) {
                 if target != block {
                     continue;
                 }
@@ -480,32 +496,6 @@ pub(crate) mod byte_view_homes {
             return Err(SelectedInstructionError::custody());
         }
         Ok(roots)
-    }
-
-    fn edge_successors(
-        terminator: &LegalizedScalarTerminator,
-    ) -> Vec<(
-        semantic_vocabulary::BlockId,
-        &[legalized_operations::LegalizedStructuralBinding],
-    )> {
-        match terminator {
-            LegalizedScalarTerminator::Jump { successor, .. } => {
-                vec![(successor.target, &successor.structural_bindings)]
-            }
-            LegalizedScalarTerminator::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => vec![
-                (when_true.target, &when_true.structural_bindings),
-                (when_false.target, &when_false.structural_bindings),
-            ],
-            LegalizedScalarTerminator::StructuralCase { cases, .. } => cases
-                .iter()
-                .map(|case| (case.target, case.structural_bindings.as_slice()))
-                .collect(),
-            _ => Vec::new(),
-        }
     }
 }
 pub(crate) mod constraints {
@@ -675,17 +665,10 @@ pub(crate) mod construction {
         let catalog = environment.constraints();
         require_key_rows(&constraints.keys, catalog)?;
         let native_geometry = crate::instruction_selection::native_geometry::NativeGeometries::new(
-            target.scalar_functions.iter().map(|source| {
-                source
-                    .structural
-                    .as_ref()
-                    .map_or((&[][..], &[][..]), |contract| {
-                        (
-                            contract.structural_types.as_slice(),
-                            contract.structural_types.owned_sequence_bounds(),
-                        )
-                    })
-            }),
+            target
+                .scalar_functions
+                .iter()
+                .map(|source| source.native_layout_inputs()),
             target.target,
         )
         .map_err(|_| SelectedInstructionError::custody())?;
@@ -699,19 +682,12 @@ pub(crate) mod construction {
             .iter()
             .enumerate()
             .map(|(index, source)| {
+                let (declarations, inputs) = source.native_layout_inputs();
                 scalar_graph::build_with_environment(
                     index,
                     source,
                     native_geometry
-                        .get(
-                            source
-                                .structural
-                                .as_ref()
-                                .map_or(&[][..], |contract| contract.structural_types.as_slice()),
-                            source.structural.as_ref().map_or(&[][..], |contract| {
-                                contract.structural_types.owned_sequence_bounds()
-                            }),
-                        )
+                        .get(declarations, inputs)
                         .ok_or_else(SelectedInstructionError::custody)?,
                     constraints,
                     environment,
@@ -1173,23 +1149,12 @@ pub(crate) mod foreign_scalar_backings {
             while cursor < coordinates.len() {
                 let function_index = coordinates[cursor].function;
                 let function = &self.program.scalar_functions[function_index];
-                let declarations = function
-                    .structural
-                    .as_ref()
-                    .map_or(&[][..], |signature| signature.structural_types.as_slice());
-                let geometry = self
-                    .geometries
-                    .get(
-                        declarations,
-                        function.structural.as_ref().map_or(&[][..], |signature| {
-                            signature.structural_types.owned_sequence_bounds()
-                        }),
+                let (declarations, inputs) = function.native_layout_inputs();
+                let geometry = self.geometries.get(declarations, inputs).ok_or_else(|| {
+                    SelectedInstructionError::custody_because(
+                        "foreign backing query lost its prepared native geometry",
                     )
-                    .ok_or_else(|| {
-                        SelectedInstructionError::custody_because(
-                            "foreign backing query lost its prepared native geometry",
-                        )
-                    })?;
+                })?;
                 let function = &crate::instruction_selection::native_geometry::NativeInput::new(
                     function, geometry,
                 );
@@ -1665,6 +1630,7 @@ pub(crate) mod parameter_use {
                     | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. }
                     | LegalizedScalarInstructionKind::ElementViewSubslice { source, .. }
                     | LegalizedScalarInstructionKind::EstablishReference { source, .. }
+                    | LegalizedScalarInstructionKind::UpgradeMutability { source, .. }
                     | LegalizedScalarInstructionKind::EstablishAccessReference { source, .. } => source.place == place,
                     LegalizedScalarInstructionKind::AtomicAccess { location, .. }
                     | LegalizedScalarInstructionKind::AccessorScalarAccess { location, .. } => location.place == place,

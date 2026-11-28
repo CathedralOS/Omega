@@ -125,7 +125,14 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
             break;
         }
 
-        let (name, mut kind, next) = if input.at_contextual("const") {
+        let (name, mut kind, next) = if input.at_contextual_then_name("some") {
+            if !matches!(syntax, GenericParameterSyntax::DataDeclaration) {
+                return Err(input.error_here("a `some` type binder belongs to a data declaration"));
+            }
+            let input = input.take_contextual("some")?;
+            let (name, input) = input.take_identifier()?;
+            (name, TypeParameterKind::SomeType, input)
+        } else if input.at_contextual("const") {
             let input = input.take_contextual("const")?;
             let (name, input) = input.take_identifier()?;
             let input = input.take_punctuation(PunctuationKind::Colon, ":")?;

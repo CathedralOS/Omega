@@ -336,8 +336,15 @@ and [the compiler ownership map](source-rust/README.md#where-code-belongs):
 `mbx` ([Mr Boxington](https://github.com/jdx/mr-boxington)) is **mandatory** for
 all Rust builds, Clippy checks, and test runs. Direct `cargo build`, `cargo test`,
 `cargo clippy`, or `cargo run` fallback is forbidden. Use the qualified
-checksum-capable adapter pinned in `tools/mbx-version`. If it is missing or
-unqualified, install or update it before building (from the checkout root):
+checksum-capable adapter pinned in `tools/mbx-version`.
+
+For a Linux cloud baseline on current main, run
+`bash tools/cloud_baseline.sh <command> [args...]`. It fetches main and uses
+that revision's mbx in a separate checkout. For images older than the launcher,
+use the [cloud startup command](wiki/development/testing.md#run-a-linux-cloud-baseline-on-current-main).
+
+If mbx is missing or unqualified for the current checkout, install or update it
+from the checkout root:
 
 - **Linux / macOS / Cloud containers:**
   ```bash

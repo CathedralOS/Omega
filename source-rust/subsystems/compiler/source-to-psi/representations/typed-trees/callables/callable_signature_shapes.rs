@@ -463,6 +463,23 @@ impl crate::source_state::TypedTrees {
             {
                 return Err("public call changed its declaring trait or requirement".into());
             }
+            // A bound applied at the template's own binders, such as
+            // `E satisfies EqualImpliesIdentity<T>`, was given a named
+            // implementation of that trait at exactly the supplied types
+            // (`Operand::read_after`). Its row's header is the requirement
+            // at those types.
+            if !bound.application.declaration.type_parameters.is_empty() {
+                let (implementation, _) = self
+                    .owned_conformance_realization(dispatch.realization_machine)
+                    .ok_or("public call lost its selected implementation row")?;
+                let (_, row, signature) = self
+                    .named_conformance_member(implementation.symbol, dispatch.requirement)?
+                    .ok_or("public call has no applied requirement in its implementation")?;
+                if row.realization_machine != dispatch.realization_machine {
+                    return Err("public call selected a different implementation member".into());
+                }
+                return Ok(signature);
+            }
             return self
                 .applied_callable_signature(&bound.application, bound.signature.symbol)
                 .or_else(|| {

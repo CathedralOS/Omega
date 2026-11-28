@@ -158,6 +158,80 @@ fn a_call_outside_the_callers_written_ceiling_is_rejected_at_that_call() {
     accepted(&program("reaches Output", "reaches Output"));
 }
 
+#[test]
+fn a_local_records_invoked_field_contributes_its_own_permissions() {
+    const SOURCE: &str = r#"
+        boundary trait Output {}
+        data Quiet = machine() -> u32 reaches none crashes none;
+        data Loud = machine() -> u32 reaches Output crashes none;
+        data Pair { left: Loud; right: Quiet; }
+        machine loud() -> u32 reaches Output crashes none { 3u32 }
+        machine quiet() -> u32 reaches none crashes none { 7u32 }
+        machine forward(pair: @Pair) -> u32 { (pair.right)() }
+        machine entry() -> u32 reaches none crashes none {
+            let pair: Pair = Pair { left: loud, right: quiet };
+            forward(@pair)
+        }
+    "#;
+    accepted(SOURCE);
+    let loud = SOURCE.replace("pair.right", "pair.left");
+    let violations = exceeded(&loud);
+    assert_eq!(violations.len(), 1, "{violations:?}");
+    assert!(
+        violations[0].starts_with("machine `entry` reaches `none` but its call of `forward`"),
+        "{violations:?}"
+    );
+}
+
+#[test]
+fn a_local_borrow_of_an_array_element_retains_the_invoked_field() {
+    const SOURCE: &str = r#"
+        boundary trait Output {}
+        data Quiet = machine() -> u32 reaches none crashes none;
+        data Loud = machine() -> u32 reaches Output crashes none;
+        data Pair { left: Loud; right: Quiet; }
+        machine loud() -> u32 reaches Output crashes none { 3u32 }
+        machine quiet() -> u32 reaches none crashes none { 7u32 }
+        machine forward(pairs: @[Pair; 2]) -> u32 {
+            let selected: @Pair = @pairs[1u64];
+            (selected.right)()
+        }
+        machine entry() -> u32 reaches none crashes none {
+            let pairs: [Pair; 2] = [Pair { left: loud, right: quiet }, Pair { left: loud, right: quiet }];
+            forward(@pairs)
+        }
+    "#;
+    let accepted = accepted(SOURCE);
+    let module = &accepted.elaboration.module;
+    let mut forwarded = module
+        .execution
+        .callables
+        .machine_envelopes
+        .iter()
+        .flatten()
+        .filter(|row| !row.envelope.invocations.is_empty());
+    let envelope = forwarded
+        .next()
+        .expect("forward publishes its only invocation");
+    assert!(forwarded.next().is_none());
+    use semantic_vocabulary::CanonicalStructuralPathSegment::{Field, FixedIndex};
+    assert_eq!(
+        envelope.envelope.invocations,
+        vec![
+            terminal_psi::TerminalCallableInvocation::ProjectedParameter {
+                parameter: 0,
+                path: vec![FixedIndex(1), Field("right".into())],
+            }
+        ]
+    );
+    let violations = exceeded(&SOURCE.replace("selected.right", "selected.left"));
+    assert_eq!(violations.len(), 1, "{violations:?}");
+    assert!(
+        violations[0].starts_with("machine `entry` reaches `none` but its call of `forward`"),
+        "{violations:?}"
+    );
+}
+
 /// effects.md: "A boundary call contributes what its requirement declares
 /// and not the called trait's name, so a ceiling that names the slot does
 /// not cover its operations".
@@ -976,4 +1050,25 @@ fn a_bodyless_requirement_keeps_its_own_envelope_when_a_parameter_is_callable() 
     let error = crate::ceilings::judge(form).unwrap_err();
     assert_eq!(error.reason, RefusalReason::ForeignIdentity);
     assert_eq!(error.detail, "abstract requirement lost its declared operational row");
+}
+
+#[test]
+fn selecting_another_machine_preserves_a_stored_callback() {
+    let source = r#"
+        data Read = machine() -> u32 reaches none crashes none;
+        data Reader { read: Read; }
+        machine first() -> u32 reaches none crashes none { 17u32 }
+        machine second() -> u32 reaches none crashes none { 42u32 }
+        machine run(reader: @Reader) -> u32 { (reader.read)() }
+        machine entry() -> bool reaches none crashes none {
+            let left: Reader = Reader { read: first };
+            let right: Reader = Reader { read: second };
+            run(@left) == 17u32 && run(@right) == 42u32
+        }
+    "#;
+    let accepted = judged(source);
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
 }

@@ -18,6 +18,7 @@ macro_rules! intrinsic_tags {
                 }
             }
 
+            #[cfg(any(test, feature = "full-policy-recovery"))]
             pub(super) fn from_code(code: u8) -> Option<Self> {
                 match code {
                     $($code => Some(Self::$variant),)+

@@ -21,8 +21,6 @@ use super::{
 pub(super) struct OperatorPhysicalSpan {
     pub machine: NativeByteSpan,
     pub object: NativeByteSpan,
-    pub final_image: NativeByteSpan,
-    pub machine_bytes_digest: [u8; 32],
     pub object_bytes_digest: [u8; 32],
     pub final_image_bytes_digest: [u8; 32],
     pub relocation: PhysicalRelocationDisposition,
@@ -625,10 +623,9 @@ fn derive_span(
         .ok_or("D29 physical child object span overflow")?;
     let machine = native_byte_span(code_offset, byte_count);
     let object_span = native_byte_span(object_offset, byte_count);
-    let final_image = object_span;
     let machine_bytes = span(function.bytes(object), machine)?;
     let object_bytes = span(object.text_bytes(), object_span)?;
-    let final_image_bytes = span(image, final_image)?;
+    let final_image_bytes = span(image, object_span)?;
     if machine_bytes != object_bytes {
         return Err("D29 physical child changed before object custody");
     }
@@ -665,8 +662,6 @@ fn derive_span(
     Ok(OperatorPhysicalSpan {
         machine,
         object: object_span,
-        final_image,
-        machine_bytes_digest: sha256(machine_bytes),
         object_bytes_digest: sha256(object_bytes),
         final_image_bytes_digest: sha256(final_image_bytes),
         relocation: disposition,

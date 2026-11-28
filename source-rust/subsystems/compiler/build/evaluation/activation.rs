@@ -354,6 +354,7 @@ impl TerminalBuildHost {
         machine: Arc<package_compilation::build_execution::SelectedBuildMachine>,
         filesystem_scope: &package_compilation::BuildMachineFilesystemScope,
         programs: Arc<crate::host::programs::ProgramInstallation>,
+        network: package_compilation::build_execution::BuildNetworkInvocation,
         execution_profile: Option<target::TargetProfile>,
         default_source: bool,
         default_sources: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
@@ -407,6 +408,14 @@ impl TerminalBuildHost {
             artifact,
             produced.build_requests(),
             programs,
+            network,
+            crate::host::network::Datagrams::install(
+                artifact.module(),
+                providers
+                    .network
+                    .iter()
+                    .map(|call| (call.access, call.peer, call.boundary)),
+            )?,
             Arc::clone(&filesystem),
             original.clone(),
             providers.diagnostic_output_bytes,

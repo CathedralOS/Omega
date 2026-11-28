@@ -2,7 +2,15 @@
 
 The native entry accepts an authorized Psi program, its deployment target and the receiving host's providers and permissions. Source compilation passes its checked publication and target demand in memory. A saved-program request reopens a portable `.psi` file and authorizes it before entering the same driver. [Native entry](psi_to_native.rs) · [Source and saved inputs](driver/inputs/published_application.rs) · [Psi authorization](../psi/artifact/authorization/authorization.rs)
 
+The Rust compiler checks grants for raw-address borrows and mutability upgrades against the source Product and its dependency ceilings. Its saved Psi publication does not carry those grants. When the selected entry or a provider reaches one of these operations, build the original Product with `omega build path/to/build.omg`. A dormant helper permits native emission under the usual saved-program authorization rules.
+
 ## Follow a compilation
+
+The [Fixed activation layout](pipeline/09_post-allocation-machine-to-framed-machine/entry-planning/src/fixed_activation.rs)
+sizes a caller-owned Linux x86-64 worker from its allocated frames, its own
+resolved calls and the instructions needed to enter it. Its two saved contexts,
+job and result must fit beside that stack in the supplied byte view. Computing
+this layout does not admit a platform stack switch or run a generator.
 
 | Work | Owner |
 | --- | --- |
@@ -35,7 +43,7 @@ Each numbered stage, the form it hands on, and what reads that form. Lines are
 production Rust outside `tests/` directories, measured on `d75a30117`. Stage 06
 changes nothing about the representation. The driver waits for every
 body at two points: after stage 04, for the callee closure in
-[`plan_callables.rs`](driver/plan_callables.rs), and between stage 09's two
+[`plan_callables.rs`](driver/image/plan_callables.rs), and between stage 09's two
 phases, for handler measurement and entry planning in
 [`object_emission.rs`](driver/image/object_emission.rs).
 
@@ -48,6 +56,12 @@ the `BoundFunctionBody` and bound entry recipes that stage 11 encodes. Only that
 module links the [binding issuer](representations/bound-framed-machine/issuer/issuer.rs),
 so stage 11 cannot accept a body or entry that skipped the check.
 
+Stages 12 and 13 share the work of laying out a function. Stage 12 fixes the
+instruction order and retains branch relaxation history when audit is requested. Stage 13 writes
+instructions directly at their framed offsets and places calls and relocations
+in the closed text section. An audit retains the original layout and unframed
+rows so it can independently check the placed bytes. [Placement](pipeline/13_resolved-layout-to-placed-functions/src/lib.rs)
+
 | Stage | Lines | Produces | Read by |
 | --- | --- | --- | --- |
 | 00 admitted inputs | 919 | `AdmittedProviderDemand` (checks the authorization matches the artifact) | 01 only |
@@ -55,8 +69,8 @@ so stage 11 cannot accept a body or entry that skipped the check.
 | 02 abstract operations | 6,418 | `VerifiedPsiOptimizationInput` | 04 and driver |
 | 04 target operations | 33,812 | `NativeBodyPlan` | 05, driver closure, `TargetOperationCorrespondence` |
 | 05 instruction selection | 47,046 | `StagedOptimizedSelectedInstructions` | 06 only |
-| 06 selected rewrites | 26,880 | `SelectedAllocationInput` (same form plus liveness) | 07, `SelectedInstructionRewriteReplay` |
-| 07 register allocation | 16,292 | `RetainedAllocation` | 08, `FixedFrameCorrespondence` |
+| 06 selected rewrites | 26,880 | `SelectedBody` (same form plus completed analyses) | 07, `SelectedInstructionRewriteReplay` |
+| 07 register allocation | 16,292 | `AllocatedBody`; optional `RetainedAllocation` for replay | 08 reads the body; `FixedFrameCorrespondence` reads replay evidence |
 | 08 post-allocation machine | 2,119 | `StagedOptimizedPostAllocationMachinePlan` | 09, `FixedFrameCorrespondence` |
 | 09 frame and installation binding | 10,630 | `FramedNativeBody`, `PreparedFunctionBody`, then `BoundFunctionBody` | driver entry planning and handler measurement, then 11 |
 | 11 encoding | 23,475 | `EncodedMachineProgram` | 12 and validator replay |
@@ -111,11 +125,14 @@ refused by name.
 
 ## Plan identities
 
-Stages 04–14 hash their in-memory plans with SHA-256 and hand the hashes on.
-Because both sides run in the same compile, most of these hashes only let the
-compiler check its own output, which default compilation does not do. They are
-being removed. A hash stays only where an explicit validator, a published
-artifact or a foreign-package boundary reads it.
+Stages 04–14 used to hash their in-memory plans with SHA-256 and hand the
+hashes on. Because both sides run in the same compile, these hashes only let
+the compiler check its own output, which default compilation does not do. Most
+have been removed: records share the plans they were built from through an
+`Arc`, and checks compare those plans (pointer first, then structure). A hash
+stays only where an explicit validator, a published artifact, a catalog or a
+foreign-package boundary reads it; the rows marked "kept for now" are the
+in-process digests still left.
 
 | Identity | Readers that matter | Decision |
 | --- | --- | --- |
@@ -127,9 +144,16 @@ artifact or a foreign-package boundary reads it.
 | `SelectedInstructionPlanIdentity`, `RetainedPlanPrefix`, effects identities (05–06) | receipts; validators compare retained program | deleted; rewrite receipts, liveness, live-range, effects and recovery plans, the post-allocation manifest and machine plan share `Arc<SelectedInstructionPlan>` and checks compare it; records that already share the machine plan drop their own copy; runtime spill, split, rematerialization and fixed-occurrence ledger rows record only their kind |
 | `LivenessIdentity`, `LiveRangeIdentity`, `AllocationLegalityIdentity` and the receipt and manifest digests built on them (06–08) | receipts; the post-allocation manifest digest | deleted, with their per-function digests and the carried-digest cache; legality, spill-choice, fixed-precolored and register-home plans name their program through the shared `selected` plan, and checks compare that plan; custody, completion and recovery receipts and the post-allocation manifest no longer record them, and the post-allocation machine plan drops its copies |
 | `OptimizationIdentityBundleIdentity`, `OptimizedAbstractPlanProjectionIdentity`, `PrePhysicalOptimizationManifestIdentity` (04–15) | stage 05–07 custody, the post-allocation manifest, execution facts and the stage 15 physical scope, which only rehashed the unit, selections and budget | deleted; those records carry and compare the unit identity, selection identity and budget directly |
-| `OptimizationUnitIdentity` (04) | the unoptimized program record, custody, the post-allocation manifest, execution facts, fact keys | keep as the one unit hash; it already digests the Terminal program and work schedule |
+| Rewrite receipt identities (`CopyRemovalIdentity`, `LiteralFoldIdentity`, `FixedViewCopyIdentity`, `PressureRematerializationIdentity` and nine siblings), `SpillChoiceIdentity`, `RecoveryClassificationIdentity`, `SelectedLoweringOptimizationCompletionIdentity`, `PreAllocationOptimizationCompletionIdentity` (06–07) | sibling receipts, the transformation ledger and the post-allocation manifest; replay compares whole steps | deleted; ledger rows record each rewrite by kind; the optimization record and manifest name the program each Omega 04 phase ended with (`selected_lowering_output`, `pre_allocation_output`), and the replay validator compares that program with the run's output |
+| `RegisterHomeIdentity`, `PostAllocationOptimizationManifestIdentity`, `AllocatedCalleeSavedRequirementIdentity`, the allocation publication digest (07–13) | custody receipts; machine plan, preservation, frame demands, exit contract and `published-objects` root checks | deleted; the manifest, machine plan, preservation requirements and callee-save storage share `Arc<RegisterHomePlan>` and `Arc<PostAllocationOptimizationManifest>`, and checks compare them; records that already share the machine plan drop their own copies |
+| `NonAuthoritativeCalleeSaveStorageIdentity`, `TargetFrameProtocolEncodingIdentity` (09–13) | frame layout and frame-application roots; exit contract frame disposition | deleted; the frame layout shares the requirements and storage plans, the exit contract shares the protocol plan, and frame application is checked against the protocol its source carries |
+| `SelectedFormEncodingIdentity`, `WholeFunctionExitContractIdentity` (11–13) | layout, relaxation record, exit requirements and encoded-program context; the contract's own recheck | deleted; those records hold a weak `SelectedFormEncodingHandle` and checks compare it so ordinary placement still releases the encoding before object construction; the footprint interning bucket key stays as a storage key |
+| Physical-program digest (`PostAllocationMachineProgram::identity`, 08–13) | stage 09 call origins, installed handlers and body CPU facts; bound encoding subject | kept for now; it no longer hashes the preservation requirements or the allocation publication, which records share and compare |
+| `X86BranchRelaxationIdentity`, `X86BranchRelaxationRevisionIdentity` (12–13) | requested relaxation replay | Stage 12 hashes the function rows and records attempts and actions only for an audit. Stage 13 checks the issued layout directly and records the relaxation policy in the exit contract. |
+| `OptimizationUnitIdentity` (04) | the unoptimized program record, custody, the post-allocation manifest, execution facts, fact keys | bind the Psi fingerprint, work schedule, entry, target, admitted scalar values, selected machines and boundaries, provider candidates, target geometry, sequence bounds, module attachment and accepted facts. Stage 02 lowers each selected body in Psi order. The seed API also accepts independently constructed functions. It hashes their complete operands once and retains the digest with the read-only graph, so attaching proof facts reuses the same function identity |
 | `MachineFunctionIdentity` | sort key in validator replay; program fingerprint plus placement, not a plan hash | keep |
-| `NativeArtifactIdentity` | physical publication tests | keep; binds emitted bytes, no longer plan hashes |
+| `MachineEffectCatalogIdentity`, `RegisterConstraintCatalogIdentity`, `TargetRegisterEnvironmentIdentity`, `PhysicalRegisterModelIdentity`, `AllocatorAvailabilityIdentity`, `OptimizationSelectionIdentity` | catalog and target configuration roots compared across stages | keep; they name configuration, not a stage's output |
+| `NativeArtifactIdentity` | `native.identity.txt` (`omega run --keep`) | keep; binds emitted bytes, no longer plan hashes |
 
 `NativeArtifactIdentity` already hashes the object, image and text bytes. The
 plan hashes it also chained in changed nothing those bytes did not, and

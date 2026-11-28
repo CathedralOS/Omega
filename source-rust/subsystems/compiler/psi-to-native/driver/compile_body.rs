@@ -143,31 +143,31 @@ pub(crate) fn prepare_physical_body(
     let body_error =
         |reason| BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(reason)]);
     observation.enter(NativePipelineStage::InstructionSelection);
-    let selected = instruction_selection::select_instructions(
-        instruction_selection::SelectionInput {
+    let selected =
+        instruction_selection::select_instructions(instruction_selection::SelectionInput {
             body: target,
             entry_execution,
             stack: requirements,
-        },
-    )
-    .map_err(|error| match error {
-        OptimizedSelectionPipelineError::RegisterEnvironment(reason) => {
-            OptimizedVerifiedPhysicalPipelineError::RegisterEnvironment(reason).into()
-        }
-        OptimizedSelectionPipelineError::BodyBindings(reason) => body_error(reason),
-        OptimizedSelectionPipelineError::Installation(reason) => {
-            BodyEmissionError::Installation(reason)
-        }
-        other => OptimizedVerifiedPhysicalPipelineError::Selection(other).into(),
-    })?;
+        })
+        .map_err(|error| match error {
+            OptimizedSelectionPipelineError::RegisterEnvironment(reason) => {
+                OptimizedVerifiedPhysicalPipelineError::RegisterEnvironment(reason).into()
+            }
+            OptimizedSelectionPipelineError::BodyBindings(reason) => body_error(reason),
+            OptimizedSelectionPipelineError::Installation(reason) => {
+                BodyEmissionError::Installation(reason)
+            }
+            other => OptimizedVerifiedPhysicalPipelineError::Selection(other).into(),
+        })?;
     observation.enter(NativePipelineStage::SelectedOptimization);
     let optimized = selected_rewrites::optimize_selected_instructions(selected)
         .map_err(OptimizedVerifiedPhysicalPipelineError::SelectedOptimization)?;
     observation.enter(NativePipelineStage::RegisterAllocation);
-    let (allocation, selected_optimization) = allocation::stage_register_allocation(optimized)
+    let selected_optimization = optimized.replay;
+    let allocation = allocation::stage_register_allocation(optimized.program)
         .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterAllocation)?;
     observation.enter(NativePipelineStage::PostAllocationMachine);
-    let machine = machine::stage_optimized_post_allocation_machine_plan(&allocation)
+    let machine = machine::stage_optimized_post_allocation_machine_plan(&allocation.program)
         .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)?;
     let (frame, original_machine) =
         frame_planning::plan_function_frame(machine).map_err(|error| match error {
@@ -181,11 +181,21 @@ pub(crate) fn prepare_physical_body(
                 FunctionRelativeOptimizationRealizationError::FrameProtocol(error)
             }
         })?;
-    let originals = original_machine.map(|machine| PhysicalPlanningOriginals {
-        selected_optimization,
-        allocation,
-        machine,
-    });
+    let originals = match (original_machine, allocation.replay) {
+        (Some(machine), Some(allocation)) => Some(PhysicalPlanningOriginals {
+            selected_optimization,
+            allocation,
+            machine,
+        }),
+        (None, None) => None,
+        _ => {
+            return Err(BodyEmissionError::Object(vec![
+                diagnostics::Diagnostic::error(
+                    "allocation and machine lowering disagree on requested replay evidence",
+                ),
+            ]));
+        }
+    };
     let stage = entry_planning::imports::plan_function_body(frame).map_err(body_error)?;
     Ok(PreparedPhysicalBody { stage, originals })
 }
@@ -246,7 +256,10 @@ pub(crate) fn layout_encoded_body(
     let EncodedBody { program, originals } = encoded;
     observation.enter(NativePipelineStage::ResolvedLayout);
     let originals = originals.map(|earlier| (earlier, program.current().clone()));
-    let placement::LayoutResolution { layout: output, baseline_for_audit } = placement::resolve_program(program)
+    let placement::LayoutResolution {
+        layout: output,
+        baseline_for_audit,
+    } = placement::resolve_program(program)
         .map_err(OptimizedVerifiedPhysicalPipelineError::Layout)?;
     let retained = match (originals, baseline_for_audit) {
         (Some((earlier, encoding)), Some(baseline_layout)) => Some(Box::new(
@@ -259,9 +272,13 @@ pub(crate) fn layout_encoded_body(
             },
         )),
         (None, None) => None,
-        _ => return Err(BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(
-            "layout and encoding disagree on independent replay custody",
-        )])),
+        _ => {
+            return Err(BodyEmissionError::Object(vec![
+                diagnostics::Diagnostic::error(
+                    "layout and encoding disagree on independent replay custody",
+                ),
+            ]));
+        }
     };
     if retained
         .as_ref()
@@ -295,8 +312,8 @@ pub(crate) struct BodyObject {
 }
 
 pub(crate) fn construct_body_object(body: LaidOutBody) -> Result<BodyObject, BodyEmissionError> {
-    let issued = object_file::publish_function_object(body.placed)
-        .map_err(object_publication_error)?;
+    let issued =
+        object_file::publish_function_object(body.placed).map_err(object_publication_error)?;
     let projection =
         native_artifact::emit_fragment_object(issued).map_err(BodyEmissionError::Object)?;
     Ok(BodyObject {

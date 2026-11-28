@@ -662,21 +662,10 @@ pub(crate) mod copied_call_operand {
     use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
     use register_environment::ValidatedTargetRegisterEnvironment;
     use selected_instructions::{
-        CopiedCallOperandIdentity, PreparedMachineEffectCatalog, SelectedInstructionId,
-        SelectedInstructionPlan,
+        PreparedMachineEffectCatalog, SelectedInstructionId, SelectedInstructionPlan,
     };
     use semantic_vocabulary::WorkScheduleIdentity;
     use std::sync::Arc;
-
-    rewrite_receipt_identity!(
-        copied_call_operand_identity,
-        CopiedCallOperandIdentity,
-        CopiedCallOperandReceipt,
-        b"omega.terminal-copied-call-operand.v2\0",
-        "copied-call-operand",
-        producer,
-        call,
-    );
 
     validated_transformed_receipt!(ValidatedCopiedCallOperand, CopiedCallOperandReceipt);
 
@@ -814,7 +803,10 @@ pub(crate) mod copy_removal {
                     instruction: id,
                     register: subject,
                 } => id == instruction || subject == register,
-                StructuralParameter { .. } | EntryParameter { .. } | BlockParameter { .. } => false,
+                ActivationOwner
+                | StructuralParameter { .. }
+                | EntryParameter { .. }
+                | BlockParameter { .. } => false,
             }
         }
 
@@ -1241,9 +1233,7 @@ pub(crate) mod copy_removal {
     use crate::selected_rewrites::rewrites::sealed;
     use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
     use register_environment::ValidatedTargetRegisterEnvironment;
-    use selected_instructions::{
-        CopyRemovalIdentity, SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
-    };
+    use selected_instructions::{SelectedFunction, SelectedInstructionId, SelectedInstructionPlan};
     use semantic_vocabulary::WorkScheduleIdentity;
     use std::sync::Arc;
 
@@ -1253,15 +1243,6 @@ pub(crate) mod copy_removal {
         function_index: usize,
         copy: SelectedInstructionId,
     });
-
-    rewrite_receipt_identity!(
-        copy_removal_identity,
-        CopyRemovalIdentity,
-        CopyRemovalReceipt,
-        b"omega.terminal-copy-removal.v2\0",
-        "copy-removal",
-        copy,
-    );
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum CopyRemovalError {
@@ -1600,10 +1581,7 @@ pub(crate) mod redundant_extension {
     use crate::selected_rewrites::rewrites::sealed;
     use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
     use register_environment::ValidatedTargetRegisterEnvironment;
-    use selected_instructions::{
-        RedundantExtensionIdentity, SelectedFunction, SelectedInstructionId,
-        SelectedInstructionPlan,
-    };
+    use selected_instructions::{SelectedFunction, SelectedInstructionId, SelectedInstructionPlan};
     use semantic_vocabulary::WorkScheduleIdentity;
     use std::sync::Arc;
 
@@ -1613,15 +1591,6 @@ pub(crate) mod redundant_extension {
         function_index: usize,
         extension: SelectedInstructionId,
     });
-
-    rewrite_receipt_identity!(
-        redundant_extension_identity,
-        RedundantExtensionIdentity,
-        RedundantExtensionReceipt,
-        b"omega.terminal-redundant-extension-removal.v2\0",
-        "redundant-extension",
-        extension,
-    );
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum RedundantExtensionError {

@@ -10,32 +10,12 @@ use semantic_vocabulary::ServiceReachId;
 use semantic_vocabulary::{MachineId, ServiceId};
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{
-    ServiceDeclaration, TerminalCallableEnvelope, TerminalCallableInvocation,
-    TerminalCallableTermination, TerminalModule,
+    ServiceDeclaration, TerminalCallableEnvelope, TerminalCallableTermination, TerminalModule,
 };
 
 use crate::{Elaboration, Unserved, refuse};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum SourceInvocation {
-    Parameter(u32),
-    Service(ServiceReachId),
-}
-
-impl Ord for SourceInvocation {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        let key = |target: &Self| match target {
-            Self::Parameter(position) => (0u8, *position),
-            Self::Service(service) => (1, service.0),
-        };
-        key(self).cmp(&key(other))
-    }
-}
-impl PartialOrd for SourceInvocation {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
+pub(crate) type SourceInvocation = semantic_vocabulary::SynchronousInvocation<ServiceReachId>;
 
 /// These identities belong to frozen typed trees, not a Terminal namespace.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -184,14 +164,7 @@ impl ServiceMap {
         let mut invocations = source
             .invocations
             .iter()
-            .map(|target| match target {
-                SourceInvocation::Parameter(position) => {
-                    Ok(TerminalCallableInvocation::Parameter(*position))
-                }
-                SourceInvocation::Service(service) => self
-                    .service(context, *service)
-                    .map(TerminalCallableInvocation::Service),
-            })
+            .map(|target| target.try_map_service(|id| self.service(context, *id)))
             .collect::<Checked<Vec<_>>>()?;
         invocations.sort();
         invocations.dedup();
@@ -380,6 +353,21 @@ pub(crate) fn authored_source_ceiling(
     crate::read::services::finite_reach(typed, context, row).map(Some)
 }
 
+/// A native borrow contributes the installed Core atom and its boundary parents
+/// even in a machine with no calls and no written reach annotation.
+fn operation_reach(
+    module: &TerminalModule,
+    machine: &terminal_psi::TerminalMachine,
+) -> Checked<Vec<ServiceId>> {
+    let mut reached = Vec::new();
+    for operation in machine.operations() {
+        let row = terminal_semantics::storage::native_borrows::required_services(module, operation)
+            .map_err(|reason| crate::read::services::unavailable(machine.id, reason))?;
+        union(&mut reached, &row);
+    }
+    Ok(reached)
+}
+
 /// State canonical rows from actual lowered direct, callable and boundary calls.
 /// No acceptance follows from this computation; the receiving judgment checks it.
 pub(crate) fn publish(
@@ -406,10 +394,16 @@ pub(crate) fn publish(
         // that contract creates neither an executable body nor an envelope.
         ceilings.push(machine.declared_service_reach.clone());
     }
-    let mut published = ceilings
+    let mut published = elaboration
+        .module
+        .machines
         .iter()
-        .map(|ceiling| ceiling.clone().unwrap_or_default())
-        .collect::<Vec<_>>();
+        .zip(&ceilings)
+        .map(|(machine, ceiling)| match ceiling {
+            Some(row) => Ok(row.clone()),
+            None => operation_reach(&elaboration.module, machine),
+        })
+        .collect::<Checked<Vec<_>>>()?;
     let position = |machine: MachineId| {
         usize::try_from(machine.get() - 1)
             .map_err(|_| unavailable(diagnostic, "machine coordinate exceeds host width"))

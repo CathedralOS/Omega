@@ -28,6 +28,8 @@ pub struct TargetStructuralParameter {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetStructuralArgument {
+    /// Opened callable parameter receiving the stored package witness at this invocation.
+    pub opened_referent: Option<StructuralTypeId>,
     pub place: PlaceId,
     pub access: terminal_psi::StructuralAccess,
     pub path: Vec<StructuralPathSegment>,
@@ -57,6 +59,12 @@ pub struct TargetReferenceOrigin {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TargetReferenceOriginBase {
+    /// A native caller asserted this borrow. The origin can be compared for
+    /// custody, but supplies no local storage coordinate or disjointness proof.
+    NativeAddress {
+        machine: semantic_vocabulary::MachineId,
+        operation: semantic_vocabulary::OperationId,
+    },
     Storage {
         root: PlaceId,
     },
@@ -84,7 +92,7 @@ impl TargetReferenceOriginBase {
     pub fn root_place(&self) -> Option<PlaceId> {
         match self {
             Self::Storage { root } | Self::IncomingContents { root, .. } => Some(*root),
-            Self::Invocation { .. } | Self::Provider { .. } => None,
+            Self::NativeAddress { .. } | Self::Invocation { .. } | Self::Provider { .. } => None,
         }
     }
 }
@@ -94,7 +102,8 @@ impl TargetReferenceOrigin {
         &self,
     ) -> std::borrow::Cow<'_, [terminal_psi::ReferenceOriginProjection]> {
         match &self.base {
-            TargetReferenceOriginBase::Storage { .. }
+            TargetReferenceOriginBase::NativeAddress { .. }
+            | TargetReferenceOriginBase::Storage { .. }
             | TargetReferenceOriginBase::Invocation { .. }
             | TargetReferenceOriginBase::Provider { .. } => std::borrow::Cow::Borrowed(&self.path),
             TargetReferenceOriginBase::IncomingContents { slot, .. } => {

@@ -2,51 +2,13 @@
 
 use std::borrow::Cow;
 
-use abstract_operations::{AbstractCallTarget, AbstractOperation as O, AbstractOperationPlan};
+use abstract_operations::{AbstractCallTarget, AbstractOperation as O};
 use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
 use terminal_semantics::callable_values::{
     CallableDefinition, CallableInvocationSite, CallableInvocationTarget, CallableValueBody,
-    CallableValueProgram, CallableValueResult, project_callable_invocation,
-    project_owned_cleanup_invocation, stored_callable_definition,
+    CallableValueProgram, CallableValueResult, opened_stored_callable_definition,
+    project_callable_invocation, project_owned_cleanup_invocation, stored_callable_definition,
 };
-
-pub fn optimized_callable_invocations(
-    unit: &PsiOptimizationUnit,
-) -> CallableValueResult<Option<terminal_semantics::callable_values::ReachableCallableInvocations>>
-{
-    if !unit.block_nodes().any(|node| {
-        matches!(
-            node.operation,
-            O::CallStructural {
-                callee: AbstractCallTarget::Callable { .. },
-                ..
-            }
-        )
-    }) {
-        return Ok(None);
-    }
-    let program = optimized_callable_values(unit)?;
-    terminal_semantics::callable_values::reachable_callable_invocations(&program, [unit.entry])
-        .map(Some)
-}
-
-pub fn abstract_callable_values(
-    plan: &AbstractOperationPlan,
-) -> CallableValueResult<CallableValueProgram<'_>> {
-    let functions = plan
-        .functions
-        .iter()
-        .map(optimization_unit::reconstruct_psi_optimization_function_seed)
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|_| "callable provenance cannot reconstruct current Abstract function graphs")?;
-    project(
-        &plan.callables,
-        plan.structural_types.as_slice(),
-        &plan.boundary_machines,
-        &plan.dynamic_dispatch,
-        &functions,
-    )
-}
 
 pub fn optimized_callable_values(
     unit: &PsiOptimizationUnit,
@@ -121,6 +83,38 @@ fn project<'a>(
                     block.id,
                     u32::try_from(index).map_err(|_| "callable Abstract position overflow")?,
                 );
+                match &node.operation {
+                    O::EstablishRecord {
+                        result,
+                        instantiated,
+                        ..
+                    } => {
+                        for (field, actual) in instantiated.fields() {
+                            body.package_sites.record_field(
+                                structural_types,
+                                position,
+                                result,
+                                *field,
+                                actual,
+                            )?;
+                        }
+                    }
+                    O::CallStructural {
+                        psi_operation,
+                        callee: AbstractCallTarget::Callable { contract, .. },
+                        opening: Some(opening),
+                        ..
+                    } => {
+                        body.package_sites.opened_call(
+                            catalog,
+                            *psi_operation,
+                            *contract,
+                            opening.admitted_contracts.clone(),
+                            opening.stored_arguments.iter().copied(),
+                        )?;
+                    }
+                    _ => {}
+                }
                 if let Some((_, result)) = node.operation.structural_result() {
                     body.retain_structural_result(position, result.place);
                 }
@@ -165,6 +159,22 @@ fn project<'a>(
                     let definition = match &node.operation {
                         O::SelectMachine { descriptor, .. } => {
                             CallableDefinition::Constructed(*descriptor)
+                        }
+                        O::PrimitiveScalarRead { storage_scalar, .. }
+                            if *storage_scalar != result.scalar_type =>
+                        {
+                            let definition = opened_stored_callable_definition(
+                                structural_types,
+                                flow,
+                                position,
+                                result.value,
+                            )?;
+                            if !matches!(&definition, CallableDefinition::Stored { storage_contract: Some(public), .. }
+                                if semantic_vocabulary::ScalarType::Callable(*public) == *storage_scalar)
+                            {
+                                return Err("opened callable read changed its stored contract");
+                            }
+                            definition
                         }
                         _ if body.has_primary_invocation(position) => {
                             CallableDefinition::Invocation(position)

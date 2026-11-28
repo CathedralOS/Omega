@@ -277,7 +277,7 @@ impl Program<'_> {
         collection: ExpressionHandle,
         base: &Expression,
     ) -> Checked<()> {
-        let owner = self.symbols.get(machine).copied().unwrap_or_default();
+        let owner = self.machine_symbol(machine)?;
         let Some(operand @ ValueType::Record(..)) = base.result else {
             return Ok(());
         };
@@ -297,6 +297,17 @@ impl Program<'_> {
         expression: ExpressionHandle,
         value: &Expression,
     ) -> Checked<()> {
+        // A materialized constant can be read in a package with no machines.
+        // Only a source selection needs operand types and an owning machine.
+        if self
+            .typed
+            .expression_table
+            .authored_selection_occurrences(expression)
+            .next()
+            .is_none()
+        {
+            return Ok(());
+        }
         // Inequality is formed as the negation of its checked equality.
         // The source question still belongs to that binary operation, whose
         // actual operand types are on the equality rather than the outer Not.
@@ -310,7 +321,7 @@ impl Program<'_> {
             }
             _ => value,
         };
-        let owner = self.symbols.get(machine).copied().unwrap_or_default();
+        let owner = self.machine_symbol(machine)?;
         match (
             &value.kind,
             self.typed.expression_table.expression(expression),

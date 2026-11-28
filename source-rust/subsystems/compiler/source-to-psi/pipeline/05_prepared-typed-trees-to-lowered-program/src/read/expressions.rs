@@ -384,7 +384,7 @@ impl<'t> Program<'t> {
         let source = SourceOrigin::of(self.typed.expression_table.source_span(handle));
         let node = self.node(id, handle)?;
         if let ExpressionNode::Member(member) = node {
-            return self.member(id, slots, member, source, Access::Read);
+            return self.member(id, slots, handle, member, source, Access::Read);
         }
         let expected = match node {
             // A constant supplies its declared carrier through the ordinary
@@ -469,7 +469,7 @@ impl<'t> Program<'t> {
         let unserved = |what| Err(refuse_at(id, Unserved::Expression(what)));
         let expected_scalar = expected.and_then(ValueType::scalar);
         let type_truth = if matches!(node, ExpressionNode::Binary(_) | ExpressionNode::Member(_)) {
-            let owner = self.symbols.get(id).copied().unwrap_or_default();
+            let owner = self.machine_symbol(id)?;
             self.read_static_truth(id, owner, handle, super::types::Reading::Value)?
         } else {
             None
@@ -605,7 +605,9 @@ impl<'t> Program<'t> {
                 return self.held(id, slots, handle, value, expected, source);
             }
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::Dereference => {
-                return self.dereference(id, slots, unary.operand, source);
+                return self
+                    .referenced_place(id, slots, unary.operand, source)?
+                    .ok_or_else(|| reject(id, source, "`$` requires a reference operand"));
             }
             ExpressionNode::Unary(unary) => {
                 let operand = self.expression(id, slots, unary.operand, expected)?;
@@ -659,7 +661,7 @@ impl<'t> Program<'t> {
                 };
                 let (value, operators) = self.anonymous_float(id, handle, format)?;
                 if !operators.is_empty() {
-                    let owner = self.symbols.get(id).copied().unwrap_or_default();
+                    let owner = self.machine_symbol(id)?;
                     self.complete_anonymous_operators(id, owner, &operators)?;
                 }
                 (ExpressionKind::Float(value), ScalarType::IeeeFloat(format))
@@ -690,7 +692,7 @@ impl<'t> Program<'t> {
                     expected_scalar,
                     super::types::AnonymousLanding::Implicit,
                 )?;
-                let owner = self.symbols.get(id).copied().unwrap_or_default();
+                let owner = self.machine_symbol(id)?;
                 self.complete_anonymous_operators(id, owner, &evaluated.operators)?;
                 (
                     ExpressionKind::Integer(evaluated.value),
@@ -948,7 +950,7 @@ impl<'t> Program<'t> {
                 );
             }
             ExpressionNode::Member(member) => {
-                let value = self.member(id, slots, member, source, Access::Read)?;
+                let value = self.member(id, slots, handle, member, source, Access::Read)?;
                 return self.held(id, slots, handle, value, expected, source);
             }
             ExpressionNode::Borrow(_) => {
@@ -987,13 +989,13 @@ impl<'t> Program<'t> {
         })
     }
 
-    fn dereference(
+    pub(super) fn referenced_place(
         &mut self,
         id: MachineId,
         slots: &[Slot],
         operand: ExpressionHandle,
         source: SourceOrigin,
-    ) -> Checked<Expression> {
+    ) -> Checked<Option<Expression>> {
         let descriptor = if let ExpressionNode::Name(path) = self.node(id, operand)?
             && let Ok(slot) = self.slot_of(id, slots, path)
             && !slots[slot].erased
@@ -1006,7 +1008,7 @@ impl<'t> Program<'t> {
             };
             // Incoming borrowed formals already address their referent.
             if slots[slot].borrowed.is_some() {
-                return Ok(value);
+                return Ok(Some(value));
             }
             value
         } else {
@@ -1015,14 +1017,14 @@ impl<'t> Program<'t> {
         if let Some(held) = descriptor.result
             && let Some((referent, _)) = self.reference_referent(id, held)?
         {
-            return Ok(Expression {
+            return Ok(Some(Expression {
                 source,
                 call_context: None,
                 kind: ExpressionKind::Referent(Box::new(descriptor)),
                 result: Some(referent),
-            });
+            }));
         }
-        Err(reject(id, source, "`$` requires a reference operand"))
+        Ok(None)
     }
 
     /// A named place where a value is expected. A place that holds a
@@ -1180,7 +1182,7 @@ impl<'t> Program<'t> {
         let value = match self.node(id, target)? {
             ExpressionNode::Member(member) => {
                 let source = SourceOrigin::of(self.typed.expression_table.source_span(target));
-                self.member(id, slots, member, source, projection)?
+                self.member(id, slots, target, member, source, projection)?
             }
             ExpressionNode::Indexed(indexed) => self.indexed(
                 id,
@@ -1400,7 +1402,7 @@ impl<'t> Program<'t> {
             if let Some(earlier) =
                 wildcard.or_else(|| case.as_ref().and_then(|case| full_cases[case.case]))
             {
-                if let Some(names) = self.names.get_mut(id) {
+                if let Some(names) = self.machine_names_mut(id) {
                     names.shadowed_patterns.push((arm.source_span, earlier));
                 }
                 continue;
@@ -1538,7 +1540,7 @@ impl<'t> Program<'t> {
             MatchPattern::Value(head) | MatchPattern::Guard(head) => table.display_name(*head),
             MatchPattern::Destructure(pattern) => table.display_name(pattern.head),
         };
-        if let Some(names) = self.names.get_mut(id) {
+        if let Some(names) = self.machine_names_mut(id) {
             names
                 .arms
                 .push((span, format!("the `{label}` arm of a match")));
@@ -2440,6 +2442,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 // Each evaluation forms its own loan and temporary home.
                 | ExpressionKind::OwnedTemporary { .. }
                 | ExpressionKind::Borrow { .. }
+                | ExpressionKind::NativeBorrow { .. }
                 | ExpressionKind::Referent(_),
                 _,
             ) => false,

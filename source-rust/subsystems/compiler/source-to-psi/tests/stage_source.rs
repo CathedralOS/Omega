@@ -1232,16 +1232,18 @@ fn typed_trees_check_their_record_format_before_reading_the_forest() {
             record_storage::decode::<typed_trees::TypedTrees>(&former_header, limits).unwrap_err();
         assert_eq!(error.reason, "unsupported TypedTrees record format");
     }
-    let mut future = bytes;
-    let header = b"OmegaTypedTrees1";
-    assert!(future.starts_with(header));
-    future[header.len() - 1] = b'2';
-    assert_eq!(
-        record_storage::decode::<typed_trees::TypedTrees>(&future, limits)
-            .unwrap_err()
-            .reason,
-        "unsupported TypedTrees record format",
-    );
+    let header = b"OmegaTypedTrees3";
+    assert!(bytes.starts_with(header));
+    for version in *b"124" {
+        let mut other_format = bytes.clone();
+        other_format[header.len() - 1] = version;
+        assert_eq!(
+            record_storage::decode::<typed_trees::TypedTrees>(&other_format, limits)
+                .unwrap_err()
+                .reason,
+            "unsupported TypedTrees record format",
+        );
+    }
 }
 
 fn publish_build(
@@ -2576,4 +2578,41 @@ fn routed_membership_tests_preserve_the_domain_index() {
             }
         }
     }
+}
+
+#[test]
+fn removing_a_domain_from_an_owned_argument_preserves_its_callers_other_field() {
+    let package = PackageKeyIdentity::from_digest([0x65; 32]).unwrap();
+    let source = "data Cell [linear] { n: u64; }
+domain Cell::Granted established by issue;
+domain Cell::Vacant established by issue;
+data Vacant = Cell in Cell::Granted & Cell::Vacant;
+data Pair [linear] { taken: Vacant; rest: Vacant; }
+data Wrapped [linear] { used: Cell in Cell::Granted; }
+data Output [linear] { used: Wrapped; rest: Vacant; }
+machine issue(v: Cell) -> Vacant { v as +Cell::Granted +Cell::Vacant }
+machine take(v: Vacant) -> Wrapped { Wrapped { used: v as =Cell::Granted -Cell::Vacant } }
+machine carry(pair: Pair) -> Output { Output { used: take(pair.taken), rest: pair.rest } }
+machine main() {}";
+    let (files, root) = captured(package, source);
+    let artifact = source_compiler::inspect(product(files, root, package, &[]).unwrap(), "carry")
+        .expect("the caller retains the unpassed field and both of its domains");
+    let bytes = artifact.to_bytes();
+    let reopened = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
+        .expect("replay preserves the independent grant when take consumes its argument");
+    assert_eq!(reopened.to_bytes(), bytes);
+
+    let missing_grant = source.replace(
+        "taken: Vacant; rest: Vacant;",
+        "taken: Vacant; rest: Cell in Cell::Vacant;",
+    );
+    let (files, root) = captured(package, &missing_grant);
+    let errors = source_compiler::inspect(product(files, root, package, &[]).unwrap(), "carry")
+        .expect_err("the caller must supply the grant on the second field itself");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("Cell::Granted")),
+        "{errors:?}"
+    );
 }

@@ -64,7 +64,7 @@ fn validate_roots(
     artifact: &ResolvedMachineLayout,
 ) -> Result<(), Error> {
     if *artifact.machine() != machine.machine
-        || artifact.pre_layout() != pre_layout.identity()
+        || !artifact.pre_layout().names(pre_layout)
         || artifact.target() != selected.target
         || artifact.policy() != policy
     {

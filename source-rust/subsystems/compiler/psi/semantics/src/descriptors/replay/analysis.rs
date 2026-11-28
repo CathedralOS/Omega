@@ -80,8 +80,23 @@ impl StorageQueries {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LocalReturnBacking {
+    /// No completed result slot identifies an invocation-local home.
+    Unobserved,
+    /// A local is one possible backing in the observed results.
+    Alternative,
+    /// Every normal exit returns a slot whose possible backings are all local.
+    EveryReturn,
+}
+
 pub struct DescriptorAnalysis<'a> {
     pub(super) replay: Replay<'a>,
+    /// Site replay and type information of the module that owns these rows.
+    package_sites: Option<(
+        &'a terminal_psi::TerminalModule,
+        &'a crate::packages::CheckedPackageSites,
+    )>,
     storage_queries: StorageQueries,
     flows: Vec<(
         MachineId,
@@ -99,6 +114,10 @@ pub struct DescriptorSourceObservation {
 }
 
 impl<'a> DescriptorAnalysis<'a> {
+    pub(crate) fn source_rows(&self) -> crate::module_analyses::DescriptorRowView<'a> {
+        self.replay.machines
+    }
+
     pub(crate) fn uses_source_graph<'rows>(
         &self,
         types: &[StructuralTypeDeclaration],
@@ -213,6 +232,7 @@ impl<'a> DescriptorAnalysis<'a> {
     ) -> Self {
         Self {
             replay: Replay::new(types, machines),
+            package_sites: None,
             storage_queries: StorageQueries::default(),
             flows: Vec::new(),
         }
@@ -221,13 +241,25 @@ impl<'a> DescriptorAnalysis<'a> {
     /// An analysis that reads a type index built elsewhere over `types`,
     /// such as a `ModuleAnalyses` bundle's, instead of building its own.
     pub(crate) fn with_type_index(
-        types: &'a [StructuralTypeDeclaration],
-        type_index: &'a crate::descriptors::descriptor_lifetimes::StructuralTypeIndex<'a>,
+        analyses: &'a crate::ModuleAnalyses<'_>,
         machines: crate::module_analyses::DescriptorRowView<'a>,
         slot_kind: DescriptorSlotKind,
     ) -> Self {
+        let module = analyses.module();
+        let package_sites =
+            if !slot_kind.tracks_references() || module.execution.packages.sites.is_empty() {
+                None
+            } else {
+                analyses.package_sites().ok().map(|sites| (module, sites))
+            };
         Self {
-            replay: Replay::with_type_index(types, type_index, machines, slot_kind),
+            replay: Replay::with_type_index(
+                &module.types.structural_types,
+                analyses.types(),
+                machines,
+                slot_kind,
+            ),
+            package_sites,
             storage_queries: StorageQueries::default(),
             flows: Vec::new(),
         }
@@ -315,6 +347,7 @@ impl<'a> DescriptorAnalysis<'a> {
     ) -> Self {
         Self {
             replay: Replay::with_slot_kind(types, machines, DescriptorSlotKind::References),
+            package_sites: None,
             storage_queries: StorageQueries::default(),
             flows: Vec::new(),
         }
@@ -330,10 +363,62 @@ impl<'a> DescriptorAnalysis<'a> {
                 machines,
                 DescriptorSlotKind::BorrowedStorage,
             ),
+            package_sites: None,
             storage_queries: StorageQueries::default(),
             flows: Vec::new(),
         }
     }
+    /// Package certificates replayed on the same immutable module as these rows.
+    pub fn checked_package_sites(
+        &self,
+        module: &terminal_psi::TerminalModule,
+    ) -> Option<&crate::packages::CheckedPackageSites> {
+        let (owner, sites) = self.package_sites?;
+        std::ptr::eq(module, owner).then_some(sites)
+    }
+
+    fn opened_call_homes(
+        &mut self,
+        machine: MachineId,
+        position: DescriptorPosition,
+        owner: Option<DescriptorInvocationOwner>,
+    ) -> Vec<(DescriptorLocation, DescriptorLocation)> {
+        let Some(DescriptorInvocationOwner::Operation(operation)) = owner else {
+            return Vec::new();
+        };
+        self.package_sites
+            .map_or_else(Vec::new, |(module, checked)| {
+                crate::packages::opened_call_homes(
+                    module, checked, machine, operation, position, self,
+                )
+            })
+    }
+
+    /// Concrete local inputs of this checked invocation, paired with the
+    /// operand that denotes them at its evaluation point.
+    pub fn local_opened_inputs(
+        &mut self,
+        machine: MachineId,
+        position: DescriptorPosition,
+        operation: semantic_vocabulary::OperationId,
+    ) -> Vec<(DescriptorLocation, DescriptorLocation)> {
+        self.opened_call_homes(
+            machine,
+            position,
+            Some(DescriptorInvocationOwner::Operation(operation)),
+        )
+    }
+
+    fn local_input_home(
+        location: &DescriptorLocation,
+        homes: &[(DescriptorLocation, DescriptorLocation)],
+    ) -> Option<StorageResolution> {
+        homes
+            .iter()
+            .find(|(input, _)| input == location)
+            .map(|(_, home)| StorageResolution::Unique(home.clone()))
+    }
+
     /// Replay each callee once per module: take summaries this module's
     /// other analyses completed and publish the ones this analysis
     /// completes. `nominal_calls` are the ones this analysis's rows were
@@ -364,6 +449,7 @@ impl<'a> DescriptorAnalysis<'a> {
     ) -> Self {
         Self {
             replay: Replay::with_slot_kind(types, machines, DescriptorSlotKind::AccessOrigins),
+            package_sites: None,
             storage_queries: StorageQueries::default(),
             flows: Vec::new(),
         }
@@ -392,6 +478,51 @@ impl<'a> DescriptorAnalysis<'a> {
             .cloned()
     }
 
+    /// The local homes actually held by a reference value before an operation.
+    /// Only direct, complete addresses can justify handing back erased storage.
+    /// Incoming values, opaque accounts and indirect projections require the
+    /// ordinary typed reference replay.
+    pub(crate) fn local_reference_homes(
+        &mut self,
+        identity: MachineId,
+        at: DescriptorPosition,
+        slot: &DescriptorLocation,
+    ) -> Option<Vec<(PlaceId, Vec<terminal_psi::StructuralPathSegment>)>> {
+        self.replay.prepare_states(identity)?;
+        let machine = self.replay.machine(identity)?;
+        let state = self
+            .replay
+            .snapshots
+            .get(&identity)?
+            .ready()?
+            .before
+            .get(&at)?;
+        let values = self.replay.read(machine, state, slot)?;
+        if values.is_empty() {
+            return None;
+        }
+        values
+            .into_iter()
+            .map(|origin| {
+                let (source, path) = match origin {
+                    Origin::Storage(location) if &location != slot => {
+                        let ty = *machine.place_types.get(&location.root)?;
+                        (
+                            location.root,
+                            descriptor_path(self.replay.types, ty, &location.path)?,
+                        )
+                    }
+                    Origin::Backing(DescriptorCallOrigin::Argument { source, projection }) => {
+                        (source, projection.captured_storage_path()?)
+                    }
+                    _ => return None,
+                };
+                (!path.contains(&terminal_psi::StructuralPathSegment::Referent))
+                    .then_some((source, path))
+            })
+            .collect()
+    }
+
     /// One complete captured storage address, including indexed backing.
     /// Unknown or competing addresses cannot establish a singular projection.
     pub fn storage_projection(
@@ -407,6 +538,80 @@ impl<'a> DescriptorAnalysis<'a> {
             return None;
         }
         family.pop()
+    }
+
+    /// A use through a stored input reference follows the pointer present at
+    /// this cut. An indexed address can be exact without naming a static
+    /// descriptor slot in the machine.
+    pub fn observed_storage_family(
+        &mut self,
+        machine: &TerminalMachine,
+        position: DescriptorPosition,
+        location: &DescriptorLocation,
+    ) -> Result<Option<Vec<DescriptorCallOrigin>>, &'static str> {
+        let detail = match self.captured_storage_family_if_active(machine.id, position, location) {
+            Ok(family) => return Ok(family),
+            Err(detail) => detail,
+        };
+        let crossing = location
+            .path
+            .iter()
+            .rposition(|step| *step == DescriptorPathSegment::Referent)
+            .ok_or(detail)?;
+        let slot = DescriptorLocation {
+            root: location.root,
+            path: location.path[..crossing].to_vec(),
+        };
+        let types = self.replay.types;
+        let reference = descriptor_location_type(
+            types,
+            machine.structural_place_type(slot.root).ok_or(detail)?,
+            &slot.path,
+        )
+        .ok_or(detail)?;
+        let StructuralTypeShape::Reference { referent, .. } =
+            terminal_psi::find_structural_type(types, reference)
+                .ok_or(detail)?
+                .shape
+        else {
+            return Err(detail);
+        };
+        let rest = crate::descriptor_lifetimes::descriptor_path(
+            types,
+            reference,
+            &location.path[crossing..],
+        )
+        .ok_or(detail)?;
+        let Some((terminal_psi::StructuralPathSegment::Referent, suffix)) = rest.split_first()
+        else {
+            return Err(detail);
+        };
+        if !crate::projection_stays_in_inline_storage(types.iter(), referent, suffix) {
+            return Err(detail);
+        }
+        let DescriptorCallOrigin::Argument { source, projection } = self
+            .unchanged_selected_input_reference(machine, position, &slot)
+            .ok_or(detail)?
+        else {
+            return Err(detail);
+        };
+        let target = DescriptorCallOrigin::Argument {
+            source,
+            projection: projection.then(&Projection::new(&rest)),
+        };
+        let graph = self.replay.machine(machine.id).ok_or(detail)?;
+        let before = self
+            .replay
+            .snapshots
+            .get(&machine.id)
+            .and_then(|row| row.ready())
+            .and_then(|ready| ready.before.get(&position))
+            .ok_or(detail)?;
+        self.replay.checked_storage_family_if_active(
+            graph,
+            before,
+            StorageResolution::Projected(target),
+        )
     }
 
     /// All captured addresses that this storage use can name. This is a
@@ -442,6 +647,11 @@ impl<'a> DescriptorAnalysis<'a> {
                     .detail()
                     .unwrap_or("captured storage snapshots could not be reconstructed")
             })?;
+        let package_homes = self.opened_call_homes(
+            identity,
+            position,
+            machine.direct_call(position).map(|call| call.owner),
+        );
         let state = self
             .replay
             .snapshots
@@ -450,6 +660,7 @@ impl<'a> DescriptorAnalysis<'a> {
             .and_then(|ready| ready.before.get(&position))
             .ok_or("captured storage position has no reachable snapshot")?;
         let resolution = Self::resolved_storage(&self.replay, machine, state, location)
+            .or_else(|| Self::local_input_home(location, &package_homes))
             .ok_or("captured storage family has a missing, cyclic or unknown arrival")?;
         self.replay
             .checked_storage_family_if_active(machine, state, resolution)
@@ -560,6 +771,7 @@ impl<'a> DescriptorAnalysis<'a> {
             .replay
             .machine(identity)
             .ok_or("captured storage machine is absent or stale")?;
+        let package_homes = self.opened_call_homes(identity, position, Some(owner));
         let state = self
             .replay
             .invocation_state(identity, position, owner)
@@ -567,6 +779,7 @@ impl<'a> DescriptorAnalysis<'a> {
         let resolution = self
             .replay
             .resolve_storage(machine, state, location, None)
+            .or_else(|| Self::local_input_home(location, &package_homes))
             .ok_or("captured storage family has a missing, cyclic or unknown arrival")?;
         self.replay
             .checked_storage_family(machine, state, resolution)
@@ -624,7 +837,7 @@ impl<'a> DescriptorAnalysis<'a> {
     pub(crate) fn write_frame(
         &mut self,
         identity: MachineId,
-    ) -> Result<Option<Vec<DescriptorLocation>>, &'static str> {
+    ) -> Result<Option<Vec<StorageWriteTarget>>, &'static str> {
         self.replay.prepare_write_frame(identity)?;
         let Some(frame) = self
             .replay
@@ -641,7 +854,10 @@ impl<'a> DescriptorAnalysis<'a> {
         let mut published = frame
             .iter()
             .cloned()
-            .map(|mut write| {
+            .map(|mut target| {
+                let StorageWriteTarget::Storage(write) = &mut target else {
+                    return target;
+                };
                 write.path.truncate(
                     write
                         .path
@@ -651,11 +867,11 @@ impl<'a> DescriptorAnalysis<'a> {
                         })
                         .count(),
                 );
-                write
+                target
             })
             .collect::<Vec<_>>();
         published.sort_unstable();
-        let mut normalized: Vec<DescriptorLocation> = Vec::with_capacity(published.len());
+        let mut normalized: Vec<StorageWriteTarget> = Vec::with_capacity(published.len());
         for write in published {
             if normalized
                 .last()
@@ -754,6 +970,109 @@ impl<'a> DescriptorAnalysis<'a> {
             self.replay
                 .read(machine, states.get(&position)?, location)?,
         )
+    }
+
+    /// The address of a reference inside a borrowed slice is distinct from
+    /// the pointer stored there. Recover its input loan only when the checked
+    /// capture selects a single element and the input value still reaches
+    /// this observation on every path.
+    pub(crate) fn unchanged_selected_input_reference(
+        &mut self,
+        machine: &TerminalMachine,
+        position: DescriptorPosition,
+        location: &DescriptorLocation,
+    ) -> Option<DescriptorCallOrigin> {
+        let types = self.replay.types;
+        let graph = self.replay.machine(machine.id)?;
+        if self.replay.slot_kind != DescriptorSlotKind::BorrowedStorage {
+            return None;
+        }
+        let current = descriptor_location_type(
+            types,
+            machine.structural_place_type(location.root)?,
+            &location.path,
+        )?;
+        let StructuralTypeShape::Reference { access, .. } =
+            terminal_psi::find_structural_type(types, current)?.shape
+        else {
+            return None;
+        };
+        if !matches!(
+            access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        ) {
+            return None;
+        }
+        let origin = self.storage_projection(machine.id, position, location)?;
+        let DescriptorCallOrigin::Argument { source, projection } = &origin else {
+            return None;
+        };
+        let parameter = exactly_one(machine.structural_parameters.iter(), |p| p.place == *source)?;
+        if !matches!(
+            parameter.access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        ) {
+            return None;
+        }
+        let StructuralTypeShape::ElementView { .. } =
+            terminal_psi::find_structural_type(types, parameter.structural_type)?.shape
+        else {
+            return None;
+        };
+        let path = projection.captured_storage_path()?;
+        let [StructuralPathSegment::RuntimeIndex { .. }, ..] = path.as_slice() else {
+            return None;
+        };
+        if !crate::reference_source_projection_accessible(
+            types.iter(),
+            parameter.structural_type,
+            parameter.multiplicity,
+            parameter.access,
+            &path,
+            access,
+        ) {
+            return None;
+        }
+        let query = crate::descriptor_results::descriptor_contents_query_with(
+            types,
+            *source,
+            parameter.structural_type,
+            &path,
+            None,
+            |id| {
+                let scalar = machine.parameters.iter().find(|p| p.id == id)?;
+                Some(semantic_vocabulary::ScalarTerm::Value {
+                    id,
+                    scalar_type: scalar.scalar_type,
+                })
+            },
+        )?;
+        if !query.is_symbolic_location()
+            || query.selected_type(types, parameter.structural_type)? != Some(current)
+            || !matches!(query.inline_steps(types, parameter.structural_type)?.as_slice(),
+                [false, suffix @ ..] if suffix.iter().all(|step| *step))
+        {
+            return None;
+        }
+        let targets = self.payload_targets(machine.id, position, &query)?;
+        let [DescriptorPayloadTarget::Incoming(incoming)] = targets.as_slice() else {
+            return None;
+        };
+        if *incoming != query && *incoming != query.without_selectors() {
+            return None;
+        }
+        let flow = self.storage_queries.incoming(graph)?;
+        crate::descriptor_results::payload_versions::require_unchanged_entry_storage_with_incoming(
+            types,
+            self.replay.machines,
+            self,
+            machine.id,
+            position,
+            &DescriptorPayloadTarget::Incoming(query),
+            &flow,
+        )
+        .ok()?;
+        Some(origin)
     }
 
     /// Recover incoming contents only when their entry version still
@@ -987,6 +1306,25 @@ impl<'a> DescriptorAnalysis<'a> {
                 carrier: *carrier,
                 projection: projection.clone(),
             },
+            DescriptorSourceOrigin::Backing(DescriptorCallOrigin::NativeAddress {
+                opaque,
+                exact_parameters,
+                parameters,
+                machine,
+                operation,
+                place,
+                carrier,
+                projection,
+            }) => DescriptorStoredOrigin::NativeAddress {
+                opaque: *opaque,
+                exact_parameters: *exact_parameters,
+                parameters: parameters.clone(),
+                machine: *machine,
+                operation: *operation,
+                place: *place,
+                carrier: *carrier,
+                projection: projection.clone(),
+            },
             DescriptorSourceOrigin::IncomingSlot(location) => {
                 let (position, _, ty) = self.replay.parameter(callee, location.root)?;
                 if !self
@@ -1051,7 +1389,124 @@ impl<'a> DescriptorAnalysis<'a> {
         }
     }
 
-    pub fn result_contents(&mut self, identity: MachineId) -> Option<DescriptorResultContents> {
+    /// Describe a failed result using only the completed normal exits of
+    /// this machine. Unknown descriptors cannot establish a lifetime violation.
+    pub fn local_return_backing(&self, identity: MachineId) -> LocalReturnBacking {
+        let Some(machine) = self.replay.machine(identity) else {
+            return LocalReturnBacking::Unobserved;
+        };
+        let Some(returns) = &machine.returns else {
+            return LocalReturnBacking::Unobserved;
+        };
+        let Some(states) = self
+            .replay
+            .snapshots
+            .get(&identity)
+            .and_then(|entry| entry.ready())
+        else {
+            return LocalReturnBacking::Unobserved;
+        };
+        let local = |origin: &Origin| {
+            let root = match origin {
+                Origin::Storage(location) => location.root,
+                Origin::Backing(DescriptorCallOrigin::Argument { source, projection })
+                    if projection.is_native_enclosing_storage() =>
+                {
+                    *source
+                }
+                _ => return false,
+            };
+            machine.places.iter().any(|row| {
+                row.place == root && matches!(row.definition, DescriptorDefinition::Local)
+            })
+        };
+        let mut any_local = false;
+        let mut every_return = !returns.is_empty();
+        for (position, result) in returns {
+            let mut definite_slot = false;
+            if let Some(state) = states.normal_exits.get(position)
+                && let Some(ty) = machine.place_types.get(&result.root)
+                && let Some(slots) =
+                    self.replay
+                        .slot_kind
+                        .slots(self.replay.types, result.root, *ty)
+            {
+                for slot in slots.iter() {
+                    if let Some(origins) = self.replay.read(machine, state, slot) {
+                        any_local |= origins.iter().any(&local);
+                        definite_slot |= !origins.is_empty() && origins.iter().all(&local);
+                    }
+                }
+            }
+            every_return &= definite_slot;
+        }
+        if every_return {
+            LocalReturnBacking::EveryReturn
+        } else if any_local {
+            LocalReturnBacking::Alternative
+        } else {
+            LocalReturnBacking::Unobserved
+        }
+    }
+
+    /// The exact backing of this descriptor after this return's cleanup.
+    pub(crate) fn returned_origins(
+        &mut self,
+        identity: MachineId,
+        at: DescriptorPosition,
+        location: &DescriptorLocation,
+    ) -> Option<Vec<DescriptorStoredOrigin>> {
+        self.replay.prepare_states(identity)?;
+        let machine = self.replay.machine(identity)?;
+        let state = self
+            .replay
+            .snapshots
+            .get(&identity)?
+            .ready()?
+            .normal_exits
+            .get(&at)?;
+        self.replay
+            .read(machine, state, location)?
+            .iter()
+            .map(|origin| self.replay.exported(machine, origin))
+            .collect()
+    }
+
+    /// Pair each lender of a callee result with the caller origins obtained by
+    /// substituting that lender alone at this call.
+    pub(crate) fn forwarded_origins(
+        &mut self,
+        caller: MachineId,
+        at: DescriptorPosition,
+        field: &[DescriptorPathSegment],
+    ) -> Option<Vec<(DescriptorStoredOrigin, Vec<DescriptorStoredOrigin>)>> {
+        self.replay.prepare_states(caller)?;
+        let row = self.replay.machine(caller)?;
+        let call = row.direct_call(at)?;
+        let summary = self.replay.summary(call.callee()?, 0)?;
+        let slots = summary.result.slots()?;
+        let origins = DescriptorResultSlot::matching(slots, field)?.origins_at(field)?;
+        let state = self.replay.invocation_state(caller, at, call.owner)?;
+        origins
+            .into_iter()
+            .map(|formal| {
+                let actuals = self.replay.substitute(row, state, call, formal)?;
+                Some((
+                    formal.clone(),
+                    actuals
+                        .iter()
+                        .map(|origin| self.replay.exported(row, origin))
+                        .collect::<Option<_>>()?,
+                ))
+            })
+            .collect()
+    }
+
+    pub fn result_contents(
+        &mut self,
+        module: &terminal_psi::TerminalModule,
+        identity: MachineId,
+    ) -> Option<DescriptorResultContents> {
         let summary = self.replay.summary(identity, 0)?;
         let super::engine::ResultObservations::Observed {
             slots,
@@ -1061,8 +1516,17 @@ impl<'a> DescriptorAnalysis<'a> {
         else {
             return None;
         };
+        let slots = slots.clone()?;
+        let package_referents = crate::packages::returned_referents(
+            module,
+            identity,
+            self.replay.machines,
+            self,
+            &slots,
+        );
         Some(DescriptorResultContents {
-            slots: slots.clone()?,
+            slots,
+            package_referents,
             unknown_contents: contents.clone(),
             unresolved_slots: unknown.clone(),
             case_facts: summary.result_cases.clone(),
@@ -1209,6 +1673,7 @@ impl<'a> DescriptorAnalysis<'a> {
                 detail: None,
             },
         )?;
+        let package_homes = self.opened_call_homes(identity, position, Some(owner));
         let before = self
             .replay
             .invocation_state(identity, position, owner)
@@ -1219,7 +1684,15 @@ impl<'a> DescriptorAnalysis<'a> {
                 detail: None,
             })?;
         let mut step = DescriptorFlowStep::default();
-        self.append_invocation_flow(machine, position, call, before, &mut step, None)?;
+        self.append_invocation_flow(
+            machine,
+            position,
+            call,
+            before,
+            &mut step,
+            &package_homes,
+            None,
+        )?;
         Ok(step)
     }
     pub fn flow_arc(
@@ -1253,9 +1726,14 @@ impl<'a> DescriptorAnalysis<'a> {
         identity: MachineId,
         rules: &mut crate::descriptors::descriptor_lifetimes::DescriptorResidenceRules,
     ) -> Result<BTreeMap<DescriptorPosition, DescriptorFlowStep>, DescriptorGraphError> {
-        let formations = std::mem::take(&mut rules.captures);
+        let mut formations = std::mem::take(&mut rules.observations);
+        formations.extend(
+            std::mem::take(&mut rules.captures)
+                .into_iter()
+                .map(|(at, source, destination)| (at, at, source, destination)),
+        );
         let mut flow = self.prepare_flow(identity, Some(rules))?;
-        for (position, source, destination) in formations {
+        for (position, observed_at, source, destination) in formations {
             let failed = |detail| DescriptorGraphError::IncompleteMachine {
                 machine: identity,
                 position: Some(position),
@@ -1265,7 +1743,14 @@ impl<'a> DescriptorAnalysis<'a> {
             let destination = self
                 .location(identity, position, &destination)
                 .ok_or_else(|| failed("captured reference has no local destination"))?;
-            if let Some(source) = self.location(identity, position, &source) {
+            if let Some(source) = self.location(identity, observed_at, &source) {
+                let edge = (source.clone(), destination.clone());
+                let step = flow
+                    .get_mut(&position)
+                    .ok_or_else(|| failed("captured residence has no flow step"))?;
+                if !step.derivations.contains(&edge) {
+                    step.derivations.push(edge);
+                }
                 rules.captures.insert((position, source, destination));
                 continue;
             }
@@ -1273,13 +1758,17 @@ impl<'a> DescriptorAnalysis<'a> {
             // storage home. Keep each possible backing residence live through
             // the new reference. An unknown address cannot supply this edge.
             let origins = self
-                .captured_storage_family(identity, position, &source)
+                .captured_storage_family(identity, observed_at, &source)
                 .map_err(failed)?;
             let machine = self
                 .replay
                 .machine(identity)
                 .ok_or(DescriptorGraphError::MissingOrAmbiguousMachine(identity))?;
             for origin in origins {
+                // An independently admitted native address has no local home to retain.
+                if matches!(origin, DescriptorCallOrigin::NativeAddress { .. }) {
+                    continue;
+                }
                 let DescriptorCallOrigin::Argument { source, projection } = origin else {
                     return Err(failed("captured residence has no input-relative storage"));
                 };
@@ -1354,6 +1843,7 @@ impl<'a> DescriptorAnalysis<'a> {
             let Some(before) = states.get(position) else {
                 continue;
             };
+            self.resolve_copied_fields(machine, *position, before, step);
             let incomplete_step = || incomplete(Some(*position));
             let call = machine.direct_call(*position);
             // A projected address need not have a static descriptor location.
@@ -1373,11 +1863,18 @@ impl<'a> DescriptorAnalysis<'a> {
             {
                 step.may_escape = false;
             }
+            let package_homes =
+                self.opened_call_homes(identity, *position, call.map(|call| call.owner));
             let replay = &self.replay;
             let mut canonical = |location: &DescriptorLocation| {
                 let resolution = Self::resolved_storage(replay, machine, before, location);
                 replay
-                    .flow_location(machine, before, location, resolution)
+                    .flow_location(
+                        machine,
+                        before,
+                        location,
+                        resolution.or_else(|| Self::local_input_home(location, &package_homes)),
+                    )
                     .map_err(|detail| DescriptorGraphError::IncompleteMachine {
                         machine: identity,
                         position: Some(*position),
@@ -1478,6 +1975,7 @@ impl<'a> DescriptorAnalysis<'a> {
                     call,
                     before,
                     step,
+                    &package_homes,
                     residence_rules.as_deref_mut(),
                 )?;
             }
@@ -1510,6 +2008,7 @@ impl<'a> DescriptorAnalysis<'a> {
                     call,
                     before,
                     &mut effect,
+                    &[],
                     residence_rules.as_deref_mut(),
                 )?;
                 step.inputs.extend(effect.inputs.iter().cloned());
@@ -1533,6 +2032,68 @@ impl<'a> DescriptorAnalysis<'a> {
         }
         Ok(flow)
     }
+    /// A copy through a slice preserves the loan stored in each selected
+    /// field. The slice itself borrows the array containing those fields.
+    fn resolve_copied_fields(
+        &self,
+        machine: &DescriptorMachine,
+        position: DescriptorPosition,
+        before: &State,
+        step: &mut DescriptorFlowStep,
+    ) {
+        if !step.may_escape || step.derivations.is_empty() || machine.contents_queries.is_empty() {
+            return;
+        }
+        let mut copied = Vec::new();
+        let mut authority = Vec::new();
+        for (source, destination) in &step.derivations {
+            let key = (position, source.clone(), destination.clone());
+            let Some(query) = machine.contents_queries.get(&key) else {
+                return;
+            };
+            // A subslice or fixed-array reference applies a projection to the
+            // observed value. Neither copies the descriptor unchanged.
+            if machine.storage_derivations.contains(&key)
+                || machine.projections.contains_key(&key)
+                || destination
+                    .path
+                    .contains(&DescriptorPathSegment::UnknownContents)
+            {
+                return;
+            }
+            let Some(targets) = self.replay.contents_targets(machine, before, query) else {
+                return;
+            };
+            if targets.is_empty() {
+                return;
+            }
+            let transports_authority = step
+                .authority_derivations
+                .contains(&(source.clone(), destination.clone()));
+            for target in targets {
+                let DescriptorPayloadTarget::Storage {
+                    location,
+                    completed: None,
+                } = target
+                else {
+                    // Historical values and unlocated input contents keep their
+                    // conservative escape account.
+                    return;
+                };
+                let transfer = (location, destination.clone());
+                if transports_authority {
+                    authority.push(transfer.clone());
+                }
+                copied.push(transfer);
+            }
+        }
+        // Every copied field now transports from all its possible current
+        // slots. Only later uses of those copies need their original loans.
+        step.may_escape = false;
+        step.derivations = copied;
+        step.authority_derivations = authority;
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn append_invocation_flow(
         &self,
@@ -1541,6 +2102,7 @@ impl<'a> DescriptorAnalysis<'a> {
         call: &DescriptorInvocation,
         before: &super::engine::State,
         step: &mut DescriptorFlowStep,
+        package_homes: &[(DescriptorLocation, DescriptorLocation)],
         mut residence_rules: Option<
             &mut crate::descriptors::descriptor_lifetimes::DescriptorResidenceRules,
         >,
@@ -1554,7 +2116,12 @@ impl<'a> DescriptorAnalysis<'a> {
         let canonical = |location: &DescriptorLocation| {
             let resolution = self.replay.resolve_storage(machine, before, location, None);
             self.replay
-                .flow_location(machine, before, location, resolution)
+                .flow_location(
+                    machine,
+                    before,
+                    location,
+                    resolution.or_else(|| Self::local_input_home(location, package_homes)),
+                )
                 .map_err(|detail| DescriptorGraphError::IncompleteMachine {
                     machine: machine.id,
                     position: Some(position),
@@ -1855,7 +2422,8 @@ impl<'a> DescriptorAnalysis<'a> {
                     | DescriptorStoredOrigin::Carried { .. }
                     | DescriptorStoredOrigin::Provider(_)
                     | DescriptorStoredOrigin::ProducedContents(_)
-                    | DescriptorStoredOrigin::AccessFormation { .. } => {
+                    | DescriptorStoredOrigin::AccessFormation { .. }
+                    | DescriptorStoredOrigin::NativeAddress { .. } => {
                         continue;
                     }
                     DescriptorStoredOrigin::IncomingSlot { position, path } => {
@@ -1982,7 +2550,28 @@ impl<'a> DescriptorAnalysis<'a> {
                             // not recover geometry or authorize a
                             // different field. A reference to parameter
                             // storage still needs its retained call loan.
-                            self.replay.slot_kind != DescriptorSlotKind::References
+                            let transfers_authority = match self.replay.slot_kind {
+                                DescriptorSlotKind::References => false,
+                                DescriptorSlotKind::BorrowedStorage => {
+                                    let root = *machine
+                                        .place_types
+                                        .get(&destination.root)
+                                        .ok_or_else(incomplete_step)?;
+                                    let leaf = self
+                                        .replay
+                                        .type_index
+                                        .descriptor_location_type(root, &destination.path);
+                                    !leaf.is_some_and(|ty| {
+                                        DescriptorSlotKind::References
+                                            .is_slot(self.replay.types, ty)
+                                    })
+                                }
+                                DescriptorSlotKind::Views | DescriptorSlotKind::AccessOrigins => {
+                                    true
+                                }
+                            };
+                            transfers_authority
+                                && !projection.upgraded_mutability
                                 && projection.original_descriptor_path().is_some()
                                 && !projection.indirect
                                 && projection.window.is_none()

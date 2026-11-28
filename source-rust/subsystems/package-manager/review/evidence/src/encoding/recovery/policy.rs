@@ -24,8 +24,8 @@ pub(in crate::encoding::recovery) mod structural_expressions;
 pub(in crate::encoding::recovery) mod terminal_permissions;
 pub(in crate::encoding::recovery) mod text;
 
+use super::PackagePolicyRecoveryLimits;
 use PackagePolicyRecoveryError as Error;
-pub use policy_recovery_accounting::PackagePolicyRecoveryLimits;
 pub(crate) use policy_recovery_accounting::{
     PackagePolicyRecoveryError, PackagePolicyRecoveryUsage,
 };
@@ -55,7 +55,7 @@ fn recover_component<Policy>(
 }
 
 macro_rules! recover_canonical_component {
-    ($magic:expr, $version:expr, $decode:expr, validate $(, also $earlier:expr)? $(,)?) => {
+    ($magic:expr, $version:expr, $decode:expr, validate $(, also $earlier:expr)* $(,)?) => {
         pub fn recover_canonical(
             bytes: &[u8],
             limits: PackagePolicyRecoveryLimits,
@@ -64,7 +64,7 @@ macro_rules! recover_canonical_component {
                 bytes,
                 limits,
                 $magic,
-                |version| version == $version $(|| version == $earlier)?,
+                |version| version == $version $(|| version == $earlier)*,
                 $decode,
                 |policy| {
                     policy

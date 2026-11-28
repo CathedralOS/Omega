@@ -254,6 +254,68 @@ fn a_dying_record_releases_each_reference_it_holds() {
     }
 }
 
+/// The same declared member can have different storage coordinates in Link<File>
+/// and Link<S>. The destination releases each of its own members, including when
+/// the Link is stored inside an array.
+#[test]
+fn a_package_releases_each_borrow_in_its_nominal_fields() {
+    for (fields, stored, argument, expected) in [
+        (
+            "first: @'a T; second: @'a T;",
+            "Link<'a, S>",
+            "Link<'a, File>",
+            ["link.first", "link.second"],
+        ),
+        (
+            "target: @'a T;",
+            "[Link<'a, S>; 2]",
+            "[Link<'a, File>; 2]",
+            ["link.FixedIndex(0).target", "link.FixedIndex(1).target"],
+        ),
+    ] {
+        let program = Program::of(&format!(
+            "data File {{ n: u8; }}
+             data Link<'a, T> {{ {fields} }}
+             data Reader<'a, some S> {{ link: {stored}; tag: u8; }}
+             machine inspect<'a>(input: {argument}) -> u8 {{
+                 let p: Reader<'a> = Reader {{ link: input, tag: 42u8 }};
+                 p.tag
+             }}"
+        ));
+        let releases: Vec<_> = program
+            .machine("inspect")
+            .operations()
+            .filter_map(|op| {
+                let OperationKind::ReleaseReference { path, .. } = &op.kind else {
+                    return None;
+                };
+                let name = steps(&program, path).join(".");
+                name.starts_with("link.").then_some((op.id, path, name))
+            })
+            .collect();
+        let [(_, first, left), (id, _, right)] = releases.as_slice() else {
+            panic!("expected two nested releases: {releases:?}")
+        };
+        let mut paths = [left.as_str(), right.as_str()];
+        paths.sort();
+        assert_eq!(paths, expected);
+        program.judged(|_| {}).accepted();
+
+        // Redirect one release to its already released sibling.
+        let refusal = program
+            .judged_in("inspect", |machine| {
+                let OperationKind::ReleaseReference { path, .. } =
+                    &mut operation_mut(machine, *id).kind
+                else {
+                    unreachable!()
+                };
+                path.clone_from(first);
+            })
+            .refused();
+        assert!(refusal.detail.contains(DEAD_REFERENCE), "{refusal:?}");
+    }
+}
+
 /// `let chosen = left;` on `left: @mutable [u32]` forms a new exclusive
 /// view of `left` for the local, and `chosen.length` measures the local;
 /// the twin `let chosen = right;` forms it from `right`. Forming the
@@ -414,6 +476,54 @@ fn each_arm_of_a_reference_join_hands_the_join_its_own_formal() {
 }
 
 #[test]
+fn a_reference_returned_through_a_type_parameter_keeps_its_original_loan() {
+    let source = r"
+data File { byte: u8; }
+machine borrow<'a, T>(state: @'a T) -> @'a T { state }
+machine main() crashes Trap {
+    let mutable file: File = File { byte: 17u8 };
+    let mutable other: File = File { byte: 3u8 };
+    let state: @File = borrow(@file);
+    other.byte = 23u8;
+    transition state.byte == 17u8 { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}";
+
+    Program::of(source).judged(|_| {}).accepted();
+    let overlapping = source.replace("other.byte = 23u8", "file.byte = 23u8");
+    let rejection = Program::of(&overlapping).judged(|_| {}).rejected();
+    assert!(!rejection.conflicts.is_empty());
+}
+
+#[test]
+fn a_returned_borrow_of_a_record_preserves_its_field_loan() {
+    let source = r"
+data File { byte: u8; }
+data Socket<'a> { file: @'a File; }
+machine pass<'outer, 'inside>(socket: @'outer Socket<'inside>) -> @'outer Socket<'inside> { socket }
+machine main() crashes Trap {
+    let mutable other: File = File { byte: 8u8 };
+    let mutable file: File = File { byte: 17u8 };
+    let mutable socket: Socket = Socket { file: @file };
+    let r: @Socket = pass(@socket);
+    other.byte = 7u8;
+    transition r.file.byte == 17u8 { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}";
+    Program::of(source).judged(|_| {}).accepted();
+    let overlapping = source.replace("other.byte = 7u8", "file.byte = 7u8");
+    assert!(
+        !Program::of(&overlapping)
+            .judged(|_| {})
+            .rejected()
+            .conflicts
+            .is_empty()
+    );
+}
+
+#[test]
 fn an_indexed_borrow_only_holds_the_owner_through_its_last_use() {
     let source = r#"
         data Item { value: i32; }
@@ -439,4 +549,61 @@ fn an_indexed_borrow_only_holds_the_owner_through_its_last_use() {
         program::Verdict::Rejected(rejection) => assert!(!rejection.conflicts.is_empty()),
         other => panic!("expected overlapping exclusive loans, got {other:?}"),
     }
+}
+
+#[test]
+fn a_reference_in_a_generic_case_keeps_its_input_loan() {
+    let mutable = "data Cell { value: u32; } data Wrapped<T> { case Ready(value: T); case Empty; }
+        machine keep<'a, 'b>(first: @'a mutable Cell, second: @'b mutable Cell) -> Wrapped<@'a mutable Cell> {
+            Wrapped::Ready { value: first }
+        }";
+    for (source, access) in [
+        (mutable.to_owned(), StructuralAccess::MutableBorrow),
+        (
+            mutable.replace("mutable Cell", "Cell"),
+            StructuralAccess::SharedBorrow,
+        ),
+    ] {
+        let program = Program::of(&source);
+        program.judged(|_| {}).accepted();
+        let keep = program.machine("keep");
+        let (place, _, published_access) = returned_origin(&program, keep);
+        assert_eq!(place, formal(keep, 0));
+        assert_eq!(published_access, access);
+
+        let other = formal(keep, 1);
+        let refusal = program
+            .judged_in("keep", |machine| {
+                let TerminalMachineResult::Structural(result) = &mut machine.contract.result else {
+                    unreachable!()
+                };
+                let StructuralReferenceOrigin::Parameter(origin) =
+                    &mut result.reference_sources[0].sources[0]
+                else {
+                    unreachable!()
+                };
+                origin.place = other;
+            })
+            .refused();
+        assert!(refusal.detail.contains(REFERENCE_ORIGIN), "{refusal:?}");
+
+        let wrong = source.replace("value: first", "value: second");
+        let refusal = Program::try_of(&[("product/main.omg", &wrong)])
+            .err()
+            .expect("unrelated input lifetime");
+        assert!(refusal.message.contains("another lifetime"), "{refusal:?}");
+    }
+}
+
+#[test]
+fn forwarding_an_applied_sum_preserves_its_occurrence_lifetime() {
+    let source = "data Cell { value: u32; } data Wrapped<T> { case Ready(value: T); case Empty; }
+        machine forward<'a, 'b>(left: Wrapped<@'a mutable Cell>, right: Wrapped<@'b mutable Cell>)
+            -> Wrapped<@'a mutable Cell> { left }";
+    Program::of(source).judged(|_| {}).accepted();
+    let wrong = source.replace("{ left }", "{ right }");
+    let refusal = Program::try_of(&[("product/main.omg", &wrong)])
+        .err()
+        .expect("different occurrence lifetime");
+    assert!(refusal.message.contains("another lifetime"), "{refusal:?}");
 }

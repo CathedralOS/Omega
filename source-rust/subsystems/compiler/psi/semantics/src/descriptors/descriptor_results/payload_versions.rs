@@ -276,18 +276,67 @@ pub fn require_unchanged_observed_storage(
     use_position: DescriptorPosition,
     storage: &DescriptorPayloadTarget,
 ) -> Result<(), &'static str> {
+    require_preserved_observed_storage(
+        types,
+        graph,
+        identity,
+        completed_observation,
+        use_position,
+        storage,
+        |_| false,
+    )
+}
+
+/// Replay the observation on every path, permitting only writes proved to preserve
+/// the property being observed. Ordinary value and descriptor observations permit none.
+pub(crate) fn require_preserved_observed_storage(
+    types: &[StructuralTypeDeclaration],
+    graph: &[DescriptorMachine],
+    identity: MachineId,
+    completed_observation: DescriptorPosition,
+    use_position: DescriptorPosition,
+    storage: &DescriptorPayloadTarget,
+    preserved_write: impl Fn(DescriptorPosition) -> bool,
+) -> Result<(), &'static str> {
     let machine =
         descriptor_machine(graph, identity).ok_or("observed storage machine is absent")?;
     if completed_observation == use_position {
         return Err("storage observation has not completed before its use");
     }
     let mut analysis = DescriptorAnalysis::with_reference_slots(types, graph);
-    require_unchanged_between(
+    require_preserved_from(
         machine,
         &mut analysis,
-        completed_observation,
+        VersionStart::Completed(completed_observation),
         use_position,
         storage,
+        None,
+        preserved_write,
+    )
+}
+
+/// Compare the inputs observed by two instructions. A write by the first
+/// instruction itself already changes the second observation.
+pub(crate) fn require_unchanged_between_inputs(
+    types: &[StructuralTypeDeclaration],
+    graph: &[DescriptorMachine],
+    analysis: &mut DescriptorAnalysis<'_>,
+    machine: MachineId,
+    first: DescriptorPosition,
+    later: DescriptorPosition,
+    storage: &DescriptorPayloadTarget,
+) -> Result<(), &'static str> {
+    if !analysis.uses_source_graph(types, graph) {
+        return Err("input observations belong to another immutable source graph");
+    }
+    let machine = descriptor_machine(graph, machine).ok_or("observed storage machine is absent")?;
+    require_unchanged_from(
+        machine,
+        analysis,
+        VersionStart::Before(first),
+        later,
+        storage,
+        None,
     )
 }
 
@@ -359,6 +408,7 @@ pub(crate) fn require_unchanged_entry_storage_with_incoming(
 #[derive(Clone, Copy)]
 enum VersionStart {
     Entry,
+    Before(DescriptorPosition),
     Completed(DescriptorPosition),
 }
 
@@ -369,6 +419,26 @@ fn require_unchanged_from(
     observation: DescriptorPosition,
     payload: &DescriptorPayloadTarget,
     incoming: Option<&super::payload_reachability::IncomingFlow>,
+) -> Result<(), &'static str> {
+    require_preserved_from(
+        machine,
+        analysis,
+        start,
+        observation,
+        payload,
+        incoming,
+        |_| false,
+    )
+}
+
+fn require_preserved_from(
+    machine: &DescriptorMachine,
+    analysis: &mut DescriptorAnalysis<'_>,
+    start: VersionStart,
+    observation: DescriptorPosition,
+    payload: &DescriptorPayloadTarget,
+    incoming: Option<&super::payload_reachability::IncomingFlow>,
+    preserved_write: impl Fn(DescriptorPosition) -> bool,
 ) -> Result<(), &'static str> {
     let identity = machine.id;
     let relevant = match incoming {
@@ -399,6 +469,9 @@ fn require_unchanged_from(
         observation,
         |position, ordinal| relevant.includes_edge(position, ordinal),
         |position, step| {
+            if preserved_write(position) {
+                return Ok(false);
+            }
             if machine.unresolved_contents_writes.contains(&position) {
                 return Ok(true);
             }
@@ -515,7 +588,7 @@ fn version_flow_from(
     };
     let entry_index = position_index(entry)?;
     let observation_index = position_index(observation)?;
-    if let VersionStart::Completed(producer) = start {
+    if let VersionStart::Completed(producer) | VersionStart::Before(producer) = start {
         position_index(producer)?;
     }
     let mut versions = vec![None; positions.len()];
@@ -531,7 +604,7 @@ fn version_flow_from(
         let after = if matches!(start, VersionStart::Completed(producer) if current == producer)
         {
             true
-        } else if before {
+        } else if before || matches!(start, VersionStart::Before(position) if current == position) {
             let modifies = match writes[current_index] {
                 Some(modifies) => modifies,
                 None => {

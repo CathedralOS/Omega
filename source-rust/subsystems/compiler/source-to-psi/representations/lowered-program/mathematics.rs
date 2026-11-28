@@ -275,14 +275,14 @@ pub enum SignatureEntryKind {
         /// compares it while checking.
         type_identity: String,
     },
-    /// A record with no cases whose fields are all mathematical data: the
-    /// product of its fields' types, right-nested in declared order. A value
-    /// is the tuple of its fields, a field is a projection of it, and a
-    /// record of one field is that field. `fields` holds the entry of each
-    /// field's type.
+    /// A record's fields form a right-nested tuple in source order. A
+    /// constrained record pairs that tuple with the boxes of its checked
+    /// strict conditions; each condition is about that exact tuple.
     Record {
         declaration: SymbolHandle,
         fields: Vec<u32>,
+        /// Boxed strict conditions stored beside the field tuple.
+        strict_conditions: usize,
         type_identity: String,
     },
     /// `bool`, the carrier of a Boolean formal or result: a definition equal
@@ -290,6 +290,9 @@ pub enum SignatureEntryKind {
     /// (kernel_metatheory.md, "Boolean values denote `Two`"). A signature
     /// declares it once, the first time a machine needs it.
     Boolean,
+    /// A proof-only view of an admitted total unary callable: its closed
+    /// function type. Records keep this entry when a field holds it.
+    FunctionType,
     /// The inductive former of a generic data declaration (`Seq<T>`), a
     /// function from its type parameters to a type. Its constructors and
     /// recursor follow it as `Encoding` entries; each application the
@@ -406,6 +409,9 @@ pub struct DeclaredLaw {
 pub enum LawProof {
     /// The body cites its evidence without a case split.
     Direct(LawCase),
+    /// The conclusion names a proof binder, for example as the argument to
+    /// a constructor. Its body is in the full value and premise telescope.
+    UnderPremises { body: TermHandle, script: LawCase },
     /// The body dispatches on one formal: an induction over the data
     /// declared at entry `data`, with one script per case in declared order.
     Cases {

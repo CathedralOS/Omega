@@ -6,6 +6,8 @@ lifetime partitions (`lifetime_partition`), and type vocabulary descriptors
 (`vocabulary`).
 */
 
+pub mod package_applications;
+
 /// Encode a compiler type name from the canonical spelling of its atom.
 pub fn compiler_type_name(atom: &str) -> String {
     encoding::compound(
@@ -23,6 +25,26 @@ pub fn compiler_type_identity(atom: &str) -> String {
             &compiler_type_name(atom),
         )],
     )
+}
+
+/// Read the inverse of `compiler_type_identity`. A user declaration whose
+/// last path component is a primitive spelling is still a nominal declaration.
+pub fn compiler_type_atom(identity: &str) -> Option<String> {
+    use vocabulary::{Label, NameForm, TypeForm};
+    let mut visitor = DeclarationIdentitySyntax { depth: 0 };
+    let mut ty = framing::Reader::new(identity);
+    ty.expect_tag(TypeForm::Named).ok()?;
+    ty.expect(b'(').ok()?;
+    let name = ty.atom(Label::Name, &mut visitor).ok()?;
+    ty.expect(b')').ok()?;
+    ty.finish().ok()?;
+    let mut name = framing::Reader::new(&name);
+    name.expect_tag(NameForm::CompilerType).ok()?;
+    name.expect(b'(').ok()?;
+    let atom = name.atom(Label::Atom, &mut visitor).ok()?.into_owned();
+    name.expect(b')').ok()?;
+    name.finish().ok()?;
+    Some(atom)
 }
 
 /// Canonical identity framing shared by source producers and receiving checks.

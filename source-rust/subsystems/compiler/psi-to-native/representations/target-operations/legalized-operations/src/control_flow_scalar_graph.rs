@@ -352,7 +352,9 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::StructuralScalarFieldRead { .. }
             | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
             | LegalizedScalarInstructionKind::BoundarySettlement(_) => {}
-            LegalizedScalarInstructionKind::EstablishAccessReference { indices, .. } => {
+            LegalizedScalarInstructionKind::BorrowAt { address, .. } => visit(*address),
+            LegalizedScalarInstructionKind::EstablishAccessReference { indices, .. }
+            | LegalizedScalarInstructionKind::UpgradeMutability { indices, .. } => {
                 indices.iter().for_each(|index| visit(index.operand.value));
             }
             LegalizedScalarInstructionKind::ElementViewFixedArray {
@@ -662,6 +664,7 @@ pub enum LegalizedScalarInstructionKind {    InstallStaticInterrupt {
     },
     EstablishRecord {
         result: terminal_psi::StructuralOperationResult,
+        instantiated: operation_operands::structural_stores::InstantiatedFieldTypes,
         fields: Vec<terminal_psi::RecordFieldInitializer>,
         shape: calling_conventions::ValueShape,
     },
@@ -696,6 +699,17 @@ pub enum LegalizedScalarInstructionKind {    InstallStaticInterrupt {
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
         shape: calling_conventions::ValueShape,
     },
+    BorrowAt {
+        result: terminal_psi::StructuralOperationResult,
+        address: ValueId,
+        shape: calling_conventions::ValueShape,
+    },
+    UpgradeMutability {
+        result: terminal_psi::StructuralOperationResult,
+        source: terminal_psi::StructuralArgument,
+        indices: Vec<LegalizedRuntimeIndexOperand>,
+        shape: calling_conventions::ValueShape,
+    },
     EstablishReference {
         result: terminal_psi::StructuralOperationResult,
         source: terminal_psi::StructuralArgument,
@@ -717,6 +731,8 @@ pub enum LegalizedScalarInstructionKind {    InstallStaticInterrupt {
         value: operation_operands::values::AbstractResult,
     },
     PrimitiveScalarRead {
+        /// Type of the stored scalar before a dependent callable field is opened.
+        storage_scalar: semantic_vocabulary::ScalarType,
         source: semantic_vocabulary::PlaceId,
         path: Vec<terminal_psi::StructuralPathSegment>,
         indices: Vec<LegalizedRuntimeIndexOperand>,
@@ -1072,6 +1088,8 @@ impl LegalizedScalarInstructionKind {
             | Self::EstablishZeroedStructural { result, .. }
             | Self::EstablishStructuralLocal { result, .. }
             | Self::EstablishCase { result, .. }
+            | Self::BorrowAt { result, .. }
+            | Self::UpgradeMutability { result, .. }
             | Self::EstablishReference { result, .. }
             | Self::EstablishAccessReference { result, .. }
             | Self::ElementViewFixedArray { result, .. }
@@ -1223,6 +1241,7 @@ mod structural_result_tests {
     fn structural_call_result_lookup_preserves_absence_and_presence() {
         let expected = result();
         let mut call = LegalizedScalarCall {
+            suspension_crossing: None,
             descriptor_origins: Vec::new(),
             access_bindings: Vec::new(),
             source: target_vocabulary::NativeCallOrigin::Authored,
@@ -1440,6 +1459,7 @@ impl LegalizedScalarTerminator {
             return None;
         };
         Some(LegalizedScalarCall {
+            suspension_crossing: None,
             descriptor_origins: Vec::new(),
             access_bindings: Vec::new(),
             source: origin.clone(),

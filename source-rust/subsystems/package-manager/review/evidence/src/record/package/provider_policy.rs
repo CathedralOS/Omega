@@ -85,20 +85,14 @@ impl self::PackagePolicyServiceMethod {
             &self.synchronous_invocations,
             self.parameter_count,
         )?;
-        let declared_parameters =
-            self.synchronous_invocations
-                .iter()
-                .filter_map(|entry| match entry {
-                    ServiceSynchronousInvocation::Parameter(position) => Some(position),
-                    ServiceSynchronousInvocation::Service(_) => None,
-                });
+        let declared_parameters = self
+            .synchronous_invocations
+            .iter()
+            .filter_map(ServiceSynchronousInvocation::parameter_path);
         let authority_parameters = authority
             .synchronous_invocations
             .iter()
-            .filter_map(|entry| match entry {
-                PackageReviewSynchronousInvocation::Parameter(position) => Some(position),
-                PackageReviewSynchronousInvocation::Service(_) => None,
-            });
+            .filter_map(PackageReviewSynchronousInvocation::parameter_path);
         if !declared_parameters.eq(authority_parameters) {
             return Err("provider authority differs from its declared invocation parameters");
         }
@@ -109,15 +103,9 @@ impl self::PackagePolicyServiceMethod {
         }
         service_set(&authority.service_reach)?;
         for invocation in &authority.synchronous_invocations {
-            match invocation {
-                PackageReviewSynchronousInvocation::Parameter(ordinal) => {
-                    if *ordinal as usize >= self.parameter_count {
-                        return Err("provider invocation parameter is outside its telescope");
-                    }
-                }
-                PackageReviewSynchronousInvocation::Service(service) => {
-                    service.validate_resolved()?
-                }
+            invocation.validate_parameter(self.parameter_count)?;
+            if let Some(service) = invocation.service() {
+                service.validate_resolved()?;
             }
         }
         for premise in &authority.progress_premises {
@@ -277,6 +265,11 @@ impl PackagePolicyServiceMethod {
     ) -> Result<(), &'static str> {
         self.validate_signature()?;
         self.validate_authority()?;
+        service_surface::ServiceDomainMembership::validate_entries(
+            &self.domain_memberships,
+            self.parameter_count,
+            self.has_result,
+        )?;
         owned_pair(&self.requirement_owner, &self.requirement)?;
         if self.name.is_empty()
             || self.parameter_count != self.parameter_type_identities.len()
@@ -286,16 +279,7 @@ impl PackagePolicyServiceMethod {
                 .result_type_identity
                 .as_ref()
                 .is_some_and(String::is_empty)
-            || (!self.has_result
-                && (!self.result_claims.is_empty() || !self.normal_result_memberships.is_empty()))
-            || self
-                .normal_result_memberships
-                .iter()
-                .any(|row| !row.has_exact_identity())
-            || self
-                .normal_result_memberships
-                .windows(2)
-                .any(|pair| pair[0] >= pair[1])
+            || (!self.has_result && !self.result_claims.is_empty())
             || self.entry_claims.iter().any(|claim| {
                 claim.parameter_index >= self.parameter_count
                     || !claim.carrier_identity.is_valid()

@@ -10,9 +10,8 @@ use terminal_psi::TerminalModule;
 use crate::{
     ArtifactManifestError, ClosedTerminalModule, CodecError, DebugMapError,
     PsiOptimizationExecutionRecord, PsiOptimizationExecutionRecordDecodeError,
-    TerminalArtifactManifest, TerminalDebugMap, decode_debug_map,
-    decode_psi_optimization_execution_record, encode_debug_map,
-    encode_psi_optimization_execution_record,
+    TerminalArtifactManifest, TerminalDebugMap, decode_psi_optimization_execution_record,
+    encode_debug_map, encode_psi_optimization_execution_record,
 };
 
 const ARTIFACT_MAGIC: &[u8; 8] = b"PSIART\0\0";
@@ -96,21 +95,33 @@ impl CanonicalTerminalArtifact {
         optimization: PsiOptimizationExecutionRecord,
         debug_map: Option<&TerminalDebugMap>,
     ) -> Result<Self, CanonicalTerminalArtifactError> {
-        let semantic_module = closed.module();
-        if semantic_module.identities.invocation_scope().is_some() {
+        Self::require_portable_scope(&closed)?;
+        let debug_bytes = debug_map
+            .map(|map| encode_debug_map(closed.module(), map))
+            .transpose()
+            .map_err(CanonicalTerminalArtifactError::Debug)?;
+        Self::from_validated_sections(closed, optimization, debug_bytes)
+    }
+
+    fn require_portable_scope(
+        closed: &ClosedTerminalModule,
+    ) -> Result<(), CanonicalTerminalArtifactError> {
+        if closed.module().identities.invocation_scope().is_some() {
             return Err(CanonicalTerminalArtifactError::Semantic(
                 CodecError::MalformedStructuralFoundation(
                     "invocation code cannot enter a portable Terminal artifact",
                 ),
             ));
         }
+        Ok(())
+    }
+
+    fn from_validated_sections(
+        closed: ClosedTerminalModule,
+        optimization: PsiOptimizationExecutionRecord,
+        debug_bytes: Option<Vec<u8>>,
+    ) -> Result<Self, CanonicalTerminalArtifactError> {
         let optimization_bytes = encode_psi_optimization_execution_record(&optimization);
-        let debug_bytes = debug_map
-            .map(|debug_map| {
-                encode_debug_map(semantic_module, debug_map)
-                    .map_err(CanonicalTerminalArtifactError::Debug)
-            })
-            .transpose()?;
         let semantic = closed.identity();
         let manifest = terminal_wire::sealing::manifest_for_semantic(
             semantic,
@@ -300,13 +311,12 @@ impl CanonicalTerminalArtifact {
         let semantic_module = closed.module();
         let optimization = decode_psi_optimization_execution_record(optimization_bytes)
             .map_err(CanonicalTerminalArtifactError::Optimization)?;
-        let debug_map = debug_bytes
-            .map(|debug| {
-                decode_debug_map(semantic_module, debug)
-                    .map_err(CanonicalTerminalArtifactError::Debug)
-            })
-            .transpose()?;
-        let mut artifact = Self::from_closed_parts(closed, optimization, debug_map.as_ref())?;
+        let canonical_debug = debug_bytes
+            .map(|bytes| TerminalDebugMap::validated_section(semantic_module, bytes))
+            .transpose()
+            .map_err(CanonicalTerminalArtifactError::Debug)?;
+        Self::require_portable_scope(&closed)?;
+        let mut artifact = Self::from_validated_sections(closed, optimization, canonical_debug)?;
         if let Some(section) = publication {
             let mut fields = Cursor::new(section);
             let metadata_len = section_len(&mut fields, "publication declarations")?;
@@ -335,7 +345,6 @@ impl CanonicalTerminalArtifact {
         }
         if artifact.semantic_bytes() != semantic_bytes
             || artifact.optimization_bytes() != optimization_bytes
-            || artifact.debug_bytes() != debug_bytes
         {
             return Err(CanonicalTerminalArtifactEnvelopeError::NonCanonicalSections.into());
         }
@@ -659,7 +668,7 @@ pub(crate) mod execution_code {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{InvocationTerminalCode, TerminalExecutionView};
+    use crate::{InvocationTerminalCode, TerminalExecutionView, decode_debug_map};
     use terminal_psi::TerminalIdentityTableBuilder;
 
     fn closed_module(invocation: bool) -> ClosedTerminalModule {
@@ -715,6 +724,90 @@ mod tests {
                 artifact
             );
         }
+    }
+
+    #[test]
+    fn received_debug_section_is_validated_once_and_retained_byte_for_byte() {
+        use crate::{
+            DebugFileId, DebugSite, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan,
+            DebugSubject,
+        };
+
+        let program = CanonicalTerminalArtifact::from_bytes(include_bytes!(
+            "../../../../../../../tests/fixtures/calls/run/scalar_contract_route_exit/linux_x86_64.psi"
+        )).unwrap();
+        let closed = ClosedTerminalModule::new(program.semantic_module().clone()).unwrap();
+        let identity = closed.identity();
+        let file = DebugFileId::new(1).unwrap();
+        let span = DebugSourceSpan {
+            file,
+            start: 0,
+            end: 1,
+        };
+        let map = TerminalDebugMap {
+            semantic: identity,
+            files: vec![DebugSourceFile {
+                id: file,
+                origin: DebugSourceOrigin::User,
+                byte_len: 1,
+                digest: crate::source_digest(b"x"),
+                path: "x.omg".into(),
+            }],
+            sites: vec![DebugSite {
+                subject: DebugSubject::Machine(closed.module().machines[0].id),
+                span,
+            }],
+        };
+        let authored = CanonicalTerminalArtifact::from_closed_parts(
+            closed,
+            program.optimization().clone(),
+            Some(&map),
+        )
+        .unwrap();
+        let bytes = authored.to_bytes();
+        let before = TerminalDebugMap::validation_count();
+        let loaded = CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+        assert_eq!(TerminalDebugMap::validation_count() - before, 1);
+        assert_eq!(loaded.to_bytes(), bytes);
+        assert_eq!(loaded.manifest(), authored.manifest());
+
+        let refusal = |map: &TerminalDebugMap| {
+            let mut malformed = authored.clone();
+            malformed.debug_bytes = Some(map.encode_unchecked());
+            CanonicalTerminalArtifact::from_bytes(&malformed.to_bytes()).unwrap_err()
+        };
+        let mut wrong = map.clone();
+        wrong.semantic = closed_module(false).identity();
+        assert_eq!(
+            refusal(&wrong),
+            CanonicalTerminalArtifactError::Debug(DebugMapError::SemanticIdentityMismatch {
+                expected: identity,
+                actual: wrong.semantic
+            })
+        );
+        let mut unknown = map.clone();
+        let subject = DebugSubject::Machine(semantic_vocabulary::MachineId::new(u64::MAX).unwrap());
+        unknown.sites[0].subject = subject;
+        assert_eq!(
+            refusal(&unknown),
+            CanonicalTerminalArtifactError::Debug(DebugMapError::UnknownSubject(subject))
+        );
+        let mut overrun = map.clone();
+        overrun.sites[0].span.end = 2;
+        assert_eq!(
+            refusal(&overrun),
+            CanonicalTerminalArtifactError::Debug(DebugMapError::InvalidSpan(
+                overrun.sites[0].span
+            ))
+        );
+        let mut duplicate = map;
+        duplicate.sites.push(duplicate.sites[0]);
+        assert_eq!(
+            refusal(&duplicate),
+            CanonicalTerminalArtifactError::Debug(DebugMapError::NonCanonicalOrder(
+                "debug sites by subject"
+            ))
+        );
     }
 
     #[test]
@@ -793,11 +886,11 @@ mod tests {
         assert!(closed.semantic_bytes() == received.semantic_bytes());
         assert_eq!(
             hex(&content_identity(closed.semantic_bytes())),
-            "a5f966693267754b4f00962f0fc1cfa31ffa01df3ef2b9c704121190091debd3"
+            "013d1bc8c8d73f9c06c882894e48b653d148dd63cee98584f74b26ab2d039e45"
         );
         assert_eq!(
             closed.identity().program_fingerprint.to_string(),
-            "aa2a1a68ee17e385f25f5bbdce1002e83e1e05ce5b8ced16350d6c13acc9bb3e"
+            "1749c3469d6a999d5a1d3eda0334cf5e5dd61363702bf695c607460fd8190bdc"
         );
         let debug = received
             .debug_bytes()
@@ -817,12 +910,12 @@ mod tests {
         .unwrap();
         assert_eq!(
             rebuilt.manifest().identity().to_string(),
-            "e3bb2f8242b9e6151ccd7edbb235cb0ccbe9017ef7c6c4d1799fa597317ce983"
+            "2ae0c032b054ffd4e92b6d799016225b7597240f9902121a046840d01428f2cc"
         );
         let encoded = rebuilt.to_bytes();
         assert_eq!(
             hex(&content_identity(&encoded)),
-            "25241cbdb5eb2253109faba193441a9d90ec7b444b505f944c19efe8d5d7c065"
+            "2ae89e64275b3edd94f8adadde11207b565310e56a6f6168d809ae938d9dfa4a"
         );
         assert!(encoded.as_slice() == bytes);
     }

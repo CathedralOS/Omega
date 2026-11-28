@@ -384,7 +384,7 @@ machine posix_filesystem_last_error_i64(filesystem: @mutable PosixFilesystem, re
 "#);
     project.write("posix_filesystem_adapter.omg", &adapter);
     let mut settings = String::from(
-        "use main.omg as app;\nuse posix_filesystem_host.omg as host;\nmachine build(b: @mutable BuildPlan) { b.product = BuildProduct::Application { name: \"posix_names\" };\n",
+        "use main.omg as app;\nuse posix_filesystem_host.omg as posix_host;\nmachine build(b: @mutable BuildPlan) { b.product = BuildProduct::Application { name: \"posix_names\" };\n",
     );
     for target in [
         "linux_x86_64",
@@ -393,7 +393,7 @@ machine posix_filesystem_last_error_i64(filesystem: @mutable PosixFilesystem, re
         "windows_x86_64",
         "windows_arm64",
     ] {
-        settings.push_str(&format!("Build::select_provider::<|host|::PosixFilesystemHost, |host|::Stream>(b, {target});\nBuild::select_provider::<|host|::PosixFilesystemTarget, |host|::Geometry>(b, {target});\nBuild::bind(b, {target}::ProgramEntry, |app|::main);\n"));
+        settings.push_str(&format!("Build::select_provider::<|posix_host|::PosixFilesystemHost, |posix_host|::Stream>(b, {target});\nBuild::select_provider::<|posix_host|::PosixFilesystemTarget, |posix_host|::Geometry>(b, {target});\nBuild::bind(b, {target}::ProgramEntry, |app|::main);\n"));
     }
     settings.push('}');
     project.write("build.omg", &settings);

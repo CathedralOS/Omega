@@ -1228,11 +1228,10 @@ impl Program<'_> {
         // A requirement written over a binder has a prepared copy that names
         // the supplied type. The binder is the one the same retained call
         // occurrence writes in the requirement's own signature.
-        let written_binder =
-            |declaration: &crate::source_state::trait_definition::TraitDefinition| {
-                let template = typed
-                    .closed_requirement_application(owner)
-                    .map_or(owner, |closed| closed.template);
+        let template_binder =
+            |declaration: &crate::source_state::trait_definition::TraitDefinition,
+             template: SymbolHandle,
+             copied: bool| {
                 let original = typed.trait_machine_signature_by_symbol(declaration, template)?;
                 let contracts = typed.signature_contracts.span(original.contracts)?;
                 let mut pending = Vec::new();
@@ -1251,8 +1250,17 @@ impl Program<'_> {
                         continue;
                     }
                     let node = expressions.expression(handle);
+                    // A copy's call keeps the requirement's source
+                    // occurrence but records its own selection row.
+                    let same_occurrence = |written: Option<_>| {
+                        written == Some(selection)
+                            || copied
+                                && written.and_then(|written| ledger.get(written)).is_some_and(
+                                    |row| row.kind() == Call && row.source_span() == call_source,
+                                )
+                    };
                     if let ExpressionNode::Call(written) = node
-                        && written.authored_call_selection == Some(selection)
+                        && same_occurrence(written.authored_call_selection)
                         && written.target_symbol == call.target_symbol
                         && let [binder] = written.machine_arguments.as_ref()
                         && typed.symbols.symbols().nodes().is_valid(binder.symbol)
@@ -1264,6 +1272,16 @@ impl Program<'_> {
                     typed.expression_children(node, |child| pending.push(child));
                 }
                 None
+            };
+        let written_binder =
+            |declaration: &crate::source_state::trait_definition::TraitDefinition| {
+                template_binder(
+                    declaration,
+                    typed
+                        .closed_requirement_application(owner)
+                        .map_or(owner, |closed| closed.template),
+                    false,
+                )
             };
         let names_subject = |supplied: crate::source_state::types::TypeReferenceHandle| {
             typed.contains_type_reference(supplied)
@@ -1310,17 +1328,117 @@ impl Program<'_> {
         } else {
             false
         };
+        // A copy of a machine generic over `T` writes the subject where its
+        // template wrote `Identity::<T>` with the same call occurrence, and
+        // the copy's specialization binds `T` to the subject.
+        let specialized_type = written_type.is_none()
+            && !parameter_in_scope
+            && !supplied_type
+            && [owner, typed.symbols.get(owner).parent]
+                .into_iter()
+                .filter_map(|instance| typed.machine_instantiation(instance).ok().flatten())
+                .any(|instantiation| {
+                    let mut pending = Vec::new();
+                    let template = instantiation.template();
+                    let declarations = typed
+                        .machine_by_symbol(template)
+                        .into_iter()
+                        .flat_map(|machine| {
+                            typed.machine_states(machine).iter().map(move |state| (machine, state))
+                        })
+                        .chain(typed.machine_states_named(template));
+                    for (machine, state) in declarations {
+                        for contracts in [machine.contracts, state.contracts] {
+                            for contract in typed.signature_contracts.span_or_empty(contracts) {
+                                pending.extend(
+                                    typed
+                                        .proof_facts
+                                        .span_or_empty(contract.facts)
+                                        .iter()
+                                        .filter_map(|fact| fact.as_expression().copied()),
+                                );
+                            }
+                        }
+                    }
+                    let mut binder = None;
+                    while let Some(handle) = pending.pop() {
+                        if !expressions.expression_is_valid(handle) {
+                            continue;
+                        }
+                        let node = expressions.expression(handle);
+                        if let ExpressionNode::Call(written) = node
+                            && written.authored_call_selection == Some(selection)
+                            && let [written] = written.machine_arguments.as_ref()
+                            && typed.symbols.symbols().nodes().is_valid(written.symbol)
+                            && typed.symbols.get(written.symbol).kind
+                                == symbols::SymbolKind::TypeParameter
+                        {
+                            binder = Some(written.symbol);
+                            break;
+                        }
+                        typed.expression_children(node, |child| pending.push(child));
+                    }
+                    binder.is_some_and(|binder| {
+                        expressions
+                            .static_machine_application_bindings(
+                                instantiation.binding_application(),
+                            )
+                            .iter()
+                            .any(|binding| {
+                                binding.parameter == binder
+                                    && matches!(binding.value,
+                                        crate::source_state::static_applications::StaticMachineBindingValue::Type(
+                                            supplied,
+                                        ) if names_subject(supplied))
+                            })
+                    })
+                });
+        // A member the compiler copied from its trait's requirement, such as
+        // a synthesized equality evidence law, writes the implementation's
+        // type where the requirement wrote `Identity::<T>` with the same call
+        // occurrence.
+        let copied_requirement = !parameter_in_scope
+            && !supplied_type
+            && !specialized_type
+            && [owner, typed.symbols.get(owner).parent]
+                .into_iter()
+                .filter_map(|member| typed.owned_conformance_realization(member))
+                .any(|(conformance, row)| {
+                    matches!(
+                        row.source,
+                        crate::source_state::trait_definition::ConformanceRowSource::TraitDefault
+                            | crate::source_state::trait_definition::ConformanceRowSource::Synthesized
+                    ) && typed
+                        .trait_definition_by_symbol(row.declaring_trait)
+                        .and_then(|declaration| template_binder(declaration, row.requirement, true))
+                        .is_some_and(|binder| {
+                            crate::source_state::trait_definition::AppliedTraitScope::from_conformance(
+                                typed,
+                                conformance,
+                            )
+                            .and_then(|root| root.declaring_scope(typed, row.declaring_trait))
+                            .is_some_and(|scope| {
+                                names_subject(scope.parameter_argument(typed, binder))
+                            })
+                        })
+                });
         if !attached_call
-            || written_type.map_or(!(parameter_in_scope || supplied_type), |row| {
-                let typed_source = row.source_span();
-                !within_call(typed_source)
-                    || typed_source.span.start < call_source.span.end
-                    || row
-                        .target()
-                        .as_resolved()
-                        .map(|selected| selected.selected_symbol())
-                        != Some(subject)
-            })
+            || written_type.map_or(
+                !(parameter_in_scope || supplied_type || specialized_type || copied_requirement),
+                |row| {
+                    let typed_source = row.source_span();
+                    // A copied requirement's type is the implementation's
+                    // argument, written at the implementation's header.
+                    !copied_requirement
+                        && (!within_call(typed_source)
+                            || typed_source.span.start < call_source.span.end)
+                        || row
+                            .target()
+                            .as_resolved()
+                            .map(|selected| selected.selected_symbol())
+                            != Some(subject)
+                },
+            )
         {
             return Err(unavailable(
                 "Identity lost the source selection for its written type",
@@ -1983,7 +2101,7 @@ impl Program<'_> {
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
     ) -> Checked<Option<(PlaceId, Vec<CanonicalStructuralPathSegment>, ValueType)>> {
-        let Some((root, path, ty)) = self.read_projection(id, scope, expression)? else {
+        let Some((root, path, ty)) = self.read_projection(id, scope, expression, None)? else {
             return Ok(None);
         };
         let path = static_read_path(&path).ok_or_else(|| {
@@ -1995,11 +2113,50 @@ impl Program<'_> {
         Ok(Some((root, path, ty)))
     }
 
+    /// Select the reference's referent or the slice's first element before
+    /// observing its alignment, just as an executable location query does.
+    pub(super) fn alignment_observation(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        operand: ExpressionHandle,
+    ) -> Checked<(PlaceId, Vec<ScalarReadProjection>)> {
+        let invalid = || {
+            refuse_at(
+                id,
+                Unserved::Contract("location alignment requires accessible storage in this clause"),
+            )
+        };
+        let (root, mut path, value_type) = self
+            .read_projection(
+                id,
+                scope,
+                operand,
+                Some(terminal_psi::StorageLocationQuery::Alignment),
+            )?
+            .ok_or_else(invalid)?;
+        if let ValueType::Record(record, _, _) = value_type {
+            if let Some((_, access)) = self.reference_referent(id, value_type)? {
+                if access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
+                    return Err(invalid());
+                }
+                path.push(ScalarReadProjection::Referent);
+            } else if self.alignment_view_element(id, record)?.is_some() {
+                path.push(CanonicalStructuralPathSegment::FixedIndex(0).into());
+            }
+        }
+        path.push(ScalarReadProjection::Alignment);
+        Ok((root, path))
+    }
+
+    /// A location query can name a lent scalar directly. Reading its contents
+    /// requires an explicit dereference. Both uses resolve the same storage path.
     pub(super) fn read_projection(
         &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
+        location_query: Option<terminal_psi::StorageLocationQuery>,
     ) -> Checked<Option<(PlaceId, Vec<ScalarReadProjection>, ValueType)>> {
         if scope.subject.is_none()
             && !scope.formal_fields
@@ -2036,7 +2193,7 @@ impl Program<'_> {
                 // argument written for it where it was applied, so its
                 // fields are that argument's.
                 if let Some(actual) = self.proposition_argument(path.symbol) {
-                    return self.read_projection(id, scope, actual);
+                    return self.read_projection(id, scope, actual, location_query);
                 }
                 if let Some((place, value_type)) = self.universal_binder(path.symbol) {
                     return Ok(Some((place, Vec::new(), value_type)));
@@ -2060,8 +2217,17 @@ impl Program<'_> {
                     }
                     // The formal itself can be a membership subject. Keep its
                     // qualifications when authorizing a read of its storage.
-                    let value_type = scope.slots[slot].value_type;
-                    if self.opened(id, Some(value_type), Access::Read)?.is_none() {
+                    let formal = &scope.slots[slot];
+                    let value_type = formal.value_type;
+                    if location_query.is_some() && formal.borrowed.is_some() {
+                        if formal.borrowed == Some(language_core::ReferenceAccess::WriteOnly) {
+                            return Err(refuse_at(
+                                id,
+                                Unserved::Contract("location alignment requires a readable borrow"),
+                            ));
+                        }
+                        self.authorized(id, value_type, Access::Read)?;
+                    } else if self.opened(id, Some(value_type), Access::Read)?.is_none() {
                         return Ok(None);
                     }
                     let root = formal_place(id, scope.slots, slot)?;
@@ -2100,7 +2266,7 @@ impl Program<'_> {
                     )
                 };
                 let Some((root, mut base, receiver)) =
-                    self.read_projection(id, scope, member.receiver)?
+                    self.read_projection(id, scope, member.receiver, location_query)?
                 else {
                     return Err(not_data());
                 };
@@ -2113,7 +2279,7 @@ impl Program<'_> {
             ExpressionNode::Indexed(indexed) => {
                 let unavailable = |what| refuse_at(id, Unserved::Contract(what));
                 let Some((root, mut path, receiver)) =
-                    self.read_projection(id, scope, indexed.collection)?
+                    self.read_projection(id, scope, indexed.collection, location_query)?
                 else {
                     return Err(unavailable("index of something that is not storage"));
                 };
@@ -2197,7 +2363,7 @@ impl Program<'_> {
             {
                 let unavailable = |what| refuse_at(id, Unserved::Contract(what));
                 let Some((root, mut path, carrier)) =
-                    self.read_projection(id, scope, unary.operand)?
+                    self.read_projection(id, scope, unary.operand, location_query)?
                 else {
                     return Err(unavailable(
                         "dereference of other than a borrowed formal in a clause",
@@ -2344,7 +2510,9 @@ pub(super) fn static_read_path(
         .map(|step| match step {
             ScalarReadProjection::Referent => Some(CanonicalStructuralPathSegment::Referent),
             ScalarReadProjection::Static(segment) => Some(*segment),
-            ScalarReadProjection::Index(_) | ScalarReadProjection::Extent => None,
+            ScalarReadProjection::Index(_)
+            | ScalarReadProjection::Extent
+            | ScalarReadProjection::Alignment => None,
         })
         .collect()
 }

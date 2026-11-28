@@ -50,6 +50,8 @@ fn canonical_const_carriers_check_inactive_payloads_and_cycles() {
     );
     let choice_type = named(choice, "Choice");
     let linear_type = named(linear, "Linear");
+    let empty = named(cases.handle_at(0), "Empty");
+    let unconstructed = named(cases.handle_at(1), "Value");
     let payload = program.data_payload_fields.insert_many([DataField {
         symbol: field,
         name: "value".into(),
@@ -87,6 +89,27 @@ fn canonical_const_carriers_check_inactive_payloads_and_cycles() {
         &program,
         choice_type
     ));
+    // A case name is a complete value only when it has no payload.
+    // Machine arguments and data indices must use the very same typed key.
+    let argument = crate::source_state::expression::StaticMachineArgument {
+        symbol: cases.handle_at(0),
+        ..Default::default()
+    };
+    let key = program
+        .canonical_aggregate_argument(choice_type, &argument)
+        .unwrap();
+    assert_eq!(
+        crate::source_state::canonical_const_argument_value(&program, empty)
+            .unwrap()
+            .application_identity(),
+        key.application_identity()
+    );
+    assert!(
+        program
+            .canonical_aggregate_argument(linear_type, &argument)
+            .is_err()
+    );
+    assert!(crate::source_state::canonical_const_argument_value(&program, unconstructed).is_none());
     let borrowed = program
         .type_reference_table
         .insert(TypeReferenceNode::Reference {
@@ -105,6 +128,7 @@ fn canonical_const_carriers_check_inactive_payloads_and_cycles() {
             &program,
             choice_type
         ));
+        assert!(crate::source_state::canonical_const_argument_value(&program, empty).is_none());
     }
     program
         .data_payload_fields
@@ -178,5 +202,46 @@ fn a_materialized_float_keeps_its_exact_carrier_and_representation() {
             bits: bits ^ 1,
         };
         assert!(!program.canonical_const_materialization_matches(carrier, expression, &changed));
+    }
+}
+
+#[test]
+fn a_settled_integer_argument_has_its_landed_carrier() {
+    use crate::source_state::{canonical_const_argument_value, expression::ExpressionNode};
+    use application_identity::const_value::DecodedCanonicalConstValue;
+    use numeric_literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
+    use numerics::arithmetic::ArithmeticDomain;
+
+    let mut program = TypedTrees::default();
+    let four = IntegerLiteral::from_value(4);
+    for carrier in [
+        None,
+        Some(LandedIntegerType::U8),
+        Some(LandedIntegerType::U64),
+    ] {
+        let literal = carrier.map_or_else(
+            || four.clone(),
+            |landed_type| {
+                four.with_landing(IntegerLanding {
+                    landed_type,
+                    domain: ArithmeticDomain::Exact,
+                })
+            },
+        );
+        let expression = program
+            .expression_table
+            .insert(ExpressionNode::Integer(literal));
+        let argument = program
+            .type_reference_table
+            .insert(TypeReferenceNode::ConstExpression(expression));
+        let decoded =
+            canonical_const_argument_value(&program, argument).and_then(|v| v.decode_encoding());
+        assert_eq!(
+            decoded,
+            carrier.map(|integer_type| DecodedCanonicalConstValue::Integer {
+                integer_type,
+                value: 4.into(),
+            })
+        );
     }
 }

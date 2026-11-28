@@ -41,6 +41,20 @@ pub(crate) struct ReferenceReferent {
     pub(crate) aggregate_view: Option<AggregateViewRegion>,
 }
 
+impl ReferenceReferent {
+    pub(crate) fn from_view(view: TerminalStructuralValue) -> Self {
+        Self {
+            view,
+            placed: None,
+            primitive_loan: None,
+            collection_loan: None,
+            byte_owner: None,
+            byte_region: None,
+            aggregate_view: None,
+        }
+    }
+}
+
 pub(crate) struct PreparedReference {
     pub(crate) referent: ReferenceReferent,
     pub(crate) projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
@@ -75,6 +89,8 @@ pub(crate) struct ResolvedStructuralProjection {
 
 #[derive(Clone)]
 pub(crate) struct ReferenceBacking {
+    // Captured from the exact declared package field named by this return origin.
+    package_referent: Option<StructuralTypeId>,
     array_loan: Option<crate::storage::element_views::ElementView>,
     placed: Option<AccessReference>,
     pub(crate) value: TerminalStructuralValue,
@@ -755,6 +771,7 @@ pub(crate) mod origin_backings {
                 interpretation,
                 source.placed.clone(),
                 source.array_loan.clone(),
+                None,
             )?
             else {
                 return Ok(None);
@@ -828,6 +845,7 @@ pub(crate) mod origin_backings {
                 terminal_psi::StructuralFieldType::canonical_leaf_type,
                 interpretation,
                 placed,
+                None,
                 None,
             )?
             else {
@@ -1070,13 +1088,8 @@ pub(crate) mod placed {
                                 ],
                             },
                             crate::storage::reference::ReferenceReferent {
-                                view: backing,
-                                primitive_loan: None,
-                                collection_loan: None,
-                                byte_region: None,
-                                byte_owner: None,
-                                aggregate_view: None,
                                 placed: Some(captured),
+                                ..crate::storage::reference::ReferenceReferent::from_view(backing)
                             },
                         )?;
                     }
@@ -1664,13 +1677,8 @@ pub(crate) mod placed {
             self.reference_referents.insert(
                 StructuralRuntimePlace::from(&carrier),
                 super::ReferenceReferent {
-                    view: backing,
-                    primitive_loan: None,
-                    collection_loan: None,
-                    byte_region: None,
-                    byte_owner: None,
-                    aggregate_view: None,
                     placed: Some(captured),
+                    ..super::ReferenceReferent::from_view(backing)
                 },
             )?;
             self.structural_values.insert(result.place, carrier)?;
@@ -3120,6 +3128,165 @@ impl TerminalExecution<'_> {
         storage: Option<terminal_psi::ReferenceStorageView>,
     ) -> Result<(), TerminalInterpretError> {
         let result = operation.result.structural().ok_or(malformed())?;
+        let mut identity_cursor = self.local_structural_identities.cursor();
+        let prepared = self
+            .capture_reference(
+                source,
+                result.structural_type,
+                &result.projected_qualifications,
+                storage,
+                &mut identity_cursor,
+            )
+            .map_err(|error| TerminalInterpretError::ReferenceFormation {
+                stage: "establish reference",
+                detail: format!(
+                    "source={source:?} result={result:?} storage={storage:?}: {error:?}"
+                ),
+            })?;
+        self.install_formed_reference(operation, prepared, identity_cursor)
+    }
+
+    pub(crate) fn upgrade_mutability(
+        &mut self,
+        operation: &Operation,
+        source: &StructuralArgument,
+    ) -> Result<(), TerminalInterpretError> {
+        let result = operation.result.structural().ok_or(malformed())?;
+        let descriptor = self.resolve_live_projection(source.place, &source.path, source.access)?;
+        if !result
+            .projected_qualifications
+            .iter()
+            .all(|row| descriptor.projected_qualifications.contains(row))
+        {
+            return Err(malformed());
+        }
+        if self
+            .structural_declaration(descriptor.structural_type)?
+            .shape
+            .is_view_descriptor()
+        {
+            return self.upgrade_view_descriptor(operation, source, &descriptor);
+        }
+        let (input_type, input_access) = self.reference_contract(descriptor.structural_type)?;
+        let (result_type, result_access) = self.reference_contract(result.structural_type)?;
+        if source.access != StructuralAccess::SharedBorrow
+            || input_type != result_type
+            || input_access != StructuralAccess::SharedBorrow
+            || result_access != StructuralAccess::MutableBorrow
+        {
+            return Err(malformed());
+        }
+        let mut referent = self
+            .reference_referents
+            .get(&StructuralRuntimePlace::from(&descriptor))
+            .ok_or(malformed())?
+            .clone();
+
+        // A new descriptor lends the same storage occurrence. A byte window
+        // read through a snapshot must write its original array element.
+        if let Some(loan) = &mut referent.primitive_loan {
+            loan.storage.endpoint =
+                crate::storage::primitive_storage::original_scalar_storage_endpoint(
+                    self,
+                    &loan.storage.endpoint,
+                )?;
+            loan.access = result_access;
+            loan.shared_view = false;
+        }
+        if let Some(view) = &mut referent.collection_loan {
+            *view = view.exclusive_reborrow()?;
+        }
+        if let Some(binding) = &mut referent.byte_owner {
+            *binding = binding.exclusive_reborrow(self, &referent.view)?;
+        }
+        if let Some(placed) = &referent.placed {
+            self.validate_access_backing(placed)?;
+            if !access_covers(placed.access, result_access) {
+                return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "upgrade_mutability requires writable placed storage",
+                ));
+            }
+        }
+        let prepared = PreparedReference {
+            referent,
+            projected_qualifications: result.projected_qualifications.clone(),
+        };
+        self.install_formed_reference(
+            operation,
+            prepared,
+            self.local_structural_identities.cursor(),
+        )
+    }
+
+    fn upgrade_view_descriptor(
+        &mut self,
+        operation: &Operation,
+        source: &StructuralArgument,
+        descriptor: &TerminalStructuralValue,
+    ) -> Result<(), TerminalInterpretError> {
+        let result = operation.result.structural().ok_or(malformed())?;
+        let input = &self
+            .structural_declaration(descriptor.structural_type)?
+            .shape;
+        let output = &self.structural_declaration(result.structural_type)?.shape;
+        if source.access != StructuralAccess::SharedBorrow
+            || !terminal_semantics::mutability_upgrade_shapes_match(
+                input,
+                Some(source.access),
+                output,
+            )
+            || result.multiplicity != StructuralMultiplicity::Affine
+            || !result.qualifications.is_empty()
+            || !result.claims.is_empty()
+            || self.structural_values.contains_key(&result.place)
+            || self.live_affine_discard_at(result.place).is_some()
+            || self
+                .program
+                .verified_machine(self.current_machine)?
+                .structural_place(result.place)
+                .and_then(|place| place.kind.as_operation_result())
+                != Some((operation.id, result.structural_type))
+        {
+            return Err(malformed());
+        }
+        self.validate_descriptor_borrow(source, source.access)?;
+        let mut cursor = self.local_structural_identities.cursor();
+        let mut destination = self.mint_staged(&mut cursor, result.structural_type)?;
+        destination
+            .projected_qualifications
+            .clone_from(&result.projected_qualifications);
+        if input.is_borrowed_byte_carrier() {
+            let binding = self.byte_descriptor_binding(source, descriptor)?;
+            let length = self.byte_descriptor_length(&binding, descriptor)?;
+            if let StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. },
+            ) = output
+                && length != *capacity
+            {
+                return Err(malformed());
+            }
+            let exclusive = binding.exclusive_view_descriptor(self, &destination)?;
+            self.byte_sequence_values.insert(result.place, exclusive)?;
+        } else {
+            let exclusive = self
+                .element_view_argument(source, descriptor)?
+                .exclusive_reborrow()?
+                .with_descriptor_home(destination.clone());
+            self.element_view_values.insert(result.place, exclusive)?;
+        }
+        self.local_structural_identities.commit_cursor(cursor);
+        self.structural_values.insert(result.place, destination)?;
+        self.track_affine_result(result);
+        Ok(())
+    }
+
+    fn install_formed_reference(
+        &mut self,
+        operation: &Operation,
+        prepared: PreparedReference,
+        identity_cursor: Option<u64>,
+    ) -> Result<(), TerminalInterpretError> {
+        let result = operation.result.structural().ok_or(malformed())?;
         // Formation owns the new permission's lifecycle. Shared type copy
         // permission governs later copies; use the same creation contract
         // as the producer and receiving semantics for this actual operation.
@@ -3137,21 +3304,6 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let mut identity_cursor = self.local_structural_identities.cursor();
-        let prepared = self
-            .capture_reference(
-                source,
-                result.structural_type,
-                &result.projected_qualifications,
-                storage,
-                &mut identity_cursor,
-            )
-            .map_err(|error| TerminalInterpretError::ReferenceFormation {
-                stage: "establish reference",
-                detail: format!(
-                    "source={source:?} result={result:?} storage={storage:?}: {error:?}"
-                ),
-            })?;
         self.local_structural_identities
             .commit_cursor(identity_cursor);
         let mut carrier = TerminalStructuralValue::minted(
@@ -3582,6 +3734,7 @@ impl TerminalExecution<'_> {
                 .get(&place)
                 .and_then(|backing| backing.array_loan.clone())
                 .or_else(|| self.element_view_values.get(&place).cloned()),
+            None,
         )?
         .ok_or(malformed())
     }
@@ -3616,6 +3769,7 @@ impl TerminalExecution<'_> {
             None,
             None,
             None,
+            None,
         )
     }
 
@@ -3641,6 +3795,7 @@ impl TerminalExecution<'_> {
                 .get(&place)
                 .and_then(|backing| backing.array_loan.clone())
                 .or_else(|| self.element_view_values.get(&place).cloned()),
+            None,
         )?
         .map(|projection| projection.value)
         .ok_or(malformed())
@@ -3659,6 +3814,7 @@ impl TerminalExecution<'_> {
         initial_view: Option<AggregateViewRegion>,
         initial_access: Option<AccessReference>,
         initial_array: Option<crate::storage::element_views::ElementView>,
+        package_endpoint: Option<StructuralTypeId>,
     ) -> Result<Option<ResolvedStructuralProjection>, TerminalInterpretError> {
         let types = self.structural_types();
         let mut value = owner.clone();
@@ -3863,20 +4019,35 @@ impl TerminalExecution<'_> {
                     remaining = &remaining[boundary + 1..];
                     continue;
                 }
-                let (referent_type, authority) = self.reference_contract(value.structural_type)?;
+                let home = StructuralRuntimePlace::from(&value);
+                let (declared_referent, authority) =
+                    self.reference_contract(value.structural_type)?;
+                let captured = self.reference_referents.get(&home).ok_or(malformed())?;
+                let referent_type = if package_endpoint == Some(declared_referent)
+                    && remaining.len() == boundary + 1
+                {
+                    captured.placed.as_ref().map_or_else(
+                        || {
+                            captured
+                                .aggregate_view
+                                .map_or(captured.view.structural_type, |view| view.structural_type)
+                        },
+                        |ram| ram.presentation.structural_type,
+                    )
+                } else {
+                    self.opened_call_references
+                        .get(&home)
+                        .copied()
+                        .unwrap_or(declared_referent)
+                };
                 if access.is_some_and(|required| !access_covers(authority, required)) {
                     return Err(malformed());
                 }
-                let reference_type = value.structural_type;
                 let qualifications = terminal_psi::StructuralPathQualification::select(
                     &value.qualifications,
                     &value.projected_qualifications,
                     &[StructuralPathSegment::Referent],
                 );
-                let captured = self
-                    .reference_referents
-                    .get(&StructuralRuntimePlace::from(&value))
-                    .ok_or(malformed())?;
                 primitive_storage = captured
                     .primitive_loan
                     .as_ref()
@@ -3932,10 +4103,11 @@ impl TerminalExecution<'_> {
                     }
                     aggregate_view = Some(view);
                 } else {
-                    if !terminal_semantics::reference_source_compatible(
+                    if !terminal_semantics::reference_referent_compatible(
                         types.values(),
                         value.structural_type,
-                        reference_type,
+                        referent_type,
+                        authority,
                     ) {
                         return Err(malformed());
                     }
@@ -4062,7 +4234,8 @@ impl TerminalExecution<'_> {
                 let (referent_type, access) = self.reference_contract(leaf_type)?;
                 let mut backings = Vec::with_capacity(origin.sources.len());
                 for source in &origin.sources {
-                    let terminal_psi::StructuralReferenceOrigin::Parameter(source) = source else {
+                    let result_access = source.access();
+                    let Some(source) = source.parameter() else {
                         continue;
                     };
                     let parameter = parameters
@@ -4070,7 +4243,7 @@ impl TerminalExecution<'_> {
                         .find(|parameter| parameter.place == source.place)
                         .ok_or(malformed())?;
                     if !access_covers(parameter.access, source.access)
-                        || !access_covers(source.access, access)
+                        || !access_covers(result_access, access)
                     {
                         return Err(malformed());
                     }
@@ -4081,12 +4254,33 @@ impl TerminalExecution<'_> {
                         source,
                     )
                     .map_err(TerminalInterpretError::UnsupportedSemanticVariant)?;
-                    if binding.extent == semantic_vocabulary::ReferenceOriginExtent::Projected
-                        && binding.endpoint != referent_type
-                    {
+                    // The source checker and saved-Psi receiver verify this header against
+                    // the body. Capture the physical input it names before entering the call.
+                    let exact =
+                        binding.extent == semantic_vocabulary::ReferenceOriginExtent::Projected;
+                    let is_hidden = |root, path: &[StructuralPathSegment]| {
+                        terminal_semantics::packages::hidden_reference_referent(
+                            &self.program.catalogs,
+                            root,
+                            path,
+                        ) == Some(referent_type)
+                    };
+                    let hidden_result = exact && is_hidden(signature.structural_type, &origin.path);
+                    let concrete_input = exact && binding.endpoint != referent_type;
+                    if concrete_input && !hidden_result {
                         return Err(malformed());
                     }
                     let path = binding.source.path.as_slice();
+                    let package_endpoint = if hidden_result
+                        && binding.suffix.is_empty()
+                        && let Some((StructuralPathSegment::Referent, field_path)) =
+                            path.split_last()
+                        && is_hidden(owner.structural_type, field_path)
+                    {
+                        Some(referent_type)
+                    } else {
+                        None
+                    };
                     let (backing, view, placed) = match aggregate_backings.get(&parameter.place) {
                         Some(backing) => (&backing.value, backing.region, backing.placed.clone()),
                         None => (owner, None, None),
@@ -4107,6 +4301,7 @@ impl TerminalExecution<'_> {
                                 .and_then(|occurrence| occurrence.ram.clone())
                         }),
                         array_loans.get(&parameter.place).cloned(),
+                        package_endpoint,
                     )?
                     else {
                         continue;
@@ -4124,9 +4319,20 @@ impl TerminalExecution<'_> {
                         ram.access = access;
                     }
                     let logical = projected.value;
+                    let presentation =
+                        view.map_or(logical.structural_type, |view| view.structural_type);
+                    // The admitted source mapping names a particular input and
+                    // path. Retain that concrete type alongside the captured
+                    // address so return validation compares the actual lender.
+                    let package_referent = if concrete_input {
+                        Some(binding.endpoint)
+                    } else {
+                        package_endpoint.map(|_| presentation)
+                    };
+                    let referent_type = package_referent.unwrap_or(referent_type);
                     let endpoint = terminal_semantics::reference_origin_type(
                         self.structural_types().values(),
-                        view.map_or(logical.structural_type, |view| view.structural_type),
+                        presentation,
                         binding.suffix,
                     );
                     if endpoint.is_none()
@@ -4192,6 +4398,7 @@ impl TerminalExecution<'_> {
                         None
                     };
                     backings.push(ReferenceBacking {
+                        package_referent,
                         byte_binding,
                         element_view: if (!binding.suffix.is_empty()
                             || binding.extent
@@ -4397,6 +4604,7 @@ impl TerminalExecution<'_> {
                             _ => (value, &path[..], None, None, None),
                         };
                     invocation_backings.push(ReferenceBacking {
+                        package_referent: None,
                         array_loan: None,
                         placed,
                         value: value.clone(),
@@ -4412,6 +4620,7 @@ impl TerminalExecution<'_> {
             }
             let mut matched = false;
             for backing in expected.iter().chain(&invocation_backings) {
+                let referent_type = backing.package_referent.unwrap_or(referent_type);
                 if let Some(mut projected) =
                     self.resolve_return_origin(backing, actual)
                         .map_err(|error| TerminalInterpretError::ReferenceFormation {
@@ -4476,3 +4685,236 @@ impl TerminalExecution<'_> {
 }
 
 pub(crate) use terminal_psi::structural_access_covers as access_covers;
+
+#[cfg(test)]
+mod package_opening_tests {
+    use super::*;
+    use crate::engine::calls::frames::tests::empty_program;
+
+    use terminal_psi::{StructuralTypeDeclaration, TerminalIdentityIndex};
+
+    fn declaration(id: StructuralTypeId, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
+        StructuralTypeDeclaration {
+            id,
+            identity: TerminalIdentityIndex(id.get() as u32),
+            declaration_identity: Default::default(),
+            shape,
+            requires: vec![],
+            quotient_carrier: None,
+            owns_linear_claim: false,
+            no_code_affine_cleanup: false,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            descriptor_cleanup: false,
+            nominal_cleanup: None,
+            scalar_restriction: None,
+        }
+    }
+
+    #[test]
+    fn opened_reference_checks_the_stored_referent_at_its_exact_home() {
+        let witness = StructuralTypeId::new(1).unwrap();
+        let file = StructuralTypeId::new(2).unwrap();
+        let socket = StructuralTypeId::new(3).unwrap();
+        let reference = StructuralTypeId::new(4).unwrap();
+        let access = StructuralAccess::MutableBorrow;
+        let mut program = empty_program();
+        let catalog = &mut std::sync::Arc::get_mut(&mut program)
+            .unwrap()
+            .fixture_module_mut()
+            .types
+            .structural_types;
+        for (id, shape) in [
+            (witness, StructuralTypeShape::Opaque),
+            (file, StructuralTypeShape::Opaque),
+            (socket, StructuralTypeShape::Opaque),
+            (
+                reference,
+                StructuralTypeShape::Reference {
+                    referent: witness,
+                    access,
+                },
+            ),
+        ] {
+            catalog.push(declaration(id, shape));
+        }
+        let mut execution =
+            TerminalExecution::start_with_program(program, &[], Default::default(), None, None)
+                .unwrap();
+        let left = TerminalStructuralValue::minted(10, reference, vec![]);
+        let right = TerminalStructuralValue::minted(11, reference, vec![]);
+        let file_state = TerminalStructuralValue::minted(12, file, vec![]);
+        let socket_state = TerminalStructuralValue::minted(13, socket, vec![]);
+        for (carrier, state) in [(&left, &file_state), (&right, &socket_state)] {
+            execution
+                .reference_referents
+                .insert(
+                    StructuralRuntimePlace::from(carrier),
+                    ReferenceReferent::from_view(state.clone()),
+                )
+                .unwrap();
+        }
+        let read = |execution: &TerminalExecution<'_>, carrier: &TerminalStructuralValue| {
+            execution
+                .resolve_reference_storage_projection(
+                    carrier,
+                    &[StructuralPathSegment::Referent],
+                    access,
+                )
+                .map(|resolved| resolved.unwrap().value)
+        };
+        assert!(read(&execution, &left).is_err());
+        execution
+            .opened_call_references
+            .insert(StructuralRuntimePlace::from(&left), file)
+            .unwrap();
+        assert_eq!(read(&execution, &left).unwrap(), file_state);
+        assert!(read(&execution, &right).is_err());
+        execution
+            .opened_call_references
+            .insert(StructuralRuntimePlace::from(&left), socket)
+            .unwrap();
+        assert!(read(&execution, &left).is_err());
+    }
+
+    #[test]
+    fn returned_package_reference_must_keep_its_arguments_backing() {
+        use terminal_psi::{
+            StructuralFieldDeclaration, StructuralFieldType, StructuralRecordStorage,
+            StructuralReferenceOrigin, StructuralReferenceResultSource, TerminalPackageSchema,
+        };
+        let ty = |id| StructuralTypeId::new(id).unwrap();
+        let (witness, file, reference, package) = (ty(1), ty(2), ty(3), ty(4));
+        let field = TerminalIdentityIndex(5);
+        let field_path = vec![StructuralPathSegment::Field(field)];
+        let access = StructuralAccess::SharedBorrow;
+        let input = PlaceId::new(1).unwrap();
+        let mut program = empty_program();
+        let module = std::sync::Arc::get_mut(&mut program)
+            .unwrap()
+            .fixture_module_mut();
+        module.types.structural_types.extend([
+            declaration(witness, StructuralTypeShape::Opaque),
+            declaration(file, StructuralTypeShape::Opaque),
+            declaration(
+                reference,
+                StructuralTypeShape::Reference {
+                    referent: witness,
+                    access,
+                },
+            ),
+            declaration(
+                package,
+                StructuralTypeShape::Record {
+                    fields: vec![StructuralFieldDeclaration {
+                        id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+                        identity: field,
+                        declaration_identity: Default::default(),
+                        field_type: StructuralFieldType::Structural(reference),
+                        relevance: language_core::BindingRelevance::Relevant,
+                        storage: None,
+                        inline_carrier: None,
+                    }],
+                    storage: StructuralRecordStorage::Packed,
+                },
+            ),
+        ]);
+        module
+            .execution
+            .packages
+            .schemas
+            .push(TerminalPackageSchema {
+                record: package,
+                witnesses: vec![witness],
+            });
+        let mut execution =
+            TerminalExecution::start_with_program(program, &[], Default::default(), None, None)
+                .unwrap();
+        let argument = TerminalStructuralValue::minted(10, package, vec![]);
+        let result = TerminalStructuralValue::minted(11, package, vec![]);
+        let original = TerminalStructuralValue::minted(12, file, vec![]);
+        let other = TerminalStructuralValue::minted(13, file, vec![]);
+        let field_home = |value: &TerminalStructuralValue| StructuralRuntimePlace {
+            opaque_identity: value.opaque_identity,
+            path: field_path.clone(),
+        };
+        execution
+            .reference_referents
+            .insert(
+                field_home(&argument),
+                ReferenceReferent::from_view(original.clone()),
+            )
+            .unwrap();
+        let mut signature = StructuralResultDeclaration {
+            place: PlaceId::new(2).unwrap(),
+            structural_type: package,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            qualifications: vec![],
+            projected_qualifications: vec![],
+            reference_sources: vec![StructuralReferenceResultSource {
+                path: field_path.clone(),
+                sources: vec![],
+            }],
+        };
+        let mut parameter = StructuralParameterDeclaration {
+            place: input,
+            position: 0,
+            structural_type: package,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access,
+            qualifications: vec![],
+            projected_qualifications: vec![],
+            additional_input_qualifications: vec![],
+        };
+        // Repacking reads the loan in the incoming package. First-time
+        // construction borrows the concrete input directly. Both keep its address.
+        for (value, path) in [
+            (
+                argument,
+                vec![
+                    StructuralPathSegment::Field(field),
+                    StructuralPathSegment::Referent,
+                ],
+            ),
+            (original.clone(), vec![]),
+        ] {
+            parameter.structural_type = value.structural_type;
+            execution.structural_values.insert(input, value).unwrap();
+            signature.reference_sources[0].sources = vec![StructuralReferenceOrigin::Parameter(
+                StructuralArgument {
+                    place: input,
+                    access,
+                    path,
+                }
+                .into(),
+            )];
+            let rows = execution
+                .bind_reference_return_backings(
+                    std::slice::from_ref(&parameter),
+                    &signature,
+                    &execution.structural_values,
+                    &execution.aggregate_argument_backings,
+                    &execution.primitive_loan_values,
+                    &execution.element_view_values,
+                    &execution.byte_sequence_values,
+                    &execution.access_view_occurrences,
+                )
+                .unwrap();
+            execution
+                .entry_reference_backings
+                .get_or_insert_with(Default::default)
+                .rows = rows;
+            for (referent, valid) in [(original.clone(), true), (other.clone(), false)] {
+                execution
+                    .reference_referents
+                    .insert(field_home(&result), ReferenceReferent::from_view(referent))
+                    .unwrap();
+                assert_eq!(
+                    execution
+                        .validate_reference_return(&signature, &result)
+                        .is_ok(),
+                    valid
+                );
+            }
+        }
+    }
+}

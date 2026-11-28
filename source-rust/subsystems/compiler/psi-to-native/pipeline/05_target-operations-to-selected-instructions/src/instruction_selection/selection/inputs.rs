@@ -53,7 +53,7 @@ pub(crate) mod activation_storage_input {
             return None;
         }
         let types = source.geometry();
-        let backing = terminal_psi::find_structural_type(types, *backing_type)?;
+        let backing = types.declaration(*backing_type).ok()?;
         if backing.owns_linear_claim
             || backing.descriptor_cleanup
             || !backing.no_code_affine_cleanup
@@ -486,210 +486,257 @@ pub(crate) mod aggregate_result_input {
     use semantic_vocabulary::PlaceId;
     use terminal_psi::{StructuralAccess, StructuralTypeShape, structural_case_position};
 
+    /// Entry has validated unique places and dense parameter positions. Uses name
+    /// places, which can be sparse, so index only the eligible parameters here.
+    pub(crate) fn parameter_homes(
+        source: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
+        signature: &legalized_operations::LegalizedStructuralContract,
+    ) -> Vec<bool> {
+        use legalized_operations::{LegalizedScalarTerminator, LegalizedStructuralCaseSource};
+        let mut eligible: Vec<_> = signature
+            .parameters
+            .iter()
+            .enumerate()
+            .filter(|(_, parameter)| {
+                parameter.semantic.access == StructuralAccess::Owned
+                    && source
+                        .geometry()
+                        .declaration(parameter.semantic.structural_type)
+                        .is_ok_and(|declaration| {
+                            matches!(
+                                declaration.shape,
+                                StructuralTypeShape::Reference { .. }
+                                    | StructuralTypeShape::Record { .. }
+                                    | terminal_psi::sum_or_mixed_shape_pattern!()
+                                    | StructuralTypeShape::FixedArray { .. }
+                                    | StructuralTypeShape::ByteSequence(
+                                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                                    )
+                                    | StructuralTypeShape::ElementView { access: None, .. }
+                            )
+                        })
+            })
+            .map(|(position, parameter)| (parameter.semantic.place, position))
+            .collect();
+        let mut required = vec![false; signature.parameters.len()];
+        if eligible.is_empty() {
+            return required;
+        }
+        eligible.sort_unstable_by_key(|&(place, _)| place);
+        let mut record =
+            |place, transport: Option<&target_vocabulary::TargetStructuralArgument>| {
+                if let Ok(index) = eligible.binary_search_by_key(&place, |&(place, _)| place) {
+                    let slot = &mut required[eligible[index].1];
+                    if !*slot && transport.is_none_or(argument_transport_requires_home) {
+                        *slot = true;
+                    }
+                }
+            };
+        for block in &source.blocks {
+            let mut mark = |place| record(place, None);
+            match &block.terminator {
+                LegalizedScalarTerminator::StructuralCase {
+                    source: LegalizedStructuralCaseSource::Parameter { declaration },
+                    ..
+                } => mark(declaration.place),
+                LegalizedScalarTerminator::InvokeNoNormal { call, .. } => {
+                    borrowed_call_arguments(call, &mut mark)
+                }
+                _ => {}
+            }
+            for place in super::established_view_input::transferred_places(&block.terminator) {
+                mark(place);
+            }
+            for (_, call) in block.terminator.cleanup_calls() {
+                for argument in &call.arguments {
+                    if let legalized_operations::LegalizedScalarArgument::Structural {
+                        semantic,
+                        target,
+                        ..
+                    } = argument
+                    {
+                        record(semantic.place, Some(target));
+                    }
+                }
+            }
+            for row in &block.instructions {
+                let mut mark = |place| record(place, None);
+                match &row.kind {
+                    LegalizedScalarInstructionKind::StructuralScalarFieldRead {
+                        source, ..
+                    }
+                    | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength {
+                        source,
+                        ..
+                    }
+                    | LegalizedScalarInstructionKind::StructuralByteSequenceFieldRead {
+                        source,
+                        ..
+                    }
+                    | LegalizedScalarInstructionKind::ElementViewLength { source, .. }
+                    | LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
+                    | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. }
+                    | LegalizedScalarInstructionKind::ElementViewSubslice { source, .. } => {
+                        mark(source.place)
+                    }
+                    LegalizedScalarInstructionKind::StructuralCaseMembership {
+                        source,
+                        path,
+                        ..
+                    } if !path.is_empty() => mark(*source),
+                    LegalizedScalarInstructionKind::ActivateTaskRegister {
+                        gdt,
+                        task_state,
+                        scratch,
+                        ..
+                    } => {
+                        for argument in [gdt, task_state, scratch] {
+                            mark(argument.place);
+                        }
+                    }
+                    LegalizedScalarInstructionKind::ReloadSegmentDescriptors {
+                        gdt,
+                        scratch,
+                        ..
+                    } => {
+                        mark(gdt.place);
+                        mark(scratch.place);
+                    }
+                    LegalizedScalarInstructionKind::ObserveStorageLocation { source, .. }
+                    | LegalizedScalarInstructionKind::GlobalDescriptorTable { source, .. }
+                    | LegalizedScalarInstructionKind::PrimitiveScalarRead { source, .. }
+                    | LegalizedScalarInstructionKind::StructuralLeafCopy { source, .. }
+                    | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. } => {
+                        mark(*source)
+                    }
+                    LegalizedScalarInstructionKind::PackedIntegerUnary { source, .. } => {
+                        mark(source.place)
+                    }
+                    LegalizedScalarInstructionKind::PackedIntegerBinary { left, right, .. } => {
+                        mark(left.place);
+                        mark(right.place);
+                    }
+                    LegalizedScalarInstructionKind::EstablishStructuralArray {
+                        elements, ..
+                    } => {
+                        for argument in elements {
+                            if !argument.path.is_empty() {
+                                mark(argument.place);
+                            }
+                        }
+                    }
+                    LegalizedScalarInstructionKind::EstablishRecord { fields, .. }
+                    | LegalizedScalarInstructionKind::EstablishCase { fields, .. } => {
+                        for field in fields {
+                            if let terminal_psi::RecordFieldValue::Structural(argument) =
+                                &field.value
+                                && !argument.path.is_empty()
+                            {
+                                mark(argument.place);
+                            }
+                        }
+                    }
+                    LegalizedScalarInstructionKind::EstablishReference { source, .. }
+                    | LegalizedScalarInstructionKind::UpgradeMutability { source, .. }
+                    | LegalizedScalarInstructionKind::EstablishAccessReference { source, .. }
+                    | LegalizedScalarInstructionKind::EstablishElementView { source, .. } => {
+                        mark(source.place)
+                    }
+                    LegalizedScalarInstructionKind::AtomicAccess { location, .. }
+                    | LegalizedScalarInstructionKind::AccessorScalarAccess { location, .. } => {
+                        mark(location.place)
+                    }
+                    LegalizedScalarInstructionKind::StaticInterrupt { token, .. } => {
+                        mark(token.place)
+                    }
+                    LegalizedScalarInstructionKind::InstallStaticInterrupt {
+                        arguments, ..
+                    } => {
+                        for argument in arguments {
+                            mark(argument.place);
+                        }
+                    }
+                    LegalizedScalarInstructionKind::ByteSequenceStore {
+                        destination,
+                        source,
+                        ..
+                    } => {
+                        mark(*destination);
+                        mark(*source);
+                    }
+                    LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore {
+                        destination,
+                        source,
+                        ..
+                    } => {
+                        mark(destination.place);
+                        mark(*source);
+                    }
+                    LegalizedScalarInstructionKind::StoreStructuralField {
+                        destination, ..
+                    } => mark(destination.place()),
+                    LegalizedScalarInstructionKind::StructuralScalarFieldStore {
+                        destination,
+                        ..
+                    }
+                    | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
+                        destination, ..
+                    } => mark(destination.place()),
+                    LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
+                        left,
+                        right,
+                        ..
+                    } => {
+                        mark(left.source());
+                        mark(right.source());
+                    }
+                    LegalizedScalarInstructionKind::ByteSequenceEqual { left, right } => {
+                        mark(left.source());
+                        mark(right.source());
+                    }
+                    LegalizedScalarInstructionKind::ByteSequencePredicate { operand, .. } => {
+                        mark(operand.source())
+                    }
+                    LegalizedScalarInstructionKind::Call(call) => {
+                        borrowed_call_arguments(call, &mut mark)
+                    }
+                    LegalizedScalarInstructionKind::NormalizedForeignCall(call) => {
+                        for argument in &call.structural_arguments {
+                            record(argument.place, Some(argument));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        required
+    }
+
+    fn borrowed_call_arguments(
+        call: &legalized_operations::LegalizedScalarCall,
+        mark: &mut impl FnMut(PlaceId),
+    ) {
+        for argument in &call.arguments {
+            if let legalized_operations::LegalizedScalarArgument::Structural { semantic, .. } =
+                argument
+                && semantic.access != StructuralAccess::Owned
+            {
+                mark(semantic.place);
+            }
+        }
+    }
+
     pub(crate) fn owned_parameter_uses_local_home(
         source: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
         declaration: &terminal_psi::StructuralParameterDeclaration,
+        required: &[bool],
     ) -> Option<bool> {
-        let mut parameters = source
-            .structural
-            .as_ref()?
-            .parameters
-            .iter()
-            .filter(|parameter| parameter.semantic.place == declaration.place);
-        let parameter = parameters.next()?;
-        if parameters.next().is_some()
-            || &parameter.semantic != declaration
-            || declaration.access != StructuralAccess::Owned
-        {
+        let position = declaration.position as usize;
+        let parameter = source.structural.as_ref()?.parameters.get(position)?;
+        if &parameter.semantic != declaration || declaration.access != StructuralAccess::Owned {
             return None;
         }
-        Some(
-            parameter.target.shape.byte_size != 0
-                && parameter_home_required(source, declaration.place),
-        )
-    }
-
-    pub(crate) fn parameter_home_required(
-        source: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
-        place: PlaceId,
-    ) -> bool {
-        let Some(signature) = &source.structural else {
-            return false;
-        };
-        if !signature.parameters.iter().any(|parameter| {
-            parameter.semantic.place == place
-                && parameter.semantic.access == StructuralAccess::Owned
-                && signature.structural_types.iter().any(|declaration| {
-                    declaration.id == parameter.semantic.structural_type
-                        && matches!(
-                            declaration.shape,
-                            StructuralTypeShape::Reference { .. }
-                                | StructuralTypeShape::Record { .. }
-                                | terminal_psi::sum_or_mixed_shape_pattern!()
-                                | StructuralTypeShape::FixedArray { .. }
-                                | StructuralTypeShape::ByteSequence(
-                                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                                )
-                                | StructuralTypeShape::ElementView { access: None, .. }
-                        )
-                })
-        }) {
-            return false;
-        }
-        let binds = |successor: &legalized_operations::LegalizedScalarSuccessor| {
-            successor
-                .structural_bindings
-                .iter()
-                .any(|binding| binding.semantic.argument.place == place)
-        };
-        let forwarded = source.blocks.iter().any(|block| match &block.terminator {
-            legalized_operations::LegalizedScalarTerminator::Jump { successor, .. } => {
-                binds(successor)
-            }
-            legalized_operations::LegalizedScalarTerminator::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => binds(when_true) || binds(when_false),
-            _ => false,
-        });
-        let dispatched = source.blocks.iter().any(|block| {
-            matches!(
-                &block.terminator,
-                legalized_operations::LegalizedScalarTerminator::StructuralCase {
-                    source: legalized_operations::LegalizedStructuralCaseSource::Parameter { declaration },
-                    ..
-                } if declaration.place == place
-            )
-        });
-        let cleanup_borrow = source.blocks.iter().any(|block| block.terminator.cleanup_calls().any(|(_, call)|
-            call.arguments.iter().any(|argument|
-                matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, target, .. }
-                    if semantic.place == place && argument_transport_requires_home(target)))));
-        let borrows_parameter = |call: &legalized_operations::LegalizedScalarCall| {
-            call.arguments.iter().any(|argument| {
-                matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, .. }
-                    if semantic.place == place && semantic.access != StructuralAccess::Owned)
-            })
-        };
-        let terminal_borrow = source.blocks.iter().any(|block| {
-            matches!(&block.terminator,
-            legalized_operations::LegalizedScalarTerminator::InvokeNoNormal { call, .. }
-                if borrows_parameter(call))
-        });
-        forwarded
-            || dispatched
-            || cleanup_borrow
-            || terminal_borrow
-            || source.instructions().any(|row| match &row.kind {
-                LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, .. }
-                | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength {
-                    source,
-                    ..
-                }
-                | LegalizedScalarInstructionKind::StructuralByteSequenceFieldRead {
-                    source, ..
-                }
-                | LegalizedScalarInstructionKind::ElementViewLength { source, .. }
-                | LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
-                | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. }
-                | LegalizedScalarInstructionKind::ElementViewSubslice { source, .. } => {
-                    source.place == place
-                }
-                LegalizedScalarInstructionKind::StructuralCaseMembership {
-                    source, path, ..
-                } => *source == place && !path.is_empty(),
-                LegalizedScalarInstructionKind::ActivateTaskRegister {
-                    gdt,
-                    task_state,
-                    scratch,
-                    ..
-                } => [gdt, task_state, scratch]
-                    .into_iter()
-                    .any(|argument| argument.place == place),
-                LegalizedScalarInstructionKind::ReloadSegmentDescriptors {
-                    gdt, scratch, ..
-                } => [gdt, scratch]
-                    .into_iter()
-                    .any(|argument| argument.place == place),
-                LegalizedScalarInstructionKind::ObserveStorageLocation { source, .. }
-                | LegalizedScalarInstructionKind::GlobalDescriptorTable { source, .. }
-                | LegalizedScalarInstructionKind::PrimitiveScalarRead { source, .. }
-                | LegalizedScalarInstructionKind::StructuralLeafCopy { source, .. }
-                | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. } => {
-                    *source == place
-                }
-                LegalizedScalarInstructionKind::PackedIntegerUnary { source, .. } => {
-                    source.place == place
-                }
-                LegalizedScalarInstructionKind::PackedIntegerBinary { left, right, .. } => {
-                    left.place == place || right.place == place
-                }
-                LegalizedScalarInstructionKind::EstablishStructuralArray { elements, .. } => {
-                    elements
-                        .iter()
-                        .any(|argument| argument.place == place && !argument.path.is_empty())
-                }
-                LegalizedScalarInstructionKind::EstablishRecord { fields, .. }
-                | LegalizedScalarInstructionKind::EstablishCase { fields, .. } => {
-                    fields.iter().any(|field| {
-                        matches!(&field.value, terminal_psi::RecordFieldValue::Structural(argument)
-                        if argument.place == place && !argument.path.is_empty())
-                    })
-                }
-                LegalizedScalarInstructionKind::EstablishReference { source, .. }
-                | LegalizedScalarInstructionKind::EstablishAccessReference { source, .. }
-                | LegalizedScalarInstructionKind::EstablishElementView { source, .. } => {
-                    source.place == place
-                }
-                LegalizedScalarInstructionKind::AtomicAccess { location, .. }
-                | LegalizedScalarInstructionKind::AccessorScalarAccess { location, .. } => {
-                    location.place == place
-                }
-                LegalizedScalarInstructionKind::StaticInterrupt { token, .. } => {
-                    token.place == place
-                }
-                LegalizedScalarInstructionKind::InstallStaticInterrupt { arguments, .. } => {
-                    arguments.iter().any(|argument| argument.place == place)
-                }
-                LegalizedScalarInstructionKind::ByteSequenceStore {
-                    destination,
-                    source,
-                    ..
-                } => *destination == place || *source == place,
-                LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore {
-                    destination,
-                    source,
-                    ..
-                } => destination.place == place || *source == place,
-                LegalizedScalarInstructionKind::StoreStructuralField { destination, .. } => {
-                    destination.place() == place
-                }
-                LegalizedScalarInstructionKind::StructuralScalarFieldStore {
-                    destination, ..
-                }
-                | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { destination, .. } => {
-                    destination.place() == place
-                }
-                LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
-                    left,
-                    right,
-                    ..
-                } => left.source() == place || right.source() == place,
-                LegalizedScalarInstructionKind::ByteSequenceEqual { left, right } => {
-                    left.source() == place || right.source() == place
-                }
-                LegalizedScalarInstructionKind::ByteSequencePredicate { operand, .. } => {
-                    operand.source() == place
-                }
-                LegalizedScalarInstructionKind::Call(call) => borrows_parameter(call),
-                LegalizedScalarInstructionKind::NormalizedForeignCall(call) => {
-                    call.structural_arguments.iter().any(|argument| {
-                        argument.place == place && argument_transport_requires_home(argument)
-                    })
-                }
-                _ => false,
-            })
+        Some(parameter.target.shape.byte_size != 0 && *required.get(position)?)
     }
 
     fn argument_transport_requires_home(
@@ -778,8 +825,7 @@ pub(crate) mod aggregate_result_input {
         &'a calling_conventions::ValuePlacement,
     )> {
         let result = call.structural_result.as_ref()?;
-        let declaration =
-            terminal_psi::find_structural_type(source.geometry(), result.structural_type)?;
+        let declaration = source.geometry().declaration(result.structural_type).ok()?;
         let shape = match &declaration.shape {
             terminal_psi::StructuralTypeShape::Record { .. }
             | terminal_psi::StructuralTypeShape::FixedArray { .. } => primitive_array_shape(
@@ -1286,6 +1332,7 @@ pub(crate) mod aggregate_result_input {
                     result,
                     field,
                     declaration,
+                    &declaration.field_type,
                 )?;
                 (shape == placed.shape).then_some((
                     placed.byte_offset,
@@ -2296,6 +2343,7 @@ pub(crate) mod established_view_input {
                     I::ByteSequenceSubslice { result, .. }
                     | I::ElementViewSubslice { result, .. }
                     | I::EstablishElementView { result, .. }
+                    | I::UpgradeMutability { result, .. }
                     | I::StructuralLeafCopy { result, .. } => result,
                     _ => return None,
                 };
@@ -2349,6 +2397,13 @@ pub(crate) mod established_view_input {
                             copied::shared_projection(function, row)?;
                             return initial;
                         }
+                    }
+                    I::UpgradeMutability { source, .. } => {
+                        if access != A::MutableBorrow {
+                            return None;
+                        }
+                        projected_source_access(function, source, A::SharedBorrow, remaining)?;
+                        return initial;
                     }
                     I::ByteSequenceSubslice { source, .. }
                     | I::ElementViewSubslice { source, .. } => {
@@ -2428,7 +2483,7 @@ pub(crate) mod established_view_input {
                     types,
                 )?;
                 let StructuralTypeShape::Reference { referent, access } =
-                    types.iter().find(|row| row.id == reference)?.shape
+                    types.declaration(reference).ok()?.shape
                 else {
                     return None;
                 };
@@ -2461,7 +2516,7 @@ pub(crate) mod established_view_input {
                     terminal_psi::ByteSequenceCarrier::BoundedOwned { .. } => A::Owned,
                 },
                 StructuralStorageProjection::Endpoint(identity) => {
-                    match types.iter().find(|row| row.id == identity)?.shape {
+                    match types.declaration(identity).ok()?.shape {
                         StructuralTypeShape::ElementView { access, .. } => access.unwrap_or({
                             if source.path.len() == prefix_start {
                                 authority
@@ -2509,6 +2564,7 @@ pub(crate) mod established_view_input {
                     LegalizedScalarInstructionKind::NormalizedForeignCall(call) => call
                         .structural_arguments.iter().any(|argument| argument.place == place),
                     LegalizedScalarInstructionKind::EstablishReference { source: argument, .. }
+                    | LegalizedScalarInstructionKind::UpgradeMutability { source: argument, .. }
                     | LegalizedScalarInstructionKind::EstablishAccessReference { source: argument, .. } =>
                         argument.place == place
                             && crate::instruction_selection::selection::reference_input::establishment(source, row).is_some_and(|address|
@@ -2552,32 +2608,39 @@ pub(crate) mod established_view_input {
         source: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
         place: PlaceId,
     ) -> bool {
-        source.blocks.iter().any(|block| {
-            let successors = match &block.terminator {
-                legalized_operations::LegalizedScalarTerminator::EliminateEmpty { .. }
-                | legalized_operations::LegalizedScalarTerminator::Crash { .. }
-                | legalized_operations::LegalizedScalarTerminator::InvokeNoNormal { .. }
-                | legalized_operations::LegalizedScalarTerminator::ExternalCompletion { .. }
-                | legalized_operations::LegalizedScalarTerminator::Return(_)
-                | legalized_operations::LegalizedScalarTerminator::ReturnCleanup { .. }
-                | legalized_operations::LegalizedScalarTerminator::StructuralCase { .. } => {
-                    [None, None]
-                }
-                legalized_operations::LegalizedScalarTerminator::Jump { successor, .. } => {
-                    [Some(successor), None]
-                }
-                legalized_operations::LegalizedScalarTerminator::Conditional {
-                    when_true,
-                    when_false,
-                    ..
-                } => [Some(when_true), Some(when_false)],
-            };
-            successors.into_iter().flatten().any(|successor| {
-                successor
-                    .structural_bindings
-                    .iter()
-                    .any(|binding| binding.semantic.argument.place == place)
-            })
+        source
+            .blocks
+            .iter()
+            .any(|block| transferred_places(&block.terminator).any(|used| used == place))
+    }
+
+    pub(super) fn transferred_places(
+        terminator: &legalized_operations::LegalizedScalarTerminator,
+    ) -> impl Iterator<Item = PlaceId> + '_ {
+        let successors = match terminator {
+            legalized_operations::LegalizedScalarTerminator::EliminateEmpty { .. }
+            | legalized_operations::LegalizedScalarTerminator::Crash { .. }
+            | legalized_operations::LegalizedScalarTerminator::InvokeNoNormal { .. }
+            | legalized_operations::LegalizedScalarTerminator::ExternalCompletion { .. }
+            | legalized_operations::LegalizedScalarTerminator::Return(_)
+            | legalized_operations::LegalizedScalarTerminator::ReturnCleanup { .. }
+            | legalized_operations::LegalizedScalarTerminator::StructuralCase { .. } => {
+                [None, None]
+            }
+            legalized_operations::LegalizedScalarTerminator::Jump { successor, .. } => {
+                [Some(successor), None]
+            }
+            legalized_operations::LegalizedScalarTerminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => [Some(when_true), Some(when_false)],
+        };
+        successors.into_iter().flatten().flat_map(|successor| {
+            successor
+                .structural_bindings
+                .iter()
+                .map(|binding| binding.semantic.argument.place)
         })
     }
 
@@ -2955,20 +3018,24 @@ pub(crate) mod established_view_input {
 }
 
 pub(crate) mod literal_compare_input {
-    use std::ops::RangeInclusive;
-
     use legalized_operations::{
         LegalizedScalarBlock, LegalizedScalarComparison, LegalizedScalarInstruction,
         LegalizedScalarInstructionKind,
     };
     use semantic_vocabulary::{IntegerSign, IntegerValue};
 
-    fn folded_literal<'a>(
+    pub(crate) struct FoldedLiteral<'a> {
+        pub row: &'a LegalizedScalarInstruction,
+        pub operand: semantic_vocabulary::ValueId,
+        pub literal_value: semantic_vocabulary::ValueId,
+        pub immediate: u64,
+    }
+
+    pub(crate) fn folded_literal<'a>(
         function: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
         block: &'a LegalizedScalarBlock,
         comparison_index: usize,
-        immediates: RangeInclusive<u64>,
-    ) -> Option<&'a LegalizedScalarInstruction> {
+    ) -> Option<FoldedLiteral<'a>> {
         let comparison = block.instructions.get(comparison_index)?;
         let literal = block.instructions.get(comparison_index.checked_sub(1)?)?;
         let definition = literal.result?;
@@ -2979,7 +3046,7 @@ pub(crate) mod literal_compare_input {
         let value = u64::try_from(value).ok()?;
         if !matches!(definition.scalar_type, semantic_vocabulary::ClosedScalarType::Integer(integer)
                 if integer.sign() == IntegerSign::Unsigned && integer.bits() == 64
-        ) || !immediates.contains(&value)
+        ) || value > 4095
         {
             return None;
         }
@@ -3013,23 +3080,16 @@ pub(crate) mod literal_compare_input {
                 }
             }
         }
-        Some(literal)
-    }
-
-    pub(crate) fn folded_zero<'a>(
-        function: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
-        block: &'a LegalizedScalarBlock,
-        comparison_index: usize,
-    ) -> Option<&'a LegalizedScalarInstruction> {
-        folded_literal(function, block, comparison_index, 0..=0)
-    }
-
-    pub(crate) fn folded_immediate<'a>(
-        function: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
-        block: &'a LegalizedScalarBlock,
-        comparison_index: usize,
-    ) -> Option<&'a LegalizedScalarInstruction> {
-        folded_literal(function, block, comparison_index, 1..=4095)
+        Some(FoldedLiteral {
+            row: literal,
+            operand: if left == definition.value {
+                right
+            } else {
+                left
+            },
+            literal_value: definition.value,
+            immediate: value,
+        })
     }
 }
 
@@ -3382,7 +3442,7 @@ pub(crate) mod primitive_local_input {
                 let mut geometry =
                     descriptor_source_geometry(root, &argument.path, source.geometry())?;
                 let terminal_psi::StructuralTypeShape::ByteSequence(carrier) =
-                    terminal_psi::find_structural_type(source.geometry(), geometry.selected)?.shape
+                    source.geometry().declaration(geometry.selected).ok()?.shape
                 else {
                     return None;
                 };
@@ -3475,13 +3535,25 @@ pub(crate) mod primitive_local_input {
                 source: place,
                 path,
                 indices,
+                storage_scalar,
             } => {
+                let loaded = scalar.as_checking();
+                if *storage_scalar != loaded
+                    && !matches!(
+                        (*storage_scalar, loaded),
+                        (
+                            semantic_vocabulary::ScalarType::Callable(_),
+                            semantic_vocabulary::ScalarType::Callable(_)
+                        )
+                    )
+                {
+                    return None;
+                }
+
                 crate::instruction_selection::selection::scalar_call_abi::scalar_shape(scalar)?;
                 if let Some((_, _, actual, _)) = local(source, *place) {
-                    return (path.is_empty()
-                        && indices.is_empty()
-                        && actual == scalar.as_checking())
-                    .then_some((*place, 0, Vec::new()));
+                    return (path.is_empty() && indices.is_empty() && actual == *storage_scalar)
+                        .then_some((*place, 0, Vec::new()));
                 }
                 source.structural.as_ref()?;
                 let structural_type = if let Some((_, result)) =
@@ -3503,7 +3575,7 @@ pub(crate) mod primitive_local_input {
                 let geometry = primitive_read_geometry(
                     structural_type,
                     path,
-                    scalar.as_checking(),
+                    *storage_scalar,
                     source.geometry(),
                 )?;
                 crate::instruction_selection::structural_inputs::runtime_indices_match(
@@ -3627,6 +3699,7 @@ pub(crate) mod record_input {
         let LegalizedScalarInstructionKind::EstablishRecord {
             result,
             fields,
+            instantiated,
             shape,
         } = &row.kind
         else {
@@ -3664,8 +3737,35 @@ pub(crate) mod record_input {
             if field.field != expected.id || expected.relevance.is_erased() {
                 return None;
             }
-            let field_shape = field_shape(source, result, field, expected)?;
-            let alignment = u32::from(field_shape.alignment);
+            let operand_type = instantiated
+                .get(field.field)
+                .unwrap_or(&expected.field_type);
+            let operand_shape = field_shape(source, result, field, expected, operand_type)?;
+            let storage_shape = if operand_type == &expected.field_type {
+                operand_shape
+            } else {
+                let slot = declarations
+                    .field_storage_shape(expected, result.structural_type)
+                    .ok()?;
+                match declarations.package_reference_field(&expected.field_type, operand_type) {
+                    Some(true) => {
+                        let layout = runtime_abi::ScalarReferenceLayout::NATIVE;
+                        let direct =
+                            ValueShape::integer(layout.address_byte_size, layout.alignment);
+                        let descriptor = ValueShape::integer(layout.byte_size, layout.alignment);
+                        if slot != descriptor
+                            || !(operand_shape == direct || operand_shape == descriptor)
+                        {
+                            return None;
+                        }
+                    }
+                    Some(false) => return None,
+                    None if slot != operand_shape => return None,
+                    None => {}
+                }
+                slot
+            };
+            let alignment = u32::from(storage_shape.alignment);
             offset = match expected.storage.as_ref() {
                 Some(semantic_vocabulary::AuthoredFieldStorage::Fragmented(fragments)) => {
                     u32::try_from(fragments.byte_envelope()?.0).ok()?
@@ -3673,11 +3773,11 @@ pub(crate) mod record_input {
                 Some(storage) => u32::try_from(storage.byte_offset()?).ok()?,
                 None => offset.checked_add(alignment.checked_sub(1)?)? / alignment * alignment,
             };
-            if offset.checked_add(field_shape.byte_size)? > shape.byte_size {
+            if offset.checked_add(storage_shape.byte_size)? > shape.byte_size {
                 return None;
             }
-            placed.push((offset, field_shape, expected.field_type.scalar_type()));
-            offset = offset.checked_add(field_shape.byte_size)?;
+            placed.push((offset, operand_shape, operand_type.scalar_type()));
+            offset = offset.checked_add(storage_shape.byte_size)?;
         }
         (offset <= shape.byte_size).then_some(placed)
     }
@@ -3687,6 +3787,7 @@ pub(crate) mod record_input {
         parent: &terminal_psi::StructuralOperationResult,
         field: &terminal_psi::RecordFieldInitializer,
         expected: &terminal_psi::StructuralFieldDeclaration,
+        operand_type: &StructuralFieldType,
     ) -> Option<ValueShape> {
         if field.field != expected.id || expected.relevance.is_erased() {
             return None;
@@ -3695,12 +3796,12 @@ pub(crate) mod record_input {
             RecordFieldValue::Scalar {
                 range_obligation, ..
             } => {
-                if terminal_semantics::scalar_field_requires_evidence(&expected.field_type)
+                if terminal_semantics::scalar_field_requires_evidence(operand_type)
                     != range_obligation.is_some()
                 {
                     return None;
                 }
-                let scalar = expected.field_type.scalar_type()?;
+                let scalar = operand_type.scalar_type()?;
                 match expected.storage.as_ref() {
                     Some(semantic_vocabulary::AuthoredFieldStorage::Fragmented(fragments)) => {
                         if expected.field_type.atomic_scalar_type().is_some() {
@@ -3723,7 +3824,7 @@ pub(crate) mod record_input {
                 }
             }
             RecordFieldValue::Structural(argument) => {
-                structural_operand_shape(source, parent, argument, &expected.field_type)
+                structural_operand_shape(source, parent, argument, operand_type)
             }
         }
     }
@@ -4155,6 +4256,53 @@ pub(crate) mod reference_input {
         }
     }
 
+    /// The caller asserts ordinary target-layout storage. Scalar references
+    /// additionally carry its canonical codec into reads, writes and foreign calls.
+    pub(crate) fn native_address<'row>(
+        function: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
+        row: &'row LegalizedScalarInstruction,
+    ) -> Option<(
+        &'row terminal_psi::StructuralOperationResult,
+        semantic_vocabulary::ValueId,
+        Option<runtime_abi::ScalarStorageCodec>,
+    )> {
+        let LegalizedScalarInstructionKind::BorrowAt {
+            result,
+            address,
+            shape,
+        } = &row.kind
+        else {
+            return None;
+        };
+        let geometry = function.geometry();
+        let StructuralTypeShape::Reference { referent, access } =
+            geometry.declaration(result.structural_type).ok()?.shape
+        else {
+            return None;
+        };
+        if !matches!(
+            access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        ) || result.multiplicity != StructuralMultiplicity::Affine
+            || !result.qualification_establishments.is_empty()
+            || !result.claims.is_empty()
+            || row.result.is_some()
+            || crate::instruction_selection::structural_inputs::shape(
+                result.structural_type,
+                geometry,
+            ) != Some(*shape)
+            || super::aggregate_result_input::home(function, result.place)
+                != Some((row.operation, result))
+        {
+            return None;
+        }
+        let codec = match scalar_storage_type(referent, geometry) {
+            Some(scalar) => Some(runtime_abi::ScalarStorageCodec::from_scalar(scalar)?),
+            None => None,
+        };
+        Some((result, *address, codec))
+    }
+
     pub(crate) fn establishment(
         function: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
@@ -4167,6 +4315,12 @@ pub(crate) mod reference_input {
                 indices,
                 shape,
             } => (result, source, *storage, indices, shape, None),
+            LegalizedScalarInstructionKind::UpgradeMutability {
+                result,
+                source,
+                indices,
+                shape,
+            } => (result, source, None, indices, shape, None),
             LegalizedScalarInstructionKind::EstablishAccessReference {
                 result,
                 source,
@@ -4194,15 +4348,18 @@ pub(crate) mod reference_input {
         {
             return None;
         }
-        let StructuralTypeShape::Reference { access, referent } = declarations
-            .iter()
-            .find(|declaration| declaration.id == result.structural_type)?
-            .shape
+        let StructuralTypeShape::Reference { access, referent } =
+            declarations.declaration(result.structural_type).ok()?.shape
         else {
             return None;
         };
         if source.access == StructuralAccess::Owned
             || !(access == source.access
+                || matches!(
+                    row.kind,
+                    LegalizedScalarInstructionKind::UpgradeMutability { .. }
+                ) && access == StructuralAccess::MutableBorrow
+                    && source.access == StructuralAccess::SharedBorrow
                 || source.access == StructuralAccess::MutableBorrow
                     && matches!(
                         access,
@@ -4252,7 +4409,7 @@ pub(crate) mod reference_input {
                 declarations,
             )?;
             let StructuralTypeShape::Reference { referent, .. } =
-                terminal_psi::find_structural_type(declarations, carrier)?.shape
+                declarations.declaration(carrier).ok()?.shape
             else {
                 return None;
             };
@@ -4281,8 +4438,8 @@ pub(crate) mod reference_input {
         };
         let selected_shape = selected.and_then(|identity| {
             declarations
-                .iter()
-                .find(|row| row.id == identity)
+                .declaration(identity)
+                .ok()
                 .map(|row| &row.shape)
         });
         let (actual, mut load_pointer) = match selected_shape {
@@ -4550,11 +4707,35 @@ pub(crate) mod reference_input {
         )?;
         let selected = projection.selected;
         let offset = projection.referent_offset;
-        let shape =
-            crate::instruction_selection::structural_inputs::structural_reference_input::shape(
-                selected,
-                declarations,
-            )?;
+        let witnesses = declarations.storage_inputs();
+        let opened_package = match target.opened_referent {
+            Some(opened) => {
+                if !witnesses.is_package_witness(selected)
+                    || !witnesses.is_package_witness(opened)
+                    || selected == opened
+                    || argument.path.last() != Some(&StructuralPathSegment::Referent)
+                    || offset != 0
+                {
+                    return None;
+                }
+                true
+            }
+            None if witnesses.is_package_witness(selected) => return None,
+            None => false,
+        };
+        let opaque = calling_conventions::terminal_layout::opaque_borrow_transport(
+            &terminal_psi::find_structural_type(declarations, selected)?.shape,
+            argument.access,
+        );
+        let shape = match opaque {
+            Some(pointer) => pointer,
+            None => {
+                crate::instruction_selection::structural_inputs::structural_reference_input::shape(
+                    selected,
+                    declarations,
+                )?
+            }
+        };
         (target.place == argument.place
             && target.path == argument.path
             && target.access == argument.access
@@ -4562,7 +4743,9 @@ pub(crate) mod reference_input {
             && target.structural_type == selected
             && target.source_byte_offset == offset
             && target.shape
-                == if scalar_storage_type(selected, declarations).is_some()
+                == if let Some(pointer) = opaque {
+                    pointer
+                } else if scalar_storage_type(selected, declarations).is_some()
                     && target.destination.shape.class
                         == calling_conventions::ValueClass::BorrowedScalarReference
                 {
@@ -4581,10 +4764,12 @@ pub(crate) mod reference_input {
             indices: indices.to_vec(),
             referent_offset: offset,
             scalar_descriptor: projection.scalar_descriptor,
+            opened_package,
         })
     }
 
     pub(crate) struct BorrowedReferenceAddress {
+        pub(crate) opened_package: bool,
         pub(crate) pointer_slots: Vec<PointerSlot>,
         pub(crate) indices: Vec<legalized_operations::LegalizedRuntimeIndexOperand>,
         pub(crate) referent_offset: u32,
@@ -5171,6 +5356,110 @@ pub(crate) mod reference_input {
         }
 
         #[test]
+        fn opened_call_addresses_the_two_words_of_its_exact_array_member() {
+            use crate::instruction_selection::native_geometry::{NativeFunction, NativeGeometry};
+            use calling_conventions::{
+                CallSignature, CallingPolicy, ValueShape, evaluate_call_plan,
+            };
+            use structural_storage::structural_type_catalog::StorageLayoutInputs;
+            use target_vocabulary::{TargetStructuralArgument, TargetStructuralArgumentSource};
+
+            let mut types = catalog();
+            types[0].shape = StructuralTypeShape::Opaque;
+            types.push(declaration(5, StructuralTypeShape::Opaque));
+            let target = target::NativeTarget::linux_x64();
+            let witnesses = [type_id(1), type_id(5)];
+            let geometry = NativeGeometry::with_storage_inputs(
+                &types,
+                StorageLayoutInputs {
+                    package_witnesses: &witnesses,
+                    ..Default::default()
+                },
+                target,
+            )
+            .unwrap();
+            let semantic = StructuralArgument {
+                place: PlaceId::new(1).unwrap(),
+                access: StructuralAccess::MutableBorrow,
+                path: vec![
+                    StructuralPathSegment::FixedIndex(1),
+                    StructuralPathSegment::Field(TerminalIdentityIndex(21)),
+                    StructuralPathSegment::Referent,
+                ],
+            };
+            let destination = evaluate_call_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature {
+                    parameters: vec![ValueShape::integer(8, 8)],
+                    result: None,
+                },
+            )
+            .unwrap()
+            .parameters
+            .remove(0);
+            let mut function = storage_view_function(32, false);
+            let signature = function.structural.as_mut().unwrap();
+            signature.structural_types = types.clone().into();
+            let mut argument = TargetStructuralArgument {
+                opened_referent: Some(type_id(5)),
+                place: semantic.place,
+                access: semantic.access,
+                path: semantic.path.clone(),
+                root_structural_type: type_id(4),
+                structural_type: type_id(1),
+                shape: destination.shape,
+                source_byte_offset: 0,
+                fixed_array_length: None,
+                element_stride: None,
+                indices: Vec::new(),
+                source: TargetStructuralArgumentSource::Placement(
+                    signature.parameters[0].target.placement.clone(),
+                ),
+                destination,
+            };
+            let checked = NativeFunction::new(&function, &geometry);
+            let address = super::borrowed_argument(&checked, &semantic, &argument, &[]).unwrap();
+            assert!(address.opened_package);
+            assert_eq!(address.pointer_slots.len(), 1);
+            // The record contains an eight-byte prefix and a sixteen-byte reference.
+            assert_eq!(address.pointer_slots[0].byte_offset, 24 + 8);
+            assert_eq!(address.referent_offset, 0);
+            assert!(
+                super::reference_projection(
+                    type_id(4),
+                    &semantic.path,
+                    semantic.access,
+                    Some(type_id(5)),
+                    &geometry,
+                )
+                .is_none()
+            );
+            let mut hidden_field = semantic.path.clone();
+            hidden_field.push(StructuralPathSegment::Field(TerminalIdentityIndex(10)));
+            assert!(
+                super::reference_projection(
+                    type_id(4),
+                    &hidden_field,
+                    semantic.access,
+                    Some(type_id(1)),
+                    &geometry,
+                )
+                .is_none()
+            );
+            argument.opened_referent = Some(type_id(1));
+            assert!(super::borrowed_argument(&checked, &semantic, &argument, &[]).is_none());
+            argument.opened_referent = None;
+            assert!(super::borrowed_argument(&checked, &semantic, &argument, &[]).is_none());
+            let ordinary = NativeGeometry::new(&types, target).unwrap();
+            let ordinary = NativeFunction::new(&function, &ordinary);
+            let address = super::borrowed_argument(&ordinary, &semantic, &argument, &[]).unwrap();
+            assert!(!address.opened_package);
+            assert_eq!(address.pointer_slots[0].byte_offset, 16 + 8);
+            argument.opened_referent = Some(type_id(5));
+            assert!(super::borrowed_argument(&ordinary, &semantic, &argument, &[]).is_none());
+        }
+
+        #[test]
         fn resident_address_uses_authenticated_field_without_replacing_owner() {
             let types = catalog();
             let source = StructuralArgument::whole(
@@ -5301,7 +5590,7 @@ pub(crate) mod scalar_array_input {
         let mut count = Some(1u64);
         let mut empty = false;
         for depth in 0..=declarations.len() {
-            let declaration = terminal_psi::find_structural_type(declarations, current)?;
+            let declaration = declarations.declaration(current).ok()?;
             match declaration.shape {
                 terminal_psi::StructuralTypeShape::FixedArray {
                     element,
@@ -5969,7 +6258,48 @@ pub(crate) mod storage_origin_input {
                     I::EstablishElementView { source: parent, .. } => {
                         collect_calls(geometry, parent, visited, calls)?;
                     }
+                    I::UpgradeMutability { source, result, .. }
+                        if function
+                            .geometry()
+                            .declaration(result.structural_type)
+                            .is_ok_and(|ty| ty.shape.is_view_descriptor()) =>
+                    {
+                        collect_calls(
+                            geometry,
+                            &rebased(source, &coordinate.path),
+                            visited,
+                            calls,
+                        )?;
+                    }
+                    I::BorrowAt { .. } => {
+                        let (result, _, codec) =
+                            super::reference_input::native_address(function, row)
+                                .ok_or_else(SelectedInstructionError::custody)?;
+                        if result.place != place || result.structural_type != structural_type {
+                            return Err(SelectedInstructionError::custody());
+                        }
+                        let width = codec.filter(|_| {
+                            coordinate.path.is_empty()
+                                || coordinate.path
+                                    == [terminal_psi::StructuralPathSegment::Referent]
+                        });
+                        visited.returned_origin(width.is_some());
+                        if let Some(codec) = width {
+                            let owner = *visited
+                                .active
+                                .last()
+                                .ok_or_else(SelectedInstructionError::custody)?;
+                            visited
+                                .scalar_widths
+                                .push((owner, u32::from(codec.byte_size())));
+                        }
+                    }
                     I::EstablishReference {
+                        source: parent,
+                        result,
+                        ..
+                    }
+                    | I::UpgradeMutability {
                         source: parent,
                         result,
                         ..
@@ -6170,10 +6500,11 @@ pub(crate) mod storage_origin_input {
             .as_ref()
             .ok_or_else(SelectedInstructionError::custody)?;
         let declarations = function.geometry();
-        let terminal_psi::StructuralTypeShape::Reference { referent, .. } =
-            terminal_psi::find_structural_type(declarations, reference)
-                .ok_or_else(SelectedInstructionError::custody)?
-                .shape
+        let terminal_psi::StructuralTypeShape::Reference { referent, .. } = declarations
+            .declaration(reference)
+            .ok()
+            .ok_or_else(SelectedInstructionError::custody)?
+            .shape
         else {
             return Err(SelectedInstructionError::custody());
         };
@@ -6285,7 +6616,7 @@ pub(crate) mod storage_origin_input {
         if !visited.insert(identity) {
             return false;
         }
-        let Some(declaration) = terminal_psi::find_structural_type(types, identity) else {
+        let Some(declaration) = types.declaration(identity).ok() else {
             return true;
         };
         match &declaration.shape {
@@ -6469,6 +6800,7 @@ pub(crate) mod storage_origin_input {
             .unwrap();
             let operation = OperationId::new(1).unwrap();
             let call = LegalizedNormalizedForeignCall {
+                suspension_crossing: None,
                 boundary: BoundaryMachineId::new(1).unwrap(),
                 provider_execution: target_vocabulary::ExternalExecutionBinding::NativeBinding(
                     execution,
@@ -6732,9 +7064,7 @@ pub(crate) mod structural_array_input {
         };
         source.structural.as_ref()?;
         let types = source.geometry();
-        let declaration = types
-            .iter()
-            .find(|entry| entry.id == result.structural_type)?;
+        let declaration = types.declaration(result.structural_type).ok()?;
         let count = u64::try_from(elements.len()).ok()?;
         let (element, length, base, live_length) = match declaration.shape {
             StructuralTypeShape::FixedArray {
@@ -6756,7 +7086,7 @@ pub(crate) mod structural_array_input {
         let geometry =
             crate::instruction_selection::structural_inputs::structural_reference_input::shape;
         if row.result.is_some()
-            || u64::try_from(elements.len()).ok()? != length
+            || count != length
             || geometry(result.structural_type, types)? != *shape
         {
             return None;
@@ -7032,3 +7362,7 @@ pub(crate) mod zeroed_structural_input {
         Some((packed.byte_offset, u8::try_from(shape.byte_size).ok()?))
     }
 }
+
+#[cfg(test)]
+#[path = "parameter_home_tests.rs"]
+mod parameter_home_tests;

@@ -1,9 +1,9 @@
 /*
 We project the staged result of whichever allocation procedure ran
 (`StagedAllocation`) into one `AllocationOutput` borrow and admit it as
-`RetainedAllocation`. The handoff retains the producer's manifest and decisions without replaying
-them. Explicit validation checks the recovery selection and manifest history;
-current allocation facts are captured once for `Omega 06`.
+`RetainedAllocation`. Publication separates the issued `AllocatedBody` from
+optional replay evidence. Machine lowering reads the body representation;
+explicit validation reads the producer's retained recovery and manifest history.
 */
 
 macro_rules! allocation_output {
@@ -50,7 +50,7 @@ pub(crate) mod current {
     use crate::allocation::{AssignedRegisterHomes, ValidatedPostAllocationOptimizationManifest};
     use optimization_core::{OptimizationSelections, OptimizationWorkBudget};
     use register_environment::ValidatedTargetRegisterEnvironment;
-    use register_homes::{AllocatedProgram, AllocatedProgramFacts};
+    use register_homes::AllocatedProgram;
     use selected_instruction_analyses::SelectedProgramView;
     use selected_instruction_analyses::{
         MachineEffectStageError, OwnedSelectedProgram, SelectedOptimizationRecord,
@@ -64,19 +64,19 @@ pub(crate) mod current {
     #[derive(Debug)]
     pub(crate) struct CurrentAllocation {
         pub(crate) program: AllocatedProgram,
-        selected: OwnedSelectedProgram,
+        pub(super) selected: OwnedSelectedProgram,
         liveness: ValidatedLiveness,
-        ranges: ValidatedLiveRanges,
-        legality: ValidatedAllocationLegality,
+        pub(super) ranges: ValidatedLiveRanges,
+        pub(super) legality: ValidatedAllocationLegality,
         homes: AssignedRegisterHomes,
         manifest: ValidatedPostAllocationOptimizationManifest,
-        environment: ValidatedTargetRegisterEnvironment,
-        effects: Arc<PreAllocationMachineEffectPlan>,
+        pub(super) environment: ValidatedTargetRegisterEnvironment,
+        pub(super) effects: Arc<PreAllocationMachineEffectPlan>,
         evidence: AllocationEvidence,
         selections: OptimizationSelections,
         budget: OptimizationWorkBudget,
         history: SelectedOptimizationRecord,
-        publication: Arc<register_homes::AllocationPublicationFacts>,
+        pub(super) publication: Arc<register_homes::AllocationPublicationFacts>,
     }
 
     impl CurrentAllocation {
@@ -106,23 +106,6 @@ pub(crate) mod current {
                 history: source.history().clone(),
                 publication,
             })
-        }
-
-        pub(crate) fn facts<'a>(
-            &'a self,
-            preservation: &'a register_homes::AllocatedCalleeSavedRequirements,
-        ) -> AllocatedProgramFacts<'a> {
-            AllocatedProgramFacts {
-                publication: &self.publication,
-                preservation,
-                environment: &self.environment,
-                selected: self.selected.current_program(),
-                effects: &self.effects,
-                ranges: self.ranges.plan(),
-                legality: self.legality.plan(),
-                homes: self.homes.plan(),
-                homes_identity: self.homes.receipt().identity(),
-            }
         }
 
         pub(crate) fn publication(&self) -> &Arc<register_homes::AllocationPublicationFacts> {
@@ -184,7 +167,7 @@ pub(crate) mod rematerialization {
 pub(crate) mod retained {
     use std::sync::Arc;
 
-    use super::{AllocationAdmissionError, AllocationOutput, StagedAllocation};
+    use super::{AllocationAdmissionError, AllocationOutput, AllocationResult, StagedAllocation};
     use optimization_core::Optimization;
 
     #[derive(Debug, Clone)]
@@ -196,8 +179,32 @@ pub(crate) mod retained {
     }
 
     impl RetainedAllocation {
-        pub fn body_facts(&self) -> &std::sync::Arc<physical_program::NativeBodyFacts> {
-            &self.body
+        /// Publish only the facts consumed by machine lowering. Retain producer
+        /// state separately, and only when this compilation requested replay.
+        pub(crate) fn publish(self) -> AllocationResult {
+            use selected_instruction_analyses::SelectedProgramView;
+            let current = &self.current;
+            let selected = current.selected.current_program();
+            let program = allocated_body::AllocatedBody::new(
+                allocated_body_issuer::ALLOCATION,
+                allocated_body::AllocationParts {
+                    body: Arc::clone(&self.body),
+                    selected: selected_instructions::SelectedProgram {
+                        plan: Arc::clone(&current.program.selected),
+                        optimization_unit: selected.optimization_unit,
+                        work_schedule: selected.work_schedule,
+                    },
+                    publication: Arc::clone(&current.publication),
+                    preservation: Arc::clone(self.requirements.retained()),
+                    environment: current.environment.clone(),
+                    effects: Arc::clone(&current.effects),
+                    ranges: current.ranges.shared_plan(),
+                    legality: current.legality.shared_plan(),
+                    homes: Arc::clone(&current.program.homes),
+                },
+            );
+            let replay = self.body.retains_stage_inputs().then_some(self);
+            AllocationResult { program, replay }
         }
 
         pub fn program(&self) -> &register_homes::AllocatedProgram {
@@ -206,10 +213,6 @@ pub(crate) mod retained {
 
         pub fn current(&self) -> AllocationOutput<'_> {
             self.current.view()
-        }
-
-        pub fn facts(&self) -> register_homes::AllocatedProgramFacts<'_> {
-            self.current.facts(self.requirements.retained())
         }
 
         pub fn preservation(
@@ -238,7 +241,7 @@ pub(crate) mod retained {
         ) -> Result<Self, AllocationAdmissionError> {
             let current = staged.project();
             let publication = Arc::new(register_homes::AllocationPublicationFacts::retain(
-                current.post_allocation_manifest().record().clone(),
+                Arc::clone(current.post_allocation_manifest().record()),
                 current.selections().clone(),
                 current.budget_per_pass(),
             ));
@@ -284,7 +287,9 @@ pub(crate) mod runtime_spill {
                 selections: self.source.selections(),
                 budget: self.source.budget_per_pass(),
                 history: self.source.history(),
-                evidence: AllocationEvidence::RuntimeSpill(self.manifest.record().identity),
+                evidence: AllocationEvidence::RuntimeSpill(std::sync::Arc::clone(
+                    self.manifest.record(),
+                )),
             }
         }
     }
@@ -389,7 +394,8 @@ impl<'program> AllocationOutput<'program> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AllocationEvidence {
-    RuntimeSpill(optimization_core::PostAllocationOptimizationManifestIdentity),
+    /// Runtime recovery names the manifest it published.
+    RuntimeSpill(std::sync::Arc<register_homes::PostAllocationOptimizationManifest>),
     RegisterHomes(StagedOptimizedRegisterHomeCustodyReceipt),
     FixedViewCopies(StagedOptimizedPostCopyRegisterHomeCustodyReceipt),
     ActiveResidentRematerialization(StagedOptimizedActiveResidentRematerializationCustodyReceipt),
@@ -402,3 +408,10 @@ pub enum AllocationAdmissionError {
 }
 
 failed_display!(AllocationAdmissionError, "allocation admission failed");
+
+/// The next stage's issued representation and optional producer replay evidence.
+#[derive(Debug)]
+pub struct AllocationResult {
+    pub program: allocated_body::AllocatedBody,
+    pub replay: Option<RetainedAllocation>,
+}

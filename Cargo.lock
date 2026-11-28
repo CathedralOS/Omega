@@ -27,6 +27,8 @@ dependencies = [
  "function-identity",
  "language-core",
  "legalized-operations",
+ "native-body-plan",
+ "native-body-plan-issuer",
  "operation-evidence",
  "optimization-core",
  "optimization-unit",
@@ -118,6 +120,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "allocated-body"
+version = "0.1.0"
+dependencies = [
+ "allocated-body-issuer",
+ "physical-program",
+ "register-environment",
+ "register-homes",
+ "selected-instructions",
+]
+
+[[package]]
+name = "allocated-body-issuer"
+version = "0.1.0"
+
+[[package]]
 name = "ambient-authority"
 version = "0.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -136,19 +153,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "arc-swap"
-version = "1.9.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c049c0be4daef0b145cb3555416b3b8ef5b7888a38aea1a3a155801fe7b0810b"
-dependencies = [
- "rustversion",
-]
-
-[[package]]
 name = "arena"
 version = "0.1.0"
 dependencies = [
- "arc-swap",
  "record-storage",
 ]
 
@@ -228,6 +235,7 @@ dependencies = [
  "build-model",
  "build-output",
  "filesystem-authority",
+ "semantic-vocabulary",
  "target",
 ]
 
@@ -251,12 +259,13 @@ dependencies = [
  "build-declarations",
  "build-model",
  "build-output",
- "checked-program-to-psi",
  "diagnostics",
  "language-core",
  "normalized-build-settings",
  "optimization-requests",
  "package-compilation",
+ "prepared-source",
+ "provider-choice-inputs",
  "source-admission",
  "source-completion-accounting",
  "source-declarations",
@@ -270,6 +279,7 @@ dependencies = [
 name = "build-execution"
 version = "0.1.0"
 dependencies = [
+ "application-identity",
  "artifacts",
  "bounded-process",
  "build-declarations",
@@ -412,10 +422,12 @@ name = "calling-conventions"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "language-core",
  "layout-planning",
  "layout-plans",
  "runtime-abi",
  "semantic-vocabulary",
+ "structural-storage",
  "target",
  "terminal-psi",
  "wire",
@@ -511,19 +523,21 @@ dependencies = [
  "language-core",
  "lowered-program-to-checked-program",
  "lowered-source-publication",
- "numeric-literals",
  "numerics",
  "optimization",
  "prepared-source",
  "prepared-typed-trees-to-lowered-program",
+ "provider-choice-inputs",
  "psi-authorization",
  "psi-provider-selections",
  "psi-publication-records",
+ "published-source-invocation",
  "record-storage",
  "semantic-vocabulary",
  "service-surface",
  "source-admission",
  "source-declarations",
+ "source-invocation-issuer",
  "source-lexer",
  "source-parser",
  "source-provenance",
@@ -570,6 +584,7 @@ dependencies = [
  "build-providers",
  "component-description",
  "diagnostics",
+ "language-core",
  "native-compiler",
  "package-compilation",
  "product-publication",
@@ -578,9 +593,13 @@ dependencies = [
  "psi-entry-memory",
  "review-evidence",
  "semantic-vocabulary",
+ "source-admission",
  "source-compiler",
+ "source-provenance",
+ "symbols",
  "target",
  "terminal-codec",
+ "terminal-psi",
 ]
 
 [[package]]
@@ -806,7 +825,6 @@ dependencies = [
  "target",
  "target-aarch64",
  "target-x86_64",
- "wire",
 ]
 
 [[package]]
@@ -1297,7 +1315,6 @@ dependencies = [
  "register-model",
  "selected-instructions",
  "semantic-vocabulary",
- "sha2",
  "structural-storage",
  "target",
  "target-vocabulary",
@@ -1413,6 +1430,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "native-body-plan"
+version = "0.1.0"
+dependencies = [
+ "function-identity",
+ "legalized-operations",
+ "native-body-plan-issuer",
+ "optimization-core",
+ "verified-optimization-input",
+]
+
+[[package]]
+name = "native-body-plan-issuer"
+version = "0.1.0"
+
+[[package]]
 name = "native-compiler"
 version = "0.1.0"
 dependencies = [
@@ -1481,6 +1513,7 @@ dependencies = [
  "target-operations-to-selected-instructions",
  "terminal-codec",
  "terminal-psi",
+ "terminal-semantics",
  "verified-optimization-input",
  "wire",
 ]
@@ -1525,9 +1558,12 @@ dependencies = [
  "diagnostics",
  "function-identity",
  "native-execution-reach",
+ "operation-operands",
  "provider-correspondence",
  "psi-target-layouts",
+ "register-environment",
  "semantic-vocabulary",
+ "target",
  "target-bound-program",
  "terminal-codec",
  "terminal-psi",
@@ -1623,7 +1659,6 @@ dependencies = [
 name = "normalized-build-settings"
 version = "0.1.0"
 dependencies = [
- "build-model",
  "optimization-selections",
  "target",
 ]
@@ -1714,6 +1749,7 @@ dependencies = [
  "artifacts",
  "build-declarations",
  "build-execution",
+ "build-model",
  "build-program-launch",
  "compiler",
  "diagnostics",
@@ -1730,6 +1766,7 @@ dependencies = [
  "psi-authorization",
  "psi-entry-memory",
  "psi-provider-selections",
+ "published-runtime-input",
  "retained-image-runtime",
  "runtime-abi",
  "semantic-vocabulary",
@@ -2024,8 +2061,12 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "diagnostics",
+ "numeric-literals",
  "prepared-source-issuer",
  "semantic-vocabulary",
+ "source-admission",
+ "source-provenance",
+ "source-symbol-table",
  "symbols",
  "typed-trees",
 ]
@@ -2088,6 +2129,7 @@ dependencies = [
  "native-artifact",
  "object-file",
  "platform-custody",
+ "psi-authorization",
  "target",
  "terminal-codec",
  "verified-optimization-input",
@@ -2123,6 +2165,7 @@ dependencies = [
  "build-providers",
  "calling-conventions",
  "compiler",
+ "component-description",
  "declaration-scope",
  "diagnostics",
  "direct-boundary-bindings",
@@ -2130,6 +2173,7 @@ dependencies = [
  "host-provider-inputs",
  "installation-conditions",
  "language-core",
+ "native-artifact",
  "native-intrinsics",
  "numeric-literals",
  "numerics",
@@ -2162,6 +2206,7 @@ dependencies = [
  "terminal-psi",
  "terminal-runtime",
  "terminal-semantics",
+ "terminal-work",
  "worker-budget",
 ]
 
@@ -2225,6 +2270,19 @@ dependencies = [
  "terminal-psi",
  "terminal-semantics",
  "wire",
+]
+
+[[package]]
+name = "provider-choice-inputs"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "build-model",
+ "semantic-vocabulary",
+ "source-declarations",
+ "source-text",
+ "symbols",
+ "typed-trees",
 ]
 
 [[package]]
@@ -2338,6 +2396,7 @@ dependencies = [
 name = "psi-provider-selections"
 version = "0.1.0"
 dependencies = [
+ "application-identity",
  "diagnostics",
  "record-storage",
  "schema-reflection",
@@ -2415,7 +2474,6 @@ dependencies = [
  "register-homes",
  "register-homes-to-post-allocation-machine",
  "register-model",
- "selected-form-encoding-to-resolved-layout",
  "selected-instruction-analyses",
  "selected-instructions-to-register-homes",
  "selected-instructions-to-selected-instructions",
@@ -2443,6 +2501,17 @@ dependencies = [
  "terminal-codec",
  "terminal-psi",
  "verified-optimization-input",
+]
+
+[[package]]
+name = "published-source-invocation"
+version = "0.1.0"
+dependencies = [
+ "semantic-vocabulary",
+ "source-invocation-issuer",
+ "symbols",
+ "terminal-codec",
+ "typed-trees",
 ]
 
 [[package]]
@@ -2521,7 +2590,6 @@ dependencies = [
  "runtime-abi",
  "selected-instructions",
  "semantic-vocabulary",
- "sha2",
  "structural-storage",
  "target",
  "target-vocabulary",
@@ -2533,13 +2601,13 @@ dependencies = [
 name = "register-homes-to-post-allocation-machine"
 version = "0.1.0"
 dependencies = [
+ "allocated-body",
  "optimization-core",
  "physical-program",
  "post-allocation-machine",
  "register-homes",
  "register-model",
  "selected-instructions",
- "selected-instructions-to-register-homes",
  "semantic-vocabulary",
  "target",
  "target-x86_64",
@@ -2645,12 +2713,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rustversion"
-version = "1.0.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
-
-[[package]]
 name = "schema-reflection"
 version = "0.1.0"
 dependencies = [
@@ -2667,6 +2729,32 @@ version = "0.1.0"
 dependencies = [
  "serde_json",
 ]
+
+[[package]]
+name = "selected-analysis-facts"
+version = "0.1.0"
+dependencies = [
+ "optimization-core",
+ "register-environment",
+ "register-homes",
+ "register-model",
+ "selected-body-issuer",
+ "selected-instructions",
+ "semantic-vocabulary",
+]
+
+[[package]]
+name = "selected-body"
+version = "0.1.0"
+dependencies = [
+ "physical-program",
+ "selected-analysis-facts",
+ "selected-body-issuer",
+]
+
+[[package]]
+name = "selected-body-issuer"
+version = "0.1.0"
 
 [[package]]
 name = "selected-form-encoding-to-resolved-layout"
@@ -2701,6 +2789,7 @@ dependencies = [
  "register-environment",
  "register-homes",
  "register-model",
+ "selected-analysis-facts",
  "selected-instructions",
  "semantic-vocabulary",
  "target",
@@ -2735,15 +2824,17 @@ dependencies = [
 name = "selected-instructions-to-register-homes"
 version = "0.1.0"
 dependencies = [
+ "allocated-body",
+ "allocated-body-issuer",
  "operation-evidence",
  "optimization-core",
  "physical-program",
  "register-environment",
  "register-homes",
  "register-model",
+ "selected-body",
  "selected-instruction-analyses",
  "selected-instructions",
- "selected-instructions-to-selected-instructions",
  "semantic-vocabulary",
  "target",
  "terminal-psi",
@@ -2761,6 +2852,8 @@ dependencies = [
  "register-environment",
  "register-homes",
  "register-model",
+ "selected-body",
+ "selected-body-issuer",
  "selected-instruction-analyses",
  "selected-instructions",
  "semantic-vocabulary",
@@ -2976,8 +3069,8 @@ version = "0.1.0"
 dependencies = [
  "build-model",
  "build-time-evaluation",
- "checked-program-to-psi",
  "diagnostics",
+ "published-source-invocation",
  "semantic-vocabulary",
  "symbols",
  "terminal-work",
@@ -3009,6 +3102,10 @@ dependencies = [
  "source-provenance",
  "source-text",
 ]
+
+[[package]]
+name = "source-invocation-issuer"
+version = "0.1.0"
 
 [[package]]
 name = "source-lexer"
@@ -3274,6 +3371,7 @@ dependencies = [
  "direct-boundary-bindings",
  "native-execution-reach",
  "native-intrinsics",
+ "operation-operands",
  "program-entry-contracts",
  "provider-correspondence",
  "psi-authorization",
@@ -3350,6 +3448,7 @@ dependencies = [
  "language-core",
  "layout-plans",
  "legalized-operations",
+ "native-body-plan",
  "operation-evidence",
  "operation-operands",
  "optimization-core",
@@ -3527,6 +3626,7 @@ dependencies = [
  "application-identity",
  "build-model",
  "calling-conventions",
+ "component-description",
  "extent-contracts",
  "interpreter-numeric-imports",
  "language-core",

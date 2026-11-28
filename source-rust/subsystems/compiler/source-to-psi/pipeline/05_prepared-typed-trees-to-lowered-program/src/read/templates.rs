@@ -422,9 +422,7 @@ impl<'t> Program<'t> {
             }
             None => return Ok(None),
         };
-        let declared = typed
-            .machine_by_symbol(template)
-            .ok_or_else(|| unserved("generic mathematical machine lost its declaration"))?;
+        let declared = self.required_machine(id, template, "mathematical machine template")?;
         let required = self.required_callables(id, declared)?;
         if required.len() != selected.len() {
             return Err(unserved(

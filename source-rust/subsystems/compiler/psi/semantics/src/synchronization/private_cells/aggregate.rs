@@ -124,6 +124,7 @@ pub(super) fn dispatch<'m>(
             vec![None; edge.payload_fields.len()],
         ));
     };
+    storage.select_outcome(&value, edge.case);
     if value.tag() != Some(edge.case) {
         let selected = value.select_case(edge.case);
         storage.set(&location, selected);

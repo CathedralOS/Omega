@@ -1921,12 +1921,13 @@ pub(crate) mod stack_demand {
     pub use machine_code::physical_stack::StackDemand;
     use machine_code::physical_stack::{
         ForeignStackExtent, LocalStackExtent, PhysicalForeignStackCall, PhysicalStackCall,
-        PhysicalStackFunction, PhysicalStackProgram, derive_physical_stack_demand,
+        PhysicalStackFunction, PhysicalStackProgram,
     };
 
     use semantic_vocabulary::MachineId;
 
     use crate::ObjectArtifact;
+    use crate::callback_stack::{self, CallbackStackBody};
     use machine_code::physical_stack::StackDemandError;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1960,65 +1961,48 @@ pub(crate) mod stack_demand {
         artifact: &ObjectArtifact,
         entry: MachineId,
     ) -> Result<StackDemand, ObjectStackError> {
-        derive_namespace_stack_demand(
-            artifact,
-            entry,
+        callback_stack::derive(
+            describe(artifact, entry, 0),
             &artifact.private_functions,
-            &mut Vec::new(),
+            |private| private.identity,
+            |private| {
+                let cost = private.entry_bridge.as_ref().map_or(0, |bridge| {
+                    u64::from(bridge.frame_bytes()) + u64::from(bridge.call_stack_bias())
+                });
+                describe(&private.body, private.body.entry, cost)
+            },
         )
+        .map_err(|error| match error {
+            callback_stack::Error::MissingBody => {
+                ObjectStackError::Body(StackDemandError::InvalidPrivateFunctionIdentity)
+            }
+            callback_stack::Error::Cycle(entry) => {
+                ObjectStackError::Body(StackDemandError::TerminalStackCycle(entry))
+            }
+            callback_stack::Error::EntryCostOverflow(identity) => {
+                ObjectStackError::PrivateEntryStackArithmeticOverflow(identity)
+            }
+            callback_stack::Error::Body(error) => ObjectStackError::Body(error),
+        })
     }
 
-    fn derive_namespace_stack_demand(
+    fn describe(
         artifact: &ObjectArtifact,
         entry: MachineId,
-        private_functions: &[crate::ObjectCompilerPrivateFunction],
-        active_private: &mut Vec<function_identity::MachineFunctionIdentity>,
-    ) -> Result<StackDemand, ObjectStackError> {
-        let mut private_demands = Vec::new();
-        for callback in artifact
-            .foreign_calls
-            .iter()
-            .flat_map(|call| &call.callback_addresses)
-            .filter(|callback| callback.target.registrar_invokes_callback)
-        {
-            let identity = callback.target.callback_function;
-            if private_demands.iter().any(|(known, _)| *known == identity) {
-                continue;
-            }
-            let private = private_functions
+        entry_cost: u64,
+    ) -> CallbackStackBody<'_> {
+        CallbackStackBody {
+            program: &artifact.physical_facts().stack,
+            entry,
+            callbacks: artifact
+                .foreign_calls
                 .iter()
-                .find(|private| private.identity == identity)
-                .ok_or(ObjectStackError::Body(
-                    StackDemandError::InvalidPrivateFunctionIdentity,
-                ))?;
-            if active_private.contains(&identity) {
-                return Err(ObjectStackError::Body(
-                    StackDemandError::TerminalStackCycle(private.body.entry),
-                ));
-            }
-            active_private.push(identity);
-            let mut demand = derive_namespace_stack_demand(
-                &private.body,
-                private.body.entry,
-                private_functions,
-                active_private,
-            )?;
-            if let Some(bridge) = &private.entry_bridge {
-                let alignment = demand.stack_alignment();
-                demand = demand
-                    .with_entry_cost(
-                        u64::from(bridge.frame_bytes()) + u64::from(bridge.call_stack_bias()),
-                        alignment,
-                    )
-                    .ok_or(ObjectStackError::PrivateEntryStackArithmeticOverflow(
-                        identity,
-                    ))?;
-            }
-            active_private.pop();
-            private_demands.push((identity, demand));
+                .flat_map(|call| &call.callback_addresses)
+                .filter(|callback| callback.target.registrar_invokes_callback)
+                .map(|callback| callback.target.callback_function)
+                .collect(),
+            entry_cost,
         }
-        derive_physical_stack_demand(&artifact.physical_facts().stack, entry, private_demands)
-            .map_err(ObjectStackError::Body)
     }
 
     pub(crate) fn validate_carried_stack_facts(artifact: &ObjectArtifact) -> bool {
@@ -2040,7 +2024,7 @@ pub(crate) mod stack_demand {
 
     fn physical_stack_facts(artifact: &ObjectArtifact) -> PhysicalStackProgram {
         PhysicalStackProgram {
-            psi: artifact.psi, target: artifact.target,
+            psi: artifact.psi, target: artifact.target, entry: artifact.entry(),
             functions: artifact.functions.iter().map(|function| {
                 let local = match (function.unit_stack, function.scalar_stack) {
                     (Some(_), Some(_)) => LocalStackExtent::Conflicting,

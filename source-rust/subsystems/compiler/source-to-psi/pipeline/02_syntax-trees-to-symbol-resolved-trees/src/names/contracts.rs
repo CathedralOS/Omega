@@ -1,4 +1,5 @@
 use crate::source_resolved::SymbolResolvedTrees;
+use crate::source_resolved::callable_values::RuntimeCallableContractHandle;
 use crate::source_resolved::name::DiagnosticName;
 use crate::source_resolved::signature::SignatureContractKind;
 use crate::source_symbols::{JoinedPath, SymbolTable};
@@ -38,18 +39,20 @@ macro_rules! assign_calls {
 pub(super) fn assign_contract_reference_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
+    new_runtime_contracts: &[RuntimeCallableContractHandle],
+    openings: &super::runtime_callable_types::CallableOpenings,
 ) -> Result<(), Vec<Diagnostic>> {
     let conformance_scopes = super::scopes::DeclarationTypeScopes::of(program)?;
-    let runtime_scopes = program
-        .tables
-        .declarations
-        .runtime_callable_contracts
+    // A retained contract already has its names bound. Its original owner
+    // can be outside the declarations selected for this extension.
+    let runtime_scopes = new_runtime_contracts
         .iter()
-        .map(|(handle, declaration)| {
-            super::runtime_callable_types::lexical_parameters(
+        .map(|&handle| {
+            super::runtime_callable_types::callable_parameters(
                 program,
                 &conformance_scopes,
-                declaration.lexical_owner,
+                openings,
+                handle,
             )
             .map(|parameters| (handle, parameters))
             .map_err(|error| vec![error])
@@ -89,9 +92,10 @@ pub(super) fn assign_contract_reference_symbols(
     };
 
     for machine in roots.machines.iter() {
-        let data_definition = data_definitions
-            .iter()
-            .find(|definition| definition.symbol == machine.attached_data_symbol);
+        let data_definition = program
+            .resolution_indexes
+            .data_definition_position(data_definitions, machine.attached_data_symbol)
+            .map(|position| &data_definitions[position as usize]);
         let invocation_scope = super::scopes::declaration_type_scope(
             data_type_parameters.span_or_empty(machine.type_parameters),
             conformance_scopes.parameters(machine.symbol),
@@ -627,6 +631,21 @@ fn assign_contract_call_symbols(
             );
         }
         ExpressionNode::Name(path) => {
+            if path.static_application.is_valid()
+                && let Some(written) = super::propositions::foundation_arguments(
+                    symbols,
+                    machine.symbol,
+                    machine.type_parameters,
+                    child_type_references,
+                    expression_table,
+                    expression,
+                )
+            {
+                for argument in written {
+                    assign_calls!(argument);
+                }
+                return;
+            }
             if matches!(expression_table.name_path_members(path.members), [name]
             if language_core::is_reserved_result(name.as_str()))
                 && language_core::signature_reserves_result(

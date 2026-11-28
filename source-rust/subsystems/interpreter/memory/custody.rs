@@ -399,7 +399,7 @@ pub(crate) mod windows {
             }
             let mut claims = self.live_claims.clone();
             for binding in &result.claims {
-                super::bind_result_claim(&mut claims, binding, result.place, result.multiplicity)?;
+                super::bind_result_claim(&mut claims, binding, result)?;
             }
             self.stage_result_affine_frontier(result, frontier, &case_membership)?;
             Ok(claims)
@@ -498,13 +498,12 @@ use terminal_psi::{
 pub(crate) fn bind_result_claim(
     live_claims: &mut BTreeMap<ClaimId, crate::engine::execution::LiveClaim>,
     binding: &StructuralResultClaimBinding,
-    place: PlaceId,
-    multiplicity: StructuralMultiplicity,
+    result: &StructuralOperationResult,
 ) -> Result<(), TerminalInterpretError> {
     if live_claims
         .insert(
             binding.claim,
-            crate::engine::execution::LiveClaim::at(place, binding.path.clone(), multiplicity),
+            LiveClaim::at(result.place, binding.path.clone(), result.multiplicity),
         )
         .is_some()
     {
@@ -729,7 +728,7 @@ pub(crate) fn commit_cleanup_action(
                 structural_values,
                 structural_cases,
                 frontier,
-                live_claims,
+                live_claims.values(),
                 discard,
             )?;
             let path = project_structural_value(structural_types, root, &discard.path)?.path;
@@ -762,7 +761,7 @@ pub(crate) fn commit_cleanup_action(
 
 pub(crate) fn retire_cleanup_home(
     values: &mut RuntimeRows<PlaceId, TerminalStructuralValue>,
-    scalar_arrays: &mut impl crate::storage::scalar_array::PackedHomeRetirement,
+    scalar_arrays: &mut crate::storage::scalar_array::ScalarArrayBindings,
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     claims: &BTreeMap<ClaimId, LiveClaim>,
     place: PlaceId,
@@ -770,23 +769,32 @@ pub(crate) fn retire_cleanup_home(
     if place_is_claimed(claims, place) {
         return Err(TerminalInterpretError::AffineFrontierMismatch);
     }
-    match (
+    if retiring_structural_home(
+        place,
         values.contains_key(&place),
-        scalar_arrays.contains_packed_home(&place),
-    ) {
-        (true, false) => {
-            values.remove(&place);
-        }
-        (false, true) => scalar_arrays.retire_packed_home(&place),
-        (false, false) => {
-            return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
-                place,
-            ));
-        }
-        (true, true) => return Err(malformed()),
+        scalar_arrays.contains_key(&place),
+    )? {
+        values.remove(&place);
+    } else {
+        scalar_arrays.remove(&place);
     }
     frontier.retain(|entry| entry.place != place);
     Ok(())
+}
+
+pub(crate) fn retiring_structural_home(
+    place: PlaceId,
+    structural: bool,
+    packed: bool,
+) -> Result<bool, TerminalInterpretError> {
+    match (structural, packed) {
+        (true, false) => Ok(true),
+        (false, true) => Ok(false),
+        (false, false) => Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+            place,
+        )),
+        (true, true) => Err(malformed()),
+    }
 }
 
 pub(crate) fn bind_arguments(
@@ -1382,8 +1390,64 @@ pub(crate) fn exclude_linear_regions<'a>(
     Ok(())
 }
 
-pub(crate) fn projected_ownership_claims(
-    claims: &BTreeMap<ClaimId, LiveClaim>,
+pub(crate) trait StructuralHomes {
+    fn home(&self, place: PlaceId) -> Option<&TerminalStructuralValue>;
+
+    fn require_home(
+        &self,
+        place: PlaceId,
+    ) -> Result<&TerminalStructuralValue, TerminalInterpretError> {
+        self.home(place)
+            .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                place,
+            ))
+    }
+}
+
+impl StructuralHomes for RuntimeRows<PlaceId, TerminalStructuralValue> {
+    fn home(&self, place: PlaceId) -> Option<&TerminalStructuralValue> {
+        self.get(&place)
+    }
+}
+
+/// Cleanup preflight and live execution split the same frontier. Preflight
+/// records changes in sponsored rows while execution edits the live set.
+pub(crate) trait AffineFrontier {
+    fn entries(&self) -> impl Iterator<Item = &StructuralAffineDiscard>;
+    fn contains_entry(&self, entry: &StructuralAffineDiscard) -> bool;
+    fn add(&mut self, entry: StructuralAffineDiscard) -> Result<bool, TerminalInterpretError>;
+    fn discard(&mut self, entry: &StructuralAffineDiscard) -> Result<(), TerminalInterpretError>;
+    fn discard_matching(
+        &mut self,
+        matches: impl Fn(&StructuralAffineDiscard) -> bool,
+    ) -> Result<(), TerminalInterpretError>;
+}
+
+impl AffineFrontier for BTreeSet<StructuralAffineDiscard> {
+    fn entries(&self) -> impl Iterator<Item = &StructuralAffineDiscard> {
+        self.iter()
+    }
+    fn contains_entry(&self, entry: &StructuralAffineDiscard) -> bool {
+        self.contains(entry)
+    }
+    fn add(&mut self, entry: StructuralAffineDiscard) -> Result<bool, TerminalInterpretError> {
+        Ok(self.insert(entry))
+    }
+    fn discard(&mut self, entry: &StructuralAffineDiscard) -> Result<(), TerminalInterpretError> {
+        self.remove(entry);
+        Ok(())
+    }
+    fn discard_matching(
+        &mut self,
+        matches: impl Fn(&StructuralAffineDiscard) -> bool,
+    ) -> Result<(), TerminalInterpretError> {
+        self.retain(|entry| !matches(entry));
+        Ok(())
+    }
+}
+
+pub(crate) fn projected_ownership_claims<'a>(
+    claims: impl IntoIterator<Item = (&'a ClaimId, &'a LiveClaim)>,
     argument: &StructuralArgument,
 ) -> Result<Vec<(ClaimId, LiveClaim)>, TerminalInterpretError> {
     let mut selected = Vec::new();
@@ -1392,9 +1456,13 @@ pub(crate) fn projected_ownership_claims(
             continue;
         }
         if let Some(suffix) = claim.path.strip_prefix(argument.path.as_slice()) {
-            let mut moved = claim.clone();
-            moved.path = suffix.to_vec();
-            selected.push((*identity, moved));
+            selected.push((
+                *identity,
+                LiveClaim {
+                    path: suffix.to_vec(),
+                    ..*claim
+                },
+            ));
         } else if argument.path.starts_with(&claim.path) {
             return Err(TerminalInterpretError::ClaimTransferMismatch);
         }
@@ -1402,45 +1470,14 @@ pub(crate) fn projected_ownership_claims(
     Ok(selected)
 }
 
-pub(crate) fn consume_projected_ownership(
-    structural_types: &crate::embedding::program::ProgramDeclarations<
-        '_,
-        StructuralTypeDeclaration,
-    >,
-    values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
-    structural_cases: &impl CaseSelections,
-    frontier: &mut BTreeSet<StructuralAffineDiscard>,
-    claims: &mut BTreeMap<ClaimId, LiveClaim>,
-    argument: &StructuralArgument,
-) -> Result<(), TerminalInterpretError> {
-    if argument.access != StructuralAccess::Owned || argument.path.is_empty() {
-        return Err(malformed());
-    }
-    let selected_claims = projected_ownership_claims(claims, argument)?;
-    let affine = consume_projected_affine_complement(
-        structural_types,
-        values,
-        structural_cases,
-        frontier,
-        argument,
-    )?;
-    if !affine && selected_claims.is_empty() {
-        return Err(TerminalInterpretError::AffineFrontierMismatch);
-    }
-    for (identity, _) in selected_claims {
-        claims.remove(&identity);
-    }
-    Ok(())
-}
-
 pub(crate) fn consume_projected_affine_complement(
     structural_types: &crate::embedding::program::ProgramDeclarations<
         '_,
         StructuralTypeDeclaration,
     >,
-    values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
+    values: &impl StructuralHomes,
     structural_cases: &impl CaseSelections,
-    frontier: &mut BTreeSet<StructuralAffineDiscard>,
+    frontier: &mut impl AffineFrontier,
     argument: &StructuralArgument,
 ) -> Result<bool, TerminalInterpretError> {
     if argument.access != StructuralAccess::Owned || argument.path.is_empty() {
@@ -1454,10 +1491,10 @@ pub(crate) fn consume_projected_affine_complement(
         &argument.path,
     )?;
     let containing = frontier
-        .iter()
+        .entries()
         .any(|entry| entry.place == argument.place && argument.path.starts_with(&entry.path));
     let contained = frontier
-        .iter()
+        .entries()
         .any(|entry| entry.place == argument.place && entry.path.starts_with(&argument.path));
     if containing {
         consume_affine_projection(
@@ -1468,28 +1505,28 @@ pub(crate) fn consume_projected_affine_complement(
             argument,
         )?;
     } else if contained {
-        frontier.retain(|entry| {
-            entry.place != argument.place || !entry.path.starts_with(&argument.path)
-        });
+        frontier.discard_matching(|entry| {
+            entry.place == argument.place && entry.path.starts_with(&argument.path)
+        })?;
     }
     Ok(containing || contained)
 }
 
-pub(crate) fn consume_affine_discard(
+pub(crate) fn consume_affine_discard<'a>(
     structural_types: &crate::embedding::program::ProgramDeclarations<
         '_,
         StructuralTypeDeclaration,
     >,
-    values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
+    values: &impl StructuralHomes,
     structural_cases: &impl CaseSelections,
-    frontier: &mut BTreeSet<StructuralAffineDiscard>,
-    claims: &BTreeMap<ClaimId, LiveClaim>,
+    frontier: &mut impl AffineFrontier,
+    mut claims: impl Iterator<Item = &'a LiveClaim>,
     discard: &StructuralAffineDiscard,
 ) -> Result<(), TerminalInterpretError> {
-    let root = verified_structural_place(values, discard.place)?;
+    let root = values.require_home(discard.place)?;
     if resolve_structural_path_type(structural_types, root.structural_type, &discard.path)?
         != discard.structural_type
-        || claims.values().any(|claim| {
+        || claims.any(|claim| {
             claim.place == Some(discard.place)
                 && terminal_semantics::structural_paths_may_overlap(&claim.path, &discard.path)
         })
@@ -1514,9 +1551,9 @@ pub(crate) fn consume_affine_projection(
         '_,
         StructuralTypeDeclaration,
     >,
-    values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
+    values: &impl StructuralHomes,
     structural_cases: &impl CaseSelections,
-    frontier: &mut BTreeSet<StructuralAffineDiscard>,
+    frontier: &mut impl AffineFrontier,
     argument: &StructuralArgument,
 ) -> Result<(), TerminalInterpretError> {
     if !consume_affine_projection_if_present(
@@ -1536,15 +1573,15 @@ pub(crate) fn consume_affine_projection(
 /// ended wrapper's availability.
 pub(crate) fn validate_complete_affine_frontier<'claims>(
     types: &crate::embedding::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
-    values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
+    values: &impl StructuralHomes,
     cases: &impl CaseSelections,
-    frontier: &BTreeSet<StructuralAffineDiscard>,
+    frontier: &impl AffineFrontier,
     claims: impl Iterator<Item = &'claims LiveClaim>,
     subject: &StructuralArgument,
     structural_type: StructuralTypeId,
 ) -> Result<BTreeSet<StructuralAffineDiscard>, TerminalInterpretError> {
     let invalid = || TerminalInterpretError::AffineFrontierMismatch;
-    let root = verified_structural_place(values, subject.place)?;
+    let root = values.require_home(subject.place)?;
     if resolve_structural_path_type(types, root.structural_type, &subject.path)? != structural_type
     {
         return Err(invalid());
@@ -1580,7 +1617,7 @@ pub(crate) fn validate_complete_affine_frontier<'claims>(
         entry
     })
     .collect::<BTreeSet<_>>();
-    let actual = frontier.iter().filter(|entry| {
+    let actual = frontier.entries().filter(|entry| {
         entry.place == subject.place
             && terminal_semantics::structural_paths_may_overlap(&entry.path, &subject.path)
     });
@@ -1671,12 +1708,12 @@ pub(crate) fn consume_affine_projection_if_present(
         '_,
         StructuralTypeDeclaration,
     >,
-    values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
+    values: &impl StructuralHomes,
     structural_cases: &impl CaseSelections,
-    frontier: &mut BTreeSet<StructuralAffineDiscard>,
+    frontier: &mut impl AffineFrontier,
     argument: &StructuralArgument,
 ) -> Result<bool, TerminalInterpretError> {
-    let root = crate::engine::custody::verified_structural_place(values, argument.place)?;
+    let root = values.require_home(argument.place)?;
     crate::boundary::structural_inputs::case_membership::validate_case_projection(
         structural_types,
         values,
@@ -1685,7 +1722,7 @@ pub(crate) fn consume_affine_projection_if_present(
         &argument.path,
     )?;
     let Some(containing) = frontier
-        .iter()
+        .entries()
         .find(|entry| {
             entry.place == argument.place && argument.path.starts_with(entry.path.as_slice())
         })
@@ -1696,7 +1733,7 @@ pub(crate) fn consume_affine_projection_if_present(
     if containing.path.is_empty() && containing.structural_type != root.structural_type {
         return Err(TerminalInterpretError::AffineFrontierMismatch);
     }
-    frontier.remove(&containing);
+    frontier.discard(&containing)?;
     let case_membership = |current: &StructuralAffineDiscard| {
         crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
             structural_types,
@@ -1745,7 +1782,7 @@ pub(crate) fn split_affine_frontier_at_projection(
         '_,
         StructuralTypeDeclaration,
     >,
-    frontier: &mut BTreeSet<StructuralAffineDiscard>,
+    frontier: &mut impl AffineFrontier,
     current: StructuralAffineDiscard,
     projected_path: &[StructuralPathSegment],
     case_membership: &impl Fn(&StructuralAffineDiscard) -> Option<semantic_vocabulary::StructuralCaseId>,
@@ -1774,7 +1811,7 @@ pub(crate) fn split_affine_frontier_at_projection(
                 };
                 if &segment == next_segment {
                     selected = Some(child);
-                } else if !frontier.insert(child) {
+                } else if !frontier.add(child)? {
                     return Err(TerminalInterpretError::AffineFrontierMismatch);
                 }
             }
@@ -1798,7 +1835,7 @@ pub(crate) fn split_affine_frontier_at_projection(
                 };
                 if index == *selected_index {
                     selected = Some(child);
-                } else if !frontier.insert(child) {
+                } else if !frontier.add(child)? {
                     return Err(TerminalInterpretError::AffineFrontierMismatch);
                 }
             }
@@ -1835,7 +1872,7 @@ pub(crate) fn split_affine_frontier_at_projection(
                     };
                     if projected_path.starts_with(&child.path) {
                         selected = Some(child);
-                    } else if !frontier.insert(child) {
+                    } else if !frontier.add(child)? {
                         return Err(TerminalInterpretError::AffineFrontierMismatch);
                     }
                 }
@@ -2034,23 +2071,6 @@ pub(crate) fn bind_entry_claims(
     Ok(claims)
 }
 
-pub(crate) fn resolve_structural_arguments(
-    structural_types: &crate::embedding::program::ProgramDeclarations<
-        '_,
-        StructuralTypeDeclaration,
-    >,
-    values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
-    arguments: &[StructuralArgument],
-) -> Result<Vec<TerminalStructuralValue>, TerminalInterpretError> {
-    arguments
-        .iter()
-        .map(|argument| {
-            let value = crate::engine::custody::verified_structural_place(values, argument.place)?;
-            project_structural_value(structural_types, value, &argument.path)
-        })
-        .collect()
-}
-
 pub(crate) fn verified_structural_place<'v, V: 'v>(
     values: &'v impl std::borrow::Borrow<BTreeMap<PlaceId, V>>,
     place: PlaceId,
@@ -2071,9 +2091,8 @@ pub(crate) fn resolve_single_structural_argument(
     values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
     argument: &StructuralArgument,
 ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
-    resolve_structural_arguments(structural_types, values, std::slice::from_ref(argument))?
-        .pop()
-        .ok_or(malformed())
+    let value = verified_structural_place(values, argument.place)?;
+    project_structural_value(structural_types, value, &argument.path)
 }
 
 pub(crate) fn project_structural_value(
@@ -2121,24 +2140,30 @@ pub(crate) fn project_structural_value_with_leaf(
     leaf_type: impl Fn(&terminal_psi::StructuralFieldType) -> Option<terminal_psi::StructuralFieldType>
     + Copy,
 ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
-    let mut value = root.clone();
-    value.structural_type = resolve_structural_path_type_with_leaf(
+    let structural_type = resolve_structural_path_type_with_leaf(
         structural_types,
         root.structural_type,
         path,
         expected,
         leaf_type,
     )?;
-    (value.qualifications, value.projected_qualifications) =
+    let (qualifications, projected_qualifications) =
         terminal_psi::StructuralPathQualification::select(
             &root.qualifications,
             &root.projected_qualifications,
             path,
         );
-    value
-        .path
-        .extend_from_slice(crate::boundary::values::structural_storage_path(path));
-    Ok(value)
+    let suffix = crate::boundary::values::structural_storage_path(path);
+    let mut projected_path = Vec::with_capacity(root.path.len() + suffix.len());
+    projected_path.extend_from_slice(&root.path);
+    projected_path.extend_from_slice(suffix);
+    Ok(TerminalStructuralValue {
+        opaque_identity: root.opaque_identity,
+        structural_type,
+        qualifications,
+        projected_qualifications,
+        path: projected_path,
+    })
 }
 
 pub(crate) fn direct_scalar_field_type(
@@ -2242,9 +2267,7 @@ pub(crate) fn transfer_claims(
             .or_default()
             .push(transfer);
     }
-    if expected_by_argument.keys().collect::<Vec<_>>()
-        != actual_by_argument.keys().collect::<Vec<_>>()
-    {
+    if expected_by_argument.keys().ne(actual_by_argument.keys()) {
         return Err(TerminalInterpretError::ClaimTransferMismatch);
     }
 
@@ -2402,9 +2425,8 @@ pub(crate) fn complete_claims(
     caller_claims: &BTreeMap<ClaimId, LiveClaim>,
     caller_arguments: &[StructuralArgument],
     receipts: &[CompletionReceipt],
-    _boundary_parameters: &[StructuralParameterDeclaration],
 ) -> Result<BTreeMap<ClaimId, LiveClaim>, TerminalInterpretError> {
-    let expected = caller_arguments
+    let mut expected = caller_arguments
         .iter()
         .enumerate()
         .flat_map(|(index, argument)| {
@@ -2419,14 +2441,13 @@ pub(crate) fn complete_claims(
         })
         .collect::<BTreeSet<_>>();
     let mut remaining = caller_claims.clone();
-    let mut actual = BTreeSet::new();
     for receipt in receipts {
         let occurrence = (
             receipt.argument_index,
             receipt.claim,
             receipt.path.as_slice(),
         );
-        if !actual.insert(occurrence) || !expected.contains(&occurrence) {
+        if !expected.remove(&occurrence) {
             return Err(TerminalInterpretError::CompletionReceiptMismatch);
         }
         let argument = caller_arguments
@@ -2441,7 +2462,7 @@ pub(crate) fn complete_claims(
             return Err(TerminalInterpretError::CompletionReceiptMismatch);
         }
     }
-    if actual != expected {
+    if !expected.is_empty() {
         return Err(TerminalInterpretError::CompletionReceiptMismatch);
     }
     Ok(remaining)
@@ -2926,6 +2947,41 @@ pub(crate) mod tests {
             &[],
             &callee_values,
         )
+    }
+
+    #[test]
+    fn completion_receipts_cover_each_projected_claim_once() {
+        let claims = BTreeMap::from([
+            (claim(1), linear(5, vec![field("left")])),
+            (claim(2), linear(5, vec![field("right")])),
+        ]);
+        let arguments = [StructuralArgument {
+            place: place(5),
+            path: vec![field("right")],
+            access: StructuralAccess::Owned,
+        }];
+        let receipt = terminal_psi::CompletionReceipt {
+            claim: claim(2),
+            argument_index: 0,
+            path: Vec::new(),
+        };
+        let complete = |receipts: &[terminal_psi::CompletionReceipt]| {
+            super::complete_claims(&claims, &arguments, receipts)
+        };
+        assert_eq!(
+            complete(std::slice::from_ref(&receipt)).unwrap(),
+            BTreeMap::from([(claim(1), linear(5, vec![field("left")]))])
+        );
+        let mismatch = Err(TerminalInterpretError::CompletionReceiptMismatch);
+        assert_eq!(complete(&[]), mismatch);
+        assert_eq!(complete(&[receipt.clone(), receipt.clone()]), mismatch);
+        assert_eq!(
+            complete(&[terminal_psi::CompletionReceipt {
+                claim: claim(1),
+                ..receipt
+            }]),
+            mismatch
+        );
     }
 
     #[test]

@@ -16,12 +16,25 @@ fn require_ordinary_image_root(
     Ok(())
 }
 
+fn build_entry_image(
+    artifact: &crate::ObjectArtifact,
+    prepared: &crate::entries::hosted_unit_entry::PreparedParts<'_>,
+) -> Result<image::FinalImage, diagnostics::Diagnostic> {
+    let mut image = image::build_final_image(image::FinalImageInput {
+        target: artifact.target(),
+        import_program: &artifact.imports,
+        object: prepared.object,
+        relocations: prepared.relocations,
+        text_bytes: prepared.text_bytes,
+        data_bytes: artifact.data_bytes(),
+    });
+    entry_effects::attach(artifact, &mut image, prepared.entry_shim)?;
+    Ok(image)
+}
+
 pub(crate) mod dynamic_elf {
     use diagnostics::Diagnostic;
-    use image::{
-        EmittedImageOutput, FinalImageInput, emitted_direct_executable_output,
-        final_image_symbol_digest,
-    };
+    use image::{EmittedImageOutput, final_image_symbol_digest};
     use image_elf::{
         ElfDynamicExecutableEmissionError, ValidatedElfDynamicExecutable,
         emit_elf_dynamic_executable,
@@ -87,17 +100,16 @@ pub(crate) mod dynamic_elf {
     #[derive(Debug)]
     #[must_use = "dynamic ELF production emission retains admitted byte custody"]
     pub struct DynamicElfImageEmission {
-        admitted: ValidatedElfDynamicExecutable,
-        output: EmittedImageOutput,
+        admitted: ValidatedElfDynamicExecutable<EmittedImageOutput>,
     }
 
     impl DynamicElfImageEmission {
-        pub const fn admitted(&self) -> &ValidatedElfDynamicExecutable {
+        pub const fn admitted(&self) -> &ValidatedElfDynamicExecutable<EmittedImageOutput> {
             &self.admitted
         }
 
         pub const fn output(&self) -> &EmittedImageOutput {
-            &self.output
+            self.admitted.output()
         }
     }
 
@@ -173,39 +185,29 @@ pub(crate) mod dynamic_elf {
             })?;
         let prepared =
             crate::entries::hosted_unit_entry::prepared_parts(artifact, prepared_entry.as_ref());
-        let mut image = image::build_final_image(FinalImageInput {
-            target: artifact.target(),
-            import_program: &artifact.imports,
-            object: prepared.object,
-            relocations: prepared.relocations,
-            text_bytes: prepared.text_bytes,
-            data_bytes: artifact.data_bytes(),
-        });
-        crate::image::entry_effects::attach(artifact, &mut image, prepared.entry_shim.as_ref())
-            .map_err(|diagnostic| {
-                Box::new(DynamicElfOrchestrationError::HostedEntryPreparation(
-                    diagnostic,
-                ))
-            })?;
+        let image = super::build_entry_image(artifact, &prepared).map_err(|diagnostic| {
+            Box::new(DynamicElfOrchestrationError::HostedEntryPreparation(
+                diagnostic,
+            ))
+        })?;
         let admitted = emit_elf_dynamic_executable(image, interpreter)
             .map_err(|error| Box::new(DynamicElfOrchestrationError::Elf(error)))?;
-        let output = match emitted_output(artifact, &admitted) {
-            Ok(output) => output,
-            Err(diagnostic) => {
-                return Err(Box::new(DynamicElfOrchestrationError::ProductionBridge(
-                    Box::new(DynamicElfImageEmissionError { diagnostic }),
-                )));
-            }
-        };
-        Ok(DynamicElfImageEmission { admitted, output })
+        validate_target(artifact, admitted.image()).map_err(|diagnostic| {
+            Box::new(DynamicElfOrchestrationError::ProductionBridge(Box::new(
+                DynamicElfImageEmissionError { diagnostic },
+            )))
+        })?;
+        Ok(DynamicElfImageEmission {
+            admitted: admitted.into_emitted(),
+        })
     }
 
-    fn emitted_output(
+    fn validate_target(
         artifact: &ObjectArtifact,
-        admitted: &ValidatedElfDynamicExecutable,
-    ) -> Result<EmittedImageOutput, Diagnostic> {
+        image: &image::FinalImage,
+    ) -> Result<(), Diagnostic> {
         let target = artifact.target();
-        if target != admitted.image().target
+        if target != image.target
             || target.object_format != ObjectFormat::Elf
             || !matches!(
                 target.architecture,
@@ -216,7 +218,7 @@ pub(crate) mod dynamic_elf {
                 "admitted dynamic ELF target does not match the exact Linux object artifact",
             ));
         }
-        Ok(emitted_direct_executable_output(admitted.output().clone()))
+        Ok(())
     }
 
     pub(crate) fn validate_dynamic_elf_image_emission(
@@ -224,44 +226,14 @@ pub(crate) mod dynamic_elf {
         emission: &DynamicElfImageEmission,
     ) -> Result<(), Diagnostic> {
         crate::object::function_fragments::replay::validate(artifact)?;
-        let expected = derive_output(artifact, &emission.admitted)?;
-        if emission.output != expected {
-            return Err(Diagnostic::error(
-                "dynamic ELF production output drifted from exact admitted-byte custody",
-            ));
-        }
-        Ok(())
-    }
-
-    fn derive_output(
-        artifact: &ObjectArtifact,
-        admitted: &ValidatedElfDynamicExecutable,
-    ) -> Result<EmittedImageOutput, Diagnostic> {
+        let admitted = emission.admitted();
         let prepared_entry = crate::entries::hosted_unit_entry::prepare(artifact)?;
         let prepared =
             crate::entries::hosted_unit_entry::prepared_parts(artifact, prepared_entry.as_ref());
-        let output = emitted_output(artifact, admitted)?;
-        validate_terminal_image(
-            artifact,
-            prepared.object,
-            prepared.relocations,
-            prepared.text_bytes,
-            prepared.entry_shim.clone(),
-            &output,
-        )?;
-        let mut replayed_image = image::build_final_image(FinalImageInput {
-            target: artifact.target(),
-            import_program: &artifact.imports,
-            object: prepared.object,
-            relocations: prepared.relocations,
-            text_bytes: prepared.text_bytes,
-            data_bytes: artifact.data_bytes(),
-        });
-        crate::image::entry_effects::attach(
-            artifact,
-            &mut replayed_image,
-            prepared.entry_shim.as_ref(),
-        )?;
+        validate_target(artifact, admitted.image())?;
+        let output = admitted.output();
+        validate_terminal_image(artifact, &prepared, output)?;
+        let mut replayed_image = super::build_entry_image(artifact, &prepared)?;
         let symbol_digest = final_image_symbol_digest(&replayed_image);
         replayed_image.memory.text = output.final_text_bytes.clone();
         replayed_image.memory.data = output.final_data_bytes.clone();
@@ -272,19 +244,7 @@ pub(crate) mod dynamic_elf {
                 "admitted dynamic ELF final image does not replay from the exact object artifact",
             ));
         }
-        if let Some(shim) = prepared.entry_shim.as_ref()
-            && shim.surface == crate::entries::hosted_unit_entry::EntrySurface::ProvisionedUnit
-        {
-            crate::entries::hosted_unit_entry::validate_unit_shim(
-                shim.clone(),
-                artifact,
-                prepared.object,
-                prepared.text_bytes,
-                prepared.relocations,
-                &output,
-            )?;
-        }
-        Ok(output)
+        Ok(())
     }
 }
 
@@ -493,7 +453,7 @@ pub(crate) mod final_image_validation {
 
     use crate::ObjectArtifact;
     use crate::entries::hosted_unit_entry::validate_unit_shim;
-    use crate::entries::hosted_unit_entry::{EntryShim, EntrySurface};
+    use crate::entries::hosted_unit_entry::{EntrySurface, PreparedParts};
     use crate::object::function_fragments::code_descriptors::validate_image_data_relocations;
     use crate::object::private_object_composition::ObjectNamespace;
     use crate::object::private_object_composition::namespaces;
@@ -798,39 +758,22 @@ pub(crate) mod final_image_validation {
 
     pub(crate) fn validate_terminal_image(
         artifact: &ObjectArtifact,
-        object: &object_file::ObjectPlan,
-        relocations: &object_file::RelocationPlan,
-        text_bytes: &[u8],
-        entry_shim: Option<EntryShim>,
+        prepared: &PreparedParts<'_>,
         output: &EmittedImageOutput,
     ) -> Result<(), Diagnostic> {
         super::require_ordinary_image_root(artifact)?;
+        let PreparedParts {
+            object,
+            relocations,
+            text_bytes,
+            entry_shim,
+        } = *prepared;
         let expected_imports = object
             .layout
             .symbols
             .iter()
             .filter(|(_, symbol)| symbol.kind == object_file::SymbolKind::Import)
             .count();
-        validate_terminal_image_with_import_count(
-            artifact,
-            object,
-            relocations,
-            text_bytes,
-            entry_shim,
-            output,
-            expected_imports,
-        )
-    }
-
-    fn validate_terminal_image_with_import_count(
-        artifact: &ObjectArtifact,
-        object: &object_file::ObjectPlan,
-        relocations: &object_file::RelocationPlan,
-        text_bytes: &[u8],
-        entry_shim: Option<EntryShim>,
-        output: &EmittedImageOutput,
-        expected_imports: usize,
-    ) -> Result<(), Diagnostic> {
         if artifact.target().object_format == target::ObjectFormat::MachO {
             image_macho::validate_macho_loader_mapping(
                 &output.bytes,
@@ -884,7 +827,7 @@ pub(crate) mod final_image_validation {
             &output.data_regions,
             &output.final_data_bytes,
         )?;
-        crate::image::entry_effects::validate(artifact, output, entry_shim.as_ref())?;
+        crate::image::entry_effects::validate(artifact, output, entry_shim)?;
         if !output.final_data_bytes.is_empty() {
             let text_end = output
                 .final_image_layout
@@ -1008,7 +951,6 @@ pub(crate) mod final_image_validation {
         }
         if let Some(shim) = entry_shim {
             match shim.surface {
-                EntrySurface::ProvisionedUnit => {}
                 EntrySurface::Physical => {
                     let (symbol, offset) = shim.symbol_offset();
                     crate::entries::physical_entry::validate_image(
@@ -1034,7 +976,8 @@ pub(crate) mod final_image_validation {
                         output,
                     )?;
                 }
-                EntrySurface::DarwinUnit
+                EntrySurface::ProvisionedUnit
+                | EntrySurface::DarwinUnit
                 | EntrySurface::DarwinX86_64Unit
                 | EntrySurface::WindowsUnit
                 | EntrySurface::WindowsArm64Unit
@@ -1517,7 +1460,7 @@ pub(crate) mod image_output {
     pub use target::{ExecutableImageEmissionRequest, ImageApplicationMetadataError};
 
     use diagnostics::Diagnostic;
-    use image::{EmittedImageOutput, FinalImageInput, emitted_direct_executable_output};
+    use image::{EmittedImageOutput, emitted_direct_executable_output};
     use object_file::ObjectContainerOutput;
     use target::{Architecture, NativeTarget, NormalizedElfInterpreterPlan, ObjectFormat};
     use terminal_psi::TerminalPsiIdentity;
@@ -1716,15 +1659,7 @@ pub(crate) mod image_output {
         let prepared_entry = crate::entries::hosted_unit_entry::prepare(artifact)?;
         let prepared =
             crate::entries::hosted_unit_entry::prepared_parts(artifact, prepared_entry.as_ref());
-        let mut image = image::build_final_image(FinalImageInput {
-            target: artifact.target,
-            import_program: &artifact.imports,
-            object: prepared.object,
-            relocations: prepared.relocations,
-            text_bytes: prepared.text_bytes,
-            data_bytes: artifact.data_bytes(),
-        });
-        crate::image::entry_effects::attach(artifact, &mut image, prepared.entry_shim.as_ref())?;
+        let image = super::build_entry_image(artifact, &prepared)?;
         let final_image_symbol_digest = image::final_image_symbol_digest(&image);
         let output = match artifact.target.object_format {
             ObjectFormat::Elf => image_elf::emit_elf_executable(image),
@@ -1808,19 +1743,7 @@ pub(crate) mod image_output {
         let prepared_entry = crate::entries::hosted_unit_entry::prepare(artifact)?;
         let prepared =
             crate::entries::hosted_unit_entry::prepared_parts(artifact, prepared_entry.as_ref());
-        let mut replayed_final_image = image::build_final_image(FinalImageInput {
-            target: artifact.target(),
-            import_program: &artifact.imports,
-            object: prepared.object,
-            relocations: prepared.relocations,
-            text_bytes: prepared.text_bytes,
-            data_bytes: artifact.data_bytes(),
-        });
-        crate::image::entry_effects::attach(
-            artifact,
-            &mut replayed_final_image,
-            prepared.entry_shim.as_ref(),
-        )?;
+        let replayed_final_image = super::build_entry_image(artifact, &prepared)?;
         if image.final_image_symbol_digest
             != image::final_image_symbol_digest(&replayed_final_image)
         {
@@ -1828,27 +1751,7 @@ pub(crate) mod image_output {
                 "terminal executable image symbol evidence does not match its exact object entry/data-symbol table",
             ));
         }
-        validate_terminal_image(
-            artifact,
-            prepared.object,
-            prepared.relocations,
-            prepared.text_bytes,
-            prepared.entry_shim.clone(),
-            output,
-        )?;
-        if let Some(shim) = prepared.entry_shim.as_ref()
-            && shim.surface == crate::entries::hosted_unit_entry::EntrySurface::ProvisionedUnit
-        {
-            crate::entries::hosted_unit_entry::validate_unit_shim(
-                shim.clone(),
-                artifact,
-                prepared.object,
-                prepared.text_bytes,
-                prepared.relocations,
-                output,
-            )?;
-        }
-        Ok(())
+        validate_terminal_image(artifact, &prepared, output)
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1890,6 +1793,31 @@ pub(crate) mod image_output {
 
         pub fn boundary_settlements(&self) -> &[ObjectBoundarySettlement] {
             &self.boundary_settlements
+        }
+
+        /// Instruction ranges that implement an explicit process exit in this
+        /// fixed-address executable. The host can attribute an observed system
+        /// call to its Omega operation even when a unit return also exits zero.
+        pub fn linux_x64_process_exit_sites(
+            &self,
+        ) -> impl Iterator<Item = std::ops::Range<u64>> + '_ {
+            self.boundary_settlements.iter().filter_map(|site| {
+                if self.target != NativeTarget::linux_x64()
+                    || !matches!(
+                        site.settlement.realization,
+                        target_vocabulary::BoundaryRealization::HostedExitProcessI32(_)
+                    )
+                {
+                    return None;
+                }
+                let start = self
+                    .output
+                    .final_image_layout
+                    .text_address
+                    .checked_add(u64::try_from(site.text_offset).ok()?)?;
+                let end = start.checked_add(u64::try_from(site.settlement.byte_count).ok()?)?;
+                Some(start..end)
+            })
         }
 
         pub fn foreign_calls(&self) -> &[crate::ObjectForeignCall] {

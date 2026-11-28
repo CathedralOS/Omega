@@ -996,25 +996,12 @@ pub mod compute {
     ) -> Result<BlockLiveness, LivenessError> {
         let state = &flow.blocks[block_index];
         let instructions = if materialize_instruction_live_sets {
-            let mut current_virtual_live = state.virtual_exit.clone();
             let mut unit_live: BTreeSet<_> = state.unit_exit.iter().copied().collect();
             let mut current_unit_live = state.unit_exit.clone();
             let mut instructions = Vec::with_capacity(block.instructions.len() + 1);
             for instruction in block_instructions(block).rev() {
-                let virtual_live_out = current_virtual_live.clone();
                 let unit_live_out = current_unit_live.clone();
                 let (uses, defs) = virtual_uses_defs_vec(instruction);
-                for definition in &defs {
-                    if let Ok(pos) = current_virtual_live.binary_search(definition) {
-                        current_virtual_live.remove(pos);
-                    }
-                }
-                for used in &uses {
-                    if let Err(pos) = current_virtual_live.binary_search(used) {
-                        current_virtual_live.insert(pos, *used);
-                    }
-                }
-                let virtual_live_in = current_virtual_live.clone();
                 if !instruction.implicit_defs.is_empty()
                     || !instruction.clobbers.is_empty()
                     || !instruction.implicit_uses.is_empty()
@@ -1029,8 +1016,6 @@ pub mod compute {
                     operands: operand_spans[pos as usize],
                     virtual_uses: uses,
                     virtual_defs: defs,
-                    virtual_live_in,
-                    virtual_live_out,
                     unit_uses: instruction.implicit_uses.clone(),
                     unit_defs: instruction.implicit_defs.clone(),
                     unit_clobbers: instruction.clobbers.clone(),
@@ -1050,8 +1035,6 @@ pub mod compute {
                         operands: operand_spans[pos as usize],
                         virtual_uses: Vec::new(),
                         virtual_defs: Vec::new(),
-                        virtual_live_in: Vec::new(),
-                        virtual_live_out: Vec::new(),
                         unit_uses: instruction.implicit_uses.clone(),
                         unit_defs: instruction.implicit_defs.clone(),
                         unit_clobbers: instruction.clobbers.clone(),
@@ -1924,7 +1907,8 @@ pub(crate) mod edge_values {
         }
         let source = index.unique_register(argument).ok_or_else(mismatch)?;
         let value = match source.origin {
-            VirtualRegisterOrigin::StructuralParameter { .. }
+            VirtualRegisterOrigin::ActivationOwner
+            | VirtualRegisterOrigin::StructuralParameter { .. }
             | VirtualRegisterOrigin::SpillAddress { .. }
             | VirtualRegisterOrigin::StructuralObservation { .. }
             | VirtualRegisterOrigin::ScalarAbiAddress { .. }
@@ -2044,9 +2028,7 @@ pub(crate) mod validate {
     pub(crate) use receipt::admit_validated_liveness;
 }
 
-use optimization_core::OptimizationUnitIdentity;
 use selected_instructions::LivenessPlan;
-use semantic_vocabulary::WorkScheduleIdentity;
 
 pub fn analyze_liveness<S: SelectedProgramView>(
     selected: &S,
@@ -2124,6 +2106,22 @@ mod staging {
     }
 
     impl StagedOptimizedLiveness {
+        pub(crate) fn into_parts(self) -> (SelectedOptimizationInput, ValidatedLiveness) {
+            (self.selected, self.liveness)
+        }
+        pub(crate) fn from_published(
+            selected: SelectedOptimizationInput,
+            liveness: ValidatedLiveness,
+        ) -> Self {
+            let custody = StagedOptimizedLivenessCustodyReceipt {
+                core: selected.custody,
+            };
+            Self {
+                selected,
+                liveness,
+                custody,
+            }
+        }
         staged_producer_accessors!(selected; selected, record, register_environment, selections, budget_per_pass);
 
         pub const fn liveness(&self) -> &ValidatedLiveness {
@@ -2161,13 +2159,7 @@ pub use staging::{
     admit_optimized_liveness, stage_optimized_liveness,
 };
 
-copy_receipt! {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct LivenessValidationReceipt {
-        pub(crate) optimization_unit: OptimizationUnitIdentity,
-        pub(crate) work_schedule: WorkScheduleIdentity,
-    }
-}
+pub use selected_analysis_facts::LivenessValidationReceipt;
 
 shared_plan_carrier!(ValidatedLiveness: LivenessPlan, LivenessValidationReceipt {});
 

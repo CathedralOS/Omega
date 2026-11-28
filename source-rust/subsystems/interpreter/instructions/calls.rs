@@ -8,13 +8,13 @@
 
 pub(crate) mod arguments {
     use crate::boundary::errors::{TerminalInterpretError, malformed};
-    use crate::boundary::values::{TerminalScalarValue, TerminalStructuralValue};
+    use crate::boundary::values::TerminalStructuralValue;
     use crate::engine::custody::StructuralArgumentSources;
     use crate::engine::execution::TerminalExecution;
     use crate::storage::byte_sequences::binding::ByteSequenceBinding;
     use crate::storage::runtime_rows::RuntimeRows;
     use crate::storage::scalar_array::ScalarArrayBindings;
-    use semantic_vocabulary::{MachineId, PlaceId, ValueId};
+    use semantic_vocabulary::{MachineId, PlaceId};
     use terminal_psi::{StructuralAccess, StructuralArgument, StructuralParameterDeclaration};
     use terminal_semantics::scalar_array_leaf_shape;
 
@@ -59,25 +59,22 @@ pub(crate) mod arguments {
     }
 
     impl TerminalExecution<'_> {
-        pub(crate) fn resolve_call_arguments(
-            &self,
-            callee: MachineId,
-            arguments: &[ValueId],
-            structural_arguments: &[StructuralArgument],
-        ) -> Result<(Vec<TerminalScalarValue>, StructuralCallArguments), TerminalInterpretError>
-        {
-            let scalar_arguments = self
-                .scalar_values_at(arguments)
-                .map_err(|error| error.in_argument_preparation("read scalar call arguments"))?;
-            let prepared_arguments =
-                self.prepare_structural_call_arguments(callee, structural_arguments)?;
-            Ok((scalar_arguments, prepared_arguments))
-        }
-
         pub(crate) fn prepare_structural_call_arguments(
             &self,
             callee: MachineId,
             arguments: &[StructuralArgument],
+        ) -> Result<StructuralCallArguments, TerminalInterpretError> {
+            self.prepare_structural_call_at(callee, arguments, None)
+        }
+
+        pub(crate) fn prepare_structural_call_at(
+            &self,
+            callee: MachineId,
+            arguments: &[StructuralArgument],
+            opened: Option<(
+                &terminal_psi::Operation,
+                &terminal_psi::TerminalCallableContract,
+            )>,
         ) -> Result<StructuralCallArguments, TerminalInterpretError> {
             let machine = self.program.verified_machine(callee)?;
             if machine.structural_parameters.len() != arguments.len() {
@@ -89,7 +86,13 @@ pub(crate) mod arguments {
             let mut scalar_arrays = ScalarArrayBindings::new(self.account.as_ref());
             let mut opaque_parameters = Vec::new();
             let mut opaque_arguments = Vec::new();
-            for (parameter, argument) in machine.structural_parameters.iter().zip(arguments) {
+            let mut opened_owners = Vec::new();
+            for (index, (parameter, argument)) in machine
+                .structural_parameters
+                .iter()
+                .zip(arguments)
+                .enumerate()
+            {
                 if scalar_array_leaf_shape(
                     self.structural_types().values(),
                     parameter.structural_type,
@@ -101,14 +104,52 @@ pub(crate) mod arguments {
                     let value = self.prepare_scalar_array_argument(machine, parameter, argument)?;
                     scalar_arrays.publish(parameter.place, value)?;
                 } else {
+                    if let Some((operation, contract)) = opened
+                        && parameter.access == StructuralAccess::Owned
+                        && let Some(public_type) = self
+                            .program
+                            .package_sites()?
+                            .invocation_argument(self.current_machine, operation.id, index)
+                    {
+                        let public = contract
+                            .structural_parameters
+                            .get(index)
+                            .ok_or_else(malformed)?;
+                        if public.structural_type != public_type
+                            || public.access != argument.access
+                            || argument.access != StructuralAccess::Owned
+                            || !argument.path.is_empty()
+                        {
+                            return Err(malformed());
+                        }
+                        opened_owners.push((opaque_parameters.len(), public));
+                    }
                     opaque_parameters.push(parameter.clone());
                     opaque_arguments.push(argument.clone());
                 }
             }
             let provenance = self.structural_argument_provenance(&opaque_arguments)?;
-            let mut prepared = self
+            let mut boundary = self
                 .prepare_boundary_arguments(&opaque_parameters, &opaque_arguments)
-                .map_err(|error| error.in_argument_preparation("resolve argument carriers"))?
+                .map_err(|error| error.in_argument_preparation("resolve argument carriers"))?;
+            // The dispatch already proved that the stored descriptor instantiates
+            // this exact opening. Change only the public names on the owned value.
+            for (index, public) in opened_owners {
+                let value = boundary.values.get_mut(index).ok_or_else(malformed)?;
+                let concrete = &opaque_parameters[index];
+                if value.structural_type != public.structural_type
+                    || value.qualifications != public.qualifications
+                    || value.projected_qualifications != public.projected_qualifications
+                {
+                    return Err(malformed());
+                }
+                value.structural_type = concrete.structural_type;
+                value.qualifications.clone_from(&concrete.qualifications);
+                value
+                    .projected_qualifications
+                    .clone_from(&concrete.projected_qualifications);
+            }
+            let mut prepared = boundary
                 .into_call_arguments(
                     &opaque_parameters,
                     &self.structural_types(),
@@ -724,9 +765,41 @@ pub(crate) mod frames {
             prepared_arguments: StructuralCallArguments,
             claim_transfers: &[ClaimTransfer],
             claim_origin: crate::engine::execution::ResultClaimOrigin,
+            opened_contract: Option<&terminal_psi::TerminalCallableContract>,
         ) -> Result<(), TerminalInterpretError> {
             let program = std::sync::Arc::clone(&self.program);
             let callee = program.verified_machine(callee_id)?;
+            let mut result = result;
+            let mut opened_owner = None;
+            if let Some(contract) = opened_contract
+                && let Some(public) = contract.proof_result.structural()
+                && let Some(concrete) = callee.result.structural()
+                && public.structural_type != concrete.structural_type
+            {
+                let declaration = self.structural_declaration(public.structural_type)?;
+                if result.structural_type != public.structural_type
+                    || result.multiplicity != public.multiplicity
+                    || result.qualifications != public.qualifications
+                    || result.projected_qualifications != public.projected_qualifications
+                    || !result.qualification_establishments.is_empty()
+                    || declaration.declaration_identity.is_absent()
+                    || declaration.declaration_identity
+                        != self
+                            .structural_declaration(concrete.structural_type)?
+                            .declaration_identity
+                    || !matches!(declaration.shape, StructuralTypeShape::Record { .. })
+                {
+                    return Err(malformed());
+                }
+                // The callee validates its concrete result and transfers its actual
+                // claims before the caller can see the owner's opened type again.
+                opened_owner = Some(contract.id);
+                result.structural_type = concrete.structural_type;
+                result.qualifications.clone_from(&concrete.qualifications);
+                result
+                    .projected_qualifications
+                    .clone_from(&concrete.projected_qualifications);
+            }
             let invalid_result = |reason| TerminalInterpretError::StructuralCallResultContract {
                 callee: callee_id,
                 place: result.place,
@@ -834,6 +907,7 @@ pub(crate) mod frames {
                     claim_origin,
                     expected_reference_backings: Vec::new(),
                     preserved_projected_qualifications,
+                    opened_owner,
                     profile_completion: None,
                 },
             )
@@ -847,8 +921,9 @@ pub(crate) mod frames {
         use crate::boundary::results::{TerminalExecutionResult, TerminalStructuralResult};
         use crate::embedding::program::AdmittedTerminalProgram;
         use crate::engine::execution::{CleanupContinuation, CompletedReturn};
-        use crate::storage::byte_sequences::ByteSequenceView;
-        use crate::storage::byte_sequences::storage::ByteSequenceStorage;
+        use crate::storage::byte_sequences::{
+            ByteSequenceView, binding::ByteSequenceBinding, storage::ByteSequenceStorage,
+        };
         use build_model::accounting::BuildEvaluationSponsor;
         use build_model::contracts::{
             BuildEvaluationSponsorLimits, EvaluationAccountingError, EvaluationMeasurementIdentity,
@@ -887,6 +962,7 @@ pub(crate) mod frames {
                 loan_completions: Vec::new(),
                 entry,
                 blocks: vec![Block {
+                    assembly_exit: None,
                     id: entry,
                     parameters: Vec::new(),
                     erased_scalar_formals: Vec::new(),
@@ -1186,6 +1262,7 @@ pub(crate) mod component_arguments {
     use crate::boundary::values::{StructuralRuntimePlace, TerminalStructuralValue};
     use crate::embedding::program::TerminalProgram;
     use crate::engine::execution::TerminalExecution;
+    use crate::storage::byte_sequences::{ByteSequenceView, binding::ByteSequenceBinding};
 
     pub(crate) struct PreparedComponentArguments {
         pub(crate) custody: ComponentInputCustody,
@@ -1199,10 +1276,41 @@ pub(crate) mod component_arguments {
         pub(crate) source: Option<crate::boundary::effects::byte_buffers::BoundaryArguments>,
         pub(crate) values: Vec<TerminalStructuralValue>,
         pub(crate) contents: Vec<crate::TerminalStructuralContents>,
+        byte_arguments: BTreeMap<usize, ComponentByteInput>,
         opaque_arguments: Vec<usize>,
         scalar_arguments: Vec<LentScalarArgument>,
         empty_arguments: Vec<SharedEmptyArgument>,
         _scalar_scope: Option<crate::storage::scalar_storage::ScalarLoanScope>,
+    }
+
+    enum ComponentByteInput {
+        Shared(ByteSequenceView),
+        Mutable(crate::component_byte_loans::ComponentByteArray),
+    }
+
+    impl ComponentByteInput {
+        fn range(
+            &self,
+        ) -> Result<
+            Option<crate::storage::storage_addresses::ByteAddressRange<'_>>,
+            TerminalInterpretError,
+        > {
+            let (first, offset, length) = match self {
+                Self::Shared(view) => {
+                    let Some((first, offset)) = view.component_array_address(0) else {
+                        return Ok(None);
+                    };
+                    (first, offset, view.len())
+                }
+                Self::Mutable(array) => {
+                    let Some(first) = &array.first else {
+                        return Ok(None);
+                    };
+                    (first, 0, array.cells.cells().len())
+                }
+            };
+            first.byte_range(offset, length).map(Some)
+        }
     }
 
     impl ComponentInputCustody {
@@ -1210,12 +1318,30 @@ pub(crate) mod component_arguments {
             &self,
             child: &mut TerminalExecution<'_>,
         ) -> Result<(), TerminalInterpretError> {
-            if self.source.is_none() {
+            if self.source.is_none() && self.byte_arguments.is_empty() {
                 return Ok(());
             }
-            let entry = child.program.verified_machine(child.current_machine)?;
+            let program = child.program.clone();
+            let entry = program.verified_machine(child.current_machine)?;
             if entry.structural_parameters.len() != self.values.len() {
                 return Err(malformed());
+            }
+            for (&index, view) in &self.byte_arguments {
+                let parameter = entry.structural_parameters.get(index).ok_or(malformed())?;
+                let home = child.structural_value(parameter.place)?.clone();
+                let binding = match view {
+                    ComponentByteInput::Shared(bytes) => {
+                        ByteSequenceBinding::Immutable(bytes.clone().with_descriptor_home(home))
+                    }
+                    ComponentByteInput::Mutable(lender) => lender.bind(child, home)?,
+                };
+                if child
+                    .byte_sequence_values
+                    .insert(parameter.place, binding)?
+                    .is_some()
+                {
+                    return Err(malformed());
+                }
             }
             for &index in &self.opaque_arguments {
                 let parameter = entry.structural_parameters.get(index).ok_or(malformed())?;
@@ -1309,7 +1435,7 @@ pub(crate) mod component_arguments {
             {
                 return Err(malformed());
             }
-            let prepared =
+            let mut prepared =
                 self.prepare_boundary_arguments(&receiver.structural_parameters, arguments)?;
             crate::engine::custody::bind_active_structural_arguments(
                 &receiver.structural_parameters,
@@ -1319,8 +1445,8 @@ pub(crate) mod component_arguments {
                 self.account.as_ref(),
             )?;
             validate_boundary_requirements(receiver, |index| prepared.values.get(index))?;
-            prepared.opaque_values(self.local_structural_identities.cursor())?;
-            let mut prepared = prepared;
+            let byte_arguments =
+                prepared.take_component_byte_views(self.local_structural_identities.cursor())?;
             let lending = arguments
                 .iter()
                 .any(|argument| argument.access != StructuralAccess::Owned);
@@ -1355,39 +1481,100 @@ pub(crate) mod component_arguments {
                     argument.access,
                     terminal_psi::reading_borrow_pair_pattern!()
                 );
+                let error =
+                    |detail: String| TerminalInterpretError::StructuralArgumentPreparation {
+                        stage: "component input",
+                        detail: format!("argument {argument_index}: {detail}"),
+                    };
                 if argument.access != required.access
                     || required.access != supplied.access
                     || (!owned && !lent)
-                    || required.multiplicity != supplied.multiplicity
-                    || !required.projected_qualifications.is_empty()
-                    || !supplied.projected_qualifications.is_empty()
-                    || !value.projected_qualifications.is_empty()
+                {
+                    return Err(error(format!(
+                        "caller access {:?}, receiving access {:?}, provider access {:?}",
+                        argument.access, required.access, supplied.access
+                    )));
+                }
+                if required.multiplicity != supplied.multiplicity
                     || receiver_type.owns_linear_claim != linear
                     || provider_type.owns_linear_claim != linear
-                    || (!linear
-                        && (!receiver_type.no_code_affine_cleanup
-                            || !provider_type.no_code_affine_cleanup))
-                    || !self
-                        .program
-                        .catalogs
-                        .identities
-                        .text(receiver_type.identity)
-                        .zip(
-                            provider
-                                .program
-                                .catalogs
-                                .identities
-                                .text(provider_type.identity),
-                        )
-                        .is_some_and(|(left, right)| !left.is_empty() && left == right)
-                    || (owned
-                        && crate::engine::custody::has_live_loan(
-                            self.reference_referents.as_map(),
-                            value,
-                        ))
                 {
-                    return Err(reject(
-                        "component input lacks exact owned closed Inert type/custody",
+                    return Err(error(format!(
+                        "multiplicity or linear custody differs: receiver {:?}, provider {:?}",
+                        required.multiplicity, supplied.multiplicity
+                    )));
+                }
+                if !required.projected_qualifications.is_empty()
+                    || !supplied.projected_qualifications.is_empty()
+                    || !value.projected_qualifications.is_empty()
+                {
+                    return Err(error(
+                        "component input has unsupported projected qualifications".into(),
+                    ));
+                }
+                let byte_view = byte_arguments.contains_key(&argument_index);
+                if let Some(binding) = byte_arguments.get(&argument_index) {
+                    let admits = |shape: &terminal_psi::StructuralTypeShape| match shape {
+                        terminal_psi::StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { access },
+                        ) => access.is_none_or(|access| access == required.access),
+                        _ => false,
+                    };
+                    if binding.access() != required.access
+                        || !admits(&receiver_type.shape)
+                        || !admits(&provider_type.shape)
+                    {
+                        return Err(error(format!(
+                            "byte loan has incompatible access or shape: receiving {:?} {:?}, provider {:?} {:?}",
+                            required.access,
+                            receiver_type.shape,
+                            supplied.access,
+                            provider_type.shape
+                        )));
+                    }
+                }
+                // A shared descriptor only lends its checked view and never
+                // transfers ownership of the array. Owned and generic carriers
+                // still need their ordinary no-code cleanup or linear claim.
+                if !linear
+                    && !byte_view
+                    && (!receiver_type.no_code_affine_cleanup
+                        || !provider_type.no_code_affine_cleanup)
+                {
+                    return Err(error(
+                        "component transfer lacks checked no-code cleanup".into(),
+                    ));
+                }
+                let receiving_identity = self
+                    .program
+                    .catalogs
+                    .identities
+                    .text(receiver_type.identity);
+                let supplying_identity = provider
+                    .program
+                    .catalogs
+                    .identities
+                    .text(provider_type.identity);
+                // Provider admission matched the callable contract and result lifetimes.
+                // Each artifact names the shared input region locally. The scoped
+                // view above establishes the same byte element and access in both.
+                if !byte_view
+                    && !receiving_identity
+                        .zip(supplying_identity)
+                        .is_some_and(|(left, right)| !left.is_empty() && left == right)
+                {
+                    return Err(error(format!(
+                        "closed structural types differ: receiver {receiving_identity:?}, provider {supplying_identity:?}"
+                    )));
+                }
+                if owned
+                    && crate::engine::custody::has_live_loan(
+                        self.reference_referents.as_map(),
+                        value,
+                    )
+                {
+                    return Err(error(
+                        "an owned component input still has a live loan".into(),
                     ));
                 }
                 if lent {
@@ -1491,7 +1678,9 @@ pub(crate) mod component_arguments {
                         "component input requires a loan or resource storage transfer carrier",
                     ));
                 }
-                if lent && self.component_borrows_scalar_cells(value)? {
+                if byte_view {
+                    // Its shared backing is installed alongside the child parameter.
+                } else if lent && self.component_borrows_scalar_cells(value)? {
                     scalar_arguments.push(self.prepare_component_scalar_argument(
                         value,
                         argument_index,
@@ -1548,14 +1737,16 @@ pub(crate) mod component_arguments {
                 &self.live_claims,
                 arguments,
                 completion_receipts,
-                &receiver.structural_parameters,
             )?;
-            let borrowed_mutations = scalar_arguments
+            let mut borrowed_mutations: Vec<_> = scalar_arguments
                 .iter()
                 .filter_map(|argument| argument.mutated_home().cloned())
                 .collect();
-            let scalar_scope = (!scalar_arguments.is_empty())
-                .then(crate::storage::scalar_storage::ScalarLoanScope::new);
+            let scalar_scope = (!scalar_arguments.is_empty()
+                || byte_arguments
+                    .values()
+                    .any(|binding| binding.access() == StructuralAccess::MutableBorrow))
+            .then(crate::storage::scalar_storage::ScalarLoanScope::new);
             let mut scalar_views = BTreeMap::new();
             let scalar_arguments = scalar_arguments
                 .into_iter()
@@ -1567,11 +1758,57 @@ pub(crate) mod component_arguments {
                     )
                 })
                 .collect::<Result<_, _>>()?;
+            let byte_arguments = byte_arguments
+                .into_iter()
+                .map(|(index, binding)| {
+                    let input = match binding {
+                        ByteSequenceBinding::Immutable(mut view) => {
+                            view.lend_array_to_component(self)?;
+                            ComponentByteInput::Shared(view)
+                        }
+                        ByteSequenceBinding::MutableArray {
+                            array,
+                            array_type,
+                            offset,
+                            length,
+                            ..
+                        } => {
+                            borrowed_mutations.push(array.referent.clone());
+                            let window = crate::storage::byte_sequences::OriginalByteArrayWindow {
+                                array,
+                                array_type,
+                                offset: usize::try_from(offset).map_err(|_| malformed())?,
+                                length: usize::try_from(length).map_err(|_| malformed())?,
+                            };
+                            ComponentByteInput::Mutable(self.lend_component_byte_array(
+                                &window,
+                                scalar_scope.as_ref().ok_or(malformed())?,
+                            )?)
+                        }
+                        _ => return Err(malformed()),
+                    };
+                    Ok((index, input))
+                })
+                .collect::<Result<BTreeMap<_, _>, _>>()?;
+            let mut ranges = Vec::new();
+            for input in byte_arguments.values() {
+                if let Some(range) = input.range()? {
+                    let mutable = matches!(input, ComponentByteInput::Mutable(_));
+                    if ranges
+                        .iter()
+                        .any(|(prior, exclusive)| (mutable || *exclusive) && range.overlaps(prior))
+                    {
+                        return Err(reject("component byte inputs overlap an exclusive window"));
+                    }
+                    ranges.push((range, mutable));
+                }
+            }
             Ok(PreparedComponentArguments {
                 custody: ComponentInputCustody {
                     source: lending.then_some(prepared),
                     values,
                     contents,
+                    byte_arguments,
                     opaque_arguments,
                     scalar_arguments,
                     empty_arguments,
@@ -1743,6 +1980,26 @@ pub(crate) mod component_calls {
                 (
                     BoundaryMachineResult::Structural(left),
                     BoundaryMachineResult::Structural(right),
+                    TerminalExecutionResult::ScalarCase(case),
+                ) if left.multiplicity == right.multiplicity
+                    && left.multiplicity != terminal_psi::StructuralMultiplicity::Linear
+                    && left.qualifications.is_empty()
+                    && right.qualifications.is_empty()
+                    && left.projected_qualifications.is_empty()
+                    && right.projected_qualifications.is_empty()
+                    && case.value().structural_type == right.structural_type
+                    && matches!(&operation.result, OperationResult::Structural(result) if result.claims.is_empty())
+                    && completed.returned_claims().is_some_and(<[_]>::is_empty) =>
+                {
+                    TerminalEffectResult::Aggregate(self.receive_component_case(
+                        provider,
+                        case.value(),
+                        left.structural_type,
+                    )?)
+                }
+                (
+                    BoundaryMachineResult::Structural(left),
+                    BoundaryMachineResult::Structural(right),
                     TerminalExecutionResult::Structural(returned),
                 ) => {
                     let types = self.structural_types();
@@ -1861,8 +2118,7 @@ pub(crate) mod component_calls {
                             crate::engine::custody::bind_result_claim(
                                 &mut result_claims,
                                 claim,
-                                result.place,
-                                result.multiplicity,
+                                result,
                             )?;
                         }
                     } else {
@@ -1941,6 +2197,49 @@ pub(crate) mod component_contents {
                 destination_types: provider.program.structural_types(),
                 destination_identities: &provider.program.catalogs.identities,
             }
+        }
+
+        pub(crate) fn receive_component_case(
+            &self,
+            provider: &TerminalProgram<'_>,
+            result: &crate::TerminalAggregateValue,
+            destination: StructuralTypeId,
+        ) -> Result<crate::TerminalAggregateValue, TerminalInterpretError> {
+            let mapping = ComponentContentsMapping {
+                source_types: provider.program.structural_types(),
+                source_identities: &provider.program.catalogs.identities,
+                destination_types: self.structural_types(),
+                destination_identities: &self.program.catalogs.identities,
+            };
+            let source = result.structural_type;
+            let case = result.result_case.ok_or(malformed())?;
+            let root = mapping.rehome(
+                source,
+                destination,
+                TerminalBoundaryStorageValue {
+                    path: Vec::new(),
+                    contents: TerminalStorageContents::Case(case),
+                },
+            )?;
+            let TerminalStorageContents::Case(received_case) = root.contents else {
+                return Err(malformed());
+            };
+            let mut fields = Vec::with_capacity(result.fields.len());
+            for field in &result.fields {
+                let mut rooted = field.clone();
+                rooted.path.insert(0, Path::Case(case));
+                let mut received = mapping.rehome(source, destination, rooted)?;
+                if received.path.first() != Some(&Path::Case(received_case)) {
+                    return Err(malformed());
+                }
+                received.path.remove(0);
+                fields.push(received);
+            }
+            Ok(crate::TerminalAggregateValue {
+                structural_type: destination,
+                result_case: Some(received_case),
+                fields,
+            })
         }
 
         pub(crate) fn capture_component_contents(
@@ -2025,6 +2324,10 @@ pub(crate) mod component_contents {
                         self.map_identity(source.identity)?,
                     )
                     .ok_or(malformed())?;
+                    self.check_owner(
+                        source.declaration_identity,
+                        destination.declaration_identity,
+                    )?;
                     TerminalStorageContents::Case(destination.id)
                 }
             };
@@ -2044,6 +2347,10 @@ pub(crate) mod component_contents {
             for (position, segment) in source_path.iter().enumerate() {
                 let source = self.source_types.declaration(&source_type)?;
                 let destination = self.destination_types.declaration(&destination_type)?;
+                self.check_owner(
+                    source.declaration_identity,
+                    destination.declaration_identity,
+                )?;
                 if self.map_identity(source.identity)? != destination.identity {
                     return Err(malformed());
                 }
@@ -2063,6 +2370,10 @@ pub(crate) mod component_contents {
                             identity,
                         )
                         .ok_or(malformed())?;
+                        self.check_owner(
+                            source.declaration_identity,
+                            destination.declaration_identity,
+                        )?;
                         path.push(Path::Case(destination.id));
                         source_case_fields = Some(source.fields.as_slice());
                         destination_case_fields = Some(destination.fields.as_slice());
@@ -2085,6 +2396,10 @@ pub(crate) mod component_contents {
                             self.map_identity(source.identity)?,
                         )
                         .ok_or(malformed())?;
+                        self.check_owner(
+                            source.declaration_identity,
+                            destination.declaration_identity,
+                        )?;
                         if source.relevance.is_erased() {
                             return Err(malformed());
                         }
@@ -2139,29 +2454,50 @@ pub(crate) mod component_contents {
             if source_case_fields.is_some() {
                 return Err(malformed());
             }
-            if self.map_identity(self.source_types.declaration(&source_type)?.identity)?
-                != self
-                    .destination_types
-                    .declaration(&destination_type)?
-                    .identity
-            {
+            let source = self.source_types.declaration(&source_type)?;
+            let destination = self.destination_types.declaration(&destination_type)?;
+            self.check_owner(
+                source.declaration_identity,
+                destination.declaration_identity,
+            )?;
+            if self.map_identity(source.identity)? != destination.identity {
                 return Err(malformed());
             }
             Ok((path, source_type, destination_type))
+        }
+
+        fn check_owner(
+            &self,
+            source: terminal_psi::TerminalIdentityIndex,
+            destination: terminal_psi::TerminalIdentityIndex,
+        ) -> Result<(), TerminalInterpretError> {
+            if source.is_absent() && destination.is_absent() {
+                return Ok(());
+            }
+            terminal_psi::NominalDeclarationIdentity::new(source)
+                .same_identity_as(
+                    self.source_identities,
+                    &terminal_psi::NominalDeclarationIdentity::new(destination),
+                    self.destination_identities,
+                )
+                .then_some(())
+                .ok_or(malformed())
         }
 
         fn map_identity(
             &self,
             identity: terminal_psi::TerminalIdentityIndex,
         ) -> Result<terminal_psi::TerminalIdentityIndex, TerminalInterpretError> {
-            let identity = self
-                .source_identities
-                .text(identity)
-                .filter(|identity| !identity.is_empty())
+            let name = self.source_identities.text(identity).ok_or(malformed())?;
+            let destination = self
+                .destination_identities
+                .index_of(name)
                 .ok_or(malformed())?;
-            self.destination_identities
-                .index_of(identity)
-                .ok_or(malformed())
+            if identity.is_absent() {
+                return Err(malformed());
+            }
+            self.check_owner(identity, destination)?;
+            Ok(destination)
         }
     }
 
@@ -2340,6 +2676,29 @@ pub(crate) mod component_contents {
         }
 
         #[test]
+        fn component_contents_reject_same_field_label_from_a_different_declaration() {
+            let source = Fixture::new(0);
+            let mut destination = Fixture::new(100);
+            let mut names = destination.identities.clone().into_builder();
+            let unrelated = names.intern("other::Packet::bits");
+            destination.identities = names.build();
+            let StructuralTypeShape::Mixed { cases, .. } = &mut destination.declarations[0].shape
+            else {
+                panic!("fixture is mixed")
+            };
+            cases[0].fields[0].declaration_identity = unrelated;
+            assert!(
+                mapping(&source, &destination)
+                    .rehome(
+                        source.root(),
+                        destination.root(),
+                        scalar(source.payload_path(1))
+                    )
+                    .is_err()
+            );
+        }
+
+        #[test]
         fn component_contents_refuse_reference_crossings_bad_indexes_and_nominal_substitutions() {
             let source = Fixture::new(0);
             let mut destination = Fixture::new(100);
@@ -2488,7 +2847,7 @@ pub(crate) mod component_scalar_arguments {
     use crate::embedding::program::TerminalProgram;
     use crate::engine::execution::TerminalExecution;
     use crate::storage::primitive_storage::PrimitiveStorageEndpoint;
-    use crate::storage::scalar_storage::{ScalarCell, ScalarLoanScope};
+    use crate::storage::scalar_storage::{ScalarCell, ScalarLoanAccess, ScalarLoanScope};
     use crate::storage::storage_addresses::{ScalarStorageAddress, ScalarStorageAddressKey};
     use crate::storage::structural_storage::contents::{self, StorageLeafKind};
     use semantic_vocabulary::{CanonicalStructuralPathSegment, ScalarType, StructuralTypeId};
@@ -2510,6 +2869,18 @@ pub(crate) mod component_scalar_arguments {
         restriction: Option<StructuralFieldType>,
         address: ScalarStorageAddress,
         parent_addresses: Vec<ScalarStorageAddress>,
+    }
+
+    impl PreparedScalarCell {
+        fn loan_access(&self, borrow: StructuralAccess) -> ScalarLoanAccess {
+            ScalarLoanAccess {
+                borrow,
+                atomic: self
+                    .restriction
+                    .as_ref()
+                    .and_then(StructuralFieldType::atomic_cell_type),
+            }
+        }
     }
 
     pub(crate) struct LentScalarArgument {
@@ -2578,11 +2949,8 @@ pub(crate) mod component_scalar_arguments {
             provider: &TerminalProgram<'_>,
             destination_type: StructuralTypeId,
         ) -> Result<PreparedScalarArgument, TerminalInterpretError> {
-            let description = contents::describe(self, value, access, None)?;
-            if description.requires_erased_establishment
-                || description.requires_atomic_storage
-                || description.leaves.is_empty()
-            {
+            let description = contents::describe_loan(self, value, access)?;
+            if description.requires_erased_establishment || description.leaves.is_empty() {
                 return Err(reject());
             }
             let root = StructuralRuntimePlace::from(value);
@@ -2644,21 +3012,24 @@ pub(crate) mod component_scalar_arguments {
 
     impl PreparedScalarArgument {
         pub(crate) fn mutated_home(&self) -> Option<&StructuralRuntimePlace> {
-            (self.access == StructuralAccess::MutableBorrow).then_some(&self.root)
+            let may_write = self
+                .cells
+                .iter()
+                .any(|cell| cell.loan_access(self.access).writable());
+            may_write.then_some(&self.root)
         }
 
         pub(crate) fn lend(
             self,
             source: &mut TerminalExecution<'_>,
             lifetime: &ScalarLoanScope,
-            views: &mut BTreeMap<ScalarStorageAddressKey, (StructuralAccess, ScalarCell)>,
+            views: &mut BTreeMap<ScalarStorageAddressKey, (ScalarLoanAccess, ScalarCell)>,
         ) -> Result<LentScalarArgument, TerminalInterpretError> {
             let mut cells = Vec::with_capacity(self.cells.len());
             for prepared in self.cells {
-                let borrowed = if let Some((access, previous)) = views.get(&prepared.source) {
-                    if *access != StructuralAccess::SharedBorrow
-                        || self.access != StructuralAccess::SharedBorrow
-                    {
+                let access = prepared.loan_access(self.access);
+                let borrowed = if let Some((prior, previous)) = views.get(&prepared.source) {
+                    if !access.may_alias(*prior) {
                         return Err(TerminalInterpretError::UnsupportedSemanticVariant(
                             "component inputs overlap an exclusive scalar home",
                         ));
@@ -2666,8 +3037,8 @@ pub(crate) mod component_scalar_arguments {
                     previous.clone()
                 } else {
                     let original = cell_mut(source, &prepared.source)?.ok_or(malformed())?;
-                    let borrowed = lifetime.lend(original, self.access)?;
-                    views.insert(prepared.source.clone(), (self.access, borrowed.clone()));
+                    let borrowed = lifetime.lend(original, access)?;
+                    views.insert(prepared.source.clone(), (access, borrowed.clone()));
                     borrowed
                 };
                 cells.push((prepared, borrowed));
@@ -2695,9 +3066,8 @@ pub(crate) mod component_scalar_arguments {
             }
             let value = child.structural_value(parameter.place)?.clone();
             let root = StructuralRuntimePlace::from(&value);
-            let description = contents::describe(child, &value, self.access, None)?;
+            let description = contents::describe_loan(child, &value, self.access)?;
             if description.requires_erased_establishment
-                || description.requires_atomic_storage
                 || description.leaves.len() != self.cells.len()
             {
                 return Err(reject());
@@ -2837,7 +3207,7 @@ use terminal_psi::{
 
 pub(crate) struct PendingBoundaryCall {
     pub(crate) site: crate::boundary::results::TerminalEffectWait,
-    pub(crate) awaiting_provider_readiness: bool,
+    pub(crate) park: Option<crate::suspension::ParkOccurrence>,
     arguments: crate::boundary::effects::byte_buffers::BoundaryArguments,
     remaining_claims: BTreeMap<semantic_vocabulary::ClaimId, crate::engine::execution::LiveClaim>,
     effect: TerminalEffect,
@@ -2861,52 +3231,30 @@ fn select_positions<T: Clone>(
 }
 
 impl<'artifact> TerminalExecution<'artifact> {
-    pub(crate) fn execute_call_unit(
+    pub(crate) fn execute_direct_structural_call(
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        dispatched_operation!(operation => CallUnit {
-            callee, arguments: ref scalar_argument_ids, ref structural_arguments,
-            ref claim_transfers, ..
-        });
-        if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
-            return Err(malformed());
+        use terminal_psi::{DirectCallRole, OperationResult};
+        let call = terminal_psi::direct_call_parts(&operation.kind).ok_or_else(malformed)?;
+        match (call.role, &operation.result) {
+            (DirectCallRole::Unit, OperationResult::Unit)
+            | (DirectCallRole::Scalar, OperationResult::Scalar(_))
+            | (DirectCallRole::Structural, OperationResult::Structural(_)) => {}
+            (DirectCallRole::Structural, _) => {
+                return Err(TerminalInterpretError::VerifiedOperationContractInvalid {
+                    reason: "structural call operation has no structural result",
+                });
+            }
+            _ => return Err(malformed()),
         }
-        let scalar_arguments = scalar_argument_ids
-            .iter()
-            .map(|argument| self.scalar_value(*argument))
-            .collect::<Result<Vec<_>, _>>()?;
-        let prepared_arguments =
-            self.prepare_structural_call_arguments(callee, structural_arguments)?;
-        self.begin_unit_call(
-            callee,
-            &scalar_arguments,
-            structural_arguments,
-            prepared_arguments,
-            claim_transfers,
-        )?;
-        Ok(OperationFlow::Redispatch)
-    }
-
-    pub(crate) fn execute_call_structural_scalar(
-        &mut self,
-        operation: &terminal_psi::Operation,
-    ) -> Result<OperationFlow, TerminalInterpretError> {
-        dispatched_operation!(operation => CallStructuralScalar {
-            callee, ref arguments, ref structural_arguments, ref claim_transfers, ..
-        });
-        let result = operation.result.scalar().ok_or(malformed())?;
-        let (scalar_arguments, prepared_arguments) =
-            self.resolve_call_arguments(callee, arguments, structural_arguments)?;
-        self.begin_structural_scalar_call(
-            callee,
-            result,
-            &scalar_arguments,
-            structural_arguments,
-            prepared_arguments,
-            claim_transfers,
-        )?;
-        Ok(OperationFlow::Redispatch)
+        self.execute_selected_call(
+            operation,
+            call.callee,
+            call.arguments,
+            call.structural_arguments,
+            operation.kind.claim_transfers(),
+        )
     }
 
     pub(crate) fn execute_select_implementation(
@@ -2952,63 +3300,95 @@ impl<'artifact> TerminalExecution<'artifact> {
             callee: operand, contract, ref arguments, ref structural_arguments,
             ref claim_transfers, ..
         });
-        let crate::boundary::values::TerminalScalarValue::Callable {
-            contract: actual_contract,
-            descriptor,
-        } = self.scalar_value(operand)?
-        else {
-            return Err(malformed());
+        let descriptor = self.scalar_value(operand)?;
+        let sites = program.package_sites()?;
+        let catalog = &program.catalogs.execution.callables;
+        let opened = sites.invocation_contract(self.current_machine, operation.id);
+        let dispatch_contract = if let Some(required) = opened {
+            let crate::boundary::values::TerminalScalarValue::Callable {
+                contract: actual, ..
+            } = descriptor
+            else {
+                return Err(malformed());
+            };
+            if required != contract
+                || !sites.admits_descriptor(
+                    &program.catalogs,
+                    self.current_machine,
+                    operation.id,
+                    actual,
+                )
+            {
+                return Err(malformed());
+            }
+            actual
+        } else {
+            contract
         };
-        if actual_contract != contract
-            || program
-                .catalogs
-                .execution
-                .callables
-                .contract(contract)
-                .is_none()
-        {
-            return Err(malformed());
-        }
-        let selected = program
-            .catalogs
-            .execution
-            .callables
-            .descriptor(descriptor)
-            .ok_or_else(malformed)?;
-        if selected.contract != contract {
-            return Err(malformed());
-        }
-        let callee = selected.machine;
-        let (scalar_arguments, prepared_arguments) =
-            self.resolve_call_arguments(callee, arguments, structural_arguments)?;
-        match &operation.result {
-            terminal_psi::OperationResult::Unit => self.begin_unit_call(
-                callee,
-                &scalar_arguments,
+        let callee = descriptor
+            .selected_machine(catalog, dispatch_contract)
+            .ok_or(malformed())?;
+        if opened.is_some() {
+            let concrete = catalog.contract(dispatch_contract).ok_or(malformed())?;
+            self.opened_call_references = self.prepare_opened_call_references(
+                sites,
+                operation.id,
                 structural_arguments,
-                prepared_arguments,
-                claim_transfers,
-            )?,
-            terminal_psi::OperationResult::Scalar(result) => self.begin_structural_scalar_call(
-                callee,
-                *result,
-                &scalar_arguments,
-                structural_arguments,
-                prepared_arguments,
-                claim_transfers,
-            )?,
-            terminal_psi::OperationResult::Structural(result) => self
-                .begin_structural_result_call(
-                    callee,
-                    result.clone(),
-                    &scalar_arguments,
-                    structural_arguments,
-                    prepared_arguments,
-                    claim_transfers,
-                    crate::engine::execution::ResultClaimOrigin::CalleeReturn,
-                )?,
+                &concrete.structural_parameters,
+            )?;
         }
-        Ok(OperationFlow::Redispatch)
+        let outcome = self.execute_selected_call(
+            operation,
+            callee,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+        );
+        self.opened_call_references.clear();
+        outcome
+    }
+
+    fn prepare_opened_call_references(
+        &self,
+        sites: &terminal_semantics::packages::CheckedPackageSites,
+        operation: semantic_vocabulary::OperationId,
+        arguments: &[terminal_psi::StructuralArgument],
+        parameters: &[terminal_psi::StructuralParameterDeclaration],
+    ) -> Result<
+        crate::storage::runtime_rows::RuntimeRows<
+            crate::boundary::values::StructuralRuntimePlace,
+            semantic_vocabulary::StructuralTypeId,
+        >,
+        TerminalInterpretError,
+    > {
+        let mut references = crate::storage::runtime_rows::RuntimeRows::new(self.account.as_ref());
+        for (index, (arg, param)) in arguments.iter().zip(parameters).enumerate() {
+            let Some(public) = sites.borrowed_argument(self.current_machine, operation, index)
+            else {
+                continue;
+            };
+            let Some((terminal_psi::StructuralPathSegment::Referent, prefix)) =
+                arg.path.split_last()
+            else {
+                return Err(malformed());
+            };
+            let carrier = self.resolve_live_projection(arg.place, prefix, arg.access)?;
+            let (referent, authority) = self.reference_contract(carrier.structural_type)?;
+            if referent != public
+                || arg.access != param.access
+                || !terminal_psi::structural_access_covers(authority, param.access)
+            {
+                return Err(malformed());
+            }
+            let home = crate::boundary::values::StructuralRuntimePlace::from(&carrier);
+            if references
+                .insert(home, param.structural_type)?
+                .is_some_and(|previous| previous != param.structural_type)
+            {
+                return Err(malformed());
+            }
+        }
+        Ok(references)
     }
 
     pub(crate) fn execute_call_dynamic(
@@ -3072,9 +3452,39 @@ impl<'artifact> TerminalExecution<'artifact> {
             matched.ok_or(malformed())?
         };
         let callee = catalog.row(table, slot).ok_or(malformed())?;
-        let (scalar_arguments, prepared_arguments) =
-            self.resolve_call_arguments(callee, arguments, structural_arguments)?;
-        match operation.result {
+        self.execute_selected_call(
+            operation,
+            callee,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+        )
+    }
+
+    fn execute_selected_call(
+        &mut self,
+        operation: &terminal_psi::Operation,
+        callee: semantic_vocabulary::MachineId,
+        arguments: &[semantic_vocabulary::ValueId],
+        structural_arguments: &[terminal_psi::StructuralArgument],
+        claim_transfers: &[ClaimTransfer],
+    ) -> Result<OperationFlow, TerminalInterpretError> {
+        let scalar_arguments = self.scalar_values_at(arguments).map_err(|error| {
+            if matches!(operation.kind, OperationKind::CallUnit { .. }) {
+                error
+            } else {
+                error.in_argument_preparation("read scalar call arguments")
+            }
+        })?;
+        let program = self.program.clone();
+        let opened = program
+            .package_sites()?
+            .invocation_contract(self.current_machine, operation.id)
+            .and_then(|contract| program.catalogs.execution.callables.contract(contract))
+            .map(|contract| (operation, contract));
+        let prepared_arguments =
+            self.prepare_structural_call_at(callee, structural_arguments, opened)?;
+        match &operation.result {
             terminal_psi::OperationResult::Unit => self.begin_unit_call(
                 callee,
                 &scalar_arguments,
@@ -3084,13 +3494,13 @@ impl<'artifact> TerminalExecution<'artifact> {
             )?,
             terminal_psi::OperationResult::Scalar(result) => self.begin_structural_scalar_call(
                 callee,
-                result,
+                *result,
                 &scalar_arguments,
                 structural_arguments,
                 prepared_arguments,
                 claim_transfers,
             )?,
-            terminal_psi::OperationResult::Structural(ref result) => self
+            terminal_psi::OperationResult::Structural(result) => self
                 .begin_structural_result_call(
                     callee,
                     result.clone(),
@@ -3099,60 +3509,9 @@ impl<'artifact> TerminalExecution<'artifact> {
                     prepared_arguments,
                     claim_transfers,
                     crate::engine::execution::ResultClaimOrigin::CalleeReturn,
+                    opened.map(|(_, contract)| contract),
                 )?,
         }
-        Ok(OperationFlow::Redispatch)
-    }
-
-    pub(crate) fn execute_call_structural(
-        &mut self,
-        operation: &terminal_psi::Operation,
-    ) -> Result<OperationFlow, TerminalInterpretError> {
-        dispatched_operation!(operation => CallStructural {
-            callee, ref structural_arguments, ref claim_transfers, ..
-        });
-        let result = operation.result.structural().cloned().ok_or(
-            TerminalInterpretError::VerifiedOperationContractInvalid {
-                reason: "structural call operation has no structural result",
-            },
-        )?;
-        let prepared_arguments =
-            self.prepare_structural_call_arguments(callee, structural_arguments)?;
-        self.begin_structural_result_call(
-            callee,
-            result,
-            &[],
-            structural_arguments,
-            prepared_arguments,
-            claim_transfers,
-            crate::engine::execution::ResultClaimOrigin::CalleeReturn,
-        )?;
-        Ok(OperationFlow::Redispatch)
-    }
-
-    pub(crate) fn execute_call_structural_with_scalar_arguments(
-        &mut self,
-        operation: &terminal_psi::Operation,
-    ) -> Result<OperationFlow, TerminalInterpretError> {
-        dispatched_operation!(operation => CallStructuralWithScalarArguments {
-            callee, ref arguments, ref structural_arguments, ref claim_transfers, ..
-        });
-        let result = operation.result.structural().cloned().ok_or(
-            TerminalInterpretError::VerifiedOperationContractInvalid {
-                reason: "structural call operation has no structural result",
-            },
-        )?;
-        let (scalar_arguments, prepared_arguments) =
-            self.resolve_call_arguments(callee, arguments, structural_arguments)?;
-        self.begin_structural_result_call(
-            callee,
-            result,
-            &scalar_arguments,
-            structural_arguments,
-            prepared_arguments,
-            claim_transfers,
-            crate::engine::execution::ResultClaimOrigin::CalleeReturn,
-        )?;
         Ok(OperationFlow::Redispatch)
     }
 
@@ -3163,13 +3522,23 @@ impl<'artifact> TerminalExecution<'artifact> {
         meter: &mut dyn terminal_work::ExecutionMeter,
         components: &mut crate::embedding::instance::ComponentBindings<'_, 'artifact>,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        if let Some(pending) = self.awaiting_effect.as_ref() {
-            if let Some(status) = self.boundary_effect_wait(operation, handler, pending)? {
-                self.awaiting_effect
-                    .as_mut()
-                    .ok_or(malformed())?
-                    .awaiting_provider_readiness =
-                    matches!(status, TerminalExecutionStatus::AwaitingEffect(_));
+        if let Some(pending) = self.awaiting_effect.as_mut() {
+            operation_kind!(operation => BoundaryCall { boundary, .. });
+            if pending.site.program != self.program.identity
+                || pending.site.machine != self.current_machine
+                || pending.site.block != self.current
+                || pending.site.operation != operation.id
+                || pending.site.boundary != *boundary
+            {
+                return Err(malformed());
+            }
+            if let Some(status) = Self::boundary_effect_wait(
+                operation,
+                handler,
+                pending,
+                self.local_structural_identities.exposure_namespace,
+                &mut self.last_park,
+            )? {
                 return Ok(OperationFlow::Yield(status));
             }
             let pending = self.awaiting_effect.take().ok_or(malformed())?;
@@ -3401,6 +3770,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                         prepared_arguments,
                         &claim_transfers,
                         crate::engine::execution::ResultClaimOrigin::CheckedProvider,
+                        None,
                     )?;
                     let Some(SuspendedCall {
                         result:
@@ -3497,12 +3867,8 @@ impl<'artifact> TerminalExecution<'artifact> {
             ));
         }
 
-        let remaining_claims = complete_claims(
-            &self.live_claims,
-            structural_arguments,
-            completion_receipts,
-            &boundary_declaration.structural_parameters,
-        )?;
+        let remaining_claims =
+            complete_claims(&self.live_claims, structural_arguments, completion_receipts)?;
         boundary_arguments.capture_reference_inputs(boundary_declaration, structural_arguments)?;
         if reference_result {
             boundary_arguments
@@ -3549,7 +3915,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             result: boundary_declaration.result.clone(),
         };
         let mut pending = PendingBoundaryCall {
-            awaiting_provider_readiness: false,
+            park: None,
             site,
             arguments: boundary_arguments,
             remaining_claims,
@@ -3558,9 +3924,13 @@ impl<'artifact> TerminalExecution<'artifact> {
         if layout_snapshot {
             return self.complete_boundary_effect(operation, handler, pending);
         }
-        if let Some(status) = self.boundary_effect_wait(operation, handler, &pending)? {
-            pending.awaiting_provider_readiness =
-                matches!(status, TerminalExecutionStatus::AwaitingEffect(_));
+        if let Some(status) = Self::boundary_effect_wait(
+            operation,
+            handler,
+            &mut pending,
+            self.local_structural_identities.exposure_namespace,
+            &mut self.last_park,
+        )? {
             self.awaiting_effect = Some(Box::new(pending));
             Ok(OperationFlow::Yield(status))
         } else {
@@ -3570,20 +3940,12 @@ impl<'artifact> TerminalExecution<'artifact> {
     }
 
     fn boundary_effect_wait(
-        &self,
         operation: &terminal_psi::Operation,
         handler: &mut impl TerminalEffectHandler,
-        pending: &PendingBoundaryCall,
+        pending: &mut PendingBoundaryCall,
+        namespace: Option<u64>,
+        last_park: &mut u64,
     ) -> Result<Option<TerminalExecutionStatus>, TerminalInterpretError> {
-        operation_kind!(operation => BoundaryCall { boundary, .. });
-        if pending.site.program != self.program.identity
-            || pending.site.machine != self.current_machine
-            || pending.site.block != self.current
-            || pending.site.operation != operation.id
-            || pending.site.boundary != *boundary
-        {
-            return Err(malformed());
-        }
         let ready = handler
             .poll_effect_readiness(&pending.effect)
             .map_err(|rejection| TerminalInterpretError::EffectRejected {
@@ -3599,8 +3961,16 @@ impl<'artifact> TerminalExecution<'artifact> {
             });
         }
         if !ready {
+            let occurrence = match pending.park {
+                Some(existing) => existing,
+                None => crate::suspension::ParkOccurrence::fresh(namespace, last_park)?,
+            };
+            pending.park = Some(occurrence);
             return Ok(Some(TerminalExecutionStatus::AwaitingEffect(
-                pending.site.clone(),
+                crate::TerminalSuspension {
+                    site: pending.site.clone(),
+                    occurrence,
+                },
             )));
         }
         let computed = handler
@@ -3609,6 +3979,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 operation: operation.id,
                 rejection,
             })?;
+        pending.park = None;
         Ok(
             (!computed).then_some(TerminalExecutionStatus::HostComputationPending(
                 pending.site.clone(),
@@ -3766,12 +4137,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         self.live_claims = remaining_claims;
         if let terminal_psi::OperationResult::Structural(result) = &operation.result {
             for binding in &result.claims {
-                crate::engine::custody::bind_result_claim(
-                    &mut self.live_claims,
-                    binding,
-                    result.place,
-                    result.multiplicity,
-                )?;
+                crate::engine::custody::bind_result_claim(&mut self.live_claims, binding, result)?;
             }
         }
         boundary_arguments

@@ -95,8 +95,7 @@ impl LoadAccount {
     }
 }
 
-/// Positions in a module's bodies and declarations: one per operation,
-/// terminator and declared type. Structural validation visits each a bounded
+/// Positions in the module's bodies, declarations and package evidence. Structural validation visits each a bounded
 /// number of times.
 pub(crate) fn module_positions(module: &TerminalModule) -> u64 {
     let bodies = module
@@ -105,9 +104,28 @@ pub(crate) fn module_positions(module: &TerminalModule) -> u64 {
         .flat_map(|machine| &machine.blocks)
         .map(|block| block.operations.len() as u64 + 1)
         .fold(0_u64, u64::saturating_add);
+    let packages = &module.execution.packages;
+    let witnesses = packages
+        .schemas
+        .iter()
+        .map(|s| s.witnesses.len())
+        .chain(packages.openings.iter().map(|o| o.witnesses.len()))
+        .chain(packages.sites.iter().filter_map(|s| match &s.event {
+            terminal_psi::TerminalPackageEvent::Construct { witnesses } => Some(witnesses.len()),
+            _ => None,
+        }));
+    let package_positions = witnesses
+        .chain(packages.openings.iter().map(|o| o.subject.path.len()))
+        .chain([
+            packages.schemas.len(),
+            packages.openings.len(),
+            packages.sites.len(),
+        ])
+        .fold(0_u64, |total, n| total.saturating_add(n as u64));
     bodies
         .saturating_add(module.machines.len() as u64)
         .saturating_add(module.types.structural_types.len() as u64)
+        .saturating_add(package_positions)
 }
 
 /// The upper bound [`crate::prepare_received_execution`] charges: every

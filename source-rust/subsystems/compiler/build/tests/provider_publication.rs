@@ -9,6 +9,8 @@ mod fixture_repository;
 mod function_table;
 #[path = "provider_publication/provider_grants.rs"]
 mod provider_grants;
+#[path = "provider_publication/owned_psi.rs"]
+mod owned_psi;
 
 use compiler::{Artifact, CompileRequest, NativeTarget, Program, TargetProviderInstallation};
 use host_provider_inputs::ProviderInstallationInputs;
@@ -401,9 +403,12 @@ machine build(builder: @mutable BuildPlan) {
             .unwrap_err(),
         "physical adapter belongs to another canonical artifact",
     );
-    let errors = prepare_program(x64.native_realization_proposal(), &republished)
-        .err()
-        .expect("the proposal must use its original publication");
+    let errors = prepare_program(
+        x64.native_realization_proposal(),
+        &republished.clone().into(),
+    )
+    .err()
+    .expect("the proposal must use its original publication");
     assert_eq!(
         errors[0].message,
         "native proposal belongs to another canonical artifact"
@@ -1593,6 +1598,118 @@ data LocalAlias = i64;
 }
 
 #[test]
+fn public_backing_invariant_keeps_mathematical_addition_and_both_fields() {
+    use review_evidence::record::{
+        PackageReviewContractBinaryOperator::{Add, LessOrEqual},
+        PackageReviewContractCallTarget::BuiltinFunction,
+        PackageReviewContractExpression as Expression, PackageReviewContractFact,
+        PackageReviewContractOperatorMeaning::Builtin,
+    };
+    let directory = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "review-buffer-bounds",
+        false,
+    )
+    .unwrap();
+    let build = directory.path().join("build.omg");
+    std::fs::write(
+        &build,
+        r#"machine build(builder: @mutable BuildPlan) {
+        builder.product = BuildProduct::Package { name: "buffer" };
+    }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        directory.path().join("main.omg"),
+        r#"
+        public data Buffer requires embed(self.used) + embed(self.free) <= 18446744073709551615 {
+            used: u64; free: u64;
+        }
+    "#,
+    )
+    .unwrap();
+
+    let policy = reviewed_policy(&build, TargetProfile::LinuxX64).policy;
+    let [data] = policy.public_api.data.as_slice() else {
+        panic!("expected Buffer")
+    };
+    let [
+        PackageReviewContractFact::Expression(Expression::Binary {
+            meaning: Builtin,
+            operator: LessOrEqual,
+            left: sum,
+            right: limit,
+        }),
+    ] = data.invariants.as_slice()
+    else {
+        panic!("expected the capacity bound")
+    };
+    assert_eq!(**limit, Expression::Integer(u64::MAX.to_string()));
+    let Expression::Binary {
+        meaning: Builtin,
+        operator: Add,
+        left,
+        right,
+    } = sum.as_ref()
+    else {
+        panic!("expected a sum of byte counts");
+    };
+    for (operand, field) in [
+        (left, "main.omg::Buffer::used"),
+        (right, "main.omg::Buffer::free"),
+    ] {
+        let Expression::Call {
+            receiver: None,
+            target: BuiltinFunction(symbols::BuiltinFunction::IntegerEmbed),
+            arguments,
+            ..
+        } = operand.as_ref()
+        else {
+            panic!("expected embed of {field}")
+        };
+        assert!(
+            matches!(arguments.as_slice(), [Expression::Member {receiver, member, case_variant: None}]
+            if **receiver == Expression::DomainSubject && member.path == field)
+        );
+    }
+}
+
+#[test]
+fn public_domain_review_keeps_the_element_and_placement_binders_in_order() {
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "review-domain-placement",
+        false,
+    )
+    .unwrap();
+    let root = temporary.path();
+    std::fs::write(
+        root.join("build.omg"),
+        r#"machine build(builder: @mutable BuildPlan) {
+            builder.product = BuildProduct::Package { name: "placements" };
+        }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("main.omg"),
+        "public domain<Value, Policy> Value::At<Policy>;
+         public domain<Element, Location> Element::AlsoAt<Location>;",
+    )
+    .unwrap();
+
+    let policy = reviewed_policy(&root.join("build.omg"), TargetProfile::LinuxX64).policy;
+    let domains = &policy.public_api.domains;
+    assert_eq!(domains.len(), 2);
+    for domain in domains {
+        assert_eq!(domain.type_parameters.len(), 2);
+        let [placement] = domain.index_arguments.as_slice() else {
+            panic!("expected one placement index in {}", domain.identity.path);
+        };
+        assert_ne!(placement, &domain.target_type);
+    }
+    assert_eq!(domains[0].target_type, domains[1].target_type);
+    assert_eq!(domains[0].index_arguments, domains[1].index_arguments);
+}
+
+#[test]
 fn selected_provider_review_preserves_qualified_scalar_parameters() {
     for provider in ["Marked", "Other"] {
         check_qualified_parameter("i32", "self >= 0", "self <= 0", provider, false);
@@ -1945,6 +2062,144 @@ fn selected_provider_review_preserves_declared_crash_suspend_and_stack_contracts
 }
 
 #[test]
+fn a_supplier_exports_one_record_without_selecting_it_for_local_calls() {
+    let tmp =
+        platform_custody::temporary_directory::TemporaryDirectory::create("supplier-export", false)
+            .unwrap();
+    let path = tmp.path().join("build.omg");
+    std::fs::write(
+        &path,
+        r#"use main.omg as app;
+    machine build(builder: @mutable BuildPlan) {
+        builder.product = BuildProduct::Package { name: "numbers" };
+        Build::select_provider::<|app|::Reading, |app|::Internal>(builder, linux_x86_64);
+        Build::export_provider::<|app|::Reading, |app|::External>(builder);
+    }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        tmp.path().join("main.omg"),
+        r#"
+        public data Ticket { number: u64; }
+        public domain Ticket::Issued established by issue;
+        public machine issue(ticket: Ticket) -> Ticket in Issued { ticket as +Issued }
+        public boundary trait Reading {
+            machine value(spare: Ticket, checked: Ticket) -> u64
+            requires checked in Issued reaches none crashes none;
+        }
+        public Internal satisfies Reading {
+            machine value(spare: Ticket, checked: Ticket) -> u64 { 11u64 }
+        }
+        public External satisfies Reading {
+            machine value(spare: Ticket, checked: Ticket) -> u64 { checked.number }
+        }
+    "#,
+    )
+    .unwrap();
+    let target = TargetProfile::LinuxX64;
+    let (stage, inputs) = run_project_build(&path, &[target]);
+    let product = stage
+        .settle_dependency(inputs.clone())
+        .unwrap()
+        .open_product(inputs)
+        .unwrap();
+    let stage = product.product_stage(&[target]).unwrap();
+    let deployed = source_compiler::compile_for_target(stage.source(), target.target_name(), None)
+        .unwrap()
+        .into_parts()
+        .0;
+    let reopened =
+        terminal_codec::CanonicalTerminalArtifact::from_bytes(&deployed.to_bytes()).unwrap();
+    let module = reopened.semantic_module();
+    let [export] = module.interfaces.provider_exports.as_slice() else {
+        panic!("only the explicitly exported satisfaction belongs to the supplier API");
+    };
+    let inventory = component_description::inventory::derive_component_inventory(module).unwrap();
+    assert_eq!(
+        inventory
+            .export_contracts
+            .iter()
+            .filter(|e| e.identity.starts_with("export:provider:"))
+            .count(),
+        1
+    );
+    let [member] = export.members.as_slice() else {
+        panic!("one exported operation")
+    };
+    assert!(
+        module
+            .interfaces
+            .provider_candidates
+            .iter()
+            .any(|candidate| candidate.boundary == member.boundary
+                && candidate.candidate == member.machine
+                && candidate.provider_identity == export.provider_identity)
+    );
+    let local = module
+        .provider_selection(
+            target.target_name(),
+            export.schema_declaration,
+            export.schema_application,
+        )
+        .unwrap();
+    assert_ne!(local.provider_identity, export.provider_identity);
+    let private = module
+        .interfaces
+        .provider_candidates
+        .iter()
+        .find(|row| {
+            row.provider_identity == local.provider_identity && row.boundary == member.boundary
+        })
+        .unwrap();
+    let schema = module
+        .service_schema(export.schema_declaration, export.schema_application)
+        .unwrap();
+    let [method] = schema.surface.methods.as_slice() else {
+        panic!("Reading publishes one method");
+    };
+    let [premise] = method.domain_memberships.as_slice() else {
+        panic!("the saved supplier must publish the issued-ticket premise");
+    };
+    assert_eq!(
+        premise.subject,
+        service_surface::ServiceMembershipSubject::Input(1)
+    );
+    let boundary = module.boundary_machine(member.boundary).unwrap();
+    terminal_semantics::validate_boundary_memberships(module, boundary, method).unwrap();
+    let mut changed = module.clone();
+    let exported_schema = changed
+        .interfaces
+        .service_schemas
+        .iter_mut()
+        .find(|row| {
+            row.declaration == export.schema_declaration
+                && row.application == export.schema_application
+        })
+        .unwrap();
+    let changed_method = &mut std::sync::Arc::make_mut(&mut exported_schema.surface).methods[0];
+    changed_method.domain_memberships[0].subject =
+        service_surface::ServiceMembershipSubject::Input(0);
+    let changed = terminal_codec::ClosedTerminalModule::new(changed).unwrap();
+    assert!(matches!(
+        terminal_codec::ClosedTerminalModule::from_semantic_bytes(changed.semantic_bytes()),
+        Err(terminal_codec::CodecError::MalformedStructuralFoundation(
+            "exported method changes its requirement's domain membership"
+        ))
+    ));
+    let mut forged = export.clone();
+    forged.members[0].machine = private.candidate;
+    assert_eq!(
+        forged.check_members(module),
+        Err("exported member is not this provider's checked candidate")
+    );
+    forged.members.clear();
+    assert_eq!(
+        forged.check_members(module),
+        Err("export must provide one checked member per requirement")
+    );
+}
+
+#[test]
 fn review_and_deployment_publish_the_same_entryless_provider() {
     let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
         "review-entryless-provider",
@@ -1990,6 +2245,22 @@ public ConstantReading satisfies Reading {
     assert_eq!(reviewed.view().identity(), deployed.view().identity());
     let candidates = &reviewed.semantic_module().interfaces.provider_candidates;
     assert_eq!(candidates.len(), 1);
+    assert!(
+        reviewed
+            .semantic_module()
+            .interfaces
+            .provider_exports
+            .is_empty()
+    );
+    let inventory =
+        component_description::inventory::derive_component_inventory(reviewed.semantic_module())
+            .unwrap();
+    assert!(
+        !inventory
+            .export_contracts
+            .iter()
+            .any(|e| e.identity.starts_with("export:provider:"))
+    );
 }
 
 /// A selected provider may publish a guarded crash route its requirement

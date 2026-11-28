@@ -18,6 +18,9 @@ fn unit() -> PsiOptimizationUnit {
             program_fingerprint: SemanticFingerprint::from_bytes([3; 32]),
         },
         work_schedule: WorkScheduleIdentity::new(1).unwrap(),
+        scope_provider_closure: None,
+        lowering_target: None,
+        scalar_values_digest: None,
         entry: MachineId::new(1).unwrap(),
         structural_types: Vec::new().into(),
         structural_domains: Arc::new([]),
@@ -30,7 +33,10 @@ fn unit() -> PsiOptimizationUnit {
         accepted_obligation_facts: Vec::new(),
         identities: Default::default(),
         runtime_evidence: None,
-        functions: Vec::new(),
+        functions: crate::OptimizationFunctions {
+            rows: Vec::new(),
+            digest: crate::identity::unit_encoding::function_digest(&[]),
+        },
     }
 }
 
@@ -49,6 +55,7 @@ fn direct_callees_are_operation_references_for_both_call_forms() {
     let callee = MachineId::new(2).unwrap();
     let returning = AbstractOperation::Call {
         psi_operation: OperationId::new(1).unwrap(),
+        suspension_crossing: None,
         result: ValueId::new(2).unwrap(),
         scalar_type: ScalarType::Boolean,
         callee,

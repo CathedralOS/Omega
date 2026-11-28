@@ -115,7 +115,7 @@ pub(crate) mod entry {
     };
     use crate::instruction_selection::SelectedInstructionError;
     use crate::instruction_selection::selection::aggregate_result_input::{
-        inline_argument_fragments, parameter_home_required,
+        inline_argument_fragments, parameter_homes,
     };
     use crate::instruction_selection::selection::construction::scalar_graph::structural::invalid;
     use crate::instruction_selection::selection::construction::scalar_graph::structural::transport_register;
@@ -136,6 +136,7 @@ pub(crate) mod entry {
         if !accepts_graph(&source.call_plan, &parameters, source.geometry()) {
             return Err(SelectedInstructionError::unsupported_shape(function));
         }
+        builder.transport.parameter_homes = parameter_homes(source, signature);
         for (parameter_index, parameter) in signature.parameters.iter().enumerate() {
             let place = parameter.semantic.place;
             let owned_pointer =
@@ -325,7 +326,7 @@ pub(crate) mod entry {
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
         let place = parameter.semantic.place;
-        if !parameter_home_required(source, place) {
+        if !builder.transport.parameter_homes[parameter.semantic.position as usize] {
             return Ok(());
         }
         let shape = parameter.target.shape;
@@ -643,7 +644,10 @@ pub(crate) mod descriptor_operands {
         if !geometry.readable || source.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
             return None;
         }
-        let shape = terminal_psi::find_structural_type(function.geometry(), geometry.selected)?
+        let shape = function
+            .geometry()
+            .declaration(geometry.selected)
+            .ok()?
             .shape
             .clone();
         Some((geometry, shape))
@@ -696,6 +700,76 @@ pub(crate) mod descriptor_operands {
         let backing =
             projection_base(function, builder, row, source.place, 0)?.ok_or_else(invalid)?;
         Ok(Some([backing, length]))
+    }
+
+    /// Preserve the current start and extent. A dynamically sized slice carries
+    /// its count in word one; a fixed-capacity byte view carries it in its type.
+    pub(crate) fn upgrade(
+        function: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
+        builder: &mut Builder<'_>,
+        row: &legalized_operations::LegalizedScalarInstruction,
+    ) -> Result<(), SelectedInstructionError> {
+        let legalized_operations::LegalizedScalarInstructionKind::UpgradeMutability {
+            result,
+            source,
+            indices,
+            shape,
+        } = &row.kind
+        else {
+            return Err(invalid());
+        };
+        let (selected, from) = source_geometry(function, source).ok_or_else(invalid)?;
+        let geometry = function.geometry();
+        let to = &geometry
+            .declaration(result.structural_type)
+            .map_err(|_| invalid())?
+            .shape;
+        let formal = crate::instruction_selection::selection::arrival_parameter_input::parameter(
+            function,
+            source.place,
+        );
+        let formal_access = formal
+            .filter(|_| source.path.is_empty())
+            .map(|param| param.access);
+        let occurrence = formal_access.filter(|access| *access != terminal_psi::StructuralAccess::Owned).or_else(|| {
+            let multiplicity = formal.map(|param| param.multiplicity).or_else(|| {
+                crate::instruction_selection::selection::aggregate_result_input::operation_result(function, source.place)
+                    .map(|(_, source)| source.multiplicity)
+            })?;
+            terminal_semantics::descriptor_results::descriptor_value_access(geometry.iter(), selected.selected, multiplicity)
+        });
+        if row.result.is_some()
+            || source.access != terminal_psi::StructuralAccess::SharedBorrow
+            || result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
+            || !result.claims.is_empty()
+            || !result.qualification_establishments.is_empty()
+            || !calling_conventions::terminal_layout::is_native_view_descriptor_at(
+                &from,
+                formal_access,
+            )
+            || !calling_conventions::terminal_layout::is_native_view_descriptor(to)
+            || !terminal_semantics::mutability_upgrade_shapes_match(&from, occurrence, to)
+            || crate::instruction_selection::structural_inputs::shape(
+                result.structural_type,
+                geometry,
+            ) != Some(*shape)
+            || crate::instruction_selection::selection::aggregate_result_input::home(
+                function,
+                result.place,
+            ) != Some((row.operation, result))
+        {
+            return Err(invalid());
+        }
+        let (pointer, length) = match to {
+            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedView {
+                ..
+            }) => (backing(function, builder, row, source, indices)?, None),
+            _ => {
+                let [pointer, length] = view_words(function, builder, row, source, indices)?;
+                (pointer, Some(length))
+            }
+        };
+        super::reference::write_descriptor(builder, row, result, pointer, length)
     }
 
     pub(crate) fn backing(
@@ -1918,8 +1992,8 @@ pub(crate) mod activation_storage {
         source.structural.as_ref().ok_or_else(invalid)?;
         let declarations = source.geometry();
         let declaration = declarations
-            .iter()
-            .find(|ty| ty.id == result.structural_type)
+            .declaration(result.structural_type)
+            .ok()
             .ok_or_else(invalid)?;
         let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else {
             return Err(invalid());
@@ -3181,6 +3255,7 @@ pub(crate) mod record {
             result,
             fields: initializers,
             shape,
+            ..
         } = &row.kind
         else {
             return Err(invalid());
@@ -3454,6 +3529,7 @@ pub(crate) mod reference {
                 .ok_or(invalid())?;
         let result = match &row.kind {
             LegalizedScalarInstructionKind::EstablishReference { result, .. }
+            | LegalizedScalarInstructionKind::UpgradeMutability { result, .. }
             | LegalizedScalarInstructionKind::EstablishAccessReference { result, .. } => result,
             _ => return Err(invalid()),
         };
@@ -3551,13 +3627,51 @@ pub(crate) mod reference {
         } else {
             None
         };
-        let byte_size = if codec.is_some() { 16 } else { 8 };
+        write_descriptor(builder, row, result, value, codec)
+    }
+
+    pub(crate) fn borrow_at(
+        source: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
+        row: &LegalizedScalarInstruction,
+        builder: &mut Builder<'_>,
+    ) -> Result<(), SelectedInstructionError> {
+        let (result, address, codec) =
+            crate::instruction_selection::selection::reference_input::native_address(source, row)
+                .ok_or_else(invalid)?;
+        let (_, value, _, address_type) = builder.resolve(address).ok_or_else(invalid)?;
+        if !matches!(address_type, semantic_vocabulary::ClosedScalarType::Integer(integer) if integer.is_address() && integer.bits() == 64)
+        {
+            return Err(invalid());
+        }
+        let codec = codec
+            .map(|codec| {
+                let bits = codec.encode().ok_or_else(invalid)?;
+                let register = transport_register(builder, result.place, 8)?;
+                builder.emit_materialize_i64(
+                    semantic_vocabulary::IntegerValue::Unsigned(u128::from(bits)),
+                    register,
+                    provenance(row),
+                )?;
+                Ok(register)
+            })
+            .transpose()?;
+        write_descriptor(builder, row, result, value, codec)
+    }
+
+    pub(super) fn write_descriptor(
+        builder: &mut Builder<'_>,
+        row: &LegalizedScalarInstruction,
+        result: &terminal_psi::StructuralOperationResult,
+        value: super::VirtualRegisterId,
+        second_word: Option<super::VirtualRegisterId>,
+    ) -> Result<(), SelectedInstructionError> {
+        let byte_size = if second_word.is_some() { 16 } else { 8 };
         let slot =
             builder
                 .transport
                 .push_structural_local_slot(row.operation, result.place, byte_size, 8);
         let home = super::local_storage::address(builder, row, slot, 0, byte_size, true)?;
-        if let Some(codec) = codec {
+        if let Some(second_word) = second_word {
             memory(
                 builder,
                 row,
@@ -3566,7 +3680,7 @@ pub(crate) mod reference {
                 8,
                 SelectedMemoryAccessRole::WritePlace,
             )?;
-            builder.emit_store(8, 8, home, codec, provenance(row))?;
+            builder.emit_store(8, 8, home, second_word, provenance(row))?;
         }
         memory(
             builder,
@@ -3743,13 +3857,15 @@ pub(crate) mod reference {
         address: &crate::instruction_selection::selection::reference_input::BorrowedReferenceAddress,
     ) -> Result<selected_instructions::VirtualRegisterId, SelectedInstructionError> {
         let pointer = super::place_pointer(builder, row, place, 0)?;
-        let (slots, scalar_slot) = match address.pointer_slots.split_last() {
-            Some((last, preceding)) if last.scalar_descriptor => (preceding, Some(last)),
+        let (slots, descriptor_slot) = match address.pointer_slots.split_last() {
+            Some((last, preceding)) if last.scalar_descriptor || address.opened_package => {
+                (preceding, Some(last))
+            }
             _ => (address.pointer_slots.as_slice(), None),
         };
         let (pointer, leaf_index) =
             cross_references(builder, row, place, pointer, &address.indices, slots)?;
-        let (pointer, offset) = if let Some(slot) = scalar_slot {
+        let (pointer, offset) = if let Some(slot) = descriptor_slot {
             if address.referent_offset != 0 || slot.indices.end != address.indices.len() {
                 return Err(invalid());
             }
@@ -3779,7 +3895,72 @@ pub(crate) mod reference {
         };
         let output = transport_register(builder, place, offset)?;
         transport_at_byte_offset(builder, pointer, output, offset, provenance(row))?;
+        if address.opened_package {
+            let slot = descriptor_slot.ok_or_else(invalid)?;
+            return opened_argument(
+                builder,
+                row,
+                place,
+                output,
+                offset,
+                address
+                    .indices
+                    .get(slot.indices.clone())
+                    .ok_or_else(invalid)?,
+            );
+        }
         Ok(output)
+    }
+
+    fn opened_argument(
+        builder: &mut Builder<'_>,
+        row: &impl crate::instruction_selection::selection::construction::scalar_graph::call_arguments::InvocationArgumentSource,
+        place: semantic_vocabulary::PlaceId,
+        descriptor: selected_instructions::VirtualRegisterId,
+        offset: u32,
+        indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
+    ) -> Result<selected_instructions::VirtualRegisterId, SelectedInstructionError> {
+        use super::fragmented_scalar::{binary, constant};
+        use selected_instructions::SelectedInstructionKind as I;
+
+        // The ordinary scalar callee receives the descriptor's address. A record
+        // callee receives the backing address stored in its first word.
+        let layout = runtime_abi::ScalarReferenceLayout::NATIVE;
+        let mut word = |displacement: u32| {
+            let byte_offset = offset.checked_add(displacement).ok_or_else(invalid)?;
+            footprint(
+                builder,
+                row,
+                place,
+                byte_offset,
+                8,
+                indices,
+                super::runtime_address::Written::None,
+            )?;
+            let value = transport_register(builder, place, byte_offset)?;
+            builder.emit_load64(displacement, descriptor, value, provenance(row))?;
+            Ok::<_, SelectedInstructionError>(value)
+        };
+        let backing = word(layout.address_byte_offset)?;
+        let codec = word(layout.codec_byte_offset)?;
+        let zero = constant(builder, row, place, 0)?;
+        let direct = transport_register(builder, place, 0)?;
+        builder.emit(
+            I::CompareI64Zero,
+            builder.constraints.keys.compare_i64_zero,
+            &[codec],
+            provenance(row),
+        )?;
+        builder.emit(
+            I::MaterializeBooleanEqual,
+            builder.constraints.keys.materialize_boolean,
+            &[direct],
+            provenance(row),
+        )?;
+        let direct_mask = binary(builder, row, place, I::WrappingSubtractI64, zero, direct)?;
+        let changed = binary(builder, row, place, I::BitwiseXorI64, descriptor, backing)?;
+        let changed = binary(builder, row, place, I::BitwiseAndI64, changed, direct_mask)?;
+        binary(builder, row, place, I::BitwiseXorI64, descriptor, changed)
     }
 }
 pub(crate) use local_storage::descriptor as stage_descriptor;
@@ -3809,9 +3990,11 @@ pub(crate) mod ieee_float_classify {
             return Err(invalid());
         };
         source.structural.as_ref().ok_or_else(invalid)?;
-        let declaration =
-            terminal_psi::find_structural_type(source.geometry(), result.structural_type)
-                .ok_or_else(invalid)?;
+        let declaration = source
+            .geometry()
+            .declaration(result.structural_type)
+            .ok()
+            .ok_or_else(invalid)?;
         if !result.is_unrestricted_plain()
             || !result.qualification_establishments.is_empty()
             || target_vocabulary::conventional_float_class_layout(declaration).as_ref()
@@ -4728,7 +4911,7 @@ pub(crate) mod fragmented_scalar {
 
     pub(crate) fn constant(
         builder: &mut Builder<'_>,
-        row: &LegalizedScalarInstruction,
+        row: &impl crate::instruction_selection::selection::construction::scalar_graph::call_arguments::InvocationArgumentSource,
         place: PlaceId,
         value: u64,
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
@@ -4743,7 +4926,7 @@ pub(crate) mod fragmented_scalar {
 
     pub(crate) fn binary(
         builder: &mut Builder<'_>,
-        row: &LegalizedScalarInstruction,
+        row: &impl crate::instruction_selection::selection::construction::scalar_graph::call_arguments::InvocationArgumentSource,
         place: PlaceId,
         kind: SelectedInstructionKind,
         left: VirtualRegisterId,
@@ -6087,6 +6270,7 @@ pub(crate) use element_views::element_observation;
 
 #[derive(Default)]
 pub(crate) struct Transport {
+    pub(crate) parameter_homes: Vec<bool>,
     pub(crate) result_pointer: Option<VirtualRegisterId>,
     pub pointers: Vec<(PlaceId, VirtualRegisterId)>,
     pub(crate) views: Vec<ByteViewHomes>,
@@ -6287,15 +6471,6 @@ pub(crate) fn view_element_pointer(
     )
 }
 
-macro_rules! dispatch_kind {
-    ($row:expr, $pattern:pat, $emit:expr) => {
-        if matches!($row.kind, $pattern) {
-            $emit?;
-            return Ok(true);
-        }
-    };
-}
-
 pub(crate) fn operation(
     function: usize,
     source: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
@@ -6305,217 +6480,115 @@ pub(crate) fn operation(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     builder: &mut Builder<'_>,
 ) -> Result<bool, SelectedInstructionError> {
+    use crate::instruction_selection::selection_scalar_graph::{normalized_foreign, unit_call};
     use LegalizedScalarInstructionKind as Kind;
-    dispatch_kind!(
-        row,
-        Kind::InstallStaticInterrupt { .. },
-        interrupt_installation::emit(function, source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::IeeeFloatClassify { .. },
-        ieee_float_classify::establish(source, builder, row)
-    );
-    dispatch_kind!(
-        row,
-        Kind::EstablishByteSequenceConcatenation { .. },
-        byte_concatenation::establish(source, builder, row)
-    );
-    dispatch_kind!(
-        row,
-        Kind::StructuralByteSequenceFieldByteStore { .. },
-        byte_field_store::replace_byte(source, builder, row)
-    );
-    dispatch_kind!(
-        row,
-        Kind::ByteSequenceStore { .. } | Kind::StructuralByteSequenceFieldStore { .. },
-        byte_field_store::replace(source, builder, row)
-    );
-    dispatch_kind!(
-        row,
-        Kind::StructuralByteViewFieldStore { .. },
-        byte_view_field_store::replace(source, builder, row)
-    );
-    dispatch_kind!(
-        row,
-        Kind::ByteSequenceWrite { .. },
-        byte_views::write(source, builder, row)
-    );
-    dispatch_kind!(
-        row,
-        Kind::ElementViewWrite { .. },
-        element_view_write::write(source, builder, row)
-    );
-    dispatch_kind!(
-        row,
-        Kind::EstablishPrimitiveLocal { .. } | Kind::PrimitiveLocalStore { .. },
-        primitive_locals::write(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::EstablishRecord { .. },
-        record::establish(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::StaticInterrupt { .. },
-        static_interrupts::emit(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::AccessLifecycle { .. },
-        access_lifecycles::emit(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::EstablishCase { .. },
-        scalar_case::establish(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::StructuralLeafCopy { .. },
-        leaf_copy::copy(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::StoreStructuralField { .. },
-        leaf_copy::reseat(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::PackedIntegerUnary { .. },
-        packed_integer::emit(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::PackedIntegerBinary { .. },
-        packed_integer::emit(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::EstablishStructuralArray { .. },
-        structural_array::establish(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::EstablishScalarArray { .. },
-        scalar_array::establish(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::EstablishZeroedStructural { .. },
-        zeroed::establish(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::EstablishStructuralLocal { .. },
-        structural_local::establish(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::StructuralScalarFieldStore { .. } | Kind::WriteOnlyPrimitiveStore { .. },
-        scalar_store::emit(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
+    match &row.kind {
+        Kind::InstallStaticInterrupt { .. } => {
+            interrupt_installation::emit(function, source, row, builder)?
+        }
+        Kind::IeeeFloatClassify { .. } => ieee_float_classify::establish(source, builder, row)?,
+        Kind::EstablishByteSequenceConcatenation { .. } => {
+            byte_concatenation::establish(source, builder, row)?
+        }
+        Kind::StructuralByteSequenceFieldByteStore { .. } => {
+            byte_field_store::replace_byte(source, builder, row)?
+        }
+        Kind::ByteSequenceStore { .. } | Kind::StructuralByteSequenceFieldStore { .. } => {
+            byte_field_store::replace(source, builder, row)?
+        }
+        Kind::StructuralByteViewFieldStore { .. } => {
+            byte_view_field_store::replace(source, builder, row)?
+        }
+        Kind::ByteSequenceWrite { .. } => byte_views::write(source, builder, row)?,
+        Kind::ElementViewWrite { .. } => element_view_write::write(source, builder, row)?,
+        Kind::EstablishPrimitiveLocal { .. } | Kind::PrimitiveLocalStore { .. } => {
+            primitive_locals::write(source, row, builder)?
+        }
+        Kind::EstablishRecord { .. } => record::establish(source, row, builder)?,
+        Kind::StaticInterrupt { .. } => static_interrupts::emit(source, row, builder)?,
+        Kind::AccessLifecycle { .. } => access_lifecycles::emit(source, row, builder)?,
+        Kind::EstablishCase { .. } => scalar_case::establish(source, row, builder)?,
+        Kind::StructuralLeafCopy { .. } => leaf_copy::copy(source, row, builder)?,
+        Kind::StoreStructuralField { .. } => leaf_copy::reseat(source, row, builder)?,
+        Kind::PackedIntegerUnary { .. } | Kind::PackedIntegerBinary { .. } => {
+            packed_integer::emit(source, row, builder)?
+        }
+        Kind::EstablishStructuralArray { .. } => structural_array::establish(source, row, builder)?,
+        Kind::EstablishScalarArray { .. } => scalar_array::establish(source, row, builder)?,
+        Kind::EstablishZeroedStructural { .. } => zeroed::establish(source, row, builder)?,
+        Kind::EstablishStructuralLocal { .. } => structural_local::establish(source, row, builder)?,
+        Kind::StructuralScalarFieldStore { .. } | Kind::WriteOnlyPrimitiveStore { .. } => {
+            scalar_store::emit(source, row, builder)?
+        }
         Kind::EstablishActivationClaim { .. }
-            | Kind::SplitActivationClaim { .. }
-            | Kind::MergeActivationClaim { .. }
-            | Kind::ReleaseActivationClaim { .. },
-        activation_storage::emit(source, builder, row)
-    );
-    dispatch_kind!(
-        row,
-        Kind::EstablishNativeCodeLayout { .. },
-        native_code_layout::establish(source, builder, row)
-    );
-    dispatch_kind!(
-        row,
-        Kind::EstablishByteSequenceLiteral { .. },
-        literals::establish(builder, row)
-    );
-    dispatch_kind!(
-        row,
-        Kind::ByteSequenceSubslice { .. } | Kind::ElementViewSubslice { .. },
-        subslice::create(source, builder, row)
-    );
-    dispatch_kind!(
-        row,
-        Kind::EstablishElementView { .. },
-        element_establishment::establish(source, builder, row)
-    );
-    dispatch_kind!(
-        row,
-        Kind::EstablishReference { .. } | Kind::EstablishAccessReference { .. },
-        reference::establish(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::ElementViewFixedArray { .. },
-        reference::establish_view_window(source, row, builder)
-    );
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::ReleaseReference { .. }
-            | LegalizedScalarInstructionKind::DecomposeStructuralValue { .. }
-            | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
-    ) {
-        if row.result.is_some() {
-            return Err(invalid());
+        | Kind::SplitActivationClaim { .. }
+        | Kind::MergeActivationClaim { .. }
+        | Kind::ReleaseActivationClaim { .. } => activation_storage::emit(source, builder, row)?,
+        Kind::EstablishNativeCodeLayout { .. } => {
+            native_code_layout::establish(source, builder, row)?
         }
-        return Ok(true);
-    }
-    if let LegalizedScalarInstructionKind::BoundarySettlement(settlement) = &row.kind {
-        if row.result.is_some()
-            || row.operation != settlement.operation
-            || row.effect != settlement.effect
-            || row.ownership != settlement.ownership
-            || row.work != settlement.work
+        Kind::EstablishByteSequenceLiteral { .. } => literals::establish(builder, row)?,
+        Kind::ByteSequenceSubslice { .. } | Kind::ElementViewSubslice { .. } => {
+            subslice::create(source, builder, row)?
+        }
+        Kind::EstablishElementView { .. } => {
+            element_establishment::establish(source, builder, row)?
+        }
+        Kind::BorrowAt { .. } => reference::borrow_at(source, row, builder)?,
+        Kind::UpgradeMutability { result, .. }
+            if source
+                .geometry()
+                .declaration(result.structural_type)
+                .is_ok_and(|ty| ty.shape.is_view_descriptor()) =>
         {
-            return Err(invalid());
+            descriptor_operands::upgrade(source, builder, row)?
         }
-        let instruction_index = builder
-            .instructions
-            .len()
-            .checked_sub(block_start)
-            .ok_or_else(|| invalid())?;
-        builder
-            .transport
-            .settlements
-            .push(SelectedBoundarySettlement {
-                block,
-                instruction_index: instruction_index.try_into().map_err(|_| invalid())?,
-                settlement:
-                    selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(
-                        settlement.clone(),
-                    ),
-            });
-        return Ok(true);
-    }
-    dispatch_kind!(
-        row,
-        Kind::NormalizedForeignCall(_),
-        crate::instruction_selection::selection::construction::scalar_graph::normalized_foreign::emit(
-            function,
-            source,
-            row,
-            environment,
+        Kind::UpgradeMutability { .. }
+        | Kind::EstablishReference { .. }
+        | Kind::EstablishAccessReference { .. } => reference::establish(source, row, builder)?,
+        Kind::ElementViewFixedArray { .. } => {
+            reference::establish_view_window(source, row, builder)?
+        }
+        Kind::NormalizedForeignCall(_) => {
+            normalized_foreign::emit(function, source, row, environment, builder)?
+        }
+        Kind::ReleaseReference { .. }
+        | Kind::DecomposeStructuralValue { .. }
+        | Kind::EstablishTrivialAffineLocal { .. } => {
+            if row.result.is_some() {
+                return Err(invalid());
+            }
+        }
+        Kind::BoundarySettlement(settlement) => {
+            if row.result.is_some()
+                || row.operation != settlement.operation
+                || row.effect != settlement.effect
+                || row.ownership != settlement.ownership
+                || row.work != settlement.work
+            {
+                return Err(invalid());
+            }
+            let instruction_index = builder
+                .instructions
+                .len()
+                .checked_sub(block_start)
+                .ok_or_else(|| invalid())?;
             builder
-        )
-    );
-    if row.result.is_some() {
-        return Ok(false);
+                .transport
+                .settlements
+                .push(SelectedBoundarySettlement {
+                    block,
+                    instruction_index: instruction_index.try_into().map_err(|_| invalid())?,
+                    settlement:
+                        selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(
+                            settlement.clone(),
+                        ),
+                });
+        }
+        _ if row.result.is_some() => return Ok(false),
+        Kind::Call(_) => unit_call::emit(function, source, row, environment, builder)?,
+        _ => return Err(invalid()),
     }
-    if !matches!(row.kind, LegalizedScalarInstructionKind::Call(_)) {
-        return Err(invalid());
-    }
-    crate::instruction_selection::selection::construction::scalar_graph::unit_call::emit(
-        function,
-        source,
-        row,
-        environment,
-        builder,
-    )?;
     Ok(true)
 }
 

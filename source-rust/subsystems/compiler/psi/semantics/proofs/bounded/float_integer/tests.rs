@@ -3,6 +3,7 @@ use crate::{
     AcceptedProofRule, MathematicalCoreDecision, PrimitiveJudgment, ProofNode, ProofRule,
     accept_certificate, decide_primitive,
 };
+use numerics::float_semantics::{FloatSemanticOperation, FloatToIntegerError};
 use semantic_vocabulary::{
     FloatIntegerConversion, IeeeFloatFormat, IntegerSign, IntegerType, ScalarType, ValueId,
 };
@@ -150,6 +151,33 @@ fn graph(value: IeeeFloatValue, result: i128, saturating: bool) -> Proposition {
         )
         .unwrap(),
     ))
+}
+
+#[test]
+fn boundary_guards_check_the_observed_float_conversion_result() {
+    use closed_predicates::{ClosedIntegerEvaluator, closed_guard_with_float_meanings};
+
+    let input = IeeeFloatValue::Binary64(68.75f64.to_bits());
+    let evaluate = |clause: &Proposition| {
+        closed_guard_with_float_meanings(clause, &mut ClosedIntegerEvaluator::default(), &|_| None)
+            .unwrap()
+    };
+    assert_eq!(evaluate(&graph(input, 68, true)), Some(true));
+    assert_eq!(evaluate(&graph(input, 69, true)), Some(false));
+
+    let Proposition::FloatIntegerConversion(mut conversion) = graph(input, 0, true) else {
+        unreachable!()
+    };
+    conversion.source = scalar(1, IeeeFloatFormat::Binary64);
+    let clause = Proposition::FloatIntegerConversion(conversion);
+    assert_eq!(evaluate(&clause), None);
+    assert_eq!(
+        closed_guard_with_float_meanings(&clause, &mut ClosedIntegerEvaluator::default(), &|_| {
+            Some(FloatMeaning::NaN)
+        })
+        .unwrap(),
+        Some(true)
+    );
 }
 
 #[test]

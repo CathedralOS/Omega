@@ -36,7 +36,7 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process
     }
     machine insert(main: @mutable Main) {
         main.mask = 1u32 as +Wrapping;
-        main.mask = main.mask << main.vals[main.i];
+        main.mask = main.mask << main.vals[main.i as -Wrapping];
         main.bits = main.bits | main.mask;
         main.i = main.i + 1;
         transition { _ -> block ins_step(main) }

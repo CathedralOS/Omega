@@ -411,6 +411,143 @@ impl BorrowedLoanSources {
             }
         }
     }
+
+    /// Returning a descriptor passes on the whole choice made by its
+    /// producing call. Each possible loan must pass normal return cleanup.
+    pub fn returned_loans(self) -> Result<Vec<semantic_vocabulary::ObligationId>, &'static str> {
+        if let Self::Selected(mut choice) = self {
+            return match choice.nodes.remove(&choice.root) {
+                Some(crate::descriptor_lifetimes::LoanChoice::CallResult { loans, .. }) => {
+                    Ok(loans)
+                }
+                _ => Err("returned reference needs the exact loans selected by its producing call"),
+            };
+        }
+        match self.single()? {
+            BorrowedLoanSource::Loan(parent) => Ok(vec![parent]),
+            BorrowedLoanSource::Incoming | BorrowedLoanSource::Provider => Ok(Vec::new()),
+            BorrowedLoanSource::Owner => {
+                Err("owned view backing is not an incoming reference occurrence")
+            }
+        }
+    }
+}
+
+/// Check the permission of a borrowed descriptor from the original provider
+/// invocation. Its lifetime dependencies retain inputs and grant no address.
+pub(crate) fn provider_loan_access(
+    module: &terminal_psi::TerminalModule,
+    machine: &terminal_psi::TerminalMachine,
+    descriptor: &crate::descriptor_lifetimes::DescriptorLocation,
+    origins: &[crate::descriptor_results::DescriptorSourceOrigin],
+) -> Result<Option<StructuralAccess>, &'static str> {
+    if origins.is_empty()
+        || !origins.iter().all(|origin| {
+            matches!(
+                origin,
+                crate::descriptor_results::DescriptorSourceOrigin::Provider(_)
+            )
+        })
+    {
+        return Ok(None);
+    }
+    if origins.iter().any(|origin| {
+        matches!(origin,
+        crate::descriptor_results::DescriptorSourceOrigin::Provider(provider)
+            if provider.invocations.is_empty())
+    }) {
+        return Err("provider view has no establishing invocation");
+    }
+    if origins.iter().any(|origin| {
+        let crate::descriptor_results::DescriptorSourceOrigin::Provider(provider) = origin else {
+            return false;
+        };
+        provider.projection.indirect
+            || !provider
+                .projection
+                .original_descriptor_path()
+                .is_some_and(|path| path.is_empty())
+    }) {
+        return Err("a view inside provider storage needs its own original borrow");
+    }
+    let root = machine
+        .structural_place_type(descriptor.root)
+        .ok_or("provider borrow has no exact descriptor type")?;
+    let mut path = crate::descriptor_lifetimes::descriptor_path(
+        &module.types.structural_types,
+        root,
+        &descriptor.path,
+    )
+    .ok_or("provider borrow has no exact descriptor path")?;
+    let reference_access =
+        crate::runtime_structural_path_tip(module.types.structural_types.iter(), root, &path)
+            .and_then(|row| match row.shape {
+                StructuralTypeShape::Reference {
+                    access:
+                        access @ (StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
+                    ..
+                } => Some(access),
+                _ => None,
+            });
+    if reference_access.is_some() {
+        path.push(StructuralPathSegment::Referent);
+    }
+    let access = reference_access.unwrap_or(StructuralAccess::SharedBorrow);
+    let view = borrowed_descriptor_shape(module, root, &descriptor.path).is_some();
+    if !(view || reference_access.is_some())
+        || crate::structural_projection_authority(
+            machine,
+            &module.types.structural_types,
+            &terminal_psi::StructuralArgument {
+                place: descriptor.root,
+                path,
+                access,
+            },
+        ) != Some(access)
+    {
+        return Err("a writable provider borrow needs its exact payload region");
+    }
+    // A mutable reference can lend its provider's storage when every possible
+    // result grants exclusive access. A writable input debt could be the
+    // original storage; that case still needs a captured write footprint.
+    if access == StructuralAccess::MutableBorrow
+        && !origins.iter().all(|origin| {
+            use crate::descriptor_results::{DescriptorProviderOutput, DescriptorSourceOrigin};
+            let DescriptorSourceOrigin::Provider(provider) = origin else {
+                return false;
+            };
+            let DescriptorProviderOutput::Result(path) = &provider.output else {
+                return false;
+            };
+            let Some(boundary) = module.boundary_machine(provider.boundary) else {
+                return false;
+            };
+            let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result else {
+                return false;
+            };
+            provider
+                .lifetime_dependencies
+                .iter()
+                .all(|debt| debt.access == StructuralAccess::SharedBorrow)
+                && crate::runtime_structural_path_tip(
+                    module.types.structural_types.iter(),
+                    result.structural_type,
+                    path,
+                )
+                .is_some_and(|row| {
+                    matches!(
+                        row.shape,
+                        StructuralTypeShape::Reference {
+                            access: StructuralAccess::MutableBorrow,
+                            ..
+                        }
+                    )
+                })
+        })
+    {
+        return Err("a writable provider borrow needs its exact payload region");
+    }
+    Ok(Some(access))
 }
 
 /// Select one immediate resource when a new borrow or result needs it.
@@ -682,115 +819,16 @@ pub fn borrowed_loan_sources<'a>(
         }
         return Ok(BorrowedLoanSources::Incoming(family));
     }
+    if source_origins.is_none()
+        && analysis
+            .unchanged_selected_input_reference(machine, at, descriptor)
+            .is_some()
+    {
+        return Ok(BorrowedLoanSources::Single(BorrowedLoanSource::Incoming));
+    }
     let origins = source_origins
         .ok_or("reference descriptor has no complete original loan correspondence")?;
-    if !origins.is_empty()
-        && origins.iter().all(|origin| {
-            matches!(
-                origin,
-                crate::descriptor_results::DescriptorSourceOrigin::Provider(_)
-            )
-        })
-    {
-        if origins.iter().any(|origin| {
-            matches!(origin,
-            crate::descriptor_results::DescriptorSourceOrigin::Provider(provider)
-                if provider.invocations.is_empty())
-        }) {
-            return Err("provider view has no establishing invocation");
-        }
-        if origins.iter().any(|origin| {
-            let crate::descriptor_results::DescriptorSourceOrigin::Provider(provider) = origin
-            else {
-                return false;
-            };
-            provider.projection.indirect
-                || !provider
-                    .projection
-                    .original_descriptor_path()
-                    .is_some_and(|path| path.is_empty())
-        }) {
-            return Err("a view inside provider storage needs its own original borrow");
-        }
-        let root = machine
-            .structural_place_type(descriptor.root)
-            .ok_or("provider borrow has no exact descriptor type")?;
-        let mut path = crate::descriptor_lifetimes::descriptor_path(
-            &module.types.structural_types,
-            root,
-            &descriptor.path,
-        )
-        .ok_or("provider borrow has no exact descriptor path")?;
-        let reference_access = crate::runtime_structural_path_tip(
-            module.types.structural_types.iter(),
-            root,
-            &path,
-        )
-        .and_then(|row| match row.shape {
-            StructuralTypeShape::Reference {
-                access: access @ (StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
-                ..
-            } => Some(access),
-            _ => None,
-        });
-        if reference_access.is_some() {
-            path.push(StructuralPathSegment::Referent);
-        }
-        let access = reference_access.unwrap_or(StructuralAccess::SharedBorrow);
-        if !(view || reference_access.is_some())
-            || crate::structural_projection_authority(
-                machine,
-                &module.types.structural_types,
-                &terminal_psi::StructuralArgument {
-                    place: descriptor.root,
-                    path,
-                    access,
-                },
-            ) != Some(access)
-        {
-            return Err("a writable provider borrow needs its exact payload region");
-        }
-        // A mutable reference can lend its provider's storage when every possible
-        // result grants exclusive access. A writable input debt could be the
-        // original storage; that case still needs a captured write footprint.
-        if access == StructuralAccess::MutableBorrow
-            && !origins.iter().all(|origin| {
-                use crate::descriptor_results::{DescriptorProviderOutput, DescriptorSourceOrigin};
-                let DescriptorSourceOrigin::Provider(provider) = origin else {
-                    return false;
-                };
-                let DescriptorProviderOutput::Result(path) = &provider.output else {
-                    return false;
-                };
-                let Some(boundary) = module.boundary_machine(provider.boundary) else {
-                    return false;
-                };
-                let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result
-                else {
-                    return false;
-                };
-                provider
-                    .lifetime_dependencies
-                    .iter()
-                    .all(|debt| debt.access == StructuralAccess::SharedBorrow)
-                    && crate::runtime_structural_path_tip(
-                        module.types.structural_types.iter(),
-                        result.structural_type,
-                        path,
-                    )
-                    .is_some_and(|row| {
-                        matches!(
-                            row.shape,
-                            StructuralTypeShape::Reference {
-                                access: StructuralAccess::MutableBorrow,
-                                ..
-                            }
-                        )
-                    })
-            })
-        {
-            return Err("a writable provider borrow needs its exact payload region");
-        }
+    if provider_loan_access(module, machine, descriptor, &origins)?.is_some() {
         return Ok(BorrowedLoanSources::Single(BorrowedLoanSource::Provider));
     }
     // A fixed-array reference to an incoming view's whole window borrows
@@ -840,30 +878,6 @@ pub fn borrowed_loan_sources<'a>(
     Ok(BorrowedLoanSources::Single(BorrowedLoanSource::Incoming))
 }
 
-pub fn reference_loan_parent<'a>(
-    module: &terminal_psi::TerminalModule,
-    machine: &terminal_psi::TerminalMachine,
-    analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
-    at: crate::descriptor_lifetimes::DescriptorPosition,
-    descriptor: &crate::descriptor_lifetimes::DescriptorLocation,
-    candidates: impl Iterator<
-        Item = (
-            semantic_vocabulary::ObligationId,
-            &'a crate::descriptor_lifetimes::DescriptorLifetime,
-        ),
-    >,
-) -> Result<Option<semantic_vocabulary::ObligationId>, &'static str> {
-    match borrowed_loan_source(module, machine, analysis, at, descriptor, candidates)? {
-        BorrowedLoanSource::Loan(parent) => Ok(Some(parent)),
-        // Both resources were authenticated above and neither was formed by a
-        // local loan obligation. Provider keepalive dependencies have their own ends.
-        BorrowedLoanSource::Incoming | BorrowedLoanSource::Provider => Ok(None),
-        BorrowedLoanSource::Owner => {
-            Err("owned view backing is not an incoming reference occurrence")
-        }
-    }
-}
-
 /// The storage one call input keeps borrowed after the call returns, and
 /// for how long. `path` is the caller's storage path under the input's
 /// place: the argument's own path, or the longer exact source a returned
@@ -873,9 +887,41 @@ pub fn reference_loan_parent<'a>(
 /// lifetimes.md, "Returned views", requires to "remain live for the
 /// result's use".
 pub struct RetainedCallLoan {
+    /// The actual returned descriptor descends from a checked mutability upgrade.
+    pub upgraded_mutability: bool,
     pub position: usize,
     pub path: Vec<StructuralPathSegment>,
     pub lifetime: crate::descriptor_lifetimes::DescriptorLifetime,
+}
+
+impl RetainedCallLoan {
+    /// A checked upgrade of a stored slice lends its payload, including
+    /// when the caller supplied the descriptor inside a record or array.
+    pub fn upgraded_view_descriptor(
+        &self,
+        module: &terminal_psi::TerminalModule,
+        machine: &terminal_psi::TerminalMachine,
+        argument: &terminal_psi::StructuralArgument,
+    ) -> Option<crate::descriptor_lifetimes::DescriptorLocation> {
+        if !self.upgraded_mutability {
+            return None;
+        }
+        let ty = machine.structural_place_type(argument.place)?;
+        let types = &module.types.structural_types;
+        if !crate::runtime_structural_path_tip(types.iter(), ty, &self.path)?
+            .shape
+            .is_view_descriptor()
+        {
+            return None;
+        }
+        crate::descriptor_lifetimes::descriptor_location(
+            types,
+            argument.place,
+            ty,
+            &self.path,
+            None,
+        )
+    }
 }
 
 /// The exact retained region for a bound source beneath `argument`.
@@ -905,12 +951,14 @@ fn retain_call_lifetime(
     retained: &mut Vec<RetainedCallLoan>,
     position: usize,
     path: Vec<StructuralPathSegment>,
+    upgraded_mutability: bool,
     lifetime: crate::descriptor_lifetimes::DescriptorLifetime,
 ) {
-    if let Some(previous) = retained
-        .iter_mut()
-        .find(|previous| previous.position == position && previous.path == path)
-    {
+    if let Some(previous) = retained.iter_mut().find(|previous| {
+        previous.position == position
+            && previous.path == path
+            && previous.upgraded_mutability == upgraded_mutability
+    }) {
         let previous = &mut previous.lifetime;
         if previous.returned_origin != lifetime.returned_origin {
             previous.returned_origin = None;
@@ -927,6 +975,7 @@ fn retain_call_lifetime(
         }
     } else {
         retained.push(RetainedCallLoan {
+            upgraded_mutability,
             position,
             path,
             lifetime,
@@ -1081,6 +1130,7 @@ fn retain_result_dependencies(
             }
             DescriptorStoredOrigin::Invocation { .. }
             | DescriptorStoredOrigin::AccessFormation { .. }
+            | DescriptorStoredOrigin::NativeAddress { .. }
             | DescriptorStoredOrigin::Carried { .. } => {
                 return Err("returned value dependency needs its admitted retention resource");
             }
@@ -1130,6 +1180,7 @@ fn retain_result_dependencies(
             retained,
             position,
             argument.path.clone(),
+            false,
             crate::descriptor_lifetimes::DescriptorLifetime {
                 returned_origin: None,
                 recurring_authority: None,
@@ -1320,7 +1371,7 @@ fn reference_call_lifetimes_with_index(
                         Some(requirement),
                     )
                 } else {
-                    let contents = analysis.result_contents(callee.id).ok_or_else(|| {
+                    let contents = analysis.result_contents(module, callee.id).ok_or_else(|| {
                     // A dependency can fail before its return sources are
                     // exported. Keep that flow's actual machine and site.
                     analysis.flow(callee.id).err().unwrap_or_else(|| {
@@ -1493,19 +1544,21 @@ fn reference_call_lifetimes_with_index(
             .zip(binding.sources)
             .enumerate()
         {
-            let (position, source, transfers_existing) = match (position, bound.origin) {
-                (
-                    Some(position),
-                    ReferenceCallOrigin::Parameter {
-                        source,
-                        transfers_existing,
-                    },
-                ) => (position, source, transfers_existing),
-                // The producing call establishes its own address. Its reconstructed
-                // provider debts below still retain every required input loan.
-                (None, ReferenceCallOrigin::Invocation { .. }) => continue,
-                _ => return Err(refuse("returned reference binding changes its origin")),
-            };
+            let (position, source, transfers_existing, upgraded_mutability) =
+                match (position, bound.origin) {
+                    (
+                        Some(position),
+                        ReferenceCallOrigin::Parameter {
+                            source,
+                            transfers_existing,
+                            upgraded_mutability,
+                        },
+                    ) => (position, source, transfers_existing, upgraded_mutability),
+                    // The producing call establishes its own address. Its reconstructed
+                    // provider debts below still retain every required input loan.
+                    (None, ReferenceCallOrigin::Invocation { .. }) => continue,
+                    _ => return Err(refuse("returned reference binding changes its origin")),
+                };
             if transfers_existing {
                 // The existing descriptor flow transports that input
                 // occurrence. It does not form a new loan of its backing.
@@ -1540,6 +1593,7 @@ fn reference_call_lifetimes_with_index(
                 &mut retained,
                 position,
                 retained_call_path(argument, &source.path),
+                upgraded_mutability,
                 lifetime,
             );
         }
@@ -1606,14 +1660,46 @@ fn reference_call_lifetimes_with_index(
             &mut |path, containing_type, slot| {
                 descriptor_path(&module.types.structural_types, containing_type, &slot.path)
                     .ok_or_else(|| refuse("returned view slot has no typed result leaf"))?;
-                if borrowed_descriptor_shape(module, containing_type, &slot.path).is_none() {
+                let Some(result_shape) = borrowed_descriptor_shape(module, containing_type, &slot.path) else {
                     return Ok(());
-                }
+                };
                 let descriptor = DescriptorLocation {
                     root: result.place,
                     path: path.to_vec(),
                 };
                 for origin in &slot.origins {
+                    let upgraded = crate::stored_reference_access(&result_shape) == Some(StructuralAccess::MutableBorrow)
+                        && matches!(origin,
+                        crate::descriptor_results::DescriptorStoredOrigin::Parameter { projection, .. }
+                            | crate::descriptor_results::DescriptorStoredOrigin::IncomingContents { projection, .. }
+                            if projection.upgraded_mutability
+                    );
+                    if upgraded {
+                        let (position, path) = super::reference_origins::descriptor_regions::descriptor_input_origin_path(
+                            &module.types.structural_types, parameters, origin,
+                        ).map_err(refuse)?;
+                        let argument = arguments.get(position)
+                            .ok_or_else(|| refuse("upgraded view result has no actual input"))?;
+                        let formal = &parameters[position];
+                        let mut input_path = Vec::new();
+                        for step in path {
+                            if crate::runtime_structural_path_tip(module.types.structural_types.iter(), formal.structural_type, &input_path)
+                                .is_some_and(|row| row.shape.is_view_descriptor())
+                            {
+                                break;
+                            }
+                            let terminal_psi::ReferenceOriginProjection::Exact(segment) = step else { break; };
+                            input_path.push(segment);
+                        }
+                        let mut actual_path = argument.path.clone();
+                        actual_path.extend(input_path);
+                        let lifetime = compute_lifetime(&descriptor);
+                        if lifetime.live.contains(&at) {
+                            return Err(refuse("upgraded view result loan crosses its own call formation"));
+                        }
+                        retain_call_lifetime(&mut retained, position, retained_call_path(argument, &actual_path), true, lifetime);
+                        continue;
+                    }
                     let crate::descriptor_results::DescriptorStoredOrigin::Parameter {
                         position,
                         projection,
@@ -1649,7 +1735,13 @@ fn reference_call_lifetimes_with_index(
                     if lifetime.live.contains(&at) {
                         return Err(refuse("returned view loan crosses its own call formation"));
                     }
-                    retain_call_lifetime(&mut retained, *position, argument.path.clone(), lifetime);
+                    retain_call_lifetime(
+                        &mut retained,
+                        *position,
+                        argument.path.clone(),
+                        false,
+                        lifetime,
+                    );
                 }
                 Ok::<(), crate::descriptor_results::DescriptorGraphError>(())
             },

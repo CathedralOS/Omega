@@ -2,8 +2,8 @@
 
 use super::*;
 use abstract_operations::{
-    AbstractBlock, AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractParameter,
-    AbstractResult, AbstractStructuralCallResult,
+    AbstractBlock, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperationPlan, AbstractParameter, AbstractResult, AbstractStructuralCallResult,
 };
 use semantic_vocabulary::{
     BlockId, CallableContractId, ContractId, EdgeId, MachineDescriptorId, MachineId, OperationId,
@@ -63,9 +63,11 @@ fn function(
 fn call(id: u64, callee: AbstractCallTarget, arguments: Vec<ValueId>) -> AbstractOperation {
     AbstractOperation::CallStructural {
         psi_operation: operation(id),
+        suspension_crossing: None,
         callee,
         arguments,
         structural_arguments: Vec::new(),
+        opening: None,
         claim_transfers: Vec::new(),
         result: AbstractStructuralCallResult::Unit,
         requirement_obligations: Vec::new(),
@@ -77,6 +79,7 @@ fn catalog() -> TerminalCallableCatalog {
         contracts: vec![TerminalCallableContract {
             id: contract(),
             identity: TerminalIdentityIndex(1),
+            requirement: None,
             scalar_parameters: Vec::new(),
             parameter_order: Vec::new(),
             structural_parameters: Vec::new(),

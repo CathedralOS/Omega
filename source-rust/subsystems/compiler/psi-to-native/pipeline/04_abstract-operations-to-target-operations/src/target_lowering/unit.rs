@@ -135,7 +135,8 @@ pub(crate) mod boundary_call {
         };
         use super::super::super::scalar_abi::fixed_native_scalar_shape;
         use super::super::super::structural_layout::{
-            reference_referent_projection, resolve_structural_projection_path, structural_shape,
+            ReferenceEndpoint, reference_referent_projection, resolve_structural_projection_path,
+            structural_shape,
         };
         use super::{
             AbstractFunction, BoundaryMachineId, CallSignature, LoweringError, NativeTarget,
@@ -372,6 +373,7 @@ pub(crate) mod boundary_call {
                                 return Err(LoweringError::BoundaryRealizationMismatch(boundary));
                             }
                             return Ok(TargetStructuralArgument {
+                                opened_referent: None,
                                 place: argument.place,
                                 access: argument.access,
                                 path: argument.path.clone(),
@@ -422,7 +424,7 @@ pub(crate) mod boundary_call {
                             source_structural_type,
                             &argument.path,
                             argument.access,
-                            Some(parameter.structural_type),
+                            ReferenceEndpoint::Storage(Some(parameter.structural_type)),
                             structural_types,
                         )
                         .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
@@ -527,6 +529,7 @@ pub(crate) mod boundary_call {
                         }
                     }
                     Ok(TargetStructuralArgument {
+                        opened_referent: None,
                         place: argument.place,
                         access: argument.access,
                         path: argument.path.clone(),
@@ -852,6 +855,7 @@ pub(crate) mod boundary_call {
         match operation {
             AbstractOperation::BoundaryCall {
                 psi_operation,
+                suspension_crossing,
                 result,
                 boundary,
                 arguments,
@@ -955,6 +959,7 @@ pub(crate) mod boundary_call {
                         })?;
                     operations.push(TargetUnitOperation::NormalizedForeignCall {
                         psi_operation: *psi_operation,
+                        suspension_crossing: *suspension_crossing,
                         boundary: *boundary,
                         provider_execution,
                         binding: foreign.clone(),
@@ -1588,6 +1593,7 @@ pub(crate) mod roster_arguments {
                 return Err(argument_type_mismatch(callee, argument.place));
             }
             return Ok(TargetStructuralArgument {
+                opened_referent: None,
                 place: argument.place,
                 access: argument.access,
                 path: Vec::new(),
@@ -1625,6 +1631,7 @@ pub(crate) mod roster_arguments {
                 return Err(argument_type_mismatch(callee, argument.place));
             }
             return Ok(TargetStructuralArgument {
+                opened_referent: None,
                 place: argument.place,
                 access: argument.access,
                 path: Vec::new(),
@@ -1738,6 +1745,7 @@ pub(crate) mod roster_arguments {
             ),
         };
         let projected_argument = move || TargetStructuralArgument {
+            opened_referent: None,
             place: argument.place,
             access: argument.access,
             path: argument.path.clone(),
@@ -2042,6 +2050,7 @@ pub(crate) mod roster_arguments {
                 callee_parameter.structural_type,
             ) == Some(terminal_semantics::BorrowedReferentPresentation::Unchanged);
         Ok(Some(TargetStructuralArgument {
+            opened_referent: None,
             place: argument.place,
             access: argument.access,
             path: argument.path.clone(),

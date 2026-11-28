@@ -14,11 +14,17 @@ request it cannot resolve stays on the owning declaration for lowering to
 report if the program needs it. The subsequent passes attach domain theories
 and field identities to the trees. Stage 06 checks the resulting lowered form.
 
+An owned-activation operation has no Omega body. When its reply type is
+known, specialization closes its parameter and result types just as it would
+for a checked body, but leaves the declaration bodyless. Later stages retain
+the selected core operation; they do not look for a provider for it.
+
 ## The list today
 
 | Pass | What it writes | Who reads it |
 | --- | --- | --- |
 | [specialization](src/passes/specialization.rs) | For a call that applies static arguments (`relay::<u8>(..)`, `advance::<Hold>(..)`): which parameter each argument is for, on the call's application; and, when the arguments are closed, the machine the application selects, generated from the generic machine with each parameter replaced, which the call then enters | Structural elaboration: an open application in a generic machine is read from its bindings (`read/calls.rs`, `type_arguments`), a generated machine as any closed machine, and its declaration states the generic machine and the application (`declare.rs`, `application`) |
+| [conformance headers](src/passes/conformance_headers.rs) | Closed signatures for concrete provider requirements, including those without a source call | Lowering reads the required inputs and result from each closed signature |
 | [domain applications](src/passes/domain_applications.rs) | The declaration’s carrier, proof facts and cleanup selection with its retained type and value arguments substituted, or a refusal on that application | Structural elaboration reads the theory for the exact declaration and semantic domain identity |
 
 Record patterns already carry their record and field identities from typing.
@@ -34,11 +40,13 @@ through that dispatch. [Active-case expansion](src/passes/specialization/reflect
 Specialization serves type parameters given plain named types (a builtin
 type, a data declaration with no parameters, a type parameter in scope) and
 implementation parameters given plain named implementations (one with no
-parameters, of exactly the bound's trait, or an implementation parameter in
-scope), on a generic machine of one state with a body. Both kinds are bound
+parameters, of exactly the bound's trait at the types supplied for the
+binders before it, such as `CoinByBoth` for `E satisfies
+EqualImpliesIdentity<T>` with `T` given `Coin`, or an implementation
+parameter in scope), on a generic machine of one state with a body. Both kinds are bound
 through one operand shape. In the machine generated for an implementation,
-each call through the parameter enters the machine the implementation selects
-for that requirement and records the requirement it was written against
+each call through the parameter, in the body or a clause, enters the machine
+the implementation selects for that requirement and records the requirement it was written against
 (`StaticRequirementDispatch`), which structural elaboration reads
 (`read/calls.rs`, `requirement_call`). Two names of one implementation value
 are one application. A call that names a trait's requirement and applies the
@@ -128,6 +136,13 @@ retains the constants it names and the deployments that admitted its evaluation.
 A pending deployment stays explicit. Build reads its constant dependencies from
 this result after lowering. Source admission refuses unsupported wire demands
 before evaluation.
+
+When a computation supplies a type argument such as `Buffer<capacity()>`,
+[constant argument preparation](src/constant_arguments.rs) stores its typed
+literal at the original type occurrence and updates dependent array lengths,
+domain facts and data members. The evaluator runs this operation before it
+plans the next argument. Specialization also runs it for expressions copied
+into a concrete machine.
 
 An array type such as `[u8; WIDTH]` names the constant that supplies its length.
 Preparation reads the evaluated value from that declaration for both a literal

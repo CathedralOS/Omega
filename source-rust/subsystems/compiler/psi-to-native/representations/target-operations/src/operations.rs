@@ -201,6 +201,8 @@ pub enum TargetUnitOperation {    InstallStaticInterrupt {
         indices: Vec<TargetStructuralRuntimeIndex>,
     },
     PrimitiveScalarRead {
+        /// Type of the stored scalar before a dependent callable field is opened.
+        storage_scalar: semantic_vocabulary::ScalarType,
         psi_operation: OperationId,
         result: AbstractResult,
         source: PlaceId,
@@ -404,6 +406,7 @@ pub enum TargetUnitOperation {    InstallStaticInterrupt {
     EstablishRecord {
         psi_operation: OperationId,
         result_home: crate::TargetStructuralHomeRequirement,
+        instantiated: operation_operands::structural_stores::InstantiatedFieldTypes,
         fields: Vec<terminal_psi::RecordFieldInitializer>,
     },
     EstablishAccessReference {
@@ -411,6 +414,17 @@ pub enum TargetUnitOperation {    InstallStaticInterrupt {
         result_home: crate::TargetStructuralHomeRequirement,
         source: StructuralArgument,
         correspondence: operation_operands::access_references::AccessReferenceBacking,
+        indices: Vec<TargetStructuralRuntimeIndex>,
+    },
+    BorrowAt {
+        psi_operation: OperationId,
+        result_home: crate::TargetStructuralHomeRequirement,
+        address: ValueId,
+    },
+    UpgradeMutability {
+        psi_operation: OperationId,
+        result_home: crate::TargetStructuralHomeRequirement,
+        source: StructuralArgument,
         indices: Vec<TargetStructuralRuntimeIndex>,
     },
     EstablishReference {
@@ -447,6 +461,7 @@ pub enum TargetUnitOperation {    InstallStaticInterrupt {
     Call {
         origin: NativeCallOrigin,
         psi_operation: OperationId,
+        suspension_crossing: Option<semantic_vocabulary::SuspensionCrossingId>,
         target: crate::NativeCallTarget,
         call_plan: CallPlan,
         result: crate::TargetCallResult,
@@ -488,6 +503,7 @@ pub enum TargetUnitOperation {    InstallStaticInterrupt {
     },
     NormalizedForeignCall {
         psi_operation: OperationId,
+        suspension_crossing: Option<semantic_vocabulary::SuspensionCrossingId>,
         boundary: BoundaryMachineId,
         provider_execution: ExternalExecutionBinding,
         binding: NormalizedForeignCallBinding,
@@ -682,6 +698,16 @@ impl TargetUnitOperation {
                 ..
             }
             | Self::EstablishRecord {
+                psi_operation,
+                result_home,
+                ..
+            }
+            | Self::BorrowAt {
+                psi_operation,
+                result_home,
+                ..
+            }
+            | Self::UpgradeMutability {
                 psi_operation,
                 result_home,
                 ..

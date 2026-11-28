@@ -223,6 +223,7 @@ fn signature(parameters: Vec<ScalarType>, result: Option<ScalarType>) -> Signatu
         erased: Vec::new(),
         borrowed: Vec::new(),
         result: result.map(ValueType::plain),
+        membership_requires: Vec::new(),
         membership_ensures: Vec::new(),
         content_ensures: Vec::new(),
         requires: Vec::new(),
@@ -2661,7 +2662,14 @@ fn member(base: Expression, field: usize, result: ValueType) -> Expression {
 }
 
 fn literal(fields: Vec<(usize, Expression)>, result: ValueType) -> Expression {
-    of_type(ExpressionKind::Record { fields, erased: Vec::new() }, result)
+    of_type(
+        ExpressionKind::Record {
+            package_witnesses: Vec::new(),
+            fields,
+            erased: Vec::new(),
+        },
+        result,
+    )
 }
 
 fn bind(slot: usize, value: Expression) -> Statement {

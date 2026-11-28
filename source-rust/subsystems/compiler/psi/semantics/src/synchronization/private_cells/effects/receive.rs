@@ -1,8 +1,8 @@
 //! Replay every feasible returned alternative over the caller's actual cells.
 use super::super::storage::Arrivals;
 use super::{
-    Bindings, Effect, NormalEffects, ProgressFailure, ProgressScope, NormalReturn, ScalarFact,
-    Storage, Stored, Subject,
+    Bindings, Effect, NormalEffects, NormalReturn, ProgressFailure, ProgressScope, ReturnedScalar,
+    ScalarFact, Storage, Stored, Subject,
 };
 use crate::synchronization::progress::comparison::Evidence;
 use semantic_vocabulary::Proposition;
@@ -17,7 +17,7 @@ impl NormalEffects {
         scalar: impl Fn(usize) -> Option<ScalarFact>,
         requirements: &[Proposition],
         scope: ProgressScope,
-    ) -> Option<Result<(), ProgressFailure>> {
+    ) -> Option<Result<Option<ScalarFact>, ProgressFailure>> {
         let entry = Evidence::new(requirements, &memory.conditions);
         let possible = |path: &NormalReturn| {
             let mut inputs = Vec::new();
@@ -44,16 +44,21 @@ impl NormalEffects {
             return first.apply(memory, bindings, actuals, &scalar, requirements, scope);
         };
         let mut joined: Option<Storage> = None;
+        let mut returned = None;
         let mut failure = None;
         let mut opaque = false;
         for path in [first, second].into_iter().chain(paths) {
             let mut branch = memory.clone();
             match path.apply(&mut branch, bindings, actuals, &scalar, requirements, scope) {
-                Some(Ok(())) => {
+                Some(Ok(result)) => {
                     if let Some(previous) = &mut joined {
+                        if returned != result {
+                            returned = None;
+                        }
                         let before = previous.clone();
                         previous.join(&branch, Arrivals::new(&before, &branch));
                     } else {
+                        returned = result;
                         joined = Some(branch);
                     }
                 }
@@ -77,7 +82,7 @@ impl NormalEffects {
             return None;
         }
         *memory = joined?;
-        Some(Ok(()))
+        Some(Ok(returned))
     }
 }
 
@@ -90,7 +95,7 @@ impl NormalReturn {
         scalar: &impl Fn(usize) -> Option<ScalarFact>,
         requirements: &[Proposition],
         scope: ProgressScope,
-    ) -> Option<Result<(), ProgressFailure>> {
+    ) -> Option<Result<Option<ScalarFact>, ProgressFailure>> {
         for decision in &self.when {
             if let Some(condition) = decision.selector.actual_inputs(scalar) {
                 memory.assume(condition.selected(decision.answer));
@@ -104,13 +109,39 @@ impl NormalReturn {
             let root = memory.locate(bindings, actual.place, &actual.path)?;
             memory.project(root, &subject.fixed_path()?)
         };
-        for decision in &self.when {
-            if let Some(test) = decision.selector.actual_inputs(scalar) {
-                memory.assume(test.selected(decision.answer));
-            }
-        }
+        let mut ordinal = 0;
+        let mut observed_result = None;
         for event in &self.events {
             match event {
+                Effect::Observe {
+                    subject,
+                    scalar_type,
+                    update,
+                } => {
+                    let Some(place) = locate(memory, subject) else {
+                        return self
+                            .events
+                            .iter()
+                            .any(|event| matches!(event, Effect::Acquire(_)))
+                            .then_some(Err(ProgressFailure::UnprovedImport));
+                    };
+                    let prior = memory.get(&place);
+                    if self.scalar_result
+                        == Some(ReturnedScalar::Observation {
+                            ordinal,
+                            scalar_type: *scalar_type,
+                        })
+                        && !place.includes_shared()
+                    {
+                        observed_result = prior.scalar(*scalar_type);
+                    }
+                    ordinal += 1;
+                    if let Some(next) = prior
+                        .after_observation(*scalar_type, *update, |operand| operand.binding(scalar))
+                    {
+                        memory.set(&place, next);
+                    }
+                }
                 Effect::Acquire(acquisition) => {
                     let Some(place) = locate(memory, &acquisition.subject) else {
                         return Some(Err(ProgressFailure::UnprovedImport));
@@ -146,6 +177,10 @@ impl NormalReturn {
                 }
             }
         }
-        Some(Ok(()))
+        Some(Ok(match self.scalar_result {
+            Some(ReturnedScalar::Operand(operand)) => operand.binding(scalar),
+            Some(ReturnedScalar::Observation { .. }) => observed_result,
+            None => None,
+        }))
     }
 }

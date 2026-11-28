@@ -130,8 +130,11 @@ pub(crate) mod borrowed_argument {
         let storage_loan = storage_root
             .filter(|root| {
                 owned_storage_shape(*root, source.geometry()).is_some()
-                    || terminal_psi::find_structural_type(source.geometry(), *root).is_some_and(
-                        |declaration| {
+                    || source
+                        .geometry()
+                        .declaration(*root)
+                        .ok()
+                        .is_some_and(|declaration| {
                             matches!(
                                 declaration.shape,
                                 terminal_psi::StructuralTypeShape::Reference { .. }
@@ -382,7 +385,7 @@ pub(crate) mod borrowed_argument {
             && established_view_loan.is_none()
             && projected_loan.is_none();
         if source.attachment.is_some_and(|attachment| {
-            !terminal_psi::find_structural_type(source.geometry(), attachment).is_some()
+            source.geometry().declaration(attachment).is_err()
         }) || (!parameters.is_empty()
             && !crate::instruction_selection::structural_inputs::structural_unit_input::accepts_graph(
                 &source.call_plan,
@@ -550,8 +553,7 @@ pub(crate) mod borrowed_argument {
                 && *placement == incoming.target.placement)
                 .then_some(shape);
         }
-        let declaration =
-            terminal_psi::find_structural_type(source.geometry(), root.structural_type)?;
+        let declaration = source.geometry().declaration(root.structural_type).ok()?;
         if calling_conventions::terminal_layout::opaque_borrow_transport(
             &declaration.shape,
             semantic.access,
@@ -710,7 +712,7 @@ pub(crate) mod input_site {
             return None;
         };
         let (block, position) = use_cut(source, site)?;
-        let block = source.blocks.iter().find(|actual| actual.id == block)?;
+        let block = source.block(block)?;
         if position != block.instructions.len() {
             return None;
         }
@@ -756,10 +758,7 @@ pub(crate) mod input_site {
             return None;
         };
         let (block, position) = use_cut(source, site)?;
-        let block = source
-            .blocks
-            .iter()
-            .find(|candidate| candidate.id == block)?;
+        let block = source.block(block)?;
         if position != block.instructions.len() {
             return None;
         }
@@ -795,6 +794,7 @@ pub(crate) mod input_site {
             )
             .unwrap();
             let call = |requirement| LegalizedScalarCall {
+                suspension_crossing: None,
                 source: NativeCallOrigin::Authored,
                 target: NativeCallTarget::Machine(MachineId::new(2).unwrap()),
                 call_plan: call_plan.clone(),
@@ -1190,6 +1190,9 @@ pub(crate) mod normalized_foreign {
             .zip(&call.structural_arguments)
             .zip(&call.structural_indices)
         {
+            if argument.opened_referent.is_some() {
+                return Err(invalid!());
+            }
             let signature = source.structural.as_ref().ok_or_else(|| invalid!())?;
             let parameter = signature
                 .parameters
@@ -1366,12 +1369,23 @@ pub(crate) mod normalized_foreign {
                 )
                 .ok_or_else(|| invalid!())?
             };
-            let projected_shape =
-                crate::instruction_selection::structural_inputs::structural_reference_input::shape(
+            let opaque = source
+                .geometry()
+                .iter()
+                .find(|ty| ty.id == projected_type)
+                .and_then(|ty| {
+                    calling_conventions::terminal_layout::opaque_borrow_transport(
+                        &ty.shape,
+                        argument.access,
+                    )
+                });
+            let projected_shape = match opaque {
+                Some(pointer) => pointer,
+                None => crate::instruction_selection::structural_inputs::structural_reference_input::shape(
                     projected_type,
                     source.geometry(),
-                )
-                .ok_or_else(|| invalid!())?;
+                ).ok_or_else(|| invalid!())?,
+            };
             let (storage_shape, abi_shape) = match argument.access {
                 terminal_psi::StructuralAccess::Owned => {
                     let admitted_root = if argument.path.is_empty() {
@@ -1424,10 +1438,12 @@ pub(crate) mod normalized_foreign {
                             return Err(invalid!());
                         }
                         (
-                            ValueShape::borrowed_reference(
-                                projected_shape.byte_size,
-                                projected_shape.alignment,
-                            ),
+                            opaque.unwrap_or_else(|| {
+                                ValueShape::borrowed_reference(
+                                    projected_shape.byte_size,
+                                    projected_shape.alignment,
+                                )
+                            }),
                             ValueShape::integer(u32::from(pointer_size), pointer_alignment),
                         )
                     }
@@ -2014,6 +2030,23 @@ pub(crate) fn validate(
             owned_argument::validate_owned_arguments(source, call, operation).ok_or_else(invalid)?;
         }
         for (argument_index, argument) in call.arguments.iter().enumerate() {
+            if let LegalizedScalarArgument::Structural {
+                semantic, target, ..
+            } = argument
+                && target.opened_referent.is_some()
+                && (!matches!(owner, target_vocabulary::CallSiteOwner::Operation(_))
+                    || !matches!(call.source, target_vocabulary::NativeCallOrigin::Authored)
+                    || !matches!(
+                        call.target,
+                        target_vocabulary::NativeCallTarget::Callable { .. }
+                    )
+                    || semantic.access == StructuralAccess::Owned
+                    || semantic.path.last() != Some(&terminal_psi::StructuralPathSegment::Referent))
+            {
+                return Err(SelectedInstructionError::custody_because(
+                    "an opened reference belongs to an authored indirect call argument",
+                ));
+            }
             if matches!(argument, LegalizedScalarArgument::Structural { semantic, .. } if semantic.access != StructuralAccess::Owned)
             {
                 validate_borrowed_argument(source, call, operation, argument_index)

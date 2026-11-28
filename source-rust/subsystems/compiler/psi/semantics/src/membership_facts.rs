@@ -2,6 +2,11 @@
 //! declared types. Storage transfers and invalidations come from the shared
 //! storage graph; descriptor origins alone do not establish membership.
 
+mod inputs;
+mod service;
+pub(crate) use inputs::refinement as input_membership_refinement;
+pub use service::{same_boundary_memberships, validate_boundary_memberships};
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::{
@@ -9,7 +14,7 @@ use semantic_vocabulary::{
     StructuralDomainId, StructuralTypeId, ValueId,
 };
 use terminal_psi::{
-    Operation, OperationResult, RuntimeDomainMembership, StructuralParameterDeclaration,
+    CallSite, Operation, OperationResult, RuntimeDomainMembership, StructuralParameterDeclaration,
     StructuralPathQualification, TargetMachineCallable, TerminalMachine, TerminalModule,
     ValueDeclaration,
 };
@@ -217,11 +222,19 @@ type Dependencies = Option<BTreeSet<Dependency>>;
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct Facts(BTreeMap<Fact, Dependencies>);
 
-fn combine_dependencies(left: &mut Dependencies, right: &Dependencies) {
+fn combine_dependencies(left: &mut Dependencies, right: &Dependencies) -> bool {
     match (left, right) {
-        (Some(left), Some(right)) => left.extend(right.iter().cloned()),
-        (left, None) => *left = None,
-        (None, Some(_)) => {}
+        (Some(left), Some(right)) => {
+            let previous_len = left.len();
+            for dependency in right {
+                if !left.contains(dependency) {
+                    left.insert(dependency.clone());
+                }
+            }
+            left.len() != previous_len
+        }
+        (left, None) => left.take().is_some(),
+        (None, Some(_)) => false,
     }
 }
 
@@ -254,7 +267,7 @@ impl Facts {
                 entry.insert(dependencies);
             }
             std::collections::btree_map::Entry::Occupied(mut entry) => {
-                combine_dependencies(entry.get_mut(), &dependencies)
+                combine_dependencies(entry.get_mut(), &dependencies);
             }
         }
     }
@@ -426,36 +439,52 @@ impl Facts {
     }
 
     fn intersect(&mut self, incoming: &Self) -> bool {
-        let before = self.clone();
+        let mut changed = false;
         self.0.retain(|fact, dependencies| {
             let Some(incoming) = incoming.0.get(fact) else {
+                changed = true;
                 return false;
             };
-            combine_dependencies(dependencies, incoming);
+            changed |= combine_dependencies(dependencies, incoming);
             true
         });
-        *self != before
+        changed
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum MembershipFailure {
+    Unavailable(Option<MachineId>),
+    UnmetInput { machine: MachineId, site: CallSite },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct MembershipError {
-    pub machine: Option<MachineId>,
+    pub(super) failure: MembershipFailure,
     pub detail: &'static str,
+}
+
+impl MembershipError {
+    pub(super) fn machine(&self) -> Option<MachineId> {
+        match self.failure {
+            MembershipFailure::Unavailable(machine) => machine,
+            MembershipFailure::UnmetInput { machine, .. } => Some(machine),
+        }
+    }
 }
 
 type Judged<T> = Result<T, MembershipError>;
 
 fn unavailable(machine: impl Into<Option<MachineId>>, detail: &'static str) -> MembershipError {
     MembershipError {
-        machine: machine.into(),
+        failure: MembershipFailure::Unavailable(machine.into()),
         detail,
     }
 }
 
-/// The declared result and the exact value delivered on this completion.
-/// No input or neighboring declaration can stand in for that result.
-enum ResultBinding {
+/// Rebase an exact formal or normal result onto one actual value or storage path.
+#[derive(Clone)]
+enum SubjectBinding {
     Unit,
     Scalar {
         formal: ValueId,
@@ -469,7 +498,7 @@ enum ResultBinding {
     },
 }
 
-impl ResultBinding {
+impl SubjectBinding {
     fn membership(
         &self,
         module: &TerminalModule,
@@ -479,35 +508,38 @@ impl ResultBinding {
         let invalid = || {
             unavailable(
                 machine,
-                "membership promise does not name its exact normal result",
+                "routed membership does not match its declared subject and carrier",
             )
         };
-        let location = |root,
-                        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
-                        version| {
-            let Self::Structural {
-                formal,
-                carrier,
-                actual,
-            } = self
-            else {
-                return Err(invalid());
+        let location =
+            |root, path: &[semantic_vocabulary::CanonicalStructuralPathSegment], version| {
+                let Self::Structural {
+                    formal,
+                    carrier,
+                    actual,
+                } = self
+                else {
+                    return Err(invalid());
+                };
+                if root != *formal || version != ContentPlaceVersion::Current {
+                    return Err(invalid());
+                }
+                let selected = canonical_descriptor_location(
+                    &module.types.structural_types,
+                    *formal,
+                    *carrier,
+                    path,
+                )
+                .ok_or_else(|| {
+                    unavailable(
+                        machine,
+                        "routed membership projection has no exact carrier path",
+                    )
+                })?;
+                selected
+                    .transported(&DescriptorLocation::whole(*formal), actual)
+                    .ok_or_else(invalid)
             };
-            if root != *formal || version != ContentPlaceVersion::Current {
-                return Err(invalid());
-            }
-            let selected =
-                canonical_descriptor_location(&module.types.structural_types, *formal, *carrier, path)
-                    .ok_or_else(|| {
-                        unavailable(
-                            machine,
-                            "membership result projection has no exact carrier path",
-                        )
-                    })?;
-            selected
-                .transported(&DescriptorLocation::whole(*formal), actual)
-                .ok_or_else(invalid)
-        };
         match row {
             RuntimeDomainMembership::Scalar {
                 subject: ScalarTerm::Value { id, scalar_type },
@@ -523,7 +555,7 @@ impl ResultBinding {
                 };
                 let declared = crate::scalar_qualifications::scalar_domain(module, *domain)
                     .ok_or_else(|| {
-                        unavailable(machine, "membership result names an absent scalar domain")
+                        unavailable(machine, "routed membership names an absent scalar domain")
                     })?;
                 if id != formal || scalar_type != carrier || declared.carrier != *carrier {
                     return Err(invalid());
@@ -559,7 +591,7 @@ impl ResultBinding {
                 };
                 let declared = crate::scalar_qualifications::scalar_domain(module, *domain)
                     .ok_or_else(|| {
-                        unavailable(machine, "membership result names an absent scalar domain")
+                        unavailable(machine, "routed membership names an absent scalar domain")
                     })?;
                 if declared.carrier != subject.scalar_type()
                     || crate::canonical_primitive_read_type(
@@ -588,13 +620,14 @@ impl ResultBinding {
                     return Err(invalid());
                 };
                 let declared = module
-                    .types.structural_domains
+                    .types
+                    .structural_domains
                     .iter()
                     .find(|row| row.id == *domain)
                     .ok_or_else(|| {
                         unavailable(
                             machine,
-                            "membership result names an absent structural domain",
+                            "routed membership names an absent structural domain",
                         )
                     })?;
                 if crate::canonical_structural_path_tip(
@@ -624,9 +657,11 @@ fn scalar_declarations(module: &TerminalModule, values: &[ValueDeclaration]) -> 
     for value in values {
         let domains =
             crate::scalar_qualifications::qualification_domains(module, value.qualifications)
-                .ok_or(MembershipError {
-                    machine: None,
-                    detail: "membership source lost its declared scalar domain set",
+                .ok_or_else(|| {
+                    unavailable(
+                        None,
+                        "membership source lost its declared scalar domain set",
+                    )
                 })?;
         facts.extend(domains.iter().map(|domain| Fact {
             subject: Subject::Value(value.id),
@@ -701,16 +736,22 @@ fn parameter_declarations(
     Ok(facts)
 }
 
-fn operation_call(
-    module: &TerminalModule,
+fn call_contract<'m>(
+    module: &'m TerminalModule,
     machine: &TerminalMachine,
-    operation: &Operation,
-) -> Judged<Vec<Fact>> {
-    let (formal, rows) = if let Some(inputs) = operation.declared_invocation() {
-        match inputs.callee {
+    declared: Option<terminal_psi::ModuleInvocationInputs<'_, TargetMachineCallable>>,
+    callable: Option<terminal_psi::CallableInvocationInputs<'_>>,
+) -> Judged<Option<(Vec<Fact>, SubjectBinding, &'m [RuntimeDomainMembership])>> {
+    let header = if let Some(call) = declared {
+        let arguments = Some(inputs::Arguments {
+            machine,
+            values: call.arguments,
+            places: call.structural_arguments,
+        });
+        match call.callee {
             TargetMachineCallable::Machine(callee) => {
                 let header = module
-                    .invocation_machine_contract(callee, inputs.required_contract)
+                    .invocation_machine_contract(callee, call.required_contract)
                     .ok_or_else(|| {
                         unavailable(
                             machine.id,
@@ -718,6 +759,7 @@ fn operation_call(
                         )
                     })?;
                 (
+                    inputs::of_contract(module, header, arguments)?,
                     result_binding(&header.result),
                     header.membership_ensures.as_slice(),
                 )
@@ -727,49 +769,80 @@ fn operation_call(
                     unavailable(machine.id, "membership call lost its boundary declaration")
                 })?;
                 (
+                    inputs::of_boundary(module, boundary, arguments)?,
                     boundary_binding(Some(machine.id), boundary)?,
                     boundary.membership_ensures.as_slice(),
                 )
             }
         }
-    } else if let Some(inputs) = operation.kind.callable_invocation() {
-        let contract = module.execution.callables.contract(inputs.contract).ok_or_else(|| {
-            unavailable(
-                machine.id,
-                "membership call lost its exact callable contract",
-            )
-        })?;
+    } else if let Some(call) = callable {
+        let contract = module
+            .execution
+            .callables
+            .contract(call.contract)
+            .ok_or_else(|| {
+                unavailable(
+                    machine.id,
+                    "membership call lost its exact callable contract",
+                )
+            })?;
+        let arguments = Some(inputs::Arguments {
+            machine,
+            values: call.arguments,
+            places: call.structural_arguments,
+        });
         (
+            inputs::of_contract(module, &contract.proof, arguments)?,
             result_binding(&contract.proof_result),
             contract.proof.membership_ensures.as_slice(),
         )
     } else {
-        return Ok(Vec::new());
+        return Ok(None);
+    };
+    Ok(Some(header))
+}
+
+fn operation_call(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+) -> Judged<(Vec<Fact>, Vec<Fact>)> {
+    let Some((required, formal, rows)) = call_contract(
+        module,
+        machine,
+        operation.declared_invocation(),
+        operation.kind.callable_invocation(),
+    )?
+    else {
+        return Ok(Default::default());
     };
     if rows.is_empty() {
-        return Ok(Vec::new());
+        return Ok((required, Vec::new()));
     }
     let actual = match &operation.result {
-        OperationResult::Unit => ResultBinding::Unit,
-        OperationResult::Scalar(value) => ResultBinding::Scalar {
+        OperationResult::Unit => SubjectBinding::Unit,
+        OperationResult::Scalar(value) => SubjectBinding::Scalar {
             formal: value.id,
             carrier: value.scalar_type,
             actual: value.id,
         },
-        OperationResult::Structural(value) => ResultBinding::Structural {
+        OperationResult::Structural(value) => SubjectBinding::Structural {
             formal: value.place,
             carrier: value.structural_type,
             actual: DescriptorLocation::whole(value.place),
         },
     };
     let binding = bind_result(Some(machine.id), formal, &actual)?;
-    rows.iter()
+    let produced = rows
+        .iter()
         .map(|row| binding.membership(module, Some(machine.id), row))
-        .collect()
+        .collect::<Judged<_>>()?;
+    Ok((required, produced))
 }
 
 #[derive(Default)]
 struct Event {
+    required: Vec<(CallSite, Fact)>,
     produced: Vec<Fact>,
     declared: Vec<Fact>,
 }
@@ -791,21 +864,26 @@ fn operation_event(
             &value.projected_qualifications,
         )?,
     };
+    let (required, produced) = operation_call(module, machine, operation)?;
     Ok(Event {
-        produced: operation_call(module, machine, operation)?,
+        required: required
+            .into_iter()
+            .map(|fact| (CallSite::Operation(operation.id), fact))
+            .collect(),
+        produced,
         declared,
     })
 }
 
-fn result_binding(result: &terminal_psi::TerminalMachineResult) -> ResultBinding {
+fn result_binding(result: &terminal_psi::TerminalMachineResult) -> SubjectBinding {
     match result {
-        terminal_psi::TerminalMachineResult::Unit => ResultBinding::Unit,
-        terminal_psi::TerminalMachineResult::Scalar(result) => ResultBinding::Scalar {
+        terminal_psi::TerminalMachineResult::Unit => SubjectBinding::Unit,
+        terminal_psi::TerminalMachineResult::Scalar(result) => SubjectBinding::Scalar {
             formal: result.id,
             carrier: result.scalar_type,
             actual: result.id,
         },
-        terminal_psi::TerminalMachineResult::Structural(result) => ResultBinding::Structural {
+        terminal_psi::TerminalMachineResult::Structural(result) => SubjectBinding::Structural {
             formal: result.place,
             carrier: result.structural_type,
             actual: DescriptorLocation::whole(result.place),
@@ -815,35 +893,35 @@ fn result_binding(result: &terminal_psi::TerminalMachineResult) -> ResultBinding
 
 fn bind_result(
     machine: Option<MachineId>,
-    formal: ResultBinding,
-    actual: &ResultBinding,
-) -> Judged<ResultBinding> {
+    formal: SubjectBinding,
+    actual: &SubjectBinding,
+) -> Judged<SubjectBinding> {
     Ok(match (formal, actual) {
-        (ResultBinding::Unit, ResultBinding::Unit) => ResultBinding::Unit,
+        (SubjectBinding::Unit, SubjectBinding::Unit) => SubjectBinding::Unit,
         (
-            ResultBinding::Scalar {
+            SubjectBinding::Scalar {
                 formal, carrier, ..
             },
-            ResultBinding::Scalar {
+            SubjectBinding::Scalar {
                 carrier: actual_type,
                 actual,
                 ..
             },
-        ) if carrier == *actual_type => ResultBinding::Scalar {
+        ) if carrier == *actual_type => SubjectBinding::Scalar {
             formal,
             carrier,
             actual: *actual,
         },
         (
-            ResultBinding::Structural {
+            SubjectBinding::Structural {
                 formal, carrier, ..
             },
-            ResultBinding::Structural {
+            SubjectBinding::Structural {
                 carrier: actual_type,
                 actual,
                 ..
             },
-        ) if carrier == *actual_type => ResultBinding::Structural {
+        ) if carrier == *actual_type => SubjectBinding::Structural {
             formal,
             carrier,
             actual: actual.clone(),
@@ -880,7 +958,7 @@ fn prepare_promises(module: &TerminalModule) -> Judged<Vec<(MachineId, Fact)>> {
         .collect::<BTreeSet<_>>();
     let mut promises = Vec::new();
     let mut append = |machine: &TerminalMachine,
-                      binding: ResultBinding,
+                      binding: SubjectBinding,
                       rows: &[RuntimeDomainMembership]|
      -> Judged<()> {
         for row in rows {
@@ -901,9 +979,6 @@ fn prepare_promises(module: &TerminalModule) -> Judged<Vec<(MachineId, Fact)>> {
         )?;
     }
     for header in &module.execution.declaration_contracts {
-        if header.membership_ensures.is_empty() {
-            continue;
-        }
         let Some(selected) = &header.selected_application else {
             continue;
         };
@@ -913,6 +988,11 @@ fn prepare_promises(module: &TerminalModule) -> Judged<Vec<(MachineId, Fact)>> {
                 "membership public contract has no checked realization",
             )
         })?;
+        inputs::entails(module, header.into(), (&machine.contract).into())
+            .map_err(|reason| unavailable(machine.id, reason))?;
+        if header.membership_ensures.is_empty() {
+            continue;
+        }
         let binding = bind_result(
             Some(machine.id),
             result_binding(&header.result),
@@ -927,15 +1007,34 @@ fn prepare_promises(module: &TerminalModule) -> Judged<Vec<(MachineId, Fact)>> {
                 "membership provider has no boundary requirement",
             )
         })?;
-        if boundary.membership_ensures.is_empty() {
-            continue;
-        }
         let machine = module.machine(candidate.candidate).ok_or_else(|| {
             unavailable(
                 candidate.candidate,
                 "membership provider has no checked realization",
             )
         })?;
+        if !machine.contract.membership_requires.is_empty() {
+            let scalar = boundary.scalar_contract_parameters().ok_or_else(|| {
+                unavailable(
+                    machine.id,
+                    "provider input membership has no exact public parameters",
+                )
+            })?;
+            inputs::entails(
+                module,
+                inputs::Formals {
+                    values: &scalar,
+                    places: &boundary.structural_parameters,
+                    rows: &boundary.membership_requires,
+                    scalar_domains: &boundary.scalar_domain_requirements,
+                },
+                (&machine.contract).into(),
+            )
+            .map_err(|reason| unavailable(machine.id, reason))?;
+        }
+        if boundary.membership_ensures.is_empty() {
+            continue;
+        }
         let binding = bind_result(
             Some(machine.id),
             boundary_binding(Some(machine.id), boundary)?,
@@ -1053,15 +1152,15 @@ pub(crate) fn normal_membership_refinement(
     Ok(())
 }
 
-fn bind_return_fact(machine: MachineId, binding: &ResultBinding, fact: &Fact) -> Judged<Fact> {
+fn bind_return_fact(machine: MachineId, binding: &SubjectBinding, fact: &Fact) -> Judged<Fact> {
     let subject = match (binding, &fact.subject) {
-        (ResultBinding::Scalar { formal, actual, .. }, Subject::Value(value))
+        (SubjectBinding::Scalar { formal, actual, .. }, Subject::Value(value))
             if value == formal =>
         {
             Subject::Value(*actual)
         }
         (
-            ResultBinding::Structural { formal, actual, .. },
+            SubjectBinding::Structural { formal, actual, .. },
             Subject::Storage {
                 version: ContentPlaceVersion::Current,
                 location,
@@ -1093,9 +1192,9 @@ fn bind_return_fact(machine: MachineId, binding: &ResultBinding, fact: &Fact) ->
 fn boundary_binding(
     machine: Option<MachineId>,
     boundary: &terminal_psi::BoundaryMachineDeclaration,
-) -> Judged<ResultBinding> {
+) -> Judged<SubjectBinding> {
     Ok(match &boundary.result {
-        terminal_psi::BoundaryMachineResult::Unit => ResultBinding::Unit,
+        terminal_psi::BoundaryMachineResult::Unit => SubjectBinding::Unit,
         terminal_psi::BoundaryMachineResult::Scalar(value) => {
             let formal = boundary
                 .scalar_contract_result()
@@ -1103,7 +1202,7 @@ fn boundary_binding(
                 .ok_or_else(|| {
                     unavailable(machine, "boundary membership result identity overflow")
                 })?;
-            ResultBinding::Scalar {
+            SubjectBinding::Scalar {
                 formal,
                 carrier: value.scalar_type,
                 actual: formal,
@@ -1119,7 +1218,7 @@ fn boundary_binding(
                         "boundary membership result place identity overflow",
                     )
                 })?;
-            ResultBinding::Structural {
+            SubjectBinding::Structural {
                 formal,
                 carrier: value.structural_type,
                 actual: DescriptorLocation::whole(formal),
@@ -1132,124 +1231,27 @@ fn validate_roster(machine: Option<MachineId>, rows: &[RuntimeDomainMembership])
     if rows.windows(2).any(|pair| pair[0] >= pair[1]) {
         return Err(unavailable(
             machine,
-            "normal membership guarantee roster is not canonical",
+            "routed membership roster is not canonical",
         ));
     }
     Ok(())
 }
 
-/// Join published normal-result facts to the complete authored service method.
-/// Recomputing a header digest cannot authorize a different guarantee.
-pub fn validate_boundary_normal_memberships(
-    module: &TerminalModule,
-    boundary: &terminal_psi::BoundaryMachineDeclaration,
-    method: &service_surface::ServiceMethod,
-) -> Result<(), String> {
-    use service_surface::{
-        ServiceNormalResultMembership, ServiceResultProjection,
-    };
-    use semantic_vocabulary::CanonicalStructuralPathSegment as Path;
-    validate_roster(None, &boundary.membership_ensures).map_err(|error| error.detail)?;
-    let binding = boundary_binding(None, boundary).map_err(|error| error.detail)?;
-    let identity = |index| {
-        module
-            .identities
-            .text(index)
-            .filter(|text| !text.is_empty())
-            .ok_or("normal-result membership lost its exact semantic identity")
-    };
-    let mut actual = Vec::with_capacity(boundary.membership_ensures.len());
-    for row in &boundary.membership_ensures {
-        let _ = binding
-            .membership(module, None, row)
-            .map_err(|error| error.detail)?;
-        let (path, domain) = match row {
-            RuntimeDomainMembership::Scalar { subject, domain } => {
-                let path = match subject {
-                    ScalarTerm::Value { .. } => &[][..],
-                    ScalarTerm::BooleanField { path, .. }
-                    | ScalarTerm::IntegerField { path, .. }
-                    | ScalarTerm::IeeeFloatField { path, .. } => path.as_slice(),
-                    _ => return Err("normal-result membership has no exact result selector".into()),
-                };
-                let domain = crate::scalar_qualifications::scalar_domain(module, *domain)
-                    .ok_or("normal-result membership names an absent scalar domain")?;
-                (path, identity(domain.identity)?)
-            }
-            RuntimeDomainMembership::Structural { path, domain, .. } => {
-                let domain =
-                    crate::exactly_one::exactly_one(module.types.structural_domains.iter(), |row| {
-                        row.id == *domain
-                    })
-                    .ok_or("normal-result membership names no unique structural domain")?;
-                (path.as_slice(), identity(domain.identity)?)
-            }
-        };
-        let mut portable = Vec::with_capacity(path.len());
-        if !path.is_empty() {
-            let ResultBinding::Structural { carrier, .. } = &binding else {
-                return Err("normal-result projection has no structural result".into());
-            };
-            for (ordinal, step) in path.iter().enumerate() {
-                portable.push(match step {
-                    Path::Field(field) => {
-                        let field = crate::observed_field_declaration(
-                            module.types.structural_types.iter(),
-                            *carrier,
-                            &path[..ordinal],
-                            *field,
-                        )
-                        .ok_or("normal-result membership field has no exact declaration")?;
-                        ServiceResultProjection::Field(identity(field.identity)?.to_owned())
-                    }
-                    Path::Case(case) => {
-                        let tip = crate::canonical_structural_path_tip(
-                            module.types.structural_types.iter(),
-                            *carrier,
-                            &path[..ordinal],
-                        )
-                        .ok_or("normal-result membership case has no exact carrier")?;
-                        let cases = tip
-                            .shape
-                            .sum_cases()
-                            .ok_or("normal-result membership case is not a sum")?;
-                        let case =
-                            crate::exactly_one::exactly_one(cases.iter(), |row| row.id == *case)
-                                .ok_or("normal-result membership case has no unique declaration")?;
-                        ServiceResultProjection::Case(identity(case.identity)?.to_owned())
-                    }
-                    Path::FixedIndex(index) => ServiceResultProjection::FixedIndex(*index),
-                    Path::Referent => continue,
-                });
-            }
-        }
-        actual.push(ServiceNormalResultMembership {
-            path: portable,
-            domain: domain.to_owned(),
-        });
-    }
-    actual.sort();
-    if actual.windows(2).any(|pair| pair[0] == pair[1])
-        || method
-            .normal_result_memberships
-            .iter()
-            .any(|row| !row.has_exact_identity())
-        || method
-            .normal_result_memberships
-            .windows(2)
-            .any(|pair| pair[0] >= pair[1])
-        || actual != method.normal_result_memberships
-    {
-        return Err(
-            "native requirement changes its authored normal-result membership guarantees".into(),
-        );
-    }
-    Ok(())
-}
-
-fn validate_boundary_outputs(module: &TerminalModule) -> Judged<()> {
+fn validate_boundary_headers(module: &TerminalModule) -> Judged<()> {
     let diagnostic = None;
     for boundary in &module.interfaces.boundary_machines {
+        if !boundary.membership_requires.is_empty() {
+            let values = boundary
+                .scalar_contract_parameters()
+                .ok_or_else(|| unavailable(None, "input membership lost its boundary formals"))?;
+            inputs::validate_header(
+                module,
+                &values,
+                &boundary.structural_parameters,
+                &boundary.membership_requires,
+                &boundary.scalar_requires,
+            )?;
+        }
         if boundary.membership_ensures.is_empty() {
             continue;
         }
@@ -1269,16 +1271,14 @@ fn validate_boundary_outputs(module: &TerminalModule) -> Judged<()> {
     Ok(())
 }
 
-/// A nominal promise does not replace its numeric or structural predicates.
-/// They remain ordinary guarantees, checked against actual result values.
+/// A routed domain retains each predicate as an ordinary clause on the same subject.
 fn validate_predicates<'a>(
     module: &TerminalModule,
     machine: Option<MachineId>,
-    binding: &ResultBinding,
+    binding: &SubjectBinding,
     memberships: &[RuntimeDomainMembership],
-    ensures: impl Clone + Iterator<Item = &'a semantic_vocabulary::Proposition>,
+    clauses: impl Clone + Iterator<Item = &'a semantic_vocabulary::Proposition>,
 ) -> Judged<()> {
-    use semantic_vocabulary::Proposition;
     for row in memberships {
         let promised = match row {
             RuntimeDomainMembership::Scalar { domain, .. } => Domain::Scalar(*domain),
@@ -1287,7 +1287,7 @@ fn validate_predicates<'a>(
         let required = required_domains(module, promised).ok_or_else(|| {
             unavailable(
                 machine,
-                "membership guarantee lost its complete domain requirements",
+                "membership contract lost its complete domain requirements",
             )
         })?;
         for domain in required {
@@ -1295,7 +1295,7 @@ fn validate_predicates<'a>(
                 (RuntimeDomainMembership::Scalar { subject, .. }, Domain::Scalar(domain)) => {
                     let domain = crate::scalar_qualifications::scalar_domain(module, domain)
                         .ok_or_else(|| {
-                            unavailable(machine, "membership guarantee lost its scalar domain")
+                            unavailable(machine, "membership contract lost its scalar domain")
                         })?;
                     domain.predicate.as_ref().map(|predicate| {
                         crate::substitution::substitute_proposition_values_with(
@@ -1313,13 +1313,13 @@ fn validate_predicates<'a>(
                         .iter()
                         .find(|row| row.id == domain)
                         .ok_or_else(|| {
-                            unavailable(machine, "membership guarantee lost its structural domain")
+                            unavailable(machine, "membership contract lost its structural domain")
                         })?;
                     let replacement = (*root, path.clone());
-                    let ResultBinding::Structural { carrier, .. } = binding else {
+                    let SubjectBinding::Structural { carrier, .. } = binding else {
                         return Err(unavailable(
                             machine,
-                            "structural predicate has no result carrier",
+                            "structural predicate has no subject carrier",
                         ));
                     };
                     domain
@@ -1340,19 +1340,16 @@ fn validate_predicates<'a>(
                 _ => {
                     return Err(unavailable(
                         machine,
-                        "membership guarantee changes its domain carrier role",
+                        "membership contract changes its domain carrier role",
                     ));
                 }
             };
             if let Some(predicate) = predicate
-                && predicate != Proposition::Truth
-                && !ensures.clone().any(|clause| {
-                    crate::scalar_qualifications::retains_conjunct(clause, &predicate)
-                })
+                && !crate::scalar_qualifications::retains_predicate(&predicate, clauses.clone())
             {
                 return Err(unavailable(
                     machine,
-                    "membership guarantee lost its independent result predicate",
+                    "routed membership lost its independent domain predicate",
                 ));
             }
         }
@@ -1361,8 +1358,9 @@ fn validate_predicates<'a>(
 }
 
 fn validate_headers(module: &TerminalModule) -> Judged<()> {
-    validate_boundary_outputs(module)?;
+    validate_boundary_headers(module)?;
     for machine in &module.machines {
+        inputs::validate_contract(module, &machine.contract)?;
         validate_roster(Some(machine.id), &machine.contract.membership_ensures)?;
         let binding = result_binding(&machine.result);
         for row in &machine.contract.membership_ensures {
@@ -1381,6 +1379,7 @@ fn validate_headers(module: &TerminalModule) -> Judged<()> {
         )?;
     }
     for contract in &module.execution.callables.contracts {
+        inputs::validate_contract(module, &contract.proof)?;
         validate_roster(None, &contract.proof.membership_ensures)?;
         let binding = result_binding(&contract.proof_result);
         for row in &contract.proof.membership_ensures {
@@ -1403,6 +1402,7 @@ fn validate_headers(module: &TerminalModule) -> Judged<()> {
             .selected_application
             .as_ref()
             .map(|selected| selected.realization);
+        inputs::validate_contract(module, header)?;
         validate_roster(machine, &header.membership_ensures)?;
         let binding = result_binding(&header.result);
         for row in &header.membership_ensures {
@@ -1489,6 +1489,8 @@ impl<'m> BodyMemberships<'m> {
 
 struct MachineMembershipFacts {
     machine: MachineId,
+    #[cfg(test)]
+    peak_incoming_states: usize,
     before: Vec<(DescriptorPosition, Facts)>,
     edges: Vec<(EdgeId, DescriptorPosition)>,
     cast_sources: Vec<CastMembershipSource>,
@@ -1598,12 +1600,12 @@ fn observed_defaults(
 fn returned_binding(
     machine: &TerminalMachine,
     terminator: &terminal_psi::Terminator,
-) -> Judged<Option<ResultBinding>> {
+) -> Judged<Option<SubjectBinding>> {
     Ok(match (terminator, &machine.result) {
         (
             terminal_psi::Terminator::Return { value, .. },
             terminal_psi::TerminalMachineResult::Scalar(result),
-        ) => Some(ResultBinding::Scalar {
+        ) => Some(SubjectBinding::Scalar {
             formal: result.id,
             carrier: result.scalar_type,
             actual: *value,
@@ -1611,7 +1613,7 @@ fn returned_binding(
         (
             terminal_psi::Terminator::ReturnStructural { source, .. },
             terminal_psi::TerminalMachineResult::Structural(result),
-        ) => Some(ResultBinding::Structural {
+        ) => Some(SubjectBinding::Structural {
             formal: result.place,
             carrier: result.structural_type,
             actual: DescriptorLocation::whole(*source),
@@ -1619,7 +1621,7 @@ fn returned_binding(
         (
             terminal_psi::Terminator::ReturnUnit { .. },
             terminal_psi::TerminalMachineResult::Unit,
-        ) => Some(ResultBinding::Unit),
+        ) => Some(SubjectBinding::Unit),
         (
             terminal_psi::Terminator::Return { .. }
             | terminal_psi::Terminator::ReturnStructural { .. }
@@ -1637,8 +1639,8 @@ fn returned_binding(
 
 /// A return captures the value before cleanup. Its own image moves to the
 /// result, while contained references keep depending on their original storage.
-fn capture_return(state: &mut Facts, source: &ResultBinding) {
-    let ResultBinding::Structural { actual: source, .. } = source else {
+fn capture_return(state: &mut Facts, source: &SubjectBinding) {
+    let SubjectBinding::Structural { actual: source, .. } = source else {
         return;
     };
     for (fact, dependencies) in &mut state.0 {
@@ -1741,24 +1743,36 @@ fn analyze_observations(
     use crate::descriptor_results::{DescriptorAnalysis, DescriptorSlotKind};
     let module = rows.module();
     let mut result = MembershipFacts::default();
-    let has_result_memberships = module
+    let contracts = module
         .machines
         .iter()
-        .any(|machine| !machine.contract.membership_ensures.is_empty())
-        || module
-            .execution.declaration_contracts
-            .iter()
-            .any(|header| !header.membership_ensures.is_empty())
-        || module
-            .interfaces.boundary_machines
-            .iter()
-            .any(|header| !header.membership_ensures.is_empty())
-        || module
-            .execution.callables
-            .contracts
-            .iter()
-            .any(|contract| !contract.proof.membership_ensures.is_empty());
-    let promises = if has_result_memberships {
+        .map(|machine| &machine.contract)
+        .chain(&module.execution.declaration_contracts)
+        .chain(
+            module
+                .execution
+                .callables
+                .contracts
+                .iter()
+                .map(|callable| &callable.proof),
+        );
+    let headers = contracts
+        .map(|contract| (&contract.membership_requires, &contract.membership_ensures))
+        .chain(
+            module
+                .interfaces
+                .boundary_machines
+                .iter()
+                .map(|boundary| (&boundary.membership_requires, &boundary.membership_ensures)),
+        );
+    let (has_input_memberships, has_result_memberships) =
+        headers.fold((false, false), |(inputs, outputs), (requires, ensures)| {
+            (
+                inputs || !requires.is_empty(),
+                outputs || !ensures.is_empty(),
+            )
+        });
+    let promises = if has_result_memberships || has_input_memberships {
         validate_headers(module)?;
         let declared = module
             .machines
@@ -1824,6 +1838,31 @@ fn analyze_observations(
                     .then_some(machine.id)
             }));
         }
+        if has_input_memberships {
+            for machine in &module.machines {
+                let required = machine.module_invocations().any(|call| {
+                    module
+                        .invocation_machine_contract(
+                            call.inputs.callee,
+                            call.inputs.required_contract,
+                        )
+                        .is_some_and(|header| !header.membership_requires.is_empty())
+                }) || machine.boundary_invocations().any(|call| {
+                    module
+                        .boundary_machine(call.boundary)
+                        .is_some_and(|boundary| !boundary.membership_requires.is_empty())
+                }) || machine.callable_invocations().any(|call| {
+                    module
+                        .execution
+                        .callables
+                        .contract(call.inputs.contract)
+                        .is_some_and(|contract| !contract.proof.membership_requires.is_empty())
+                });
+                if required {
+                    observed.insert(machine.id);
+                }
+            }
+        }
         bodies.retain(|machine| observed.contains(machine));
     }
     if bodies.is_empty() {
@@ -1833,9 +1872,11 @@ fn analyze_observations(
     // callee's returned storage and writes still constrain its caller.
     let graphs = rows
         .closure(DescriptorSlotKind::References, bodies.iter().copied())
-        .map_err(|_| MembershipError {
-            machine: None,
-            detail: "runtime membership has no complete storage transfer graph",
+        .map_err(|_| {
+            unavailable(
+                None,
+                "runtime membership has no complete storage transfer graph",
+            )
         })?;
     let mut graphs_by_id = graphs.iter().collect::<Vec<_>>();
     graphs_by_id.sort_unstable_by_key(|graph| graph.id);
@@ -1880,6 +1921,8 @@ fn analyze_observations(
         })?;
         let mut machine_facts = MachineMembershipFacts {
             machine: machine.id,
+            #[cfg(test)]
+            peak_incoming_states: 0,
             before: Vec::new(),
             edges: Vec::new(),
             cast_sources: Vec::new(),
@@ -1888,6 +1931,9 @@ fn analyze_observations(
         let mut arrivals = BTreeMap::new();
         let mut returns = BTreeMap::new();
         let mut declarations = Vec::new();
+        // Only block entries can receive multiple edges. Count the initial
+        // call as an arrival so a back edge also meets the entry facts.
+        let mut entries = vec![machine.entry];
         declared_roots(seed_entry(module, machine)?, &mut declarations);
         for block in &machine.blocks {
             let mut declared = scalar_declarations(module, &block.parameters)?;
@@ -1912,6 +1958,53 @@ fn analyze_observations(
                     unavailable(machine.id, "membership terminator ordinal overflow")
                 })?,
             );
+            let mut required = Vec::new();
+            if let Some((_, call)) = block.terminator.declared_invocation()
+                && let Some((preconditions, _, _)) =
+                    call_contract(module, machine, Some(call), None)?
+            {
+                let site = CallSite::Edge(block.terminator.edge());
+                required.extend(preconditions.into_iter().map(|fact| (site, fact)));
+            }
+            for (edge, actions) in block.terminator.cleanup_rosters() {
+                let mut prior_call = false;
+                for action in actions {
+                    let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(invocation) = action
+                    else {
+                        continue;
+                    };
+                    let call = invocation.module_invocation().declared();
+                    if let Some((preconditions, _, _)) =
+                        call_contract(module, machine, Some(call), None)?
+                    {
+                        if prior_call && !preconditions.is_empty() {
+                            return Err(unavailable(
+                                machine.id,
+                                "a later cleanup has no checked post-cleanup input membership",
+                            ));
+                        }
+                        required.extend(
+                            preconditions
+                                .into_iter()
+                                .map(|fact| (CallSite::Edge(edge), fact)),
+                        );
+                    }
+                    prior_call = true;
+                }
+            }
+            if !required.is_empty() {
+                events.insert(
+                    cut,
+                    Event {
+                        required,
+                        produced: Vec::new(),
+                        declared: Vec::new(),
+                    },
+                );
+            }
+            if let Some(step) = flow.get(&cut) {
+                entries.extend(step.successors.iter().map(|edge| edge.target.0));
+            }
             for edge in block.terminator.edges() {
                 machine_facts.edges.push((edge, cut));
             }
@@ -1919,6 +2012,12 @@ fn analyze_observations(
                 returns.insert(cut, binding);
             }
         }
+        entries.sort_unstable();
+        let joins: Vec<_> = entries
+            .chunk_by(|a, b| a == b)
+            .filter(|incoming| incoming.len() > 1)
+            .map(|incoming| (incoming[0], 0))
+            .collect();
         declarations.sort_by_key(|(root, _)| *root);
         let first_promise = promises.partition_point(|(id, _)| *id < machine.id);
         let end_promise = promises.partition_point(|(id, _)| *id <= machine.id);
@@ -1937,7 +2036,9 @@ fn analyze_observations(
             machine,
             &mut storage,
             graph.entry,
-            seed_entry(module, machine)?,
+            seed_entry(module, machine)?
+                .into_iter()
+                .chain(inputs::of_contract(module, &machine.contract, None)?),
             &mut entry,
         );
         let mut before = BTreeMap::from([(graph.entry, entry)]);
@@ -1955,14 +2056,33 @@ fn analyze_observations(
             edge_facts.entry(test.position).or_insert(None);
         }
         let mut completed = BTreeMap::new();
+        let mut unsatisfied_calls = BTreeMap::new();
         let mut pending = BTreeSet::from([graph.entry]);
-        while let Some(position) = pending.pop_first() {
+        let mut straight_line = None;
+        loop {
+            let (position, mut incoming) = if let Some(next) = straight_line.take() {
+                next
+            } else if let Some(position) = pending.pop_first() {
+                let incoming = if joins.binary_search(&position).is_ok() {
+                    before.get(&position).cloned()
+                } else {
+                    before.remove(&position)
+                }
+                .ok_or_else(|| {
+                    unavailable(machine.id, "membership point lost its incoming facts")
+                })?;
+                (position, incoming)
+            } else {
+                break;
+            };
             let step = flow
                 .get(&position)
                 .ok_or_else(|| unavailable(machine.id, "membership point has no storage event"))?;
-            let mut incoming = before.get(&position).cloned().ok_or_else(|| {
-                unavailable(machine.id, "membership point lost its incoming facts")
-            })?;
+            #[cfg(test)]
+            {
+                machine_facts.peak_incoming_states =
+                    machine_facts.peak_incoming_states.max(before.len() + 1);
+            }
             if let Some(declared) = arrivals.get(&position) {
                 introduce(
                     module,
@@ -2002,7 +2122,7 @@ fn analyze_observations(
             }
             let mut goals = Vec::new();
             if let Some(binding) = returns.get(&position) {
-                if let ResultBinding::Structural { actual, .. } = binding {
+                if let SubjectBinding::Structural { actual, .. } = binding {
                     observed_defaults(
                         module,
                         machine,
@@ -2043,6 +2163,16 @@ fn analyze_observations(
                     }
                 }
             }
+            if let Some(event) = events.get(&position)
+                && !event.required.is_empty()
+            {
+                let missing = event.required.iter().find_map(|(site, goal)| {
+                    observe(module, machine, &mut storage, position, goal.clone())
+                        .is_none_or(|(goal, _)| !incoming.proves(module, &goal))
+                        .then_some(*site)
+                });
+                unsatisfied_calls.insert(position, missing);
+            }
             if let Some(observation) = edge_facts.get_mut(&position) {
                 *observation = Some(incoming.clone());
             }
@@ -2060,7 +2190,7 @@ fn analyze_observations(
             for (destination, source) in &step.scalar_value_stores {
                 transferred.extend(incoming.scalar_store(*source, destination));
             }
-            let mut after = incoming.clone();
+            let mut after = incoming;
             if let Some(binding) = returns.get(&position) {
                 capture_return(&mut after, binding);
             }
@@ -2074,7 +2204,10 @@ fn analyze_observations(
             }
             after.accept_transfers(transferred, writes.as_deref());
             if !goals.is_empty() {
-                completed.insert(position, (goals, after.clone()));
+                completed.insert(
+                    position,
+                    goals.iter().all(|goal| after.proves(module, goal)),
+                );
             }
             for (edge_ordinal, edge) in step.successors.iter().enumerate() {
                 let transfers = edge
@@ -2087,7 +2220,16 @@ fn analyze_observations(
                     })
                     .collect::<Vec<_>>();
                 let transported = after.transferred(&transfers);
-                let mut next = after.clone();
+                let scalar_transfers = graph
+                    .payload_scalar_bindings
+                    .get(&position)
+                    .and_then(|rows| rows.get(edge_ordinal))
+                    .map(|bindings| transport_scalar_bindings(&after, bindings));
+                let mut next = if edge_ordinal + 1 == step.successors.len() {
+                    std::mem::take(&mut after)
+                } else {
+                    after.clone()
+                };
                 let mut defined = edge.definitions.clone();
                 defined.extend(edge.parameters.iter().cloned());
                 next.invalidate(Some(&defined));
@@ -2098,15 +2240,8 @@ fn analyze_observations(
                     next.0.retain(|fact, _| !matches!(fact.subject, Subject::Value(value) if parameters.contains(&value)));
                 }
                 next.accept_transfers(transported, Some(&defined));
-                if let Some(bindings) = graph
-                    .payload_scalar_bindings
-                    .get(&position)
-                    .and_then(|rows| rows.get(edge_ordinal))
-                {
-                    next.accept_transfers(
-                        transport_scalar_bindings(&after, bindings),
-                        Some(&defined),
-                    );
+                if let Some(transfers) = scalar_transfers {
+                    next.accept_transfers(transfers, Some(&defined));
                 }
                 if let Some(event) = events.get(&position) {
                     introduce(
@@ -2117,6 +2252,12 @@ fn analyze_observations(
                         event.declared.iter().chain(&event.produced).cloned(),
                         &mut next,
                     );
+                }
+                // Within a block only the preceding operation can reach the
+                // next cut. Keep its state in hand until the terminator.
+                if edge.target.1 != 0 && step.successors.len() == 1 {
+                    straight_line = Some((edge.target, next));
+                    continue;
                 }
                 let changed = match before.get_mut(&edge.target) {
                     Some(previous) => previous.intersect(&next),
@@ -2130,13 +2271,20 @@ fn analyze_observations(
                 }
             }
         }
-        for (_, (goals, state)) in completed {
-            if goals.iter().any(|goal| !state.proves(module, goal)) {
-                return Err(unavailable(
-                    machine.id,
-                    "normal completion does not establish its promised runtime membership",
-                ));
-            }
+        if let Some(site) = unsatisfied_calls.into_values().flatten().next() {
+            return Err(MembershipError {
+                failure: MembershipFailure::UnmetInput {
+                    machine: machine.id,
+                    site,
+                },
+                detail: "call does not establish the routed membership of its actual input",
+            });
+        }
+        if completed.values().any(|proved| !proved) {
+            return Err(unavailable(
+                machine.id,
+                "normal completion does not establish its promised runtime membership",
+            ));
         }
         for change in module
             .types.structural_qualification_changes
@@ -2218,6 +2366,102 @@ mod tests {
                 location,
             },
             domain: Domain::Structural(StructuralDomainId::new(1).unwrap()),
+        }
+    }
+
+    #[test]
+    fn a_meet_reports_removed_facts_and_new_or_unknown_dependencies() {
+        let shared = fact(location(1, &[]));
+        let removed = fact(location(2, &[]));
+        let image = Dependency::ValueImage(location(1, &[]));
+        let referent = Dependency::Referent(location(3, &[]));
+        let mut state = Facts::default();
+        state.insert(shared.clone(), Some(BTreeSet::from([image.clone()])));
+        state.insert(removed, None);
+        let mut incoming = Facts::default();
+        incoming.insert(shared.clone(), Some(BTreeSet::from([image.clone()])));
+        assert!(state.intersect(&incoming));
+        assert_eq!(state, incoming);
+        incoming.insert(shared.clone(), Some(BTreeSet::from([referent.clone()])));
+        assert!(state.intersect(&incoming));
+        assert_eq!(state.0[&shared], Some(BTreeSet::from([image, referent])));
+        assert!(!state.intersect(&incoming));
+        incoming.insert(shared.clone(), None);
+        assert!(state.intersect(&incoming));
+        assert_eq!(state.0[&shared], None);
+        assert!(!state.intersect(&incoming));
+    }
+
+    #[test]
+    fn straight_line_length_does_not_change_observations_or_retained_states() {
+        use semantic_vocabulary::{DomainSemanticId, OperationId, ScalarQualificationSetId};
+        use terminal_psi::{OperationKind, ScalarDomainDeclaration, ScalarQualificationSet};
+
+        let domain = ScalarDomainId::new(1).unwrap();
+        let set = ScalarQualificationSetId::new(1);
+        let parameter = ValueDeclaration {
+            id: ValueId::new(1).unwrap(),
+            qualifications: set,
+            scalar_type: ScalarType::Boolean,
+        };
+        for length in [4, 512] {
+            let operations = (1..=length)
+                .map(|i| {
+                    Operation::unsuspended(
+                        OperationId::new(i).unwrap(),
+                        OperationResult::Scalar(ValueDeclaration {
+                            id: ValueId::new(i + 1).unwrap(),
+                            qualifications: ScalarQualificationSetId::ZERO,
+                            ..parameter
+                        }),
+                        OperationKind::BooleanConstant { value: true },
+                    )
+                })
+                .collect();
+            let mut body = crate::module_analyses::tests::machine(1, operations);
+            let (id, entry) = (body.id, body.entry);
+            body.contract.parameters.push(parameter);
+            let mut module = TerminalModule::for_entry(id);
+            module.machines.push(body);
+            let catalog = &mut module.types.scalar_qualifications;
+            catalog.domains.push(ScalarDomainDeclaration {
+                id: domain,
+                semantic_domain: DomainSemanticId::new(1).unwrap(),
+                identity: terminal_psi::TerminalIdentityIndex(1),
+                carrier: parameter.scalar_type,
+                predicate: None,
+                establishment_routes: None,
+                required_memberships: None,
+            });
+            catalog.sets.push(ScalarQualificationSet {
+                id: set,
+                domains: vec![domain],
+            });
+            let query = |ordinal, value| MembershipTest {
+                position: (entry, ordinal),
+                subject: TestedMembership::Scalar { value, domain },
+            };
+            let tests = [
+                query(length as u32 / 2, parameter.id),
+                query(length as u32, parameter.id),
+                query(length as u32, ValueId::new(2).unwrap()),
+            ];
+            let mut answers = [false; 3];
+            let facts = analyze_observations(
+                &DescriptorRowSource::new(&module),
+                &[id],
+                &tests,
+                &mut answers,
+            )
+            .unwrap();
+            assert_eq!(answers, [true, true, false]);
+            let row = facts.machine(id).unwrap();
+            assert_eq!(row.peak_incoming_states, 1);
+            assert_eq!(row.before.len(), 2);
+            assert_eq!(
+                facts.scalar_on_edge(&module, id, EdgeId::new(1).unwrap(), parameter.id, domain),
+                Some(true)
+            );
         }
     }
 
@@ -2347,8 +2591,7 @@ mod tests {
         );
     }
 
-    #[test]
-    fn scalar_successors_replay_only_when_they_can_observe_an_incoming_fact() {
+    fn scalar_successor_module() -> TerminalModule {
         use semantic_vocabulary::{
             BlockId, ContractId, DomainSemanticId, ScalarQualificationSetId,
         };
@@ -2447,6 +2690,13 @@ mod tests {
                 ),
             ],
         });
+        module
+    }
+
+    #[test]
+    fn scalar_successors_replay_only_when_they_can_observe_an_incoming_fact() {
+        let mut module = scalar_successor_module();
+        let id = module.machines[0].id;
         assert!(analyze(&module).unwrap().machine(id).is_none());
         module.types.scalar_qualifications.returns[0].origins =
             vec![terminal_psi::ScalarReturnOrigin::Forwarded];
@@ -2454,6 +2704,65 @@ mod tests {
         module.types.scalar_qualifications.returns.clear();
         module.types.scalar_qualifications.domains[0].required_memberships = None;
         assert!(analyze(&module).unwrap().machine(id).is_some());
+    }
+
+    #[test]
+    fn loop_observations_meet_the_first_arrival_and_the_back_edge() {
+        let mut module = scalar_successor_module();
+        let catalog = &mut module.types.scalar_qualifications;
+        catalog.coercions.clear();
+        catalog.returns.clear();
+        let domain = catalog.domains[0].id;
+        let body = &mut module.machines[0];
+        let id = body.id;
+        let initial = body.parameters[0];
+        body.parameters[0].qualifications = catalog.sets[0].id;
+        let other = ValueDeclaration {
+            id: ValueId::new(3).unwrap(),
+            ..initial
+        };
+        body.parameters.push(other);
+        let header = &mut body.blocks[1];
+        header.parameters[0].qualifications = initial.qualifications;
+        let back_edge = EdgeId::new(2).unwrap();
+        let carried = header.parameters[0].id;
+        header.terminator = terminal_psi::Terminator::Jump {
+            edge: back_edge,
+            target: header.id,
+            arguments: vec![carried],
+            erased_arguments: vec![],
+            erased_proof_arguments: vec![],
+            structural_arguments: vec![],
+            cleanup_actions: vec![],
+        };
+        let test = MembershipTest {
+            position: (header.id, 0),
+            subject: TestedMembership::Scalar {
+                value: carried,
+                domain,
+            },
+        };
+        for (back_value, expected) in [(carried, true), (other.id, false)] {
+            let terminal_psi::Terminator::Jump { arguments, .. } =
+                &mut module.machines[0].blocks[1].terminator
+            else {
+                unreachable!()
+            };
+            arguments[0] = back_value;
+            let mut answers = [false];
+            let facts = analyze_observations(
+                &DescriptorRowSource::new(&module),
+                &[id],
+                std::slice::from_ref(&test),
+                &mut answers,
+            )
+            .unwrap();
+            assert_eq!(answers, [expected]);
+            assert_eq!(
+                facts.scalar_on_edge(&module, id, back_edge, carried, domain),
+                Some(expected)
+            );
+        }
     }
 
     #[test]
@@ -2518,7 +2827,7 @@ mod tests {
         };
         assert_eq!(
             error.detail,
-            "membership promise does not name its exact normal result"
+            "routed membership does not match its declared subject and carrier"
         );
     }
 
@@ -2797,7 +3106,7 @@ mod tests {
                 proposition: semantic_vocabulary::Proposition::Falsehood,
             });
         let subject = ValueId::new(4).unwrap();
-        let binding = ResultBinding::Scalar {
+        let binding = SubjectBinding::Scalar {
             formal: subject,
             carrier,
             actual: subject,
@@ -2816,7 +3125,7 @@ mod tests {
             )
             .unwrap_err()
             .detail,
-            "membership guarantee lost its independent result predicate"
+            "routed membership lost its independent domain predicate"
         );
         validate_predicates(
             &module,
@@ -2849,7 +3158,7 @@ mod tests {
         );
         capture_return(
             &mut state,
-            &ResultBinding::Structural {
+            &SubjectBinding::Structural {
                 formal: image.root,
                 carrier: StructuralTypeId::new(1).unwrap(),
                 actual: image,

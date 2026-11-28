@@ -81,6 +81,7 @@ use crate::source_state::{
 };
 
 mod callable_binder;
+mod installed_interrupts;
 mod named_conformances;
 mod propositions;
 mod provider_methods;
@@ -154,48 +155,17 @@ pub(crate) fn prepare_selected(
             == crate::source_state::machine::MachinePurpose::ActiveCaseBranch
             || case_branches.contains(&holder);
         let first_child = program.machines().len();
-        match reflected_fields::elaborate(program, position) {
-            Ok(()) => {}
-            Err((Stop::Unserved(detail), span)) => {
-                program.record_deferred_refusal_with_detail(
-                    holder,
-                    DeferredRequest::StaticApplication,
-                    span,
-                    detail,
-                );
-            }
-            Err((Stop::Rejected(message), span)) if conditional => {
-                program.record_deferred_refusal_with_detail(
-                    holder,
-                    DeferredRequest::InvalidStaticApplication,
-                    span,
-                    message,
-                );
-            }
-            Err((Stop::Rejected(message), span)) => {
-                return Err(vec![Diagnostic::error(message).with_source_span(span)]);
-            }
-            Err((Stop::Defect(message), _)) => return Err(vec![Diagnostic::error(message)]),
+        if let Err((stop, span)) = reflected_fields::elaborate(program, position) {
+            report_static_request(program, holder, stop, span, conditional)?;
         }
         let mut sites = Vec::new();
         match propositions::close(program, position, &mut generated_propositions) {
             Ok(formulas) => {
                 for formula in formulas {
-                    sites.extend(clause_sites(program, formula));
+                    clause_sites(program, formula, &mut sites);
                 }
             }
-            Err((Stop::Unserved(detail), span)) => {
-                program.record_deferred_refusal_with_detail(
-                    holder,
-                    DeferredRequest::StaticApplication,
-                    span,
-                    detail,
-                );
-            }
-            Err((Stop::Rejected(message), span)) => {
-                return Err(vec![Diagnostic::error(message).with_source_span(span)]);
-            }
-            Err((Stop::Defect(message), _)) => return Err(vec![Diagnostic::error(message)]),
+            Err((stop, span)) => report_static_request(program, holder, stop, span, false)?,
         }
         sites.extend(call_sites(program, position));
         for site in sites {
@@ -228,31 +198,9 @@ pub(crate) fn prepare_selected(
                         .prepare_selected_requirement_application(application, &dispatch, original)
                         .map_err(unserved)
                 });
-            match served {
-                Ok(()) => {}
-                Err(Stop::Unserved(detail)) => {
-                    let span = site.source_span(program);
-                    program.record_deferred_refusal_with_detail(
-                        holder,
-                        DeferredRequest::StaticApplication,
-                        span,
-                        detail,
-                    );
-                }
-                Err(Stop::Rejected(message)) if conditional => {
-                    program.record_deferred_refusal_with_detail(
-                        holder,
-                        DeferredRequest::InvalidStaticApplication,
-                        site.source_span(program),
-                        message,
-                    );
-                }
-                Err(Stop::Rejected(message)) => {
-                    return Err(vec![
-                        Diagnostic::error(message).with_source_span(site.source_span(program)),
-                    ]);
-                }
-                Err(Stop::Defect(message)) => return Err(vec![Diagnostic::error(message)]),
+            if let Err(stop) = served {
+                let span = site.source_span(program);
+                report_static_request(program, holder, stop, span, conditional)?;
             }
         }
         if conditional {
@@ -267,6 +215,28 @@ pub(crate) fn prepare_selected(
     data_applications::prepare_from(program, first_type)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     Ok(roots)
+}
+
+/// A rejected reflection branch is diagnosed when lowering demands that branch.
+fn report_static_request(
+    program: &mut TypedTrees,
+    holder: SymbolHandle,
+    stop: Stop,
+    span: SourceSpan,
+    defer_rejection: bool,
+) -> Result<(), Vec<Diagnostic>> {
+    let (request, detail) = match stop {
+        Stop::Unserved(detail) => (DeferredRequest::StaticApplication, detail),
+        Stop::Rejected(message) if defer_rejection => {
+            (DeferredRequest::InvalidStaticApplication, message.into())
+        }
+        Stop::Rejected(message) => {
+            return Err(vec![Diagnostic::error(message).with_source_span(span)]);
+        }
+        Stop::Defect(message) => return Err(vec![Diagnostic::error(message)]),
+    };
+    program.record_deferred_refusal_with_detail(holder, request, span, detail);
+    Ok(())
 }
 
 /// Enter the same specialization as an ordinary call without inventing a call
@@ -451,26 +421,49 @@ impl Site {
         }
     }
 
-    /// Points the call at `target`, the machine its application selects.
-    /// The static arguments the call listed are spent: the generated machine
-    /// has no parameter left to apply.
-    fn enter(self, program: &mut TypedTrees, target: SymbolHandle) {
+    fn static_fields_mut(self, program: &mut TypedTrees) -> Option<StaticCallFields<'_>> {
         match self {
             Self::Expression(handle) => {
-                if let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle)
-                {
-                    call.target_symbol = target;
-                    call.machine_arguments = Box::new([]);
-                }
+                let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle)
+                else {
+                    return None;
+                };
+                Some(StaticCallFields {
+                    target: &mut call.target_symbol,
+                    parameter: &mut call.static_machine_parameter,
+                    arguments: &mut call.machine_arguments,
+                    application: call.authored_machine_application,
+                })
             }
             Self::Statement(handle) => {
-                if let StatementNode::Call(call) = program.statement_table.statement_mut(handle) {
-                    call.target_symbol = target;
-                    call.machine_arguments = Box::new([]);
-                }
+                let StatementNode::Call(call) = program.statement_table.statement_mut(handle)
+                else {
+                    return None;
+                };
+                Some(StaticCallFields {
+                    target: &mut call.target_symbol,
+                    parameter: &mut call.static_machine_parameter,
+                    arguments: &mut call.machine_arguments,
+                    application: call.authored_machine_application,
+                })
             }
         }
     }
+
+    /// A generated machine consumes the static arguments of the call that enters it.
+    fn enter(self, program: &mut TypedTrees, target: SymbolHandle) {
+        if let Some(call) = self.static_fields_mut(program) {
+            *call.target = target;
+            *call.arguments = Box::new([]);
+        }
+    }
+}
+
+struct StaticCallFields<'a> {
+    target: &'a mut SymbolHandle,
+    parameter: &'a mut SymbolHandle,
+    arguments: &'a mut Box<[StaticMachineArgument]>,
+    application: StaticMachineApplicationHandle,
 }
 
 /// Every call written in the bodies of the machine at `position`.
@@ -521,7 +514,7 @@ fn call_sites(program: &TypedTrees, position: usize) -> Vec<Site> {
             if !root.is_valid() {
                 continue;
             }
-            sites.extend(clause_sites(program, *root));
+            clause_sites(program, *root, &mut sites);
         }
     }
     sites
@@ -529,26 +522,22 @@ fn call_sites(program: &TypedTrees, position: usize) -> Vec<Site> {
 
 /// The calls under `root`, a clause, that apply a machine generic over
 /// types only.
-fn clause_sites(program: &TypedTrees, root: ExpressionHandle) -> Vec<Site> {
-    let mut sites = Vec::new();
+fn clause_sites(program: &TypedTrees, root: ExpressionHandle, sites: &mut Vec<Site>) {
     program.subtree_for_each(root, SubtreeEdges::default(), |handle, node| {
-        if matches!(node, ExpressionNode::Call(_)) {
-            sites.push(Site::Expression(handle));
+        if let ExpressionNode::Call(call) = node
+            && let Some((symbol, _)) = entered_machine(program, call.target_symbol)
+            && let Some(machine) = program.machine_by_symbol(symbol)
+        {
+            let parameters = program.machine_type_parameters(machine);
+            if !parameters.is_empty()
+                && parameters
+                    .iter()
+                    .all(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+            {
+                sites.push(Site::Expression(handle));
+            }
         }
     });
-    sites.retain(|site| {
-        site.applied(program)
-            .and_then(|applied| entered_machine(program, applied.target))
-            .and_then(|(machine, _)| program.machine_by_symbol(machine))
-            .is_some_and(|machine| {
-                let parameters = program.machine_type_parameters(machine);
-                !parameters.is_empty()
-                    && parameters
-                        .iter()
-                        .all(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
-            })
-    });
-    sites
 }
 
 /// The machine a call target enters, and whether the call named the
@@ -604,12 +593,15 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut GeneratedMachines
         .to_vec();
     if let Some((declaration, _)) = entered_machine(program, applied.target)
         && program
-            .machine_by_symbol(declaration)
-            .is_some_and(|machine| {
-                machine.supply_mode == source_declarations::MachineSupplyMode::Boundary
-                    && machine.has_bodyless_signature()
-            })
+            .preparable_bodyless_declaration(applied.target)
+            .map_err(unserved)?
+            .is_some()
+        && !matches!(
+            program.sealed_callable(declaration),
+            Some(language_core::sealed_intrinsics::SealedIntrinsic::OwnedActivation(_))
+        )
     {
+        installed_interrupts::prepare_registrar(program, site, &applied)?;
         program
             .prepare_bodyless_callable_application(applied.application, applied.target)
             .map_err(unserved)?;
@@ -686,18 +678,8 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut GeneratedMachines
         program
             .expression_table
             .set_static_machine_application_arguments(applied.application, &arguments);
-        match site {
-            Site::Expression(handle) => {
-                if let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle)
-                {
-                    call.machine_arguments = arguments.clone().into_boxed_slice();
-                }
-            }
-            Site::Statement(handle) => {
-                if let StatementNode::Call(call) = program.statement_table.statement_mut(handle) {
-                    call.machine_arguments = arguments.clone().into_boxed_slice();
-                }
-            }
+        if let Some(call) = site.static_fields_mut(program) {
+            *call.arguments = arguments.clone().into_boxed_slice();
         }
         if parameters.len() != arguments.len() {
             return Err(unserved(
@@ -714,19 +696,11 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut GeneratedMachines
         generated,
     )? {
         Some((machine, state)) => site.enter(program, if names_state { state } else { machine }),
-        None => match site {
-            Site::Expression(handle) => {
-                if let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle)
-                {
-                    call.machine_arguments = arguments.into_boxed_slice();
-                }
+        None => {
+            if let Some(call) = site.static_fields_mut(program) {
+                *call.arguments = arguments.into_boxed_slice();
             }
-            Site::Statement(handle) => {
-                if let StatementNode::Call(call) = program.statement_table.statement_mut(handle) {
-                    call.machine_arguments = arguments.into_boxed_slice();
-                }
-            }
-        },
+        }
     }
     Ok(())
 }
@@ -775,12 +749,9 @@ fn specialize_application(
         if matches!(parameter.kind, TypeParameterKind::Proof { .. }) {
             continue;
         }
-        operands.push(Operand::read(
-            program,
-            parameter,
-            argument,
-            supplying_owner,
-        )?);
+        let operand =
+            Operand::read_after(program, parameter, argument, supplying_owner, &operands)?;
+        operands.push(operand);
     }
     Operand::require_nominal_callbacks(program, parameters, &operands, supplying_owner)?;
     // Explicit groups keep the original callable's formals and the caller's
@@ -1558,8 +1529,14 @@ fn copied_parts(
     // copier preserves their supplying owners, and the specialization receipt
     // identifies the original declaration; invocation regions do not select a
     // separate executable body.
-    let plain = machine.body_is_present
-        && machine.supply_mode == source_declarations::MachineSupplyMode::CheckedBody
+    let sealed_header = machine.has_bodyless_signature()
+        && machine.supply_mode == source_declarations::MachineSupplyMode::Boundary
+        && matches!(
+            program.sealed_callable(symbol),
+            Some(language_core::sealed_intrinsics::SealedIntrinsic::OwnedActivation(_))
+        );
+    let plain = ((machine.body_is_present
+        && machine.supply_mode == source_declarations::MachineSupplyMode::CheckedBody) || sealed_header)
         && machine.owned_data.is_empty()
         && machine.satisfies.is_empty()
         && program.signature_invokes.span(machine.invokes).is_some()
@@ -1694,7 +1671,7 @@ fn copied_parts(
                         && call.private_layout_operation.is_none()
                         && call.installed_interrupt_operation.is_none()
                 }
-                ExpressionNode::Cast(cast) => cast.semantic_domain_arguments.is_empty(),
+                ExpressionNode::Cast(cast) => cast_indices_can_be_copied(program, cast),
                 _ => true,
             };
         });
@@ -1705,6 +1682,42 @@ fn copied_parts(
         ));
     }
     Ok((machine.clone(), state.clone(), types))
+}
+
+/// The copier substitutes both the written indices and the retained domain
+/// instance. They must describe the same application before substitution.
+fn cast_indices_can_be_copied(
+    program: &TypedTrees,
+    cast: &crate::source_state::expression::TableCastExpression,
+) -> bool {
+    use crate::source_state::domain;
+
+    if cast.semantic_domain_arguments.is_empty() {
+        return true;
+    }
+    let symbol = cast.semantic_domain_symbol;
+    let Some(definition) = program.domain_definition(symbol) else {
+        return false;
+    };
+    let Some(retained) = program.domain_arguments_for_instance(symbol, cast.semantic_domain_id)
+    else {
+        return false;
+    };
+    let implicit = usize::from(domain::has_generic_carrier(program, definition));
+    let Some(carrier) = retained.get(..implicit) else {
+        return false;
+    };
+    let written = program
+        .type_reference_table
+        .type_reference_handles(cast.semantic_domain_arguments);
+    let complete = [carrier, written].concat();
+    domain::indexed_domain_instance_name(
+        program,
+        definition,
+        program.domain_type_parameters(definition),
+        &complete,
+    )
+    .is_ok_and(|name| program.semantic_domains.name(cast.semantic_domain_id) == Some(name.as_str()))
 }
 
 /// Copies `expression` into fresh rows of the same program and renames the
@@ -1868,6 +1881,7 @@ fn copy_declarations(
                 .map(|symbol| {
                     (
                         symbol,
+                        SymbolKind::Machine,
                         program
                             .machine_by_symbol(symbol)
                             .expect("preflighted child")
@@ -1875,104 +1889,54 @@ fn copy_declarations(
                             .clone(),
                     )
                 })
-                .collect::<Vec<_>>()
         };
-        let machine_children = nested(source.symbol);
-        let state_children = nested(source_state.symbol);
-        let type_children = program
-            .machine_type_parameters(source)
-            .iter()
-            .filter(|parameter| {
-                program.symbols.get(parameter.symbol).parent == source.symbol
-                    && !is_bound(parameter.symbol)
-            })
-            .cloned()
-            .collect::<Vec<_>>();
-        // Hierarchy arenas allocate one complete child roster per owner.
-        // Include nested declarations with the state/formals rather than
-        // appending another range after those original children exist.
-        let children = program.symbols.insert_generated_children_from(
-            owner,
-            std::iter::once((
-                source_state.symbol,
-                SymbolKind::State,
-                source_state.name.as_str(),
-            ))
-            .chain(
-                machine_children
-                    .iter()
-                    .map(|(symbol, name)| (*symbol, SymbolKind::Machine, name.as_str())),
-            )
-            .chain(type_children.iter().map(|parameter| {
-                (
-                    parameter.symbol,
-                    SymbolKind::TypeParameter,
-                    parameter.name.as_str(),
-                )
-            })),
-        );
-        let state = children.handle_at(0);
-        record_symbol(&mut renamed, source_state.symbol, state, false)?;
-        for (original, fresh) in machine_children
-            .iter()
-            .map(|(symbol, _)| *symbol)
-            .zip(children.handles().skip(1))
-        {
-            record_symbol(&mut renamed, original, fresh, false)?;
-        }
-        for (parameter, fresh) in type_children
-            .iter()
-            .zip(children.handles().skip(1 + machine_children.len()))
-        {
-            record_symbol(&mut renamed, parameter.symbol, fresh, true)?;
-        }
-        let parameters = program.state_parameters(source_state).to_vec();
-        let locals = program
-            .body_statement_spans(source_state.statement_nodes)
-            .into_iter()
-            .flat_map(|span| program.statement_table.statements(span))
-            .filter_map(|statement| statement.as_local_data())
-            .map(|local| (local.symbol, local.name.clone()))
-            .filter(|(symbol, _)| symbol.is_valid())
-            .collect::<Vec<_>>();
-        let children = program.symbols.insert_generated_children_from(
-            state,
-            parameters
+        let mut machine_children = vec![(
+            source_state.symbol,
+            SymbolKind::State,
+            source_state.name.clone(),
+        )];
+        machine_children.extend(nested(source.symbol));
+        machine_children.extend(
+            program
+                .machine_type_parameters(source)
                 .iter()
+                .filter(|parameter| {
+                    program.symbols.get(parameter.symbol).parent == source.symbol
+                        && !is_bound(parameter.symbol)
+                })
                 .map(|parameter| {
                     (
                         parameter.symbol,
-                        SymbolKind::Parameter,
-                        parameter.name.as_str(),
+                        SymbolKind::TypeParameter,
+                        parameter.name.clone(),
                     )
-                })
-                .chain(
-                    locals
-                        .iter()
-                        .map(|(symbol, name)| (*symbol, SymbolKind::Local, name.as_str())),
-                )
-                .chain(
-                    state_children
-                        .iter()
-                        .map(|(symbol, name)| (*symbol, SymbolKind::Machine, name.as_str())),
-                ),
+                }),
         );
-        let local_count = parameters.len() + locals.len();
-        for (original, fresh) in parameters
+        let mut state_children = program
+            .state_parameters(source_state)
             .iter()
-            .map(|parameter| parameter.symbol)
-            .chain(locals.iter().map(|(symbol, _)| *symbol))
-            .zip(children.handles())
-        {
-            record_symbol(&mut renamed, original, fresh, true)?;
-        }
-        for (original, fresh) in state_children
-            .iter()
-            .map(|(symbol, _)| *symbol)
-            .zip(children.handles().skip(local_count))
-        {
-            record_symbol(&mut renamed, original, fresh, false)?;
-        }
+            .map(|parameter| {
+                (
+                    parameter.symbol,
+                    SymbolKind::Parameter,
+                    parameter.name.clone(),
+                )
+            })
+            .collect::<Vec<_>>();
+        state_children.extend(
+            program
+                .body_statement_spans(source_state.statement_nodes)
+                .into_iter()
+                .flat_map(|span| program.statement_table.statements(span))
+                .filter_map(|statement| statement.as_local_data())
+                .filter(|local| local.symbol.is_valid())
+                .map(|local| (local.symbol, SymbolKind::Local, local.name.clone())),
+        );
+        state_children.extend(nested(source_state.symbol));
+
+        copy_child_symbols(program, owner, &machine_children, &mut renamed)?;
+        let state = copied_symbol(&renamed, source_state.symbol)?;
+        copy_child_symbols(program, state, &state_children, &mut renamed)?;
     }
     let state_symbol = copied_symbol(&renamed, parts[0].1.symbol)?;
     let symbols = renamed.rebinding();
@@ -2047,10 +2011,8 @@ fn copy_declarations(
         };
         copied.push((machine, state, body));
     }
-    let record_receivers = copied
-        .iter()
-        .flat_map(|(_, _, body)| copied_record_receivers(program, body, operands))
-        .collect::<Vec<_>>();
+    let record_receivers =
+        copied_record_receivers(program, copied.iter().map(|(_, _, body)| body), operands);
     let entries = copied
         .iter_mut()
         .zip(&parts)
@@ -2141,11 +2103,6 @@ fn generate(
         }
         let template_parameters =
             HandleSpan::from_parts_or_empty(source.type_parameters.start(), bound_count);
-        let of_kind = |implementation: bool| {
-            operands.iter().filter(move |operand| {
-                matches!(operand.value, StaticMachineBindingValue::Conformance(_)) == implementation
-            })
-        };
         program.machine_specializations.push(MachineSpecialization {
             template: source.symbol,
             instance: copied_symbol(&copied.symbols, source.symbol)?,
@@ -2157,7 +2114,13 @@ fn generate(
                     instance: copied_symbol(&copied.symbols, state.symbol)?,
                 },
             ]),
-            conformance_arguments: of_kind(true).filter_map(Operand::declaration).collect(),
+            conformance_arguments: operands
+                .iter()
+                .filter(|operand| {
+                    matches!(operand.value, StaticMachineBindingValue::Conformance(_))
+                })
+                .filter_map(Operand::declaration)
+                .collect(),
             ..MachineSpecialization::default()
         });
     }
@@ -2165,6 +2128,30 @@ fn generate(
         machine: copied.machine,
         state: copied.state,
     })
+}
+
+/// Allocate the owner's entire child roster before recording the fresh identities.
+/// Formals and locals also need fresh authored references inside the copied body.
+fn copy_child_symbols(
+    program: &mut TypedTrees,
+    owner: SymbolHandle,
+    children: &[(SymbolHandle, SymbolKind, Identifier)],
+    renamed: &mut PreparedSymbolRebinding,
+) -> Served<()> {
+    let fresh = program.symbols.insert_generated_children_from(
+        owner,
+        children
+            .iter()
+            .map(|(symbol, kind, name)| (*symbol, *kind, name.as_str())),
+    );
+    for ((original, kind, _), copy) in children.iter().zip(fresh.handles()) {
+        let authored = matches!(
+            kind,
+            SymbolKind::Parameter | SymbolKind::TypeParameter | SymbolKind::Local
+        );
+        record_symbol(renamed, *original, copy, authored)?;
+    }
+    Ok(())
 }
 
 fn record_symbol(
@@ -2244,12 +2231,12 @@ fn substitute_widths(
                 numerics::integer_carrier::IntegerSign::Unsigned => 'u',
                 numerics::integer_carrier::IntegerSign::Signed => 'i',
             };
-            let width = literal.canonical_spelling().to_string();
             let Some(carrier) = literal
                 .value_u64()
                 .filter(|width| *width > 0)
                 .and_then(|width| numerics::integer_carrier::FixedInteger::new(sign, width))
             else {
+                let width = literal.canonical_spelling();
                 return Err(Stop::Rejected(format!(
                     "this application gives `{letter}<{}>` the width {width}: an integer width \
                      is a positive `u64`",
@@ -2288,11 +2275,17 @@ fn substitute_values(
     expression_start: usize,
     operands: &[Operand],
 ) -> Served<()> {
+    if operands
+        .iter()
+        .all(|operand| operand.closed_value.is_none())
+    {
+        return Ok(());
+    }
     let value_of = |symbol: SymbolHandle| {
         operands
             .iter()
             .find(|operand| operand.parameter == symbol)
-            .and_then(|operand| operand.closed_value.clone())
+            .and_then(|operand| operand.closed_value.as_ref())
     };
     let named = program
         .expression_table
@@ -2338,13 +2331,17 @@ fn settle_const_expressions(
         }
     }
     for (handle, value) in candidates {
-        data_applications::settle_const_argument(program, handle, &value)
-            .map_err(Stop::Rejected)?;
+        crate::constant_arguments::settle_const_argument(
+            program,
+            handle,
+            ExpressionNode::Integer(value),
+        )
+        .map_err(Stop::Rejected)?;
     }
     Ok(())
 }
 
-/// The decimal value of a const expression once each value parameter is
+/// The integer value of a const expression once each value parameter is
 /// its operand's literal, which carries the parameter's type as its landing.
 /// The fold is exact (`const_integer::exact_value`): `None` leaves an
 /// expression it cannot decide as written, and a closed expression with no
@@ -2353,7 +2350,7 @@ fn substituted_const_int(
     program: &TypedTrees,
     expression: ExpressionHandle,
     operands: &[Operand],
-) -> Served<Option<String>> {
+) -> Served<Option<numeric_literals::IntegerLiteral>> {
     use crate::source_state::const_integer::{ExactInteger, Operators, exact_value};
     let operand_literal = |path: &TableNamePath| {
         if !path.symbol.is_valid()
@@ -2376,7 +2373,13 @@ fn substituted_const_int(
         Operators::Ring,
         &operand_literal,
     ) {
-        ExactInteger::Value { value, .. } => Ok(Some(value.to_string())),
+        ExactInteger::Value { value, landing } => {
+            let literal = numeric_literals::IntegerLiteral::from_integer(value);
+            Ok(Some(match landing {
+                Some(landing) => literal.with_landing(landing),
+                None => literal,
+            }))
+        }
         ExactInteger::Undecided => Ok(None),
         ExactInteger::Refused(refusal) => Err(Stop::Rejected(format!(
             "the constant argument `{}` of this application has no value: {refusal}",
@@ -2438,9 +2441,9 @@ fn select_requirements(
 /// General const expression substitution can then replace ordinary value uses
 /// without erasing receiver provenance. Member checks wait for the copier to
 /// apply the enclosing arguments to the call's complete target metadata.
-fn copied_record_receivers(
+fn copied_record_receivers<'a>(
     program: &TypedTrees,
-    body: &CopiedCallableBody,
+    bodies: impl Iterator<Item = &'a CopiedCallableBody>,
     operands: &[Operand],
 ) -> Vec<(Site, SymbolHandle, SymbolHandle, TypeReferenceHandle)> {
     let mut records = operands
@@ -2455,6 +2458,10 @@ fn copied_record_receivers(
                 .map(|_| (operand.parameter, symbol, reference))
         })
         .collect::<Vec<_>>();
+    let mut receivers = Vec::new();
+    if records.is_empty() {
+        return receivers;
+    }
     records.sort_unstable_by_key(|(parameter, _, _)| symbol_order(*parameter));
     let selected_record = |parameter| {
         records
@@ -2462,42 +2469,39 @@ fn copied_record_receivers(
                 symbol_order(*parameter)
             })
             .ok()
-            .map(|position| {
-                (
-                    records[position].0,
-                    records[position].1,
-                    records[position].2,
-                )
-            })
+            .map(|position| records[position])
     };
-    let mut receivers = program
-        .expression_table
-        .iter_expressions_from(body.first_expression)
-        .take(body.expression_count)
-        .filter_map(|(handle, node)| match node {
-            ExpressionNode::Call(call) if !call.build_selection.is_valid() => program
+    for body in bodies {
+        receivers.extend(
+            program
                 .expression_table
-                .name_path_node(call.receiver)
-                .and_then(|path| selected_record(path.symbol))
-                .map(|(binder, selected, reference)| {
-                    (Site::Expression(handle), binder, selected, reference)
+                .iter_expressions_from(body.first_expression)
+                .take(body.expression_count)
+                .filter_map(|(handle, node)| match node {
+                    ExpressionNode::Call(call) if !call.build_selection.is_valid() => program
+                        .expression_table
+                        .name_path_node(call.receiver)
+                        .and_then(|path| selected_record(path.symbol))
+                        .map(|(binder, selected, reference)| {
+                            (Site::Expression(handle), binder, selected, reference)
+                        }),
+                    _ => None,
                 }),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    for &handle in &body.statements {
-        let record = program
-            .statement_table
-            .statement(handle)
-            .as_call()
-            .filter(|call| call.receiver_root_symbol == call.receiver_symbol)
-            .and_then(|call| {
-                selected_record(call.receiver_symbol).map(|(binder, selected, reference)| {
-                    (Site::Statement(handle), binder, selected, reference)
-                })
-            });
-        if let Some(record) = record {
-            receivers.push(record);
+        );
+        for &handle in &body.statements {
+            let record = program
+                .statement_table
+                .statement(handle)
+                .as_call()
+                .filter(|call| call.receiver_root_symbol == call.receiver_symbol)
+                .and_then(|call| {
+                    selected_record(call.receiver_symbol).map(|(binder, selected, reference)| {
+                        (Site::Statement(handle), binder, selected, reference)
+                    })
+                });
+            if let Some(record) = record {
+                receivers.push(record);
+            }
         }
     }
     receivers
@@ -2608,18 +2612,15 @@ fn substitute_arguments(
                 && let TypeReferenceNode::ConstExpression(expression) = *program
                     .type_reference_table
                     .type_reference(argument.type_reference)
-                && let Some(spelling) = substituted_const_int(program, expression, operands)?
+                && let Some(literal) = substituted_const_int(program, expression, operands)?
             {
-                let fresh = program
-                    .type_reference_table
-                    .insert(TypeReferenceNode::Named {
-                        symbol: SymbolHandle::invalid(),
-                        name: Identifier::generated(spelling.clone()),
-                    });
-                argument.type_reference = fresh;
-                argument.const_literal = None;
+                argument.type_reference = TypeReferenceHandle::invalid();
+                argument.const_literal = Some(literal);
                 argument.symbol = SymbolHandle::invalid();
-                argument.path = Box::new([Identifier::generated(spelling)]);
+                argument.path = Box::default();
+                argument.type_reference = program
+                    .static_operand_type_reference(argument)
+                    .map_err(Stop::Defect)?;
             }
         }
         Served::Ok(())
@@ -2641,72 +2642,45 @@ fn substitute_arguments(
             .map(|position| callables[position].1)
     };
     let mut applications = Vec::new();
+    let mut substitute_call = |program: &mut TypedTrees, site: Site| -> Served<()> {
+        let Some(call) = site.static_fields_mut(program) else {
+            return Ok(());
+        };
+        let mut arguments = call.arguments.clone();
+        let target = *call.target;
+        let target = program
+            .closed_requirement_application(target)
+            .map_or(target, |closed| closed.template);
+        replace(program, &mut arguments)?;
+        let call = site
+            .static_fields_mut(program)
+            .ok_or(Stop::Defect("a copied call lost its source occurrence"))?;
+        *call.arguments = arguments;
+        *call.target = target;
+        if let Some(selected) = selected_callable(target) {
+            *call.parameter = target;
+            *call.target = selected;
+        }
+        applications.push(call.application);
+        Ok(())
+    };
     let calls = program
         .expression_table
         .iter_expressions_from(body.first_expression)
         .take(body.expression_count)
-        .filter(|(_, node)| matches!(node, ExpressionNode::Call(_)))
-        .map(|(handle, _)| handle)
+        .filter_map(|(handle, node)| match node {
+            ExpressionNode::Call(call) if !call.build_selection.is_valid() => {
+                Some(Site::Expression(handle))
+            }
+            _ => None,
+        })
         .collect::<Vec<_>>();
-    for handle in calls {
-        let (mut machine_arguments, closed_template) =
-            match program.expression_table.expression(handle) {
-                ExpressionNode::Call(call) if !call.build_selection.is_valid() => (
-                    Some(call.machine_arguments.clone()),
-                    program
-                        .closed_requirement_application(call.target_symbol)
-                        .map(|closed| closed.template),
-                ),
-                _ => (None, None),
-            };
-        if let Some(arguments) = machine_arguments.as_mut() {
-            replace(program, arguments)?;
-        }
-        if let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle)
-            && !call.build_selection.is_valid()
-        {
-            if let Some(arguments) = machine_arguments {
-                call.machine_arguments = arguments;
-            }
-            if let Some(template) = closed_template {
-                call.target_symbol = template;
-            }
-            if let Some(target) = selected_callable(call.target_symbol) {
-                call.static_machine_parameter = call.target_symbol;
-                call.target_symbol = target;
-            }
-            applications.push(call.authored_machine_application);
-        }
+    for site in calls {
+        substitute_call(program, site)?;
     }
     for &handle in &body.statements {
-        let (mut machine_arguments, closed_template) =
-            match program.statement_table.statement(handle) {
-                StatementNode::Call(call) => (
-                    Some(call.machine_arguments.clone()),
-                    program
-                        .closed_requirement_application(call.target_symbol)
-                        .map(|closed| closed.template),
-                ),
-                _ => (None, None),
-            };
-        if let Some(arguments) = machine_arguments.as_mut() {
-            replace(program, arguments)?;
-        }
-        let statement = program.statement_table.statement_mut(handle);
-        match statement {
-            StatementNode::Call(call) => {
-                if let Some(arguments) = machine_arguments {
-                    call.machine_arguments = arguments;
-                }
-                if let Some(template) = closed_template {
-                    call.target_symbol = template;
-                }
-                if let Some(target) = selected_callable(call.target_symbol) {
-                    call.static_machine_parameter = call.target_symbol;
-                    call.target_symbol = target;
-                }
-                applications.push(call.authored_machine_application);
-            }
+        match program.statement_table.statement(handle) {
+            StatementNode::Call(_) => substitute_call(program, Site::Statement(handle))?,
             StatementNode::Transition(transition) => {
                 let targets = transition.targets();
                 for handle in targets {
@@ -2737,7 +2711,7 @@ fn substitute_arguments(
         let table = &mut program.expression_table;
         table
             .static_machine_application_arguments_mut(application)
-            .clone_from_slice(&arguments);
+            .swap_with_slice(&mut arguments);
         table.set_static_machine_application_bindings(application, &[]);
         table
             .static_machine_application_mut(application)

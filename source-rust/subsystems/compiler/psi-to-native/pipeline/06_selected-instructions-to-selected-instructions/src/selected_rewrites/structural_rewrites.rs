@@ -16,15 +16,15 @@ rewrite runs.
 
 These rewrites do not need the pair-rule fixed point, which still refuses
 many program shapes, so selecting only them never starts it. The run records
-its own `SelectedLoweringOptimizationCompletionIdentity` in the program's
+the program it ended with as the selected-lowering output in the program's
 `SelectedOptimizationRecord`; a pair-rule run that follows replaces it with its
 own and keeps this run as its source.
 
 Each step keeps the program it read and the program it produced. The default
 compile drops them with the rest of the selected-optimization run. An explicit
 validator (`SelectedOptimizationReplay::validate`) calls
-`validate_structural_rewrites`, which checks the selection, completion
-identity and applicability again, re-executes every step from its kept input,
+`validate_structural_rewrites`, which checks the selection and applicability
+again, re-executes every step from its kept input,
 and checks each rewrite's own postconditions without trusting the producer:
 - every step keeps the program's contracts, target, entry and function roster,
   and leaves each function with resolvable block, instruction and register
@@ -36,10 +36,7 @@ and checks each rewrite's own postconditions without trusting the producer:
 */
 
 use crate::selected_rewrites::rewrites::SELECTED_LOWERING_RULE_CATALOG;
-use optimization_core::{
-    Optimization, OptimizationExecutionPhase, OptimizationSelections,
-    SelectedLoweringOptimizationCompletionIdentity,
-};
+use optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationSelections};
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterConstraintKey, RegisterInstructionConstraint};
 use selected_instructions::{
@@ -81,11 +78,20 @@ impl StructuralRewrite {
     fn apply(
         self,
         functions: &mut [SelectedFunction],
+        contracts: &selected_instructions::SelectedProgramContracts,
         environment: &ValidatedTargetRegisterEnvironment,
     ) -> Result<(), StructuralRewriteError> {
         match self {
             Self::AcyclicCallInlining => {
-                crate::selected_rewrites::call_inlining::inline_and_simplify(functions, environment)
+                crate::selected_rewrites::call_inlining::inline_and_simplify(
+                    functions,
+                    environment,
+                    |machine| {
+                        contracts
+                            .function_abi(machine)
+                            .is_some_and(|abi| abi.assembly_return.is_some())
+                    },
+                )
             }
             Self::PackedVectorPromotion => {
                 crate::selected_rewrites::vector_promotion::promote_and_simplify(
@@ -190,15 +196,9 @@ pub(crate) struct StructuralRewriteRun {
     custody: StagedOptimizedCustodyCore,
     environment: ValidatedTargetRegisterEnvironment,
     selections: OptimizationSelections,
-    completion: SelectedLoweringOptimizationCompletionIdentity,
 }
 
 impl StructuralRewriteRun {
-    /// What the program's optimization record names as this run.
-    pub(crate) const fn completion(&self) -> SelectedLoweringOptimizationCompletionIdentity {
-        self.completion
-    }
-
     pub(crate) const fn selections(&self) -> &OptimizationSelections {
         &self.selections
     }
@@ -249,41 +249,12 @@ pub(crate) fn run_structural_rewrites(
             output,
         });
     }
-    let completion = completion_identity(custody, selections, &steps);
     Ok(Some(StructuralRewriteRun {
         steps,
         custody,
         environment: environment.clone(),
         selections: selections.clone(),
-        completion,
     }))
-}
-
-/// Names the run by the custody and selection it ran under and the rewrites
-/// it applied. No stage hashes a selected plan; the kept steps hold the
-/// programs themselves.
-fn completion_identity(
-    custody: StagedOptimizedCustodyCore,
-    selections: &OptimizationSelections,
-    steps: &[StructuralRewriteStep],
-) -> SelectedLoweringOptimizationCompletionIdentity {
-    let mut canonical = Vec::new();
-    canonical.extend_from_slice(b"omega.selected-lowering-structural-rewrites.v2\0");
-    for identity in [
-        custody.selection.bytes(),
-        custody.optimization_unit.bytes(),
-        custody.register_environment.bytes(),
-        selections.identity().bytes(),
-    ] {
-        canonical.extend_from_slice(&identity);
-    }
-    canonical.extend_from_slice(&custody.budget_per_pass.encode());
-    canonical.extend_from_slice(&custody.entry.get().to_le_bytes());
-    canonical.extend_from_slice(&custody.work_schedule.marker().to_le_bytes());
-    for step in steps {
-        canonical.push(step.rewrite.optimization() as u8);
-    }
-    SelectedLoweringOptimizationCompletionIdentity::from_canonical_bytes(&canonical)
 }
 
 /// Check a kept run against the selection and target it claims, re-execute
@@ -301,9 +272,7 @@ pub(crate) fn validate_structural_rewrites(
     {
         return Err(StructuralRewriteValidationError::SelectionMismatch);
     }
-    if run.custody.register_environment != environment.identity()
-        || completion_identity(run.custody, &run.selections, &run.steps) != run.completion
-    {
+    if run.custody.register_environment != environment.identity() {
         return Err(StructuralRewriteValidationError::OtherProgram);
     }
     require_applicable(&rewrites, environment)
@@ -353,7 +322,7 @@ fn execute(
         ));
     }
     let mut functions: Vec<SelectedFunction> = input.functions.iter().cloned().collect();
-    rewrite.apply(&mut functions, environment)?;
+    rewrite.apply(&mut functions, &input.contracts, environment)?;
     functions.sort_by_key(|function| function.machine);
     Ok(SelectedInstructionPlan {
         contracts: Arc::clone(&input.contracts),
@@ -413,7 +382,8 @@ fn references_resolve(function: &SelectedFunction) -> Result<(), &'static str> {
                 register: VirtualRegisterId(spilled),
             } => exists(instruction) && (spilled as usize) < registers,
             VirtualRegisterOrigin::BlockParameter { block, .. } => (block.0 as usize) < blocks,
-            VirtualRegisterOrigin::EntryParameter { .. }
+            VirtualRegisterOrigin::ActivationOwner
+            | VirtualRegisterOrigin::EntryParameter { .. }
             | VirtualRegisterOrigin::StructuralParameter { .. } => true,
         };
         if !resolves {
@@ -801,15 +771,6 @@ mod tests {
         assert_eq!(
             validate_structural_rewrites(&unselected),
             Err(StructuralRewriteValidationError::SelectionMismatch)
-        );
-
-        // The completion the program's record names must be this run's.
-        let mut renamed = run.clone();
-        renamed.completion =
-            SelectedLoweringOptimizationCompletionIdentity::from_canonical_bytes(b"other");
-        assert_eq!(
-            validate_structural_rewrites(&renamed),
-            Err(StructuralRewriteValidationError::OtherProgram)
         );
 
         // An output the producer does not reproduce is refused.

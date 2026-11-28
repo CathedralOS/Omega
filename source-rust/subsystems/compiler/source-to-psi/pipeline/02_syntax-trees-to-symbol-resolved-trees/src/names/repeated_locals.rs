@@ -10,17 +10,28 @@
 //! the patterns retain the authored names and their diagnostic spans.
 
 use super::scopes::DeclarationTypeScopes;
+use crate::source_resolved::data::TypeParameter;
 use crate::source_resolved::expression::{
     ExpressionHandle, ExpressionNode, ExpressionTable, MatchFieldAction, MatchPattern,
     TableDestructurePattern,
 };
 use crate::source_resolved::name::DiagnosticName;
 use crate::source_resolved::statement::{Statement, TransitionGuard, TransitionTarget};
+use crate::source_resolved::types::{PackageOpening, TypeReference, TypeReferenceArena};
 use crate::source_resolved::{GenericBindingOverlap, SymbolResolvedTrees};
 use diagnostics::Diagnostic;
 
 pub(super) fn check_bindings(
     program: &SymbolResolvedTrees,
+) -> Result<Vec<GenericBindingOverlap>, Vec<Diagnostic>> {
+    inspect_bindings(program, &mut |_, _| {})
+}
+
+/// Each visited annotation sees the formal openings of its state and the
+/// local openings that were introduced before it in the same lexical block.
+pub(super) fn inspect_bindings(
+    program: &SymbolResolvedTrees,
+    annotation: &mut dyn FnMut(&TypeReference, &[&PackageOpening]),
 ) -> Result<Vec<GenericBindingOverlap>, Vec<Diagnostic>> {
     let symbols = &program.symbols;
     let declarations = &program.tables.declarations;
@@ -38,10 +49,7 @@ pub(super) fn check_bindings(
             inherited.parameters(definition.symbol),
         );
         if definition.attached_data_symbol.is_valid()
-            && let Some(data) = program
-                .data_definitions
-                .iter()
-                .find(|data| data.symbol == definition.attached_data_symbol)
+            && let Some(data) = program.data_definition_by_symbol(definition.attached_data_symbol)
         {
             visible = super::scopes::declaration_type_scope(
                 &visible,
@@ -66,6 +74,8 @@ pub(super) fn check_bindings(
                 continue;
             }
             let state_name = symbols.name(state.symbol);
+            let child_types = &declarations.child_type_references;
+            let mut opened_scope = Vec::new();
             let mut declared = Vec::new();
             for parameter in declarations
                 .state_parameters
@@ -76,6 +86,13 @@ pub(super) fn check_bindings(
                 }
                 let name = symbols.name(parameter.symbol);
                 record_overlap(&parameter.name);
+                record_opening_names(
+                    child_types,
+                    &parameter.type_reference,
+                    &visible,
+                    &mut opened_scope,
+                    &mut diagnostics,
+                );
                 // A use of the name could only ever reach the first of two
                 // parameters that share it, so the second is refused where
                 // it is declared, like a local that repeats a visible name.
@@ -90,12 +107,22 @@ pub(super) fn check_bindings(
                 }
                 declared.push(name.to_owned());
             }
+            for parameter in declarations.state_parameters.span_or_empty(state.parameters) {
+                annotation(&parameter.type_reference, &opened_scope);
+            }
+            if let Some(result) = &state.return_type {
+                annotation(result, &opened_scope);
+            }
             let parameter_count = declared.len();
             let mut arms = ArmBindings {
                 expressions,
                 statements: &declarations.state_statements,
                 symbols,
                 record_overlap: &mut record_overlap,
+                annotation,
+                child_types,
+                opened_scope,
+                type_parameters: &visible,
                 declared,
                 parameter_count,
                 machine,
@@ -116,14 +143,53 @@ pub(super) fn check_bindings(
     }
 }
 
+/// A witness type may share spelling in disjoint bodies or blocks. Two live
+/// binders for the same type name would make the second subject unreachable.
+fn record_opening_names<'program>(
+    types: &'program TypeReferenceArena,
+    reference: &TypeReference,
+    type_parameters: &[TypeParameter],
+    scope: &mut Vec<&'program PackageOpening>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if types.package_openings.is_empty() {
+        return;
+    }
+    for opening in types.annotation_openings(reference) {
+        let name = opening.name.as_str();
+        if scope.iter().any(|earlier| earlier.name.as_str() == name)
+            || type_parameters.iter().any(|parameter| {
+                parameter.name.as_str() == name
+                    && parameter.symbol.is_valid()
+                    && !super::type_references::introduces_value(&parameter.kind)
+            })
+        {
+            diagnostics.push(
+                Diagnostic::error(format!(
+                    "package opening `{}` conflicts with a type name already in scope",
+                    opening.name.as_str(),
+                ))
+                .with_source_span(opening.name.source_span()),
+            );
+        }
+        if opening.symbol.is_valid() {
+            scope.push(opening);
+        }
+    }
+}
+
 /// One state's walk over its arm bindings. `declared` holds the names in
 /// scope: parameters, earlier locals, then the bindings of each enclosing
 /// arm, pushed on entry to the arm and popped on exit.
 struct ArmBindings<'walk> {
     expressions: &'walk ExpressionTable,
     statements: &'walk arena::Arena<Statement>,
+    child_types: &'walk crate::source_resolved::types::TypeReferenceArena,
+    opened_scope: Vec<&'walk PackageOpening>,
+    type_parameters: &'walk [TypeParameter],
     symbols: &'walk crate::source_symbols::SymbolTable,
     record_overlap: &'walk mut dyn FnMut(&DiagnosticName),
+    annotation: &'walk mut dyn FnMut(&TypeReference, &[&PackageOpening]),
     declared: Vec<String>,
     parameter_count: usize,
     machine: &'walk str,
@@ -146,6 +212,13 @@ impl ArmBindings<'_> {
             }
             let name = self.symbols.name(local.symbol);
             (self.record_overlap)(&local.name);
+            record_opening_names(
+                self.child_types,
+                &local.type_reference,
+                self.type_parameters,
+                &mut self.opened_scope,
+                self.diagnostics,
+            );
             let shadowed = self.declared.iter().position(|earlier| earlier == name);
             self.declared.push(name.to_owned());
             if let Some(position) = shadowed {
@@ -185,7 +258,10 @@ impl ArmBindings<'_> {
             Statement::Expression(expression) | Statement::Evaluate { expression, .. } => {
                 self.expression(*expression)
             }
-            Statement::LocalData(local) => self.expression(local.initial_value),
+            Statement::LocalData(local) => {
+                (self.annotation)(&local.type_reference, &self.opened_scope);
+                self.expression(local.initial_value);
+            }
             Statement::Transition(transition) => {
                 let scope = self.declared.len();
                 let mut names = Vec::new();
@@ -233,10 +309,12 @@ impl ArmBindings<'_> {
         match expressions.expression(expression) {
             ExpressionNode::Block(block) => {
                 let scope = self.declared.len();
+                let types = self.opened_scope.len();
                 let statements = self.statements;
                 self.sequence(statements.span_or_empty(block.statements));
                 self.expression(block.tail);
                 self.declared.truncate(scope);
+                self.opened_scope.truncate(types);
             }
             ExpressionNode::Match(dispatch) => {
                 self.expression(dispatch.subject);
@@ -269,9 +347,10 @@ impl ArmBindings<'_> {
             | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::Integer(_)
             | ExpressionNode::Name(_)
-            | ExpressionNode::String(_)
-            | ExpressionNode::TypeExpression(_)
-            | ExpressionNode::ZeroValue(_) => {}
+            | ExpressionNode::String(_) => {}
+            ExpressionNode::TypeExpression(reference) | ExpressionNode::ZeroValue(reference) => {
+                self.type_use(*reference);
+            }
             ExpressionNode::ArrayLiteral(values) => self.expressions_in(*values),
             ExpressionNode::Atomic(atomic) => {
                 self.expression(atomic.value);
@@ -281,7 +360,10 @@ impl ArmBindings<'_> {
                 self.expression(binary.left);
                 self.expression(binary.right);
             }
-            ExpressionNode::Cast(cast) => self.expression(cast.value),
+            ExpressionNode::Cast(cast) => {
+                self.type_use(cast.target_type);
+                self.expression(cast.value);
+            }
             ExpressionNode::Call(call) => {
                 self.expression(call.callee);
                 self.expression(call.receiver);
@@ -299,11 +381,18 @@ impl ArmBindings<'_> {
                 self.expression(range.end);
             }
             ExpressionNode::StructLiteral(literal) => {
+                self.type_use(literal.application_type);
                 for field in expressions.struct_fields(literal.fields) {
                     self.expression(field.value);
                 }
             }
             ExpressionNode::Unary(unary) => self.expression(unary.operand),
+        }
+    }
+
+    fn type_use(&mut self, handle: arena::Handle<crate::source_resolved::types::TypeReference>) {
+        if handle.is_valid() {
+            (self.annotation)(self.child_types.get(handle), &self.opened_scope);
         }
     }
 

@@ -9,7 +9,9 @@ use crate::descriptor_lifetimes::{
     descriptor_entry_lifetime_with_contents_indexed,
     descriptor_location_lifetime_with_contents_indexed, descriptor_path,
 };
-use crate::descriptor_results::{DescriptorAnalysis, DescriptorSlotKind};
+use crate::descriptor_results::{
+    DescriptorAnalysis, DescriptorCallOrigin, DescriptorSlotKind, DescriptorSourceOrigin,
+};
 use crate::descriptors::row_source::DescriptorRowSource;
 use crate::module_analyses::DescriptorRows;
 use arena::IdTable;
@@ -253,12 +255,63 @@ fn validate_call_owners(
     Ok(())
 }
 
-fn indexed_store_contents(
+fn required_contents(
     module: &TerminalModule,
     machine: &terminal_psi::TerminalMachine,
     prepared: &crate::descriptor_results::DescriptorMachine,
+    analysis: &mut DescriptorAnalysis<'_>,
 ) -> Result<Vec<(DescriptorPosition, DescriptorLocation)>, Error> {
     let mut contents = Vec::new();
+    // A scalar actual can point to a cell holding a live descriptor. Read its
+    // storage at exposure and retain the cell at the invocation, including calls
+    // that leave through a terminator. A dynamic selector retains its enclosing array.
+    for (&position, calls) in &prepared.calls {
+        let observed = calls
+            .iter()
+            .flatten()
+            .flat_map(|call| &call.native_address_arguments)
+            .flat_map(|actual| &actual.sources);
+        for actual in observed {
+            if !actual.storage_address
+                || !actual.pointee.is_some_and(|ty| {
+                    terminal_psi::structural_type_has_borrowed_storage_by(
+                        |id| module.structural_type(id),
+                        ty,
+                    )
+                })
+            {
+                continue;
+            }
+            let origins = analysis
+                .observed_storage_family(machine, actual.at, &actual.location)
+                .map_err(|detail| Error::local(machine.id, None, detail))?;
+            for origin in origins.into_iter().flatten() {
+                let DescriptorCallOrigin::Argument { source, projection } = origin else {
+                    continue;
+                };
+                let root = prepared.place_types.get(&source).ok_or_else(|| {
+                    Error::local(
+                        machine.id,
+                        None,
+                        "addressed reference cell lost its root type",
+                    )
+                })?;
+                let cell = projection
+                    .captured_storage_path()
+                    .and_then(|path| {
+                        crate::descriptor_lifetimes::descriptor_location(
+                            &module.types.structural_types,
+                            source,
+                            *root,
+                            &path,
+                            None,
+                        )
+                    })
+                    .unwrap_or_else(|| DescriptorLocation::whole(source));
+                contents.push((position, cell));
+            }
+        }
+    }
     for block in &machine.blocks {
         for (ordinal, operation) in block.operations.iter().enumerate() {
             let (OperationKind::StoreStructuralField {
@@ -320,7 +373,8 @@ fn indexed_store_contents(
             contents.push(((block.id, ordinal), location));
         }
     }
-    contents.sort_unstable_by_key(|(at, _)| *at);
+    contents.sort_unstable();
+    contents.dedup();
     Ok(contents)
 }
 
@@ -441,14 +495,8 @@ fn build_dead_tail_cutoff(
             if let Some(output) = operation.result.as_structural() {
                 record(&mut touches, output.place, block.id, ordinal);
             }
-            match &operation.kind {
-                OperationKind::EstablishReference { source, .. }
-                | OperationKind::EstablishAccessReference { source, .. }
-                | OperationKind::EstablishElementView { source, .. }
-                | OperationKind::EstablishMutableElementView { source, .. } => {
-                    mark_ineligible(&mut touches, source.place);
-                }
-                _ => {}
+            if let Some(source) = retained_loan_source(&operation.kind) {
+                mark_ineligible(&mut touches, source.place);
             }
             for arg in operation.kind.structural_arguments() {
                 record(&mut touches, arg.place, block.id, ordinal);
@@ -593,21 +641,22 @@ fn machine_candidates(
 ) -> Result<Candidates, Error> {
     validate_call_owners(module, machine, prepared)
         .map_err(|detail| Error::local(machine.id, None, detail))?;
-    // An indexed replacement requires an intact array at its own cut.
-    // Ending an old descriptor before that cut would make the compiler's
-    // own cleanup create a hole. Retaining it there does not read or escape
-    // its backing, and does not change how affine checking judges authored moves.
-    let contents = indexed_store_contents(module, machine, prepared)?;
+    // Compiler-inserted cleanup must leave the original descriptors available
+    // at each indexed replacement or call that can observe their contents.
+    let contents = required_contents(module, machine, prepared, analysis)?;
     let needs_contents = |at, name: &DescriptorLocation| {
-        contents
-            .binary_search_by_key(&at, |(position, _)| *position)
-            .is_ok_and(|index| contents[index].1.contains(name))
+        contents[contents.partition_point(|(position, _)| *position < at)..]
+            .iter()
+            .take_while(|(position, _)| *position == at)
+            .any(|(_, required)| required.contains(name))
     };
     let predecessors = FlowPredecessors::new(flow);
     let cutoff = build_dead_tail_cutoff(module, machine, flow, &predecessors, &contents);
     let mut dead = BTreeMap::<DescriptorPosition, BTreeSet<DescriptorLocation>>::new();
     let mut live = BTreeMap::<DescriptorPosition, BTreeSet<DescriptorLocation>>::new();
     let mut lifetimes = Vec::new();
+    let mut retained_inputs =
+        BTreeMap::<DescriptorPosition, Vec<(DescriptorLocation, usize)>>::new();
     let mut dependencies =
         BTreeMap::<DescriptorPosition, BTreeSet<(DescriptorLocation, DescriptorLocation)>>::new();
     for parameter in machine
@@ -709,7 +758,7 @@ fn machine_candidates(
                         path: retained.path,
                         access: input.access,
                     };
-                    add_dependencies(
+                    let parents = add_dependencies(
                         module,
                         prepared,
                         flow,
@@ -721,7 +770,51 @@ fn machine_candidates(
                         &mut dependencies,
                     )
                     .map_err(|detail| Error::local(machine.id, Some(operation.id), detail))?;
+                    for parent in parents {
+                        retained_inputs
+                            .entry(birth)
+                            .or_default()
+                            .push((parent, lifetimes.len()));
+                    }
                     lifetimes.push(retained.lifetime);
+                }
+            }
+            // Forming a reference from the address of a local descriptor cell
+            // retains that cell until the new reference ends, just as an
+            // explicit structural borrow does. External addresses have no local owner.
+            let mut native_lenders = Vec::new();
+            if matches!(operation.kind, OperationKind::BorrowAt { .. }) {
+                let after = (
+                    birth.0,
+                    birth.1.checked_add(1).ok_or_else(|| {
+                        Error::local(
+                            machine.id,
+                            Some(operation.id),
+                            "native reference formation position overflows",
+                        )
+                    })?,
+                );
+                for origin in analysis
+                    .symbolic_source_origins(
+                        machine.id,
+                        after,
+                        &DescriptorLocation::whole(output.place),
+                    )
+                    .into_iter()
+                    .flatten()
+                {
+                    if let DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
+                        source,
+                        projection,
+                    }) = origin
+                        && let Some(path) = projection.captured_storage_path()
+                    {
+                        native_lenders.push(StructuralArgument {
+                            place: source,
+                            path,
+                            access: StructuralAccess::SharedBorrow,
+                        });
+                    }
                 }
             }
             for slot in inventory.slots {
@@ -733,11 +826,9 @@ fn machine_candidates(
                     &slot,
                     needs_contents,
                 );
-                if let terminal_psi::OperationKind::EstablishReference { source, .. }
-                | terminal_psi::OperationKind::EstablishAccessReference { source, .. }
-                | terminal_psi::OperationKind::EstablishElementView { source, .. }
-                | terminal_psi::OperationKind::EstablishMutableElementView { source, .. } =
-                    &operation.kind
+                for source in retained_loan_source(&operation.kind)
+                    .into_iter()
+                    .chain(&native_lenders)
                 {
                     add_dependencies(
                         module,
@@ -753,6 +844,27 @@ fn machine_candidates(
                     .map_err(|detail| Error::local(machine.id, Some(operation.id), detail))?;
                 }
                 lifetimes.push(lifetime);
+            }
+        }
+    }
+    // A call can finish using its argument descriptor before the returned
+    // permission ends. Track the *loan* that supplied that descriptor at the
+    // call, so its other surviving homes also outlive the result.
+    if !retained_inputs.is_empty() {
+        for parent in &lifetimes {
+            for (at, authorities) in &parent.authorized {
+                let Some(inputs) = retained_inputs.get(at) else {
+                    continue;
+                };
+                for (input, child) in inputs {
+                    if authorities.contains(input) {
+                        record_parent_homes(
+                            &lifetimes[*child],
+                            &parent.authorized,
+                            &mut dependencies,
+                        );
+                    }
+                }
             }
         }
     }
@@ -917,6 +1029,22 @@ fn machine_candidates(
     Ok(candidates)
 }
 
+/// A new permission depends on the descriptor that supplied its backing.
+fn retained_loan_source(kind: &terminal_psi::OperationKind) -> Option<&StructuralArgument> {
+    use terminal_psi::OperationKind;
+    match kind {
+        OperationKind::EstablishReference { source, .. }
+        | OperationKind::EstablishAccessReference { source, .. }
+        | OperationKind::EstablishElementView { source, .. }
+        | OperationKind::EstablishMutableElementView { source, .. }
+        | OperationKind::UpgradeMutability { source }
+        | OperationKind::ByteSequenceSubslice { source, .. }
+        | OperationKind::ElementViewSubslice { source, .. }
+        | OperationKind::ElementViewFixedArray { source, .. } => Some(source),
+        _ => None,
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn add_dependencies(
     module: &TerminalModule,
@@ -931,9 +1059,9 @@ fn add_dependencies(
         DescriptorPosition,
         BTreeSet<(DescriptorLocation, DescriptorLocation)>,
     >,
-) -> Result<(), String> {
+) -> Result<Vec<DescriptorLocation>, String> {
     if lifetime.authorized.is_empty() {
-        return Ok(());
+        return Ok(Vec::new());
     }
     let same_block_max = if acyclic {
         let mut max_ord = birth.1;
@@ -982,36 +1110,53 @@ fn add_dependencies(
         captured.path.truncate(crossing);
         vec![captured]
     } else {
+        // A borrow of a generic value retains any loans in its unknown
+        // contents together. The opaque coordinate orders releases without
+        // inventing an addressable descriptor leaf inside the value.
         DescriptorSlotKind::BorrowedStorage
-            .owned_slots(&module.types.structural_types, source.place, source_type)
+            .owned_inventory(&module.types.structural_types, source.place, source_type)
             .ok_or("reference parent has no finite descriptor inventory")?
-            .into_iter()
+            .into_observations()
             .filter(|parent| captured.contains(parent))
             .collect()
     };
-    for parent in parents {
+    for parent in &parents {
         let homes = descriptor_continuation_locations_indexed(
             flow,
             predecessors,
             same_block_max,
             birth,
-            &parent,
+            parent,
         );
-        for (at, children) in &lifetime.authorized {
+        record_parent_homes(lifetime, &homes, dependencies);
+    }
+    Ok(parents)
+}
+
+fn record_parent_homes(
+    child: &crate::descriptor_lifetimes::DescriptorLifetime,
+    homes: &BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>>,
+    dependencies: &mut BTreeMap<
+        DescriptorPosition,
+        BTreeSet<(DescriptorLocation, DescriptorLocation)>,
+    >,
+) {
+    for (at, children) in &child.authorized {
+        // A narrowed window carries its parent's authority. Its own moved
+        // or copied homes can therefore occur in both continuations.
+        // Another home of this child is never a parent to release after it.
+        for parent in homes
+            .get(at)
+            .into_iter()
+            .flatten()
+            .filter(|parent| !children.contains(parent))
+        {
             for child in children {
-                for parent in homes
-                    .get(at)
-                    .into_iter()
-                    .flatten()
-                    .filter(|parent| *parent != child)
-                {
-                    dependencies
-                        .entry(*at)
-                        .or_default()
-                        .insert((child.clone(), parent.clone()));
-                }
+                dependencies
+                    .entry(*at)
+                    .or_default()
+                    .insert((child.clone(), parent.clone()));
             }
         }
     }
-    Ok(())
 }

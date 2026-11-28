@@ -275,12 +275,13 @@ fn every_law_of_rat_is_judged() {
     );
 }
 
-#[test]
-fn every_law_of_cauchy_is_judged() {
-    // `core/cauchy.omg` states what it is for a sequence of rationals to be
-    // Cauchy, for any sequence and any modulus: its machines are generic
-    // over machines. It is judged with the four files it stands on.
-    let verdicts = judged_library(&[
+const CAUCHY: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../../../source/library/core/cauchy.omg"
+));
+
+fn judged_cauchy(cauchy: &str) -> Vec<RouteVerdict> {
+    judged_library(&[
         (
             "nat_metric.omg",
             include_str!(concat!(
@@ -302,14 +303,84 @@ fn every_law_of_cauchy_is_judged() {
                 "/../../../../../../source/library/core/rat.omg"
             )),
         ),
-        (
-            "cauchy.omg",
-            include_str!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../../../../../../source/library/core/cauchy.omg"
-            )),
-        ),
-    ]);
+        ("cauchy.omg", cauchy),
+    ])
+}
+
+// The two sequence types have different states and different static samplers.
+const GENERATORS: &str = "machine raw(n: |nat|::Nat, d: |nat|::Nat) -> |rat|::Rat {
+    |rat|::Rat { num: |int|::IntPair { neg: |nat|::Nat::Zero, pos: n }, den: d }
+}
+machine ones(n: |nat|::Nat) -> |rat|::Rat reaches none crashes none terminates {
+    raw(|nat|::one(), |nat|::one())
+}
+machine generated() -> Sequence<RationalFunction, apply> { from_function(ones) }
+machine same_samples(n: |nat|::Nat)
+ensures |proof|::Identity::<|rat|::Rat>(
+    repeat(constant(raw(|nat|::one(), |nat|::one())).state, n), apply(generated().state, n))
+{}
+machine same_bound(bound: |nat|::Nat, precision: |nat|::Nat, i: |nat|::Nat, j: |nat|::Nat)
+ensures |proof|::Identity::<|nat|::Nat>(
+    sample_within(repeat(constant(raw(|nat|::one(), |nat|::one())).state, i),
+                  apply(generated().state, j), bound, precision), |nat|::Nat::Zero)
+{
+    sample_within_reflexive(raw(|nat|::one(), |nat|::one()), bound, precision);
+}
+machine constant_one_regular(i: |nat|::Nat, j: |nat|::Nat)
+ensures |proof|::Identity::<|nat|::Nat>(
+    sample_within(repeat(constant(raw(|nat|::one(), |nat|::one())).state, i),
+                  repeat(constant(raw(|nat|::one(), |nat|::one())).state, j),
+                  |nat|::add(i,j), |nat|::mul(i,j)), |nat|::Nat::Zero)
+{ same_bound(|nat|::add(i,j), |nat|::mul(i,j), i,j); }
+machine generated_ones_regular(i: |nat|::Nat, j: |nat|::Nat)
+ensures |proof|::Identity::<|nat|::Nat>(
+    sample_within(apply(generated().state, i), apply(generated().state, j),
+                  |nat|::add(i,j), |nat|::mul(i,j)), |nat|::Nat::Zero)
+{ same_bound(|nat|::add(i,j), |nat|::mul(i,j), i,j); }
+machine both_converge(n: |nat|::Nat)
+ensures |proof|::Identity::<|nat|::Nat>(
+    sample_within(repeat(constant(raw(|nat|::one(), |nat|::one())).state, n),
+                  apply(generated().state, n), |nat|::four(), n), |nat|::Nat::Zero)
+{ same_bound(|nat|::four(), n,n,n); }";
+
+/// Each closed sequence type carries evidence about exactly its own sampler.
+fn regular_record(name: &str, state: &str, sampler: &str) -> String {
+    format!(
+        "machine sample_{name}(s: Sequence<{state}, {sampler}>, n: |nat|::Nat) -> |rat|::Rat {{
+    {sampler}(s.state, n)
+}}
+let positive_{name}(s: Sequence<{state}, {sampler}>): |proof|::Type<0> =
+    (n: |nat|::Nat) -> |proof|::Identity::<|nat|::Nat>(
+        |nat|::saturating_sub(|nat|::one(), sample_denominator(sample_{name}(s,n))), |nat|::Nat::Zero);
+let regular_{name}(s: Sequence<{state}, {sampler}>): |proof|::Type<0> =
+    (i: |nat|::Nat) -> (j: |nat|::Nat) -> |proof|::Identity::<|nat|::Nat>(
+        sample_within(sample_{name}(s, |nat|::Nat::Succ {{ prev:i }}),
+                      sample_{name}(s, |nat|::Nat::Succ {{ prev:j }}),
+                      |nat|::add(|nat|::Nat::Succ {{ prev:i }}, |nat|::Nat::Succ {{ prev:j }}),
+                      |nat|::mul(|nat|::Nat::Succ {{ prev:i }}, |nat|::Nat::Succ {{ prev:j }})),
+        |nat|::Nat::Zero);
+data {name}
+requires |proof|::Squash::<positive_{name}(samples)>, |proof|::Squash::<regular_{name}(samples)>
+{{ samples: Sequence<{state}, {sampler}>; }}
+machine pack_{name}(s: Sequence<{state}, {sampler}>) -> {name}
+requires |proof|::Squash::<positive_{name}(s)>, |proof|::Squash::<regular_{name}(s)>
+{{ {name} {{ samples: s }} }}
+machine denominator_of_{name}(p: {name}) ensures |proof|::Squash::<positive_{name}(p.samples)> {{}}
+machine regularity_of_{name}(p: {name}) ensures |proof|::Squash::<regular_{name}(p.samples)>
+{{}}"
+    )
+}
+
+#[test]
+fn every_law_of_cauchy_is_judged() {
+    // `core/cauchy.omg` states what it is for a sequence of rationals to be
+    // Cauchy, for any sequence and any modulus: its machines are generic
+    // over machines. It is judged with the four files it stands on.
+    let rational = regular_record("RegularConstant", "|rat|::Rat", "repeat");
+    let function = regular_record("RegularFunction", "RationalFunction", "apply");
+    let verdicts = judged_cauchy(&format!(
+        "use int.omg;\n{CAUCHY}\n{GENERATORS}\nmachine sample_denominator(q: |rat|::Rat) -> |nat|::Nat {{ q.den }}\n{rational}\n{function}"
+    ));
     let judgment = signature(&verdicts);
     for law in &judgment.laws {
         assert!(
@@ -317,20 +388,125 @@ fn every_law_of_cauchy_is_judged() {
             "{law:?}"
         );
     }
+    let law = |machine: &str| {
+        judgment
+            .laws
+            .iter()
+            .find(|law| law.machine == machine)
+            .unwrap_or_else(|| panic!("the law `{machine}`"))
+    };
     for machine in [
+        "same_samples",
+        "same_bound",
+        "function_sample",
+        "constant_function_related_at",
+        "constant_sample",
+        "constant_regular_at",
         "cauchy_at_reflexive",
         "converges_together_at_symmetric",
         "converges_together_at_triangle_split",
         "doubled_nat_max_threshold",
     ] {
-        let law = judgment
-            .laws
-            .iter()
-            .find(|law| law.machine == machine)
-            .unwrap_or_else(|| panic!("the law `{machine}`"));
-        eprintln!("{machine}: {} conversion steps", law.conversion_steps);
+        eprintln!(
+            "{machine}: {} conversion steps",
+            law(machine).conversion_steps
+        );
     }
+    let MathematicalCoreDecision::Judged(sample) = law("constant_sample").decision;
+    assert_eq!((sample.context_depth, sample.assumption_closure), (0, 0));
+
+    // Check the serialized bound again. Its dependencies must already be
+    // justified by the existing rational metric's reflexivity theorem.
+    let checked = |name| {
+        let mut proof = terminal_codec::decode_mathematical_certificate(&law(name).certificate)
+            .expect("the mathematical certificate");
+        proof_admission::verify_mathematical_certificate(
+            &mut proof.arena,
+            &proof.certificate,
+            &mut Default::default(),
+        )
+        .expect("the receiving kernel checks the closed law");
+        assert!(proof.certificate.context.is_empty());
+        proof
+    };
+    for name in [
+        "function_sample",
+        "same_samples",
+        "same_bound",
+        "constant_one_regular",
+        "generated_ones_regular",
+        "both_converge",
+        "denominator_of_RegularConstant",
+        "regularity_of_RegularConstant",
+        "denominator_of_RegularFunction",
+        "regularity_of_RegularFunction",
+    ] {
+        checked(name);
+    }
+    let assumptions = |proof: &terminal_codec::DecodedMathematicalCertificate| {
+        proof_admission::certificate_assumption_closure(&proof.arena, &proof.certificate)
+            .into_iter()
+            .map(|declaration| {
+                let mut certificate = proof.certificate.clone();
+                certificate.expected = certificate.signature[declaration as usize].ty;
+                terminal_codec::theorem_implication_key(&proof.arena, &certificate).unwrap()
+            })
+            .collect::<Vec<_>>()
+    };
+    let reflexive = checked("rat_within_reflexive");
+    let known = assumptions(&reflexive);
+    let cited =
+        terminal_codec::theorem_implication_key(&reflexive.arena, &reflexive.certificate).unwrap();
+    let bound = checked("constant_regular_at");
+    let used = assumptions(&bound);
+    assert!(
+        used.iter().all(|key| key == &cited || known.contains(key)),
+        "constant regularity introduced an assumption beyond rational reflexivity"
+    );
     eprintln!("{} laws", judgment.laws.len());
+}
+
+#[test]
+fn the_sample_bound_requires_convergence_and_positive_denominators() {
+    let source = format!(
+        "use int.omg;\n{CAUCHY}\n{GENERATORS}\n{}",
+        "machine separated()
+ensures |proof|::Identity::<|nat|::Nat>(
+    sample_within(repeat(constant(raw(|nat|::Nat::Zero, |nat|::one())).state, |nat|::five()),
+                  apply(generated().state, |nat|::five()),
+                  |nat|::four(), |nat|::five()), |nat|::Nat::Zero)
+{}
+
+machine bad_denominator()
+ensures |proof|::Identity::<|nat|::Nat>(
+    sample_within(repeat(constant(raw(|nat|::Nat::Zero, |nat|::Nat::Zero)).state, |nat|::five()),
+                  apply(generated().state, |nat|::five()),
+                  |nat|::four(), |nat|::five()), |nat|::Nat::Zero)
+{}
+
+machine bad_right_denominator()
+ensures |proof|::Identity::<|nat|::Nat>(
+    sample_within(apply(generated().state, |nat|::five()),
+                  repeat(constant(raw(|nat|::Nat::Zero, |nat|::Nat::Zero)).state, |nat|::five()),
+                  |nat|::four(), |nat|::five()), |nat|::Nat::Zero)
+{}"
+    );
+    let verdicts = judged_cauchy(&source);
+    let mut unproved = Vec::new();
+    for verdict in &verdicts {
+        match verdict {
+            RouteVerdict::Accepted(_) => {}
+            RouteVerdict::UnprovedLaws(laws) => {
+                unproved.extend(laws.iter().map(|law| law.machine.as_str()));
+            }
+            verdict => panic!("expected unproved laws: {verdict:?}"),
+        }
+    }
+    unproved.sort_unstable();
+    assert_eq!(
+        unproved,
+        ["bad_denominator", "bad_right_denominator", "separated"]
+    );
 }
 
 /// Natural order over local data, decided as `core/nat.omg` decides it: by

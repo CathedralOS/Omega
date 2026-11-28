@@ -76,6 +76,8 @@ impl SourceOrigin {
 /// The invariant carries the proposition.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EstablishedCondition {
+    /// Each incoming assembly edge must prove the destination block's authored precondition.
+    AssemblyBlockEntry(String),
     /// Every remaining arrival must satisfy the last authored guard.
     DispatchCoverage,
     /// `value as +D` for a domain with predicates
@@ -438,7 +440,7 @@ impl Elaboration {
         if !module.interfaces.callback_applications.is_empty()
             || !module.interfaces.installed_interrupt_registrations.is_empty()
             || module.execution.dynamic_dispatch != Default::default()
-            || module.execution.task_activation_demands != Default::default()
+            || !module.execution.task_activation_demands.is_empty()
         {
             return None;
         }

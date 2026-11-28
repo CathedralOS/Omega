@@ -3763,20 +3763,43 @@ pub mod operator {
             actual: TypeReferenceHandle,
             declared_carrier: TypeReferenceHandle,
         ) -> Option<CanonicalConstIdentity> {
-            let TypeReferenceNode::Named { name, .. } =
-                program.type_reference_table.type_reference(actual)
-            else {
-                return None;
-            };
-            if let Some(value) = CanonicalConstValue::from_atom(name.as_str()) {
-                return Some(value.identity());
+            use crate::source_state::expression::ExpressionNode;
+            match program.type_reference_node(actual) {
+                TypeReferenceNode::Named { name, .. } => {
+                    if let Some(value) = CanonicalConstValue::from_atom(name.as_str()) {
+                        return Some(value.identity());
+                    }
+                    let primitive = program.primitive_type_reference(declared_carrier)?;
+                    Some(CanonicalConstIdentity::integer(
+                        primitive.landed_landing()?,
+                        bignum::BigInt::from_decimal_str(name.as_str())?,
+                    ))
+                }
+                TypeReferenceNode::ConstExpression(expression) => {
+                    let primitive = program.primitive_type_reference(declared_carrier)?;
+                    match program.expression_table.expression(*expression) {
+                        ExpressionNode::Integer(literal) => {
+                            let carrier = primitive.landed_landing()?;
+                            let value = literal.value_bignum()?;
+                            if literal
+                                .landing()
+                                .is_some_and(|landing| landing.landed_type != carrier)
+                                || !carrier.value_carrier().admits(&value)
+                            {
+                                return None;
+                            }
+                            Some(CanonicalConstIdentity::integer(carrier, value))
+                        }
+                        ExpressionNode::Boolean(value)
+                            if primitive == crate::source_state::types::PrimitiveType::Bool =>
+                        {
+                            Some(CanonicalConstValue::boolean(*value).identity())
+                        }
+                        _ => None,
+                    }
+                }
+                _ => None,
             }
-            let value = bignum::BigInt::from_decimal_str(name.as_str())?;
-            let primitive = program.primitive_type_reference(declared_carrier)?;
-            Some(CanonicalConstIdentity::integer(
-                primitive.landed_landing()?,
-                value,
-            ))
         }
 
         fn bind_operator_const(

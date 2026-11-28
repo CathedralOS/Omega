@@ -5,8 +5,8 @@
 use language_core::sealed_intrinsics::HostedOperation;
 use build_providers::plans::{ServiceMethod, ServiceSchema, ServiceSurface};
 use semantic_vocabulary::BoundaryMachineId;
-use service_surface::{ServiceReceiverApplication, ServiceSynchronousInvocation};
-use terminal_psi::{CheckedBoundaryExecution, TerminalCallableInvocation, TerminalModule};
+use service_surface::ServiceReceiverApplication;
+use terminal_psi::{CheckedBoundaryExecution, TerminalModule};
 
 /// Project the complete supported hosted requirement, preserving declared type
 /// identities even when its physical result occupies no storage. The caller
@@ -42,6 +42,8 @@ pub fn hosted_requirement_schema(
         || !boundary.requires.is_empty()
         || !boundary.normal_qualifications.is_empty()
         || !boundary.scalar_domain_requirements.is_empty()
+        || !boundary.membership_requires.is_empty()
+        || !boundary.membership_ensures.is_empty()
         || !boundary.scalar_requires.is_empty()
         || !boundary.scalar_ensures.is_empty()
         || !boundary.crash_routes.is_empty()
@@ -147,13 +149,7 @@ fn requirement_schema(
     let mut synchronous_invocations = envelope
         .invocations
         .iter()
-        .map(|entry| match entry {
-            TerminalCallableInvocation::Parameter(position) => {
-                Ok(ServiceSynchronousInvocation::Parameter(*position))
-            }
-            TerminalCallableInvocation::Service(service) => service_name(*service)
-                .map(|name| ServiceSynchronousInvocation::Service(name.to_owned())),
-        })
+        .map(|entry| entry.try_map_service(|id| service_name(*id).map(str::to_owned)))
         .collect::<Result<Vec<_>, String>>()?;
     synchronous_invocations.sort_unstable();
     synchronous_invocations.dedup();

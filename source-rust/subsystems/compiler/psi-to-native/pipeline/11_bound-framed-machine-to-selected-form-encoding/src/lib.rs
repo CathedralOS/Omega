@@ -13,7 +13,7 @@ use encoding_admission::{
 };
 use machine_code::{
     SelectedFormEncodedRowStore, SelectedFormEncoding, SelectedFormEncodingCounts,
-    SelectedFormEncodingIdentity, SelectedFormEncodingRow, TargetFrameLayoutPlan,
+    SelectedFormEncodingRow, TargetFrameLayoutPlan,
 };
 use post_allocation_machine::PostAllocationMachinePlan;
 use selected_instructions::terminator_instruction;
@@ -96,7 +96,7 @@ fn encode_program(
     let context = Arc::new(program_context(
         &input.instructions,
         Arc::clone(&input.frame_demands),
-        program.identity(),
+        machine_code::SelectedFormEncodingHandle::of(&program),
     ));
     Ok(machine_code::EncodedMachineProgram {
         bindings: input.bindings,
@@ -110,7 +110,6 @@ fn encode_program(
         )),
         frame_demands: input.frame_demands,
         storage: input.storage,
-        protocol_identity: input.protocol_identity,
         context,
         frame: input.frame,
         protocol: input.protocol,
@@ -147,10 +146,6 @@ impl<Contracts> StagedOptimizedSelectedFormEncoding<Contracts> {
 
     pub fn machine(&self) -> &Arc<PostAllocationMachinePlan> {
         &self.current.encoding.machine
-    }
-
-    pub fn identity(&self) -> SelectedFormEncodingIdentity {
-        self.current.encoding.identity
     }
 
     pub fn rows(&self) -> &[SelectedFormEncodingRow] {
@@ -227,16 +222,13 @@ fn compute(
         }
     }
     let counts = counts_of(&rows)?;
-    let mut program = SelectedFormEncoding {
+    Ok(SelectedFormEncoding {
         machine: Arc::clone(machine),
-        identity: SelectedFormEncodingIdentity::from_bytes([0; 32]),
         rows,
         encoded: Arc::new(encoded),
         frame: Some(Arc::clone(shared_frame)),
         counts,
-    };
-    program.identity = program.recomputed_identity();
-    Ok(program)
+    })
 }
 
 mod frame_protocol;

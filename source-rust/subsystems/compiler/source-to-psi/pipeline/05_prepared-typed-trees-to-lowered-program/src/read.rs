@@ -24,6 +24,7 @@ serve is refused when it is set, never ignored.
 
 mod applications;
 mod arrays;
+mod assembly;
 mod atomics;
 mod authority;
 mod boundaries;
@@ -48,6 +49,7 @@ mod contracts;
 pub(crate) mod domain_predicate_forms;
 mod expressions;
 mod families;
+pub(crate) mod field_openings;
 mod fixed_bytes;
 mod float_meaning;
 pub(crate) mod logical;
@@ -55,6 +57,7 @@ mod machine;
 mod mathematics;
 mod nominal_applications;
 mod numeric_contracts;
+mod packages;
 mod places;
 mod predicates;
 mod proof_stratum;
@@ -127,10 +130,10 @@ pub(crate) struct TypeAlternative {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct ConstBinding {
+pub(crate) struct ConstBinding {
     symbol: SymbolHandle,
     owner: semantic_vocabulary::MachineId,
-    value: semantic_vocabulary::ValueId,
+    pub(crate) value: semantic_vocabulary::ValueId,
     scalar_type: semantic_vocabulary::ScalarType,
 }
 
@@ -199,6 +202,7 @@ pub(crate) struct PredicateDefinition {
 }
 
 pub(crate) struct Program<'t> {
+    pub(crate) field_openings: field_openings::FieldOpenings,
     type_purpose: storage_metadata::TypePurpose,
     /// Sorted exact record IDs whose complete nested source type was read for a value use.
     value_records: Vec<StructuralTypeId>,
@@ -237,6 +241,9 @@ pub(crate) struct Program<'t> {
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
     pub signatures: IdTable<MachineId, Signature>,
+    /// Symbols and signatures are consumed as dense columns by publication and
+    /// call analysis. The remaining reader state lives together at the same ID.
+    machine_rows: IdTable<MachineId, machine::ReservedMachineRow>,
     pub(crate) theorem_parameters: Vec<terminal_psi::TheoremParameter>,
     pub(crate) theorem_parameter_sources: Vec<theorems::PreparedTheoremParameter>,
     /// Requirement headers keep their exact source parameter origins until
@@ -351,9 +358,6 @@ pub(crate) struct Program<'t> {
     /// The services a Build selection awaits a provider for, in first-read
     /// order (`designate`, `publish_readiness`).
     readiness: Vec<semantic_vocabulary::ServiceId>,
-    /// What diagnostics call each machine's constructs, pushed with its
-    /// signature and completed as its body is read.
-    pub names: IdTable<MachineId, crate::MachineNames>,
     /// Whether this is a generic check form: the entry's implementation
     /// parameters stay rigid, and a call through one names the requirement.
     rigid: bool,
@@ -384,7 +388,6 @@ pub(crate) struct Program<'t> {
     /// while a closed machine is read.
     scope: Vec<(SymbolHandle, ValueType)>,
     source_scope: std::sync::Arc<crate::source_state::SourceTypeScope>,
-    source_scopes: IdTable<MachineId, std::sync::Arc<crate::source_state::SourceTypeScope>>,
     /// A generic declaration checks its contract without claiming executable
     /// storage for a compound symbolic type. These types belong only to that
     /// schema form; demanded applications use ordinary formals and loans.
@@ -396,14 +399,10 @@ pub(crate) struct Program<'t> {
     /// The implementation whose rows a requirement's clauses name while its
     /// witness reads that requirement at the implementation's arguments.
     witness_conformance: Option<SymbolHandle>,
-    /// `scope` of each machine, pushed with its signature and restored
-    /// when its body is read.
-    scopes: IdTable<MachineId, Vec<(SymbolHandle, ValueType)>>,
     /// Static width binders retain the actual machine-local input identity.
     /// Sorted by source symbol within this declaration's selected telescope.
     nominal_calls: Vec<nominal_applications::NominalCallSource>,
     const_scope: Vec<ConstBinding>,
-    const_scopes: IdTable<MachineId, Vec<ConstBinding>>,
     /// While a generic data declaration's template is read
     /// (`subjects::generic_data`), the next input identity for a type
     /// equation its rigid binders leave open. `None` everywhere else.
@@ -433,12 +432,8 @@ pub(crate) struct Program<'t> {
     /// Whether the signature being read is a generic check form's entry,
     /// whose requirements are premises rather than obligations.
     premise_reading: bool,
-    /// `Elaboration::value_parameters` and `Elaboration::value_arguments`,
-    /// pushed with each machine's signature.
-    pub value_parameters: IdTable<MachineId, usize>,
     pub generic_binders: Vec<SymbolHandle>,
     pub static_reach_parameters: Vec<terminal_psi::static_reach::StaticReachParameter>,
-    pub value_arguments: IdTable<MachineId, Vec<semantic_vocabulary::ScalarTerm>>,
     /// Every record type a formal, local, result, field or literal named, in
     /// discovery order; a nested record is discovered before its owner.
     pub records: IdTable<StructuralTypeId, RecordType>,
@@ -455,6 +450,8 @@ pub(crate) struct Program<'t> {
     inhabitation: terminal_semantics::inhabitation::Inhabitation,
     /// The symbols each record type was resolved from, by the same identity.
     record_sources: IdTable<StructuralTypeId, places::RecordSource>,
+    package_witnesses: Vec<(SymbolHandle, StructuralTypeId)>,
+    pub(crate) package_schemas: Vec<terminal_psi::TerminalPackageSchema>,
     /// The data declarations being resolved, outermost first: a declaration
     /// reached again while on this stack contains itself.
     resolving: Vec<(
@@ -528,11 +525,6 @@ pub(crate) struct Program<'t> {
     /// later call of one is refused at once as depending on it, instead of
     /// reading and refusing the same signature again for every caller.
     refused_signatures: Vec<SymbolHandle>,
-    /// Machine rows reserved before their signature is read and not yet
-    /// filled (`machine::reserve_row`): the signature being read, or one that
-    /// was refused after machines its signature read took later rows. A
-    /// lookup by symbol and `read_bodies` skip them.
-    pub(crate) unread_rows: Vec<MachineId>,
     /// The locals of block values in the body statement being read, after
     /// the body's own slots, with their names. A block reads its statements
     /// while the enclosing statement is still being read, so its slots are
@@ -639,6 +631,7 @@ impl<'t> Program<'t> {
                 .collect(),
             typed,
             type_purpose: storage_metadata::TypePurpose::Value,
+            field_openings: Default::default(),
             value_records: Vec::new(),
             admitted_declarations:
                 crate::source_state::references::DeclarationSelection::from_symbols([]),
@@ -652,6 +645,7 @@ impl<'t> Program<'t> {
             shared,
             symbols: IdTable::default(),
             signatures: IdTable::default(),
+            machine_rows: IdTable::default(),
             theorem_parameters: Vec::new(),
             theorem_parameter_sources: Vec::new(),
             declared_envelope_policies: IdTable::default(),
@@ -687,7 +681,6 @@ impl<'t> Program<'t> {
             clause_arguments: Vec::new(),
             enclosing_requires: Vec::new(),
             readiness: Vec::new(),
-            names: IdTable::default(),
             rigid,
             requirements: Vec::new(),
             requirement_headers: Vec::new(),
@@ -697,15 +690,12 @@ impl<'t> Program<'t> {
             selections: Vec::new(),
             scope: Vec::new(),
             source_scope: Default::default(),
-            source_scopes: IdTable::default(),
             reading_schema: false,
             rigid_storage: Vec::new(),
             clause_supplier: None,
             witness_conformance: None,
-            scopes: IdTable::default(),
             nominal_calls: Vec::new(),
             const_scope: Vec::new(),
-            const_scopes: IdTable::default(),
             open_equation_inputs: None,
             applications: Vec::new(),
             applied: Vec::new(),
@@ -713,10 +703,8 @@ impl<'t> Program<'t> {
             static_truths: Vec::new(),
             rigid_carriers: Vec::new(),
             premise_reading: false,
-            value_parameters: IdTable::default(),
             generic_binders: Vec::new(),
             static_reach_parameters: Vec::new(),
-            value_arguments: IdTable::default(),
             records: IdTable::default(),
             byte_domains: Vec::new(),
             pending_cleanup: Vec::new(),
@@ -724,6 +712,8 @@ impl<'t> Program<'t> {
             declared_domains: Vec::new(),
             inhabitation: Default::default(),
             record_sources: IdTable::default(),
+            package_witnesses: Default::default(),
+            package_schemas: Vec::new(),
             resolving: Vec::new(),
             mathematical: false,
             self_containing: Vec::new(),
@@ -743,7 +733,6 @@ impl<'t> Program<'t> {
             supplied: Vec::new(),
             collected: None,
             refused_signatures: Vec::new(),
-            unread_rows: Vec::new(),
             block_slots: Vec::new(),
             block_slot_base: 0,
             block_floor: None,
@@ -935,13 +924,15 @@ mod tests {
         MachineId::new(1).unwrap()
     }
 
-    fn refused(typed: &TypedTrees, node: ExpressionNode) -> String {
+    fn refused(typed: &TypedTrees, caller: Option<SymbolHandle>, node: ExpressionNode) -> String {
         let mut typed = typed.clone();
         let handle = typed.expression_table.insert(node);
         let mut program = Program::new(&typed, false);
-        let refusal = program
-            .expression(machine(), &[], handle, None)
-            .unwrap_err();
+        let id = match caller {
+            Some(symbol) => program.reserve_row(symbol).unwrap(),
+            None => program.next_identity().unwrap(),
+        };
+        let refusal = program.expression(id, &[], handle, None).unwrap_err();
         assert_eq!(
             refusal.reason,
             terminal_check_tables::RefusalReason::Unsupported
@@ -950,8 +941,44 @@ mod tests {
     }
 
     #[test]
+    fn nested_signature_failure_preserves_later_ids_and_reuses_only_the_tail() {
+        let (typed, [outer, inner]) = unit_machines();
+        let mut program = Program::new(&typed, false);
+        let completed = || machine::MachineRow {
+            signature: Signature::unread(),
+            context: Default::default(),
+        };
+        let first = program.next_identity().unwrap();
+        let failed = program.read_row(outer, |program, id| {
+            let nested = program.read_row(inner, |_, _| Ok(completed()))?;
+            assert_eq!(nested.get(), id.get() + 1);
+            assert_eq!(program.machine_symbol(id)?, outer);
+            Err(refuse_at(id, Unserved::Machine("outer signature refused")))
+        });
+        assert!(failed.is_err());
+        assert!(!program.row_is_read(first));
+        let second = MachineId::new(first.get() + 1).unwrap();
+        assert!(program.row_is_read(second));
+        assert_eq!(program.machine_symbol(second).unwrap(), inner);
+        assert!(program.complete_row(second, completed()).is_err());
+        let tail = program.next_identity().unwrap();
+        assert!(
+            program
+                .read_row(outer, |_, id| Err(refuse_at(
+                    id,
+                    Unserved::Machine("tail refused")
+                )))
+                .is_err()
+        );
+        assert_eq!(
+            program.read_row(outer, |_, _| Ok(completed())).unwrap(),
+            tail
+        );
+    }
+
+    #[test]
     fn each_expression_kind_outside_the_subset_is_refused_by_name() {
-        let typed = TypedTrees::default();
+        let (typed, [caller, _]) = unit_machines();
         let invalid = ExpressionHandle::invalid();
         let cases = [
             (
@@ -992,7 +1019,7 @@ mod tests {
         ];
         let wrong: Vec<_> = cases
             .into_iter()
-            .map(|(node, expected)| (refused(&typed, node), expected))
+            .map(|(node, expected)| (refused(&typed, Some(caller), node), expected))
             .filter(|(found, expected)| found != expected)
             .collect();
         assert!(wrong.is_empty(), "{wrong:?}");
@@ -1019,17 +1046,7 @@ mod tests {
         let typed = TypedTrees::default();
         let mut program = Program::new(&typed, false);
         let source = crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
-        let empty = program.records.push(plain_record());
-        program.record_sources.push(places::RecordSource {
-            constant_input_owner: None,
-            declaration: SymbolHandle::invalid(),
-            cleanup: None,
-            application: None,
-            region_owner: SymbolHandle::invalid(),
-            fields: Vec::new(),
-            cases: Vec::new(),
-            erased: Vec::new(),
-        });
+        let empty = program.push_record_row(plain_record(), Default::default());
         assert!(matches!(
             program
                 .zero_value(machine(), ValueType::record(empty), None, source)
@@ -1058,10 +1075,13 @@ mod tests {
                 "opaque initialization requires boundary-supplied contents",
             ),
         ] {
-            let record = program.records.push(RecordType {
-                shape,
-                ..plain_record()
-            });
+            let record = program.push_record_row(
+                RecordType {
+                    shape,
+                    ..plain_record()
+                },
+                Default::default(),
+            );
             let refusal = program
                 .zero_value(machine(), ValueType::record(record), None, source)
                 .unwrap_err();
@@ -1199,12 +1219,7 @@ mod tests {
                 complete_predicate_theory: false,
             }));
         let bodies = arena::IdTable::default();
-        let components = crate::prepare_call_components(
-            &bodies,
-            &mut program.signatures,
-            &program.theorem_parameters,
-        )
-        .unwrap();
+        let components = program.prepare_call_components(&bodies).unwrap();
         program.prepare_domain_predicates(machine()).unwrap();
         let elaboration = crate::lower_program(
             None,
@@ -1402,18 +1417,18 @@ mod tests {
             })
         };
         assert_eq!(
-            refused(&typed, call(SymbolHandle::invalid())),
+            refused(&typed, None, call(SymbolHandle::invalid())),
             "call without a bound target"
         );
         // A handle of no symbol in this table is as unbound as an absent one.
         assert_eq!(
-            refused(&typed, call(SymbolHandle::from_parts(9_999, 1))),
+            refused(&typed, None, call(SymbolHandle::from_parts(9_999, 1))),
             "call without a bound target"
         );
         // The twin passes target validation and reaches authored-source
         // validation. This low-level reader has not admitted a caller.
         assert_eq!(
-            refused(&typed, call(served)),
+            refused(&typed, None, call(served)),
             "declaration authored occurrence without its source machine"
         );
         for target_symbol in [SymbolHandle::invalid(), SymbolHandle::from_parts(9_999, 1)] {
@@ -1438,6 +1453,7 @@ mod tests {
         assert_eq!(
             refused(
                 &typed,
+                None,
                 ExpressionNode::Call(TableCallExpression {
                     runtime_call,
                     ..Default::default()
@@ -1462,6 +1478,39 @@ mod tests {
             refusal.detail,
             "declaration authored occurrence without its source machine"
         );
+    }
+
+    #[test]
+    fn both_runtime_call_forms_refuse_a_static_target_before_reading_the_callee() {
+        let (typed, [caller, target]) = unit_machines();
+        let mut program = Program::new(&typed, false);
+        let id = program.reserve_row(caller).unwrap();
+        let source = crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
+        let expression = crate::source_state::expression::TableCallExpression {
+            target_symbol: target,
+            runtime_call: Some(Default::default()),
+            ..Default::default()
+        };
+        let statement = crate::source_state::statement::TableCall {
+            target_symbol: target,
+            runtime_call: Some(Default::default()),
+            ..Default::default()
+        };
+        let handle = ExpressionHandle::invalid();
+        for read in [
+            program.call_statement(id, &[], &statement, source),
+            program.call_expression(id, &[], &expression, handle, source),
+        ] {
+            let refusal = read.unwrap_err();
+            assert_eq!(
+                refusal.reason,
+                terminal_check_tables::RefusalReason::Unsupported
+            );
+            assert_eq!(
+                refusal.detail,
+                "call runtime call with static dispatch or evidence"
+            );
+        }
     }
 
     #[test]
@@ -1584,7 +1633,7 @@ mod tests {
 
     #[test]
     fn case_membership_is_refused_after_its_operands_read() {
-        let mut typed = TypedTrees::default();
+        let (mut typed, [caller, _]) = unit_machines();
         let left = typed.expression_table.insert(ExpressionNode::Boolean(true));
         let right = typed
             .expression_table
@@ -1596,7 +1645,10 @@ mod tests {
             operator: BinaryOperator::CaseMembership,
             right,
         });
-        assert_eq!(refused(&typed, node), "expression case membership");
+        assert_eq!(
+            refused(&typed, Some(caller), node),
+            "expression case membership"
+        );
     }
 
     /// Wholly anonymous arithmetic is exact (numeric_values.md: anonymous
@@ -1610,7 +1662,7 @@ mod tests {
     #[test]
     fn wholly_anonymous_arithmetic_lands_exactly_or_is_refused() {
         let i32_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
-        let mut typed = TypedTrees::default();
+        let (mut typed, [caller, _]) = unit_machines();
         let literal = |typed: &mut TypedTrees, value| {
             typed
                 .expression_table
@@ -1656,6 +1708,13 @@ mod tests {
                 )),
             )
         };
+        let missing_owner = read(&mut program, exact).unwrap_err();
+        assert_eq!(
+            missing_owner.reason,
+            terminal_check_tables::RefusalReason::Unsupported
+        );
+        assert!(missing_owner.detail.contains("no reserved row"));
+        program.reserve_row(caller).unwrap();
         let landed = read(&mut program, exact).unwrap();
         assert!(matches!(
             landed.kind,
@@ -2596,7 +2655,7 @@ mod tests {
         use crate::source_state::expression::{
             TableMatchExpression, TableMemberExpression, TableStructLiteral,
         };
-        let typed = TypedTrees::default();
+        let (typed, [caller, _]) = unit_machines();
         let member = |case_variant| {
             ExpressionNode::Member(TableMemberExpression {
                 receiver: ExpressionHandle::invalid(),
@@ -2632,7 +2691,7 @@ mod tests {
         ];
         let wrong: Vec<_> = cases
             .into_iter()
-            .map(|(node, expected)| (refused(&typed, node), expected))
+            .map(|(node, expected)| (refused(&typed, Some(caller), node), expected))
             .filter(|(found, expected)| found != expected)
             .collect();
         assert!(wrong.is_empty(), "{wrong:?}");
@@ -2664,7 +2723,7 @@ mod tests {
     fn each_dispatch_form_outside_the_slice_is_refused_by_name_or_rejected() {
         use crate::source_state::expression::{TableDestructurePattern, TableMatchExpression};
         use semantic_vocabulary::StructuralTypeId;
-        let mut typed = TypedTrees::default();
+        let (mut typed, [caller, _]) = unit_machines();
         let truth = typed.expression_table.insert(ExpressionNode::Boolean(true));
         let capture = typed.expression_table.insert_match_subject(truth);
         let scalar_match =
@@ -2676,11 +2735,10 @@ mod tests {
                     ..Default::default()
                 }));
         let mut program = Program::new(&typed, false);
+        let id = program.reserve_row(caller).unwrap();
         // A scalar match is read; one whose arms do not cover its subject
         // is the program's error, not a form the reader cannot judge.
-        let uncovered = program
-            .expression(machine(), &[], scalar_match, None)
-            .unwrap_err();
+        let uncovered = program.expression(id, &[], scalar_match, None).unwrap_err();
         assert!(matches!(
             uncovered.reason,
             terminal_check_tables::RefusalReason::Violation
@@ -2695,7 +2753,7 @@ mod tests {
         let detail = |pattern: TableDestructurePattern| {
             let refusal = program
                 .case_pattern(
-                    machine(),
+                    id,
                     record,
                     &pattern,
                     crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
@@ -2728,9 +2786,9 @@ mod tests {
         use crate::source_state::statement::{TableAssignment, TableLocalData};
         use semantic_vocabulary::StructuralTypeId;
         let mut builder = SymbolTableBuilder::new();
-        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let caller = builder.insert_root(SymbolKind::Machine, SymbolNameRef::Static("caller"));
         let children = builder.insert_children(
-            root,
+            caller,
             [
                 (SymbolKind::Local, SymbolNameRef::Static("p")),
                 (SymbolKind::Const, SymbolNameRef::Static("LIMIT")),
@@ -2780,10 +2838,11 @@ mod tests {
             borrowed_regions: crate::body::Regions::NONE,
         }];
         let mut program = Program::new(&typed, false);
-        program.records.push(plain_record());
+        let id = program.reserve_row(caller).unwrap();
+        program.push_record_row(plain_record(), Default::default());
         let mut assigned = |target| {
             program
-                .assignment(machine(), &slots, &TableAssignment { target, value })
+                .assignment(id, &slots, &TableAssignment { target, value })
                 .unwrap_err()
                 .detail
         };
@@ -2805,7 +2864,7 @@ mod tests {
         }];
         let refused = program
             .assignment(
-                machine(),
+                id,
                 &frozen,
                 &TableAssignment {
                     target: whole,
@@ -2825,7 +2884,7 @@ mod tests {
         let mut declared = |role, initial_value| {
             program
                 .local(
-                    machine(),
+                    id,
                     &slots,
                     &TableLocalData {
                         role,
@@ -2862,7 +2921,7 @@ mod tests {
         );
         assert_eq!(
             program
-                .expression(machine(), &slots, named_constant, None)
+                .expression(id, &slots, named_constant, None)
                 .unwrap_err()
                 .detail,
             "expression const"
@@ -2887,8 +2946,8 @@ mod tests {
         };
         let mut term = |handle| {
             program
-                .clause_term(machine(), &scope, handle, ClauseUse::Scalar(None))
-                .and_then(|term| term.scalar(machine()))
+                .clause_term(id, &scope, handle, ClauseUse::Scalar(None))
+                .and_then(|term| term.scalar(id))
                 .unwrap_err()
                 .detail
         };
@@ -2914,9 +2973,9 @@ mod tests {
         use crate::source_state::statement::TableLocalData;
         use semantic_vocabulary::StructuralTypeId;
         let mut builder = SymbolTableBuilder::new();
-        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let caller = builder.insert_root(SymbolKind::Machine, SymbolNameRef::Static("caller"));
         let children = builder.insert_children(
-            root,
+            caller,
             [
                 (SymbolKind::Local, SymbolNameRef::Static("p")),
                 (SymbolKind::Data, SymbolNameRef::Static("Point")),
@@ -2988,20 +3047,18 @@ mod tests {
             borrowed_regions: crate::body::Regions::NONE,
         }];
         let mut program = Program::new(&typed, false);
-        program.records.push(plain_record());
-        program.record_sources.push(places::RecordSource {
-            constant_input_owner: None,
-            declaration: point,
-            cleanup: None,
-            application: None,
-            region_owner: SymbolHandle::invalid(),
-            fields: vec![a, b],
-            cases: Vec::new(),
-            erased: Vec::new(),
-        });
+        let id = program.reserve_row(caller).unwrap();
+        program.push_record_row(
+            plain_record(),
+            places::RecordSource {
+                declaration: point,
+                fields: vec![a, b],
+                ..Default::default()
+            },
+        );
         let mut read = |pattern_subject, pattern_fields, initial_value| {
             program.record_pattern(
-                machine(),
+                id,
                 &slots,
                 &TableLocalData {
                     role: language_core::LocalBindingRole::RecordPattern,
@@ -3072,14 +3129,14 @@ mod tests {
             builtin_type_symbols().into_iter().chain([
                 (SymbolKind::Local, SymbolNameRef::Static("capture")),
                 (SymbolKind::Parameter, SymbolNameRef::Static("input")),
+                (SymbolKind::Machine, SymbolNameRef::Static("caller")),
             ]),
         );
         let u32_symbol = children.handle_at(7);
-        let local_symbol = children.handles().nth(symbols::BUILTIN_TYPE_COUNT).unwrap();
-        let input_symbol = children
-            .handles()
-            .nth(symbols::BUILTIN_TYPE_COUNT + 1)
-            .unwrap();
+        let mut bindings = children.handles().skip(symbols::BUILTIN_TYPE_COUNT);
+        let local_symbol = bindings.next().unwrap();
+        let input_symbol = bindings.next().unwrap();
+        let caller = bindings.next().unwrap();
         let mut typed = TypedTrees {
             symbols: builder.finish(),
             ..Default::default()
@@ -3147,7 +3204,8 @@ mod tests {
             ..Default::default()
         };
         let mut program = Program::new(&typed, false);
-        let (slot, statement) = program.local(machine(), &[], &local).unwrap();
+        let id = program.reserve_row(caller).unwrap();
+        let (slot, statement) = program.local(id, &[], &local).unwrap();
         assert_eq!(
             slot.value_type,
             ValueType::plain(ScalarType::Integer(
@@ -3158,7 +3216,7 @@ mod tests {
         assert!(matches!(statement, crate::Statement::Bind { slot: 0, .. }));
         let (computed_slot, statement) = program
             .local(
-                machine(),
+                id,
                 &[Slot {
                     borrowed: None,
                     ..borrowed[0]
@@ -3184,7 +3242,7 @@ mod tests {
         ));
         let (captured, statement) = program
             .local(
-                machine(),
+                id,
                 &borrowed,
                 &TableLocalData {
                     type_reference: reference,
@@ -3204,7 +3262,7 @@ mod tests {
         ));
         let mut refusal = |local: &TableLocalData| {
             program
-                .local(machine(), &borrowed, local)
+                .local(id, &borrowed, local)
                 .map(drop)
                 .unwrap_err()
                 .detail

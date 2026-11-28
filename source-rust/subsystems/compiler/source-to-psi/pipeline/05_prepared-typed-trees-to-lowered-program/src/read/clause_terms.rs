@@ -159,6 +159,48 @@ impl Program<'_> {
 
     /// Read `expression` as a term of the sort `usage` asks for, with its
     /// names denoting what `scope` gives them.
+    /// The type of a clause value whose field is read, when the clause
+    /// says it: a formal, a for-every binder, or a call of a mathematical
+    /// function.
+    fn clause_receiver_type(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        receiver: ExpressionHandle,
+    ) -> Checked<Option<ValueType>> {
+        let typed = self.typed;
+        let table = &typed.expression_table;
+        Ok(match table.expression(receiver) {
+            ExpressionNode::Name(path)
+                if !path.static_application.is_valid()
+                    && !path.reserved_result_of.is_valid()
+                    && table.name_path_members(path.members).len() == 1 =>
+            {
+                if let Some(actual) = self.proposition_argument(path.symbol) {
+                    return self.clause_receiver_type(id, scope, actual);
+                }
+                match self.universal_binder(path.symbol) {
+                    Some((_, value_type)) => Some(value_type),
+                    None => scope
+                        .slots
+                        .iter()
+                        .find(|slot| slot.symbol == path.symbol)
+                        .map(|slot| slot.value_type),
+                }
+            }
+            ExpressionNode::Call(call) if self.mathematical => {
+                match self.mathematical_function(call) {
+                    Some(target) => {
+                        let (_, entry) = self.declaration(id, target)?;
+                        Some(self.value_type(id, entry.return_type)?)
+                    }
+                    None => None,
+                }
+            }
+            _ => None,
+        })
+    }
+
     pub(super) fn clause_term(
         &mut self,
         id: MachineId,
@@ -657,7 +699,7 @@ impl Program<'_> {
                                         )))) =>
                     {
                         let Some((root, path, value_type)) =
-                            self.read_projection(id, scope, read)?
+                            self.read_projection(id, scope, read, None)?
                         else {
                             return Err(unavailable(
                                 "name other than the clause's subject, a field of it or a literal",
@@ -1299,6 +1341,19 @@ impl Program<'_> {
                     }
                     ExpressionNode::Call(call) if call.layout_query.is_some() => {
                         let query = call.layout_query.as_ref().expect("matched a layout query");
+                        if matches!(query, crate::source_state::expression::DataLayoutQueryRequest::LocationAlignment) {
+                            let [operand] = table.expression_handles(call.arguments) else {
+                                return Err(unavailable("location alignment needs one operand"));
+                            };
+                            let (root, path) = self.alignment_observation(id, scope, *operand)?;
+                            let scalar = ScalarType::Integer(
+                                semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                                    .expect("u64 is valid"),
+                            );
+                            let term = ScalarTerm::structural_read(root, path, scalar)
+                                .map_err(|_| unavailable("invalid alignment observation"))?;
+                            break 'read (term, ValueType::plain(scalar));
+                        }
                         let source = SourceOrigin::of(table.source_span(read));
                         let measured = self.layout_query(id, call, query, source)?;
                         let (
@@ -1374,6 +1429,18 @@ impl Program<'_> {
             }
             return Err(unavailable("expected a proof-relevant mathematical type"));
         }
+        // A compiler-synthesized structural comparison is proof-transparent
+        // through its checked body (contracts.md, "Equality bridges and
+        // comparison facts"): a clause naming it states its field
+        // comparisons, as `a == b` does.
+        if matches!(usage, ClauseUse::Proposition)
+            && let ExpressionNode::Call(call) = table.expression(expression)
+            && let Some(realization) = self.synthesized_comparison(id, scope, call)
+        {
+            return self
+                .unfold_synthesized_comparison(id, scope, call, realization)
+                .map(ClauseTerm::Proposition);
+        }
         let bodyless = match table.expression(expression) {
             ExpressionNode::Call(call) if !call.receiver.is_valid() => typed
                 .bodyless_machine_signature(call.target_symbol)
@@ -1383,6 +1450,7 @@ impl Program<'_> {
         // A row of the implementation being read, named by its requirement,
         // is the same abstract operation as its trait's requirement.
         let sibling = match table.expression(expression) {
+            ExpressionNode::Call(call) if call.static_requirement_dispatch.is_some() => true,
             ExpressionNode::Call(call) if !call.receiver.is_valid() && bodyless.is_none() => self
                 .contract_operator_owner(id, scope)
                 .ok()
@@ -1518,9 +1586,8 @@ impl Program<'_> {
                     // the value arguments, as the generic machine's
                     // definition takes them.
                     if !call.machine_arguments.is_empty() {
-                        let callee = typed
-                            .machine_by_symbol(target)
-                            .ok_or_else(|| unavailable("clause application lost its machine"))?;
+                        let callee =
+                            self.required_machine(id, target, "clause application target")?;
                         let required = self.required_callables(id, callee)?;
                         if required.len() != call.machine_arguments.len() {
                             return Err(unavailable(
@@ -1641,12 +1708,15 @@ impl Program<'_> {
                     // evidence implementation. Typing calls that row's
                     // member; the clause names the row, exactly as
                     // `Implementation::equals(..)` would.
-                    let sibling = (!call.receiver.is_valid())
-                        .then(|| {
-                            self.sibling_row(owner, target, call.authored_call_selection)
-                                .or_else(|| self.witness_conformance_row(target))
-                        })
-                        .flatten();
+                    let sibling = match &call.static_requirement_dispatch {
+                        Some(dispatch) => Some(self.dispatched_row(id, dispatch)?),
+                        None => (!call.receiver.is_valid())
+                            .then(|| {
+                                self.sibling_row(owner, target, call.authored_call_selection)
+                                    .or_else(|| self.witness_conformance_row(target))
+                            })
+                            .flatten(),
+                    };
                     if let Some((requirement, _)) = sibling {
                         target = requirement;
                     }
@@ -1655,7 +1725,25 @@ impl Program<'_> {
                             expression, call,
                         ),
                     );
-                    if invocation.unsupported
+                    // A copied requirement call keeps its selected row as
+                    // its dispatch, which `dispatched_row` already read.
+                    let unsupported = match call.static_requirement_dispatch {
+                        Some(_) => {
+                            call.runtime_call.is_some()
+                                || call.build_selection.is_valid()
+                                || call.quotient_operation.is_some()
+                                || call.private_layout_operation.is_some()
+                                || call.installed_interrupt_operation.is_some()
+                                || call.layout_query.is_some()
+                                || call.native_code_layout.is_some()
+                                || call.requirement_application.is_valid()
+                                || call.exact_coercion_target.is_valid()
+                                || call.static_machine_parameter.is_valid()
+                                || !call.evidence_arguments.is_empty()
+                        }
+                        None => invocation.unsupported,
+                    };
+                    if unsupported
                         || call.operational_acknowledgement.acknowledges_suspend
                         || call.operational_acknowledgement.acknowledges_block
                     {
@@ -1663,12 +1751,16 @@ impl Program<'_> {
                             "clause application has another dispatch or effect",
                         ));
                     }
-                    self.direct_selection(
-                        id,
-                        target,
-                        call.authored_call_selection,
-                        call.authored_call_binding,
-                    )?;
+                    // The author selected the parameter's placeholder, which
+                    // the dispatch replaced by the row it selects.
+                    if call.static_requirement_dispatch.is_none() {
+                        self.direct_selection(
+                            id,
+                            target,
+                            call.authored_call_selection,
+                            call.authored_call_binding,
+                        )?;
+                    }
                     let receiver = table.name_path_node(call.receiver).map(|name| name.symbol);
                     if call.receiver.is_valid() && receiver.is_none() {
                         return Err(unavailable(
@@ -1880,7 +1972,13 @@ impl Program<'_> {
                         arguments,
                     }
                 }
-                (_, Some(expected)) if expected.scalar().is_some() => {
+                // A mathematical function argument is the bound term, or the
+                // projection holding it. It has no integer-like scalar read.
+                (_, Some(expected))
+                    if expected.scalar().is_some()
+                        && !(self.mathematical
+                            && matches!(expected.scalar(), Some(ScalarType::Callable(_)))) =>
+                {
                     let (term, actual) = self
                         .clause_term(id, scope, expression, ClauseUse::Scalar(expected.scalar()))?
                         .scalar(id)?;
@@ -1909,9 +2007,10 @@ impl Program<'_> {
                 }
                 (ExpressionNode::Name(path), Some(expected))
                     if path.reserved_result_of.is_valid()
-                        || scope
-                            .subject
-                            .is_some_and(|subject| subject.symbol == path.symbol) =>
+                        || scope.subject.is_some_and(|subject| {
+                            subject.symbol == path.symbol
+                                || (self.mathematical && subject.bare_fields)
+                        }) =>
                 {
                     let (root, path, ty) = self
                         .projected(id, scope, expression)?
@@ -1941,7 +2040,10 @@ impl Program<'_> {
                             "Identity operand has no exact input observation",
                         ));
                     }
-                    if matches!(expected, ValueType::Rigid(_)) {
+                    if matches!(
+                        expected,
+                        ValueType::Rigid(_) | ValueType::Scalar(ScalarType::Callable(_), _)
+                    ) {
                         ClauseOperand::Formal(
                             u32::try_from(position)
                                 .map_err(|_| unavailable("formal ordinal overflow"))?,
@@ -2108,8 +2210,26 @@ impl Program<'_> {
                     // field of a call of a machine parameter has no such
                     // selection: the call's declared result is the record,
                     // and the field is the one of that name.
-                    let receiver = if selected.is_valid() {
-                        self.record(id, typed.symbols.get(selected).parent)?
+                    let owner = if selected.is_valid() {
+                        typed.symbols.get(selected).parent
+                    } else {
+                        SymbolHandle::invalid()
+                    };
+                    // A field of generic data is the same declaration in every
+                    // application; the receiver's own type says which one.
+                    let generic = selected.is_valid()
+                        && typed
+                            .unique_data_definition_by_symbol(owner)
+                            .is_some_and(|data| !data.type_parameters.is_empty());
+                    let receiver = if generic {
+                        self.clause_receiver_type(id, scope, member.receiver)?
+                            .ok_or_else(|| {
+                                unavailable(
+                                    "field of generic data whose receiver has no known type",
+                                )
+                            })?
+                    } else if selected.is_valid() {
+                        self.record(id, owner)?
                     } else {
                         match table.expression(member.receiver) {
                             ExpressionNode::Call(call) => {
@@ -2368,6 +2488,84 @@ impl Program<'_> {
                     && row.requirement == selected
             })
             .map(|row| (row.requirement, conformance.symbol))
+    }
+
+    /// The realization of a synthesized structural `equals` row a clause
+    /// call names, however it names the row: the member itself, its
+    /// requirement read for a member of the same implementation, or an
+    /// implementation parameter's dispatch at a closed copy.
+    pub(super) fn synthesized_comparison(
+        &self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        call: &crate::source_state::expression::TableCallExpression,
+    ) -> Option<SymbolHandle> {
+        let typed = self.typed;
+        let realization = if let Some(dispatch) = &call.static_requirement_dispatch {
+            dispatch.realization_machine
+        } else if call.receiver.is_valid() {
+            // `CoinEq::equals(@a, @b)`: the receiver names the implementation.
+            let receiver = typed.expression_table.name_path_node(call.receiver)?.symbol;
+            let requirement = typed
+                .closed_requirement_application(call.target_symbol)
+                .map_or(call.target_symbol, |row| row.template);
+            typed
+                .conformance_by_symbol(receiver)?
+                .rows
+                .iter()
+                .find(|row| row.requirement == requirement && row.source.owns_realization())?
+                .realization_machine
+        } else if let Some((requirement, conformance)) = self
+            .contract_operator_owner(id, scope)
+            .ok()
+            .and_then(|owner| {
+                self.sibling_row(owner, call.target_symbol, call.authored_call_selection)
+            })
+            .or_else(|| self.witness_conformance_row(call.target_symbol))
+        {
+            typed
+                .conformance_by_symbol(conformance)?
+                .rows
+                .iter()
+                .find(|row| row.requirement == requirement && row.source.owns_realization())?
+                .realization_machine
+        } else {
+            self.entered_machine(call.target_symbol)?
+        };
+        let (_, row) = typed.owned_conformance_realization(realization)?;
+        (row.source == crate::source_state::trait_definition::ConformanceRowSource::Synthesized
+            && typed.symbols.sealed_intrinsic(row.declaring_trait)
+                == Some(language_core::sealed_intrinsics::SealedIntrinsic::EqualityProtocol))
+        .then_some(realization)
+    }
+
+    /// The requirement and implementation a copied clause names when it
+    /// called a requirement through an implementation parameter, such as
+    /// `E::equals` in a machine generic over `E satisfies Equatable<T>`
+    /// copied for `CoinByBoth`. Specialization keeps the selected row as the
+    /// call's dispatch; the clause names that row, exactly as
+    /// `CoinByBoth::equals(..)` would.
+    fn dispatched_row(
+        &self,
+        id: MachineId,
+        dispatch: &crate::source_state::StaticRequirementDispatch,
+    ) -> Checked<(SymbolHandle, SymbolHandle)> {
+        let (conformance, row) = self
+            .typed
+            .owned_conformance_realization(dispatch.realization_machine)
+            .ok_or_else(|| {
+                refuse_at(
+                    id,
+                    Unserved::Contract("clause dispatch names no implementation row"),
+                )
+            })?;
+        if row.requirement != dispatch.requirement {
+            return Err(refuse_at(
+                id,
+                Unserved::Contract("clause dispatch names another requirement than its row"),
+            ));
+        }
+        Ok((row.requirement, conformance.symbol))
     }
 
     /// The requirement and implementation when a requirement's clause,

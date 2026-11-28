@@ -97,10 +97,12 @@ pub use values::{
 };
 pub mod operations;
 pub use operation_operands::structural_stores::{
-    StructuralCopyPath, StructuralScalarStoreDestination, StructuralWindowRoot,
+    InstantiatedFieldTypes, StructuralCopyPath, StructuralScalarStoreDestination,
+    StructuralWindowRoot,
 };
 pub use operations::{
-    AbstractOperation, ModuleInvocation, StructuralResultMetadata, StructuralResultRole,
+    AbstractOperation, ModuleInvocation, OpenedPackageCall, StructuralResultMetadata,
+    StructuralResultRole,
 };
 
 mod storage_mutations;

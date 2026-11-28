@@ -196,7 +196,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
         "portable provider selection reads the artifact and receiving installation",
     ));
     // Only the source driver runs the full numbered source pipeline. The text reader
-    // owns single-file syntax for the parse command and package edits. The other readers take stage 07 records.
+    // owns single-file syntax for the parse command and package edits.
     rules.push(Rule {
         except_package: Some(SOURCE_DRIVER),
         except_owners: linear_pipeline::PSI_STAGES.to_vec(),
@@ -206,8 +206,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
             (SOURCE_OPERATIONS, linear_pipeline::TEXT_READER),
             (linear_pipeline::TEXT_READER, linear_pipeline::PSI_STAGES[0]),
             (linear_pipeline::TEXT_READER, linear_pipeline::PSI_STAGES[1]),
-            ("source-rust/subsystems/compiler/build/evaluation/result", linear_pipeline::PSI_STAGES[7]),
-        ].into_iter().chain(linear_pipeline::legacy_representation_links_into(&linear_pipeline::PSI_STAGES)).map(|(owner, dependency)| Allowance { owner, dependency }).collect(),
+        ].into_iter().map(|(owner, dependency)| Allowance { owner, dependency }).collect(),
         ..rule(
             vec![""],
             linear_pipeline::PSI_STAGES.to_vec(),
@@ -738,31 +737,18 @@ const RETIRED_INSTALLATION_SETTERS: &[&str] = &[
     "with_installed_entry_execution",
     "with_installed_stack_requirements",
 ];
-/// Stage 04 and its preparation crate, and the one file through which image
-/// emission's replay validators read the working program.
+/// Stage 04 and the published-object validator.
 const WORKING_PROGRAM_READERS: &[&str] = &[
     "source-rust/subsystems/compiler/psi-to-native/pipeline/04_abstract-operations-to-target-operations/src/target_lowering/",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/retained_working_program.rs",
     "source-rust/subsystems/compiler/psi-to-native/verification/published-objects/src/lib.rs",
 ];
 
-/// Naming either gateway is restricted, so importing it under another name
-/// cannot give object production access to the target-operation working program.
+/// Both replay gateways were deleted. Naming either, including declaring its
+/// module again, is refused, so object production cannot regain access to the
+/// target-operation working program under another name.
 const IMAGE_REPLAY_GATEWAYS: &[&str] = &["retained_working_program", "retained_source_validation"];
 const IMAGE_REPLAY_READERS: &[&str] = &[
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/retained_working_program.rs",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/function_fragments/validation.rs",
-];
-const IMAGE_REPLAY_DECLARATIONS: &[(&str, &str)] = &[
-    (
-        "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/lib.rs",
-        "mod retained_working_program;",
-    ),
-    (
-        "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/function_fragments.rs",
-        "pub(super) mod retained_source_validation;",
-    ),
 ];
 
 fn is_test_source(relative: &str) -> bool {
@@ -870,9 +856,9 @@ const SINGLE_FORM_ENTRIES: &[(&str, &str, usize)] = &[
         1,
     ),
     (
-        "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/function_realization.rs",
-        "assemble_fixed_frame_realization",
-        1,
+        "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
+        "place_function_text",
+        2,
     ),
 ];
 
@@ -1017,8 +1003,6 @@ fn retained_publication_violations(root: &Path) -> Vec<String> {
         ],
         &[
             "source-rust/subsystems/compiler/psi-to-native/tests/physical_publication/mod.rs",
-            "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/retained_working_program.rs",
-            "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
             "source-rust/subsystems/compiler/psi-to-native/verification/published-objects/src/lib.rs",
         ],
         &[
@@ -1035,7 +1019,7 @@ pub fn image_replay_read_violations(root: &Path) -> Vec<String> {
         root,
         IMAGE_REPLAY_GATEWAYS,
         IMAGE_REPLAY_READERS,
-        IMAGE_REPLAY_DECLARATIONS,
+        &[],
         "image production names a retained-program replay gateway; read the prepared execution plan",
     )
 }
@@ -1049,7 +1033,6 @@ pub fn backend_execution_plan_read_violations(root: &Path) -> Vec<String> {
         &["execution_plan"],
         &[
             "source-rust/subsystems/compiler/psi-to-native/verification/published-objects/src/lib.rs",
-            "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
         ],
         &[],
         "backend production reads an earlier execution plan; read current execution contracts",
@@ -1894,7 +1877,19 @@ mod tests {
         let publication_violations = retained_publication_violations(&root);
         let execution_plan_violations = backend_execution_plan_read_violations(&root);
         std::fs::remove_dir_all(&root).unwrap();
-        assert_eq!(violations.len(), 6, "{violations:?}");
+        // The deleted gateways' own files and module declarations are no
+        // longer exempt, so recreating either is refused too.
+        assert_eq!(violations.len(), 9, "{violations:?}");
+        for site in [
+            "image-emission/src/lib.rs:1:",
+            "function_fragments.rs:1:",
+            "retained_source_validation.rs:1:",
+        ] {
+            assert!(
+                violations.iter().any(|row| row.contains(site)),
+                "{site}: {violations:?}"
+            );
+        }
         assert_eq!(
             publication_violations.len(),
             6,

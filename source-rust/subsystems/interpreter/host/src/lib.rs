@@ -27,6 +27,7 @@ target-neutral interpreter.
 #![forbid(unsafe_code)]
 
 mod execution;
+mod owned_provider;
 
 #[cfg(test)]
 mod runtime_boundary;
@@ -36,6 +37,7 @@ pub mod embedding {
     pub use crate::execution::{
         HostContext, HostedTerminalProgram, bind_numeric_import_slot, establish_host_entry, execute_with_image_installation,
     };
+    pub use crate::owned_provider::{OwnedPsiProvider, PsiProviderMember};
 }
 pub use execution::{
     ObservedFiles, TerminalClockEnvironment, TerminalClockSnapshot, TerminalDomainExitDelegation,

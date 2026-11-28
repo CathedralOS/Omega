@@ -3409,6 +3409,8 @@ pub(crate) mod installed_interrupts {
     use crate::source_resolved as resolved;
     use crate::source_state::expression::InstalledInterruptOperationRequest;
     use diagnostics::Diagnostic;
+    use language_core::sealed_intrinsics::SealedIntrinsic;
+    use language_core::static_interrupts::StaticInterruptOperation;
     use symbols::SymbolKind;
 
     pub(crate) fn lower_request(
@@ -3422,32 +3424,33 @@ pub(crate) mod installed_interrupts {
         let Some(program) = program else {
             return Ok(None);
         };
-        if !target_symbol.is_valid() {
+        if !program.symbols.symbols().nodes().is_valid(target_symbol) {
             return Ok(None);
         }
         let target = program.symbols.get(target_symbol);
-        if target.kind != SymbolKind::State {
-            return Ok(None);
-        }
-        let Some(owner) = program.machines.unique_by_symbol(target.parent) else {
+        let owner_symbol = match target.kind {
+            SymbolKind::Machine => target_symbol,
+            SymbolKind::State => target.parent,
+            _ => return Ok(None),
+        };
+        let Some(owner) = program.machines.unique_by_symbol(owner_symbol) else {
             return Ok(None);
         };
-        if program.symbols.name(target_symbol) != "run"
-            || !owner.attached_data_symbol.is_valid()
-            || program.symbols.name(owner.attached_data_symbol) != "X86StaticInterruptScope"
-            || program.symbols.symbol_source_origin(target_symbol)
-                != Some(source_admission::SourceOrigin::Toolchain)
-            || program
-                .symbols
-                .symbol_source_origin(owner.attached_data_symbol)
-                != Some(source_admission::SourceOrigin::Toolchain)
+        if program
+            .symbols
+            .sealed_declaration(owner.symbol, owner.name.as_str())
+            != Some(SealedIntrinsic::StaticInterrupt(
+                StaticInterruptOperation::Install,
+            ))
         {
             return Ok(None);
         }
-        if !program
-            .machine_state_handles(owner.states)
-            .iter()
-            .any(|state| program.machine_state(*state).symbol == target_symbol)
+        if target.kind == SymbolKind::State
+            && program
+                .machine_state_handles(owner.states)
+                .first()
+                .map(|entry| program.machine_state(*entry).symbol)
+                != Some(target_symbol)
         {
             return Err(Diagnostic::error(
                 "interrupt installation lost its exact declaration's entry",
@@ -3520,6 +3523,7 @@ pub(crate) mod installed_interrupts {
         if !member_handle.is_valid() {
             registrar.symbol = selected.requirement;
         } else {
+            registrar.symbol = selected.trait_definition;
             loop {
                 let member = target_trees
                     .expression_table
@@ -3549,9 +3553,7 @@ pub(crate) mod installed_interrupts {
             ));
         }
         Ok(Some(InstalledInterruptOperationRequest {
-            registrar_application: Default::default(),
-            registrar_target: Default::default(),
-            registrar_receiving_scope: Default::default(),
+            prepared: None,
             registrar_selection,
             registrar_trait,
             registrar,
@@ -4196,9 +4198,22 @@ pub(crate) mod qualification_casts {
             cast_destinations,
         )?;
         let mut updates = Vec::with_capacity(sites.len());
+        let mut types = crate::types::typing_queries::DeclaredExpressionTypes::default();
 
         for handle in sites {
             let cast = *program.expression_table.cast_node(handle).unwrap();
+            if cast.form == language_core::CastForm::Value && cast.semantic_domain.is_empty() {
+                let mut carriers = owners
+                    .expression_owners(handle)
+                    .map(|owner| types.get(program, owner, cast.value));
+                if let Some(Some(carrier)) = carriers.next()
+                    && carriers.all(|other| other == Some(carrier))
+                    && let ExpressionNode::Cast(row) =
+                        program.expression_table.expression_mut(handle)
+                {
+                    row.operand_type = carrier;
+                }
+            }
             // A run typing deferred to its declaration has no types to settle.
             if cast.form.entry().is_some() && !cast.result_type.is_valid() {
                 continue;

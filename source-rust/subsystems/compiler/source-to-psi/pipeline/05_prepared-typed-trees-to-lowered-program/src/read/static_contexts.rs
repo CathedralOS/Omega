@@ -57,11 +57,7 @@ impl Program<'_> {
         {
             return Ok(false);
         }
-        let source = |machine| {
-            self.symbols.get(machine).copied().ok_or_else(|| {
-                unavailable(machine, "static callback context lost its source machine")
-            })
-        };
+        let source = |machine| self.machine_symbol(machine);
         self.typed
             .copied_parameter_kinds_match(
                 &first.kind,

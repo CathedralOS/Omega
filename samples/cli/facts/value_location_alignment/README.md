@@ -107,13 +107,16 @@ authored rows, unexecuted here.
   survives copies, fields, call returns, joins and machine arguments, through
   the existing layout-observation route.
 
+An ordinary machine can guarantee `ensures result == align_of(word)` for a
+borrowed word. A caller may use the guarantee for the same loan. Assigning a
+different reference to a descriptor invalidates a claim about its previous
+backing. The [layout query tests](../../../../source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/tests/layout_queries.rs)
+cover forwarding, field writes and reference replacement.
+
 ## What remains open
 
-- Contract positions: `requires` on an ordinary machine accepts a whole
-  parameter, its referent, or a field path below either. Still rejected:
-  `ensures` clauses (a true clause cannot yet be proved at exit), contracts on
-  trait requirements (so a per-target implementation cannot carry the clause),
-  and slices, elements or case payload fields in any contract.
+- A contract that selects a case payload needs evidence that the case is
+  active. See the [rules for location alignment](../../../../wiki/spec/language/counts_and_addresses.md#location-alignment).
 - Case payload fields: a body query on `s.x` where `x` is a case payload is
   rejected, because the query does not carry the active-case proof an
   ordinary read owes; it would otherwise report the first matching case's
@@ -121,8 +124,8 @@ authored rows, unexecuted here.
 - Stronger-than-type alignment from placement or allocator contracts, and
   runtime computation of a location's alignment, are not implemented; the
   result is always the type minimum.
-- Location validity after the view is replaced, its offset changes or its
-  backing moves is not modelled beyond the type minimum, which holds for any
-  live location of that type.
+- A fresh reference or a changed view offset requires its own alignment
+  evidence. More cases can be accepted when the checker can establish the
+  replacement's exact backing and how its selected layout constrains alignment.
 - Interpretation reports selected-target geometry, but there is no admitted
   storage mapping for a location with stronger placement.

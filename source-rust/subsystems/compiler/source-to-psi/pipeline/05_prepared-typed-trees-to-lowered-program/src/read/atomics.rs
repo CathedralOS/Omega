@@ -67,7 +67,7 @@ impl Program<'_> {
                     Unserved::Type("atomic storage without its builtin identity"),
                 )
             })?;
-        let id = self.records.push(RecordType {
+        let record_type = RecordType {
             multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             cleanup: None,
             identity,
@@ -75,9 +75,8 @@ impl Program<'_> {
             requires: Vec::new(),
             authored_layout: false,
             erased: Vec::new(),
-        });
-        self.record_sources
-            .push(super::arrays::physical_source(reference));
+        };
+        let id = self.push_record_row(record_type, super::arrays::physical_source(reference));
         Ok(Some(ValueType::record(id)))
     }
 
@@ -490,6 +489,18 @@ impl Program<'_> {
     ) -> Checked<Expression> {
         let value = self.expression(machine, slots, handle, Some(ValueType::plain(scalar)))?;
         if value.result != Some(ValueType::plain(scalar)) {
+            if let Some(ValueType::Scalar(actual, _)) = value.result
+                && actual != scalar
+            {
+                return Err(self.mistyped(
+                    machine,
+                    value.source,
+                    super::rejections::Destination::AtomicOperand,
+                    Some(ValueType::plain(scalar)),
+                    value.result,
+                    "atomic operand carrier",
+                ));
+            }
             return Err(reject(
                 machine,
                 value.source,

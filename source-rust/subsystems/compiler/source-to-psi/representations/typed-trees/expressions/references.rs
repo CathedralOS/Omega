@@ -775,7 +775,7 @@ pub(crate) mod source_occurrences {
                         .is_none()
                         && source.declaration(definition.symbol) =>
                 {
-                    visit_data(program, &mut source, definition);
+                    visit_data(program, &mut source, definition, None);
                 }
                 SourceDescription::Trait(definition)
                     if program
@@ -783,7 +783,7 @@ pub(crate) mod source_occurrences {
                         .is_none()
                         && source.declaration(definition.symbol) =>
                 {
-                    visit_trait(program, &mut source, definition);
+                    visit_trait(program, &mut source, definition, None);
                 }
                 SourceDescription::Const(definition)
                     if program
@@ -791,7 +791,7 @@ pub(crate) mod source_occurrences {
                         .is_none()
                         && source.declaration(definition.symbol) =>
                 {
-                    visit_const(program, &mut source, definition);
+                    visit_const(program, &mut source, definition, None);
                 }
                 SourceDescription::Alias(definition)
                     if program
@@ -1011,6 +1011,7 @@ pub(crate) mod source_occurrences {
                 .insert(ExpressionNode::Cast(TableCastExpression {
                     value: leaf,
                     target_type: authored_cast,
+                    operand_type: Default::default(),
                     recast_storage_type: Default::default(),
                     result_type: computed,
                     target_label: Default::default(),
@@ -1352,6 +1353,14 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     ) {
         self.extend([symbol]);
     }
+    /// The head of an application formed by an exact Product operand.
+    fn product_application_head(
+        &mut self,
+        _: StaticMachineApplicationHandle,
+        declaration: SymbolHandle,
+    ) {
+        self.formation_owner(declaration);
+    }
     /// The forming declaration supplies the application's lexical context. It
     /// remains reachable metadata, not an authored selection by its later user.
     fn static_application(
@@ -1416,7 +1425,7 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     fn type_reference(&mut self, _: TypeReferenceHandle) -> bool {
         true
     }
-    fn visit_universe_levels(&self) -> bool {
+    fn visit_proof_operands(&self) -> bool {
         true
     }
     fn type_alias_application(
@@ -1500,6 +1509,13 @@ impl<References: TypedReferences> TypedReferences for CodeSelectionReferences<'_
         symbol: SymbolHandle,
     ) {
         self.0.product_type_input(input, symbol);
+    }
+    fn product_application_head(
+        &mut self,
+        application: StaticMachineApplicationHandle,
+        declaration: SymbolHandle,
+    ) {
+        self.0.product_application_head(application, declaration);
     }
     fn static_application(
         &mut self,
@@ -1604,7 +1620,7 @@ struct ReferenceCollector {
     callable_uses: HashSet<SymbolHandle>,
     descriptor_symbols: HashSet<SymbolHandle>,
     classify_static_arguments: Option<StaticArgumentClassifier>,
-    skip_universe_levels: bool,
+    skip_proof_operands: bool,
     skip_published_data_layouts: bool,
     statements: HashSet<StatementHandle>,
     expressions: HashSet<ExpressionHandle>,
@@ -1628,8 +1644,8 @@ impl TypedReferences for ReferenceCollector {
     fn published_data_layouts(&self) -> bool {
         !self.skip_published_data_layouts
     }
-    fn visit_universe_levels(&self) -> bool {
-        !self.skip_universe_levels
+    fn visit_proof_operands(&self) -> bool {
+        !self.skip_proof_operands
     }
 
     fn type_alias_application(
@@ -1642,7 +1658,7 @@ impl TypedReferences for ReferenceCollector {
         }
         let mut description = ReferenceCollector {
             describing_alias_arguments: true,
-            skip_universe_levels: self.skip_universe_levels,
+            skip_proof_operands: self.skip_proof_operands,
             skip_published_data_layouts: self.skip_published_data_layouts,
             ..ReferenceCollector::default()
         };
@@ -1828,13 +1844,10 @@ impl ProgramOperandOwners {
     }
 }
 
-/*
-    The lexical owners seen for each arena slot, in first-visit order. Most
-    slots have one owner, so the rows share one flat table chained per slot
-    instead of holding a small vector per slot. A slot keeps rows for every
-    generation it was visited under; lookups match the exact handle.
-*/
-struct ScopedOccurrences<Element> {
+/// Each lexical owner that visited an exact arena handle, in first-visit order.
+/// Most slots have one owner. A flat table chains additional owners and
+/// generations at the same slot without allocating a vector per slot.
+pub struct ScopedOccurrences<Element> {
     // Per arena slot: one plus the index of the slot's first row; 0 is empty.
     heads: Vec<usize>,
     rows: Vec<ScopedOccurrenceRow<Element>>,
@@ -1899,7 +1912,7 @@ impl<Element> ScopedOccurrences<Element> {
     }
 
     /// Record `owner` for `reference`; false when that pair was already seen.
-    fn insert(&mut self, owner: SymbolHandle, reference: arena::Handle<Element>) -> bool {
+    pub fn insert(&mut self, owner: SymbolHandle, reference: arena::Handle<Element>) -> bool {
         let slot = reference.arena_index() as usize;
         if self.heads.len() <= slot {
             self.heads.resize(slot + 1, 0);
@@ -1981,14 +1994,28 @@ pub fn collect_program_operand_owners(program: &TypedTrees) -> ProgramOperandOwn
     collect_operand_owners(program, TypeOccurrences::default())
 }
 
-/// Collects the operands that could request source evaluation. Universe
-/// levels are formed by the proof calculus, while any ordinary use of the
-/// same handle still belongs to the source evaluator.
+/// Find owners within the selected declarations of this program snapshot.
+pub fn collect_selected_program_operand_owners(
+    program: &TypedTrees,
+    selection: DeclarationSelection,
+) -> ProgramOperandOwners {
+    collect_operand_owners(
+        program,
+        TypeOccurrences {
+            selection,
+            ..Default::default()
+        },
+    )
+}
+
+/// Collects the operands that could request source evaluation. The proof
+/// calculus reads universe levels and the formula under Box or Squash. An
+/// ordinary occurrence of the same handle still requires source evaluation.
 pub fn collect_source_evaluation_references(program: &TypedTrees) -> ProgramReferences {
     collect_program_references_from(
         program,
         ReferenceCollector {
-            skip_universe_levels: true,
+            skip_proof_operands: true,
             ..ReferenceCollector::default()
         },
     )
@@ -2000,7 +2027,7 @@ pub fn collect_source_evaluation_operand_owners(program: &TypedTrees) -> Program
     collect_operand_owners(
         program,
         TypeOccurrences {
-            skip_universe_levels: true,
+            skip_proof_operands: true,
             ..TypeOccurrences::default()
         },
     )
@@ -2016,14 +2043,19 @@ fn collect_operand_owners(
     mut occurrences: TypeOccurrences,
 ) -> ProgramOperandOwners {
     occurrences.operand_owners_only = true;
-    let workers = worker_budget::current_workers();
-    if workers > 1 {
-        return collect_operand_owners_in_parallel(program, occurrences, workers);
+    // A continuation can select a single declaration in a large retained
+    // program. Grow its tables from the operands it actually visits.
+    if occurrences.selection.explicit_symbols().is_none() {
+        let workers = worker_budget::current_workers();
+        if workers > 1 {
+            return collect_operand_owners_in_parallel(program, occurrences, workers);
+        }
+        occurrences.seen_types = ScopedOccurrences::with_slot_capacity(
+            program.type_reference_table.type_reference_count(),
+        );
+        occurrences.seen_expressions =
+            ScopedOccurrences::with_slot_capacity(program.expression_table.expression_count());
     }
-    occurrences.seen_types =
-        ScopedOccurrences::with_slot_capacity(program.type_reference_table.type_reference_count());
-    occurrences.seen_expressions =
-        ScopedOccurrences::with_slot_capacity(program.expression_table.expression_count());
     visit_program(program, &mut occurrences);
     ProgramOperandOwners {
         types: occurrences.seen_types,
@@ -2057,12 +2089,13 @@ fn collect_operand_owners_in_parallel(
 
     let mut counter = TypeOccurrences {
         selection: occurrences.selection.clone(),
-        skip_universe_levels: occurrences.skip_universe_levels,
+        skip_proof_operands: occurrences.skip_proof_operands,
         operand_owners_only: true,
         unit_range: Some(0..0),
         ..TypeOccurrences::default()
     };
-    visit_program(program, &mut counter);
+    let sidecars = MachineSidecarIndex::default();
+    visit_program_with_sidecars(program, &mut counter, &sidecars);
     let units = counter.next_unit;
     let type_slots = program.type_reference_table.type_reference_count();
     let expression_slots = program.expression_table.expression_count();
@@ -2077,14 +2110,14 @@ fn collect_operand_owners_in_parallel(
             let end = units * (run + 1) / runs;
             let mut walk = TypeOccurrences {
                 selection: occurrences.selection.clone(),
-                skip_universe_levels: occurrences.skip_universe_levels,
+                skip_proof_operands: occurrences.skip_proof_operands,
                 operand_owners_only: true,
                 unit_range: Some(start..end),
                 seen_types: ScopedOccurrences::with_zeroed_slots(type_slots),
                 seen_expressions: ScopedOccurrences::with_zeroed_slots(expression_slots),
                 ..TypeOccurrences::default()
             };
-            visit_program(program, &mut walk);
+            visit_program_with_sidecars(program, &mut walk, &sidecars);
             (walk.seen_types.rows, walk.seen_expressions.rows)
         })
         .collect();
@@ -2103,15 +2136,15 @@ pub fn collect_program_conformance_occurrences(
     occurrences.conformance_applications(program)
 }
 
-pub(crate) struct ProgramApplicationOccurrences {
-    pub requirement_applications: Vec<TypeOccurrence>,
-    pub conformance_applications: Vec<StaticMachineApplicationHandle>,
+pub struct ProgramApplicationOccurrences {
+    pub(crate) requirement_applications: Vec<TypeOccurrence>,
+    pub(crate) conformance_applications: Vec<StaticMachineApplicationHandle>,
     /// Every static application written in its own lexical owner, including
     /// ordinary generic calls that bind evidence without a direct selection.
     pub invocation_applications: Vec<StaticMachineApplicationHandle>,
 }
 
-pub(crate) fn collect_program_application_occurrences(
+pub fn collect_program_application_occurrences(
     program: &TypedTrees,
 ) -> ProgramApplicationOccurrences {
     let mut occurrences = TypeOccurrences::default();
@@ -2128,7 +2161,7 @@ pub(crate) fn collect_program_application_occurrences(
 #[derive(Default)]
 struct TypeOccurrences {
     selection: DeclarationSelection,
-    skip_universe_levels: bool,
+    skip_proof_operands: bool,
     owner: SymbolHandle,
     outer_owners: Vec<SymbolHandle>,
     types: Vec<TypeOccurrence>,
@@ -2261,8 +2294,8 @@ impl TypedReferences for TypeOccurrences {
         }
     }
 
-    fn visit_universe_levels(&self) -> bool {
-        !self.skip_universe_levels
+    fn visit_proof_operands(&self) -> bool {
+        !self.skip_proof_operands
     }
 
     fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
@@ -2632,6 +2665,12 @@ fn finish_references(roots: ReferenceCollector) -> ProgramReferences {
 /// and authored service ceilings are sorted by owner in their own table.
 #[derive(Default)]
 pub struct MachineSidecarIndex {
+    product_operands: std::sync::OnceLock<
+        Vec<(
+            SymbolHandle,
+            arena::Handle<crate::source_state::product_operand::ProductOperandApplication>,
+        )>,
+    >,
     requirement_invocations: std::sync::OnceLock<
         Vec<(
             SymbolHandle,
@@ -2682,11 +2721,17 @@ impl MachineSidecarIndex {
 }
 
 pub fn visit_program(program: &TypedTrees, roots: &mut impl TypedReferences) {
-    visit_declarations(program, roots);
-    let mut sidecars = None;
+    visit_program_with_sidecars(program, roots, &MachineSidecarIndex::default());
+}
+
+fn visit_program_with_sidecars(
+    program: &TypedTrees,
+    roots: &mut impl TypedReferences,
+    sidecars: &MachineSidecarIndex,
+) {
+    visit_declarations_with_sidecars(program, roots, sidecars);
     for machine in program.machines() {
         if roots.declaration(machine.symbol) {
-            let sidecars = sidecars.get_or_insert_with(MachineSidecarIndex::default);
             visit_machine_with_sidecars(program, roots, machine, Some(sidecars));
         }
     }
@@ -2697,38 +2742,80 @@ pub fn visit_product_operand_inputs(
     roots: &mut impl TypedReferences,
     owner: SymbolHandle,
 ) {
-    let pending = program
+    // A standalone machine walk often has no supplying application at all.
+    if program
         .product_operand_applications
         .iter()
-        .filter_map(|(handle, application)| {
-            let source = program.static_machine_application(application.supplying_application);
-            (source.lexical_owner == owner).then_some(handle)
+        .any(|(_, application)| {
+            program
+                .static_machine_application(application.supplying_application)
+                .lexical_owner
+                == owner
         })
-        .collect::<Vec<_>>();
-    if pending.is_empty() {
-        return;
+    {
+        MachineSidecarIndex::default().visit_product_operand_inputs(program, roots, owner);
     }
-    let live = program.live_product_operand_applications();
-    for handle in pending.into_iter().filter(|handle| live.contains(handle)) {
-        let application = program.product_operand_applications.get(handle);
-        let source = program.static_machine_application(application.supplying_application);
-        roots.enter_lexical_scope(application.declaration);
-        roots.declaration_description_dependency(application.declaration);
-        visit_type_parameters(program, roots, application.declaration_parameters);
-        roots.leave_lexical_scope();
-        roots.enter_lexical_scope(source.lexical_owner);
-        for selection in program
-            .product_input_selections
-            .span_or_empty(application.input_selections)
-        {
-            if let Some(occurrence) = selection.occurrence {
-                roots.authored_selection(occurrence);
-            }
+}
+
+impl MachineSidecarIndex {
+    fn visit_product_operand_inputs(
+        &self,
+        program: &TypedTrees,
+        roots: &mut impl TypedReferences,
+        owner: SymbolHandle,
+    ) {
+        if program.product_operand_applications.is_empty() {
+            return;
         }
-        visit_static_machine_bindings(program, roots, application.supplying_application);
-        visit_static_argument(program, roots, &application.argument);
-        application.scope.visit_references(program, roots);
-        roots.leave_lexical_scope();
+        let rows = self.product_operands.get_or_init(|| {
+            let mut rows = program
+                .live_product_operand_applications()
+                .into_iter()
+                .map(|handle| {
+                    let application = program.product_operand_applications.get(handle);
+                    let source =
+                        program.static_machine_application(application.supplying_application);
+                    (source.lexical_owner, handle)
+                })
+                .collect::<Vec<_>>();
+            // The live census appends retained-only handles. Within a supplier,
+            // references visit all applications in their original arena order.
+            rows.sort_unstable_by_key(|(owner, handle)| {
+                (sidecar_symbol_key(*owner), handle.arena_index())
+            });
+            rows
+        });
+        for &(_, handle) in sidecar_symbol_rows(rows, owner) {
+            let application = program.product_operand_applications.get(handle);
+            let source = program.static_machine_application(application.supplying_application);
+            roots.enter_lexical_scope(application.declaration);
+            roots.declaration_description_dependency(application.declaration);
+            visit_type_parameters(program, roots, application.declaration_parameters);
+            roots.leave_lexical_scope();
+            roots.enter_lexical_scope(source.lexical_owner);
+            for selection in program
+                .product_input_selections
+                .span_or_empty(application.input_selections)
+            {
+                if let Some(occurrence) = selection.occurrence {
+                    roots.authored_selection(occurrence);
+                }
+            }
+            visit_static_machine_bindings(program, roots, application.supplying_application);
+            // The request selected the head in Product. Its supplied arguments
+            // and the provider's own parents still have their original readers.
+            let designated = application
+                .selected_head(program)
+                .map(|_| application.supplying_application);
+            visit_static_argument_with_product_head(
+                program,
+                roots,
+                &application.argument,
+                designated,
+            );
+            application.scope.visit_references(program, roots);
+            roots.leave_lexical_scope();
+        }
     }
 }
 
@@ -2876,6 +2963,15 @@ pub fn visit_static_argument(
     retained: &mut impl TypedReferences,
     argument: &StaticMachineArgument,
 ) {
+    visit_static_argument_with_product_head(program, retained, argument, None);
+}
+
+fn visit_static_argument_with_product_head(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    argument: &StaticMachineArgument,
+    designated: Option<StaticMachineApplicationHandle>,
+) {
     if let Some(occurrence) = argument.authored_selection {
         visit_authored_selection(program, retained, occurrence);
     }
@@ -2893,7 +2989,9 @@ pub fn visit_static_argument(
             TypeReferenceNode::Named { symbol, .. }
             | TypeReferenceNode::Generic { base_symbol: symbol, .. }
             if *symbol == argument.symbol);
-    if argument.symbol != SymbolHandle::invalid() && !named_data {
+    if let Some(application) = designated {
+        retained.product_application_head(application, argument.symbol);
+    } else if argument.symbol != SymbolHandle::invalid() && !named_data {
         visit_callable_symbol(program, retained, argument.symbol);
     }
     visit_type_reference(program, retained, argument.type_reference);
@@ -3071,12 +3169,17 @@ fn visit_declaration_dependencies(
     program: &TypedTrees,
     retained: &mut impl TypedReferences,
     owner: SymbolHandle,
+    sidecars: Option<&MachineSidecarIndex>,
 ) {
     if !retained.derived_declaration_references() {
         return;
     }
     visit_constant_evaluation_entries(program, retained, owner);
-    visit_product_operand_inputs(program, retained, owner);
+    if let Some(index) = sidecars {
+        index.visit_product_operand_inputs(program, retained, owner);
+    } else {
+        visit_product_operand_inputs(program, retained, owner);
+    }
     for (_, selected) in program
         .data_implementation_applications
         .iter()
@@ -3179,6 +3282,14 @@ fn visit_conformance_header(
 }
 
 pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferences) {
+    visit_declarations_with_sidecars(program, retained, &MachineSidecarIndex::default());
+}
+
+fn visit_declarations_with_sidecars(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    sidecars: &MachineSidecarIndex,
+) {
     for alias in program.type_aliases() {
         if !retained.declaration(alias.symbol) {
             continue;
@@ -3190,21 +3301,21 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(data.symbol) {
             continue;
         }
-        visit_data(program, retained, data);
+        visit_data(program, retained, data, Some(sidecars));
     }
 
     for definition in program.traits() {
         if !retained.declaration(definition.symbol) {
             continue;
         }
-        visit_trait(program, retained, definition);
+        visit_trait(program, retained, definition, Some(sidecars));
     }
 
     for conformance in program.conformances() {
         if !retained.declaration(conformance.symbol) {
             continue;
         }
-        visit_declaration_dependencies(program, retained, conformance.symbol);
+        visit_declaration_dependencies(program, retained, conformance.symbol, Some(sidecars));
         visit_symbol(retained, conformance.symbol);
         visit_conformance_header(program, retained, conformance);
         for row in &conformance.rows {
@@ -3219,7 +3330,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(proposition.symbol) {
             continue;
         }
-        visit_declaration_dependencies(program, retained, proposition.symbol);
+        visit_declaration_dependencies(program, retained, proposition.symbol, Some(sidecars));
         visit_symbol(retained, proposition.symbol);
         for binder in program.proposition_binders(proposition) {
             visit_symbol(retained, binder.symbol);
@@ -3248,7 +3359,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(definition.symbol) {
             continue;
         }
-        visit_declaration_dependencies(program, retained, definition.symbol);
+        visit_declaration_dependencies(program, retained, definition.symbol, Some(sidecars));
         visit_type_parameters(program, retained, definition.binders);
         for parameter in program.mathematical_parameters(definition.parameters) {
             visit_mathematical_type(program, retained, parameter.ty);
@@ -3275,7 +3386,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(measure.symbol) {
             continue;
         }
-        visit_declaration_dependencies(program, retained, measure.symbol);
+        visit_declaration_dependencies(program, retained, measure.symbol, Some(sidecars));
         visit_symbol(retained, measure.symbol);
         if let Some(parameter) = &measure.parameter {
             visit_type_reference(program, retained, parameter.type_reference);
@@ -3290,7 +3401,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(declaration.symbol) {
             continue;
         }
-        visit_const(program, retained, declaration);
+        visit_const(program, retained, declaration, Some(sidecars));
     }
 
     for operator in program
@@ -3307,7 +3418,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(operator.symbol) {
             continue;
         }
-        visit_declaration_dependencies(program, retained, operator.symbol);
+        visit_declaration_dependencies(program, retained, operator.symbol, Some(sidecars));
         visit_symbol(retained, operator.symbol);
         visit_type_parameters(program, retained, operator.type_parameters);
         for parameter in program
@@ -3331,7 +3442,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(domain.symbol) {
             continue;
         }
-        visit_declaration_dependencies(program, retained, domain.symbol);
+        visit_declaration_dependencies(program, retained, domain.symbol, Some(sidecars));
         visit_symbol(retained, domain.symbol);
         visit_type_parameters(program, retained, domain.type_parameters);
         if let Some(selection) = &domain.cleanup_selection {
@@ -3384,7 +3495,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         if !retained.declaration(schema.symbol) {
             continue;
         }
-        visit_declaration_dependencies(program, retained, schema.symbol);
+        visit_declaration_dependencies(program, retained, schema.symbol, Some(sidecars));
         visit_symbol(retained, schema.symbol);
         for member in program.tables.wire_members.span_or_empty(schema.members) {
             if let crate::source_state::wire::WireMember::Field(field) = member {
@@ -3493,8 +3604,9 @@ fn visit_const(
     program: &TypedTrees,
     retained: &mut impl TypedReferences,
     declaration: &crate::source_state::constant::ConstDeclaration,
+    sidecars: Option<&MachineSidecarIndex>,
 ) {
-    visit_declaration_dependencies(program, retained, declaration.symbol);
+    visit_declaration_dependencies(program, retained, declaration.symbol, sidecars);
     visit_symbol(retained, declaration.symbol);
     visit_type_reference(program, retained, declaration.declared_type);
     visit_expression(program, retained, declaration.authored_initializer);
@@ -3524,8 +3636,9 @@ fn visit_data(
     program: &TypedTrees,
     retained: &mut impl TypedReferences,
     data: &crate::source_state::data::DataDefinition,
+    sidecars: Option<&MachineSidecarIndex>,
 ) {
-    visit_declaration_dependencies(program, retained, data.symbol);
+    visit_declaration_dependencies(program, retained, data.symbol, sidecars);
     visit_symbol(retained, data.symbol);
     if retained.published_data_layouts() && !program.plan_laid_layouts.is_empty() {
         for plan in program
@@ -3571,6 +3684,7 @@ fn visit_data(
         }
     }
     visit_type_parameters(program, retained, data.type_parameters);
+    visit_type_parameters(program, retained, data.package_parameters);
     for bound in &data.conformance_bounds {
         visit_symbol(retained, bound.trait_symbol);
         for argument in &bound.arguments {
@@ -3611,8 +3725,9 @@ fn visit_trait(
     program: &TypedTrees,
     retained: &mut impl TypedReferences,
     definition: &crate::source_state::trait_definition::TraitDefinition,
+    sidecars: Option<&MachineSidecarIndex>,
 ) {
-    visit_declaration_dependencies(program, retained, definition.symbol);
+    visit_declaration_dependencies(program, retained, definition.symbol, sidecars);
     visit_symbol(retained, definition.symbol);
     visit_type_parameters(program, retained, definition.type_parameters);
 
@@ -3842,7 +3957,7 @@ pub fn visit_type_reference(
             let arguments = program.type_reference_handles(*arguments);
             // A universe level may use the same syntax node as a computed
             // type. Only its edge from the exact sort makes it a level.
-            if !retained.visit_universe_levels()
+            if !retained.visit_proof_operands()
                 && arguments.len() == 1
                 && lifetime_arguments.is_empty()
                 && program
@@ -3969,6 +4084,7 @@ pub fn visit_expression(
             visit_type_reference(program, retained, cast.target_type);
             if retained.derived_declaration_references() {
                 visit_type_reference(program, retained, cast.result_type);
+                visit_type_reference(program, retained, cast.operand_type);
                 visit_type_reference(program, retained, cast.recast_storage_type);
             }
             // Intrinsic conversions, recasts and builtin policy entries may
@@ -4019,6 +4135,15 @@ pub fn visit_expression(
         }
         ExpressionNode::StructLiteral(literal) => {
             visit_type_reference(program, retained, literal.application_type);
+            if let Some(package) = &literal.package {
+                for witness in &package.witnesses {
+                    visit_type_reference(program, retained, *witness);
+                }
+                for field in &package.fields {
+                    visit_symbol(retained, field.symbol);
+                    visit_type_reference(program, retained, field.ty);
+                }
+            }
 
             visit_symbol(retained, literal.type_symbol);
             if let Some(case_symbol) = literal.case_symbol {
@@ -4117,6 +4242,29 @@ fn visit_described_argument(
     visit_type_reference(program, retained, argument.type_reference);
     if let Some(application) = &argument.application {
         for nested in &application.arguments {
+            // The kernel reads the expression inside a strict type former. Its
+            // carrier and arguments can still contain ordinary evaluation requests.
+            if !retained.visit_proof_operands()
+                && application.arguments.len() == 1
+                && application.lifetime_arguments.is_empty()
+                && program.symbols.symbols().nodes().is_valid(argument.symbol)
+                && matches!(
+                    program
+                        .symbols
+                        .fixed_core_declaration_for_symbol(argument.symbol),
+                    Some(
+                        symbols::FixedCoreDeclaration::Box | symbols::FixedCoreDeclaration::Squash
+                    )
+                )
+                && program
+                    .type_reference_table
+                    .contains_type_reference(nested.type_reference)
+                && let TypeReferenceNode::ConstExpression(expression) =
+                    program.type_reference_node(nested.type_reference)
+            {
+                visit_expression(program, retained, *expression);
+                continue;
+            }
             visit_described_argument(program, retained, nested);
         }
         if let Some(member) = program.expression_table.static_member(application.member) {
@@ -4133,6 +4281,25 @@ fn visit_static_requirement_dispatch(
     visit_symbol(retained, dispatch.realization_state);
     visit_symbol(retained, dispatch.requirement);
     visit_symbol(retained, dispatch.declaring_trait);
+}
+
+fn visit_interrupt_registration(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    installation: &crate::source_state::expression::InstalledInterruptOperationRequest,
+) {
+    visit_symbol(retained, installation.registrar_trait);
+    if retained.derived_declaration_references()
+        && let Some(registrar) = installation.prepared.as_deref()
+    {
+        visit_callable_symbol(program, retained, registrar.target);
+        visit_static_machine_bindings(program, retained, registrar.application);
+        registrar
+            .receiving_scope
+            .visit_references(program, retained);
+    }
+    visit_static_argument(program, retained, &installation.registrar);
+    visit_static_argument(program, retained, &installation.timer_slot);
 }
 
 fn visit_call_expression(
@@ -4224,16 +4391,7 @@ fn visit_call_expression(
         }
     }
     if let Some(installation) = &call.installed_interrupt_operation {
-        visit_symbol(retained, installation.registrar_trait);
-        if retained.derived_declaration_references() {
-            visit_callable_symbol(program, retained, installation.registrar_target);
-            visit_static_machine_bindings(program, retained, installation.registrar_application);
-            installation
-                .registrar_receiving_scope
-                .visit_references(program, retained);
-        }
-        visit_static_argument(program, retained, &installation.registrar);
-        visit_static_argument(program, retained, &installation.timer_slot);
+        visit_interrupt_registration(program, retained, installation);
     }
     if let Some(layout) = &call.private_layout_operation {
         visit_static_argument(program, retained, &layout.selected_slot);
@@ -4333,17 +4491,8 @@ fn visit_statement(
             if let Some(dispatch) = &call.static_requirement_dispatch {
                 visit_static_requirement_dispatch(retained, dispatch);
             }
-            if let Some(request) = &call.installed_interrupt_operation {
-                visit_symbol(retained, request.registrar_trait);
-                if retained.derived_declaration_references() {
-                    visit_callable_symbol(program, retained, request.registrar_target);
-                    visit_static_machine_bindings(program, retained, request.registrar_application);
-                    request
-                        .registrar_receiving_scope
-                        .visit_references(program, retained);
-                }
-                visit_static_argument(program, retained, &request.registrar);
-                visit_static_argument(program, retained, &request.timer_slot);
+            if let Some(installation) = &call.installed_interrupt_operation {
+                visit_interrupt_registration(program, retained, installation);
             }
             if retained.call_arguments(program, StaticArgumentCall::Statement(call)) {
                 for argument in StaticArgumentCall::Statement(call).arguments(program) {
@@ -4497,7 +4646,7 @@ fn visit_machine_with_sidecars(
         if let Some(entry) = program.constant_evaluation_entry(machine.symbol) {
             retained.declaration_description_dependency(entry.owner);
         }
-        visit_declaration_dependencies(program, retained, machine.symbol);
+        visit_declaration_dependencies(program, retained, machine.symbol, sidecars);
         if let Some(sidecars) = sidecars {
             for signature in sidecars.requirement_invocation_signatures(program, machine.symbol) {
                 visit_signature(program, retained, signature);
@@ -4839,6 +4988,138 @@ mod conformance_occurrence_tests {
                     operational_acknowledgement: Default::default(),
                 }));
         (expression, application)
+    }
+
+    #[test]
+    fn product_inputs_follow_supplying_owners_in_arena_order() {
+        use crate::declaration_selection::{
+            BuildOperation, ProductDeclarationOperand, ProductDeclarationRequest,
+            ProductOperandRole,
+        };
+        use crate::source_state::expression::BuildSelectionCall;
+        use crate::source_state::product_operand::ProductOperandApplication;
+        use symbols::{SymbolKind, SymbolNameRef};
+
+        let mut symbols = crate::source_symbols::SymbolTableBuilder::default();
+        let first = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("first"));
+        let second = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("second"));
+        let markers = ["retained", "from_first", "from_second", "wrong_role"]
+            .map(|name| symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static(name)));
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let instance =
+            program
+                .symbols
+                .insert_generated_root_from(first, SymbolKind::Machine, "instance");
+        let operand = ProductDeclarationOperand {
+            path: "subject".into(),
+            ..Default::default()
+        };
+        let request = ProductDeclarationRequest {
+            source_span: Default::default(),
+            operation: BuildOperation::ServiceAudit,
+            operands: Box::new([operand.clone()]),
+        };
+        let selection = program
+            .expression_table
+            .insert_build_selection_call(BuildSelectionCall {
+                request: BuildSelectionRequest::Declaration(std::sync::Arc::new(request)),
+                operation: language_core::build_protocol::SelectionProtocolOperation::Prepare,
+            });
+        let expression =
+            program
+                .expression_table
+                .insert(ExpressionNode::Call(TableCallExpression {
+                    build_selection: selection,
+                    ..Default::default()
+                }));
+        let statements = program
+            .statement_table
+            .insert_statements([StatementNode::Expression(expression)]);
+        let states =
+            program
+                .tables
+                .machine_states
+                .insert_many([crate::source_state::state::State {
+                    statement_nodes: statements,
+                    ..Default::default()
+                }]);
+        program.push_machine(Machine {
+            symbol: first,
+            states,
+            ..Default::default()
+        });
+        program.push_machine(Machine {
+            symbol: second,
+            ..Default::default()
+        });
+
+        // The first row survives solely through retention. The two live rows
+        // share the first machine's authored request but have different suppliers.
+        for (ordinal, supplier, author, role) in [
+            (0, first, second, ProductOperandRole::Provider),
+            (2, second, instance, ProductOperandRole::BoundarySubject),
+            (1, first, instance, ProductOperandRole::BoundarySubject),
+            (3, second, instance, ProductOperandRole::Provider),
+        ] {
+            let supplying_application = program.expression_table.retain_static_machine_application(
+                Default::default(),
+                Default::default(),
+                &[],
+            );
+            program
+                .expression_table
+                .static_machine_application_mut(supplying_application)
+                .lexical_owner = supplier;
+            let handle = program
+                .product_operand_applications
+                .insert(ProductOperandApplication {
+                    owner: author,
+                    role: Some(role),
+                    operand: operand.clone(),
+                    declaration: markers[ordinal],
+                    supplying_application,
+                    ..Default::default()
+                });
+            if ordinal == 0 {
+                program.retain_dependency_product_application(handle);
+            }
+        }
+        struct Visits {
+            owner: SymbolHandle,
+            markers: [SymbolHandle; 4],
+            rows: Vec<(SymbolHandle, SymbolHandle)>,
+        }
+        impl Extend<SymbolHandle> for Visits {
+            fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, _: T) {}
+        }
+        impl TypedReferences for Visits {
+            fn declaration(&mut self, owner: SymbolHandle) -> bool {
+                self.owner = owner;
+                true
+            }
+            fn declaration_description_dependency(&mut self, symbol: SymbolHandle) {
+                if self.markers.contains(&symbol) {
+                    self.rows.push((self.owner, symbol));
+                }
+            }
+        }
+        let mut visits = Visits {
+            owner: SymbolHandle::invalid(),
+            markers,
+            rows: Vec::new(),
+        };
+        visit_program(&program, &mut visits);
+        assert_eq!(
+            visits.rows,
+            [
+                (first, markers[0]),
+                (first, markers[1]),
+                (second, markers[2])
+            ]
+        );
     }
 
     #[test]
@@ -5556,6 +5837,7 @@ mod cast_dependency_tests {
         let mut cast = TableCastExpression {
             value,
             target_type: carrier,
+            operand_type: Default::default(),
             recast_storage_type: Default::default(),
             result_type: carrier,
             target_label: Default::default(),

@@ -7,10 +7,6 @@ served only the native abstract-operations optimizer and is archived with it, at
 this file's path under `_recycling/`.
 */
 
-pub(crate) mod derived_metadata {
-
-    pub(crate) use crate::operation_metadata::expected_definitions;
-}
 pub(crate) mod function_structure {
     mod structural_roots {
 
@@ -119,6 +115,7 @@ pub(crate) mod function_structure {
                         .chain(parents.iter().map(|parent| parent.place))
                         .collect(),
                     O::EstablishReference { source, .. }
+                    | O::UpgradeMutability { source, .. }
                     | O::EstablishAccessReference { source, .. }
                     | O::ByteSequenceSubslice { source, .. }
                     | O::ByteSequenceLength { source, .. }
@@ -178,6 +175,7 @@ pub(crate) mod function_structure {
                     | O::IntegerEqual { .. }
                     | O::IntegerLessThan { .. }
                     | O::IntegerLessOrEqual { .. }
+                    | O::BorrowAt { .. }
                     | O::IntegerBitwiseNot { .. }
                     | O::IntegerWiden { .. }
                     | O::IntegerExactCast { .. }

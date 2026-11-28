@@ -370,6 +370,7 @@ fn completed_position_maps_share_ownership_preserve_snapshots_and_failure_fences
     outer.calls.insert(
         positions[0],
         Some(vec![DescriptorInvocation {
+            native_address_arguments: Vec::new(),
             scalar_arguments: Vec::new(),
             owner: DescriptorInvocationOwner::Operation(
                 semantic_vocabulary::OperationId::new(1).unwrap(),
@@ -776,6 +777,313 @@ fn an_unresolved_write_only_invalidates_returns_it_can_reach() {
 }
 
 #[test]
+fn native_borrow_results_follow_scalar_address_actuals_back_to_their_storage() {
+    use crate::descriptors::descriptor_results::NativeAddressActual;
+    use semantic_vocabulary::{OperationId, ValueId};
+
+    let scalar = StructuralTypeId::new(1).unwrap();
+    let reference = StructuralTypeId::new(2).unwrap();
+    let types = [
+        scalar_type(1),
+        reference_type(2, scalar, StructuralAccess::SharedBorrow),
+    ];
+    let input = location(1);
+    let local = location(2);
+    let temporary = location(4);
+    let machine = bare_machine(
+        MachineId::new(1).unwrap(),
+        vec![
+            DescriptorPlace {
+                producer: None,
+                place: input.root,
+                definition: DescriptorDefinition::Parameter {
+                    position: 0,
+                    access: StructuralAccess::SharedBorrow,
+                    structural_type: scalar,
+                },
+            },
+            DescriptorPlace {
+                producer: None,
+                place: local.root,
+                definition: DescriptorDefinition::Local,
+            },
+            DescriptorPlace {
+                producer: None,
+                place: temporary.root,
+                definition: DescriptorDefinition::Local,
+            },
+        ],
+        BTreeMap::from([
+            (input.root, scalar),
+            (local.root, scalar),
+            (temporary.root, reference),
+        ]),
+        BTreeSet::new(),
+    );
+    let replay = Replay::with_slot_kind(
+        &types,
+        std::slice::from_ref(&machine),
+        DescriptorSlotKind::BorrowedStorage,
+    );
+    let state = replay.initial(&machine).unwrap();
+    let mut observed = state.clone();
+    observed.slots_mut().insert(
+        temporary.clone(),
+        Some(BTreeSet::from([Origin::Storage(input.clone())])),
+    );
+    let formal = ValueId::new(1).unwrap();
+    let forwarded = ValueId::new(2).unwrap();
+    let make_origin = |parameters| DescriptorStoredOrigin::NativeAddress {
+        opaque: false,
+        exact_parameters: true,
+        machine: MachineId::new(2).unwrap(),
+        operation: OperationId::new(1).unwrap(),
+        place: location(3).root,
+        carrier: reference,
+        projection: Projection::new(&[]),
+        parameters,
+    };
+    let bind = |storage: Option<DescriptorLocation>,
+                forwarded: Option<ValueId>,
+                exact: bool,
+                observed_type| {
+        let native_address_arguments = [NativeAddressActual {
+            opaque: storage.is_none() && forwarded.is_none(),
+            parameter: formal,
+            exact,
+            sources: storage
+                .into_iter()
+                .map(|location| NativeAddressObservation {
+                    at: machine.entry,
+                    location,
+                    projection: None,
+                    pointee: observed_type,
+                    storage_address: true,
+                })
+                .collect(),
+            parameters: forwarded.into_iter().collect(),
+        }];
+        let history = States::from([(machine.entry, observed.clone())]);
+        let reads = DescriptorReadDepth::at(&machine, &state, Some(&history));
+        let origins = replay.substitute_actuals_with_depth(
+            &machine,
+            &state,
+            DescriptorActualInputs {
+                native_address_arguments: &native_address_arguments,
+                scalar_arguments: &[],
+                arguments: &[],
+                argument_contents: &[],
+            },
+            &make_origin(vec![formal]),
+            &reads,
+        )?;
+        origins
+            .iter()
+            .map(|origin| replay.exported(&machine, origin))
+            .collect::<Option<Vec<_>>>()
+    };
+    assert!(bind(Some(local.clone()), None, true, Some(scalar)).is_none());
+    assert!(matches!(
+        bind(Some(input.clone()), None, true, Some(scalar)).as_deref(),
+        Some([DescriptorStoredOrigin::Parameter { position: 0, projection }]) if projection == &Projection::new(&[])
+    ));
+    // address_of(@input) forms its address through a temporary pointer. By
+    // the time the scalar address is passed, that pointer has been released.
+    let mut referent = temporary;
+    referent.path.push(DescriptorPathSegment::Referent);
+    assert!(matches!(
+        bind(Some(referent), None, true, Some(scalar)).as_deref(),
+        Some([DescriptorStoredOrigin::Parameter { position: 0, .. }])
+    ));
+    for relayed in [Some(forwarded), None] {
+        assert!(matches!(
+            bind(None, relayed, true, None).as_deref(),
+            Some([DescriptorStoredOrigin::NativeAddress { parameters, .. }])
+                if parameters == &relayed.into_iter().collect::<Vec<_>>()
+        ));
+    }
+    for (exact, observed_type) in [(false, Some(scalar)), (true, Some(reference))] {
+        assert!(bind(Some(local.clone()), None, exact, observed_type).is_none());
+        let origins = bind(Some(input.clone()), None, exact, observed_type).unwrap();
+        assert_eq!(origins.len(), 2);
+        assert!(
+            origins
+                .iter()
+                .any(|origin| matches!(origin, DescriptorStoredOrigin::NativeAddress { .. }))
+        );
+        assert!(origins.iter().any(|origin| matches!(origin,
+            DescriptorStoredOrigin::Parameter { position: 0, projection } if projection.is_native_enclosing_storage()
+        )));
+    }
+}
+
+#[test]
+fn native_writes_name_only_the_formals_or_storage_backing_the_written_reference() {
+    use semantic_vocabulary::{OperationId, ValueId};
+
+    let scalar = StructuralTypeId::new(1).unwrap();
+    let pointer = StructuralTypeId::new(2).unwrap();
+    let types = [
+        scalar_type(1),
+        reference_type(2, scalar, StructuralAccess::MutableBorrow),
+    ];
+    let source = location(1);
+    let descriptor = location(2);
+    let machine = bare_machine(
+        MachineId::new(1).unwrap(),
+        vec![
+            DescriptorPlace {
+                producer: None,
+                place: source.root,
+                definition: DescriptorDefinition::Parameter {
+                    position: 0,
+                    structural_type: scalar,
+                    access: StructuralAccess::SharedBorrow,
+                },
+            },
+            DescriptorPlace {
+                producer: None,
+                place: descriptor.root,
+                definition: DescriptorDefinition::Local,
+            },
+        ],
+        BTreeMap::from([(source.root, scalar), (descriptor.root, pointer)]),
+        BTreeSet::new(),
+    );
+    let replay = Replay::with_slot_kind(
+        &types,
+        std::slice::from_ref(&machine),
+        DescriptorSlotKind::BorrowedStorage,
+    );
+    let mut state = replay.initial(&machine).unwrap();
+    let address = ValueId::new(1).unwrap();
+    let mut written = descriptor.clone();
+    written.path.push(DescriptorPathSegment::Referent);
+    for (origin, target) in [
+        (
+            DescriptorCallOrigin::NativeAddress {
+                opaque: false,
+                machine: machine.id,
+                operation: OperationId::new(1).unwrap(),
+                place: descriptor.root,
+                carrier: pointer,
+                projection: Projection::new(&[]),
+                parameters: vec![address],
+                exact_parameters: true,
+            },
+            StorageWriteTarget::NativeAddress(address),
+        ),
+        (
+            DescriptorCallOrigin::Argument {
+                source: source.root,
+                projection: Projection::upgraded(),
+            },
+            StorageWriteTarget::Storage(source.clone()),
+        ),
+    ] {
+        state.slots_mut().insert(
+            descriptor.clone(),
+            Some(BTreeSet::from([Origin::Backing(origin)])),
+        );
+        assert_eq!(
+            replay.native_write_targets(&machine, &state, &written),
+            Some(vec![target])
+        );
+    }
+    state.slots_mut().insert(
+        descriptor.clone(),
+        Some(BTreeSet::from([
+            Origin::Backing(DescriptorCallOrigin::NativeAddress {
+                opaque: true,
+                exact_parameters: false,
+                parameters: Vec::new(),
+                machine: machine.id,
+                operation: OperationId::new(1).unwrap(),
+                place: descriptor.root,
+                carrier: pointer,
+                projection: Projection::new(&[]),
+            }),
+            Origin::Backing(DescriptorCallOrigin::Argument {
+                source: source.root,
+                projection: Projection::new(&[]).into_native_enclosing_storage(),
+            }),
+        ])),
+    );
+    assert!(
+        replay
+            .native_write_targets(&machine, &state, &written)
+            .unwrap()
+            .contains(&StorageWriteTarget::Unlocated)
+    );
+}
+
+#[test]
+fn native_subobjects_and_header_only_calls_publish_their_checked_reference_type() {
+    use semantic_vocabulary::OperationId;
+    let scalar = StructuralTypeId::new(1).unwrap();
+    let array = StructuralTypeId::new(2).unwrap();
+    let base = StructuralTypeId::new(3).unwrap();
+    let element = StructuralTypeId::new(4).unwrap();
+    let mut array_row = scalar_type(2);
+    array_row.shape = StructuralTypeShape::FixedArray {
+        element: scalar,
+        length: terminal_psi::ArrayExtent::Literal(2),
+    };
+    let types = [
+        scalar_type(1),
+        array_row,
+        reference_type(3, array, StructuralAccess::SharedBorrow),
+        reference_type(4, scalar, StructuralAccess::SharedBorrow),
+    ];
+    let result = terminal_psi::StructuralResultDeclaration {
+        place: location(1).root,
+        structural_type: element,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        reference_sources: Vec::new(),
+    };
+    let publish = |origin| {
+        crate::reference_result_contents(
+            &types,
+            &[],
+            &result,
+            &DescriptorResultContents {
+                slots: vec![DescriptorResultSlot {
+                    path: Vec::new(),
+                    origins: vec![origin],
+                }],
+                unknown_contents: Vec::new(),
+                unresolved_slots: Vec::new(),
+                package_referents: Default::default(),
+                case_facts: Default::default(),
+            },
+        )
+    };
+    let native = |path| DescriptorStoredOrigin::NativeAddress {
+        opaque: false,
+        parameters: Vec::new(),
+        exact_parameters: true,
+        machine: MachineId::new(1).unwrap(),
+        operation: OperationId::new(1).unwrap(),
+        place: location(2).root,
+        carrier: base,
+        projection: Projection::new(path),
+    };
+    assert!(publish(native(&[StructuralPathSegment::FixedIndex(1)])).is_ok());
+    assert!(publish(native(&[])).is_err());
+    let public = |carrier_type| {
+        let projection = Projection::declared_reference_region(&[StructuralPathSegment::Referent]);
+        DescriptorStoredOrigin::Invocation {
+            carrier_type,
+            projection,
+        }
+    };
+    assert!(publish(public(element)).is_ok());
+    assert!(publish(public(base)).is_err());
+}
+
+#[test]
 fn returned_storage_borrows_keep_the_resident_argument_after_replacement() {
     let scalar = StructuralTypeId::new(1).unwrap();
     let array = StructuralTypeId::new(2).unwrap();
@@ -846,6 +1154,7 @@ fn returned_storage_borrows_keep_the_resident_argument_after_replacement() {
             &machine,
             &state,
             DescriptorActualInputs {
+                native_address_arguments: &[],
                 scalar_arguments: &[],
                 arguments: &arguments,
                 argument_contents: &contents,
@@ -873,6 +1182,7 @@ fn returned_storage_borrows_keep_the_resident_argument_after_replacement() {
                 &machine,
                 &state,
                 DescriptorActualInputs {
+                    native_address_arguments: &[],
                     scalar_arguments: &[],
                     arguments: &arguments,
                     argument_contents: &contents,
@@ -1017,6 +1327,7 @@ fn absent_normal_body_observations_preserve_continuations_and_forget_results() {
             .insert_call(
                 at(1),
                 DescriptorInvocation {
+                    native_address_arguments: Vec::new(),
                     scalar_arguments: Vec::new(),
                     owner: DescriptorInvocationOwner::Operation(
                         OperationId::new(1).unwrap(),
@@ -1044,6 +1355,7 @@ fn absent_normal_body_observations_preserve_continuations_and_forget_results() {
         }
         assert!(replay.summary(callee, 0).unwrap().result.is_unobserved());
         let mut public = DescriptorInvocation {
+            native_address_arguments: Vec::new(),
             scalar_arguments: Vec::new(),
             owner: DescriptorInvocationOwner::Operation(OperationId::new(1).unwrap()),
             target: DescriptorInvocationTarget::Public {
@@ -1168,6 +1480,7 @@ fn storage_access_frames_keep_helper_identity_and_unknown_calls() {
     caller.calls.insert(
         entry,
         Some(vec![DescriptorInvocation {
+            native_address_arguments: Vec::new(),
             scalar_arguments: Vec::new(),
             owner: DescriptorInvocationOwner::Operation(OperationId::new(1).unwrap()),
             target: DescriptorInvocationTarget::Machine(helper_id),
@@ -1230,6 +1543,7 @@ fn storage_access_frames_keep_helper_identity_and_unknown_calls() {
     graph[0].calls.insert(
         entry,
         Some(vec![DescriptorInvocation {
+            native_address_arguments: Vec::new(),
             scalar_arguments: Vec::new(),
             owner: DescriptorInvocationOwner::Operation(OperationId::new(1).unwrap()),
             target: DescriptorInvocationTarget::Public {
@@ -1344,6 +1658,7 @@ fn late_return_summary_cannot_freeze_an_earlier_storage_query() {
         .insert_call(
             point(0),
             DescriptorInvocation {
+                native_address_arguments: Vec::new(),
                 scalar_arguments: Vec::new(),
                 owner: DescriptorInvocationOwner::Operation(OperationId::new(1).unwrap()),
                 target: DescriptorInvocationTarget::Machine(callee_id),
@@ -1501,6 +1816,7 @@ fn a_transferred_reference_keeps_its_write_crossing_until_caller_substitution() 
         .insert_call(
             call_at,
             DescriptorInvocation {
+                native_address_arguments: Vec::new(),
                 scalar_arguments: Vec::new(),
                 owner: DescriptorInvocationOwner::Operation(OperationId::new(1).unwrap()),
                 target: DescriptorInvocationTarget::Machine(callee_id),
@@ -1535,7 +1851,7 @@ fn a_transferred_reference_keeps_its_write_crossing_until_caller_substitution() 
     let mut analysis = DescriptorAnalysis::with_borrowed_storage_slots(&types, &graph);
     assert_eq!(
         analysis.write_frame(caller_id).unwrap(),
-        Some(vec![location(1)])
+        Some(vec![StorageWriteTarget::Storage(location(1))])
     );
 }
 
@@ -1601,6 +1917,7 @@ fn cleanup_actions_replay_in_order_at_their_real_edge_and_normal_exit() {
     ]);
     machine.normal_exits = vec![left, right];
     let copy = |owner, destination, source| DescriptorInvocation {
+        native_address_arguments: Vec::new(),
         scalar_arguments: Vec::new(),
         owner,
         target: DescriptorInvocationTarget::Provider {
@@ -1645,6 +1962,7 @@ fn cleanup_actions_replay_in_order_at_their_real_edge_and_normal_exit() {
     );
     consumer.flow.insert(entry, DescriptorFlowStep::default());
     let observe = |owner| DescriptorInvocation {
+        native_address_arguments: Vec::new(),
         scalar_arguments: Vec::new(),
         owner,
         target: DescriptorInvocationTarget::Machine(consumer_id),
@@ -1831,6 +2149,7 @@ fn a_backedge_cannot_make_a_replaced_descriptor_preserve_its_input() {
         .insert_call(
             entry,
             DescriptorInvocation {
+                native_address_arguments: Vec::new(),
                 scalar_arguments: Vec::new(),
                 owner: DescriptorInvocationOwner::Operation(OperationId::new(1).unwrap()),
                 target: DescriptorInvocationTarget::Machine(callee_id),

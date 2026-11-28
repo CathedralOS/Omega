@@ -159,15 +159,7 @@ impl TerminalExecution<'_> {
         let view = self.stage_host_referent(result.place, referent, access, &supply)?;
         self.reference_referents.insert(
             StructuralRuntimePlace::from(&value),
-            crate::storage::reference::ReferenceReferent {
-                view,
-                placed: None,
-                primitive_loan: None,
-                collection_loan: None,
-                byte_owner: None,
-                byte_region: None,
-                aggregate_view: None,
-            },
+            crate::storage::reference::ReferenceReferent::from_view(view),
         )?;
         self.structural_host_atoms.insert(
             StructuralRuntimePlace::from(&value),
@@ -345,15 +337,7 @@ impl TerminalExecution<'_> {
                     )
                     .ok_or(malformed())?,
                 },
-                crate::storage::reference::ReferenceReferent {
-                    view: nested_view,
-                    placed: None,
-                    primitive_loan: None,
-                    collection_loan: None,
-                    byte_owner: None,
-                    byte_region: None,
-                    aggregate_view: None,
-                },
+                crate::storage::reference::ReferenceReferent::from_view(nested_view),
             )?;
         }
         Ok(view)
@@ -516,11 +500,10 @@ impl TerminalExecution<'_> {
                     claim_path.push(StructuralPathSegment::Field(declaration.identity));
                     let member = StructuralRuntimePlace {
                         opaque_identity: value.opaque_identity,
-                        path: claim_path.clone(),
+                        path: claim_path,
                     };
-                    claim_operands.push((argument, claim_path.clone()));
                     let child = ConstructorValue::resolve(self, argument)?;
-                    child.append_memberships(&claim_path, &mut value.projected_qualifications);
+                    child.append_memberships(&member.path, &mut value.projected_qualifications);
                     if let Some(bytes) = self.prepare_constructor_byte_field(
                         declaration,
                         argument,
@@ -528,6 +511,7 @@ impl TerminalExecution<'_> {
                         &mut frontier,
                         &mut consumed,
                     )? {
+                        claim_operands.push((argument, member.path));
                         storage.stage_byte_field(
                             StructuralByteSequenceRuntimeField {
                                 parent: member_root.clone(),
@@ -546,6 +530,7 @@ impl TerminalExecution<'_> {
                         return Err(malformed());
                     }
                     storage.stage(self, argument, &child, &member, transfers_custody)?;
+                    claim_operands.push((argument, member.path));
                 }
             }
         }
@@ -553,17 +538,7 @@ impl TerminalExecution<'_> {
         value.projected_qualifications.sort();
         value.projected_qualifications.dedup();
         storage.validate_projected_memberships(self, &value, &result.projected_qualifications)?;
-        let claims = self.stage_constructor_claims(
-            crate::storage::record::ResultClaimOrigin::Construction,
-            result,
-            &claim_operands,
-            &mut frontier,
-            &|current| storage.case_at_projection(self, &value, &current.path),
-        )?;
-        let retirement = self.prepare_constructor_operands(frontier, &consumed, claims)?;
-        storage.publish(self)?;
-        self.structural_values.insert(result.place, value)?;
-        retirement.commit(self)?;
+        storage.publish_construction(self, result, value, &claim_operands, frontier, &consumed)?;
         Ok(())
     }
 
@@ -604,6 +579,7 @@ impl TerminalExecution<'_> {
         crate::storage::structural_storage::prune_rows(&mut self.structural_byte_descriptors, from);
         crate::storage::structural_storage::prune_rows(&mut self.structural_byte_storage, from);
         crate::storage::structural_storage::prune_rows(&mut self.structural_cases, from);
+        crate::storage::structural_storage::prune_rows(&mut self.package_owner_storage, from);
         crate::storage::structural_storage::prune_rows(&mut self.reference_referents, from);
         crate::storage::structural_storage::prune_rows(
             &mut self.structural_element_view_fields,
@@ -1047,7 +1023,11 @@ impl TerminalExecution<'_> {
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
         dispatched_operation!(operation => EstablishRecord { ref fields });
-        self.establish_record(operation.result.structural().ok_or(malformed())?, fields)?;
+        self.establish_record(
+            operation.id,
+            operation.result.structural().ok_or(malformed())?,
+            fields,
+        )?;
         Ok(OperationFlow::Advance)
     }
 
@@ -1160,8 +1140,20 @@ impl TerminalExecution<'_> {
         let types = self.structural_types();
         let member = observed_field_declaration(types.values(), declared_parent, &namespace, field)
             .ok_or(malformed())?;
+        let sites = self.program.package_sites()?;
+        let matches_field = if sites
+            .stored_field_type(self.current_machine, operation.id)
+            .is_some()
+        {
+            matches!((member.field_type.scalar_type(), source),
+                (Some(ScalarType::Callable(_)), TerminalScalarValue::Callable { contract, .. })
+                    if source.selected_machine(&module.execution.callables, contract).is_some()
+                        && sites.admits_descriptor(module, self.current_machine, operation.id, contract))
+        } else {
+            member.field_type.scalar_type() == Some(source.scalar_type())
+        };
         if member.relevance.is_erased()
-            || member.field_type.scalar_type() != Some(source.scalar_type())
+            || !matches_field
             || !terminal_scalar_belongs_to_type(source)
         {
             return Err(malformed());
@@ -1243,11 +1235,12 @@ impl TerminalExecution<'_> {
         let mut identity_cursor = self.local_structural_identities.cursor();
         let crate::storage::record::owned_value::StagedOwnedValue {
             mut value, storage, ..
-        } = self.stage_owned_value(
+        } = self.stage_owned_value_for_move(
             source,
             result.structural_type,
             result.multiplicity,
             &mut identity_cursor,
+            Some(operation),
         )?;
         let whole = &value.qualifications;
         let projected = &value.projected_qualifications;
@@ -1447,6 +1440,54 @@ impl TerminalExecution<'_> {
             })
             .ok_or(malformed())?
             == StructuralMultiplicity::Unrestricted;
+        // A mutable `[T; N]` reference into a byte view's window, such as
+        // `@mutable row[a..b] as @mutable [u8; N]`, has no structural home:
+        // its elements are the view's bytes. Replacing the whole array
+        // writes each copied element into those bytes.
+        if path.is_empty()
+            && field.is_none()
+            && let Some(view) = self.element_view_values.get(&destination)
+            && view.is_representation()
+        {
+            if !copies_storage
+                || disposition != terminal_psi::StructuralStoreDisposition::ReplaceDiscardable
+                || view.access() != StructuralAccess::MutableBorrow
+            {
+                return Err(malformed());
+            }
+            let view = view.clone();
+            let types = self.structural_types();
+            let value_type = self.live_structural_type(value.place)?;
+            let Some(StructuralTypeShape::FixedArray { element, length }) =
+                types.get(&value_type).map(|row| &row.shape)
+            else {
+                return Err(malformed());
+            };
+            let Some(StructuralTypeShape::PrimitiveScalar(scalar_type)) =
+                types.get(element).map(|row| &row.shape)
+            else {
+                return Err(malformed());
+            };
+            let scalar_type = *scalar_type;
+            if length
+                .literal()
+                .and_then(|length| usize::try_from(length).ok())
+                != Some(view.len())
+            {
+                return Err(malformed());
+            }
+            for index in 0..view.len() {
+                let scalar = self.read_primitive_place(
+                    value.place,
+                    &[StructuralPathSegment::FixedIndex(
+                        u64::try_from(index).map_err(|_| malformed())?,
+                    )],
+                    scalar_type,
+                )?;
+                self.write_representation_element(&view, index, &[], scalar)?;
+            }
+            return Ok(OperationFlow::Advance);
+        }
         let failure = |phase, cause| TerminalInterpretError::StructuralReplacement {
             operation: operation.id,
             phase,
@@ -1604,8 +1645,15 @@ impl TerminalExecution<'_> {
         let publishes_value = reserved.is_none() || initializes_home;
         let child = ConstructorValue::resolve(self, value)
             .map_err(|error| failure("completed source", error))?;
+        // The destination keeps its declared layout. A checked package store
+        // expects the replacement reference at this opening's type.
+        let expected_type = self
+            .program
+            .package_sites()?
+            .stored_type(self.current_machine, operation.id)
+            .unwrap_or(field_type);
         let (qualifications, projected_qualifications) = child.memberships();
-        if child.structural_type() != field_type
+        if child.structural_type() != expected_type
             || required
                 .iter()
                 .any(|domain| !qualifications.contains(domain))
@@ -1616,7 +1664,7 @@ impl TerminalExecution<'_> {
             return Err(TerminalInterpretError::StructuralStorePreparation {
                 stage: "replacement memberships",
                 detail: format!(
-                    "expected_type={field_type:?}, actual_type={:?}, required={required:?}, projected_required={projected_required:?}, actual={qualifications:?}, projected_actual={projected_qualifications:?}",
+                    "expected_type={expected_type:?}, actual_type={:?}, required={required:?}, projected_required={projected_required:?}, actual={qualifications:?}, projected_actual={projected_qualifications:?}",
                     child.structural_type()
                 ),
             });
@@ -2118,19 +2166,38 @@ impl TerminalExecution<'_> {
                 return Ok(OperationFlow::Advance);
             }
         }
-        let (leaf, source, _, copy_path) = match &operation.kind {
+        let sites = self.program.package_sites()?;
+        let opened = sites.projected_field(self.current_machine, operation.id);
+        let (leaf, source, copy_path) = match &operation.kind {
             OperationKind::StructuralLeafCopy { source, path } => {
-                let (leaf, field) =
-                    self.resolve_live_leaf_copy(*source, path, result.structural_type)?;
-                (leaf, *source, field, path.clone())
+                let leaf = if let Some(field) = opened {
+                    if sites
+                        .field_type(self.current_machine, operation.id, field)
+                        .and_then(terminal_psi::StructuralFieldType::as_structural)
+                        != Some(result.structural_type)
+                    {
+                        return Err(malformed());
+                    }
+                    let leaf = self.resolve_live_projection(
+                        *source,
+                        path,
+                        StructuralAccess::SharedBorrow,
+                    )?;
+                    if self.reference_contract(leaf.structural_type)?.1
+                        != StructuralAccess::SharedBorrow
+                    {
+                        return Err(malformed());
+                    }
+                    leaf
+                } else {
+                    self.resolve_live_leaf_copy(*source, path, result.structural_type)?
+                        .0
+                };
+                (leaf, *source, path.clone())
             }
             OperationKind::StructuralCaseLeafCopy { source, path } => {
                 let (leaf, projection) = self.case_payload_projection(*source, path)?;
-                let field = match path.last() {
-                    Some(CanonicalStructuralPathSegment::Field(field)) => Some(*field),
-                    _ => None,
-                };
-                (leaf, *source, field, projection)
+                (leaf, *source, projection)
             }
             _ => return Err(malformed()),
         };
@@ -2154,6 +2221,7 @@ impl TerminalExecution<'_> {
             })
             .flatten();
         if leaf.structural_type != result.structural_type
+            && opened.is_none()
             && !quotient_adaptation
             && !terminal_semantics::shared_descriptor_copy_matches(
                 self.structural_types().values(),
@@ -2363,7 +2431,60 @@ impl TerminalExecution<'_> {
         )
         .ok_or(malformed())?;
         parent.path.extend(carrier.path);
+        // A projected nominal owner may have different field IDs on the stored
+        // concrete record. Its retained home identifies the actual backing row.
+        let field = self.package_owner_member(&parent, carrier.structural_type, field)?;
         Ok(StructuralScalarRuntimeField::member(parent, field))
+    }
+
+    fn package_owner_member(
+        &self,
+        parent: &StructuralRuntimePlace,
+        public: semantic_vocabulary::StructuralTypeId,
+        field: semantic_vocabulary::StructuralFieldId,
+    ) -> Result<semantic_vocabulary::StructuralFieldId, TerminalInterpretError> {
+        if self.package_owner_storage.is_empty() {
+            return Ok(field);
+        }
+        let mut ancestor = parent.clone();
+        loop {
+            if let Some(&stored) = self.package_owner_storage.get(&ancestor) {
+                let types = self.structural_types();
+                let suffix = &parent.path[ancestor.path.len()..];
+                let actual =
+                    terminal_semantics::runtime_structural_path_tip(types.values(), stored, suffix)
+                        .ok_or_else(malformed)?;
+                if actual.id == public {
+                    return Ok(field);
+                }
+                let expected = self.structural_declaration(public)?;
+                let member = expected
+                    .shape
+                    .fields()
+                    .find(|member| member.id == field)
+                    .ok_or_else(malformed)?;
+                if expected.declaration_identity.is_absent()
+                    || expected.declaration_identity != actual.declaration_identity
+                    || member.declaration_identity.is_absent()
+                {
+                    return Err(malformed());
+                }
+                let mut matches = actual.shape.fields().filter(|candidate| {
+                    candidate.declaration_identity == member.declaration_identity
+                        && candidate.identity == member.identity
+                        && candidate.relevance == member.relevance
+                        && candidate.field_type == member.field_type
+                });
+                return matches
+                    .next()
+                    .map(|member| member.id)
+                    .filter(|_| matches.next().is_none())
+                    .ok_or_else(malformed);
+            }
+            if ancestor.path.pop().is_none() {
+                return Ok(field);
+            }
+        }
     }
 
     pub(crate) fn execute_boolean_structural_field(

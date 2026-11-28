@@ -25,6 +25,15 @@ pub fn carried_exclusive_referents(
     structural_type: semantic_vocabulary::StructuralTypeId,
     access: terminal_psi::StructuralAccess,
 ) -> Option<Vec<Vec<terminal_psi::ResolvedStructuralPathSegment>>> {
+    carried_writable_referents(types, structural_type, access, false)
+}
+
+pub fn carried_writable_referents(
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    access: terminal_psi::StructuralAccess,
+    upgrade: bool,
+) -> Option<Vec<Vec<terminal_psi::ResolvedStructuralPathSegment>>> {
     use terminal_psi::{
         ResolvedStructuralPathSegment as Segment, StructuralAccess, StructuralFieldType,
         StructuralTypeShape,
@@ -35,6 +44,7 @@ pub fn carried_exclusive_referents(
         types: &[terminal_psi::StructuralTypeDeclaration],
         structural_type: semantic_vocabulary::StructuralTypeId,
         active: &mut Vec<semantic_vocabulary::StructuralTypeId>,
+        upgrade: bool,
     ) -> Option<Paths> {
         if active.contains(&structural_type) || active.len() > 64 {
             return None;
@@ -53,16 +63,18 @@ pub fn carried_exclusive_referents(
         };
         match &declaration.shape {
             StructuralTypeShape::Reference { referent, access } => match access {
-                StructuralAccess::MutableBorrow => {
+                StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+                    if upgrade || *access == StructuralAccess::MutableBorrow =>
+                {
                     found.push(vec![Segment::Referent]);
-                    let paths = walk(types, *referent, active)?;
+                    let paths = walk(types, *referent, active, upgrade)?;
                     beneath(&[Segment::Referent], paths, &mut found);
                 }
                 StructuralAccess::WriteOnlyBorrow => found.push(vec![Segment::Referent]),
-                StructuralAccess::SharedBorrow | StructuralAccess::Owned => {}
+                _ => {}
             },
             StructuralTypeShape::FixedArray { element, length } => {
-                let element = walk(types, *element, active)?;
+                let element = walk(types, *element, active, upgrade)?;
                 if !element.is_empty() {
                     let length = length.literal().filter(|length| *length <= 4096)?;
                     for index in 0..length {
@@ -79,8 +91,12 @@ pub fn carried_exclusive_referents(
             }
             StructuralTypeShape::ElementView {
                 element,
-                access: Some(StructuralAccess::MutableBorrow),
-            } if !walk(types, *element, active)?.is_empty() => return None,
+                access: Some(access),
+            } if (upgrade || *access == StructuralAccess::MutableBorrow)
+                && !walk(types, *element, active, upgrade)?.is_empty() =>
+            {
+                return None;
+            }
             _ => {}
         }
         for (case, field) in declaration.shape.fields_with_case() {
@@ -94,7 +110,7 @@ pub fn carried_exclusive_referents(
                 Some(case) => &[Segment::Case(case.id), Segment::Field(field.id)],
                 None => &[Segment::Field(field.id)],
             };
-            let paths = walk(types, child, active)?;
+            let paths = walk(types, child, active, upgrade)?;
             beneath(prefix, paths, &mut found);
         }
         active.pop();
@@ -102,10 +118,14 @@ pub fn carried_exclusive_referents(
     }
 
     match access {
-        StructuralAccess::MutableBorrow | StructuralAccess::Owned => {
-            walk(types, structural_type, &mut Vec::new())
+        StructuralAccess::MutableBorrow
+        | StructuralAccess::Owned
+        | StructuralAccess::SharedBorrow
+            if upgrade || access != StructuralAccess::SharedBorrow =>
+        {
+            walk(types, structural_type, &mut Vec::new(), upgrade)
         }
-        StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow => Some(Vec::new()),
+        _ => Some(Vec::new()),
     }
 }
 
@@ -137,9 +157,39 @@ pub fn call_write_regions(
         return Err("write-frame actuals do not match the structural telescope".to_owned());
     }
     let mut regions = Vec::with_capacity(frame.len());
-    for (parameter, fields) in frame {
-        let parameter = usize::try_from(*parameter)
-            .map_err(|_| "write-frame formal ordinal cannot be represented")?;
+    for (ordinal, fields) in frame {
+        let (kind, parameter) = callee
+            .contract
+            .write_formal(*ordinal)
+            .ok_or("write frame names a missing formal")?;
+        if kind == terminal_psi::BoundaryParameterKind::Scalar {
+            if !fields.is_empty() {
+                return Err("native address write frame cannot carry structural fields".to_owned());
+            }
+            let actual = call
+                .arguments
+                .get(parameter)
+                .ok_or("write frame has no scalar actual")?;
+            let address = crate::storage::native_borrows::address_origin(module, caller, *actual);
+            if address.expired
+                || address.opaque
+                || address.sources.is_empty()
+                || !address.parameters.is_empty()
+            {
+                return Ok(None);
+            }
+            for (at, source) in address.observed_sources() {
+                // A scalar actual retains the storage observed by address_of,
+                // even if its temporary descriptor has since been released.
+                let mut projection = Projection::new(&source.path);
+                projection.captured_at = Some(at);
+                regions.push(Region {
+                    root: Some(source.place),
+                    projection,
+                });
+            }
+            continue;
+        }
         let formal = callee
             .structural_parameters
             .get(parameter)
@@ -255,6 +305,11 @@ pub fn call_write_regions(
 pub struct Projection {
     address: Option<Vec<AddressStep>>,
     descriptor: DescriptorPrefix,
+    /// The derivation includes a checked upgrade of this backing.
+    pub(crate) upgraded_mutability: bool,
+    /// This storage bounds the lifetime of a native borrow; its static layout
+    /// need not describe the address or type used to access the native value.
+    native_enclosing_storage: bool,
     pub path: Vec<StructuralPathSegment>,
     pub exact: bool,
     pub indirect: bool,
@@ -321,6 +376,8 @@ impl Projection {
                 )
             ));
         Self {
+            upgraded_mutability: false,
+            native_enclosing_storage: false,
             descriptor: if length == path.len() {
                 DescriptorPrefix::Open(path.to_vec())
             } else {
@@ -337,6 +394,40 @@ impl Projection {
             window: None,
             captured_at: None,
         }
+    }
+
+    /// An exclusive reborrow of exactly the same storage, formed by the
+    /// checked mutability upgrade operation.
+    pub fn upgraded() -> Self {
+        Self {
+            upgraded_mutability: true,
+            ..Self::new(&[])
+        }
+    }
+
+    /// The selected address within an admitted invocation's region is unknown,
+    /// while the typed path named by the public header is retained in full.
+    pub(crate) fn declared_reference_region(path: &[StructuralPathSegment]) -> Self {
+        let mut projection = Self::new(path);
+        projection.forget_address();
+        projection.descriptor = DescriptorPrefix::Closed(path.to_vec());
+        projection
+    }
+
+    pub(crate) fn declared_reference_path(&self) -> Option<&[StructuralPathSegment]> {
+        match &self.descriptor {
+            DescriptorPrefix::Closed(path) => Some(path),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn into_native_enclosing_storage(mut self) -> Self {
+        self.native_enclosing_storage = true;
+        self
+    }
+
+    pub fn is_native_enclosing_storage(&self) -> bool {
+        self.native_enclosing_storage
     }
 
     pub fn at(mut self, position: Position) -> Self {
@@ -883,6 +974,17 @@ impl Projection {
 
     pub fn then(&self, suffix: &Self) -> Self {
         let mut composed = self.clone();
+        if self.native_enclosing_storage {
+            return self.clone();
+        }
+        if suffix.upgraded_mutability && suffix == &Self::upgraded() {
+            // Upgrading changes the access of this same captured payload.
+            // Preserve its original descriptor, index observations and window.
+            composed.upgraded_mutability = true;
+            return composed;
+        }
+        composed.native_enclosing_storage |= suffix.native_enclosing_storage;
+        composed.upgraded_mutability |= suffix.upgraded_mutability;
         composed.descriptor = match (
             self.original_descriptor_path(),
             suffix.original_descriptor_path(),
@@ -990,6 +1092,19 @@ impl Projection {
         }
         composed
     }
+}
+
+#[test]
+fn upgrading_a_view_preserves_its_captured_window_and_its_original_descriptor() {
+    let position = (semantic_vocabulary::BlockId::new(1).unwrap(), 2);
+    let start = ValueId::new(1).unwrap();
+    let end = ValueId::new(2).unwrap();
+    let field = terminal_psi::TerminalIdentityIndex(1);
+    let window =
+        Projection::new(&[StructuralPathSegment::Field(field)]).with_window(start, end, position);
+    let mut expected = window.clone();
+    expected.upgraded_mutability = true;
+    assert_eq!(window.then(&Projection::upgraded()), expected);
 }
 
 #[cfg(test)]

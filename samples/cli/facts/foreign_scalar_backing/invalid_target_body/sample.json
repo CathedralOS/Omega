@@ -2,6 +2,6 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "while local borrow `selected` is still active"
+    "storage is changed while a conflicting reference remains live"
   ]
 }

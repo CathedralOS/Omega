@@ -55,11 +55,11 @@ pub struct StructuralQualificationError {
     pub violation: Option<QualificationViolation>,
 }
 
-/// A checked access plan excludes this source operation or cast.
+/// The originating operation or cast that lacks permission to establish or use a domain.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QualificationViolation {
     Establishment(DeniedEstablishment),
-    MemoryAccess {
+    Operation {
         machine: MachineId,
         operation: OperationId,
     },
@@ -541,6 +541,16 @@ impl<'a> DefaultRequirements<'a> {
                     .iter()
                     .any(|step| matches!(step, StructuralPathSegment::Referent))
                 {
+                    // A marker domain has no storage predicate to restore.
+                    // Its issuer still controls partial writes through the loan.
+                    if domain.byte_predicate.is_none()
+                        && domain
+                            .predicate
+                            .as_ref()
+                            .is_some_and(|p| p.proposition == Proposition::Truth)
+                    {
+                        continue;
+                    }
                     return Err(
                         self.error("a reference display is not a lender's declared default")
                     );
@@ -1186,10 +1196,17 @@ impl<'a> DefaultRequirements<'a> {
                     self.error("default restoration has no exact descriptor location")
                 })?;
         let captured = references
-            .captured_storage_family(self.machine.id, before, &location)
-            .map_err(|detail| self.error(detail))?;
+            .observed_storage_family(self.machine, before, &location)
+            .map_err(|detail| self.error(detail))?
+            .ok_or_else(|| self.error("captured storage family is empty"))?;
         let mut backings = Vec::new();
         for origin in captured {
+            if matches!(origin, DescriptorCallOrigin::NativeAddress { .. }) {
+                // The displayed native referent supplies its own type's
+                // restoration obligations. There is no known enclosing owner.
+                backings.push((root, path.to_vec()));
+                continue;
+            }
             let DescriptorCallOrigin::Argument { source, projection } = origin else {
                 return Err(self.error("default restoration has no exact captured lender"));
             };
@@ -1269,6 +1286,19 @@ impl<'a> DefaultRequirements<'a> {
         for length in 0..=path.len() {
             let prefix = &path[..length];
             if matches!(prefix.last(), Some(StructuralPathSegment::Case(_))) {
+                continue;
+            }
+            // A byte of a byte view, such as one element of
+            // `@mutable row[a..b] as @mutable [u8; N]`, is a plain `u8`
+            // with no defaults or clauses of its own.
+            if prefix == [StructuralPathSegment::AllElements]
+                && matches!(
+                    self.declaration(*root_type)?.shape,
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                    )
+                )
+            {
                 continue;
             }
             let Some(carrier) =
@@ -2078,16 +2108,18 @@ fn validate_change(
                     "a structural cast's domain predicate cannot be restated",
                 );
             };
-            let retained = module.proofs.scalar_block_invariants.iter().any(|invariant| {
-                Some(invariant.machine) == machine
-                    && invariant.header == target
-                    // The complete empty theory is encoded as Truth. Any
-                    // invariant at this arrival establishes that conjunct.
-                    && (expected == Proposition::Truth
-                        || crate::scalar_qualifications::retains_conjunct(
-                            &invariant.predicate, &expected,
-                        ))
-            });
+            let retained = module
+                .proofs
+                .scalar_block_invariants
+                .iter()
+                .any(|invariant| {
+                    Some(invariant.machine) == machine
+                        && invariant.header == target
+                        && crate::scalar_qualifications::retains_predicate(
+                            &expected,
+                            std::iter::once(&invariant.predicate),
+                        )
+                });
             if !retained {
                 return malformed(
                     machine,
@@ -2259,16 +2291,38 @@ fn byte_change_judgment(
 }
 
 fn validate_machine(
-    module: &TerminalModule,
+    rows: &DescriptorRowSource<'_, '_>,
     machine: &TerminalMachine,
     facts: &crate::membership_facts::MembershipFacts,
     mut incoming: Option<&mut crate::descriptor_results::DescriptorAnalysis<'_>>,
 ) -> Judged<Vec<(EdgeId, bool)>> {
+    let module = rows.module();
+    let field_keeps_domains = |operation: &terminal_psi::Operation,
+                               field: Option<StructuralFieldId>,
+                               public: &Memberships,
+                               actual: &Memberships| {
+        public == actual
+            || !module.execution.packages.sites.is_empty()
+                && rows
+                    .analyses()
+                    .ok()
+                    .and_then(|analyses| analyses.package_sites().ok())
+                    .is_some_and(|sites| {
+                        field
+                            .or_else(|| sites.projected_field(machine.id, operation.id))
+                            .is_some_and(|field| {
+                                sites.field_memberships(
+                                    module, machine.id, operation, field, public, actual,
+                                )
+                            })
+                    })
+    };
     let places = Declared::new(machine)?;
     let id = Some(machine.id);
     validate_declared(module, &places)?;
     let changes: Vec<_> = module
-        .types.structural_qualification_changes
+        .types
+        .structural_qualification_changes
         .iter()
         .filter(|change| change.machine == machine.id)
         .collect();
@@ -2385,6 +2439,34 @@ fn validate_machine(
                 validate_arguments(module, &places, inputs, produced.as_ref())?;
                 continue;
             }
+            if let Some(call) = operation.kind.callable_invocation()
+                && !module.execution.packages.sites.is_empty()
+                && let Some(expected) = rows
+                    .analyses()
+                    .ok()
+                    .and_then(|analyses| analyses.package_sites().ok())
+                    .and_then(|sites| sites.invocation_contract(machine.id, operation.id))
+            {
+                let Some(contract) = module
+                    .execution
+                    .callables
+                    .contract(call.contract)
+                    .filter(|contract| contract.id == expected)
+                else {
+                    return malformed(id, "a package call lost its opened contract");
+                };
+                let result = contract.proof_result.structural().map(|result| {
+                    Memberships::of(&result.qualifications, &result.projected_qualifications)
+                });
+                validate_call_memberships(
+                    &places,
+                    call.structural_arguments,
+                    &contract.structural_parameters,
+                    result,
+                    produced.as_ref(),
+                )?;
+                continue;
+            }
             let Some(produced) = produced else {
                 if let OperationKind::StoreStructuralField {
                     destination,
@@ -2415,12 +2497,17 @@ fn validate_machine(
                     field: Some(field),
                 } => {
                     let selected = selected_field(module, machine, *source, path, *field)?;
-                    require_exact(
-                        &places,
+                    if !field_keeps_domains(
+                        operation,
+                        Some(*field),
                         &places.at(*source, &selected),
                         &produced,
-                        "a structural move does not keep its source's exact domains",
-                    )?
+                    ) {
+                        return malformed(
+                            id,
+                            "a structural move does not keep its source's exact domains",
+                        );
+                    }
                 }
                 OperationKind::StructuralLeafCopy { source, path }
                 | OperationKind::MoveStructuralField {
@@ -2433,12 +2520,14 @@ fn validate_machine(
                     &produced,
                     "a structural copy does not keep its source's exact domains",
                 )?,
-                OperationKind::MoveStructuralValue { source } => require_exact(
-                    &places,
-                    &places.argument(source),
-                    &produced,
-                    "a structural move does not keep its source's exact domains",
-                )?,
+                OperationKind::MoveStructuralValue { source } => {
+                    if !field_keeps_domains(operation, None, &places.argument(source), &produced) {
+                        return malformed(
+                            id,
+                            "a structural move does not keep its source's exact domains",
+                        );
+                    }
+                }
                 OperationKind::EstablishRecord { fields }
                 | OperationKind::EstablishStructuralCase { fields, .. } => {
                     let case = match &operation.kind {
@@ -2462,12 +2551,17 @@ fn validate_machine(
                             Some(argument) => places.argument(argument),
                             None => Memberships::default(),
                         };
-                        require_exact(
-                            &places,
-                            &actual,
+                        if !field_keeps_domains(
+                            operation,
+                            Some(initializer.field),
                             &expected,
-                            "a structural literal's field does not deliver its declared domains",
-                        )?;
+                            &actual,
+                        ) {
+                            return malformed(
+                                id,
+                                "a structural literal's field does not deliver its declared domains",
+                            );
+                        }
                         covered.push(segments);
                     }
                     if produced.projected.iter().any(|row| {
@@ -2554,6 +2648,24 @@ fn validate_machine(
                         "an element view does not keep its source elements' exact domains",
                     )?;
                 }
+                OperationKind::BorrowAt { .. } if !produced.is_empty() => {
+                    return Err(StructuralQualificationError {
+                        machine: id,
+                        detail: "a native address carries no domain membership for its referent; establish the domain through its declared route",
+                        violation: Some(QualificationViolation::Operation {
+                            machine: machine.id,
+                            operation: operation.id,
+                        }),
+                    });
+                }
+                // The same referent and projected fields remain qualified when
+                // only the descriptor's access changes.
+                OperationKind::UpgradeMutability { source } => require_exact(
+                    &places,
+                    &places.argument(source),
+                    &produced,
+                    "upgrading mutability must preserve the source borrow's exact domains",
+                )?,
                 // A reference carries the source's exact memberships at
                 // the referent, including the source's whole-value domains.
                 OperationKind::EstablishReference { source, .. } => {
@@ -2712,10 +2824,27 @@ fn validate_arguments(
             )
         }
     };
-    if formals.len() != inputs.structural_arguments.len() {
+    validate_call_memberships(
+        places,
+        inputs.structural_arguments,
+        formals,
+        result,
+        produced,
+    )
+}
+
+fn validate_call_memberships(
+    places: &Declared<'_>,
+    arguments: &[terminal_psi::StructuralArgument],
+    formals: &[terminal_psi::StructuralParameterDeclaration],
+    result: Option<Memberships>,
+    produced: Option<&Memberships>,
+) -> Judged<()> {
+    let id = places.machine();
+    if formals.len() != arguments.len() {
         return malformed(id, "a structural call has a different formal roster");
     }
-    for (argument, formal) in inputs.structural_arguments.iter().zip(formals) {
+    for (argument, formal) in arguments.iter().zip(formals) {
         require_exact(
             places,
             &places.argument(argument),
@@ -3427,7 +3556,7 @@ fn validate_shape_for_bodies_from(
     let facts = crate::membership_facts::analyze_bodies_from(rows, bodies).map_err(|error| {
         StructuralQualificationError {
             violation: None,
-            machine: error.machine,
+            machine: error.machine(),
             detail: error.detail,
         }
     })?;
@@ -3453,7 +3582,7 @@ fn validate_shape_from_facts(
 ) -> Judged<()> {
     let module = rows.module();
     for machine in &module.machines {
-        validate_machine(module, machine, facts, None)?;
+        validate_machine(rows, machine, facts, None)?;
     }
     operation_permissions::validate(rows)?;
     validate_change_owners(module)
@@ -3584,7 +3713,7 @@ fn validate_from(rows: &DescriptorRowSource<'_, '_>) -> Judged<()> {
     let facts = crate::membership_facts::analyze_from(rows).map_err(|error| {
         StructuralQualificationError {
             violation: None,
-            machine: error.machine,
+            machine: error.machine(),
             detail: error.detail,
         }
     })?;
@@ -3608,7 +3737,7 @@ fn validate_from(rows: &DescriptorRowSource<'_, '_>) -> Judged<()> {
         &graph,
     );
     for machine in &module.machines {
-        if validate_machine(module, machine, &facts, Some(&mut analysis))?
+        if validate_machine(rows, machine, &facts, Some(&mut analysis))?
             .iter()
             .any(|(_, established)| !established)
         {

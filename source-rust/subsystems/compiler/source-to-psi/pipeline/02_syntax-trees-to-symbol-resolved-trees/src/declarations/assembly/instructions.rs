@@ -10,8 +10,7 @@ use language_core::inline_assembly::{
 use source_text::SourceSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
-    ExpressionHandle, ExpressionNode, StaticMachineArgument, TableBorrowExpression,
-    TableCallExpression,
+    ExpressionHandle, ExpressionNode, StaticMachineArgument, TableCallExpression,
 };
 use syntax_trees::identifier::Identifier;
 use syntax_trees::statement::{
@@ -262,6 +261,10 @@ pub(super) fn prepare_instruction(
     }
 
     let prepared = match contract.shape {
+        AsmInstructionShape::CheckedReturn => Err(error(
+            mnemonic_site,
+            "an inline assembly region cannot return from its enclosing machine; declare an `asm machine` for a checked return",
+        )),
         AsmInstructionShape::JumpZeroFlag { .. } => Err(error(
             mnemonic_site,
             format!(
@@ -732,18 +735,8 @@ pub(super) fn prepare_instruction(
                     immediate,
                 )?);
             }
-            let borrowed: Vec<_> = inputs
-                .into_iter()
-                .map(|target| {
-                    syntax_trees
-                        .expressions
-                        .insert(ExpressionNode::Borrow(TableBorrowExpression {
-                            target,
-                            access: language_core::ReferenceAccess::Shared,
-                        }))
-                })
-                .collect();
-            let arguments = syntax_trees.expressions.insert_expression_handles(borrowed);
+            // The shared formals lend owned arrays and forward existing references.
+            let arguments = syntax_trees.expressions.insert_expression_handles(inputs);
             // The parser imported the contracts under this alias for every file
             // that spells a packed instruction.
             let target = Identifier::new(

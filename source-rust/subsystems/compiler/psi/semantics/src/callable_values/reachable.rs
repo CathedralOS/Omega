@@ -224,7 +224,13 @@ impl ReachedSolver<'_, '_> {
                         .catalog
                         .descriptor(*id)
                         .ok_or("reached callable descriptor is absent or stale")?;
-                    if descriptor.contract != contract {
+                    if descriptor.contract != contract
+                        && !self
+                            .program
+                            .body(caller)?
+                            .package_sites
+                            .admits_descriptor(invocation, descriptor.contract)
+                    {
                         return Err("reached callable descriptor changes its evaluated contract");
                     }
                     self.program

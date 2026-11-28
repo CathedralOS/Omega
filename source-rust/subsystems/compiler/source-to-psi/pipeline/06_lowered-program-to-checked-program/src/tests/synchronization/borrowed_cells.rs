@@ -20,6 +20,31 @@ fn selected(left: u32, right: u32, updates: &str) -> String {
 }
 
 #[test]
+fn a_selected_loan_can_reach_either_of_two_distant_allocations() {
+    use std::fmt::Write;
+    let mut intervening = String::new();
+    for n in 0..80 {
+        writeln!(
+            intervening,
+            "let mutable spare{n}: Signal; spare{n}.word.store(1, Publish);"
+        )
+        .unwrap();
+    }
+    let program = |left, right, updates| {
+        selected(left, right, updates).replace(
+            "let mutable right:",
+            &format!("{intervening} let mutable right:"),
+        )
+    };
+    reject_deadlock(&program(1, 1, ""));
+    expect_unproved_progress(&program(0, 1, ""));
+    let released = program(1, 1, "chosen.signal.word.store(0, Publish);");
+    for input in [0, 1] {
+        execute_with_input(&released, input);
+    }
+}
+
+#[test]
 fn either_selected_loan_can_return_immediately() {
     let source = selected(0, 2, "");
     execute_with_input(&source, 0);

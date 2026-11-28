@@ -4,6 +4,7 @@
 //! the review incomplete instead of vanishing from its inventory.
 
 use super::input::PolicySource;
+use super::telescope::SignatureScope;
 use diagnostics::Diagnostic;
 use review_evidence::record::PackageReviewDomainEstablishmentRoute as ReviewedIssuer;
 use review_evidence::record::{
@@ -12,8 +13,7 @@ use review_evidence::record::{
     PackageReviewContractExpression, PackageReviewContractFact,
     PackageReviewContractOperatorMeaning, PackageReviewDataField, PackageReviewDataKind,
     PackageReviewDataMember, PackageReviewDataProperties, PackageReviewNominalIdentity,
-    PackageReviewNominalOwner, PackageReviewSemanticDependencyExposure,
-    PackageReviewToolchainSourceIdentity, PackageReviewTypeIdentity,
+    PackageReviewSemanticDependencyExposure, PackageReviewTypeIdentity,
 };
 use semantic_vocabulary::PackageKeyIdentity;
 use source_compiler::representations::source_state::TypedTrees;
@@ -58,34 +58,12 @@ pub(super) fn nominal_identity(
     toolchain_sources: &[(source_text::SourceId, [u8; 32])],
     symbol: SymbolHandle,
 ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
-    let symbols = &typed.symbols;
-    if !symbols.symbols().nodes().is_valid(symbol) {
-        return Err(unavailable("a stale nominal declaration"));
-    }
-    let owner = if let Some(package) = symbols.symbol_package_identity(symbol) {
-        PackageReviewNominalOwner::Package(package)
-    } else {
-        let file = symbols
-            .symbol_provenance_source_span(symbol)
-            .and_then(|span| symbols.source_file(span))
-            .filter(|file| file.origin.is_toolchain())
-            .ok_or_else(|| unavailable("a declaration without package or toolchain custody"))?;
-        // Source custody already prepared this roster once. Nominal
-        // projection borrows it rather than hashing source per row.
+    compiler::reviewed_nominal_identity(typed, symbol, |file| {
         let position = toolchain_sources
             .binary_search_by_key(&file.source_id.0, |(source, _)| source.0)
-            .map_err(|_| unavailable("a toolchain declaration without its exact source"))?;
-        PackageReviewNominalOwner::ToolchainSource(PackageReviewToolchainSourceIdentity {
-            digest: toolchain_sources[position].1,
-        })
-    };
-    let path = typed
-        .authored_declaration_path(symbol)
-        .map_err(|reason| unavailable(&reason))?;
-    if path.is_empty() {
-        return Err(unavailable("a declaration without a stable path"));
-    }
-    Ok(PackageReviewNominalIdentity { owner, path })
+            .map_err(|_| "toolchain declaration without its exact source".to_string())?;
+        Ok(toolchain_sources[position].1)
+    })
 }
 
 impl<'a> PolicySource<'a> {
@@ -491,16 +469,12 @@ impl<'a> PolicySource<'a> {
             if !self.owns(definition.symbol, package)? {
                 continue;
             }
-            if !definition.type_parameters.is_empty()
-                || !definition.index_arguments.is_empty()
-                || definition.alias.is_some()
+            if definition.alias.is_some()
                 || definition.classification.is_some()
                 || definition.cleanup_selection.is_some()
                 || !definition.operators.is_empty()
             {
-                return Err(unavailable(
-                    "this domain's complete parameter, alias or role contract",
-                ));
+                return Err(unavailable("this domain's complete alias or role contract"));
             }
             if definition.semantic_roles.denotation_dimension.is_some()
                 || definition.semantic_roles.arithmetic_policy.is_some()
@@ -522,11 +496,16 @@ impl<'a> PolicySource<'a> {
             }
             predicate_facts.sort();
             predicate_facts.dedup();
+            let scope = SignatureScope::declaration(self, &[definition.symbol])?;
             rows.push(PackagePolicyDomainShape {
                 identity: self.nominal(definition.symbol)?,
-                type_parameters: Vec::new(),
-                target_type: self.type_identity(definition.symbol, definition.target_type)?,
-                index_arguments: Vec::new(),
+                type_parameters: self.scoped_parameters(definition.symbol, &scope)?,
+                target_type: self.scoped_type(definition.symbol, definition.target_type, &scope)?,
+                index_arguments: definition
+                    .index_arguments
+                    .iter()
+                    .map(|&argument| self.scoped_type(definition.symbol, argument, &scope))
+                    .collect::<Result<_, _>>()?,
                 predicate_presence: definition.predicate_presence,
                 predicate_facts,
                 alias_expansion: None,
@@ -569,7 +548,7 @@ impl<'a> PolicySource<'a> {
                 owner: domain.symbol,
                 subject: Some((domain.subject_symbol, domain.target_type)),
                 parameters: Default::default(),
-                statics: Default::default(),
+                statics: self.typed().domain_type_parameters(domain),
                 result: None,
             },
             0,
@@ -584,6 +563,7 @@ impl<'a> PolicySource<'a> {
         expression: ExpressionHandle,
         scope: ContractScope<'_>,
         depth: usize,
+        reviewed_operands: [&PackageReviewContractExpression; 2],
     ) -> Result<(), Vec<Diagnostic>> {
         let typed = self.typed();
         let ExpressionNode::Binary(binary) = typed.expression_table.expression(expression) else {
@@ -600,10 +580,20 @@ impl<'a> PolicySource<'a> {
                 binary.operator,
             )
             .ok_or_else(|| unavailable("an unserved contract operator family"))?;
-        let operands = [
-            self.operand_type(binary.left, scope, depth + 1)?,
-            self.operand_type(binary.right, scope, depth + 1)?,
-        ];
+        let operands = if reviewed_operands.into_iter().any(mathematical_integer) {
+            // Both operands of a checked mathematical operation live in Int.
+            // An anonymous literal takes that meaning from its other operand.
+            let reference = typed
+                .symbols
+                .builtin_atom_symbol(symbols::BuiltinTypeAtom::Int)
+                .and_then(|symbol| typed.type_reference_table.find_named_type_reference(symbol));
+            [reference; 2]
+        } else {
+            [
+                self.operand_type(binary.left, scope, depth + 1)?,
+                self.operand_type(binary.right, scope, depth + 1)?,
+            ]
+        };
         if source_compiler::representations::source_state::operator::has_builtin_spelled_expression_meaning(
             typed,
             scope.owner,
@@ -1120,7 +1110,9 @@ impl<'a> PolicySource<'a> {
                 }
             }
             ExpressionNode::Binary(binary) => {
-                self.builtin_operator(expression, scope, depth)?;
+                let left = Box::new(self.scoped_expression(binary.left, scope, depth + 1)?);
+                let right = Box::new(self.scoped_expression(binary.right, scope, depth + 1)?);
+                self.builtin_operator(expression, scope, depth, [&left, &right])?;
                 let operator = match binary.operator {
                     BinaryOperator::Add => Output::Add,
                     BinaryOperator::And => Output::And,
@@ -1150,8 +1142,8 @@ impl<'a> PolicySource<'a> {
                 Expression::Binary {
                     meaning: PackageReviewContractOperatorMeaning::Builtin,
                     operator,
-                    left: Box::new(self.scoped_expression(binary.left, scope, depth + 1)?),
-                    right: Box::new(self.scoped_expression(binary.right, scope, depth + 1)?),
+                    left,
+                    right,
                 }
             }
             _ => return Err(unavailable("this contract expression form")),
@@ -1167,5 +1159,27 @@ fn reference_access(
         language_core::ReferenceAccess::Shared => Access::Shared,
         language_core::ReferenceAccess::Mutable => Access::Mutable,
         language_core::ReferenceAccess::WriteOnly => Access::WriteOnly,
+    }
+}
+
+/// Only mathematical arithmetic carries an embedded integer out to its parent.
+/// A call, index or comparison can consume one and still return a runtime value.
+fn mathematical_integer(expression: &PackageReviewContractExpression) -> bool {
+    use PackageReviewContractBinaryOperator::{Add, Multiply, Subtract};
+    use PackageReviewContractExpression as Expression;
+    match expression {
+        Expression::Call {
+            target:
+                PackageReviewContractCallTarget::BuiltinFunction(symbols::BuiltinFunction::IntegerEmbed),
+            ..
+        }
+        | Expression::BuiltinTypeMember(symbols::BuiltinTypeMember::AddressBound) => true,
+        Expression::Binary {
+            operator: Add | Subtract | Multiply,
+            left,
+            right,
+            ..
+        } => mathematical_integer(left) || mathematical_integer(right),
+        _ => false,
     }
 }

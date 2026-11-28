@@ -54,6 +54,7 @@ pub use theorem_citations::{
 };
 mod module_wire;
 mod obligation_evidence;
+mod package_wire;
 mod sections;
 mod semantic_module;
 mod service_schema_wire;

@@ -29,6 +29,33 @@ pub(crate) struct Inputs<'a> {
 }
 
 impl<'a> Inputs<'a> {
+    /// Resolve the contract declared on this exact descriptor operand.
+    pub(crate) fn selected_contract<'module>(
+        &self,
+        module: &'module TerminalModule,
+        tables: &MachineTables,
+        callable: ValueId,
+    ) -> Result<&'module terminal_psi::TerminalCallableContract, &'static str> {
+        if self.required_contract.is_some() {
+            return Err("runtime callable carries a declared implementation contract");
+        }
+        let value = tables
+            .values
+            .get(callable)
+            .ok_or("callable operand has no value declaration")?;
+        let ScalarType::Callable(contract) = value.scalar_type else {
+            return Err("indirect call operand has no callable contract type");
+        };
+        if value.rigid.is_some() || self.contract != Some(contract) {
+            return Err("indirect call changes the operand's retained callable contract");
+        }
+        module
+            .execution
+            .callables
+            .contract(contract)
+            .ok_or("indirect call names no retained callable contract")
+    }
+
     pub(crate) fn declared(
         inputs: terminal_psi::ModuleInvocationInputs<
             'a,
@@ -449,30 +476,9 @@ pub(crate) fn invocation<'a>(
             )
         }
         Callee::Selected { callable } => {
-            if inputs.required_contract.is_some() {
-                return Err(refuse(
-                    "runtime callable carries a declared implementation contract",
-                ));
-            }
-            let value = tables
-                .values
-                .get(callable)
-                .ok_or_else(|| refuse("callable operand has no value declaration"))?;
-            let ScalarType::Callable(contract) = value.scalar_type else {
-                return Err(refuse(
-                    "indirect call operand has no callable contract type",
-                ));
-            };
-            if value.rigid.is_some() || inputs.contract != Some(contract) {
-                return Err(refuse(
-                    "indirect call changes the operand's retained callable contract",
-                ));
-            }
-            let contract = module
-                .execution
-                .callables
-                .contract(contract)
-                .ok_or_else(|| refuse("indirect call names no retained callable contract"))?;
+            let contract = inputs
+                .selected_contract(module, tables, callable)
+                .map_err(refuse)?;
             PublicContract::machine(
                 &contract.proof,
                 &contract.structural_parameters,

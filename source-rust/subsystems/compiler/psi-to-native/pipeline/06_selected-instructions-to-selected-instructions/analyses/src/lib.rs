@@ -40,11 +40,11 @@
   receipts (`StagedOptimizedLiveness`, `StagedOptimizedLiveRanges`,
   `StagedOptimizedAllocationLegality`) consumed by
   `06_selected-instructions-to-selected-instructions` and
-  `07_selected-instructions-to-register-homes`. `SelectedAllocationInput` is the
-  one form Omega 04 hands Omega 05: the current program, the analyses Omega 04
-  already established for it, and its `SelectedOptimizationRecord`. Omega 04's
-  rewrite history is evidence in that record, never a choice of how Omega 05
-  allocates.
+  `07_selected-instructions-to-register-homes`. Staged carriers are local views
+  used by these analysis procedures. The stages exchange the issued `SelectedBody`
+  representation; the driver carries optional producer replay evidence separately.
+  Rewrite history is data in that representation, never a choice of allocation
+  procedure. `handoff` moves admitted plans and count rows without recomputing them.
 */
 
 #[macro_export]
@@ -252,13 +252,11 @@ macro_rules! shared_plan_carrier {
 #[macro_export]
 macro_rules! seal_plan {
     (
-        $seal:ident($plan:ty) -> $carrier:ident : $receipt:ident
-            = $identity:path, $error:ty
+        $seal:ident($plan:ty) -> $carrier:ident : $receipt:ident, $error:ty
         { $($field:ident),* $(,)? }
     ) => {
         pub(crate) fn $seal(candidate: $plan) -> Result<$carrier, $error> {
             let receipt = $receipt {
-                identity: $identity(&candidate),
                 $($field: candidate.$field,)*
             };
             Ok($carrier {
@@ -371,36 +369,6 @@ macro_rules! rewrite_receipt {
         }
 
         receipt_selected_identities!($receipt);
-    };
-}
-
-#[macro_export]
-macro_rules! rewrite_receipt_identity {
-    (
-        $function:ident, $identity:ident, $receipt:ident,
-        $separator:literal, $phrase:literal, $($coordinate:ident),+ $(,)?
-    ) => {
-        pub(crate) fn $function(receipt: &$receipt) -> $identity {
-            $identity::from_canonical_bytes(&$crate::rewriting::rewrite_bytes(
-                $separator,
-                &receipt.optimization_unit.bytes(),
-                |bytes| {
-                    $crate::codec_bytes::push_encoded(bytes, receipt.work_schedule.marker().to_le_bytes());
-                    bytes.extend_from_slice(
-                        &u64::try_from(receipt.function_index)
-                            .expect(concat!($phrase, " function index fits u64"))
-                            .to_le_bytes(),
-                    );
-                    $($crate::codec_bytes::push_encoded(bytes, receipt.$coordinate.0.to_le_bytes());)+
-                },
-            ))
-        }
-
-        impl $receipt {
-            pub fn identity(&self) -> $identity {
-                $function(self)
-            }
-        }
     };
 }
 
@@ -526,47 +494,10 @@ pub mod codec_bytes {
     pub use ::wire::codec_bytes::push_encoded;
     pub use ::wire::codec_bytes::{decode_header, encode_header};
 }
-mod selected_optimization_record {
-
-    use optimization_core::{
-        PreAllocationOptimizationCompletionIdentity, SelectedLoweringOptimizationCompletionIdentity,
-    };
-    use register_homes::PostAllocationSelectedTransformation;
-
-    /// What earlier selected-instruction rewrites did to the program a stage
-    /// receives: the completed Omega 04 phase, if any, and the transformations
-    /// it applied in order. Allocation copies it into its manifest as
-    /// evidence; it never chooses how a later stage runs. Instruction
-    /// selection's output carries the empty record.
-    #[derive(Debug, Clone, Default, PartialEq, Eq)]
-    pub struct SelectedOptimizationRecord {
-        pub selected_lowering_completion: Option<SelectedLoweringOptimizationCompletionIdentity>,
-        pub pre_allocation_completion: Option<PreAllocationOptimizationCompletionIdentity>,
-        pub transformations: Vec<PostAllocationSelectedTransformation>,
-    }
-
-    impl SelectedOptimizationRecord {
-        /// Whether an Omega 04 rewrite phase produced the program.
-        pub const fn is_rewritten(&self) -> bool {
-            self.selected_lowering_completion.is_some() || self.pre_allocation_completion.is_some()
-        }
-
-        /// This record followed by transformations a later stage applied.
-        pub fn followed_by(
-            &self,
-            later: &[PostAllocationSelectedTransformation],
-        ) -> Vec<PostAllocationSelectedTransformation> {
-            let mut transformations = Vec::with_capacity(self.transformations.len() + later.len());
-            transformations.extend_from_slice(&self.transformations);
-            transformations.extend_from_slice(later);
-            transformations
-        }
-    }
-}
-pub use selected_optimization_record::SelectedOptimizationRecord;
-mod allocation_input;
+pub use selected_analysis_facts::SelectedOptimizationRecord;
+mod handoff;
 pub use ::wire::cursor;
-pub use allocation_input::SelectedAllocationInput;
+pub use handoff::{prepare_allocation_legality, publish_legality, publish_live_ranges};
 pub mod rewriting;
 pub mod work_accounting;
 pub use work_accounting::WorkDefect;
@@ -956,10 +887,13 @@ impl UnsealedRecoveryFacts {
             legality_functions: Vec::with_capacity(count),
         };
         for (index, function) in next_plan.functions.iter().enumerate() {
-            let function_unchanged = prev_plan
+            let abi = next_plan.contracts.function_abi(function.machine);
+            let function_unchanged = (prev_plan
                 .functions
                 .shares_function_storage(&next_plan.functions, index)
-                || prev_plan.functions.get(index) == Some(function);
+                || prev_plan.functions.get(index) == Some(function))
+                && (Arc::ptr_eq(&prev_plan.contracts, &next_plan.contracts)
+                    || prev_plan.contracts.function_abi(function.machine) == abi);
             let (liveness, materialized, ranges) = if function_unchanged {
                 (
                     Arc::clone(&self.liveness_functions[index]),
@@ -976,8 +910,9 @@ impl UnsealedRecoveryFacts {
                     }
                 }
                 .map_err(RecoveryReanalysisError::Liveness)?;
-                let ranges = live_ranges::compute::compute_function(index, function, &liveness)
-                    .map_err(RecoveryReanalysisError::Ranges)?;
+                let ranges =
+                    live_ranges::compute::compute_function(index, function, &liveness, abi)
+                        .map_err(RecoveryReanalysisError::Ranges)?;
                 (
                     Arc::new(liveness),
                     detail == LivenessDetail::Complete,
@@ -1002,7 +937,7 @@ impl UnsealedRecoveryFacts {
                     prior,
                 )
                 .map_err(RecoveryReanalysisError::Legality)?;
-                allocation_legality::validate::FunctionCounts::new(&legality, index)
+                allocation_legality::validate::count_function(&legality, index)
                     .map_err(RecoveryReanalysisError::Legality)?;
                 Arc::new(legality)
             };
