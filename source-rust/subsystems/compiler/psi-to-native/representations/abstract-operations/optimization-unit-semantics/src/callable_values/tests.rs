@@ -63,6 +63,7 @@ fn function(
 fn call(id: u64, callee: AbstractCallTarget, arguments: Vec<ValueId>) -> AbstractOperation {
     AbstractOperation::CallStructural {
         psi_operation: operation(id),
+        suspension_crossing: None,
         callee,
         arguments,
         structural_arguments: Vec::new(),

@@ -461,6 +461,7 @@ define_abstract_operations! {
     },
     CallStructural {
         psi_operation: OperationId,
+        suspension_crossing: Option<semantic_vocabulary::SuspensionCrossingId>,
         callee: AbstractCallTarget,
         arguments: Vec<ValueId>, // Runtime scalar arguments in exact Terminal call order.
         structural_arguments: Vec<StructuralArgument>,
@@ -481,6 +482,7 @@ define_abstract_operations! {
     },
     BoundaryCall {
         psi_operation: OperationId,
+        suspension_crossing: Option<semantic_vocabulary::SuspensionCrossingId>,
         result: AbstractBoundaryResult,
         boundary: BoundaryMachineId,
         arguments: Vec<ValueId>, // Runtime scalar arguments in exact Terminal Psi call order.
@@ -502,6 +504,7 @@ define_abstract_operations! {
     },
     Call {
         psi_operation: OperationId,
+        suspension_crossing: Option<semantic_vocabulary::SuspensionCrossingId>,
         result: ValueId,
         scalar_type: ScalarType,
         callee: MachineId,

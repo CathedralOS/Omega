@@ -59,6 +59,7 @@ pub(crate) mod scalar_graph {
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let target_operations::TargetUnitOperation::Call {
                     psi_operation,
+                    suspension_crossing,
                     origin,
                     target,
                     call_plan,
@@ -129,6 +130,7 @@ pub(crate) mod scalar_graph {
                     }));
                 }
                 Ok(LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
+                    suspension_crossing: *suspension_crossing,
                     descriptor_origins,
                     access_bindings: access_bindings.clone(),
                     target: *target,
@@ -152,6 +154,7 @@ pub(crate) mod scalar_graph {
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let target_operations::TargetUnitOperation::NormalizedForeignCall {
                     psi_operation,
+                    suspension_crossing,
                     boundary,
                     provider_execution,
                     binding,
@@ -173,6 +176,7 @@ pub(crate) mod scalar_graph {
                         .collect();
                 Ok(LegalizedScalarInstructionKind::NormalizedForeignCall(
                     legalized_operations::LegalizedNormalizedForeignCall {
+                        suspension_crossing: *suspension_crossing,
                         boundary: *boundary,
                         provider_execution: *provider_execution,
                         binding: binding.clone(),

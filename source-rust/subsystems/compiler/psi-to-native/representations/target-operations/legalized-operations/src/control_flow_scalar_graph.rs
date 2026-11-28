@@ -1223,6 +1223,7 @@ mod structural_result_tests {
     fn structural_call_result_lookup_preserves_absence_and_presence() {
         let expected = result();
         let mut call = LegalizedScalarCall {
+            suspension_crossing: None,
             descriptor_origins: Vec::new(),
             access_bindings: Vec::new(),
             source: target_vocabulary::NativeCallOrigin::Authored,
@@ -1440,6 +1441,7 @@ impl LegalizedScalarTerminator {
             return None;
         };
         Some(LegalizedScalarCall {
+            suspension_crossing: None,
             descriptor_origins: Vec::new(),
             access_bindings: Vec::new(),
             source: origin.clone(),

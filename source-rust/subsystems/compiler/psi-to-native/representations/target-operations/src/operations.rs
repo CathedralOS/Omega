@@ -447,6 +447,7 @@ pub enum TargetUnitOperation {    InstallStaticInterrupt {
     Call {
         origin: NativeCallOrigin,
         psi_operation: OperationId,
+        suspension_crossing: Option<semantic_vocabulary::SuspensionCrossingId>,
         target: crate::NativeCallTarget,
         call_plan: CallPlan,
         result: crate::TargetCallResult,
@@ -488,6 +489,7 @@ pub enum TargetUnitOperation {    InstallStaticInterrupt {
     },
     NormalizedForeignCall {
         psi_operation: OperationId,
+        suspension_crossing: Option<semantic_vocabulary::SuspensionCrossingId>,
         boundary: BoundaryMachineId,
         provider_execution: ExternalExecutionBinding,
         binding: NormalizedForeignCallBinding,
