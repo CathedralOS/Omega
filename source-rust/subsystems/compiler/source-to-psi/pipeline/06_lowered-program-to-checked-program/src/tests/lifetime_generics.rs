@@ -41,16 +41,19 @@ const HOLDER: &str = "data Holder<'storage> { ready: bool; name: @'storage [u8];
 fn a_shared_type_specialization_uses_each_callers_borrowed_arguments() {
     accepted(
         "data Packet<'storage> { byte: @'storage u8; }
-         machine keep_second<A, B>(discarded: A, kept: B) -> B { move kept }
-         machine keep_right<'left, 'right>(left: Packet<'left>, right: Packet<'right>) -> Packet<'right> {
-             keep_second::<Packet<'left>, Packet<'right>>(move left, move right)
+         data Pair<A, B> { first: A; second: B; }
+         machine pair<A, B>(first: A, second: B) -> Pair<A, B> {
+             Pair { first: move first, second: move second }
          }
-         machine keep_left<'left, 'right>(left: Packet<'left>, right: Packet<'right>) -> Packet<'left> {
-             keep_second::<Packet<'right>, Packet<'left>>(move right, move left)
+         machine left_first<'left, 'right>(left: Packet<'left>, right: Packet<'right>) -> Pair<Packet<'left>, Packet<'right>> {
+             pair::<Packet<'left>, Packet<'right>>(move left, move right)
          }
-         machine build_entry(a: Packet, b: Packet, c: Packet, d: Packet) {
-             _ = keep_right(move a, move b);
-             _ = keep_left(move c, move d);
+         machine right_first<'left, 'right>(left: Packet<'left>, right: Packet<'right>) -> Pair<Packet<'right>, Packet<'left>> {
+             pair::<Packet<'right>, Packet<'left>>(move right, move left)
+         }
+         machine build_entry<'left, 'right>(left: Packet<'left>, right: Packet<'right>) -> Pair<Packet<'right>, Packet<'left>> {
+             let ordered: Pair<Packet<'left>, Packet<'right>> = left_first(move left, move right);
+             right_first(move ordered.first, move ordered.second)
          }",
     );
 }
