@@ -11,6 +11,7 @@ use source_symbol_table::source_inputs;
 use source_symbol_table::source_symbols;
 use typed_trees::source_state;
 
+pub mod constant_arguments;
 mod passes;
 pub use prepared_source::{
     EntryApplication, PreparedTypedTrees, PreparedValue, TargetInputs, ValueInputs,
