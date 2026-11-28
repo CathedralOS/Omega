@@ -1201,8 +1201,7 @@ mod observations {
                 .observations
                 .get(&function.machine)?
                 .get(&live.reference_position)?;
-            let current = sources_at_storage(snapshot, &location);
-            let current = current?;
+            let current = sources_at_storage(snapshot, &location)?;
             for source in current {
                 let origin = if let Some(slot) = source.captured_entry_slot() {
                     let contract = function.structural_parameter(slot.root)?.structural_type;
@@ -1260,6 +1259,56 @@ mod observations {
                                     .path
                                     .iter()
                                     .cloned()
+                                    .map(terminal_psi::ReferenceOriginProjection::Exact)
+                                    .collect(),
+                                extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+                            }
+                        }
+                        DescriptorSourceOrigin::Backing(DescriptorCallOrigin::NativeAddress {
+                            machine,
+                            operation,
+                            carrier,
+                            projection,
+                            ..
+                        }) => {
+                            let path = projection.captured_address_path().ok()?;
+                            let (StructuralPathSegment::Referent, cell) = path.split_last()? else {
+                                return None;
+                            };
+                            let StructuralTypeShape::Reference {
+                                referent: base,
+                                access,
+                            } = types.get(*carrier)?.shape
+                            else {
+                                return None;
+                            };
+                            if projection.is_native_enclosing_storage()
+                                || !matches!(
+                                    types.get(carrier_type)?.shape,
+                                    StructuralTypeShape::Reference {
+                                        access: StructuralAccess::SharedBorrow,
+                                        ..
+                                    }
+                                )
+                                || leaf_type(types, base, cell) != Some(carrier_type)
+                                || !terminal_semantics::reference_source_projection_accessible(
+                                    types.values().copied(),
+                                    base,
+                                    types.get(base)?.multiplicity,
+                                    access,
+                                    &path,
+                                    StructuralAccess::SharedBorrow,
+                                )
+                            {
+                                return None;
+                            }
+                            target_operations::TargetReferenceOrigin {
+                                base: target_operations::TargetReferenceOriginBase::NativeAddress {
+                                    machine: *machine,
+                                    operation: *operation,
+                                },
+                                path: path
+                                    .into_iter()
                                     .map(terminal_psi::ReferenceOriginProjection::Exact)
                                     .collect(),
                                 extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
