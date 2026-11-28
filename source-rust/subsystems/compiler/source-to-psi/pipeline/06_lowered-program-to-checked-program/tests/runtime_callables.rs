@@ -162,7 +162,7 @@ machine main() crashes Trap {
     Program::of(source).judged(|_| ()).accepted();
 
     let crossed = source.replace("(reader.read)(reader.state)", "(reader.read)(other.state)");
-    let Err(refusal) = Program::try_of(&[("main.omg", &crossed)]) else {
+    let Err(refusal) = Program::try_of(&[("product/main.omg", &crossed)]) else {
         panic!("the two returned File readers must keep distinct openings");
     };
     assert!(refusal.message.contains("argument types"), "{refusal:?}");
