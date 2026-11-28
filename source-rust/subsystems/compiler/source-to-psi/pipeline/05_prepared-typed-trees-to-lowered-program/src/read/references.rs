@@ -152,6 +152,55 @@ impl Program<'_> {
         Ok(Some(ValueType::Record(id, qualification, regions)))
     }
 
+    /// A written borrow retains every reference layer already present in its
+    /// operand. Reading the place may then decide access and the base type.
+    pub(super) fn require_borrow_layers(
+        &mut self,
+        machine: MachineId,
+        argument: crate::source_state::expression::ExpressionHandle,
+        mut wanted: ValueType,
+        source: SourceOrigin,
+    ) -> Checked<()> {
+        let table = &self.typed.type_reference_table;
+        let formed = self
+            .typed
+            .expression_table
+            .constructed_value_type_reference(argument);
+        if !table.contains_type_reference(formed) {
+            return Ok(());
+        }
+        let TypeReferenceNode::Reference { referee, .. } =
+            table.type_reference(table.unconstrained_type_reference(formed))
+        else {
+            return Ok(());
+        };
+        let mut supplied = *referee;
+        while let TypeReferenceNode::Reference { referee, .. } =
+            table.type_reference(table.unconstrained_type_reference(supplied))
+        {
+            // A borrowed slice keeps its length and backing in one descriptor.
+            if self.is_borrowed_view(wanted)
+                && self
+                    .source_scope
+                    .slice_application(self.typed, supplied)
+                    .map_err(|reason| refuse_at(machine, Unserved::Type(reason)))?
+                    .is_some()
+            {
+                break;
+            }
+            let Some((referent, _)) = self.reference_referent(machine, wanted)? else {
+                return Err(crate::reject(
+                    machine,
+                    source,
+                    "this explicit borrow adds a reference layer beyond the destination type",
+                ));
+            };
+            supplied = *referee;
+            wanted = referent;
+        }
+        Ok(())
+    }
+
     pub(super) fn reference_referent(
         &mut self,
         machine: MachineId,

@@ -242,6 +242,10 @@ fn compiler_samples_check_native_output_and_retain_every_stage_table() {
     )
     .unwrap();
     plan["measurement"]["candidate_source"] = json!("candidate.txt");
+    plan["measurement"]["cold_client_root"] = json!(".");
+    plan["measurement"]["stage_timings"] = json!(false);
+    plan["baseline"]["arguments"] = json!(["build"]);
+    plan["candidate"]["arguments"] = json!(["build"]);
     plan["inputs"]
         .as_array_mut()
         .unwrap()
@@ -263,8 +267,52 @@ fn compiler_samples_check_native_output_and_retain_every_stage_table() {
         "{}",
         String::from_utf8_lossy(&validation.stderr)
     );
+    let staged: Vec<_> = events(copies.path())
+        .into_iter()
+        .filter(|event| event["event"] == "sample")
+        .map(|event| {
+            PathBuf::from(
+                event["sample"]["observations"][0]["arguments"]
+                    .as_array()
+                    .unwrap()
+                    .last()
+                    .unwrap()
+                    .as_str()
+                    .unwrap(),
+            )
+        })
+        .collect();
+    let unique: std::collections::BTreeSet<_> =
+        staged.iter().map(|p| p.parent().unwrap()).collect();
+    assert_eq!(unique.len(), staged.len());
+    for path in &staged {
+        assert_eq!(std::fs::read(path).unwrap(), b"frozen input");
+        let project = path.parent().unwrap();
+        assert!(project.join("library").is_dir());
+        assert!(project.parent().unwrap().join("cache").is_dir());
+    }
+    let profile_dir = copies.path().join("stages");
+    let profile = Command::new(env!("CARGO_BIN_EXE_omega-bench"))
+        .arg("profile")
+        .arg(copies.path().join("plan.json"))
+        .args(["candidate", "stages"])
+        .arg(&profile_dir)
+        .output()
+        .unwrap();
+    assert!(
+        profile.status.success(),
+        "{}",
+        String::from_utf8_lossy(&profile.stderr)
+    );
+    let recorded: Value =
+        serde_json::from_slice(&std::fs::read(profile_dir.join("profile.json")).unwrap()).unwrap();
+    assert_eq!(recorded["timeline"]["covered_ms"], 1.25);
+    assert_eq!(recorded["timeline"]["unattributed_ms"], 0.75);
     std::fs::write(directory.path().join("candidate.txt"), "different source").unwrap();
     let original = events(copies.path());
+    for event in original.iter().filter(|event| event["event"] == "sample") {
+        assert_eq!(event["sample"]["compiler_stage_ms"], json!({}));
+    }
     for (file, replacement, expected) in [
         ("input.txt", None, "missing compiler source identity"),
         (
@@ -586,10 +634,18 @@ fn historical_comparisons_refuse_a_changed_workload_and_never_pair_separate_runs
 
     let different_settings = TestDirectory::new();
     let mut changed_environment = plan.clone();
-    changed_environment["candidate"]["environment"] = json!({"OMEGA_LIBRARY_ROOT": "other-library"});
-    assert!(execute(different_settings.path(), &changed_environment).status.success());
+    changed_environment["candidate"]["environment"] =
+        json!({"OMEGA_LIBRARY_ROOT": "other-library"});
+    assert!(
+        execute(different_settings.path(), &changed_environment)
+            .status
+            .success()
+    );
     let changed = history(different_settings.path());
-    assert!(!changed.status.success(), "history accepted a changed process environment");
+    assert!(
+        !changed.status.success(),
+        "history accepted a changed process environment"
+    );
     assert!(String::from_utf8_lossy(&changed.stderr).contains("settings changed"));
 
     std::fs::write(first.path().join("input.txt"), "different workload bytes").unwrap();
@@ -639,7 +695,7 @@ fn profile_refuses_an_unknown_backend_before_running_the_subject() {
     assert_eq!(result.status.code(), Some(1));
     assert!(
         String::from_utf8_lossy(&result.stderr)
-            .contains("wpr, perf-stat, perf-record or selected-bodies")
+            .contains("wpr, perf-stat, perf-record, selected-bodies or stages")
     );
     assert!(!directory.path().join("profile").exists());
 }

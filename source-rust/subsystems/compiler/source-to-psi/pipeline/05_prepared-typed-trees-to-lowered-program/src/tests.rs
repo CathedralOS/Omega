@@ -2662,7 +2662,14 @@ fn member(base: Expression, field: usize, result: ValueType) -> Expression {
 }
 
 fn literal(fields: Vec<(usize, Expression)>, result: ValueType) -> Expression {
-    of_type(ExpressionKind::Record { fields, erased: Vec::new() }, result)
+    of_type(
+        ExpressionKind::Record {
+            package_witnesses: Vec::new(),
+            fields,
+            erased: Vec::new(),
+        },
+        result,
+    )
 }
 
 fn bind(slot: usize, value: Expression) -> Statement {

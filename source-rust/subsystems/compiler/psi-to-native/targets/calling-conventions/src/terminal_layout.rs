@@ -43,29 +43,16 @@ pub struct NativeGeometry<'a> {
 
 impl<'a> NativeGeometry<'a> {
     pub fn new(declarations: &'a [StructuralTypeDeclaration]) -> Result<Self, NonDenseIdentities> {
-        Self::with_owned_sequence_bounds(declarations, &[])
+        Self::with_storage_inputs(declarations, StorageLayoutInputs::default())
     }
 
-    pub fn with_owned_sequence_bounds(
+    pub fn with_storage_inputs(
         declarations: &'a [StructuralTypeDeclaration],
-        bounds: &'a [(StructuralTypeId, u64)],
-    ) -> Result<Self, NonDenseIdentities> {
-        Self::with_value_storage(
-            declarations,
-            runtime_abi::NativeValueStorage {
-                sequences: bounds,
-                ..Default::default()
-            },
-        )
-    }
-
-    pub fn with_value_storage(
-        declarations: &'a [StructuralTypeDeclaration],
-        storage: runtime_abi::NativeValueStorage<'a>,
+        inputs: StorageLayoutInputs<'a>,
     ) -> Result<Self, NonDenseIdentities> {
         Ok(Self {
             declarations,
-            resolver: StructuralLayoutResolver::with_value_storage(declarations, storage)?,
+            resolver: StructuralLayoutResolver::with_storage_inputs(declarations, inputs)?,
         })
     }
 
@@ -83,7 +70,7 @@ impl<'a> NativeGeometry<'a> {
         owned_sequence_layout(
             root,
             self.shape(element)?,
-            sequence_capacity(self.resolver.storage.sequences, root)?,
+            sequence_capacity(self.resolver.inputs.owned_sequences, root)?,
         )
     }
 
@@ -101,12 +88,39 @@ impl<'a> NativeGeometry<'a> {
         })
     }
 
-    pub fn owned_sequence_bounds(&self) -> &'a [(StructuralTypeId, u64)] {
-        self.resolver.storage.sequences
+    pub fn storage_inputs(&self) -> StorageLayoutInputs<'a> {
+        self.resolver.inputs
     }
 
-    pub fn value_storage(&self) -> runtime_abi::NativeValueStorage<'a> {
-        self.resolver.storage
+    /// The public field must retain a codec for a scalar witness. A direct
+    /// aggregate reference occupies its first word and leaves that codec zero.
+    pub fn package_reference_field(
+        &self,
+        public: &StructuralFieldType,
+        actual: &StructuralFieldType,
+    ) -> Option<bool> {
+        let StructuralTypeShape::Reference {
+            referent, access, ..
+        } = self.declaration(public.as_structural()?).ok()?.shape
+        else {
+            return None;
+        };
+        if !self.storage_inputs().is_package_witness(referent) {
+            return None;
+        }
+        Some(
+            actual
+                .as_structural()
+                .and_then(|id| self.declaration(id).ok())
+                .is_some_and(|declaration| {
+                    matches!(declaration.shape,
+                StructuralTypeShape::Reference { access: supplied, .. } if supplied == access)
+                }),
+        )
+    }
+
+    pub fn owned_sequence_bounds(&self) -> &'a [(StructuralTypeId, u64)] {
+        self.resolver.inputs.owned_sequences
     }
 
     pub fn declaration(
@@ -158,6 +172,8 @@ impl std::ops::Deref for NativeGeometry<'_> {
     }
 }
 
+pub use structural_storage::structural_type_catalog::StorageLayoutInputs;
+
 type Declarations<'a> = IdTable<StructuralTypeId, &'a StructuralTypeDeclaration>;
 type KnownShapes = IdTable<StructuralTypeId, Option<ValueShape>>;
 
@@ -166,7 +182,7 @@ type KnownShapes = IdTable<StructuralTypeId, Option<ValueShape>>;
 /// claimed layout result as evidence.
 pub struct StructuralLayoutResolver<'a> {
     declarations: Declarations<'a>,
-    storage: runtime_abi::NativeValueStorage<'a>,
+    inputs: StorageLayoutInputs<'a>,
     scratch: RefCell<LayoutScratch>,
 }
 
@@ -179,29 +195,16 @@ impl<'a> StructuralLayoutResolver<'a> {
     pub fn new(
         rows: impl IntoIterator<Item = &'a StructuralTypeDeclaration>,
     ) -> Result<Self, NonDenseIdentities> {
-        Self::with_owned_sequence_bounds(rows, &[])
+        Self::with_storage_inputs(rows, StorageLayoutInputs::default())
     }
 
-    pub fn with_owned_sequence_bounds(
+    pub fn with_storage_inputs(
         rows: impl IntoIterator<Item = &'a StructuralTypeDeclaration>,
-        owned_sequences: &'a [(StructuralTypeId, u64)],
-    ) -> Result<Self, NonDenseIdentities> {
-        Self::with_value_storage(
-            rows,
-            runtime_abi::NativeValueStorage {
-                sequences: owned_sequences,
-                ..Default::default()
-            },
-        )
-    }
-
-    pub fn with_value_storage(
-        rows: impl IntoIterator<Item = &'a StructuralTypeDeclaration>,
-        storage: runtime_abi::NativeValueStorage<'a>,
+        inputs: StorageLayoutInputs<'a>,
     ) -> Result<Self, NonDenseIdentities> {
         let declarations = IdTable::from_rows(rows.into_iter().map(|row| (row.id, row)))?;
         let mut known = declarations.map(|_, _| None);
-        for home in storage.execution_owners {
+        for home in inputs.execution_owners {
             if let Some(declaration) = declarations.get(home.ty())
                 && matches!(declaration.shape, StructuralTypeShape::BorrowingOpaque { lifetime_count } if lifetime_count.get() == 1)
                 && declaration.owns_linear_claim
@@ -214,7 +217,7 @@ impl<'a> StructuralLayoutResolver<'a> {
         let active = declarations.map(|_, _| false);
         Ok(Self {
             declarations,
-            storage,
+            inputs,
             scratch: RefCell::new(LayoutScratch { known, active }),
         })
     }
@@ -241,7 +244,7 @@ impl<'a> StructuralLayoutResolver<'a> {
         resolve_structural_shape(
             structural_type,
             &self.declarations,
-            self.storage.sequences,
+            self.inputs,
             known,
             active,
             &mut reject_unclosed_extent,
@@ -378,10 +381,9 @@ impl<'a> StructuralLayoutResolver<'a> {
     fn materialize(self) -> StructuralLayouts<'a> {
         let Self {
             declarations,
-            storage,
+            inputs,
             scratch,
         } = self;
-        let owned_sequences = storage.sequences;
         let LayoutScratch {
             mut known,
             mut active,
@@ -390,7 +392,7 @@ impl<'a> StructuralLayoutResolver<'a> {
             resolve_structural_shape(
                 structural_type,
                 &declarations,
-                owned_sequences,
+                inputs,
                 &mut known,
                 &mut active,
                 &mut reject_unclosed_extent,
@@ -400,7 +402,7 @@ impl<'a> StructuralLayoutResolver<'a> {
         StructuralLayouts {
             declarations,
             shapes,
-            owned_sequences,
+            inputs,
         }
     }
 }
@@ -416,7 +418,7 @@ pub struct NativeFieldPlacement {
 pub struct StructuralLayouts<'a> {
     declarations: Declarations<'a>,
     shapes: IdTable<StructuralTypeId, Result<ValueShape, TerminalLayoutError>>,
-    owned_sequences: &'a [(StructuralTypeId, u64)],
+    inputs: StorageLayoutInputs<'a>,
 }
 
 impl<'a> StructuralLayouts<'a> {
@@ -426,18 +428,11 @@ impl<'a> StructuralLayouts<'a> {
         Ok(StructuralLayoutResolver::new(rows)?.materialize())
     }
 
-    pub fn with_owned_sequence_bounds(
+    pub fn with_storage_inputs(
         rows: impl IntoIterator<Item = &'a StructuralTypeDeclaration>,
-        bounds: &'a [(StructuralTypeId, u64)],
+        inputs: StorageLayoutInputs<'a>,
     ) -> Result<Self, NonDenseIdentities> {
-        Ok(StructuralLayoutResolver::with_owned_sequence_bounds(rows, bounds)?.materialize())
-    }
-
-    pub fn with_value_storage(
-        rows: impl IntoIterator<Item = &'a StructuralTypeDeclaration>,
-        storage: runtime_abi::NativeValueStorage<'a>,
-    ) -> Result<Self, NonDenseIdentities> {
-        Ok(StructuralLayoutResolver::with_value_storage(rows, storage)?.materialize())
+        Ok(StructuralLayoutResolver::with_storage_inputs(rows, inputs)?.materialize())
     }
 
     pub fn owned_sequence(
@@ -458,7 +453,7 @@ impl<'a> StructuralLayouts<'a> {
         owned_sequence_layout(
             root,
             self.shape(element)?,
-            sequence_capacity(self.owned_sequences, root)?,
+            sequence_capacity(self.inputs.owned_sequences, root)?,
         )
     }
 
@@ -528,7 +523,7 @@ impl<'a> StructuralLayouts<'a> {
             resolve_structural_shape(
                 root,
                 &self.declarations,
-                self.owned_sequences,
+                self.inputs,
                 &mut known,
                 &mut active,
                 &mut |_, application| {
@@ -663,10 +658,7 @@ pub fn opaque_borrow_transport(
     access: terminal_psi::StructuralAccess,
 ) -> Option<ValueShape> {
     (access != terminal_psi::StructuralAccess::Owned
-        && matches!(
-            shape,
-            StructuralTypeShape::Opaque | StructuralTypeShape::BorrowingOpaque { .. }
-        ))
+        && matches!(shape, StructuralTypeShape::Opaque | StructuralTypeShape::BorrowingOpaque { .. }))
     .then_some(ValueShape::integer(8, 8))
 }
 
@@ -737,7 +729,7 @@ fn reject_unclosed_extent(
 fn resolve_structural_shape(
     structural_type: StructuralTypeId,
     declarations: &Declarations<'_>,
-    owned_sequences: &[(StructuralTypeId, u64)],
+    inputs: StorageLayoutInputs<'_>,
     known: &mut KnownShapes,
     active: &mut IdTable<StructuralTypeId, bool>,
     extent: &mut impl FnMut(
@@ -774,7 +766,9 @@ fn resolve_structural_shape(
                     .get(*referent)
                     .ok_or(TerminalLayoutError::UnknownStructuralType(*referent))?;
                 Ok(Some(ValueShape::integer(
-                    if scalar_storage_type(*referent, declarations).is_some() {
+                    if inputs.is_package_witness(*referent)
+                        || scalar_storage_type(*referent, declarations).is_some()
+                    {
                         runtime_abi::ScalarReferenceLayout::NATIVE.byte_size
                     } else {
                         8
@@ -791,11 +785,11 @@ fn resolve_structural_shape(
                 element,
                 access: None,
             } => {
-                let capacity = sequence_capacity(owned_sequences, structural_type)?;
+                let capacity = sequence_capacity(inputs.owned_sequences, structural_type)?;
                 let Some(element) = resolve_structural_shape(
                     *element,
                     declarations,
-                    owned_sequences,
+                    inputs,
                     known,
                     active,
                     extent,
@@ -851,7 +845,7 @@ fn resolve_structural_shape(
                         &field.field_type,
                         structural_type,
                         declarations,
-                        owned_sequences,
+                        inputs,
                         known,
                         active,
                         extent,
@@ -894,7 +888,7 @@ fn resolve_structural_shape(
                 let element = resolve_structural_shape(
                     *element,
                     declarations,
-                    owned_sequences,
+                    inputs,
                     known,
                     active,
                     extent,
@@ -919,7 +913,7 @@ fn resolve_structural_shape(
                         field,
                         structural_type,
                         declarations,
-                        owned_sequences,
+                        inputs,
                         known,
                         active,
                         extent,
@@ -933,7 +927,7 @@ fn resolve_structural_shape(
                         field,
                         structural_type,
                         declarations,
-                        owned_sequences,
+                        inputs,
                         known,
                         active,
                         extent,
@@ -1000,7 +994,7 @@ fn resolve_structural_field_shape(
     field: &StructuralFieldType,
     owner: StructuralTypeId,
     declarations: &Declarations<'_>,
-    owned_sequences: &[(StructuralTypeId, u64)],
+    inputs: StorageLayoutInputs<'_>,
     known: &mut KnownShapes,
     active: &mut IdTable<StructuralTypeId, bool>,
     extent: &mut impl FnMut(
@@ -1009,14 +1003,7 @@ fn resolve_structural_field_shape(
     ) -> Result<Option<u64>, TerminalLayoutError>,
 ) -> Result<Option<ValueShape>, TerminalLayoutError> {
     if let StructuralFieldType::Structural(nested) = field {
-        return resolve_structural_shape(
-            *nested,
-            declarations,
-            owned_sequences,
-            known,
-            active,
-            extent,
-        );
+        return resolve_structural_shape(*nested, declarations, inputs, known, active, extent);
     }
     scalar_field_shape(field, owner).map(Some)
 }
@@ -1199,7 +1186,7 @@ mod width_closure_tests {
 }
 
 #[cfg(test)]
-mod owned_sequence_tests {
+mod storage_layout_tests {
     use super::*;
     use terminal_psi::{StructuralAccess, TerminalIdentityIndex};
 
@@ -1240,12 +1227,12 @@ mod owned_sequence_tests {
         let homes = [0, 2].map(|index| {
             runtime_abi::ExecutionOwnerHome::for_target(rows[index].id, target).unwrap()
         });
-        let storage = runtime_abi::NativeValueStorage {
-            sequences: &[],
+        let storage = StorageLayoutInputs {
             execution_owners: &homes,
+            ..StorageLayoutInputs::default()
         };
-        let geometry = NativeGeometry::with_value_storage(&rows, storage).unwrap();
-        let layouts = StructuralLayouts::with_value_storage(rows.iter(), storage).unwrap();
+        let geometry = NativeGeometry::with_storage_inputs(&rows, storage).unwrap();
+        let layouts = StructuralLayouts::with_storage_inputs(rows.iter(), storage).unwrap();
         assert!(
             layouts
                 .required_scalar_extents([rows[0].id])
@@ -1308,11 +1295,64 @@ mod owned_sequence_tests {
     }
 
     #[test]
+    fn only_package_references_reserve_a_scalar_codec_for_an_unknown_referent() {
+        let id = |n| StructuralTypeId::new(n).unwrap();
+        let reference = |referent| StructuralTypeShape::Reference {
+            referent,
+            access: StructuralAccess::MutableBorrow,
+        };
+        let rows = [
+            declaration(1, StructuralTypeShape::Opaque),
+            declaration(2, reference(id(1))),
+            declaration(3, StructuralTypeShape::Opaque),
+            declaration(4, reference(id(3))),
+            declaration(5, StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)),
+            declaration(6, reference(id(5))),
+        ];
+        let witnesses = [id(1)];
+        let inputs = StorageLayoutInputs {
+            package_witnesses: &witnesses,
+            ..StorageLayoutInputs::default()
+        };
+        let geometry = NativeGeometry::with_storage_inputs(&rows, inputs).unwrap();
+        assert_eq!(geometry.shape(id(2)).unwrap(), ValueShape::integer(16, 8));
+        assert_eq!(geometry.shape(id(4)).unwrap(), ValueShape::integer(8, 8));
+        assert_eq!(geometry.shape(id(6)).unwrap(), ValueShape::integer(16, 8));
+        let public = StructuralFieldType::Structural(id(2));
+        assert_eq!(
+            geometry.package_reference_field(&public, &StructuralFieldType::Structural(id(4))),
+            Some(true)
+        );
+        assert_eq!(
+            geometry.package_reference_field(&public, &StructuralFieldType::Structural(id(6))),
+            Some(true)
+        );
+        assert_eq!(
+            geometry.package_reference_field(
+                &public,
+                &StructuralFieldType::Scalar(ScalarType::Boolean)
+            ),
+            Some(false)
+        );
+        assert!(
+            geometry.shape(id(1)).is_err(),
+            "a uniform borrow grants no layout for its referent"
+        );
+    }
+
+    #[test]
     fn owned_sequence_storage_moves_inline_while_borrowed_views_keep_descriptors() {
         let rows = declarations();
         let owned = rows[1].id;
         let bounds = [(owned, 3)];
-        let geometry = NativeGeometry::with_owned_sequence_bounds(&rows, &bounds).unwrap();
+        let geometry = NativeGeometry::with_storage_inputs(
+            &rows,
+            StorageLayoutInputs {
+                owned_sequences: &bounds,
+                ..Default::default()
+            },
+        )
+        .unwrap();
         for access in [None, Some(terminal_psi::StructuralAccess::Owned)] {
             assert!(!is_native_view_descriptor_at(&rows[1].shape, access));
         }
@@ -1332,7 +1372,14 @@ mod owned_sequence_tests {
         );
         assert_eq!(element_view_length_offset(&rows[1].shape), Some(0));
         assert_eq!(element_view_length_offset(&rows[2].shape), Some(8));
-        let layouts = StructuralLayouts::with_owned_sequence_bounds(rows.iter(), &bounds).unwrap();
+        let layouts = StructuralLayouts::with_storage_inputs(
+            rows.iter(),
+            StorageLayoutInputs {
+                owned_sequences: &bounds,
+                ..Default::default()
+            },
+        )
+        .unwrap();
         for access in [
             terminal_psi::StructuralAccess::SharedBorrow,
             terminal_psi::StructuralAccess::MutableBorrow,
@@ -1369,31 +1416,55 @@ mod owned_sequence_tests {
         );
         let wrong_owner = [(rows[2].id, 3)];
         assert_eq!(
-            NativeGeometry::with_owned_sequence_bounds(&rows, &wrong_owner)
-                .unwrap()
-                .shape(owned),
+            NativeGeometry::with_storage_inputs(
+                &rows,
+                StorageLayoutInputs {
+                    owned_sequences: &wrong_owner,
+                    ..Default::default()
+                }
+            )
+            .unwrap()
+            .shape(owned),
             Err(TerminalLayoutError::UnclosedOwnedSequence(owned))
         );
         let duplicate = [(owned, 1), (owned, 3)];
         assert_eq!(
-            NativeGeometry::with_owned_sequence_bounds(&rows, &duplicate)
-                .unwrap()
-                .shape(owned),
+            NativeGeometry::with_storage_inputs(
+                &rows,
+                StorageLayoutInputs {
+                    owned_sequences: &duplicate,
+                    ..Default::default()
+                }
+            )
+            .unwrap()
+            .shape(owned),
             Err(TerminalLayoutError::InvalidStorageGeometry(owned))
         );
         let overflow = [(owned, u64::MAX)];
         assert_eq!(
-            NativeGeometry::with_owned_sequence_bounds(&rows, &overflow)
-                .unwrap()
-                .shape(owned),
+            NativeGeometry::with_storage_inputs(
+                &rows,
+                StorageLayoutInputs {
+                    owned_sequences: &overflow,
+                    ..Default::default()
+                }
+            )
+            .unwrap()
+            .shape(owned),
             Err(TerminalLayoutError::StructuralTypeTooLarge(owned))
         );
         let empty = [(owned, 0)];
         assert_eq!(
-            NativeGeometry::with_owned_sequence_bounds(&rows, &empty)
-                .unwrap()
-                .shape(owned)
-                .unwrap(),
+            NativeGeometry::with_storage_inputs(
+                &rows,
+                StorageLayoutInputs {
+                    owned_sequences: &empty,
+                    ..Default::default()
+                }
+            )
+            .unwrap()
+            .shape(owned)
+            .unwrap(),
             ValueShape::integer(8, 8)
         );
     }

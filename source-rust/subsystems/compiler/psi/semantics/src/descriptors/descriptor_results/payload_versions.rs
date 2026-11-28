@@ -315,6 +315,31 @@ pub(crate) fn require_preserved_observed_storage(
     )
 }
 
+/// Compare the inputs observed by two instructions. A write by the first
+/// instruction itself already changes the second observation.
+pub(crate) fn require_unchanged_between_inputs(
+    types: &[StructuralTypeDeclaration],
+    graph: &[DescriptorMachine],
+    analysis: &mut DescriptorAnalysis<'_>,
+    machine: MachineId,
+    first: DescriptorPosition,
+    later: DescriptorPosition,
+    storage: &DescriptorPayloadTarget,
+) -> Result<(), &'static str> {
+    if !analysis.uses_source_graph(types, graph) {
+        return Err("input observations belong to another immutable source graph");
+    }
+    let machine = descriptor_machine(graph, machine).ok_or("observed storage machine is absent")?;
+    require_unchanged_from(
+        machine,
+        analysis,
+        VersionStart::Before(first),
+        later,
+        storage,
+        None,
+    )
+}
+
 fn require_unchanged_between(
     machine: &DescriptorMachine,
     analysis: &mut DescriptorAnalysis<'_>,
@@ -383,6 +408,7 @@ pub(crate) fn require_unchanged_entry_storage_with_incoming(
 #[derive(Clone, Copy)]
 enum VersionStart {
     Entry,
+    Before(DescriptorPosition),
     Completed(DescriptorPosition),
 }
 
@@ -562,7 +588,7 @@ fn version_flow_from(
     };
     let entry_index = position_index(entry)?;
     let observation_index = position_index(observation)?;
-    if let VersionStart::Completed(producer) = start {
+    if let VersionStart::Completed(producer) | VersionStart::Before(producer) = start {
         position_index(producer)?;
     }
     let mut versions = vec![None; positions.len()];
@@ -578,7 +604,7 @@ fn version_flow_from(
         let after = if matches!(start, VersionStart::Completed(producer) if current == producer)
         {
             true
-        } else if before {
+        } else if before || matches!(start, VersionStart::Before(position) if current == position) {
             let modifies = match writes[current_index] {
                 Some(modifies) => modifies,
                 None => {

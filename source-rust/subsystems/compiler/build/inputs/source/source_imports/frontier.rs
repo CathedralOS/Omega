@@ -41,6 +41,7 @@ pub(crate) struct SourceStorage {
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
 pub(crate) struct RegisteredPackageRoot {
     pub(crate) root: PathBuf,
+    local_lineage: Option<source_acquisition::ExternalLocalLineage>,
     pub(crate) identity: Option<PackageKeyIdentity>,
     /// Files actually selected for Build execution. Exclude these from implicit Product discovery.
     pub(crate) build_files: std::collections::BTreeSet<PathBuf>,
@@ -55,6 +56,7 @@ impl RegisteredPackageRoot {
             .unwrap_or_else(|| {
                 roots.push(Self {
                     root: root.to_path_buf(),
+                    local_lineage: None,
                     identity: None,
                     build_files: Default::default(),
                     logical_inventory: None,
@@ -184,17 +186,40 @@ impl SourceStorage {
         &self.default_package_root
     }
 
+    fn nested_package_roots(&self, root: &Path) -> Vec<PathBuf> {
+        let parent = self
+            .package_roots
+            .iter()
+            .find(|owner| owner.root == root)
+            .and_then(|owner| owner.local_lineage.as_ref());
+        self.package_roots
+            .iter()
+            .filter_map(|owner| {
+                if owner.root == root {
+                    return None;
+                }
+                if owner.root.starts_with(root) {
+                    return Some(owner.root.clone());
+                }
+                let (parent, child) = (parent?, owner.local_lineage.as_ref()?);
+                if parent.source_context() != child.source_context() {
+                    return None;
+                }
+                let relative = child
+                    .canonical_absolute_path()
+                    .strip_prefix(parent.canonical_absolute_path())
+                    .ok()?;
+                (!relative.as_os_str().is_empty()).then(|| root.join(relative))
+            })
+            .collect()
+    }
+
     /// A named Product checks every declaration owned by its subject, including
     /// modules that no entry imports. Units already checked under Build authority
     /// enter Product scope only through its normal entry and import requests.
     pub(crate) fn product_subject_sources(&self) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
         let root = &self.default_package_root;
-        let nested_packages: Vec<_> = self
-            .package_roots
-            .iter()
-            .map(|package| package.root.as_path())
-            .filter(|package| *package != root && package.starts_with(root))
-            .collect();
+        let nested_packages = self.nested_package_roots(root);
         let build_units = self
             .sources
             .selected_files()
@@ -242,12 +267,7 @@ impl SourceStorage {
         {
             return Ok(Vec::new());
         }
-        let excluded = self
-            .package_roots
-            .iter()
-            .filter(|package| package.root != root && package.root.starts_with(&root))
-            .map(|package| package.root.clone())
-            .collect();
+        let excluded = self.nested_package_roots(&root);
         self.package_roots
             .operator_family_sources(&root, path, &self.filesystem, excluded)
             .map(|paths| paths.into_iter().map(|path| (path, scope)).collect())
@@ -660,12 +680,16 @@ impl SourceStorage {
     }
 
     pub(super) fn register_package_graph(&mut self, graph: &crate::PackageCompilationInputs) {
-        for (identity, root, entries) in graph.source_owners() {
-            self.register_package_root(
+        for (identity, source) in graph.source_owners() {
+            let root = &source.source_root;
+            let owner = self.register_package_root(
                 root,
-                Some(identity),
-                entries.filenames().map(|file| root.join(file)),
+                Some(*identity),
+                source.build_entries.filenames().map(|file| root.join(file)),
             );
+            if let Some(lineage) = &source.local_lineage {
+                owner.local_lineage = Some(lineage.clone());
+            }
         }
     }
 
@@ -674,11 +698,12 @@ impl SourceStorage {
         root: &Path,
         identity: Option<PackageKeyIdentity>,
         build_files: impl IntoIterator<Item = PathBuf>,
-    ) {
+    ) -> &mut RegisteredPackageRoot {
         // The graph and the selected stages both supply canonical captured paths.
         let owner = RegisteredPackageRoot::for_root(&mut self.package_roots, root);
         owner.identity = owner.identity.or(identity);
         owner.build_files.extend(build_files);
+        owner
     }
 
     pub fn admit_source(

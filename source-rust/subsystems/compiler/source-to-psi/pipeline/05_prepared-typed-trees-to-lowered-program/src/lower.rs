@@ -66,6 +66,7 @@ mod join_reads;
 pub(crate) mod machine_order;
 pub(crate) mod operational;
 mod operations;
+mod packages;
 pub(crate) mod places;
 mod ranking;
 pub(crate) mod suspension;
@@ -96,6 +97,7 @@ use crate::{MachineSources, SourceOrigin, Unpositioned, Unserved, refuse, reject
 #[derive(Debug)]
 pub(crate) struct Lowered {
     pub machine: TerminalMachine,
+    pub packages: terminal_psi::TerminalPackageCatalog,
     pub tables: MachineTables,
     /// The write log this machine was lowered with. Production drops it with
     /// the lowering; tests read it to see what each operation stored.
@@ -572,6 +574,8 @@ impl<'a> Lowering<'a> {
             designated: Vec::new(),
             source_calls: Vec::new(),
             static_reach_applications: Vec::new(),
+            packages: Default::default(),
+            package_uses: Default::default(),
             source_constructions: Vec::new(),
             source_folded_calls: Vec::new(),
             theorem_applications: Vec::new(),
@@ -898,6 +902,8 @@ struct Lowering<'a> {
     writes: Vec<places::WriteRow>,
     sources: MachineSources,
     designated: Vec<(OperationId, crate::DesignatedOperands)>,
+    packages: terminal_psi::TerminalPackageCatalog,
+    package_uses: packages::PackageUses,
     source_calls: Vec<crate::source_state::SourceCallCorrespondence>,
     theorem_applications: Vec<terminal_psi::TheoremApplication>,
     theorem_citations: Vec<terminal_psi::TheoremCitation>,
@@ -1593,6 +1599,7 @@ impl<'a> Lowering<'a> {
             theorem_applications: self.theorem_applications,
             theorem_citations: self.theorem_citations,
             static_reach_applications: self.static_reach_applications,
+            packages: self.packages,
             source_constructions: self.source_constructions,
             source_folded_calls: self.source_folded_calls,
             invariants: self.invariants,

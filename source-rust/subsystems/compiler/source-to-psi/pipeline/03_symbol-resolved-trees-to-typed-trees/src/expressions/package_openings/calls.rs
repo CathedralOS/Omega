@@ -13,7 +13,7 @@ impl OpeningScope<'_> {
         callee: ExpressionHandle,
         arguments: &[ExpressionHandle],
     ) -> Result<Option<PackageOpeningHandle>, Diagnostic> {
-        if self.live.is_empty()
+        if self.facts.openings.is_empty()
             || !arguments
                 .iter()
                 .any(|&arg| program.package_projection(arg).is_some())
@@ -42,7 +42,7 @@ impl OpeningScope<'_> {
             let Some(field) = program.package_projection(argument) else {
                 return Ok(None);
             };
-            if !self.live.contains(&field.opening)
+            if !self.facts.openings.contains(&field.opening)
                 || borrowed.is_some_and(|old| old != field.opening)
                 || !reborrows_witness(program, field, parameter.type_reference)
             {

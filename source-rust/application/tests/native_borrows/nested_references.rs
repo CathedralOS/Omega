@@ -103,6 +103,36 @@ fn replacing_a_reference_through_its_native_address_changes_only_the_slot() {
 }
 
 #[test]
+fn a_helper_updates_the_callers_reference_slot_through_its_address() {
+    let source = r#"
+machine load<'a>(location: address, replacement: @'a u8) -> u8 {
+    let view: @mutable @'a u8 = |native|::borrow_mutable_at::<@'a u8>(location);
+    $view = replacement;
+    let restored: @'a u8 = $view;
+    $restored
+}
+machine inspect<'a>(source: @'a u8, replacement: @'a u8) -> bool {
+    let mutable slot: @'a u8 = source;
+    let loaded: u8 = load(address_of(@slot), replacement);
+    loaded == 31u8 && $slot == 31u8 && $source == 19u8 && $replacement == 31u8
+}
+machine main() crashes Trap {
+    let a: u8 = 19u8;
+    let b: u8 = 31u8;
+    transition inspect(@a, @b) { true -> {}, false -> wrong() }
+    machine wrong() { crash Trap; }
+}"#;
+    Program::new(source, &[READ, super::WRITE]).assert_native_returns();
+    let denied = source.replace("    $restored\n", "    $restored = 7u8;\n    $restored\n");
+    let output = Program::new(&denied, &[READ, super::WRITE]).check();
+    let message = super::report(&output);
+    assert!(
+        !output.status.success() && message.contains("grants shared access only"),
+        "{message}"
+    );
+}
+
+#[test]
 fn the_inner_lifetime_cannot_extend_a_native_borrow_of_the_local_slot() {
     let code = r#"
 machine leave<'a>(arg: @'a u8) -> @'a @'a u8 {
@@ -170,4 +200,141 @@ machine main() crashes Trap {
         !output.status.success() && message.contains("local storage cannot establish"),
         "{message}"
     );
+}
+
+#[test]
+fn an_explicit_borrow_keeps_its_layer_at_a_named_call() {
+    const BODY: &str = r#"
+data Pair { value: u8 }
+machine read(pair: @Pair) -> u8 { pair.value }
+machine relay(pair: @Pair) -> u8 { read(ARGUMENT) }
+machine main() crashes Trap {
+    let owned: Pair = Pair { value: 43u8 };
+    transition relay(@owned) == 43u8 { true -> {}, _ -> wrong() }
+    machine wrong() { crash Trap; }
+}"#;
+    let refused = Program::new(&BODY.replace("ARGUMENT", "@pair"), &[]).check();
+    let diagnostic = super::report(&refused);
+    assert!(
+        !refused.status.success()
+            && diagnostic.contains("adds a reference layer beyond the destination type")
+            && !diagnostic.contains("not supported yet"),
+        "{diagnostic}"
+    );
+    for expression in ["pair", "@$pair"] {
+        let program = Program::new(&BODY.replace("ARGUMENT", expression), &[]);
+        program.assert_psi_returns();
+        program.assert_native_returns();
+    }
+}
+
+#[test]
+fn forwarding_an_existing_reference_preserves_its_inner_reference() {
+    let body = r#"
+machine read<'a>(view: @@'a u8) -> u8 {
+    let inner: @'a u8 = $view;
+    $inner
+}
+machine relay<'a>(view: @@'a u8) -> u8 { read(view) }
+machine inspect<'a>(source: @'a u8) -> u8 {
+    let slot: @'a u8 = source;
+    let view: @@'a u8 = FORMATION;
+    relay(view)
+}
+machine main() crashes Trap {
+    let value: u8 = 53u8;
+    transition inspect(@value) == 53u8 { true -> {}, false -> wrong() }
+    machine wrong() { crash Trap; }
+}"#;
+    let ordinary = Program::new(&body.replace("FORMATION", "@slot"), &[]);
+    ordinary.assert_psi_returns();
+    ordinary.assert_native_returns();
+    let native = body.replace(
+        "FORMATION",
+        "|native|::borrow_at::<@'a u8>(address_of(@slot))",
+    );
+    Program::new(&native, &[READ]).assert_native_returns();
+
+    let mutable_cell = native.replace("let slot:", "let mutable slot:");
+    let replace = "let edit: @mutable @'a u8 = |native|::borrow_mutable_at::<@'a u8>(address_of(@slot)); $edit = source;";
+    let grants = &[READ, super::WRITE];
+    let before = mutable_cell.replace("    let view:", &format!("    {replace}\n    let view:"));
+    Program::new(&before, grants).assert_native_returns();
+    let overlapping = mutable_cell.replace(
+        "    relay(view)",
+        &format!("    {replace}\n    relay(view)"),
+    );
+    let refused = Program::new(&overlapping, grants).check();
+    let message = super::report(&refused);
+    assert!(
+        !refused.status.success()
+            && message.contains("storage is changed while a conflicting reference remains live"),
+        "{message}"
+    );
+}
+
+#[test]
+fn a_nested_reference_argument_keeps_each_written_layer() {
+    let body = r#"
+machine read(value: @@u8) -> u8 { $$value }
+machine main() crashes Trap {
+    let owned: u8 = 53u8;
+    let slot: @u8 = @owned;
+    transition read(ARGUMENT) == 53u8 { true -> {}, _ -> wrong() }
+    machine wrong() { crash Trap; }
+}"#;
+    let refused = Program::new(&body.replace("ARGUMENT", "@@slot"), &[]).check();
+    let message = super::report(&refused);
+    assert!(
+        !refused.status.success()
+            && message.contains("adds a reference layer beyond the destination type"),
+        "{message}"
+    );
+    for argument in ["@slot", "@@owned"] {
+        let program = Program::new(&body.replace("ARGUMENT", argument), &[]);
+        program.assert_psi_returns();
+        program.assert_native_returns();
+    }
+}
+
+#[test]
+fn a_binding_field_or_return_checks_the_same_written_borrow_as_a_call() {
+    let source = r#"
+data Pair { value: u8 }
+data Holder<'a> { pair: @'a Pair }
+machine read(pair: @Pair) -> u8 { pair.value }
+DECLARATION
+machine main() crashes Trap {
+    let owned: Pair = Pair { value: 39u8 };
+    transition RESULT == 39u8 { true -> {}, false -> wrong() }
+    machine wrong() { crash Trap; }
+}"#;
+    for (declaration, result) in [
+        (
+            "machine relay(pair: @Pair) -> u8 { let stored: @Pair = FORM; read(stored) }",
+            "relay(@owned)",
+        ),
+        (
+            "machine relay<'a>(pair: @'a Pair) -> u8 { let holder: Holder<'a> = Holder { pair: FORM }; read(holder.pair) }",
+            "relay(@owned)",
+        ),
+        (
+            "machine relay<'a>(pair: @'a Pair) -> @'a Pair { FORM }",
+            "read(relay(@owned))",
+        ),
+    ] {
+        let body = source
+            .replace("DECLARATION", declaration)
+            .replace("RESULT", result);
+        let refused = Program::new(&body.replace("FORM", "@pair"), &[]).check();
+        let diagnostic = super::report(&refused);
+        assert!(
+            !refused.status.success()
+                && diagnostic.contains("adds a reference layer beyond the destination type"),
+            "{declaration}: {diagnostic}"
+        );
+        let valid = Program::new(&body.replace("FORM", "@$pair"), &[]);
+        valid.assert_psi_returns();
+        valid.assert_native_returns();
+    }
 }

@@ -657,12 +657,7 @@ impl<'m> ModuleAnalyses<'m> {
         kind: DescriptorSlotKind,
         rows: &'s DescriptorRows<'_>,
     ) -> DescriptorAnalysis<'s> {
-        let mut analysis = DescriptorAnalysis::with_type_index(
-            &self.module.types.structural_types,
-            self.types(),
-            rows.view(),
-            kind,
-        );
+        let mut analysis = DescriptorAnalysis::with_type_index(self, rows.view(), kind);
         if kind == DescriptorSlotKind::BorrowedStorage {
             let replays = self.replays.get_or_init(|| {
                 ModuleSummaries::for_family(self.module, self.family(kind).identity)

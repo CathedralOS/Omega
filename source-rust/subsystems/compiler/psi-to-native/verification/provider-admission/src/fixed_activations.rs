@@ -63,9 +63,9 @@ pub(super) fn settle<'a>(
         let geometry = match geometry.as_ref() {
             Some(layout) => layout,
             None => geometry.insert(
-                NativeGeometry::with_value_storage(
+                NativeGeometry::with_storage_inputs(
                     catalog.as_slice(),
-                    catalog.value_storage(),
+                    catalog.storage_inputs(),
                     profile.native_target(),
                 )
                 .map_err(|_| {

@@ -34,10 +34,3 @@ impl ExecutionOwnerHome {
         self.alignment
     }
 }
-
-/// Both slices belong to the same target-bound structural declarations.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct NativeValueStorage<'a> {
-    pub sequences: &'a [(StructuralTypeId, u64)],
-    pub execution_owners: &'a [ExecutionOwnerHome],
-}

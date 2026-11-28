@@ -22,7 +22,10 @@ pub(crate) mod module_summaries;
 pub(crate) mod provider;
 pub(crate) mod summary_interface;
 use crate::runtime_structural_path_tip;
-pub use analysis::{DescriptorAnalysis, DescriptorSourceObservation, DescriptorSourceObservations};
+pub use analysis::{
+    DescriptorAnalysis, DescriptorSourceObservation, DescriptorSourceObservations,
+    LocalReturnBacking,
+};
 use engine::Replay;
 
 /// A physical place, or the native storage reached by a scalar formal.
@@ -54,6 +57,8 @@ pub struct DescriptorResultContents {
     /// The flow retains all possible input loans for these descriptors.
     /// This lifetime account supplies no unique spatial origin.
     pub unresolved_slots: Vec<Vec<DescriptorPathSegment>>,
+    /// Concrete referents at return slots reached from checked package initializers.
+    pub(crate) package_referents: crate::packages::ReturnedReferences,
     pub(crate) case_facts: case_flow::ResultCases,
 }
 

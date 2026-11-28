@@ -21,9 +21,35 @@ pub struct StructuralTypeCatalog(
     Arc<Vec<TerminalAccessViewInput>>,
     Option<Arc<RetainedQuotients>>,
     Option<Arc<RetainedAccessLifecycles>>,
-    Arc<Vec<(StructuralTypeId, u64)>>,
-    Arc<Vec<runtime_abi::ExecutionOwnerHome>>,
+    Arc<LayoutFacts>,
 );
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct LayoutFacts {
+    owned_sequences: Vec<(StructuralTypeId, u64)>,
+    package_witnesses: Vec<StructuralTypeId>,
+    execution_owners: Vec<runtime_abi::ExecutionOwnerHome>,
+}
+
+impl LayoutFacts {
+    fn is_empty(&self) -> bool {
+        self.owned_sequences.is_empty() && self.package_witnesses.is_empty() && self.execution_owners.is_empty()
+    }
+}
+
+/// Facts that affect native storage beyond a type's declared shape.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct StorageLayoutInputs<'a> {
+    pub owned_sequences: &'a [(StructuralTypeId, u64)],
+    pub package_witnesses: &'a [StructuralTypeId],
+    pub execution_owners: &'a [runtime_abi::ExecutionOwnerHome],
+}
+
+impl StorageLayoutInputs<'_> {
+    pub fn is_package_witness(self, id: StructuralTypeId) -> bool {
+        self.package_witnesses.binary_search(&id).is_ok()
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct RetainedAccessLifecycles {
@@ -50,7 +76,6 @@ impl StructuralTypeCatalog {
             && Arc::ptr_eq(&self.2, &other.2)
             && Arc::ptr_eq(&self.3, &other.3)
             && Arc::ptr_eq(&self.6, &other.6)
-            && Arc::ptr_eq(&self.7, &other.7)
             && match (&self.4, &other.4) {
                 (None, None) => true,
                 (Some(left), Some(right)) => Arc::ptr_eq(left, right),
@@ -118,7 +143,6 @@ impl StructuralTypeCatalog {
             None,
             None,
             Arc::default(),
-            Arc::default(),
         )
     }
 
@@ -128,23 +152,32 @@ impl StructuralTypeCatalog {
     /// every value still carries its own live length. No constructor means no
     /// bound, rather than permission to invent one for an external input.
     pub fn with_owned_sequence_bounds(mut self, bounds: Vec<(StructuralTypeId, u64)>) -> Self {
-        self.6 = Arc::new(bounds);
+        Arc::make_mut(&mut self.6).owned_sequences = bounds;
         self
     }
 
     pub fn owned_sequence_bounds(&self) -> &[(StructuralTypeId, u64)] {
-        &self.6
+        &self.6.owned_sequences
     }
 
-    pub fn with_execution_owners(mut self, owners: Vec<runtime_abi::ExecutionOwnerHome>) -> Self {
-        self.7 = Arc::new(owners);
+    pub fn with_package_witnesses(
+        mut self,
+        packages: &terminal_psi::TerminalPackageCatalog,
+    ) -> Self {
+        Arc::make_mut(&mut self.6).package_witnesses = packages.abstract_witnesses();
         self
     }
 
-    pub fn value_storage(&self) -> runtime_abi::NativeValueStorage<'_> {
-        runtime_abi::NativeValueStorage {
-            sequences: &self.6,
-            execution_owners: &self.7,
+    pub fn with_execution_owners(mut self, owners: Vec<runtime_abi::ExecutionOwnerHome>) -> Self {
+        Arc::make_mut(&mut self.6).execution_owners = owners;
+        self
+    }
+
+    pub fn storage_inputs(&self) -> StorageLayoutInputs<'_> {
+        StorageLayoutInputs {
+            owned_sequences: &self.6.owned_sequences,
+            package_witnesses: &self.6.package_witnesses,
+            execution_owners: &self.6.execution_owners,
         }
     }
 
@@ -256,7 +289,6 @@ impl PartialEq<Vec<StructuralTypeDeclaration>> for StructuralTypeCatalog {
         self.4.is_none()
             && self.5.is_none()
             && self.6.is_empty()
-            && self.7.is_empty()
             && self.referents().is_empty()
             && self.access_views().is_empty()
             && self.access_view_inputs().is_empty()
@@ -269,7 +301,6 @@ impl PartialEq<StructuralTypeCatalog> for Vec<StructuralTypeDeclaration> {
         other.4.is_none()
             && other.5.is_none()
             && other.6.is_empty()
-            && other.7.is_empty()
             && other.referents().is_empty()
             && other.access_views().is_empty()
             && other.access_view_inputs().is_empty()

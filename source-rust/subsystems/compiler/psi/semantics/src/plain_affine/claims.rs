@@ -416,6 +416,41 @@ pub fn publish_contract_claims(
     publish_claims(contract, &mut cache)
 }
 
+/// A stored machine publishes the same owned parameter and result paths as
+/// its checked signature. Its caller supplies live claim IDs at those paths.
+pub fn publish_callable_claims(
+    contracts: &mut [terminal_psi::TerminalCallableContract],
+    types: &[StructuralTypeDeclaration],
+) -> Result<(), Error> {
+    if contracts.is_empty() {
+        return Ok(());
+    }
+    let mut cache = Catalogues::new(types)?;
+    for contract in contracts {
+        publish_claims(&mut contract.proof, &mut cache)?;
+        let mut entries = Vec::new();
+        for (index, parameter) in contract.structural_parameters.iter().enumerate() {
+            if parameter.access == StructuralAccess::Owned {
+                let argument_index = u32::try_from(index).map_err(|_| {
+                    Error::malformed("callable structural argument index overflows")
+                })?;
+                for path in cache.paths(parameter.structural_type)? {
+                    entries.push(terminal_psi::TerminalDynamicClaimPath {
+                        argument_index,
+                        path: path.clone(),
+                    });
+                }
+            }
+        }
+        contract.entry_claim_paths = entries;
+        contract.result_claim_paths = match contract.result.structural() {
+            Some(carrier) => cache.paths(carrier)?.to_vec(),
+            None => Vec::new(),
+        };
+    }
+    Ok(())
+}
+
 fn publish_claims(contract: &mut MachineContract, cache: &mut Catalogues<'_>) -> Result<(), Error> {
     let mut next = 1;
     let mut entries = Vec::new();

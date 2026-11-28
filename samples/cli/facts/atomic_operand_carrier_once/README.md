@@ -6,8 +6,9 @@ Owner: `ARITHMETIC-POLICY-REALIZATION`, its `IMPLICIT-STORE-CONVERSION` clause
 
 Fact: An atomic value operand is checked once against the cell's `u32` carrier: a `u32` operand exchanges the resident, and an operand of another carrier reports one implicit conversion.
 
-Every place runs the same `compare_exchange` on an `AtomicU32` holding 3. The
-matching call (`expected` 3, new value 7) returns 3 and leaves 7; the
+Every place runs the same `compare_exchange` on an `AtomicU32` holding 3.
+On exchange, the prior value equals the expected value. On mismatch, the
+outcome carries the observed value. The matching call (`expected` 3, new value 7) returns 3 and leaves 7; the
 mismatched call (`expected` 3 again, new value 9) returns 7 and leaves 7. Both
 run in every `main`, so a store on mismatch, a missing store, or a wrong prior
 fails the exit-0 oracle. Only the route of the new value to the operand differs.

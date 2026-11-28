@@ -1,0 +1,32 @@
+data File { byte: u8; }
+data Socket { port: u64; byte: u8; }
+data Read<S> = machine(input: @S) -> u8 reaches none crashes none;
+data Reader<'a, some S> [copy] { state: @'a S; read: Read<S>; }
+
+machine file_byte(input: @File) -> u8 { input.byte }
+machine socket_byte(input: @Socket) -> u8 {
+    transition input.byte == 41u8 { true -> 42u8, false -> 0u8 }
+}
+
+machine repack<'a>(reader: Reader<'a>, other: Reader<'a>) -> Reader<'a> {
+    let copy: Reader<'a> = reader;
+    Reader { state: reader.state, read: copy.read }
+}
+
+machine observe<'a>(reader: @Reader<'a>) -> u8 {
+    (reader.read)(reader.state)
+}
+
+machine main() crashes Trap {
+    let file: File = File { byte: 17u8 };
+    let socket: Socket = Socket { port: 80u64, byte: 41u8 };
+    let file_reader: Reader = Reader { state: @file, read: file_byte };
+    let socket_reader: Reader = Reader { state: @socket, read: socket_byte };
+    let first: Reader = repack(file_reader, socket_reader);
+    let second: Reader = repack(socket_reader, file_reader);
+    let a: u8 = observe(@first);
+    let b: u8 = observe(@second);
+    transition a == 17u8 && b == 42u8 { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

@@ -476,14 +476,14 @@ pub(crate) mod structural_type_lookup {
             borrowed_layouts: &'a [runtime_abi::NativeBorrowedStorageLayout],
         ) -> Result<Self, NonDenseIdentities> {
             Ok(Self {
-                layouts: StructuralLayouts::with_value_storage(
+                layouts: StructuralLayouts::with_storage_inputs(
                     source.iter(),
-                    source.value_storage(),
+                    source.storage_inputs(),
                 )?,
                 projections:
-                    legalized_operations::native_geometry::NativeGeometry::with_value_storage(
+                    legalized_operations::native_geometry::NativeGeometry::with_storage_inputs(
                         source,
-                        source.value_storage(),
+                        source.storage_inputs(),
                         target,
                     )?,
                 catalog: source,
