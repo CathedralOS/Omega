@@ -58,7 +58,6 @@ pub(super) fn validate_prepared_entry(
     module: &TerminalModule,
     boundary: &BoundaryMachineDeclaration,
 ) -> Result<(), &'static str> {
-    use application_identity::conformance_identity::{MachineOperandSelectionIdentity as Operand, requirement_application_commitment};
     use terminal_psi::{ClosedReachArgument as Arg, TerminalActivationOrigin};
     let checked = boundary.declaration.as_ref().ok_or("prepare has no checked declaration")?;
     let source = &checked.source;
@@ -73,11 +72,9 @@ pub(super) fn validate_prepared_entry(
     }
     let [Arg::Type(args), Arg::Type(out), Arg::Machine { identity, .. }, Arg::Const(plan)] =
         checked.method_arguments.as_slice() else { return Err("prepare needs its exact argument, result, worker and storage binders"); };
-    let operands = [
-        Operand::Type(text(*args)?.into()), Operand::Type(text(*out)?.into()),
-        Operand::Machine(text(*identity)?.into()), Operand::Const(text(*plan)?.into()),
-    ];
-    if requirement_application_commitment(text(closed.template_callable)?, &operands)? != closed.commitment {
+    if prepare_commitment(
+        text(closed.template_callable)?, text(*args)?, text(*out)?, text(*identity)?, text(*plan)?,
+    )? != closed.commitment {
         return Err("prepare selection differs from its closed application");
     }
     let mut plans = module.execution.task_activation_demands.iter().filter_map(|d| {
@@ -90,6 +87,23 @@ pub(super) fn validate_prepared_entry(
     }
     preparation::result_shape(module, boundary)?;
     Ok(())
+}
+
+fn prepare_commitment(
+    callable: &str,
+    arguments: &str,
+    result: &str,
+    worker: &str,
+    plan: &str,
+) -> Result<[u8; 32], &'static str> {
+    let (_, value) = terminal_psi::TerminalActivationStorage::decode_core_argument(plan)
+        .ok_or("prepare storage is not the exact core enum value")?;
+    let mut commitment = MachineApplicationCommitment::new(callable)?;
+    commitment.type_argument(arguments)?;
+    commitment.type_argument(result)?;
+    commitment.machine_argument(worker)?;
+    commitment.const_argument(&value)?;
+    Ok(commitment.finish())
 }
 
 fn named(name: &str) -> String {
@@ -373,4 +387,29 @@ pub fn park_shape(
         anchor_identity: field.identity,
         reply: source.result_type,
     })
+}
+
+#[cfg(test)]
+mod preparation_commitment_tests {
+    use super::*;
+    use terminal_psi::TerminalActivationStorage::{Fixed, Split};
+
+    #[test]
+    fn reopens_the_source_workers_typed_storage_constant() {
+        let fixed = Fixed.canonical_value().unwrap();
+        let mut source = MachineApplicationCommitment::new("prepare").unwrap();
+        source.type_argument("args").unwrap();
+        source.type_argument("out").unwrap();
+        source.machine_argument("worker").unwrap();
+        source.const_argument(&fixed).unwrap();
+        let published = source.finish();
+        let reopen = |key: &str| prepare_commitment("prepare", "args", "out", "worker", key);
+        assert_eq!(reopen(&fixed.application_identity().unwrap()), Ok(published));
+        let split = Split.canonical_value().unwrap();
+        assert_ne!(reopen(&split.application_identity().unwrap()).unwrap(), published);
+        let mut unrelated = fixed;
+        unrelated.type_name = "OtherStorage".into();
+        assert!(reopen(&unrelated.application_identity().unwrap()).is_err());
+        assert!(reopen("Fixed").is_err());
+    }
 }
