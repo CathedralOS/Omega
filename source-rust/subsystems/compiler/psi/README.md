@@ -20,6 +20,12 @@
 
 ## Changes to Psi
 
+An activation demand names either a scheduler selection or the worker and
+storage plan selected by a caller. For a caller's worker,
+[`caller_demand`](semantics/src/calls/owned_activation/demand.rs) derives the
+portable report from that worker's body, callees and recorded suspension
+points. It describes what survives a park, not a target stack size.
+
 Implementers choose the representation, operations, encoding and reconstruction
 needed for accepted Omega behavior. Human design review takes place when the
 owner requests it. Carry a change through its versioned schema, producers,

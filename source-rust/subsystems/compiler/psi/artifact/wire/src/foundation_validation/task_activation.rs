@@ -36,16 +36,12 @@ pub(crate) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
                 if !owned_preparations.insert(selection.preparation) {
                     return malformed("one prepare application has more than one activation plan");
                 }
-                let selected = selection.selected_body(module).and_then(|body| body.declaration.as_ref())
-                    .ok_or(CodecError::MalformedStructuralFoundation("prepared entry differs from the selected machine argument"))?;
-                if selected.callable != demand.machine_callable_identity || selected.state.identity() != demand.entry {
-                    return malformed("prepared entry differs from the activation frame");
-                }
-                if selected.result_type != demand.signature_outcome.normalized_identity
-                    || selected.parameter_types.iter().copied().ne(demand.signature_arguments.iter().map(|argument| argument.normalized_identity))
-                    || selected.published_may_suspend != demand.may_suspend
-                    || selected.published_may_block != demand.may_block {
-                    return malformed("prepared activation signature differs from its selected body");
+                // The caller reserves backing from this report. Checking just its
+                // signature would allow an image to omit a live value at a park.
+                let required = terminal_semantics::calls::owned_activation::caller_demand(module, *selection)
+                    .map_err(CodecError::MalformedStructuralFoundation)?;
+                if *demand != required {
+                    return malformed("prepared activation storage demand differs from its selected worker");
                 }
             }
         }

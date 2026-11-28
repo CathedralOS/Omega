@@ -42,6 +42,22 @@ impl TerminalActivationStorage {
     /// Close the same core enum value the source supplies to the plan binder.
     /// Neither a display spelling nor a case of another enum selects storage.
     pub fn from_core_argument(argument: &str) -> Option<Self> {
+        Self::decode_core_argument(argument).map(|(mode, _)| mode)
+    }
+
+    pub fn decode_core_argument(
+        argument: &str,
+    ) -> Option<(Self, application_identity::const_value::CanonicalConstValue)> {
+        [Self::Fixed, Self::Split].into_iter().find_map(|mode| {
+            let value = mode.canonical_value()?;
+            (value.application_identity()?.as_str() == argument).then_some((mode, value))
+        })
+    }
+
+    /// The storage binder is a typed enum constant. A commitment to a machine
+    /// application includes its checked carrier and encoded value, not a key
+    /// printed for a requirement's operands.
+    pub fn canonical_value(self) -> Option<application_identity::const_value::CanonicalConstValue> {
         use application_identity::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
         use application_identity::type_identity::{
             encoding::{atom, bare, compound},
@@ -51,14 +67,12 @@ impl TerminalActivationStorage {
             bare(OwnerForm::Toolchain), atom(Label::Path, "ActivationStorage"),
         ]);
         let carrier = compound(TypeForm::Named, [atom(Label::Name, &name)]);
-        [(Self::Fixed, "Fixed"), (Self::Split, "Split")].into_iter().find_map(|(mode, case)| {
-            let value = DecodedCanonicalConstValue::Variant {
-                type_name: "ActivationStorage".into(), case_name: case.into(), fields: Vec::new(),
-            };
-            let key = CanonicalConstValue::from_decoded_in_type(&carrier, &value, "")?
-                .application_identity()?;
-            (key == argument).then_some(mode)
-        })
+        let value = DecodedCanonicalConstValue::Variant {
+            type_name: "ActivationStorage".into(),
+            case_name: match self { Self::Fixed => "Fixed", Self::Split => "Split" }.into(),
+            fields: Vec::new(),
+        };
+        CanonicalConstValue::from_decoded_in_type(&carrier, &value, "")
     }
 }
 

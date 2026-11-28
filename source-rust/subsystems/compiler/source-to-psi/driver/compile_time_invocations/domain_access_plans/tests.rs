@@ -202,6 +202,15 @@ fn preparing_a_child_names_its_worker_and_returns_the_rejected_backing() {
     let mut forged = *entry;
     forged.storage = terminal_psi::TerminalActivationStorage::Split;
     assert!(forged.selected_body(&reopened).is_none());
+    // Keep the selected worker and signature intact but understate the
+    // storage needed for its input. The receiver has the body to catch it.
+    let mut understated = reopened;
+    understated.execution.task_activation_demands[0].frames[0].states[0]
+        .crossing_arguments[0].clear();
+    let refused = terminal_codec::encode_module(&understated)
+        .and_then(|bytes| terminal_codec::decode_module(&bytes))
+        .unwrap_err();
+    assert!(refused.to_string().contains("storage demand differs"), "{refused}");
 }
 
 #[test]

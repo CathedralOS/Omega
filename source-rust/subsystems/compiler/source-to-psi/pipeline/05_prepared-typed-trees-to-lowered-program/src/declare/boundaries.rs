@@ -221,6 +221,7 @@ impl BoundaryNamespace {
                     crate::declare::boundary(
                         reader.typed,
                         source.source,
+                        &source.declaration,
                         execution,
                         &source.signature,
                         crate::declare::Published {

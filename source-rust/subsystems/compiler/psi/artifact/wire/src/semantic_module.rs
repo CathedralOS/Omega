@@ -2378,7 +2378,7 @@ mod reference_transport_tests {
             },
         );
         assert!(matches!(decode_module(&encode_raw(&unbound).unwrap()),
-            Err(CodecError::MalformedStructuralFoundation("prepared entry differs from the selected machine argument"))));
+            Err(CodecError::MalformedStructuralFoundation("prepare selected a different worker or storage plan"))));
 
         // ID 1 describes only what a reference points at. Its own storage
         // cannot be used as an activation result or a resident frame value.
