@@ -83,6 +83,60 @@ machine main() crashes Trap {
     Program::of(source).judged(|_| ()).accepted();
 }
 
+#[test]
+fn opened_callbacks_can_mutate_separate_local_lenders() {
+    let source = r#"data File { byte: u8; unused: u8; }
+data Socket { port: u64; byte: u8; }
+
+data Read<S> = machine(state: @mutable S) -> u8 reaches none crashes none;
+data Reader<'a, some S> {
+    state: @'a mutable S;
+    read: Read<S>;
+}
+
+machine read_file(state: @mutable File) -> u8 reaches none crashes none {
+    let old: u8 = state.byte;
+    state.byte = old +% 1u8;
+    old
+}
+machine read_socket(state: @mutable Socket) -> u8 reaches none crashes none {
+    let old: u8 = state.byte;
+    state.byte = old +% 1u8;
+    old
+}
+
+machine main() crashes Trap {
+    let mutable file: File = File { byte: 17u8, unused: 91u8 };
+    let mutable socket: Socket = Socket { port: 80u64, byte: 41u8 };
+    let mutable readers: [Reader; 2] = [
+        Reader { state: @mutable file, read: read_file },
+        Reader { state: @mutable socket, read: read_socket }
+    ];
+    let first: u8 = (readers[0].read)(readers[0].state);
+    let second: u8 = (readers[1].read)(readers[1].state);
+    transition first == 17u8 && second == 41u8 && file.byte == 18u8 && socket.byte == 42u8 {
+        true -> done(),
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}
+"#;
+    Program::of(source).judged(|_| ()).accepted();
+
+    // The hidden File can now carry an address beyond its own numeric fields.
+    // The next stored callback needs independent evidence that it survived.
+    let with_address = source
+        .replace("unused: u8", "raw: address")
+        .replace("unused: 91u8", "raw: incoming")
+        .replace("machine main()", "machine main(incoming: address)");
+    let refusal = Program::of(&with_address).judged(|_| ()).refused();
+    assert!(
+        refusal.detail.contains("no retained entry origin"),
+        "{refusal:?}"
+    );
+}
+
 /// `run(action, 3u8)` passes a descriptor that names `action`, and
 /// `run(second, 3u8)` in the same body one that names `second`, although
 /// both machines have the same type.
