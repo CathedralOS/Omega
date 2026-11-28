@@ -50,6 +50,8 @@ pub enum SealedIntrinsic {
     LayoutTargetFacts,
     /// A control transfer that the execution owner, not a selected foreign provider, serves.
     OwnedActivation(ActivationOperation),
+    /// Return the backing of a checked empty core Run.
+    EmptyRunRelease,
     /// Core's ordinary identity body also records an exact private-slot placement.
     PrivateLayoutPlacement,
     /// Core `layout.omg`'s free placed `read` or `write` primitive.
@@ -75,6 +77,13 @@ pub enum SealedIntrinsic {
     FixedImageRequirement(FixedImageOperation),
     /// The bundled `uefi_x86_64` realization of a fixed-image requirement.
     FixedImageRealization(FixedImageOperation),
+}
+
+impl SealedIntrinsic {
+    /// These operations publish a closed copy of their authored bodyless header.
+    pub fn specializes_bodyless_header(self) -> bool {
+        matches!(self, Self::OwnedActivation(_) | Self::EmptyRunRelease)
+    }
 }
 
 /// Catalog identity only; the complete machine declaration owns its signature
@@ -813,6 +822,12 @@ const ROWS: &[SealedIntrinsicRow] = &[
         "access::view_mut_from_profile",
         BundledFile::CoreAccess,
         lifecycle(PlacementOperation::View, PlacementContent::Resident),
+    ),
+    row(
+        "run.omg",
+        "Run::retire_empty",
+        BundledFile::CoreRun,
+        SealedIntrinsic::EmptyRunRelease,
     ),
     row(
         "run.omg",
