@@ -2105,6 +2105,37 @@ use source_text::{SourceSpan, Span};
 use std::path::PathBuf;
 use std::sync::Arc;
 
+#[test]
+fn a_nominal_callable_type_selects_the_requirement_of_its_own_trait() {
+    let mut builder = SymbolTableBuilder::new();
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let owners = builder.insert_children(
+        root,
+        [
+            (SymbolKind::Trait, SymbolNameRef::Static("First")),
+            (SymbolKind::Trait, SymbolNameRef::Static("Second")),
+            (SymbolKind::Machine, SymbolNameRef::Static("Unrelated")),
+        ],
+    );
+    let requirements: Vec<_> = SymbolTableBuilder::child_handles(owners)
+        .map(|owner| {
+            let members = builder
+                .insert_children(owner, [(SymbolKind::State, SymbolNameRef::Static("read"))]);
+            SymbolTableBuilder::child_handles(members).next().unwrap()
+        })
+        .collect();
+    let symbols = builder.finish();
+    let lookup = |name: &str| {
+        symbols
+            .lookup_source_type(name, SourceSpan::default())
+            .unique()
+    };
+    assert_eq!(lookup("First::read"), Some(requirements[0]));
+    assert_eq!(lookup("Second::read"), Some(requirements[1]));
+    assert_eq!(lookup("First::missing"), None);
+    assert_eq!(lookup("Unrelated::read"), None);
+}
+
 fn main_entry_symbols() -> SymbolTable {
     let mut builder = SymbolTableBuilder::new();
     let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
