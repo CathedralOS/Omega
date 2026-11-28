@@ -1,0 +1,233 @@
+{
+  "host": {
+    "architecture": "x86_64",
+    "compiler": "/workspace/cloud-setup/cache/mbx/targets/v1/7f304042359c221355c6ae2f1e712114aec3d76adde742209dc8d0cca28fec27/release/omega",
+    "compiler_sha256": "f1f2c14a870a4957b671499bc3ba0d90b5fc88f7a108ef060f59abb557f4c987",
+    "cpu_model": "INTEL(R) XEON(R) PLATINUM 8573C",
+    "fixture_base": "e6477bc08c36684b78cca182ba91bd012b4c5a4d",
+    "head": "e6477bc08c36684b78cca182ba91bd012b4c5a4d",
+    "os": "linux",
+    "rayon_num_threads": null,
+    "workers_available": 4
+  },
+  "trials": [
+    {
+      "arguments": [
+        "build",
+        "--target",
+        "linux_x86_64",
+        "--build-dir",
+        "/workspace/scratch/omega-package-reuse-e647-linux/cold-1/product",
+        "/workspace/Omega/.agents/worktree/worker-1/source-rust/application/tests/fixtures/filesystem/run/public_values/build.omg"
+      ],
+      "build_sha256": "dc4bda0f879ed834eb3f9ff081d6a0b00e483fd86bebe8c3e0c3f29e5d8ca7fd",
+      "cache": "/workspace/scratch/omega-package-reuse-e647-linux/cold-cache-1",
+      "cache_files_after": 0,
+      "cache_files_before": 0,
+      "case": "cold-1",
+      "cwd": "/workspace/scratch/omega-package-reuse-e647-linux/cold-1/cwd",
+      "elapsed_ns": 214205620063,
+      "image": "/workspace/scratch/omega-package-reuse-e647-linux/cold-1/product/omega-program",
+      "image_bytes": 524288,
+      "image_sha256": "377cf86f898520ee6e68d736d2b816c3d2c7480391801e8c561d7ea28c449cec",
+      "main_sha256": "85df47708700d685cf77bae0fed481298d00ab8808885de9ae63e2e78cab9fa8",
+      "native_exit": 0,
+      "returncode": 0
+    },
+    {
+      "arguments": [
+        "build",
+        "--target",
+        "linux_x86_64",
+        "--build-dir",
+        "/workspace/scratch/omega-package-reuse-e647-linux/cold-2/product",
+        "/workspace/Omega/.agents/worktree/worker-1/source-rust/application/tests/fixtures/filesystem/run/public_values/build.omg"
+      ],
+      "build_sha256": "dc4bda0f879ed834eb3f9ff081d6a0b00e483fd86bebe8c3e0c3f29e5d8ca7fd",
+      "cache": "/workspace/scratch/omega-package-reuse-e647-linux/cold-cache-2",
+      "cache_files_after": 0,
+      "cache_files_before": 0,
+      "case": "cold-2",
+      "cwd": "/workspace/scratch/omega-package-reuse-e647-linux/cold-2/cwd",
+      "elapsed_ns": 173394406117,
+      "image": "/workspace/scratch/omega-package-reuse-e647-linux/cold-2/product/omega-program",
+      "image_bytes": 524288,
+      "image_sha256": "377cf86f898520ee6e68d736d2b816c3d2c7480391801e8c561d7ea28c449cec",
+      "main_sha256": "85df47708700d685cf77bae0fed481298d00ab8808885de9ae63e2e78cab9fa8",
+      "native_exit": 0,
+      "returncode": 0
+    },
+    {
+      "arguments": [
+        "build",
+        "--target",
+        "linux_x86_64",
+        "--build-dir",
+        "/workspace/scratch/omega-package-reuse-e647-linux/cold-3/product",
+        "/workspace/Omega/.agents/worktree/worker-1/source-rust/application/tests/fixtures/filesystem/run/public_values/build.omg"
+      ],
+      "build_sha256": "dc4bda0f879ed834eb3f9ff081d6a0b00e483fd86bebe8c3e0c3f29e5d8ca7fd",
+      "cache": "/workspace/scratch/omega-package-reuse-e647-linux/cold-cache-3",
+      "cache_files_after": 0,
+      "cache_files_before": 0,
+      "case": "cold-3",
+      "cwd": "/workspace/scratch/omega-package-reuse-e647-linux/cold-3/cwd",
+      "elapsed_ns": 200254006629,
+      "image": "/workspace/scratch/omega-package-reuse-e647-linux/cold-3/product/omega-program",
+      "image_bytes": 524288,
+      "image_sha256": "377cf86f898520ee6e68d736d2b816c3d2c7480391801e8c561d7ea28c449cec",
+      "main_sha256": "85df47708700d685cf77bae0fed481298d00ab8808885de9ae63e2e78cab9fa8",
+      "native_exit": 0,
+      "returncode": 0
+    },
+    {
+      "arguments": [
+        "build",
+        "--target",
+        "linux_x86_64",
+        "--build-dir",
+        "/workspace/scratch/omega-package-reuse-e647-linux/prepare/product",
+        "/workspace/scratch/omega-package-reuse-e647-linux/source-copy/source-rust/application/tests/fixtures/filesystem/run/public_values/build.omg"
+      ],
+      "build_sha256": "dc4bda0f879ed834eb3f9ff081d6a0b00e483fd86bebe8c3e0c3f29e5d8ca7fd",
+      "cache": "/workspace/scratch/omega-package-reuse-e647-linux/edited-cache",
+      "cache_files_after": 0,
+      "cache_files_before": 0,
+      "case": "prepare",
+      "cwd": "/workspace/scratch/omega-package-reuse-e647-linux/prepare/cwd",
+      "elapsed_ns": 189918031767,
+      "image": "/workspace/scratch/omega-package-reuse-e647-linux/prepare/product/omega-program",
+      "image_bytes": 524288,
+      "image_sha256": "377cf86f898520ee6e68d736d2b816c3d2c7480391801e8c561d7ea28c449cec",
+      "main_sha256": "85df47708700d685cf77bae0fed481298d00ab8808885de9ae63e2e78cab9fa8",
+      "native_exit": 0,
+      "returncode": 0
+    },
+    {
+      "arguments": [
+        "build",
+        "--target",
+        "linux_x86_64",
+        "--build-dir",
+        "/workspace/scratch/omega-package-reuse-e647-linux/edited-1/product",
+        "/workspace/scratch/omega-package-reuse-e647-linux/source-copy/source-rust/application/tests/fixtures/filesystem/run/public_values/build.omg"
+      ],
+      "build_sha256": "dc4bda0f879ed834eb3f9ff081d6a0b00e483fd86bebe8c3e0c3f29e5d8ca7fd",
+      "cache": "/workspace/scratch/omega-package-reuse-e647-linux/edited-cache",
+      "cache_files_after": 0,
+      "cache_files_before": 0,
+      "case": "edited-1",
+      "cwd": "/workspace/scratch/omega-package-reuse-e647-linux/edited-1/cwd",
+      "elapsed_ns": 204352655205,
+      "image": "/workspace/scratch/omega-package-reuse-e647-linux/edited-1/product/omega-program",
+      "image_bytes": 524288,
+      "image_sha256": "9f99f4f59d3592d8778d14bb1a59708643aa6b045842b16a41a9693a622ce966",
+      "main_sha256": "5937da5e2c42995941361d901facdde6c265cd3a4f2c8f1f754465d863869828",
+      "native_exit": 0,
+      "returncode": 0
+    },
+    {
+      "arguments": [
+        "build",
+        "--target",
+        "linux_x86_64",
+        "--build-dir",
+        "/workspace/scratch/omega-package-reuse-e647-linux/edited-2/product",
+        "/workspace/scratch/omega-package-reuse-e647-linux/source-copy/source-rust/application/tests/fixtures/filesystem/run/public_values/build.omg"
+      ],
+      "build_sha256": "dc4bda0f879ed834eb3f9ff081d6a0b00e483fd86bebe8c3e0c3f29e5d8ca7fd",
+      "cache": "/workspace/scratch/omega-package-reuse-e647-linux/edited-cache",
+      "cache_files_after": 0,
+      "cache_files_before": 0,
+      "case": "edited-2",
+      "cwd": "/workspace/scratch/omega-package-reuse-e647-linux/edited-2/cwd",
+      "elapsed_ns": 216547034000,
+      "image": "/workspace/scratch/omega-package-reuse-e647-linux/edited-2/product/omega-program",
+      "image_bytes": 524288,
+      "image_sha256": "28f4cd42aad560e3a2d9beb093b2cddea76969b0eff41a92944bd18964449472",
+      "main_sha256": "5af36536d60aeb5c4cb94cc008f4ea9a9bd87e68739305f12c816a4dab14699e",
+      "native_exit": 0,
+      "returncode": 0
+    },
+    {
+      "arguments": [
+        "build",
+        "--target",
+        "linux_x86_64",
+        "--build-dir",
+        "/workspace/scratch/omega-package-reuse-e647-linux/edited-3/product",
+        "/workspace/scratch/omega-package-reuse-e647-linux/source-copy/source-rust/application/tests/fixtures/filesystem/run/public_values/build.omg"
+      ],
+      "build_sha256": "dc4bda0f879ed834eb3f9ff081d6a0b00e483fd86bebe8c3e0c3f29e5d8ca7fd",
+      "cache": "/workspace/scratch/omega-package-reuse-e647-linux/edited-cache",
+      "cache_files_after": 0,
+      "cache_files_before": 0,
+      "case": "edited-3",
+      "cwd": "/workspace/scratch/omega-package-reuse-e647-linux/edited-3/cwd",
+      "elapsed_ns": 226198875710,
+      "image": "/workspace/scratch/omega-package-reuse-e647-linux/edited-3/product/omega-program",
+      "image_bytes": 524288,
+      "image_sha256": "5dde39f32b5530b6abd3ec792ae67361443af364bd9fb2e4d3ac4ce976fd9f0e",
+      "main_sha256": "2e4a701eb1ba18ebb549fcdb36745a6f153e27de3c08496199df1aa432608d0a",
+      "native_exit": 0,
+      "returncode": 0
+    },
+    {
+      "arguments": [
+        "build",
+        "--target",
+        "linux_x86_64",
+        "--build-dir",
+        "/workspace/scratch/omega-package-reuse-e647-linux/profile/product",
+        "--timings",
+        "/workspace/Omega/.agents/worktree/worker-1/source-rust/application/tests/fixtures/filesystem/run/public_values/build.omg"
+      ],
+      "build_sha256": "dc4bda0f879ed834eb3f9ff081d6a0b00e483fd86bebe8c3e0c3f29e5d8ca7fd",
+      "cache": "/workspace/scratch/omega-package-reuse-e647-linux/profile-cache",
+      "cache_files_after": 0,
+      "cache_files_before": 0,
+      "case": "profile",
+      "cwd": "/workspace/scratch/omega-package-reuse-e647-linux/profile/cwd",
+      "elapsed_ns": 219003721448,
+      "image": "/workspace/scratch/omega-package-reuse-e647-linux/profile/product/omega-program",
+      "image_bytes": 524288,
+      "image_sha256": "377cf86f898520ee6e68d736d2b816c3d2c7480391801e8c561d7ea28c449cec",
+      "main_sha256": "85df47708700d685cf77bae0fed481298d00ab8808885de9ae63e2e78cab9fa8",
+      "native_exit": 0,
+      "returncode": 0
+    }
+  ],
+  "supplier_candidate": "1fa25da7f79fb15b81143a0f2c9975291e4f7298",
+  "supplier_trials": [
+    {
+      "supplier_manifest": "c93f5cac744aabf962eaa348adafbb4d29b76b22e45a96dce9e517a973a7babc",
+      "supplier_bytes": 22977,
+      "first_build_and_run_us": 4261151,
+      "explicit_publication_us": 252234,
+      "edited_build_and_run_us": 3628077,
+      "supplier_publications_reused": 1,
+      "edited_embedded_source_build_and_run_us": 4674391,
+      "edited_cli_control_build_and_run_us": 3456679
+    },
+    {
+      "supplier_manifest": "f4742de95f4ebe8e5da32b499dd59ca1b9e467e5df0eacb1c1d01537a05058c9",
+      "supplier_bytes": 22977,
+      "first_build_and_run_us": 3963879,
+      "explicit_publication_us": 221674,
+      "edited_build_and_run_us": 4164714,
+      "supplier_publications_reused": 1,
+      "edited_embedded_source_build_and_run_us": 4247351,
+      "edited_cli_control_build_and_run_us": 3759934
+    },
+    {
+      "supplier_manifest": "6342c8b72c3a5ef7fffba5b7ba557ec4d2d65be03f84bb741bbf5032d83e7e40",
+      "supplier_bytes": 22977,
+      "first_build_and_run_us": 4225105,
+      "explicit_publication_us": 450811,
+      "edited_build_and_run_us": 3656839,
+      "supplier_publications_reused": 1,
+      "edited_embedded_source_build_and_run_us": 3798230,
+      "edited_cli_control_build_and_run_us": 3641753
+    }
+  ]
+}

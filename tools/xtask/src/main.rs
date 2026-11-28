@@ -27,6 +27,7 @@ mod execution;
 mod fmt;
 mod gamma_invoke;
 mod host_ceiling;
+mod package_reuse_benchmark;
 mod portable_services;
 mod producer;
 mod provenance;
@@ -74,6 +75,7 @@ verification and gates:
   check-portable-services   Diff system's POSIX and Windows adapters for each portable call against a baseline
   sample-gate               Run differential native + Psi sample verification
   qualify                   Run exact sample selections with retained producer evidence
+  measure-public-values     Measure and launch cold and edited Linux x86-64 filesystem builds
   rust-producer-omission    Audit declared bootstrap dependencies (developer-only)
   vm                        Start a heavy job on a LAN VM under vm-heavy and watch its progress
 
@@ -109,6 +111,7 @@ fn main() -> ExitCode {
         "rust-producer-omission" => rust_producer_omission::run(&args),
         "sample-gate" => samples::run(&args),
         "qualify" => qualification::run(&args),
+        "measure-public-values" => package_reuse_benchmark::run(&args),
         "doctor" => doctor::run(&args),
         "claims" => claims::run(&args),
         "provenance" => provenance::run(&args),
@@ -148,6 +151,7 @@ mod tests {
             "rust-producer-omission",
             "sample-gate",
             "qualify",
+            "measure-public-values",
             "doctor",
             "claims",
             "provenance",
