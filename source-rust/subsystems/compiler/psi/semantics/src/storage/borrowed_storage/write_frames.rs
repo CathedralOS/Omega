@@ -90,8 +90,10 @@ fn write_frame_rows(
 ) -> Vec<Result<DescriptorMachine, DescriptorGraphError>> {
     let roster: Vec<_> = module.machines.iter().collect();
     let zeroed = crate::module_analyses::ZeroedCases::new(&module.types.structural_types);
+    let tracks_native_addresses = crate::storage::native_borrows::tracks_native_addresses(module);
     let adapt = |body, selectors: Option<&[DescriptorMachine]>| {
         terminal_flow::adapt(
+            tracks_native_addresses,
             module,
             &roster,
             body,

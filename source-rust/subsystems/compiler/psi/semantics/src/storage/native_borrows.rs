@@ -2,6 +2,13 @@
 use semantic_vocabulary::ValueId;
 use terminal_psi::{OperationKind, StructuralArgument, TerminalMachine};
 
+pub(crate) fn tracks_native_addresses(module: &terminal_psi::TerminalModule) -> bool {
+    module.machines.iter().any(|body| {
+        body.operations()
+            .any(|operation| matches!(operation.kind, OperationKind::BorrowAt { .. }))
+    })
+}
+
 pub struct NativeAddressOrigin<S> {
     /// Storage whose observed address contributed to this scalar, including at joins.
     pub sources: Vec<S>,
