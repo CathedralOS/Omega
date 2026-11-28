@@ -55,6 +55,61 @@ fn toolchain_name(name: &str) -> String {
     )
 }
 
+/// These results transfer the original backing through distinct cases.
+pub const fn transfers_owner(execution: terminal_psi::CheckedBoundaryExecution) -> bool {
+    use ActivationOperation::{Prepare, Resume, StepFixed};
+    matches!(
+        execution,
+        terminal_psi::CheckedBoundaryExecution::OwnedActivation(Prepare | StepFixed | Resume)
+    )
+}
+
+/// A field returned to the caller preserves only the facts already available
+/// on that exact input and projection. The sealed operation mints no domain.
+fn forwarded_qualifications(
+    output: &[terminal_psi::StructuralPathQualification],
+    selected: semantic_vocabulary::StructuralCaseId,
+    fields: &[(
+        terminal_psi::TerminalIdentityIndex,
+        Option<&terminal_psi::StructuralParameterDeclaration>,
+    )],
+) -> bool {
+    use terminal_psi::StructuralPathSegment::{Case, Field};
+    output.iter().all(|proof| {
+        let [Case(case), Field(field), tail @ ..] = proof.path.as_slice() else {
+            return false;
+        };
+        *case == selected
+            && fields.iter().any(|(id, source)| {
+                *id == *field
+                    && source.is_some_and(|source| {
+                        (tail.is_empty() && source.qualifications.contains(&proof.domain))
+                            || source
+                                .projected_qualifications
+                                .iter()
+                                .any(|q| q.path == tail && q.domain == proof.domain)
+                    })
+            })
+    })
+}
+
+fn declared_operands<'a>(
+    module: &'a TerminalModule,
+    ty: terminal_psi::TerminalIdentityIndex,
+    family: &str,
+) -> Result<Vec<&'a str>, &'static str> {
+    let identity = module
+        .identities
+        .text(ty)
+        .ok_or("activation declaration lost a type")?;
+    application_identity::type_identity::named_application_operands(
+        identity,
+        &toolchain_name(family),
+    )
+    .map_err(|_| "activation declaration has malformed type operands")?
+    .ok_or("activation declaration names a different type family")
+}
+
 /// A preparation borrows storage; it does not call the worker. Verify the
 /// worker selection here, not by searching for a matching machine at runtime.
 /// The prepare signature and its custody rules are separate obligations.
@@ -62,8 +117,13 @@ pub fn prepare_shape(
     module: &TerminalModule,
     boundary: &BoundaryMachineDeclaration,
 ) -> Result<PreparationShape, &'static str> {
-    use terminal_psi::{ClosedReachArgument as Arg, TerminalActivationOrigin};
-    let checked = boundary.declaration.as_ref().ok_or("prepare has no checked declaration")?;
+    use terminal_psi::{
+        ClosedReachArgument as Arg, TerminalActivationStorage, TerminalPreparedActivationEntry,
+    };
+    let checked = boundary
+        .declaration
+        .as_ref()
+        .ok_or("prepare has no checked declaration")?;
     let source = &checked.source;
     let closed = source.specialization.as_ref().ok_or("prepare is not specialized")?;
     let text = |id| module.identities.text(id).filter(|s| !s.is_empty()).ok_or("prepare has an unresolved identity");
@@ -82,28 +142,63 @@ pub fn prepare_shape(
         || source.published_may_suspend || source.published_may_block {
         return Err("prepare differs from its sealed core declaration");
     }
-    let [Arg::Type(args), Arg::Type(out), Arg::Machine { identity, .. }, Arg::Const(plan)] =
-        checked.method_arguments.as_slice() else { return Err("prepare needs its exact argument, result, worker and storage binders"); };
+    let [
+        Arg::Type(args),
+        Arg::Type(out),
+        Arg::Machine {
+            identity,
+            contract_commitment,
+        },
+        Arg::Const(plan),
+    ] = checked.method_arguments.as_slice()
+    else {
+        return Err("prepare needs its exact argument, result, worker and storage binders");
+    };
     if worker_application_commitment(
         text(closed.template_callable)?, &[text(*args)?, text(*out)?], text(*identity)?, text(*plan)?,
     )? != closed.commitment {
         return Err("prepare selection differs from its closed application");
     }
-    let mut plans = module.execution.task_activation_demands.iter().filter_map(|d| {
-        if let TerminalActivationOrigin::Caller(p) = &d.origin
-            && p.preparation == boundary.id { Some(p) } else { None }
+    // Loan replay precedes the suspension-frontier report. The declaration
+    // and contract in this already-closed operand identify the exact code
+    // independently of the later frame and storage measurements.
+    let mut workers = module.machines.iter().filter_map(|machine| {
+        let worker = machine.declaration.as_ref()?;
+        worker
+            .matches_selection(*identity, contract_commitment)
+            .then_some((machine.id, worker))
     });
-    let selected = plans.next().ok_or("prepare has no matching activation plan")?;
-    if plans.next().is_some() {
-        return Err("prepare must select one checked worker in this program");
+    let (entry_machine, worker) = workers.next().ok_or("prepare lost its selected worker")?;
+    if workers.next().is_some() {
+        return Err("prepare selects more than one body for the same checked declaration");
     }
-    let worker = selected.selected_body(module).and_then(|m| m.declaration.as_ref())
-        .ok_or("prepare must select one checked worker in this program")?;
+    let selected = TerminalPreparedActivationEntry {
+        preparation: boundary.id,
+        entry_machine,
+        storage: TerminalActivationStorage::from_core_argument(text(*plan)?)
+            .ok_or("prepare did not select its declared storage plan")?,
+    };
     if worker.parameter_types.as_slice() != [*args] || worker.result_type != *out
         || source.parameter_types.len() != 2 || source.parameter_types.first() != Some(args) {
         return Err("prepare's argument and result binders differ from the worker's signature");
     }
-    preparation::result_shape(module, boundary, *selected)
+    let backing = compound(
+        TypeForm::MutableReference,
+        [compound(
+            TypeForm::Slice,
+            [application_identity::type_identity::compiler_type_identity(
+                "u8",
+            )],
+        )],
+    );
+    let parameters = declared_operands(module, source.result_type, "ActivationPreparation")?;
+    if text(source.parameter_types[1])? != backing
+        || !matches!(parameters.as_slice(), [arguments, result, _, _]
+            if *arguments == text(*args)? && *result == text(*out)?)
+    {
+        return Err("prepare lost its declared backing or worker types");
+    }
+    preparation::result_shape(module, boundary, selected)
 }
 
 /// Recover the single published preparation for an operation received without a
@@ -112,14 +207,16 @@ pub fn preparation_for(
     module: &TerminalModule,
     boundary: &BoundaryMachineDeclaration,
 ) -> Result<semantic_vocabulary::BoundaryMachineId, &'static str> {
-    let mut candidates = module.execution.task_activation_demands.iter().filter_map(|demand| {
-        let terminal_psi::TerminalActivationOrigin::Caller(candidate) = &demand.origin else {
-            return None;
-        };
-        let preparation = module.boundary_machine(candidate.preparation)?;
-        same_preparation(boundary, preparation, candidate.storage).then_some(candidate.preparation)
-    });
-    let first = candidates.next().ok_or("activation has no matching checked preparation")?;
+    let mut candidates = module
+        .interfaces
+        .boundary_machines
+        .iter()
+        .filter_map(|preparation| {
+            same_preparation(module, boundary, preparation).then_some(preparation.id)
+        });
+    let first = candidates
+        .next()
+        .ok_or("activation has no matching checked preparation")?;
     if candidates.next().is_some() {
         return Err("activation has more than one matching preparation");
     }
@@ -127,12 +224,15 @@ pub fn preparation_for(
 }
 
 fn same_preparation(
+    module: &TerminalModule,
     operation: &BoundaryMachineDeclaration,
     preparation: &BoundaryMachineDeclaration,
-    storage: terminal_psi::TerminalActivationStorage,
 ) -> bool {
-    use terminal_psi::CheckedBoundaryExecution::OwnedActivation;
-    let (Some(operation), Some(preparation)) = (&operation.declaration, &preparation.declaration) else {
+    use terminal_psi::{
+        CheckedBoundaryExecution::OwnedActivation, ClosedReachArgument, TerminalActivationStorage,
+    };
+    let (Some(operation), Some(preparation)) = (&operation.declaration, &preparation.declaration)
+    else {
         return false;
     };
     let [args, result, worker, plan] = preparation.method_arguments.as_slice() else {
@@ -141,8 +241,10 @@ fn same_preparation(
     preparation.execution == OwnedActivation(ActivationOperation::Prepare)
         && match (operation.execution, operation.method_arguments.as_slice()) {
             (OwnedActivation(ActivationOperation::StepFixed), [a, r, w]) => {
-                storage == terminal_psi::TerminalActivationStorage::Fixed
-                    && (a, r, w) == (args, result, worker)
+                (a, r, w) == (args, result, worker)
+                    && matches!(plan, ClosedReachArgument::Const(plan) if
+                        module.identities.text(*plan).and_then(TerminalActivationStorage::from_core_argument)
+                            == Some(TerminalActivationStorage::Fixed))
             }
             (OwnedActivation(ActivationOperation::Resume), [a, r, _, w, p]) => {
                 (a, r, w, p) == (args, result, worker, plan)

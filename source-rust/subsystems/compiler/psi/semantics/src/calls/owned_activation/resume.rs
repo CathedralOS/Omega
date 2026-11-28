@@ -9,8 +9,8 @@ use semantic_vocabulary::{
 use terminal_psi::{
     BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind, StructuralAccess,
     StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralFieldType,
-    StructuralMultiplicity, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
-    TerminalModule, TerminalPreparedActivationEntry,
+    StructuralMultiplicity, StructuralTypeDeclaration, StructuralTypeShape, TerminalModule,
+    TerminalPreparedActivationEntry,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -105,7 +105,7 @@ pub fn resume_shape(
         .boundary_machine(preparation)
         .ok_or("resume has no originating preparation")?;
     let prepared = prepare_shape(module, declaration)?;
-    if !same_preparation(boundary, declaration, prepared.selected.storage) {
+    if !same_preparation(module, boundary, declaration) {
         return Err("resume selects a different worker or storage plan from the owner");
     }
     let checked = boundary
@@ -215,38 +215,37 @@ pub fn resume_shape(
     {
         return Err("resume must return the original owner, permit and reply carriers");
     }
-    for qualification in &output.projected_qualifications {
-        let [
-            StructuralPathSegment::Case(case),
-            StructuralPathSegment::Field(field),
-            tail @ ..,
-        ] = qualification.path.as_slice()
-        else {
-            return Err("resume asserted an unprovided result qualification");
-        };
-        if *case != mismatch.id {
-            return Err("resume asserted an unprovided result qualification");
-        }
-        let formal = if *field == permit_field.identity {
-            Some(publication)
-        } else if *field == value_field.identity {
-            boundary.structural_parameters.get(2)
-        } else {
-            None
-        };
-        if !formal.is_some_and(|input| {
-            (tail.is_empty() && input.qualifications.contains(&qualification.domain))
-                || input
-                    .projected_qualifications
-                    .iter()
-                    .any(|q| q.path == tail && q.domain == qualification.domain)
-        }) {
-            return Err("resume asserted an unprovided result qualification");
-        }
+    if !super::forwarded_qualifications(
+        &output.projected_qualifications,
+        mismatch.id,
+        &[
+            (permit_field.identity, Some(publication)),
+            (value_field.identity, boundary.structural_parameters.get(2)),
+        ],
+    ) {
+        return Err("resume asserted an unprovided result qualification");
     }
     let source = &checked.source;
-    if source.parameter_types.len() != 3 || module.identities.text(source.result_type).is_none() {
-        return Err("resume lost its declared input or outcome");
+    let [declared_owner, _, _] = source.parameter_types.as_slice() else {
+        return Err("resume needs the declared owner, publication and reply");
+    };
+    let original = super::declared_operands(
+        module,
+        declaration
+            .declaration
+            .as_ref()
+            .ok_or("resume lost its preparation")?
+            .source
+            .result_type,
+        "ActivationPreparation",
+    )?;
+    let returned = super::declared_operands(module, source.result_type, "ResumeAttempt")?;
+    if super::declared_operands(module, *declared_owner, "SuspendedActivation")? != original
+        || !matches!((original.as_slice(), returned.as_slice()),
+            ([a, r, w, p], [b, s, value, worker, plan])
+            if (a, r, w, p) == (b, s, worker, plan) && *value == reply)
+    {
+        return Err("resume changed the declared owner, reply, worker or storage in its outcome");
     }
     Ok(ResumeShape {
         selected: prepared.selected,

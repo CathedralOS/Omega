@@ -2695,8 +2695,10 @@ pub(crate) mod declaration_foundations {
             return malformed("boundary machine has an unknown attachment type");
         }
         validate_structural_parameters(module, &boundary.structural_parameters)?;
-        terminal_semantics::boundary_result_lifetimes(&module.types.structural_types, boundary)
-            .map_err(CodecError::MalformedStructuralFoundation)?;
+        terminal_semantics::closed_conformances::validate_boundary_result_lifetimes(
+            module, boundary,
+        )
+        .map_err(CodecError::MalformedStructuralFoundation)?;
         terminal_semantics::references::validate_declared_boundary_reference_outputs(
             &module.types.structural_types,
             boundary,

@@ -213,6 +213,168 @@ fn preparing_a_child_names_its_worker_and_returns_the_rejected_backing() {
     assert!(refused.to_string().contains("storage demand differs"), "{refused}");
 }
 
+fn judge_activation(
+    source: &str,
+    roots: &[&str],
+) -> Result<production::AcceptedTerminalSource, Vec<diagnostics::Diagnostic>> {
+    let mut typed = schema_customer_source::source_with_core(
+        &fixture_repository::root().join("source/library"),
+        source,
+        semantic_vocabulary::PackageKeyIdentity::from_digest([0xA1; 32]).unwrap(),
+        &[],
+    )
+    .map_err(|detail| vec![diagnostics::Diagnostic::error(detail)])?;
+    let entries = roots
+        .iter()
+        .map(|name| typed.realized_machine_named(name).unwrap().symbol)
+        .collect::<Vec<_>>();
+    let request = production::TerminalSourceCompilation {
+        calling: None,
+        providers: None,
+        declaration_metadata: &[],
+        entries: &entries,
+        subjects: &[],
+        purpose: source_provenance::DependencyScope::Product,
+        selected: &[],
+        bindings: &[],
+        supplies: &[],
+    };
+    evaluate(
+        &mut typed,
+        request,
+        &mut SourceCompletionAccounting::default(),
+    )?;
+    let prepared = preparation::prepare_typed_trees(typed, &[], &[])?;
+    judge_lowered_source::judge_terminal_source(
+        prepared,
+        request,
+        terminal_codec::TerminalPublication::Portable,
+    )
+}
+
+#[test]
+fn fixed_step_and_resume_preserve_the_closed_owner_and_returned_inputs() {
+    use language_core::sealed_intrinsics::ActivationOperation;
+    use terminal_psi::CheckedBoundaryExecution;
+    use terminal_semantics::calls::owned_activation::{preparation_for, resume_shape, step_shape};
+
+    let source = r"
+        use {omega}/language/core/activation.omg;
+        use {omega}/language/core/task.omg;
+        use {omega}/language/core/reply.omg;
+        machine worker(value: u8) -> u8 reaches none crashes none { value }
+        machine make<'storage>(backing: @'storage mutable [u8])
+            -> |activation|::ActivationPreparation<'storage, u8, u8, worker, |task|::ActivationStorage::Fixed>
+            reaches none crashes none {
+            |activation|::prepare::<u8, u8, worker, |task|::ActivationStorage::Fixed>(7u8, backing)
+        }
+        machine advance<'storage>(owner: |activation|::ReadyActivation<'storage, u8, u8, worker, |task|::ActivationStorage::Fixed>)
+            -> |activation|::ActivationStep<'storage, u8, u8, worker, |task|::ActivationStorage::Fixed>
+            blocks crashes Trap crashes Abort {
+            block |activation|::step_fixed::<u8, u8, worker>(move owner)
+        }
+        machine answer<'storage, 'slot>(
+            owner: |activation|::SuspendedActivation<'storage, u8, u8, worker, |task|::ActivationStorage::Fixed>,
+            permit: |reply|::Publication<'slot> in |reply|::Issued<|reply|::AnswerRole, u8>, value: u8
+        ) -> |activation|::ResumeAttempt<'storage, 'slot, u8, u8, u8, worker, |task|::ActivationStorage::Fixed>
+            reaches none crashes none {
+            |activation|::resume::<u8, u8, u8, worker, |task|::ActivationStorage::Fixed>(move owner, move permit, value)
+        }
+    ";
+    let accepted = judge_activation(source, &["make", "advance", "answer"])
+        .expect("the three sealed calls preserve their inputs");
+    let artifact = terminal_codec::encode_module(accepted.module()).unwrap();
+    let reopened = terminal_codec::decode_module(&artifact).unwrap();
+    let operation = |op| {
+        reopened
+            .interfaces
+            .boundary_machines
+            .iter()
+            .find(|boundary| {
+                boundary.declaration.as_ref().is_some_and(|checked| {
+                    checked.execution == CheckedBoundaryExecution::OwnedActivation(op)
+                })
+            })
+            .unwrap()
+    };
+    let make = operation(ActivationOperation::Prepare);
+    let advance = operation(ActivationOperation::StepFixed);
+    let answer = operation(ActivationOperation::Resume);
+    assert_eq!(preparation_for(&reopened, advance), Ok(make.id));
+    assert_eq!(preparation_for(&reopened, answer), Ok(make.id));
+    let step = step_shape(&reopened, advance, make.id).unwrap();
+    let resume = resume_shape(&reopened, answer, make.id).unwrap();
+    assert_eq!(step.ready_owner, resume.ready_owner);
+    assert_eq!(step.suspended_owner, resume.suspended_owner);
+    assert_eq!(step.selected, resume.selected);
+
+    let refused = |module: &terminal_psi::TerminalModule| {
+        terminal_codec::encode_module(module)
+            .and_then(|bytes| terminal_codec::decode_module(&bytes))
+            .unwrap_err()
+    };
+    let mut missing_demand = reopened.clone();
+    missing_demand.execution.task_activation_demands.clear();
+    // Lowering replays loans against the closed calls before it computes how
+    // many bytes must survive each park. Portable admission needs both.
+    assert_eq!(preparation_for(&missing_demand, advance), Ok(make.id));
+    assert_eq!(preparation_for(&missing_demand, answer), Ok(make.id));
+    assert_eq!(step_shape(&missing_demand, advance, make.id), Ok(step));
+    assert_eq!(resume_shape(&missing_demand, answer, make.id), Ok(resume));
+    let error = refused(&missing_demand);
+    assert!(error.to_string().contains("storage demand"), "{error}");
+
+    let mut wrong_owner = reopened.clone();
+    let boundary = wrong_owner
+        .interfaces
+        .boundary_machines
+        .iter_mut()
+        .find(|b| b.id == answer.id)
+        .unwrap();
+    boundary.structural_parameters[0].structural_type = resume.ready_owner;
+    refused(&wrong_owner);
+
+    let mut wrong_scope = reopened.clone();
+    let owner = wrong_scope
+        .types
+        .structural_types
+        .iter_mut()
+        .find(|ty| ty.id == resume.suspended_owner)
+        .unwrap();
+    owner.shape = terminal_psi::StructuralTypeShape::BorrowingOpaque {
+        lifetime_count: std::num::NonZeroU32::new(2).unwrap(),
+    };
+    refused(&wrong_scope);
+
+    for operation in [make, advance, answer] {
+        let mut unrelated_scope = reopened.clone();
+        let boundary = unrelated_scope
+            .interfaces
+            .boundary_machines
+            .iter_mut()
+            .find(|b| b.id == operation.id)
+            .unwrap();
+        // An empty general frontier would give the recipient no backing obligation.
+        boundary.result_lifetimes = Some(Vec::new());
+        let error = refused(&unrelated_scope);
+        assert!(
+            error.to_string().contains("independent result lifetimes"),
+            "{error}"
+        );
+    }
+
+    let mut wrong_outcome = reopened.clone();
+    let boundary = wrong_outcome
+        .interfaces
+        .boundary_machines
+        .iter_mut()
+        .find(|b| b.id == answer.id)
+        .unwrap();
+    let source = &mut boundary.declaration.as_mut().unwrap().source;
+    source.result_type = source.parameter_types[0];
+    refused(&wrong_outcome);
+}
+
 #[test]
 fn a_prepared_execution_owner_cannot_escape_its_backing() {
     let source = r"
@@ -253,6 +415,144 @@ fn a_prepared_execution_owner_cannot_escape_its_backing() {
             let detail = format!("{error:?}").to_lowercase();
             assert!(detail.contains("lifetime") || detail.contains("local storage") || detail.contains("outlive"),
                 "must reject the escaping backing, not preparation itself: {error:?}");
+        }
+    }
+}
+
+#[test]
+fn stepping_keeps_the_original_backing_live_in_both_outcomes() {
+    let source = r"
+        use {omega}/language/core/activation.omg;
+        use {omega}/language/core/task.omg;
+        machine worker(value: u8) -> u8 reaches none crashes none { value }
+        data Outcome<'storage> {
+            case Completed(bytes: @'storage mutable [u8]);
+            case Parked(owner: |activation|::SuspendedActivation<'storage, u8, u8, worker, |task|::ActivationStorage::Fixed>);
+            case Rejected;
+        }
+        machine advance<'storage>(backing: @'storage mutable [u8]) -> Outcome<'storage>
+            blocks crashes Trap crashes Abort {
+            let mutable scratch: [u8; 1] = [0u8];
+            match |activation|::prepare::<u8, u8, worker, |task|::ActivationStorage::Fixed>(7u8, BACKING) {
+                |activation|::ActivationPreparation::Ready { owner } ->
+                    match block |activation|::step_fixed::<u8, u8, worker>(move owner) {
+                        |activation|::ActivationStep::Returned { value, retained } -> Outcome::Completed { bytes: retained },
+                        |activation|::ActivationStep::Parked { owner as parked } -> Outcome::Parked { owner: move parked },
+                    },
+                |activation|::ActivationPreparation::Rejected { arguments, retained } -> Outcome::Rejected,
+            }
+        }
+    ";
+    for (backing, may_return) in [("backing", true), ("@mutable scratch[..]", false)] {
+        let judgment = judge_activation(&source.replace("BACKING", backing), &["advance"]);
+        if may_return {
+            let accepted = judgment.expect("caller backing may accompany either step case");
+            let encoded = terminal_codec::encode_module(accepted.module()).unwrap();
+            terminal_codec::decode_module(&encoded).unwrap();
+        } else {
+            let error = judgment
+                .err()
+                .expect("the completed or parked owner cannot export stack backing");
+            let detail = format!("{error:?}").to_lowercase();
+            assert!(
+                detail.contains("lifetime")
+                    || detail.contains("local storage")
+                    || detail.contains("outlive"),
+                "the checked source should identify the escaping backing: {error:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_stepped_worker_returns_its_input_reference_with_the_original_lifetime() {
+    let source = r"
+        use {omega}/language/core/activation.omg;
+        use {omega}/language/core/task.omg;
+        use {omega}/language/core/never.omg;
+
+        data Input<'value> { original: @'value u8; }
+        machine worker<'value>(input: Input<'value>) -> @'value u8
+            reaches none crashes none { input.original }
+        machine failed() -> |never|::Never reaches none crashes Trap { crash Trap; }
+
+        machine borrow_result<'value>(original: @'value u8, backing: @mutable [u8]) -> @'value u8
+            blocks crashes Trap crashes Abort {
+            let local: u8 = 7u8;
+            let input: Input = Input { original: SOURCE };
+            match |activation|::prepare::<Input<'value>, @'value u8, worker, |task|::ActivationStorage::Fixed>(move input, backing) {
+                |activation|::ActivationPreparation::Ready { owner } ->
+                    match block |activation|::step_fixed::<Input<'value>, @'value u8, worker>(move owner) {
+                        |activation|::ActivationStep::Returned { value, retained } -> value,
+                        |activation|::ActivationStep::Parked { owner as parked } -> failed(),
+                    },
+                |activation|::ActivationPreparation::Rejected { arguments, retained } -> failed(),
+            }
+        }
+    ";
+    for (input, may_return) in [("original", true), ("@local", false)] {
+        let judgment = judge_activation(&source.replace("SOURCE", input), &["borrow_result"]);
+        if may_return {
+            let accepted =
+                judgment.expect("the step may restore the worker's original source loan");
+            let encoded = terminal_codec::encode_module(accepted.module()).unwrap();
+            terminal_codec::decode_module(&encoded).unwrap();
+        } else {
+            let error = judgment
+                .err()
+                .expect("a wrapper cannot export its local through the worker");
+            let detail = format!("{error:?}").to_lowercase();
+            assert!(
+                detail.contains("lifetime")
+                    || detail.contains("local storage")
+                    || detail.contains("outlive"),
+                "the rejection must identify the worker input's escaping source: {error:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn two_ready_owners_need_independent_live_backing() {
+    let source = r"
+        use {omega}/language/core/activation.omg;
+        use {omega}/language/core/task.omg;
+        machine worker(value: u8) -> u8 reaches none crashes none { value }
+        data MaybeOwner<'storage> {
+            case Kept(owner: |activation|::ReadyActivation<'storage, u8, u8, worker, |task|::ActivationStorage::Fixed>);
+            case Empty;
+        }
+        data Owners<'storage> { first: MaybeOwner<'storage>; second: MaybeOwner<'storage>; }
+        machine keep<'storage>(backing: @'storage mutable [u8]) -> MaybeOwner<'storage>
+            reaches none crashes none {
+            match |activation|::prepare::<u8, u8, worker, |task|::ActivationStorage::Fixed>(7u8, backing) {
+                |activation|::ActivationPreparation::Ready { owner } -> MaybeOwner::Kept { owner: move owner },
+                |activation|::ActivationPreparation::Rejected { arguments, retained } -> MaybeOwner::Empty,
+            }
+        }
+        machine pair<'storage>(left: @'storage mutable [u8], right: @'storage mutable [u8])
+            -> Owners<'storage> reaches none crashes none {
+            let first: MaybeOwner<'storage> = keep(@mutable left[..]);
+            let second: MaybeOwner<'storage> = keep(@mutable SECOND[..]);
+            Owners { first: move first, second: move second }
+        }
+    ";
+    for (second, independent) in [("right", true), ("left", false)] {
+        let verdict = judge_activation(&source.replace("SECOND", second), &["pair"]);
+        if independent {
+            verdict.expect("separate mutable inputs may fund two owners");
+        } else {
+            let error = verdict
+                .err()
+                .expect("two live ready owners cannot hold the same backing");
+            let detail = format!("{error:?}").to_lowercase();
+            assert!(
+                detail.contains("borrow")
+                    || detail.contains("alias")
+                    || detail.contains("overlap")
+                    || detail.contains("conflict"),
+                "the shared backing must cause the rejection: {error:?}"
+            );
         }
     }
 }
