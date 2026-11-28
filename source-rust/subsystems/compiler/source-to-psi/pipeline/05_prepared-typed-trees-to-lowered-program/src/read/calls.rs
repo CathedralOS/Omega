@@ -528,10 +528,7 @@ impl<'t> Program<'t> {
         {
             return Err(unserved("named member belongs to another implementation"));
         }
-        let machine = self
-            .typed
-            .machine_by_symbol(capture.instance)
-            .ok_or_else(|| unserved("named capture lost its actual machine"))?;
+        let machine = self.required_machine(id, capture.instance, "captured instance")?;
         let Some([entry]) = self.typed.machine_states(machine).as_array() else {
             return Err(unserved("named capture without one actual entry"));
         };
@@ -1913,10 +1910,7 @@ impl<'t> Program<'t> {
                 );
             }
         };
-        let machine = self
-            .typed
-            .machine_by_symbol(body)
-            .ok_or_else(|| refuse_at(id, Unserved::Call("named call lost its actual body")))?;
+        let machine = self.required_machine(id, body, "named call target")?;
         let Some([entry]) = self.typed.machine_states(machine).as_array() else {
             return Err(refuse_at(
                 id,
@@ -2567,7 +2561,7 @@ impl<'t> Program<'t> {
         )?;
         let (authored, binding) =
             self.static_machine_target(id, invocation.target, invocation.binder)?;
-        let caller = self.symbols.get(id).copied().unwrap_or_default();
+        let caller = self.machine_symbol(id)?;
         let member = self
             .typed
             .source_conformance_call_member(caller, call)
