@@ -1,4 +1,4 @@
-//! Issue and resolve this activation’s service and program selections for each dependency registration.
+//! Issue and resolve this activation’s options for each dependency registration.
 use build_model::accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 use semantic_vocabulary::{StructuralTypeId, dependency_reach::DependencyReach};
 use std::collections::{BTreeMap, BTreeSet};
@@ -54,12 +54,20 @@ struct Service {
 enum EdgeOption {
     Service(TerminalIdentityIndex),
     Program(source_text::SourceSpan),
+    Network,
 }
 struct IssuedSet {
     marker: TerminalStructuralValue,
     prior: Option<usize>,
     option: EdgeOption,
     _storage: Option<EvaluationStorageLease>,
+}
+
+#[derive(Default)]
+pub(super) struct RegistrationOptions {
+    pub reach: DependencyReach,
+    pub programs: Vec<source_text::SourceSpan>,
+    pub inherit_network: bool,
 }
 
 #[derive(Default)]
@@ -135,6 +143,14 @@ impl IssuedDependencyOptions {
         self.issue(Some(prior), EdgeOption::Service(service), ty, account)
     }
 
+    pub fn inherit_network(
+        &self,
+        ty: StructuralTypeId,
+        account: Option<&EvaluationInvocationAccount>,
+    ) -> Result<TerminalStructuralValue, TerminalEffectRejection> {
+        self.issue(None, EdgeOption::Network, ty, account)
+    }
+
     pub fn forward_program(
         &self,
         program: source_text::SourceSpan,
@@ -191,7 +207,7 @@ impl IssuedDependencyOptions {
     pub fn get(
         &self,
         marker: &TerminalStructuralValue,
-    ) -> Result<(DependencyReach, Vec<source_text::SourceSpan>), TerminalEffectRejection> {
+    ) -> Result<RegistrationOptions, TerminalEffectRejection> {
         let refuse = TerminalEffectRejection::new;
         let sets = self
             .sets
@@ -199,17 +215,18 @@ impl IssuedDependencyOptions {
             .map_err(|_| refuse("Build dependency options lock poisoned"))?;
         let mut node = Self::issued(&sets, marker);
         let mut applications = BTreeSet::new();
-        let mut programs = Vec::new();
+        let mut options = RegistrationOptions::default();
         while let Some(index) = node {
             let row = &sets[index];
             match row.option {
                 EdgeOption::Service(service) => {
                     applications.insert(service);
                 }
-                EdgeOption::Program(program) if !programs.contains(&program) => {
-                    programs.push(program)
+                EdgeOption::Program(program) if !options.programs.contains(&program) => {
+                    options.programs.push(program)
                 }
                 EdgeOption::Program(_) => {}
+                EdgeOption::Network => options.inherit_network = true,
             }
             node = row.prior;
         }
@@ -224,9 +241,30 @@ impl IssuedDependencyOptions {
                 work.extend(row.parents.iter().copied());
             }
         }
-        Ok((
-            DependencyReach::from_checked_services(services.into_iter().map(str::to_owned)),
-            programs,
-        ))
+        options.reach =
+            DependencyReach::from_checked_services(services.into_iter().map(str::to_owned));
+        Ok(options)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_an_issued_network_selection_delegates() {
+        let options = IssuedDependencyOptions::default();
+        let ty = StructuralTypeId::new(1).unwrap();
+        let empty = TerminalStructuralValue::minted(0, ty, Vec::new());
+        let inherited = options.inherit_network(ty, None).unwrap();
+
+        assert!(options.get(&inherited).unwrap().inherit_network);
+        assert!(!options.get(&empty).unwrap().inherit_network);
+        assert!(
+            !IssuedDependencyOptions::default()
+                .get(&inherited)
+                .unwrap()
+                .inherit_network
+        );
     }
 }

@@ -1,0 +1,10 @@
+use {omega}/language/core/network_authority.omg as authority;
+
+// The invocation supplies the peer. A true result means the local transport
+// accepted the entire datagram. It does not acknowledge receipt by the peer.
+public boundary trait Datagram {
+    machine send(bytes: @[u8]) -> bool
+        reaches |authority|::NetworkSend
+        blocks
+        crashes none;
+}

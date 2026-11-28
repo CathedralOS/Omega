@@ -910,83 +910,125 @@ fn live_entries(
         }
         Ok(())
     };
-    let mut live = vec![IdSet::new(); machine.blocks.len()];
-    loop {
-        let mut changed = false;
-        for block in machine.blocks.iter().rev() {
-            let mut before = IdSet::new();
-            for target in block.terminator.successor_targets() {
-                before.union_with(
-                    live.get(index(target.get())?)
-                        .ok_or(Error::malformed("edge target is outside the machine"))?,
-                );
+    // Walking backwards folds instruction order into one transfer per block:
+    // entry = local uses before a definition, plus successor liveness minus definitions.
+    #[derive(Default)]
+    struct BlockTransfer {
+        uses: IdSet<PlaceId>,
+        definitions: Vec<PlaceId>,
+        successors: Vec<usize>,
+    }
+    let block_count = machine.blocks.len();
+    let mut transfers = Vec::with_capacity(block_count);
+    transfers.resize_with(block_count, BlockTransfer::default);
+    let mut incoming = vec![Vec::new(); block_count];
+    let mut queued = vec![false; block_count];
+    let mut work = std::collections::VecDeque::with_capacity(block_count);
+    for block in machine.blocks.iter().rev() {
+        let mut transfer = BlockTransfer::default();
+        for target in block.terminator.successor_targets() {
+            let target = index(target.get())?;
+            if target >= block_count {
+                return Err(Error::malformed("edge target is outside the machine"));
             }
-            for root in terminator_roots(&block.terminator) {
-                observe(&mut before, root)?;
+            transfer.successors.push(target);
+        }
+        let before = &mut transfer.uses;
+        for root in terminator_roots(&block.terminator) {
+            observe(before, root)?;
+        }
+        let end = u32::try_from(block.operations.len())
+            .map_err(|_| Error::malformed("reference observation position overflows"))?;
+        for &root in reference_backing
+            .get(&(block.id, end))
+            .into_iter()
+            .flatten()
+        {
+            observe(before, root)?;
+        }
+        for (position, operation) in block.operations.iter().enumerate().rev() {
+            if let Some(result) = operation.result.as_structural() {
+                let place = valid(result.place)?;
+                before.remove(place);
+                transfer.definitions.push(place);
             }
-            let end = u32::try_from(block.operations.len())
-                .map_err(|_| Error::malformed("reference observation position overflows"))?;
+            for used in operation
+                .kind
+                .storage_uses()
+                .into_iter()
+                .filter_map(|(storage, _)| storage_root(storage))
+            {
+                observe(before, used)?;
+            }
+            // A planned release is a real future use of its owned
+            // descriptor home. Keep that home until the planner can emit
+            // it; otherwise edge cleanup could close a parent while its
+            // child still runs. The final verifier reads emitted uses.
+            let position = u32::try_from(position)
+                .map_err(|_| Error::malformed("reference end position overflows"))?;
             for &root in reference_backing
-                .get(&(block.id, end))
+                .get(&(block.id, position))
                 .into_iter()
                 .flatten()
             {
-                observe(&mut before, root)?;
+                observe(before, root)?;
             }
-            for (position, operation) in block.operations.iter().enumerate().rev() {
-                if let Some(result) = operation.result.as_structural() {
-                    before.remove(valid(result.place)?);
-                }
-                for used in operation
-                    .kind
-                    .storage_uses()
-                    .into_iter()
-                    .filter_map(|(storage, _)| storage_root(storage))
-                {
-                    observe(&mut before, used)?;
-                }
-                // A planned release is a real future use of its owned
-                // descriptor home. Keep that home until the planner can emit
-                // it; otherwise edge cleanup could close a parent while its
-                // child still runs. The final verifier reads emitted uses.
-                let position = u32::try_from(position)
-                    .map_err(|_| Error::malformed("reference end position overflows"))?;
-                for &root in reference_backing
-                    .get(&(block.id, position))
-                    .into_iter()
-                    .flatten()
-                {
-                    observe(&mut before, root)?;
-                }
-                for candidate in reference_candidates
-                    .and_then(|candidates| candidates.get(&(block.id, position)))
-                    .into_iter()
-                    .flatten()
-                {
-                    observe(&mut before, candidate.argument.place)?;
-                }
-            }
-            // A borrowed header receives an already captured address. Its
-            // backing must survive the incoming edge's cleanup even when
-            // the destination never reads its formal.
-            for parameter in &block.structural_parameters {
-                if parameter.access != StructuralAccess::Owned {
-                    observe(&mut before, parameter.place)?;
-                }
-                before.remove(valid(parameter.place)?);
-            }
-            let old = live
-                .get_mut(index(block.id.get())?)
-                .ok_or(Error::malformed("block is outside the machine"))?;
-            if *old != before {
-                *old = before;
-                changed = true;
+            for candidate in reference_candidates
+                .and_then(|candidates| candidates.get(&(block.id, position)))
+                .into_iter()
+                .flatten()
+            {
+                observe(before, candidate.argument.place)?;
             }
         }
-        if !changed {
-            return Ok(live);
+        // A borrowed header receives an already captured address. Its
+        // backing must survive the incoming edge's cleanup even when
+        // the destination never reads its formal.
+        for parameter in &block.structural_parameters {
+            if parameter.access != StructuralAccess::Owned {
+                observe(before, parameter.place)?;
+            }
+            let place = valid(parameter.place)?;
+            before.remove(place);
+            transfer.definitions.push(place);
+        }
+        let block_index = index(block.id.get())?;
+        let slot = transfers
+            .get_mut(block_index)
+            .ok_or(Error::malformed("block is outside the machine"))?;
+        if queued[block_index] {
+            return Err(Error::malformed("block is not at its identity"));
+        }
+        for &target in &transfer.successors {
+            incoming[target].push(block_index);
+        }
+        *slot = transfer;
+        queued[block_index] = true;
+        work.push_back(block_index);
+    }
+    let mut live = vec![IdSet::new(); block_count];
+    while let Some(block) = work.pop_front() {
+        queued[block] = false;
+        let transfer = &transfers[block];
+        let mut before = IdSet::new();
+        for &target in &transfer.successors {
+            before.union_with(&live[target]);
+        }
+        for &place in &transfer.definitions {
+            before.remove(place);
+        }
+        before.union_with(&transfer.uses);
+        if live[block] != before {
+            live[block] = before;
+            for &predecessor in &incoming[block] {
+                if !queued[predecessor] {
+                    queued[predecessor] = true;
+                    work.push_back(predecessor);
+                }
+            }
         }
     }
+    Ok(live)
 }
 
 /// Future uses of a non-owning header, independently of loans held in its contents.

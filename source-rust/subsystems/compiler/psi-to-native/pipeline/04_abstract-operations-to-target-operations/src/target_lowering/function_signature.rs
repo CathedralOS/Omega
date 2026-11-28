@@ -73,6 +73,7 @@ pub(crate) fn prepare_function_signature(
     function: &AbstractFunction,
     target: NativeTarget,
     structural_types: &StructuralTypeLookup<'_>,
+    scalar_abi: Option<&target_operations::ScalarFunctionAbi>,
 ) -> Result<PreparedFunctionSignature, LoweringError> {
     let scalar_parameter_shapes = function
         .parameters
@@ -112,7 +113,12 @@ pub(crate) fn prepare_function_signature(
         structural_types,
     )?;
     let parameter_shapes = signature.structural_shapes().to_vec();
-    let call_plan = signature.plan(target)?;
+    let call_plan = match scalar_abi {
+        Some(abi) => signature.bind_scalar_plan(&abi.call_plan, target).ok_or(
+            LoweringError::UnitScalarCallTargetAbiMismatch(function.machine),
+        )?,
+        None => signature.plan(target)?,
+    };
     let expected_parameter_count = function.parameters.len() + function.structural_parameters.len();
     if call_plan.parameters.len() != expected_parameter_count {
         return Err(LoweringError::AbiParameterCountMismatch {
@@ -190,6 +196,7 @@ pub(crate) mod scalar_abi {
             function,
             target,
             structural_types,
+            None,
         ) else {
             return Ok(None);
         };
@@ -211,6 +218,7 @@ pub(crate) mod scalar_abi {
     pub(crate) fn derive_fixed_scalar_function_abi(
         function: &AbstractFunction,
         target: NativeTarget,
+        selected: Option<&calling_conventions::CallPlan>,
     ) -> Result<Option<ScalarFunctionAbi>, LoweringError> {
         if !function.structural_parameters.is_empty() || !function.entry_claims.is_empty() {
             return Ok(None);
@@ -237,17 +245,21 @@ pub(crate) mod scalar_abi {
         let Some(parameter_types_and_shapes) = parameter_types_and_shapes else {
             return Ok(None);
         };
-        let call_plan = evaluate_call_plan(
-            CallingPolicy::native_for_target(target),
-            &CallSignature {
-                parameters: parameter_types_and_shapes
-                    .iter()
-                    .map(|(_, shape)| *shape)
-                    .collect(),
-                result: result_shape,
-            },
-        )
-        .map_err(LoweringError::AbiPlan)?;
+        let call_plan = match selected {
+            // The register return was admitted against this exact plan before inlining.
+            Some(plan) => plan.clone(),
+            None => evaluate_call_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature {
+                    parameters: parameter_types_and_shapes
+                        .iter()
+                        .map(|(_, shape)| *shape)
+                        .collect(),
+                    result: result_shape,
+                },
+            )
+            .map_err(LoweringError::AbiPlan)?,
+        };
         let result = match (function.result.scalar(), call_plan.result.as_ref()) {
             (None, None) => None,
             (Some(result), Some(placement)) if Some(placement.shape) == result_shape => {
@@ -403,6 +415,22 @@ pub(crate) mod structural_signature {
 
         pub(crate) fn structural_shapes(&self) -> &[ValueShape] {
             &self.signature.parameters[self.scalar_parameter_count..]
+        }
+
+        pub(crate) fn bind_scalar_plan(
+            &self,
+            plan: &CallPlan,
+            target: NativeTarget,
+        ) -> Option<StructuralCallPlan> {
+            (self.structural_shapes().is_empty()
+                && plan.policy == CallingPolicy::native_for_target(target)
+                && plan
+                    .parameters
+                    .iter()
+                    .map(|placement| placement.shape)
+                    .eq(self.signature.parameters.iter().copied())
+                && plan.result.as_ref().map(|placement| placement.shape) == self.signature.result)
+                .then(|| StructuralCallPlan(plan.clone()))
         }
 
         pub(crate) fn plan(

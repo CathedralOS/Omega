@@ -5,6 +5,21 @@ use super::*;
 // cannot extract the uninstantiated reference or overwrite just the callback
 // by leaving its opening out of the evidence table. Whole-package transport
 // needs no conversion and does not enter a field.
+pub(super) fn uses_witness(
+    module: &TerminalModule,
+    field: &StructuralFieldType,
+    witness: StructuralTypeId,
+) -> bool {
+    match field {
+        StructuralFieldType::Scalar(ScalarType::Callable(id)) => module.execution.callables.contract(*id).is_some_and(|contract|
+            contract.structural_parameters.iter().any(|parameter| parameter.structural_type == witness)
+            || contract.proof_result.structural().is_some_and(|result| result.structural_type == witness)),
+        StructuralFieldType::Structural(id) => *id == witness || module.structural_type(*id)
+            .is_some_and(|row| matches!(row.shape,StructuralTypeShape::Reference {referent,..} if referent == witness)),
+        _ => false,
+    }
+}
+
 fn field_needs_opening(
     module: &TerminalModule,
     record: StructuralTypeId,
@@ -101,6 +116,7 @@ pub(super) fn check_field_accesses(
             Use::Projection(projection) if enters_package(module, machine, projection) => {
                 match event {
                     Some(TerminalPackageEvent::Project { .. }) => (),
+                    Some(TerminalPackageEvent::Store { .. }) if checked.stored_type(machine.id, operation.id).is_some() => (),
                     Some(TerminalPackageEvent::Invoke { .. }) if tested_argument(projection) => (),
                     _ => {
                         return Err("operation enters a package field without its checked opening");

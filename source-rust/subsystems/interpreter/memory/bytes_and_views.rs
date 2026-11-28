@@ -2976,7 +2976,19 @@ pub(crate) mod byte_sequences {
         backing: Arc<ByteSequenceBacking>,
         window: Range<usize>,
         descriptor_home: Option<crate::boundary::values::TerminalStructuralValue>,
-        original_array: Option<OriginalByteArrayWindow>,
+        original_array: Option<ArrayOrigin>,
+    }
+
+    #[derive(Clone)]
+    enum ArrayOrigin {
+        Local(OriginalByteArrayWindow),
+        /// This array lives in a different interpreter instance. Its frame
+        /// coordinates can only be dereferenced there. Retain its actual first
+        /// element address for address observations in the receiving instance.
+        Component {
+            first: Option<Arc<crate::storage::storage_addresses::ScalarStorageAddress>>,
+            start: usize,
+        },
     }
 
     #[derive(Clone)]
@@ -3032,12 +3044,54 @@ pub(crate) mod byte_sequences {
         }
 
         pub(crate) fn with_original_array(mut self, window: OriginalByteArrayWindow) -> Self {
-            self.original_array = Some(window);
+            self.original_array = Some(ArrayOrigin::Local(window));
             self
         }
 
         pub(crate) fn original_array(&self) -> Option<&OriginalByteArrayWindow> {
-            self.original_array.as_ref()
+            match self.original_array.as_ref() {
+                Some(ArrayOrigin::Local(window)) => Some(window),
+                _ => None,
+            }
+        }
+
+        pub(crate) fn lend_array_to_component(
+            &mut self,
+            source: &mut crate::engine::execution::TerminalExecution<'_>,
+        ) -> Result<(), crate::boundary::errors::TerminalInterpretError> {
+            let Some(window) = self.original_array() else {
+                return Ok(());
+            };
+            if self.len() != window.length {
+                return Err(crate::boundary::errors::malformed());
+            }
+            let first = source.lent_array_window_address(window)?;
+            self.original_array = Some(ArrayOrigin::Component {
+                first: first.map(Arc::new),
+                start: self.window.start,
+            });
+            Ok(())
+        }
+
+        pub(crate) fn component_array_address(
+            &self,
+            index: usize,
+        ) -> Option<(
+            &crate::storage::storage_addresses::ScalarStorageAddress,
+            usize,
+        )> {
+            let ArrayOrigin::Component {
+                first: Some(first),
+                start,
+            } = self.original_array.as_ref()?
+            else {
+                return None;
+            };
+            (index < self.len()).then_some(())?;
+            Some((
+                first,
+                self.window.start.checked_sub(*start)?.checked_add(index)?,
+            ))
         }
 
         pub(crate) fn owned_snapshot(&self) -> Self {
@@ -3047,6 +3101,9 @@ pub(crate) mod byte_sequences {
         }
 
         pub(crate) fn original_byte_allocation(&self) -> Option<(u64, usize, usize)> {
+            if self.original_array.is_some() {
+                return None;
+            }
             Some((
                 self.backing.exposure_namespace?,
                 self.backing.storage.bytes().len(),
@@ -3089,7 +3146,7 @@ pub(crate) mod byte_sequences {
         }
 
         pub(crate) fn storage_address_coordinate(&self, index: usize) -> Option<(u64, u64)> {
-            if index >= self.len() {
+            if index >= self.len() || self.original_array.is_some() {
                 return None;
             }
             Some((
@@ -3162,13 +3219,15 @@ pub(crate) mod byte_sequences {
         pub(crate) fn subslice(&self, start: usize, end: usize) -> Option<Self> {
             self.bytes().get(start..end)?;
             let original_array = match &self.original_array {
-                Some(original) => Some(OriginalByteArrayWindow {
-                    array: original.array.clone(),
-                    array_type: original.array_type,
-                    offset: original.offset.checked_add(start)?,
-                    length: end - start,
-                }),
-                None => None,
+                Some(ArrayOrigin::Local(original)) => {
+                    Some(ArrayOrigin::Local(OriginalByteArrayWindow {
+                        array: original.array.clone(),
+                        array_type: original.array_type,
+                        offset: original.offset.checked_add(start)?,
+                        length: end - start,
+                    }))
+                }
+                origin => origin.clone(),
             };
             Some(Self {
                 backing: Arc::clone(&self.backing),

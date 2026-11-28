@@ -10,6 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 structural-storage = { path = "../../representations/structural-storage" }
+language-core = { path = "../../../foundation/language-core" }
 layout-planning = { path = "../../../psi/semantics/default-integer-layouts" }
 wire = { path = "../../../../../foundation/wire" }
 terminal-psi = { path = "../../../psi" }

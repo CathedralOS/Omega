@@ -63,11 +63,10 @@ impl Substitution<'_> {
 
     pub(super) fn callable(
         &self,
-        module: &TerminalModule,
+        catalog: &terminal_psi::TerminalCallableCatalog,
         from: CallableContractId,
         to: CallableContractId,
     ) -> bool {
-        let catalog = &module.execution.callables;
         let (Some(public), Some(actual)) = (catalog.contract(from), catalog.contract(to)) else {
             return false;
         };
@@ -105,7 +104,7 @@ impl Substitution<'_> {
             (
                 StructuralFieldType::Scalar(ScalarType::Callable(from)),
                 StructuralFieldType::Scalar(ScalarType::Callable(to)),
-            ) => self.callable(module, *from, *to),
+            ) => self.callable(&module.execution.callables, *from, *to),
             _ => public == actual,
         }
     }

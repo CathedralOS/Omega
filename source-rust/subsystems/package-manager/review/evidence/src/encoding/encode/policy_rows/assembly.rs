@@ -320,8 +320,11 @@ pub(super) fn project(
     for (ordinal, request) in restricted_build_requests.iter().enumerate() {
         let ordinal = u64::try_from(ordinal)
             .map_err(|_| rejected("restricted build request ordinal overflows"))?;
-        builder.push(
-            PackagePolicyRowKind::RestrictedBuildRequest,
+        builder.push_versioned(
+            (
+                PackagePolicyRowKind::RestrictedBuildRequest,
+                super::restricted_request_schema(request),
+            ),
             true,
             true,
             |encoder| {

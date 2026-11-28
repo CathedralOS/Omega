@@ -5,63 +5,53 @@
 use super::callback_thunks::PlannedPrivateBody;
 use crate::driver::compile_body::PreparedPhysicalBody;
 use diagnostics::Diagnostic;
-use frame_planning::stack_demand::{StackDemand, derive_physical_stack_demand};
+use frame_planning::stack_demand::StackDemand;
+use image_emission::callback_stack::{self, CallbackStackBody};
 use provider_admission::realization_error;
 
 pub(super) fn plan(
     body: &PreparedPhysicalBody,
     private: &[PlannedPrivateBody],
 ) -> Result<StackDemand, Vec<Diagnostic>> {
-    visit(body, private, &mut Vec::new())
+    callback_stack::derive(
+        describe(body, 0),
+        private,
+        |body| body.identity,
+        |private| {
+            let cost = private.entry.bridge().map_or(0, |bridge| {
+                u64::from(bridge.frame_bytes()) + u64::from(bridge.call_stack_bias())
+            });
+            describe(&private.callable.body, cost)
+        },
+    )
+    .map_err(|error| {
+        let reason = match error {
+            callback_stack::Error::MissingBody => {
+                "callback stack requirement has no retained physical body"
+            }
+            callback_stack::Error::Cycle(_) => {
+                "callback stack demand has a cyclic executable dependency"
+            }
+            callback_stack::Error::EntryCostOverflow(_) => "private entry stack demand overflows",
+            callback_stack::Error::Body(error) => {
+                return realization_error("physical program stack", format!("{error:?}"));
+            }
+        };
+        realization_error("physical program stack", reason)
+    })
 }
 
-fn visit(
-    body: &PreparedPhysicalBody,
-    private: &[PlannedPrivateBody],
-    active: &mut Vec<function_identity::MachineFunctionIdentity>,
-) -> Result<StackDemand, Vec<Diagnostic>> {
-    let invalid = |reason| realization_error("physical program stack", reason);
-    let mut demands = Vec::new();
-    for identity in body
-        .stage
-        .facts()
-        .physical
-        .stack
-        .functions
-        .iter()
-        .flat_map(|function| &function.foreign_calls)
-        .flat_map(|call| &call.invoked_callbacks)
-    {
-        if demands.iter().any(|(known, _)| known == identity) {
-            continue;
-        }
-        let private_body = private
+fn describe(body: &PreparedPhysicalBody, entry_cost: u64) -> CallbackStackBody<'_> {
+    let program = &body.stage.facts().physical.stack;
+    CallbackStackBody {
+        program,
+        entry: body.stage.program().frame.instructions.entry,
+        callbacks: program
+            .functions
             .iter()
-            .find(|body| body.identity == *identity)
-            .ok_or_else(|| invalid("callback stack requirement has no retained physical body"))?;
-        if active.contains(identity) {
-            return Err(invalid(
-                "callback stack demand has a cyclic executable dependency",
-            ));
-        }
-        active.push(*identity);
-        let mut demand = visit(&private_body.callable.body, private, active)?;
-        if let Some(bridge) = private_body.entry.bridge() {
-            let alignment = demand.stack_alignment();
-            demand = demand
-                .with_entry_cost(
-                    u64::from(bridge.frame_bytes()) + u64::from(bridge.call_stack_bias()),
-                    alignment,
-                )
-                .ok_or_else(|| invalid("private entry stack demand overflows"))?;
-        }
-        active.pop();
-        demands.push((*identity, demand));
+            .flat_map(|function| &function.foreign_calls)
+            .flat_map(|call| call.invoked_callbacks.iter().copied())
+            .collect(),
+        entry_cost,
     }
-    derive_physical_stack_demand(
-        &body.stage.facts().physical.stack,
-        body.stage.program().frame.instructions.entry,
-        demands,
-    )
-    .map_err(|error| realization_error("physical program stack", format!("{error:?}")))
 }

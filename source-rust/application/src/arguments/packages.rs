@@ -44,10 +44,10 @@ Run `omega build build.omg` on the candidate. Use `omega packages audit` to insp
 pub(super) fn usage(kind: &PackageCommandKind) -> &'static str {
     match kind {
         PackageCommandKind::Install => {
-            "usage: omega packages install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]... [--dangerously-accept-all]\n       omega packages install --resume [--project <dir>] [--offline]\n       omega packages install --discard-review [--project <dir>] [--offline]\n       omega packages install --help\n--allow ProgramLaunch --program <identity> <executable> binds a program for this invocation, including --resume. Its optional --program-read, --program-write and --program-timeout limits follow the binding.\n--offline disables package source network acquisition for this invocation.\n--package selects a Git workspace member by its declared name.\n--discard-review abandons pending review; it does not discard publication recovery.\n--dangerously-accept-all accepts every pending review decision unread and publishes; omega.lock records each acceptance as if edited by hand."
+            "usage: omega packages install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]... [--dangerously-accept-all]\n       omega packages install --resume [--project <dir>] [--offline]\n       omega packages install --discard-review [--project <dir>] [--offline]\n       omega packages install --help\n--allow Network raises the root Build ceiling. --network-peer <ip:port> supplies a fixed UDP destination. --network-max-datagram <bytes> limits each send.\n--allow ProgramLaunch --program <identity> <executable> binds a program for this invocation, including --resume. Its optional --program-read, --program-write and --program-timeout limits follow the binding.\n--offline disables package source network acquisition for this invocation.\n--package selects a Git workspace member by its declared name.\n--discard-review abandons pending review; it does not discard publication recovery.\n--dangerously-accept-all accepts every pending review decision unread and publishes; omega.lock records each acceptance as if edited by hand."
         }
         PackageCommandKind::Update => {
-            "usage: omega packages update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]... [--dangerously-accept-all]\n       omega packages update --resume [--project <dir>] [--offline]\n       omega packages update --discard-review [--project <dir>] [--offline]\n       omega packages update --help\n--allow ProgramLaunch --program <identity> <executable> binds a program for this invocation, including --resume. Its optional --program-read, --program-write and --program-timeout limits follow the binding.\n--offline disables package source network acquisition for this invocation.\n--discard-review abandons pending review; it does not discard publication recovery.\n--dangerously-accept-all accepts every pending review decision unread and publishes; omega.lock records each acceptance as if edited by hand."
+            "usage: omega packages update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]... [--dangerously-accept-all]\n       omega packages update --resume [--project <dir>] [--offline]\n       omega packages update --discard-review [--project <dir>] [--offline]\n       omega packages update --help\n--allow Network raises the root Build ceiling. --network-peer <ip:port> supplies a fixed UDP destination. --network-max-datagram <bytes> limits each send.\n--allow ProgramLaunch --program <identity> <executable> binds a program for this invocation, including --resume. Its optional --program-read, --program-write and --program-timeout limits follow the binding.\n--offline disables package source network acquisition for this invocation.\n--discard-review abandons pending review; it does not discard publication recovery.\n--dangerously-accept-all accepts every pending review decision unread and publishes; omega.lock records each acceptance as if edited by hand."
         }
     }
 }
@@ -68,9 +68,9 @@ pub(super) fn parse_arguments(
     let mut help = false;
     let mut offline = false;
     let mut build_inputs = Vec::new();
-    let mut programs = package_compilation::build_execution::BuildProgramInvocation::default();
+    let mut grants = super::build_grants::Arguments::default();
     while let Some(argument) = arguments.next_argument() {
-        if super::programs::take(&argument, arguments, &mut programs)? {
+        if grants.take(&argument, arguments)? {
             continue;
         }
         let argument = argument
@@ -127,8 +127,8 @@ pub(super) fn parse_arguments(
             }
         }
     }
-    super::programs::finish(&mut programs)?;
-    if discard_review && programs.allow {
+    let (programs, network) = grants.finish()?;
+    if discard_review && (programs.allow || network.is_granted()) {
         return Err("--discard-review cannot accept Build grants".into());
     }
     if resume && discard_review {
@@ -145,7 +145,7 @@ pub(super) fn parse_arguments(
             || !build_inputs.is_empty()
             || !target_names.is_empty())
     {
-        return Err("--resume and --discard-review allow only --project and --offline".to_owned());
+        return Err("--resume and --discard-review reuse the pending package selection, targets and Build inputs".to_owned());
     }
     if help {
         return Ok(None);
@@ -180,6 +180,7 @@ pub(super) fn parse_arguments(
         command,
         PackageCommandOptions {
             programs,
+            network,
             project_root: project_root.unwrap_or_else(|| PathBuf::from(".")),
             targets,
             offline,

@@ -165,14 +165,17 @@ impl ResolveAndTypeRequest {
             purpose: self.purpose,
         };
         let activation = activation::select_retained_source(&self, &context, timings)?;
+        let mut retained_requests = Ok(());
         if let Some(activation) = &activation {
+            let requests = PreCheckEvaluation::require_recorded_requests(activation.typing.typed());
+            if activation.pre_checks.is_empty() {
+                // With no pending continuation, successor errors take precedence.
+                retained_requests = requests;
+            } else {
+                requests?;
+            }
             activation.remove_retained_syntax(&mut self.syntax.trees, &self.source_items);
         }
-        // Check the predecessor while its owner can still be borrowed. Report
-        // any refusal after checking the successor to preserve diagnostic order.
-        let retained_requests = activation.as_ref().map(|activation| {
-            PreCheckEvaluation::require_recorded_requests(activation.typing.typed())
-        });
         let syntax = self.syntax.trees;
         let pre_check = PreCheckEvaluation::new(self.selection_authority);
         let (mut typing, mut pending_bodies, mut pending_pre_checks) = if let Some(mut activation) =
@@ -244,11 +247,8 @@ impl ResolveAndTypeRequest {
             PreCheckEvaluation::defer_declared_requests(typing.typed_mut())?;
         }
         // The successor's requests are now recorded on its declarations, so
-        // checking that they are would rescan the program to no effect. The
-        // predecessor's refusal is still reported after the successor's.
-        if let Some(retained_requests) = retained_requests {
-            retained_requests?;
-        }
+        // checking that they are would rescan the program to no effect.
+        retained_requests?;
         pending_pre_checks.push(pre_check);
         let input = Arc::new(SourceCompletionInput {
             typing,

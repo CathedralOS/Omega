@@ -120,6 +120,21 @@ fn selected_sampler(
             "a static machine argument must have its parameter's formals and result",
         ));
     }
+    // A record selection is itself a use of the machine contract, even if
+    // this program only projects the state and never calls the sampler.
+    // As for a concrete machine passed to a mathematical template, a
+    // conditional definition needs evidence at the required input domain.
+    let clauses = typed.machine_contracts(machine);
+    let entry_clauses = typed.state_contracts(entry);
+    if clauses.len() != machine.contracts.len() || entry_clauses.len() != entry.contracts.len() {
+        return Err(Unserved("record machine argument lost its contracts"));
+    }
+    if clauses.iter().chain(entry_clauses).any(|clause| {
+        clause.kind == crate::source_state::signature::SignatureContractKind::Requires
+            && (!clause.facts.is_empty() || clause.binding.is_some())
+    }) {
+        return Err(Unserved("record machine argument with an unproved premise"));
+    }
     Ok(machine.symbol)
 }
 
@@ -138,6 +153,19 @@ pub(super) fn source_application_in_scope(
     reference: TypeReferenceHandle,
     machine: MachineId,
     scope: std::sync::Arc<crate::source_state::SourceTypeScope>,
+) -> Checked<SourceTypeApplication> {
+    checked_source_application(typed, data, reference, machine, scope, false)
+}
+
+/// The storage reader retains the region of a directly substituted borrow.
+/// Other callers use the region-free entrance above for nominal equations.
+fn checked_source_application(
+    typed: &crate::source_state::TypedTrees,
+    data: &DataDefinition,
+    reference: TypeReferenceHandle,
+    machine: MachineId,
+    scope: std::sync::Arc<crate::source_state::SourceTypeScope>,
+    borrowed_storage: bool,
 ) -> Checked<SourceTypeApplication> {
     use crate::source_state::data::TypeParameterKind;
     let unavailable = |detail| refuse_at(machine, Unserved::Type(detail));
@@ -403,10 +431,9 @@ pub(super) fn source_application_in_scope(
                 ));
                 return Err(refusal);
             }
-            // Ordinary nominal identities erase regions. Do not let a new
-            // byte/reference reader turn that storage key into lifetime
-            // correspondence until this same application owner retains it.
-            if scope.region_free_type_identity(typed, *argument).is_none() {
+            if scope.region_free_type_identity(typed, *argument).is_none()
+                && !(borrowed_storage && retained_borrow(typed, &scope, *argument).is_some())
+            {
                 return Err(unavailable(
                     "record application whose reference regions are not retained",
                 ));
@@ -421,7 +448,15 @@ pub(super) fn source_application_in_scope(
                 "record application repeats a template binder",
             ));
         }
-        validate_applied_members(typed, template, data, semantic, &substitutions, machine)?;
+        validate_applied_members(
+            typed,
+            template,
+            data,
+            semantic,
+            &substitutions,
+            machine,
+            &scope,
+        )?;
     } else {
         match typed.type_reference_table.type_reference(semantic) {
             TypeReferenceNode::Named { symbol, .. } if *symbol == data.symbol => {}
@@ -449,6 +484,46 @@ pub(super) fn source_application_in_scope(
     })
 }
 
+/// The outer region must belong to this written operand. A retained
+/// binder cannot be inferred from the spelling of the result's field.
+pub(super) fn retained_borrow(
+    typed: &crate::source_state::TypedTrees,
+    scope: &std::sync::Arc<crate::source_state::SourceTypeScope>,
+    reference: TypeReferenceHandle,
+) -> Option<crate::source_state::type_identity::LifetimeParameterIdentity> {
+    use crate::source_state::type_identity::{
+        lifetime_parameter_identity, lifetime_parameter_name,
+    };
+    let table = &typed.type_reference_table;
+    let TypeReferenceNode::Reference {
+        referee,
+        lifetime: Some(tag),
+        ..
+    } = table.type_reference(reference)
+    else {
+        return None;
+    };
+    let supplied = scope.supplied_type_reference(typed, *referee).ok()?;
+    if !crate::source_state::domain::index_argument_is_closed(typed, supplied.reference) {
+        return None;
+    }
+    supplied
+        .scope
+        .region_free_type_identity(typed, supplied.reference)?;
+    let owner = table.operand_lifetime_owner(reference);
+    let parameter = match table.operand_lifetimes(reference) {
+        [parameter] if parameter.declaration.is_valid() => *parameter,
+        [] if owner.is_valid() => lifetime_parameter_identity(typed, owner, tag.as_str())?,
+        _ => return None,
+    };
+    if owner.is_valid()
+        && lifetime_parameter_identity(typed, owner, tag.as_str()) != Some(parameter)
+    {
+        return None;
+    }
+    (lifetime_parameter_name(typed, parameter)?.as_str() == tag.as_str()).then_some(parameter)
+}
+
 fn validate_applied_members(
     typed: &crate::source_state::TypedTrees,
     template: &DataDefinition,
@@ -456,11 +531,44 @@ fn validate_applied_members(
     reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     machine: MachineId,
+    scope: &std::sync::Arc<crate::source_state::SourceTypeScope>,
 ) -> Checked<()> {
     use crate::source_state::data::{DataField, DataMember};
     use crate::source_state::type_identity::TypeIdentityRequest;
     // Views keep authored handles; nominal instances own fresh children.
     // Both must retain the exact source member and its selected owner.
+    let has_borrow = substitutions
+        .iter()
+        .any(|(_, argument)| scope.region_free_type_identity(typed, *argument).is_none());
+    let applied_scope = has_borrow.then(|| crate::source_state::SourceTypeScope {
+        substitutions: substitutions.to_vec(),
+        parent: Some(scope.clone()),
+        rigid_parameters: Vec::new(),
+    });
+    let same_regions = |expected, actual| {
+        let Some(applied_scope) = &applied_scope else {
+            return true;
+        };
+        if applied_scope
+            .region_free_type_identity(typed, expected)
+            .is_some()
+        {
+            return scope.region_free_type_identity(typed, actual).is_some();
+        }
+        // A directly substituted borrow must reach the actual field with
+        // the retained region from the template argument. More complex
+        // applications still need correspondence for each nested leaf.
+        let TypeReferenceNode::Named { symbol, .. } =
+            typed.type_reference_table.type_reference(expected)
+        else {
+            return false;
+        };
+        substitutions
+            .iter()
+            .find(|(binder, _)| binder == symbol)
+            .and_then(|(_, argument)| retained_borrow(typed, scope, *argument))
+            .is_some_and(|region| retained_borrow(typed, scope, actual) == Some(region))
+    };
     let same_field = |expected: &DataField, actual: &DataField, owner| {
         typed.data_constructor_field(reference, template.symbol, expected.symbol) == Some(actual)
             && (selected.symbol != template.symbol || expected.symbol == actual.symbol)
@@ -476,6 +584,7 @@ fn validate_applied_members(
             && typed
                 .type_reference_table
                 .contains_type_reference(actual.type_reference)
+            && same_regions(expected.type_reference, actual.type_reference)
             && typed.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
                 type_reference: expected.type_reference,
                 binders: &[],
@@ -605,12 +714,13 @@ impl Program<'_> {
         reference: TypeReferenceHandle,
         machine: MachineId,
     ) -> Checked<SourceTypeApplication> {
-        source_application_in_scope(
+        checked_source_application(
             self.typed,
             data,
             reference,
             machine,
             self.source_scope.clone(),
+            true,
         )
     }
 
@@ -802,7 +912,13 @@ impl Program<'_> {
                     "access plan subject has no retained data declaration",
                 )
             })?;
-        let actual = self.source_record_application(data, subject, machine)?;
+        let actual = source_application_in_scope(
+            self.typed,
+            data,
+            subject,
+            machine,
+            self.source_scope.clone(),
+        )?;
         let same = match &source.application {
             Some(retained) => {
                 // A policy on T describes T's fields in any representation.

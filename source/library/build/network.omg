@@ -1,0 +1,10 @@
+use {omega}/language/core/network_authority.omg as authority;
+use {omega}/language/core/sandbox/datagram.omg as datagram;
+
+public machine send(bytes: @[u8]) -> bool
+    reaches |authority|::NetworkSend
+    blocks
+    crashes none
+{
+    block |datagram|::Datagram::send(bytes)
+}

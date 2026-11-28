@@ -7,6 +7,7 @@
 #![forbid(unsafe_code)]
 
 mod callable_calls;
+pub mod callback_stack;
 
 mod codec_bytes {
     pub(crate) use ::wire::codec_bytes::u32_at;

@@ -2,13 +2,13 @@
 //! and indexed at placement. Each sweep shrinks every eligible branch and recomputes
 //! displacements until no instruction shrinks. Independent replay checks the trace.
 
-use machine_code::layout::X86BranchRelaxationRecord;
 #[cfg(test)]
 use machine_code::layout::relaxation_policy::ensure_x86_target;
 use machine_code::layout::relaxation_policy::{
     OptimizedX86BranchRelaxationError, X86BranchFormError, X86BranchRelaxationWorkAxis,
     validate_roots,
 };
+use machine_code::layout::{X86BranchRelaxationAudit, X86BranchRelaxationRecord};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -42,11 +42,10 @@ macro_rules! charge_axis {
     };
 }
 
-struct RelaxationTrace {
-    usage: OptimizationWorkUsage, // Cumulative work charged across sweeps.
+#[derive(Default)]
+struct SweepHistory {
     attempts: Vec<X86BranchRelaxationAttempt>, // Recorded branch inspection outcomes.
-    actions: Vec<X86BranchRelaxationAction>, // Recorded near-to-short branch rewrites.
-    functions: Vec<ResolvedSelectedFunctionLayout>, // Rewritten function layouts after reflow.
+    actions: Vec<X86BranchRelaxationAction>,   // Recorded near-to-short branch rewrites.
 }
 
 struct SweptBranch {
@@ -61,10 +60,51 @@ pub(crate) fn stage_optimized_x86_branch_relaxation(
     source: &ResolvedMachineLayout,
     controls: &[EncodedControlIndex],
     budget: OptimizationWorkBudget,
+    audit_requested: bool,
 ) -> Result<X86BranchRelaxationRecord, OptimizedX86BranchRelaxationError> {
     validate_roots(source, physical)?;
-    let trace = compute_trace(revision_roots(source), source.functions(), controls, budget)?;
-    finish_artifact(source, budget, trace)
+    let roots = RevisionRoots {
+        target: source.target(),
+    };
+    let mut history = audit_requested.then(SweepHistory::default);
+    let mut functions = source.functions().to_vec();
+    let usage = relax_branches(roots, &mut functions, controls, budget, history.as_mut())?;
+    let policy = X86BranchRelaxationPolicy::X86RelaxConditionalBranchesToRel8V1;
+    let audit = history.map(|history| {
+        let output_revision = revision_identity(roots, &functions);
+        let identity = artifact_identity(
+            roots,
+            policy,
+            budget,
+            usage,
+            output_revision,
+            &history.attempts,
+            &history.actions,
+            &functions,
+        );
+        Box::new(X86BranchRelaxationAudit {
+            output_revision,
+            identity,
+            attempts: history.attempts,
+            actions: history.actions,
+        })
+    });
+    Ok(X86BranchRelaxationRecord {
+        machine: Arc::clone(source.machine()),
+        pre_layout: source.pre_layout().clone(),
+        target: source.target(),
+        policy,
+        budget,
+        usage,
+        audit,
+        layout: Arc::new(ResolvedMachineLayout {
+            machine: Arc::clone(source.machine()),
+            pre_layout: source.pre_layout().clone(),
+            target: source.target(),
+            policy: source.policy,
+            functions,
+        }),
+    })
 }
 
 fn conditional_evidence(
@@ -80,52 +120,6 @@ fn conditional_evidence(
 
 fn malformed(instruction: SelectedInstructionId) -> OptimizedX86BranchRelaxationError {
     OptimizedX86BranchRelaxationError::MalformedBranch(instruction)
-}
-
-fn revision_roots(source: &ResolvedMachineLayout) -> RevisionRoots {
-    RevisionRoots {
-        target: source.target(),
-    }
-}
-
-fn finish_artifact(
-    source: &ResolvedMachineLayout,
-    budget: OptimizationWorkBudget,
-    trace: RelaxationTrace,
-) -> Result<X86BranchRelaxationRecord, OptimizedX86BranchRelaxationError> {
-    let roots = revision_roots(source);
-    let output_revision = revision_identity(roots, &trace.functions);
-    let layout = Arc::new(ResolvedMachineLayout {
-        machine: Arc::clone(&source.machine),
-        pre_layout: source.pre_layout.clone(),
-        target: source.target,
-        policy: source.policy,
-        functions: trace.functions,
-    });
-    let policy = X86BranchRelaxationPolicy::X86RelaxConditionalBranchesToRel8V1;
-    let identity = artifact_identity(
-        roots,
-        policy,
-        budget,
-        trace.usage,
-        output_revision,
-        &trace.attempts,
-        &trace.actions,
-        layout.functions(),
-    );
-    Ok(X86BranchRelaxationRecord {
-        machine: Arc::clone(source.machine()),
-        pre_layout: source.pre_layout().clone(),
-        target: source.target(),
-        policy,
-        budget,
-        usage: trace.usage,
-        output_revision,
-        identity,
-        attempts: trace.attempts,
-        actions: trace.actions,
-        layout,
-    })
 }
 
 fn inspect_production_branch(
@@ -234,21 +228,21 @@ fn near_width(bytes: usize) -> Option<bool> {
     }
 }
 
-fn compute_trace(
+fn relax_branches(
     roots: RevisionRoots,
-    source: &[ResolvedSelectedFunctionLayout],
+    functions: &mut [ResolvedSelectedFunctionLayout],
     controls: &[EncodedControlIndex],
     budget: OptimizationWorkBudget,
-) -> Result<RelaxationTrace, OptimizedX86BranchRelaxationError> {
-    let mut functions = source.to_vec();
-    let mut attempts = Vec::new();
-    let mut actions = Vec::new();
+    mut history: Option<&mut SweepHistory>,
+) -> Result<OptimizationWorkUsage, OptimizedX86BranchRelaxationError> {
     let mut usage = OptimizationWorkUsage::default();
     loop {
         charge_axis!(usage, budget, iterations, Iterations);
         let iteration = usage.iterations;
-        let input = revision_identity(roots, &functions);
-        let previous_bytes = total_bytes(&functions)?;
+        let mut audit = history
+            .as_deref_mut()
+            .map(|history| (history, revision_identity(roots, functions)));
+        let previous_bytes = total_bytes(functions)?;
         let mut swept: Vec<SweptBranch> = Vec::new();
         for (function_index, function) in functions.iter().enumerate() {
             for (block_index, block) in function.blocks.iter().enumerate() {
@@ -267,16 +261,18 @@ fn compute_trace(
                         instruction_index,
                         &controls[function_index],
                     )?;
-                    attempts.push(X86BranchRelaxationAttempt {
-                        iteration,
-                        input,
-                        instruction: row.instruction,
-                        offset: row.offset,
-                        byte_displacement: branch.byte_displacement,
-                        encoded_bytes: u8::try_from(row.bytes.len())
-                            .map_err(|_| OptimizedX86BranchRelaxationError::OffsetOverflow)?,
-                        outcome,
-                    });
+                    if let Some((history, input)) = &mut audit {
+                        history.attempts.push(X86BranchRelaxationAttempt {
+                            iteration,
+                            input: *input,
+                            instruction: row.instruction,
+                            offset: row.offset,
+                            byte_displacement: branch.byte_displacement,
+                            encoded_bytes: u8::try_from(row.bytes.len())
+                                .map_err(|_| OptimizedX86BranchRelaxationError::OffsetOverflow)?,
+                            outcome,
+                        });
+                    }
                     if outcome == X86BranchRelaxationAttemptOutcome::SelectedForRelaxation {
                         charge_axis!(usage, budget, candidates, Candidates);
                         charge_axis!(usage, budget, validation_steps, ValidationSteps);
@@ -295,49 +291,48 @@ fn compute_trace(
         if swept.is_empty() {
             break;
         }
-        let mut narrowed = Vec::with_capacity(swept.len());
+        let mut old_rows = Vec::new();
         for branch in &swept {
             charge_axis!(usage, budget, commits, Commits);
-            narrowed.push(commit_short_form(&mut functions, branch, controls)?);
+            let row = &mut functions[branch.function_index].blocks[branch.block_index].instructions
+                [branch.instruction_index];
+            if audit.is_some() {
+                old_rows.push(row.clone());
+            }
+            commit_short_form(row, branch.displacement, &controls[branch.function_index])?;
         }
-        reflow_production_functions(&mut functions, controls)?;
-        let expected_saving = u64::try_from(narrowed.len())
+        reflow_production_functions(functions, controls)?;
+        let expected_saving = u64::try_from(swept.len())
             .ok()
             .and_then(|count| count.checked_mul(SHORT_FORM_SAVED_BYTES))
             .ok_or(OptimizedX86BranchRelaxationError::OffsetOverflow)?;
-        let current_bytes = total_bytes(&functions)?;
+        let current_bytes = total_bytes(functions)?;
         if previous_bytes.checked_sub(current_bytes) != Some(expected_saving) {
             return Err(OptimizedX86BranchRelaxationError::NonDecreasingByteMeasure);
         }
-        let output = revision_identity(roots, &functions);
-        for (branch, old) in swept.iter().zip(narrowed) {
-            actions.push(relaxation_action(
-                &functions, branch, old, iteration, input, output,
-            )?);
+        if let Some((history, input)) = audit {
+            let output = revision_identity(roots, functions);
+            for (branch, old) in swept.iter().zip(old_rows) {
+                history.actions.push(relaxation_action(
+                    functions, branch, old, iteration, input, output,
+                )?);
+            }
         }
     }
-    Ok(RelaxationTrace {
-        usage,
-        attempts,
-        actions,
-        functions,
-    })
+    Ok(usage)
 }
 
 fn commit_short_form(
-    functions: &mut [ResolvedSelectedFunctionLayout],
-    branch: &SweptBranch,
-    controls: &[EncodedControlIndex],
-) -> Result<ResolvedSelectedFormRow, OptimizedX86BranchRelaxationError> {
-    let row = &mut functions[branch.function_index].blocks[branch.block_index].instructions
-        [branch.instruction_index];
-    let old = row.clone();
-    let evidence = conditional_evidence(&old)?;
-    let template = controls[branch.function_index]
+    row: &mut ResolvedSelectedFormRow,
+    displacement: i64,
+    controls: &EncodedControlIndex,
+) -> Result<(), OptimizedX86BranchRelaxationError> {
+    let evidence = conditional_evidence(row)?;
+    let template = controls
         .get(row.instruction)
         .and_then(|forms| forms.shortened.as_ref())
         .filter(|form| {
-            form.alternative.family == old.alternative.family
+            form.alternative.family == row.alternative.family
                 && form.bytes.len() == SHORT_WIDTH
                 && form.field == machine_code::BranchDisplacementField::Relative8
                 && form.field_offset == 1
@@ -351,15 +346,14 @@ fn commit_short_form(
             row.instruction,
         ));
     }
-    let displacement = branch
-        .displacement
+    let displacement = displacement
         .checked_add(SHORT_WIDTH as i64)
         .ok_or(OptimizedX86BranchRelaxationError::OffsetOverflow)?;
     row.alternative = template.alternative;
     row.bytes = template
         .patch(displacement)
         .map_err(|_| malformed(row.instruction))?;
-    Ok(old)
+    Ok(())
 }
 
 fn relaxation_action(
@@ -687,12 +681,26 @@ mod tests {
         super::reflow_production_functions(functions, &controls)
     }
 
-    fn compute_trace(
-        roots: RevisionRoots,
-        functions: &[ResolvedSelectedFunctionLayout],
-        physical: &ValidatedPhysicalRegisterModel,
+    fn baseline(
+        functions: Vec<ResolvedSelectedFunctionLayout>,
+    ) -> machine_code::ResolvedMachineLayout {
+        machine_code::ResolvedMachineLayout {
+            machine: post_allocation_machine::test_support::placeholder_plan(),
+            pre_layout: machine_code::test_support::placeholder_encoding(),
+            target: sweep_roots().target,
+            policy: machine_code::SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1,
+            functions,
+        }
+    }
+
+    fn relax(
+        source: &machine_code::ResolvedMachineLayout,
         budget: OptimizationWorkBudget,
-    ) -> Result<super::RelaxationTrace, OptimizedX86BranchRelaxationError> {
+        audit: bool,
+    ) -> Result<machine_code::layout::X86BranchRelaxationRecord, OptimizedX86BranchRelaxationError>
+    {
+        let functions = source.functions();
+        let physical = physical();
         let rows = control_rows(functions, physical);
         let controls = machine_code::EncodedControlIndex::partition(
             &rows,
@@ -706,7 +714,7 @@ mod tests {
             }),
         )
         .unwrap();
-        super::compute_trace(roots, functions, &controls, budget)
+        super::stage_optimized_x86_branch_relaxation(physical, source, &controls, budget, audit)
     }
 
     fn inspect_production_branch(
@@ -1482,37 +1490,74 @@ mod tests {
     }
 
     fn sweep_report(functions: Vec<ResolvedSelectedFunctionLayout>) -> String {
-        let physical = physical();
-        let production =
-            compute_trace(sweep_roots(), &functions, physical, sweep_budget()).unwrap();
+        let production = relax(&baseline(functions), sweep_budget(), false).unwrap();
         format!(
             "sweeps={} commits={} branches={}",
             production.usage.iterations,
             production.usage.commits,
-            branch_bytes(&production.functions)
+            branch_bytes(production.functions())
         )
+    }
+
+    #[test]
+    fn ordinary_and_audited_relaxation_share_layout_and_work_limits() {
+        use X86BranchRelaxationWorkAxis::*;
+        // Three sweeps narrow the chain. The separate rel32 stays one byte beyond rel8.
+        let source = baseline(vec![branch_chain_function(3, 118), function(128)]);
+        let ordinary = relax(&source, sweep_budget(), false).unwrap();
+        let audited = relax(&source, sweep_budget(), true).unwrap();
+        assert!(ordinary.audit.is_none());
+        let history = audited.audit.as_ref().unwrap();
+        assert_eq!(history.attempts.len(), 12);
+        assert_eq!(history.actions.len(), 3);
+        assert_eq!(ordinary.layout, audited.layout);
+        assert_eq!(
+            branch_bytes(ordinary.functions()),
+            "757a 7578 7576 0f8580000000"
+        );
+        assert_eq!(ordinary.usage, audited.usage);
+        let usage = OptimizationWorkUsage {
+            rule_evaluations: 12,
+            candidates: 3,
+            validation_steps: 3,
+            commits: 3,
+            iterations: 3,
+        };
+        assert_eq!(ordinary.usage, usage);
+        assert_eq!(
+            encoding_admission::layout::relaxation::validate_optimized_x86_branch_relaxation(
+                physical(),
+                &source,
+                &ordinary
+            ),
+            Err(OptimizedX86BranchRelaxationError::ArtifactMismatch)
+        );
+        for (axis, limits) in [
+            (RuleEvaluations, [11, 3, 3, 3, 3]),
+            (Candidates, [12, 2, 3, 3, 3]),
+            (ValidationSteps, [12, 3, 2, 3, 3]),
+            (Commits, [12, 3, 3, 2, 3]),
+            (Iterations, [12, 3, 3, 3, 2]),
+        ] {
+            let [rules, candidates, validation, commits, iterations] = limits;
+            let budget =
+                OptimizationWorkBudget::new(rules, candidates, validation, commits, iterations)
+                    .unwrap();
+            for audit in [false, true] {
+                assert_eq!(
+                    relax(&source, budget, audit),
+                    Err(OptimizedX86BranchRelaxationError::BudgetExceeded(axis))
+                );
+            }
+        }
     }
 
     #[test]
     fn retained_relaxation_record_rejects_changed_roots_trace_and_layout() {
         use encoding_admission::layout::relaxation::validate_optimized_x86_branch_relaxation;
-        let roots = sweep_roots();
-        let baseline = machine_code::ResolvedMachineLayout {
-            machine: post_allocation_machine::test_support::placeholder_plan(),
-            pre_layout: machine_code::test_support::placeholder_encoding(),
-            target: roots.target,
-            policy: machine_code::SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1,
-            functions: vec![function(1)],
-        };
+        let baseline = baseline(vec![function(1)]);
         let physical = physical();
-        let trace = compute_trace(
-            super::revision_roots(&baseline),
-            baseline.functions(),
-            physical,
-            sweep_budget(),
-        )
-        .unwrap();
-        let record = super::finish_artifact(&baseline, sweep_budget(), trace).unwrap();
+        let record = relax(&baseline, sweep_budget(), true).unwrap();
         let forms =
             machine_code::EncodedControlIndex::new(&control_rows(baseline.functions(), physical))
                 .unwrap();
@@ -1581,7 +1626,7 @@ mod tests {
             Err(OptimizedX86BranchRelaxationError::ArtifactMismatch)
         );
         let mut changed = record.clone();
-        changed.actions[0].new_bytes[1] ^= 1;
+        changed.audit.as_mut().unwrap().actions[0].new_bytes[1] ^= 1;
         assert_eq!(
             verify(&changed),
             Err(OptimizedX86BranchRelaxationError::ArtifactMismatch)

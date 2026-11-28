@@ -1,0 +1,5 @@
+[package]
+name = "native-body-plan-issuer"
+edition.workspace = true
+license.workspace = true
+version.workspace = true

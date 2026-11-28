@@ -38,6 +38,8 @@ impl TypedTrees {
             }};
         }
         clone_storage!(
+            package_openings,
+            package_projections,
             build_invocation_entry,
             excluded_authored_selection_occurrences,
             roots,
@@ -170,6 +172,8 @@ impl TypedTrees {
             constant_recipe_closure: constant_recipes::ConstantRecipeClosure::default(),
             callable_identities: OwnedInterner::default(),
             type_identities: Default::default(),
+            package_openings: Default::default(),
+            package_projections: Vec::new(),
         }
     }
 

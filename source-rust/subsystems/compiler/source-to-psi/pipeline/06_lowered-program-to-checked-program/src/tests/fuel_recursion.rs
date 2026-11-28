@@ -317,19 +317,63 @@ fn every_law_of_cauchy_is_judged() {
             "{law:?}"
         );
     }
+    let law = |machine: &str| {
+        judgment
+            .laws
+            .iter()
+            .find(|law| law.machine == machine)
+            .unwrap_or_else(|| panic!("the law `{machine}`"))
+    };
     for machine in [
+        "constant_sample",
+        "constant_regular_at",
         "cauchy_at_reflexive",
         "converges_together_at_symmetric",
         "converges_together_at_triangle_split",
         "doubled_nat_max_threshold",
     ] {
-        let law = judgment
-            .laws
-            .iter()
-            .find(|law| law.machine == machine)
-            .unwrap_or_else(|| panic!("the law `{machine}`"));
-        eprintln!("{machine}: {} conversion steps", law.conversion_steps);
+        eprintln!(
+            "{machine}: {} conversion steps",
+            law(machine).conversion_steps
+        );
     }
+    let MathematicalCoreDecision::Judged(sample) = law("constant_sample").decision;
+    assert_eq!((sample.context_depth, sample.assumption_closure), (0, 0));
+
+    // Check the serialized bound again. Its dependencies must already be
+    // justified by the existing rational metric's reflexivity theorem.
+    let checked = |name| {
+        let mut proof = terminal_codec::decode_mathematical_certificate(&law(name).certificate)
+            .expect("the mathematical certificate");
+        proof_admission::verify_mathematical_certificate(
+            &mut proof.arena,
+            &proof.certificate,
+            &mut Default::default(),
+        )
+        .expect("the receiving kernel checks the closed law");
+        assert!(proof.certificate.context.is_empty());
+        proof
+    };
+    let assumptions = |proof: &terminal_codec::DecodedMathematicalCertificate| {
+        proof_admission::certificate_assumption_closure(&proof.arena, &proof.certificate)
+            .into_iter()
+            .map(|declaration| {
+                let mut certificate = proof.certificate.clone();
+                certificate.expected = certificate.signature[declaration as usize].ty;
+                terminal_codec::theorem_implication_key(&proof.arena, &certificate).unwrap()
+            })
+            .collect::<Vec<_>>()
+    };
+    let reflexive = checked("rat_within_reflexive");
+    let known = assumptions(&reflexive);
+    let cited =
+        terminal_codec::theorem_implication_key(&reflexive.arena, &reflexive.certificate).unwrap();
+    let bound = checked("constant_regular_at");
+    let used = assumptions(&bound);
+    assert!(
+        used.iter().all(|key| key == &cited || known.contains(key)),
+        "constant regularity introduced an assumption beyond rational reflexivity"
+    );
     eprintln!("{} laws", judgment.laws.len());
 }
 

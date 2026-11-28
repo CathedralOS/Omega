@@ -1191,6 +1191,7 @@ machine build(builder: @mutable Build) { Build::bind_native::<Probe::poke>(build
     // value-pattern literal for the same case must preserve any application.
     let head = typed.expression_table.insert(ExpressionNode::StructLiteral(
         source_compiler::representations::source_state::expression::TableStructLiteral {
+            package: None,
             zero_omitted_fields: false,
             application_type: plain,
             type_name: type_name.clone(),

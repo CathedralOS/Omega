@@ -17,11 +17,29 @@ pub struct BuildExecutionContract {
     pub snapshot: Option<BuildSnapshotRequest>,
 }
 
+/// Host-provided network authority for a single Build occurrence. A ceiling can
+/// be present before the host installs a live provider.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum BuildNetworkInvocation {
+    #[default]
+    Offline,
+    Granted {
+        peer: Option<super::BuildNetworkPeer>,
+    },
+}
+
+impl BuildNetworkInvocation {
+    pub fn is_granted(&self) -> bool {
+        matches!(self, Self::Granted { .. })
+    }
+}
+
 #[derive(Default)]
 pub struct BuildExecutionInputs {
     /// The caller may designate this activation's retained diagnostics as a bounded StandardOutput.
     pub diagnostic_output_bytes: Option<u64>,
     pub programs: super::BuildProgramInvocation,
+    pub network: BuildNetworkInvocation,
     /// Product policy issued by the Build that returned this interpreted entry.
     pub prepared_unsafe_atoms:
         std::collections::BTreeSet<language_core::core_vocabulary::UnsafeAtom>,

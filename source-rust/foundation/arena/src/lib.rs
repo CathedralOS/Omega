@@ -6,8 +6,7 @@
 //!
 //! Slot zero names absence. `Arena::get` reads the shared default at zero and
 //! rejects an unresolved nonzero handle. Use `Arena::try_get` when a handle may
-//! be stale. A `GenerationalPagedArena` returns a marked dummy for every
-//! unresolved handle. Check `SlotRef::is_dummy` when that distinction matters.
+//! be stale.
 //!
 //! `HierarchyArena` stores a parent's children as a contiguous handle span.
 //! `OrderedRootArena` maintains a root order over its backing arena.
@@ -66,11 +65,7 @@ pub use arena::{
 };
 pub use index_map::{BuildIndexHasher, HandleKeyMap, IndexHasher};
 pub use owned_index::*;
-pub use paged::{
-    ConcurrentArenaPage, ConcurrentPagedArena, GenerationalPagedArena, IncompletePagePublication,
-    OwnedInterner, OwnedTextInterner, PagedArenaFrontier, PagedArenaSet, PublishedArenaPage,
-    SealedPagedArena, SlotRef,
-};
+pub use paged::{OwnedInterner, OwnedTextInterner, PagedArenaFrontier, PagedArenaSet};
 
 mod id_table;
 pub use id_table::{IdSet, IdTable, IdTableBuildError, NonDenseIdentities, NumericId};

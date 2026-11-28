@@ -107,8 +107,6 @@ pub struct InstructionLiveness {
     pub operands: HandleSpan<OperandPosition>,
     pub virtual_uses: Vec<VirtualRegisterId>,
     pub virtual_defs: Vec<VirtualRegisterId>,
-    pub virtual_live_in: Vec<VirtualRegisterId>,
-    pub virtual_live_out: Vec<VirtualRegisterId>,
     pub unit_uses: Vec<RegisterUnitId>,
     pub unit_defs: Vec<RegisterUnitId>,
     pub unit_clobbers: Vec<RegisterUnitId>,

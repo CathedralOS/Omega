@@ -21,6 +21,13 @@ pub struct PackagePolicyClosedConformanceApplication {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(
+    not(any(test, feature = "full-policy-recovery")),
+    expect(
+        dead_code,
+        reason = "only full policy recovery constructs these wire variants"
+    )
+)]
 pub(crate) enum PackagePolicyConformanceConstArgument {
     Evaluated {
         parameter_carrier: PackageReviewTypeIdentity,

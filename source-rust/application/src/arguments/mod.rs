@@ -41,10 +41,10 @@ disjoint from compiler verdicts.
 */
 
 pub(crate) mod audit;
+mod build_grants;
 pub(crate) mod compile;
 pub(crate) mod inspect;
 pub(crate) mod packages;
-mod programs;
 pub(crate) mod run;
 mod source;
 
@@ -143,14 +143,14 @@ fn parse_command(arguments: &mut Arguments) -> Result<Invocation, UsageError> {
         Some("psi") => parse_psi_subsystem(arguments),
         Some("source") => return source::parse(arguments),
         Some("build") => finish_subcommand(
-            compile::parse_arguments(arguments).and_then(|request| {
-                if request
-                    .as_ref()
-                    .is_some_and(|arguments| arguments.check_only)
-                {
-                    return Err(
-                        "use omega --check to check source without building an artifact".into(),
-                    );
+            compile::parse_arguments(arguments).and_then(|mut request| {
+                if let Some(arguments) = request.as_mut() {
+                    if arguments.check_only {
+                        return Err(
+                            "use omega --check to check source without building an artifact".into(),
+                        );
+                    }
+                    arguments.staged_build = true;
                 }
                 Ok(request)
             }),
@@ -276,7 +276,10 @@ fn parse_packages_subsystem(arguments: &mut Arguments) -> Result<Invocation, Str
         Some("--help" | "-h") => Ok(Invocation::Help(packages::USAGE)),
         _ => {
             let name = action.to_string_lossy();
-            Err(format!("unknown packages command `{name}`\n{}", packages::USAGE))
+            Err(format!(
+                "unknown packages command `{name}`\n{}",
+                packages::USAGE
+            ))
         }
     }
 }
