@@ -1447,8 +1447,8 @@ fn an_exclusive_loan_is_lent_on_to_a_parameter_that_only_observes() {
             "data Pair {{ left: u32; right: u32; }}
 machine see(pair: @Pair) -> u32 {{ pair.left }}
 machine both(first: @Pair, second: @Pair) -> u32 {{ first.left }}
-machine relay(pair: @mutable Pair) -> u32 {{ see(@mutable pair) }}
-machine watch(pair: @Pair) -> u32 {{ see(@pair) }}
+machine relay(pair: @mutable Pair) -> u32 {{ see(@mutable $pair) }}
+machine watch(pair: @Pair) -> u32 {{ see(@$pair) }}
 machine build_entry() {{
     let {binding}: Pair = Pair {{ left: 1, right: 2 }};
     let mutable other: Pair = Pair {{ left: 3, right: 4 }};
