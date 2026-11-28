@@ -57,11 +57,7 @@ fn a_renamed_build_can_select_a_product_from_the_same_file() {
         String::from_utf8_lossy(&run.stderr)
     );
 
-    std::fs::write(
-        root.join("release.omg"),
-        release.replace("main", "launch"),
-    )
-    .unwrap();
+    std::fs::write(root.join("release.omg"), release.replace("main", "launch")).unwrap();
     let alternate = project::omega(root, &["run", "--target", "linux_x86_64", "release.omg"]);
     assert!(
         alternate.status.success(),
