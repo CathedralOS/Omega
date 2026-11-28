@@ -15,9 +15,9 @@ invokes |console|::Console
 blocks
 crashes Trap
 {
-    reader.value = 0;
+    reader.value = 0i64 as +Wrapping;
     reader.status = 0;
-    reader.digits = 0;
+    reader.digits = 0i32 as +Wrapping;
     transition { _ -> block scan(reader) }
     machine scan(reader: @mutable Reader) {
         transition reader.consumed < 4096 {
