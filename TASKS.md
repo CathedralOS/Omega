@@ -291,9 +291,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 - **ADDRESS-EXPOSURE.** (covers **DEFERRED-RECAST-ESTABLISHMENT**, **DEVICE-EXTENT-ACCESS**, **SYMBOLIC-MATERIALIZATION**, **NATIVE-CODE-LAYOUT-QUERIES**) Complete [storage-cast windows](wiki/spec/layouts/recasts.md#deferred-establishment-on-exclusive-storage-casts), [device access](wiki/spec/resources/device_access.md) (`device_extent_access`), [symbolic storage written after handoff](wiki/spec/layouts/plans.md), and [`address_of`/`code_layout`](wiki/spec/language/counts_and_addresses.md#address-exposure).
 
-- **NATIVE-BORROW-ADMISSION.** Implement [the three core operations](wiki/spec/resources/native_borrows.md), native lowering, interpreter rejection of address-to-borrow calls, and independent product opt-ins and per-edge ceilings for reachable code including `ForeignCodeExecution` under `Unsafe`.
-  - Exercise a native byte write, a directly returned reference with adequate backing, a visible conflicting alias or expired lifetime, and an upgrade that must invalidate facts about the referent. Check the same missing-admission diagnostic directly and across two dependency edges. Reject an interpreted address-to-borrow call through a helper.
-  - Exercise native address formation with an explicitly qualified pointee and the reborrow of a value its issuer has already qualified.
+- **NATIVE-BORROW-ADMISSION.** In [fresh package audit](wiki/spec/packages/review.md), identify the [originating native operation](wiki/spec/resources/native_borrows.md#build-admission-and-diagnostics), its dependency path, each Product opt-in and the ceiling of each dependency use. Keep unused operations visible in their defining package.
 
 ## P3 - Terminal Psi, proofs, and observation
 
