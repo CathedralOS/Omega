@@ -1978,7 +1978,7 @@ fn adapt_flow(
                             | language_core::sealed_intrinsics::ActivationOperation::StepFixed
                             | language_core::sealed_intrinsics::ActivationOperation::Resume)
                         )) => Some(super::prepared_owner::invocation(
-                            module, machine, operation, declaration, *control, slot_kind,
+                            module, machine, operation, declaration, *control, slot_kind, failure_detail,
                         )?),
                         _ => None,
                     };

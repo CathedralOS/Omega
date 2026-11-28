@@ -563,6 +563,7 @@ mod framing {
         text: &'a str,
         position: usize,
         pub(super) callable_regions: bool,
+        pub(super) erased_schema: Option<Box<super::ErasedSchema>>,
     }
 
     impl<'a> Reader<'a> {
@@ -571,6 +572,7 @@ mod framing {
                 text,
                 position: 0,
                 callable_regions: false,
+                erased_schema: None,
             }
         }
 
@@ -796,6 +798,7 @@ mod grammar {
         reader: &mut Reader<'_>,
         visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
     ) -> Result {
+        let type_start = reader.position();
         let form = reader.production::<TypeForm>()?;
         visitor.enter_type(form)?;
         let result = match form {
@@ -810,7 +813,7 @@ mod grammar {
                         if reader.callable_regions {
                             region(reader, visitor)?;
                         } else {
-                            declared_region(reader, visitor)?;
+                            declared_region(reader, visitor, type_start)?;
                         }
                     }
                     Ok(())
@@ -838,9 +841,23 @@ mod grammar {
             }),
             TypeForm::Generic => compound(reader, visitor, |reader, visitor| {
                 name_atom(reader, Label::Name, visitor)?;
+                let mut has_region = false;
+                let mut has_other = false;
                 while reader.next(b',') {
                     reader.expect(b',')?;
+                    let region = reader.peek::<RegionForm>() == Some(RegionForm::Region);
+                    has_region |= region;
+                    has_other |= !region;
                     index::static_argument(reader, visitor)?;
+                }
+                if has_region
+                    && !has_other
+                    && !reader.callable_regions
+                    && let Some(schema) = &mut reader.erased_schema
+                {
+                    schema
+                        .edits
+                        .push((type_start, type_start + "generic".len(), "named"));
                 }
                 Ok(())
             }),
@@ -876,12 +893,14 @@ mod grammar {
     pub(super) fn declared_region(
         reader: &mut Reader<'_>,
         visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
+        owner_start: usize,
     ) -> Result {
         if reader.peek::<RegionForm>() != Some(RegionForm::Region) {
             return Err(region_operand(reader));
         }
+        let start = reader.position();
         reader.production::<RegionForm>()?;
-        compound(reader, visitor, |reader, visitor| {
+        let ordinal = compound(reader, visitor, |reader, visitor| {
             if reader.atom(Label::Owner, visitor)?.as_ref() != "schema" {
                 return Err(unadmitted(Unadmitted::ApplicationScope));
             }
@@ -899,8 +918,19 @@ mod grammar {
                     value.checked_mul(10)?.checked_add(u32::from(byte - b'0'))
                 })
                 .ok_or(Error::MalformedIdentity)?;
-            visitor.schema_region(ordinal)
-        })
+            visitor.schema_region(ordinal)?;
+            Ok(ordinal)
+        })?;
+        let end = reader.position();
+        if let Some(schema) = &mut reader.erased_schema {
+            schema.regions.push((owner_start, ordinal));
+            schema.edits.push((
+                start.checked_sub(1).ok_or(Error::MalformedIdentity)?,
+                end,
+                "",
+            ));
+        }
+        Ok(())
     }
 
     pub(super) fn callable_child(
@@ -1515,7 +1545,7 @@ mod index {
             return if !reader.callable_regions
                 && reader.peek::<RegionForm>() == Some(RegionForm::Region)
             {
-                grammar::declared_region(reader, visitor)
+                grammar::declared_region(reader, visitor, reader.position())
             } else {
                 grammar::region(reader, visitor)
             };
@@ -2280,6 +2310,56 @@ pub fn declared_application_operands<'a>(
     named_operands(description, expected_name, true)
 }
 
+#[derive(Default)]
+struct ErasedSchema {
+    edits: Vec<(usize, usize, &'static str)>,
+    regions: Vec<(usize, u32)>,
+}
+
+/// Type arguments select code by their carrier. A declaration also retains
+/// each loan as a bound region. Only those grammar nodes may be omitted when
+/// comparing the two. When checking a specialization, verify its introduced
+/// binders in source order, including an outer borrow before its referent.
+pub fn schema_carrier_region_count(
+    declared: &str,
+    carrier: &str,
+    first_region: Option<u32>,
+) -> Option<u32> {
+    let mut reader = framing::Reader::new(declared);
+    reader.erased_schema = Some(Box::default());
+    let mut syntax = DeclarationIdentitySyntax {
+        depth: 0,
+        signature_regions: true,
+    };
+    grammar::type_identity(&mut reader, &mut syntax).ok()?;
+    reader.finish().ok()?;
+    let mut schema = reader.erased_schema?;
+    let count = u32::try_from(schema.regions.len()).ok()?;
+    if let Some(first) = first_region {
+        schema
+            .regions
+            .sort_unstable_by_key(|(position, _)| *position);
+        if !schema
+            .regions
+            .iter()
+            .map(|(_, ordinal)| *ordinal)
+            .eq(first..first.checked_add(count)?)
+        {
+            return None;
+        }
+    }
+    schema.edits.sort_unstable_by_key(|(start, _, _)| *start);
+    let mut start = 0;
+    let mut remaining = carrier;
+    for (from, to, replacement) in schema.edits {
+        remaining = remaining
+            .strip_prefix(declared.get(start..from)?)?
+            .strip_prefix(replacement)?;
+        start = to;
+    }
+    (remaining == declared.get(start..)?).then_some(count)
+}
+
 pub fn schema_region(ordinal: usize) -> String {
     use encoding::{atom, compound};
     use vocabulary::{Label, RegionForm};
@@ -2482,6 +2562,57 @@ mod nominal_operand_tests {
 #[cfg(test)]
 mod signature_region_tests {
     use super::*;
+
+    #[test]
+    fn selected_carrier_reopens_only_the_declared_region_nodes() {
+        use encoding::{atom, bare, compound};
+        use vocabulary::{Label, NameForm, OwnerForm, TypeForm};
+        let name = |s| {
+            atom(
+                Label::Name,
+                &compound(
+                    NameForm::Nominal,
+                    [bare(OwnerForm::Toolchain), atom(Label::Path, s)],
+                ),
+            )
+        };
+        let packet = compound(TypeForm::Generic, [name("Packet"), schema_region(2)]);
+        let bare_packet = compound(TypeForm::Named, [name("Packet")]);
+        let declared = compound(TypeForm::MutableReference, [packet, schema_region(1)]);
+        let carrier = compound(TypeForm::MutableReference, [bare_packet.clone()]);
+        assert_eq!(
+            schema_carrier_region_count(&declared, &carrier, Some(1)),
+            Some(2)
+        );
+        assert_eq!(
+            schema_carrier_region_count(&declared, &carrier, Some(2)),
+            None
+        );
+        for changed in [
+            declared.replace("ordinal(2)", "ordinal(1)"),
+            declared.replace("owner(schema)", "owner(local)"),
+            declared.replace("Packet", "Other"),
+            declared.replace("ref-mut", "ref"),
+        ] {
+            assert_eq!(
+                schema_carrier_region_count(&changed, &carrier, Some(1)),
+                None
+            );
+        }
+        let with_type = compound(
+            TypeForm::Generic,
+            [name("View"), schema_region(4), bare_packet.clone()],
+        );
+        let erased = compound(TypeForm::Generic, [name("View"), bare_packet]);
+        assert_eq!(
+            schema_carrier_region_count(&with_type, &erased, None),
+            Some(1)
+        );
+        assert_eq!(
+            schema_carrier_region_count(&with_type, &erased.replace("Packet", "Other"), None),
+            None
+        );
+    }
 
     #[test]
     fn schema_regions_describe_binders_without_admitting_value_regions() {

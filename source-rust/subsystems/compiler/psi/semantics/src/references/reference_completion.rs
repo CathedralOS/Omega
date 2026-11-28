@@ -1306,7 +1306,7 @@ fn reference_call_lifetimes_with_index(
         .ok_or_else(|| refuse("returned runtime views have no complete declared frontier"))?;
         (
             contract.structural_parameters.as_slice(),
-            slots,
+            Some(slots),
             Vec::new(),
             Some(declared),
         )
@@ -1334,13 +1334,23 @@ fn reference_call_lifetimes_with_index(
                         "returned borrow differs from its boundary result contract",
                     ));
                 }
-                let slots = crate::boundary_result_slots(
-                    &module.types.structural_types,
-                    declaration,
-                    crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
-                    result,
-                )
-                .map_err(refuse)?;
+                // An activation returns the inputs selected by its checked case.
+                // A provider supplies a separate declaration of its return loans.
+                let slots = if declaration.declaration.as_ref().is_some_and(|checked| {
+                    crate::calls::owned_activation::transfers_owner(checked.execution)
+                }) {
+                    None
+                } else {
+                    Some(
+                        crate::boundary_result_slots(
+                            &module.types.structural_types,
+                            declaration,
+                            crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
+                            result,
+                        )
+                        .map_err(refuse)?,
+                    )
+                };
                 (
                     declaration.structural_parameters.as_slice(),
                     slots,
@@ -1370,7 +1380,7 @@ fn reference_call_lifetimes_with_index(
                 {
                     (
                         callee.structural_parameters.as_slice(),
-                        Vec::new(),
+                        Some(Vec::new()),
                         Vec::new(),
                         Some(requirement),
                     )
@@ -1413,7 +1423,7 @@ fn reference_call_lifetimes_with_index(
                     }
                     (
                         callee.structural_parameters.as_slice(),
-                        contents.slots,
+                        Some(contents.slots),
                         actual,
                         public,
                     )
@@ -1480,6 +1490,19 @@ fn reference_call_lifetimes_with_index(
         )
     };
     let flow = analysis.flow_arc(caller.id)?;
+    let call_summary = || {
+        analysis
+            .call_summary(caller.id, at, operation.id)
+            .ok_or_else(|| refuse("call result has no checked transfer"))
+    };
+    let slots = match slots {
+        Some(slots) => slots,
+        None => call_summary()?
+            .result
+            .slots()
+            .cloned()
+            .ok_or_else(|| refuse("activation result has no checked return slots"))?,
+    };
     let compute_lifetime =
         |descriptor: &DescriptorLocation| indexed_descriptor_lifetime(&flow, at, descriptor, index);
     let mut retained = Vec::new();
@@ -1619,10 +1642,8 @@ fn reference_call_lifetimes_with_index(
         )
     };
     if !result_inventory.unknown_contents.is_empty() {
-        let packets = analysis
-            .call_result_contents(caller.id, at, operation.id)
-            .ok_or_else(|| refuse("generic call result has no checked contents account"))?;
-        for packet in packets {
+        let summary = call_summary()?;
+        for packet in summary.result.contents() {
             let dependencies = packet
                 .origins
                 .iter()
@@ -1640,7 +1661,7 @@ fn reference_call_lifetimes_with_index(
             }
             let location = DescriptorLocation {
                 root: result.place,
-                path: packet.path,
+                path: packet.path.clone(),
             };
             let lifetime = compute_lifetime(&location);
             if lifetime.live.contains(&at) {

@@ -12,3 +12,17 @@ machine await_reply<'p>(
 reaches none crashes none suspends {
     suspend |activation|::park::<u8>(request)
 }
+
+// The policy belongs to the permit. Moving that permit out of an ordinary
+// record transports its installed Issued domain in either source spelling.
+data AnswerPermit<'slot> = |reply|::Publication<'slot> in |reply|::Issued<|reply|::AnswerRole, u8>;
+data Received<'slot> { item: u32; permit: AnswerPermit<'slot>; }
+
+machine take_permit<'slot>(item: Received<'slot>) -> AnswerPermit<'slot> {
+    move item.permit
+}
+
+machine unpack_permit<'slot>(item: Received<'slot>) -> AnswerPermit<'slot> {
+    let { item as number, permit } = move item;
+    move permit
+}

@@ -435,7 +435,32 @@ impl<'a> Permissions<'a> {
     ) -> Judged<()> {
         let module = self.module;
         let (read, write) = operation.reads_and_writes();
+        let intact_transfer = operation == AccessOperation::Take
+            && self
+                .block(original.machine, original.position.0)?
+                .operations
+                .get(original.position.1 as usize)
+                .is_some_and(|instruction| {
+                    matches!(
+                        instruction.kind,
+                        OperationKind::MoveStructuralValue { .. }
+                            | OperationKind::MoveStructuralField { .. }
+                            | OperationKind::StoreStructuralField { .. }
+                            | OperationKind::EstablishRecord { .. }
+                            | OperationKind::EstablishStructuralCase { .. }
+                            | OperationKind::EstablishStructuralArray { .. }
+                    ) || matches!(
+                        &instruction.kind,
+                        terminal_psi::call_structural_argument_variants!(_arguments)
+                    )
+                });
         for (id, selected) in requirements {
+            // The transferred value carries its own domains, including those on
+            // nested members. Removing it from a governed parent still takes a
+            // strict subpath of that parent's subject and needs its permission.
+            if intact_transfer && selected.is_empty() {
+                continue;
+            }
             let declaration = domain(module, id)
                 .ok_or_else(|| failure(subject.machine, "memory access domain disappeared"))?;
             let Some(plan) = &declaration.access_policy else {

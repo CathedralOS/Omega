@@ -1533,18 +1533,17 @@ impl<'a> DescriptorAnalysis<'a> {
         })
     }
 
-    pub(crate) fn call_result_contents(
+    pub(crate) fn call_summary(
         &self,
         identity: MachineId,
         at: DescriptorPosition,
         operation: semantic_vocabulary::OperationId,
-    ) -> Option<Vec<DescriptorResultSlot>> {
+    ) -> Option<std::sync::Arc<super::engine::Summary>> {
         let machine = self.replay.machine(identity)?;
         let call = crate::exactly_one::exactly_one(machine.calls_at(at).iter(), |call| {
             call.owner == DescriptorInvocationOwner::Operation(operation)
         })?;
-        let summary = self.replay.cached_invocation_summary(call)?;
-        Some(summary.result.contents().to_vec())
+        self.replay.cached_invocation_summary(call)
     }
 
     /// A helper can update referenced storage while leaving its descriptor

@@ -59,9 +59,9 @@ fn a_shared_type_specialization_uses_each_callers_borrowed_arguments() {
 fn an_explicit_borrowed_type_argument_constrains_a_single_runtime_operand() {
     let reason = refusal(
         "data Packet<'storage> { byte: @'storage u8; }
-         machine discard<T>(packet: T) -> u32 { 7u32 }
-         machine wrong<'left, 'right>(left: @'left u8, right: Packet<'right>) -> u32 {
-             discard::<Packet<'left>>(move right)
+         machine discard<T>(packet: T) {}
+         machine wrong<'left, 'right>(left: @'left u8, right: Packet<'right>) {
+             discard::<Packet<'left>>(move right);
          }
          machine build_entry() {}",
     );

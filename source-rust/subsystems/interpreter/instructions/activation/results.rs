@@ -12,7 +12,7 @@ use crate::storage::primitive_storage::PrimitiveStorageEndpoint;
 use crate::storage::record::storage::{ConstructorStorage, ConstructorValue};
 use crate::storage::structural_storage::{HostStructuralPayload, RetainedStorage};
 use crate::{TerminalExecutionResult, TerminalScalarValue};
-use semantic_vocabulary::{StructuralCaseId, StructuralFieldId};
+use semantic_vocabulary::{StructuralCaseId, StructuralFieldId, StructuralTypeId};
 use terminal_psi::{
     Operation, OperationKind, StructuralAccess, StructuralArgument, StructuralFieldDeclaration,
     StructuralFieldType, StructuralOperationResult, StructuralPathQualification,
@@ -32,6 +32,7 @@ pub(crate) enum RetainedDescriptor {
 /// The complete original loan, including the storage owner and slice bounds.
 pub(crate) struct RetainedBacking {
     value: TerminalStructuralValue,
+    retained_carrier: StructuralTypeId,
     descriptor: RetainedDescriptor,
     length: u64,
     claims: Vec<Vec<StructuralPathSegment>>,
@@ -41,9 +42,17 @@ impl RetainedBacking {
     pub(crate) fn capture(
         execution: &mut TerminalExecution<'_>,
         argument: &StructuralArgument,
+        input: &terminal_psi::StructuralParameterDeclaration,
+        retained_carrier: StructuralTypeId,
     ) -> Result<Self> {
         let value =
             execution.resolve_live_projection(argument.place, &argument.path, argument.access)?;
+        if argument.access != input.access
+            || (value.structural_type != input.structural_type
+                && value.structural_type != retained_carrier)
+        {
+            return Err(malformed());
+        }
         let (descriptor, length) = match &execution
             .structural_declaration(value.structural_type)?
             .shape
@@ -70,6 +79,7 @@ impl RetainedBacking {
         };
         Ok(Self {
             value,
+            retained_carrier,
             descriptor,
             length,
             claims: crate::engine::custody::projected_ownership_claims(
@@ -322,11 +332,7 @@ impl ActivationCase {
     ) -> Result<()> {
         let field = self.field(exec, id)?;
         let home = self.member(&field);
-        if !field_matches_carrier(
-            &exec.program.catalogs,
-            &field,
-            backing.value.structural_type,
-        ) {
+        if !field_matches_carrier(&exec.program.catalogs, &field, backing.retained_carrier) {
             return Err(malformed());
         }
         for suffix in &backing.claims {
@@ -335,6 +341,7 @@ impl ActivationCase {
             self.claim_paths.push(path);
         }
         let mut value = backing.value.clone();
+        value.structural_type = backing.retained_carrier;
         value.opaque_identity = home.opaque_identity;
         value.path.clone_from(&home.path);
         StructuralPathQualification::append_under(
@@ -462,6 +469,7 @@ impl TerminalExecution<'_> {
         &mut self,
         op: &Operation,
         shape: &PreparationShape,
+        backing: &RetainedBacking,
     ) -> Result<()> {
         let OperationKind::BoundaryCall {
             arguments,
@@ -471,8 +479,7 @@ impl TerminalExecution<'_> {
         else {
             return Err(malformed());
         };
-        let (retained, structures) = structural_arguments.split_last().ok_or(malformed())?;
-        let backing = RetainedBacking::capture(self, retained)?;
+        let (_, structures) = structural_arguments.split_last().ok_or(malformed())?;
         let mut output = ActivationCase::new(
             self,
             op.result.as_structural().ok_or(malformed())?,
@@ -483,7 +490,7 @@ impl TerminalExecution<'_> {
             ([], [arg]) => output.source(self, shape.arguments, arg)?,
             _ => return Err(malformed()),
         }
-        output.backing(self, shape.retained, &backing)?;
+        output.backing(self, shape.retained, backing)?;
         output.publish(self, op, &structural_arguments.iter().collect::<Vec<_>>())
     }
 }

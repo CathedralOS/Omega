@@ -479,6 +479,72 @@ fn fixed_step_and_resume_preserve_the_closed_owner_and_returned_inputs() {
             .and_then(|bytes| terminal_codec::decode_module(&bytes))
             .unwrap_err()
     };
+    let permit_domain = answer.structural_parameters[1].qualifications[0];
+    let domain_index = reopened
+        .types
+        .structural_domains
+        .iter()
+        .position(|domain| domain.id == permit_domain)
+        .unwrap();
+    let mut missing_issuer = reopened.clone();
+    missing_issuer.types.structural_domains[domain_index].access_policy = None;
+    assert_eq!(
+        resume_shape(&missing_issuer, answer, make.id),
+        Err("publication lost its issuance policy")
+    );
+    refused(&missing_issuer);
+
+    let worker = reopened
+        .machine(step.selected.entry_machine)
+        .unwrap()
+        .declaration
+        .as_ref()
+        .unwrap();
+    let mut wrong_issuer = reopened.clone();
+    let policy = wrong_issuer.types.structural_domains[domain_index]
+        .access_policy
+        .as_mut()
+        .unwrap();
+    let [(_, issuer)] = policy.issuance.as_mut().unwrap().as_mut_slice() else {
+        panic!("expected the sole checked reply issuer");
+    };
+    *issuer = terminal_psi::StructuralEstablishmentRoute::ExactMachine {
+        declaration: worker.machine.clone(),
+        machine_identity: worker.callable,
+    };
+    assert_eq!(
+        resume_shape(&wrong_issuer, answer, make.id),
+        Err("park request must retain its exact issuer and deny re-targeting the slot")
+    );
+    refused(&wrong_issuer);
+
+    let mut nominal_refund = reopened.clone();
+    let prepared =
+        terminal_semantics::calls::owned_activation::prepare_shape(&reopened, make).unwrap();
+    let raw_bytes = make.structural_parameters.last().unwrap().structural_type;
+    assert_ne!(raw_bytes, prepared.retained_carrier);
+    let foreign = reopened
+        .structural_type(step.ready_owner)
+        .unwrap()
+        .declaration_identity;
+    let refund = nominal_refund
+        .types
+        .structural_types
+        .iter_mut()
+        .find(|row| row.id == prepared.retained_carrier)
+        .unwrap();
+    assert!(refund.declaration_identity.is_absent());
+    // Replacing the common descriptor changes both the prepare refund and the
+    // completed step. Agreement between their layouts cannot mint a nominal value.
+    refund.declaration_identity = foreign;
+    assert_eq!(
+        terminal_semantics::calls::owned_activation::prepare_shape(&nominal_refund, make)
+            .unwrap_err(),
+        "retained backing must return the original exclusive byte slice"
+    );
+    assert!(step_shape(&nominal_refund, advance, make.id).is_err());
+    refused(&nominal_refund);
+
     let mut missing_demand = reopened.clone();
     missing_demand.execution.task_activation_demands.clear();
     // Lowering replays loans against the closed calls before it computes how
@@ -747,9 +813,16 @@ fn two_ready_owners_need_independent_live_backing() {
 fn only_the_checked_issuer_can_make_a_pair_of_funded_reply_handles() {
     let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("pipeline/06_lowered-program-to-checked-program/tests/fixtures/owned_activation");
-    for (fixture, permitted) in [
-        ("positive/issue_pair", true),
-        ("negative/forge_pair", false),
+    for (fixture, refusal) in [
+        ("positive/issue_pair", None),
+        (
+            "negative/forge_pair",
+            Some("not one of the domain's establishment routes"),
+        ),
+        (
+            "negative/take_from_protected_record",
+            Some("this function is not allowed to write this value"),
+        ),
     ] {
         let source = std::fs::read_to_string(directory.join(fixture).join("main.omg")).unwrap();
         let mut typed = schema_customer_source::source_with_core(
@@ -760,8 +833,10 @@ fn only_the_checked_issuer_can_make_a_pair_of_funded_reply_handles() {
         )
         .unwrap();
         let mut entries = vec![typed.realized_machine_named("main").unwrap().symbol];
-        if permitted {
-            entries.push(typed.realized_machine_named("await_reply").unwrap().symbol);
+        if refusal.is_none() {
+            for name in ["await_reply", "take_permit", "unpack_permit"] {
+                entries.push(typed.realized_machine_named(name).unwrap().symbol);
+            }
         }
         let request = production::TerminalSourceCompilation {
             calling: None,
@@ -801,7 +876,17 @@ fn only_the_checked_issuer_can_make_a_pair_of_funded_reply_handles() {
             request,
             terminal_codec::TerminalPublication::Portable,
         );
-        if permitted {
+        if let Some(reason) = refusal {
+            let Err(diagnostics) = judged else {
+                panic!("{fixture} must refuse: {reason}");
+            };
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains(reason)),
+                "{diagnostics:?}"
+            );
+        } else {
             let accepted =
                 judged.expect("the checked issuer transfers both borrows of the funded slot");
             let bytes = terminal_codec::encode_module(accepted.module()).unwrap();
@@ -844,16 +929,6 @@ fn only_the_checked_issuer_can_make_a_pair_of_funded_reply_handles() {
                 terminal_semantics::calls::owned_activation::park_shape(&module, &wrong_role)
                     .is_err(),
                 "changing both the use and its declared prerequisite cannot turn an answer into a request"
-            );
-        } else {
-            let Err(diagnostics) = judged else {
-                panic!("an equally shaped pair from another issuer must reject");
-            };
-            assert!(
-                diagnostics.iter().any(|d| d
-                    .message
-                    .contains("not one of the domain's establishment routes")),
-                "{diagnostics:?}"
             );
         }
     }
