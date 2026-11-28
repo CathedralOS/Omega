@@ -174,11 +174,6 @@ impl super::Program<'_> {
                     StorageShape::Reference { referent, access } => Some((referent, access)),
                     _ => None,
                 };
-                let (Some((hidden, public_access)), Some((witness, actual_access))) =
-                    (reference(public), reference(actual))
-                else {
-                    return false;
-                };
                 let Some(data) = self.data_declaration(package) else {
                     return false;
                 };
@@ -186,15 +181,26 @@ impl super::Program<'_> {
                     .typed
                     .data_type_parameters
                     .span_or_empty(data.package_parameters);
-                public_access == actual_access
-                    && matches!((self.region_tuple(pr), self.region_tuple(ar)),
-                        ([outer], [actual_outer, ..]) if outer == actual_outer)
-                    && binders.iter().zip(witnesses).any(|(parameter, chosen)| {
-                        *chosen == witness
-                            && self
-                                .witness_index(parameter.symbol)
-                                .is_ok_and(|index| self.package_witnesses[index].1 == hidden)
-                    })
+                if !matches!((self.region_tuple(pr), self.region_tuple(ar)),
+                    ([outer], [actual_outer, ..]) if outer == actual_outer)
+                {
+                    return false;
+                }
+                let same_witness_borrow = |actual, public| {
+                    let (Some((witness, actual_access)), Some((hidden, public_access))) =
+                        (reference(actual), reference(public))
+                    else {
+                        return false;
+                    };
+                    actual_access == public_access
+                        && binders.iter().zip(witnesses).any(|(parameter, chosen)| {
+                            *chosen == witness
+                                && self
+                                    .witness_index(parameter.symbol)
+                                    .is_ok_and(|index| self.package_witnesses[index].1 == hidden)
+                        })
+                };
+                self.array_storage_matches_by(actual, public, |_, _| false, same_witness_borrow)
             }
             _ => false,
         }

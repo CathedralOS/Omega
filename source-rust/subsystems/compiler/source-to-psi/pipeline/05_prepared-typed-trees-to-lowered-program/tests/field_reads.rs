@@ -305,6 +305,41 @@ machine main() crashes Trap {
 }
 
 #[test]
+fn arrays_of_borrowed_witnesses_keep_each_dimension_and_the_outer_lifetime() {
+    let source = r"
+data File { byte: u8; }
+data Socket<'a> { file: @'a File; }
+data Reader<'a, some S> { state: [[@'a S; 2]; 2]; tag: u8; }
+machine inspect<'outer, 'inside>(socket: @'outer Socket<'inside>) -> u8 {
+    let held: [@'outer Socket<'inside>; 2] = [socket, socket];
+    let packed: Reader<'outer> = Reader { state: [held, held], tag: 42u8 };
+    packed.tag
+}
+machine main() crashes Trap {
+    let file: File = File { byte: 17u8 };
+    let socket: Socket = Socket { file: @file };
+    transition inspect(@socket) == 42u8 { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}";
+    Program::of(source).judged(|_| {}).accepted();
+    for (from, to, reason) in [
+        ("[[@'a S; 2]; 2]", "[[@'a S; 3]; 2]", "array"),
+        (
+            "let packed: Reader<'outer>",
+            "let packed: Reader<'inside>",
+            "lifetime",
+        ),
+    ] {
+        let changed = source.replace(from, to);
+        let refusal = Program::try_of(&[("product/main.omg", &changed)])
+            .err()
+            .expect("a different array extent or unrelated lifetime must be refused");
+        assert!(refusal.message.contains(reason), "{refusal:?}");
+    }
+}
+
+#[test]
 fn a_branch_reads_plain_array_metadata_without_opening_the_witness() {
     let program = Program::of(
         r"
