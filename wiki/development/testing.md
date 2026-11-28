@@ -341,7 +341,9 @@ use the authored Build stages to supply and admit their dependencies. By default
 inputs are its files, assets and module subdirectories, stopping at nested
 projects with their own `build.omg` or `sample.json`, which are found
 separately. A `source_inputs` list in the sample replaces that default. The
-gate passes the same input list to preparation, checking and execution.
+gate passes the same input list to preparation, checking and execution. A sample
+that needs more interpreter work can set a positive integer `psi_work_budget`
+in `sample.json`. The gate passes that limit to `omega run --psi-work-budget`.
 Package review of a sample using std takes minutes with an unoptimized binary:
 31 projects took 66 s with the optimized CLI and 436 s unoptimized, with the
 same results. The dev profile is opt-level 1, so compatible gate builds and a

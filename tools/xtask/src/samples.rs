@@ -37,6 +37,7 @@ pub struct SampleProject {
     pub entry: Option<PathBuf>,
     pub role: String,
     package_workflow: PackageWorkflow,
+    psi_work_budget: Option<std::num::NonZeroU64>,
     pub source_inputs: Vec<String>, // The same explicit caller inventory for preparation and execution.
     pub(crate) output_files: file_outputs::Declarations,
     pub rejection: Vec<String>,
@@ -192,6 +193,11 @@ pub fn project_at(directory: &Path, repo: &Path) -> Result<SampleProject, String
         .transpose()
         .map_err(|e| format!("{}: package_workflow: {e}", meta_path.display()))?
         .unwrap_or_default();
+    let psi_work_budget = meta
+        .get("psi_work_budget")
+        .map(|value| serde_json::from_value(value.clone()))
+        .transpose()
+        .map_err(|e| format!("{}: psi_work_budget: {e}", meta_path.display()))?;
     // A checked package may expose multiple modules without a main file.
     // The update checks the complete source inventory before we check its Build.
     let entry = entry.or_else(|| {
@@ -237,6 +243,7 @@ pub fn project_at(directory: &Path, repo: &Path) -> Result<SampleProject, String
         entry,
         role,
         package_workflow,
+        psi_work_budget,
         source_inputs,
         output_files: file_outputs::declarations(meta.get("output_files"), &meta_path)?,
         rejection,
@@ -1126,6 +1133,22 @@ mod tests {
         fs::remove_dir_all(directory).unwrap();
     }
 
+    #[test]
+    fn sample_psi_work_budgets_are_positive_and_optional() {
+        let directory = execution::reserve_directory(&std::env::temp_dir()).unwrap();
+        let metadata = directory.join("sample.json");
+        let project = || project_at(&directory, &directory);
+        assert!(project().unwrap().psi_work_budget.is_none());
+        fs::write(&metadata, r#"{"psi_work_budget":1000000000}"#).unwrap();
+        assert_eq!(
+            project().unwrap().psi_work_budget.unwrap().get(),
+            1_000_000_000
+        );
+        fs::write(&metadata, r#"{"psi_work_budget":0}"#).unwrap();
+        assert!(project().unwrap_err().contains("psi_work_budget"));
+        fs::remove_dir_all(directory).unwrap();
+    }
+
     fn invalid_sample(directory: &Path) -> SampleProject {
         fs::write(directory.join("main.omg"), "machine main() {}\n").unwrap();
         fs::write(directory.join("build.omg"), "").unwrap();
@@ -1657,6 +1680,7 @@ mod result_file_tests {
             entry: None,
             role: "program".to_owned(),
             package_workflow: PackageWorkflow::Locked,
+            psi_work_budget: None,
             source_inputs: Vec::new(),
             output_files: Default::default(),
             rejection: Vec::new(),
