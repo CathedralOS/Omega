@@ -1940,15 +1940,40 @@ fn copy_declarations(
     }
     let state_symbol = copied_symbol(&renamed, parts[0].1.symbol)?;
     let symbols = renamed.rebinding();
-    let substitutions = operands
-        .iter()
-        .filter_map(|operand| match operand.value {
+    let mut substitutions = Vec::new();
+    for operand in operands {
+        let reference = match &operand.value {
             StaticMachineBindingValue::Type(actual) | StaticMachineBindingValue::Const(actual) => {
-                Some((operand.parameter, actual))
+                *actual
             }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+            // A record in the copied signature can carry this machine as a
+            // static argument. Preserve the same selection that its calls use.
+            StaticMachineBindingValue::Machine(selected) => {
+                // Calls select the default entry state; the same source name
+                // in a record selects its owning machine. Only that exact
+                // entry may stand for the machine in a type.
+                if selected.application.is_none()
+                    && let Some(machine) = program.machine_holding_state(selected.symbol)
+                    && program
+                        .machine_states(machine)
+                        .first()
+                        .is_some_and(|state| state.symbol == selected.symbol)
+                {
+                    let entry = TypeReferenceNode::Named {
+                        symbol: machine.symbol,
+                        name: machine.name.clone(),
+                    };
+                    program.type_reference_table.insert(entry)
+                } else {
+                    program
+                        .static_operand_type_reference(selected)
+                        .map_err(unserved)?
+                }
+            }
+            _ => continue,
+        };
+        substitutions.push((operand.parameter, reference));
+    }
     let mut copied = Vec::with_capacity(parts.len());
     for ((source, source_state), staged) in parts.iter().zip(staged) {
         let first_expression = program.expression_table.expression_count() + 1;
