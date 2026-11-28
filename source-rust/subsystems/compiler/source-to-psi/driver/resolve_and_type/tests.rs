@@ -151,7 +151,6 @@ fn completed_body_work_is_recorded_before_retained_source_activation() {
     let text = "machine length() -> u64 { 4 }\n\
                 machine helper() { let bytes: [u8; length()]; }\n";
     let (mut typing, frontier, sources) = deferred(text);
-    let pending = PreCheckEvaluation::new(None);
     PreCheckEvaluation::defer_declared_requests(typing.typed_mut()).unwrap();
     let frontier = frontier
         .with_prepared_allocations(typing.prepare_allocations().unwrap())
@@ -169,8 +168,7 @@ fn completed_body_work_is_recorded_before_retained_source_activation() {
     let completed = frontier.complete_machine_bodies(&[helper]).unwrap();
     let (typing, _) = type_completed_bodies(typing, completed).unwrap();
 
-    pending
-        .activate_sources(typing.typed())
+    PreCheckEvaluation::require_recorded_requests(typing.typed())
         .expect("new declaration-owned work is recorded before source activation");
     assert!(
         typing
