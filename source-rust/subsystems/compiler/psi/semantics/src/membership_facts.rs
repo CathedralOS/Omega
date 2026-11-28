@@ -1279,7 +1279,6 @@ fn validate_predicates<'a>(
     memberships: &[RuntimeDomainMembership],
     clauses: impl Clone + Iterator<Item = &'a semantic_vocabulary::Proposition>,
 ) -> Judged<()> {
-    use semantic_vocabulary::Proposition;
     for row in memberships {
         let promised = match row {
             RuntimeDomainMembership::Scalar { domain, .. } => Domain::Scalar(*domain),
@@ -1346,10 +1345,7 @@ fn validate_predicates<'a>(
                 }
             };
             if let Some(predicate) = predicate
-                && predicate != Proposition::Truth
-                && !clauses.clone().any(|clause| {
-                    crate::scalar_qualifications::retains_conjunct(clause, &predicate)
-                })
+                && !crate::scalar_qualifications::retains_predicate(&predicate, clauses.clone())
             {
                 return Err(unavailable(
                     machine,
