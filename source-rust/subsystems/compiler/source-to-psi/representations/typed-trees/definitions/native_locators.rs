@@ -8,6 +8,7 @@ use crate::source_state::data::{DataDefinition, DataMember, TypeParameterKind};
 use crate::source_state::types::{
     FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
 };
+use application_identity::const_value::DecodedCanonicalConstValue;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
@@ -398,28 +399,19 @@ pub fn binding_widths(
         return Err("ordinary external `via` producer must return the exact compiler-owned ForeignBinding<ObjectLength, SymbolLength, VersionLength>".to_owned());
     }
     let mut widths = [0u64; 3];
-    for (index, argument) in arguments.iter().enumerate() {
-        let TypeReferenceNode::Named { symbol, name } =
-            typed.type_reference_table.type_reference(*argument)
+    for (width, &type_reference) in widths.iter_mut().zip(arguments) {
+        let DecodedCanonicalConstValue::Integer { value, .. } = typed
+            .static_operand_from_type_reference(type_reference)
+            .and_then(|argument| typed.callable_scalar_value(PrimitiveType::U64, &argument))
+            .map_err(|reason| {
+                format!("foreign binding byte length requires a closed u64: {reason}")
+            })?
         else {
-            return Err(
-                "ordinary external `via` Binding widths must be closed decimal constants"
-                    .to_owned(),
-            );
+            return Err("foreign binding byte length requires an integer".to_owned());
         };
-        if symbol.is_valid()
-            || name.as_str().is_empty()
-            || !name.as_str().bytes().all(|byte| byte.is_ascii_digit())
-        {
-            return Err(
-                "ordinary external `via` Binding widths must be closed decimal constants"
-                    .to_owned(),
-            );
-        }
-        widths[index] = name
-            .as_str()
-            .parse::<u64>()
-            .map_err(|_| "ordinary external `via` Binding width does not fit u64".to_owned())?;
+        *width = value
+            .to_u64()
+            .ok_or("foreign binding byte length does not fit u64")?;
     }
     Ok(widths)
 }
