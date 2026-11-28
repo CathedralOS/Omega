@@ -963,11 +963,20 @@ pub(crate) mod scalar_expressions {
                             source,
                             path,
                             ..
-                        } => AddressDefinition::Storage(terminal_psi::StructuralArgument {
-                            place: *source,
-                            path: path.clone(),
-                            access: terminal_psi::StructuralAccess::SharedBorrow,
-                        }),
+                        } => {
+                            let (block, index) = definition.position;
+                            let Ok(index) = u32::try_from(index) else {
+                                return AddressDefinition::Opaque;
+                            };
+                            AddressDefinition::Storage(
+                                terminal_psi::StructuralArgument {
+                                    place: *source,
+                                    path: path.clone(),
+                                    access: terminal_psi::StructuralAccess::SharedBorrow,
+                                },
+                                (block, index),
+                            )
+                        }
                         O::ScalarRepresentationView { operand, .. }
                         | O::IntegerWiden { operand, .. }
                         | O::IntegerExactCast { operand, .. } => {
@@ -1960,9 +1969,9 @@ fn adapt(
                         &mut step,
                         *psi_operation,
                         result,
-                        &origin.sources,
+                        origin.observed_sources(),
                         origin.exact,
-                        origin.parameters,
+                        origin.parameters.clone(),
                     )?;
                 }
                 O::UpgradeMutability { result, source, .. } if slot_kind.tracks_references() => {
