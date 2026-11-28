@@ -28,7 +28,7 @@ machine main() crashes Trap {
     let mutable counts: Counts = Counts { fields: 0u64, erased: 0u64, order: 0u64, evaluations: 0u64, valid: true };
     apply(@mutable counts);
     transition valid(@counts) { true -> done(), false -> bad() }
-    machine apply(counts: @mutable Counts) { |reflect|::inspect_record_fields::<Subject, describe>(once(@mutable counts)); }
+    machine apply(counts: @mutable Counts) { |reflect|::inspect_record_fields::<Subject, describe>(once(counts)); }
     machine done() {}
     machine bad() { crash Trap; }
 }

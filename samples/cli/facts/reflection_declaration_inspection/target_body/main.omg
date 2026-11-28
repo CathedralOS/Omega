@@ -25,10 +25,10 @@ machine valid(counts: @Counts) -> bool {
         && counts.evaluations == 1u64 && counts.valid
 }
 boundary trait Inspect { machine apply(counts: @mutable Counts) reaches none crashes none; }
-WindowsInspect satisfies Inspect { machine apply(counts: @mutable Counts) { |reflect|::inspect_record_fields::<Subject, describe>(once(@mutable counts)); } }
-LinuxX86Inspect satisfies Inspect { machine apply(counts: @mutable Counts) { |reflect|::inspect_record_fields::<Subject, describe>(once(@mutable counts)); } }
-MacInspect satisfies Inspect { machine apply(counts: @mutable Counts) { |reflect|::inspect_record_fields::<Subject, describe>(once(@mutable counts)); } }
-LinuxArmInspect satisfies Inspect { machine apply(counts: @mutable Counts) { |reflect|::inspect_record_fields::<Subject, describe>(once(@mutable counts)); } }
+WindowsInspect satisfies Inspect { machine apply(counts: @mutable Counts) { |reflect|::inspect_record_fields::<Subject, describe>(once(counts)); } }
+LinuxX86Inspect satisfies Inspect { machine apply(counts: @mutable Counts) { |reflect|::inspect_record_fields::<Subject, describe>(once(counts)); } }
+MacInspect satisfies Inspect { machine apply(counts: @mutable Counts) { |reflect|::inspect_record_fields::<Subject, describe>(once(counts)); } }
+LinuxArmInspect satisfies Inspect { machine apply(counts: @mutable Counts) { |reflect|::inspect_record_fields::<Subject, describe>(once(counts)); } }
 machine main() reaches Inspect crashes Trap {
     let mutable counts: Counts = Counts { fields: 0u64, erased: 0u64, order: 0u64, evaluations: 0u64, valid: true };
     Inspect::apply(@mutable counts);
