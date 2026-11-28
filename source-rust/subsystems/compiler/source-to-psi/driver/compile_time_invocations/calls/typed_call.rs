@@ -66,6 +66,16 @@ pub(super) fn prepare_into(
     // application. Its result below comes from that public signature before
     // the caller enters typed preparation or judgment.
     let original_result = declaration.shape(program)?.return_type;
+    // Layout schemas are compiler-supplied data. Other invocations retain
+    // their literal expressions as premises for value-dependent calls.
+    let layout_schema = selected.is_some()
+        && matches!(declaration,
+            CallableDeclaration::Signature(signature) if {
+                let template = program.closed_requirement_application(signature.symbol)
+                    .map_or(signature.symbol, |application| application.template);
+                program.core_vocabulary(template) == Some(language_core::core_vocabulary::CoreVocabulary::FixedLayoutPlan)
+            }
+        );
     let caller = TypedInvocationDeclaration::new(probe, requester, "@const-invocation");
     let mut call = request.clone();
     if request_expression.is_valid() && matches!(declaration, CallableDeclaration::Signature(_)) {
@@ -255,8 +265,14 @@ pub(super) fn prepare_into(
         &mut body.machine,
     )?;
     body.state.return_type = result_type;
-    let actuals =
-        arguments::materialize(probe, &mut body.state, &parameters, arguments, &input_types)?;
+    let actuals = arguments::materialize(
+        probe,
+        &mut body.state,
+        &parameters,
+        arguments,
+        &input_types,
+        layout_schema,
+    )?;
     if materialized && !call.machine_arguments.is_empty() {
         call.machine_arguments = supplied.into_boxed_slice();
     }

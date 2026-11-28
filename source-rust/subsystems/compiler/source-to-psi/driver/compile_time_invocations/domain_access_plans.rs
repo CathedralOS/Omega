@@ -59,6 +59,8 @@ use crate::compile_time_invocations::{
 
 /// One policy-governed domain whose plan has not been evaluated.
 struct Demand {
+    /// Built and consumed in the same immutable round.
+    call: Option<Result<DomainCall, String>>,
     handle: arena::Handle<crate::source_state::domain::DomainDefinition>,
     /// The domain. Whoever may issue it, and how a governed value is read or
     /// written, waits on the plan.
@@ -91,6 +93,7 @@ impl AccessPlans {
                     && demanded.contains(domain.symbol)
             })
             .map(|(handle, domain)| Demand {
+                call: None,
                 handle,
                 domain: [domain.symbol],
                 policy: [domain
@@ -151,13 +154,10 @@ impl DemandedValues for AccessPlans {
         _program: &TypedTrees,
     ) {
         for ready in values {
-            ready.call = domain_call(
-                round.source(),
-                round.calls(),
-                self.demands[ready.value].domain[0],
-            )
-            .ok()
-            .map(|call| call.plan);
+            let demand = &mut self.demands[ready.value];
+            let call = domain_call(round.source(), round.calls(), demand.domain[0]);
+            ready.call = call.as_ref().ok().map(|call| call.plan.clone());
+            demand.call = Some(call);
         }
     }
 
@@ -180,13 +180,18 @@ impl DemandedValues for AccessPlans {
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
             self.described = Some(round.number());
         }
-        let demand = &self.demands[value];
+        let demand = &mut self.demands[value];
+        let call = demand
+            .call
+            .take()
+            .expect("every ready domain planned its call");
         let judgment = match evaluate_domain(
             round.source(),
             round.calls(),
             judged,
             &self.descriptions,
             demand.domain[0],
+            call,
             accounting,
         ) {
             Ok(plan) => AccessPlanJudgment::Checked(plan),
@@ -268,6 +273,7 @@ fn evaluate_domain(
     judged: Option<JudgedCall<'_>>,
     descriptions: &[Description],
     domain: SymbolHandle,
+    call: Result<DomainCall, String>,
     accounting: &mut SourceCompletionAccounting,
 ) -> Result<CheckedDomainAccessPlan, String> {
     let DomainCall {
@@ -277,7 +283,7 @@ fn evaluate_domain(
         schema_graph,
         schema,
         revision,
-    } = domain_call(typed, prepared, domain)?;
+    } = call?;
     let entry = prepared
         .demand_entry(&plan, judged)
         .map_err(|errors| diagnostics::join_messages(&errors))?;

@@ -96,10 +96,7 @@ fn vacant_case(placeholder: &Value) -> Value {
 /// The core Schema has fixed array capacities. Preserve every actual field
 /// and retirement, or refuse before calling the policy; truncation could turn
 /// an incomplete plan into an apparently complete one.
-pub(super) fn record_argument(
-    fields: &[PlanLaidSchemaField],
-    retired: &[u64],
-) -> Result<Value, String> {
+fn record_argument(fields: &[PlanLaidSchemaField], retired: &[u64]) -> Result<Value, String> {
     if fields.len() > FIELD_CAPACITY || retired.len() > FIELD_CAPACITY {
         return Err("record exceeds the core layout Schema's complete field capacity".into());
     }
@@ -133,4 +130,36 @@ pub(super) fn record_argument(
             ("retired_case_identity_count", count(0)),
         ],
     ))
+}
+
+/// The complete value supplied to a selected call, with the exact reflected
+/// inputs that determine its contents. A round can retain this argument for
+/// execution without constructing its fixed-capacity tails a second time.
+pub(super) struct Materialized {
+    pub(super) fields: Vec<PlanLaidSchemaField>,
+    pub(super) retired: Vec<u64>,
+    pub(super) arguments: std::sync::Arc<[Value]>,
+}
+
+impl Materialized {
+    pub(super) fn for_record(
+        fields: Vec<PlanLaidSchemaField>,
+        retired: Vec<u64>,
+        facts: &layout_plans::LayoutTargetFacts,
+        previous: Option<Self>,
+    ) -> Result<Self, String> {
+        if let Some(previous) = previous
+            && previous.fields == fields
+            && previous.retired == retired
+            && matches!(previous.arguments.last(), Some(Value::LayoutTarget(target)) if target == facts)
+        {
+            return Ok(previous);
+        }
+        let record = record_argument(&fields, &retired)?;
+        Ok(Self {
+            fields,
+            retired,
+            arguments: [record, Value::LayoutTarget(facts.clone())].into(),
+        })
+    }
 }

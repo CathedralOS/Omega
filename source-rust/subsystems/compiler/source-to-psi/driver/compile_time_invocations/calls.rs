@@ -713,7 +713,7 @@ impl PreparedBuildMachineProgram {
         selection_owner: SymbolHandle,
         selection: &crate::source_state::expression::StaticMachineArgument,
         requirement: SymbolHandle,
-        arguments: &[crate::compile_time_invocations::BuildTimeValue],
+        arguments: impl Into<Arc<[crate::compile_time_invocations::BuildTimeValue]>>,
     ) -> Result<PlannedCall, String> {
         use crate::source_state::type_identity::{
             DeclaredStaticOperandIdentityRequest, IndexIdentityArgument,
@@ -814,7 +814,7 @@ impl PreparedBuildMachineProgram {
             requester,
             callee: PlannedCallee::Requirement(requirement),
             call: typed_call::declaration_call(signature.symbol, signature.name.clone()),
-            arguments: Arc::from(arguments),
+            arguments: arguments.into(),
             selected: Some((selection.clone(), selection_owner)),
             target: None,
         })

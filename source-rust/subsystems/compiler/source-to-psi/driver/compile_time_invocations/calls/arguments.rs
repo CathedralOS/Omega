@@ -25,6 +25,7 @@ pub(super) fn materialize(
     parameters: &[StateParameter],
     arguments: &[BuildTimeValue],
     input_types: &[TypeReferenceHandle],
+    layout_schema: bool,
 ) -> Result<MaterializedArguments, String> {
     let mut expressions = Vec::with_capacity(arguments.len());
     let mut input_values = Vec::new();
@@ -59,6 +60,7 @@ pub(super) fn materialize(
                 &mut input_values,
                 reference.map_or(destination, |(referee, _)| referee),
                 argument,
+                layout_schema,
             )
         }
         .map_err(|reason| format!("constant argument `{}`: {reason}", parameter.name))?;
@@ -319,12 +321,85 @@ fn materialize_input(
     Ok(program.expression_table.insert(ExpressionNode::Name(path)))
 }
 
+/// Closed literal contents need no borrowed backing or issued host input.
+fn is_owned_literal(value: &BuildTimeValue) -> bool {
+    match value {
+        BuildTimeValue::Int(_) | BuildTimeValue::Bool(_) => true,
+        BuildTimeValue::Struct { fields, .. }
+        | BuildTimeValue::Case {
+            payload: fields, ..
+        } => fields.iter().all(|(_, field)| is_owned_literal(field)),
+        BuildTimeValue::Array(elements) => elements.iter().all(is_owned_literal),
+        _ => false,
+    }
+}
+
+/// Share the checked constructor of equal aggregate elements. Each call
+/// produces a fresh owned value, including when its declaration is affine.
+fn fixed_array_elements(
+    program: &mut TypedTrees,
+    state: &mut State,
+    input_values: &mut Vec<BuildTimeValue>,
+    element_type: TypeReferenceHandle,
+    values: &[BuildTimeValue],
+) -> Result<Vec<ExpressionHandle>, String> {
+    let mut elements = Vec::with_capacity(values.len());
+    for run in values.chunk_by(|left, right| left == right) {
+        let value = &run[0];
+        if run.len() > 1
+            && matches!(
+                value,
+                BuildTimeValue::Struct { .. } | BuildTimeValue::Array(_)
+            )
+            && is_owned_literal(value)
+        {
+            let constructor = super::super::typed_invocation::TypedInvocationDeclaration::new(
+                program,
+                state.symbol,
+                "@array-element",
+            );
+            let mut body = constructor.define(program, element_type, Vec::new());
+            let entry =
+                super::typed_call::declaration_call(body.state.symbol, body.state.name.clone());
+            let initial_value = materialize_argument(
+                program,
+                &mut body.state,
+                input_values,
+                element_type,
+                value,
+                true,
+            )?;
+            body.return_expression(program, initial_value)?;
+            for _ in run {
+                elements.push(
+                    program
+                        .expression_table
+                        .insert(ExpressionNode::Call(entry.clone())),
+                );
+            }
+        } else {
+            for value in run {
+                elements.push(materialize_argument(
+                    program,
+                    state,
+                    input_values,
+                    element_type,
+                    value,
+                    true,
+                )?);
+            }
+        }
+    }
+    Ok(elements)
+}
+
 fn materialize_argument(
     program: &mut TypedTrees,
     state: &mut State,
     input_values: &mut Vec<BuildTimeValue>,
     destination: TypeReferenceHandle,
     value: &BuildTimeValue,
+    layout_schema: bool,
 ) -> Result<ExpressionHandle, String> {
     use crate::source_state::types::PrimitiveType;
     use numeric_literals::{IntegerLiteral, IntegerRadix};
@@ -400,7 +475,14 @@ fn materialize_argument(
         .clone()
     {
         TypeReferenceNode::Constrained { base_type, .. } => {
-            return materialize_argument(program, state, input_values, base_type, value);
+            return materialize_argument(
+                program,
+                state,
+                input_values,
+                base_type,
+                value,
+                layout_schema,
+            );
         }
         TypeReferenceNode::Reference { referee, .. }
             if matches!(
@@ -420,7 +502,14 @@ fn materialize_argument(
             let elements = elements
                 .iter()
                 .map(|value| {
-                    materialize_argument(program, state, input_values, element_type, value)
+                    materialize_argument(
+                        program,
+                        state,
+                        input_values,
+                        element_type,
+                        value,
+                        layout_schema,
+                    )
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             ExpressionNode::ArrayLiteral(
@@ -435,12 +524,23 @@ fn materialize_argument(
             if elements.len() != length {
                 return Err("array argument differs from its declared extent".into());
             }
-            let elements = elements
-                .iter()
-                .map(|value| {
-                    materialize_argument(program, state, input_values, element_type, value)
-                })
-                .collect::<Result<Vec<_>, _>>()?;
+            let elements = if layout_schema {
+                fixed_array_elements(program, state, input_values, element_type, elements)?
+            } else {
+                elements
+                    .iter()
+                    .map(|value| {
+                        materialize_argument(
+                            program,
+                            state,
+                            input_values,
+                            element_type,
+                            value,
+                            false,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()?
+            };
             ExpressionNode::ArrayLiteral(
                 program.expression_table.insert_expression_handles(elements),
             )
@@ -492,6 +592,7 @@ fn materialize_argument(
                         input_values,
                         field.type_reference,
                         value,
+                        layout_schema,
                     )?,
                 });
             }

@@ -242,12 +242,12 @@ fn authored_policy_observes_only_its_invocations_issued_target() {
         .replace(
             "use {omega}/language/core/layout.omg;",
             r#"use {omega}/language/core/layout.omg;
-machine packet_size<'target>(target: @'target |layout|::LayoutTarget) -> u64 reaches none terminates {
+machine packet_size<'target>(target: @'target |layout|::LayoutTarget, outer_align: u64, nested_align: u64) -> u64 reaches none terminates {
     let facts: |layout|::LayoutTargetFacts<'target> = |layout|::layout_target_facts(target);
-    transition facts.profile.length == 12 { true -> 16u64, _ -> 24u64 }
+    transition facts.profile.length == 12 && outer_align == 1u64 && nested_align == 1u64 { true -> 16u64, _ -> 24u64 }
 }"#,
         )
-        .replace("size_fixed: 16", "size_fixed: packet_size(@target)");
+        .replace("size_fixed: 16", "size_fixed: packet_size(@target, schema.fields[31].align, schema.cases[31].payload_fields[31].align)");
     let mut source = with_reflection(&program).unwrap();
     let root = query_machine(&source, "main");
     let scopes = ["linux_x86_64", "windows_x86_64"].map(|name| FixedLayoutTargetScope {
@@ -288,4 +288,63 @@ machine packet_size<'target>(target: @'target |layout|::LayoutTarget) -> u64 rea
     );
     assert_eq!(accounting.receipts().len(), 2);
     accounting.validate_charges().unwrap();
+}
+
+#[test]
+fn repeated_inactive_fields_still_require_established_alignment() {
+    let source = with_reflection(AUTHORED).unwrap();
+    let make = source.realized_machine_named("make").unwrap();
+    let [entry] = source.machine_states(make).as_array().unwrap();
+    let storage = source.layout_storage_arguments(entry.return_type).unwrap();
+    let program = PreparedBuildMachineProgram::prepare(&source, None)
+        .unwrap()
+        .for_layout_policies();
+    let facts = layout_plans::LayoutTargetFacts {
+        profile: "linux_x86_64".into(),
+        pointer_size: 8,
+        pointer_alignment: 8,
+        case_tag_size: 4,
+        case_tag_alignment: 4,
+        little_endian: true,
+    };
+    let call = layout_call(&source, &program, make.symbol, storage, &facts, None).unwrap();
+    let mut arguments = call.argument.arguments;
+    fn member<'a>(record: &'a mut BuildTimeValue, name: &str) -> &'a mut BuildTimeValue {
+        let BuildTimeValue::Struct { fields, .. } = record else {
+            panic!("schema record")
+        };
+        &mut fields
+            .iter_mut()
+            .find(|(label, _)| label == name)
+            .unwrap()
+            .1
+    }
+    let schema = &mut Arc::make_mut(&mut arguments)[0];
+    let BuildTimeValue::Array(fields) = member(schema, "fields") else {
+        panic!("schema fields")
+    };
+    // Pair has two live fields. The repeated remainder is ordinary affine
+    // SchemaField data with the same constructor requirements as a live row.
+    for field in &mut fields[2..] {
+        *member(field, "align") = BuildTimeValue::Int(0);
+    }
+    let plan = program
+        .plan_selected(
+            make.symbol,
+            make.symbol,
+            &call.policy,
+            storage.plan_requirement(&source, make.symbol).unwrap(),
+            arguments,
+        )
+        .unwrap()
+        .for_target(&facts);
+    let diagnostic = program
+        .prepare_planned(&plan)
+        .err()
+        .expect("an invalid inactive constructor must be refused");
+    let message = diagnostics::join_messages(&diagnostic);
+    assert!(
+        message.contains("require") || message.contains("invariant"),
+        "{message}"
+    );
 }
