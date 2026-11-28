@@ -1,6 +1,6 @@
 # Constructing checked policy inputs for public_values
 
-The compiler spent 33.778 s evaluating demanded values while building the original filesystem fixture on a cloud Xeon. Reusing each exact reflected input and sharing checked constructors for identical inactive rows reduced that phase to 23.578 s. The complete cold Windows x86-64 build took 69.508 s. A Ryzen 9 7950X measurement is still required.
+The compiler spent 33.778 s evaluating demanded values while building the original filesystem fixture on a cloud Xeon. Reusing each exact reflected input and sharing checked constructors for identical inactive rows reduced that phase to 23.578 s. A separate probe-free release build took 60.817 s end to end, compared with 71.775 s at the shared base. A Ryzen 9 7950X measurement is still required.
 
 ## Measured code and host
 
@@ -12,6 +12,8 @@ The compiler spent 33.778 s evaluating demanded values while building the origin
 | --- | ---: | ---: | ---: | ---: |
 | Original, empty caches | 33.778 s | 23.578 s | 73.232 s | 69.508 s |
 | Source comment edit, warm dependencies | 31.943 s | 23.356 s | 70.957 s | 62.726 s |
+
+With all probes removed, a second release-built pair took **71.775 s → 60.817 s cold** and 71.817 s → 60.935 s after the edit. These runs used the same entry command, cache conditions and original inputs and emitted the same executable.
 
 The phase covers the product invocation of `evaluate_demanded_values`. Wall time includes launching the release CLI and waiting for it to exit. Each build compiled 118 sources. All four builds emitted the same 196,608-byte PE (SHA-256 `57893c489c80f4269cd46352bd61dc96b78a5a354d30d60c1e67050c673f0d1a`) and the same two warnings.
 
@@ -39,6 +41,6 @@ For the second run append a comment to the extracted main.omg and repeat with th
 
 An authored policy read alignment one from the last field and the last case's last payload field. The negative compiler test changed every inactive repeated field to alignment zero and the normal proof check refused the input. Returning inactive key zero as a live placement independently produced `layout refers to unknown field key 0`.
 
-All four returned layout plans and their private placements matched byte for byte across revisions. With both compilers pointed at the same source root, all three access results also matched, including their authority and issuance identities. SHA-256 of the seven sorted, newline-terminated diagnostic records was `44c716e355e8cfc501ef2df45b957ce683341cf22e9c8d7b23fa76aea6e61c43`. Moving the source root changes the package identity in access results. The Windows executable exited 0 under Debian Wine 10. Windows-target Psi on Linux reported a missing trusted Windows filesystem write binding (exit 200).
+All four returned layout plans and their private placements matched byte for byte across revisions. With both compilers pointed at the same source root, all three access results also matched, including their authority and issuance identities. SHA-256 of the seven sorted, newline-terminated diagnostic records was `44c716e355e8cfc501ef2df45b957ce683341cf22e9c8d7b23fa76aea6e61c43`. Moving the source root changes the package identity in access results. All 105 release source-compiler library tests passed, including positive and negative access policy tests. Both revisions ran the original fixture with Linux native/Psi agreement at exit 0. The Windows executable exited 0 under Debian Wine 10. Windows-target Psi on Linux reported a missing trusted Windows filesystem write binding (exit 200).
 
 For the hardware gate, run the original fixture with a release-built compiler and empty compiler, dependency and output caches on the Ryzen 9 7950X. Time the real CLI through exit and launch the emitted executable on Windows. Record the revision, exact command, wall time, exit, output hash and host. Measure the edited-source case separately.
