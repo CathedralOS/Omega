@@ -570,17 +570,23 @@ pub(crate) mod structural_result_wire {
         // the returned sources from the body before accepting such a header.
         if needs_package_replay {
             let actual = (|| {
-                let graph = analyses.descriptor_closure(
-                    terminal_semantics::descriptor_results::DescriptorSlotKind::BorrowedStorage,
-                    [machine.id],
-                ).ok()?;
+                let graph = analyses
+                    .descriptor_closure(
+                        terminal_semantics::descriptor_results::DescriptorSlotKind::BorrowedStorage,
+                        [machine.id],
+                    )
+                    .ok()?;
                 let mut loans = terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
                     &module.types.structural_types, &graph,
                 );
                 let contents = loans.result_contents(module, machine.id)?;
                 terminal_semantics::reference_result_contents(
-                    &module.types.structural_types, &machine.structural_parameters, result, &contents,
-                ).ok()
+                    &module.types.structural_types,
+                    &machine.structural_parameters,
+                    result,
+                    &contents,
+                )
+                .ok()
             })();
             if actual.as_ref() != Some(&result.reference_sources) {
                 return crate::codec_error::malformed(
