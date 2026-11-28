@@ -114,7 +114,7 @@ pub(crate) struct WriteRow {
 /// beside it, the interned identity Terminal Psi's declarations and
 /// structural paths name each field by.
 pub(crate) struct Records<'a> {
-    pub(crate) package_projections: crate::read::package_projections::PackageProjections,
+    pub(crate) field_openings: crate::read::field_openings::FieldOpenings,
     types: &'a IdTable<StructuralTypeId, RecordType>,
     zero_eligibility: IdTable<StructuralTypeId, Result<(), ZeroEligibilityError>>,
     pub(crate) inhabitation: terminal_semantics::inhabitation::Inhabitation,
@@ -906,7 +906,7 @@ pub(crate) fn declare<'a, 'b>(
     }
     Ok(Declared {
         records: Records {
-            package_projections: Default::default(),
+            field_openings: Default::default(),
             types,
             zero_eligibility: zero_eligibility(types),
             inhabitation: terminal_semantics::inhabitation::Inhabitation::prepare(
@@ -3433,7 +3433,7 @@ impl<'a> Lowering<'a> {
         }
         // A hidden field has one declared storage type. Each extraction
         // produces the type belonging to the opening of this package value.
-        let projection = match (self.records.package_projections.get(source), at.path.last()) {
+        let projection = match (self.records.field_openings.get(source), at.path.last()) {
             (Some(projection), Some(Step::Field { owner, field })) => {
                 let stored = self
                     .record_type(*owner)?
@@ -4822,12 +4822,7 @@ impl<'a> Lowering<'a> {
         let leaf = self.step(at.place, step)?;
         let mut steps = at.path;
         steps.push(step);
-        if let Some(projection) = self
-            .records
-            .package_projections
-            .get(expression.source)
-            .cloned()
-        {
+        if let Some(projection) = self.records.field_openings.get(expression.source).cloned() {
             if self.element_view_projection(at.root, &steps)?.is_some() {
                 return Err(self.internal(
                     "a projected package in a dynamic element view has no checked value path",
@@ -5467,11 +5462,7 @@ impl<'a> Lowering<'a> {
         }
         // Capturing visits the destination before the right-hand side and
         // retains each selector's exact SSA value in the existing Step roster.
-        let projected = self
-            .records
-            .package_projections
-            .get(destination.source)
-            .cloned();
+        let projected = self.records.field_openings.get(destination.source).cloned();
         let opened_type = projected.as_ref().and(destination.result);
         let (root, steps, place, expected) =
             continuing!(self.capture_place_as(destination, opened_type));

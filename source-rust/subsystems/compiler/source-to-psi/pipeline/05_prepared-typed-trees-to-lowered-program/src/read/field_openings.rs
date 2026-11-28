@@ -1,5 +1,6 @@
-//! Exact typed expression occurrences that project a hidden package field.
-//! Folding a body retains its original member and expression in SourceOrigin.
+//! Witnesses carried by a field use in its authored machine. Folding a body
+//! retains that member and expression in SourceOrigin. The lowering that
+//! materializes the operation supplies its actual structural place.
 use crate::body::{Regions, ValueType};
 use crate::source_state::SourceNode;
 use crate::source_state::expression::ExpressionHandle;
@@ -11,16 +12,16 @@ use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PreparedProjection {
+pub(crate) struct FieldOpening {
     pub opening: PackageOpeningHandle,
     pub witnesses: Vec<StructuralTypeId>,
 }
 
 #[derive(Debug, Clone, Default)]
-pub(crate) struct PackageProjections(HashMap<(MachineId, ExpressionHandle), PreparedProjection>);
+pub(crate) struct FieldOpenings(HashMap<(MachineId, ExpressionHandle), FieldOpening>);
 
-impl PackageProjections {
-    pub(crate) fn get(&self, source: SourceOrigin) -> Option<&PreparedProjection> {
+impl FieldOpenings {
+    pub(crate) fn get(&self, source: SourceOrigin) -> Option<&FieldOpening> {
         let (_, SourceNode::Expression(expression)) = source.node()? else {
             return None;
         };
@@ -60,7 +61,7 @@ impl super::Program<'_> {
             };
             witnesses.push(record);
         }
-        let prepared = PreparedProjection {
+        let prepared = FieldOpening {
             opening: projection.opening,
             witnesses,
         };
@@ -68,7 +69,7 @@ impl super::Program<'_> {
             crate::reject(id, source, "package projection lost its machine occurrence")
         })?;
         if self
-            .package_projections
+            .field_openings
             .0
             .insert((member, expression), prepared.clone())
             .is_some_and(|previous| previous != prepared)

@@ -1968,7 +1968,7 @@ fn lower_program_with_parallel<'source>(
         identities,
     )?;
     if let Some(program) = declarations {
-        declared.records.package_projections = program.package_projections.clone();
+        declared.records.field_openings = program.field_openings.clone();
     }
     let outcomes = body::outcome::outcomes(
         bodies,

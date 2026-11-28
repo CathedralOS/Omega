@@ -56,7 +56,6 @@ mod machine;
 mod mathematics;
 mod nominal_applications;
 mod numeric_contracts;
-pub(crate) mod package_projections;
 mod packages;
 mod places;
 mod predicates;
@@ -202,7 +201,7 @@ pub(crate) struct PredicateDefinition {
 }
 
 pub(crate) struct Program<'t> {
-    pub(crate) package_projections: package_projections::PackageProjections,
+    pub(crate) field_openings: field_openings::FieldOpenings,
     type_purpose: storage_metadata::TypePurpose,
     /// Sorted exact record IDs whose complete nested source type was read for a value use.
     value_records: Vec<StructuralTypeId>,
@@ -450,7 +449,7 @@ pub(crate) struct Program<'t> {
     inhabitation: terminal_semantics::inhabitation::Inhabitation,
     /// The symbols each record type was resolved from, by the same identity.
     record_sources: IdTable<StructuralTypeId, places::RecordSource>,
-    package_witnesses: std::collections::HashMap<SymbolHandle, StructuralTypeId>,
+    package_witnesses: Vec<(SymbolHandle, StructuralTypeId)>,
     pub(crate) package_schemas: Vec<terminal_psi::TerminalPackageSchema>,
     /// The data declarations being resolved, outermost first: a declaration
     /// reached again while on this stack contains itself.
@@ -631,7 +630,7 @@ impl<'t> Program<'t> {
                 .collect(),
             typed,
             type_purpose: storage_metadata::TypePurpose::Value,
-            package_projections: Default::default(),
+            field_openings: Default::default(),
             value_records: Vec::new(),
             admitted_declarations:
                 crate::source_state::references::DeclarationSelection::from_symbols([]),

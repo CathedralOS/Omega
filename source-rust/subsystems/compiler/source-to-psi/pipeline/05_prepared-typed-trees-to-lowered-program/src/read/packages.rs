@@ -11,16 +11,17 @@ use semantic_vocabulary::MachineId;
 use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
 
+fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
+    (symbol.arena_index(), symbol.generation())
+}
+
 #[derive(Debug)]
 pub(super) struct PackageFields<'a>(Vec<&'a PackageFieldType>);
 
 impl PackageFields<'_> {
     pub(super) fn get(&self, symbol: &SymbolHandle) -> Option<&TypeReferenceHandle> {
-        let key = (symbol.arena_index(), symbol.generation());
         self.0
-            .binary_search_by_key(&key, |field| {
-                (field.symbol.arena_index(), field.symbol.generation())
-            })
+            .binary_search_by_key(&symbol_key(*symbol), |field| symbol_key(field.symbol))
             .ok()
             .map(|index| &self.0[index].ty)
     }
@@ -108,7 +109,7 @@ pub(super) fn check_construction<'a>(
         return Err(invalid("package construction has an unsized witness"));
     }
     let mut rows: Vec<_> = package.fields.iter().collect();
-    rows.sort_unstable_by_key(|field| (field.symbol.arena_index(), field.symbol.generation()));
+    rows.sort_unstable_by_key(|field| symbol_key(field.symbol));
     let members = typed
         .data_members
         .span(data.members)
@@ -147,6 +148,11 @@ pub(super) fn check_construction<'a>(
 }
 
 impl super::Program<'_> {
+    fn witness_index(&self, symbol: SymbolHandle) -> Result<usize, usize> {
+        self.package_witnesses
+            .binary_search_by_key(&symbol_key(symbol), |(binder, _)| symbol_key(*binder))
+    }
+
     /// A declared hidden binder and each fresh opening have different
     /// nominal types. Their storage rows have no readable fields or owned
     /// contents. Only a reference to the sized witness has public geometry.
@@ -170,9 +176,10 @@ impl super::Program<'_> {
         {
             return Ok(None);
         }
-        if let Some(&row) = self.package_witnesses.get(&symbol) {
-            return Ok(Some(ValueType::record(row)));
-        }
+        let slot = match self.witness_index(symbol) {
+            Ok(index) => return Ok(Some(ValueType::record(self.package_witnesses[index].1))),
+            Err(slot) => slot,
+        };
         let owner = typed.symbols.get(symbol).parent;
         let declared = owner.is_valid()
             && typed
@@ -228,7 +235,7 @@ impl super::Program<'_> {
             },
             source,
         );
-        self.package_witnesses.insert(symbol, row);
+        self.package_witnesses.insert(slot, (symbol, row));
         Ok(Some(ValueType::record(row)))
     }
 
@@ -249,9 +256,9 @@ impl super::Program<'_> {
         let witnesses = parameters
             .iter()
             .map(|parameter| {
-                self.package_witnesses
-                    .get(&parameter.symbol)
-                    .copied()
+                self.witness_index(parameter.symbol)
+                    .ok()
+                    .map(|index| self.package_witnesses[index].1)
                     .ok_or_else(|| {
                         super::unavailable(
                             machine,
