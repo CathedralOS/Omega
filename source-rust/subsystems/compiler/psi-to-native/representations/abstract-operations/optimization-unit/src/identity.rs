@@ -2300,6 +2300,20 @@ pub(crate) mod operation_encoding {
     field!(u16, |bytes, value| bytes.u16(*value));
     field!(u32, |bytes, value| bytes.u32(*value));
     field!(u64, |bytes, value| bytes.u64(*value));
+    field!(
+        std::collections::BTreeMap<semantic_vocabulary::StructuralFieldId, terminal_psi::StructuralFieldType>,
+        |bytes, fields| {
+            bytes.len(fields.len());
+            for (id, field_type) in fields {
+                bytes.id(*id);
+                encode_scalar_restriction(bytes, field_type);
+            }
+        }
+    );
+    field!((usize, semantic_vocabulary::StructuralTypeId), |bytes, referent| {
+        bytes.len(referent.0);
+        bytes.id(referent.1);
+    });
     field!(bool, |bytes, value| bytes.boolean(*value));
     field!(abstract_operations::AbstractResult, |bytes, value| {
         encode_abstract_result(bytes, *value)
