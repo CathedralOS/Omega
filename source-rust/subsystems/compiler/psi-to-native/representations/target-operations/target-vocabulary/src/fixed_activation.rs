@@ -130,3 +130,49 @@ impl FixedActivationCall {
         }
     }
 }
+
+/// Scratch homes for the public SysV wrapper. Every source operand is saved
+/// before any private helper or parallel result transfer reuses its register.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FixedCallFrame {
+    pub inputs: Vec<(u32, u32)>,
+    pub result: (u32, u32),
+    pub frame_bytes: u32,
+}
+impl FixedCallFrame {
+    pub const OUTPUT_POINTER: u32 = 0;
+    pub const INPUT_POINTER: u32 = 8;
+    pub const BACKING: u32 = 16; // original mutable byte view, two words
+
+    pub fn for_binding(binding: &crate::NormalizedForeignCallBinding) -> Option<Self> {
+        binding.fixed_activation()?;
+        let call = &binding.boundary_entry_plan.call;
+        if call.policy != calling_conventions::CallingPolicy::SystemVAMD64 || call.stack_alignment != 16
+            || call.shadow_bytes != 0 || call.entry_control != calling_conventions::EntryControl::CallReturn
+            || !call.callback_materializations.is_empty() { return None; }
+        let mut cursor = 32u32;
+        let mut home = |shape: calling_conventions::ValueShape| {
+            let width = match shape.class {
+                calling_conventions::ValueClass::BorrowedReference | calling_conventions::ValueClass::BorrowedScalarReference => 8,
+                _ => shape.byte_size,
+            };
+            let start = cursor.checked_next_multiple_of(16)?;
+            cursor = start.checked_add(width)?;
+            Some((start, width))
+        };
+        let inputs = call.parameters.iter().map(|p| home(p.shape)).collect::<Option<Vec<_>>>()?;
+        let result = match &call.result { Some(r) => home(r.shape)?, None => (cursor,0) };
+        let frame_bytes = cursor.checked_next_multiple_of(16)?.checked_add(8)?;
+        (frame_bytes <= i32::MAX as u32 - 16).then_some(Self {inputs,result,frame_bytes})
+    }
+
+    pub fn caller_stack_bytes(&self) -> u64 {
+        // The entry and helper return addresses are live before switching stacks.
+        u64::from(self.frame_bytes) + 16
+    }
+}
+impl crate::NormalizedForeignCallBinding {
+    pub fn fixed_activation_stack_bytes(&self) -> Option<u64> {
+        Some(FixedCallFrame::for_binding(self)?.caller_stack_bytes())
+    }
+}

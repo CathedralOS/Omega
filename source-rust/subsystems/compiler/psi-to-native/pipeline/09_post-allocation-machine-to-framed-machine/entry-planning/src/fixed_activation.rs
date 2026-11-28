@@ -1,4 +1,6 @@
 //! Lay out one caller-owned fixed stack. Geometry is not a platform switch permit.
+mod wrapper;
+pub use wrapper::plan_call;
 use crate::{
     callable_entry::PlannedCallableEntryTransport,
     native_foreign_bridge::{self, InlineJob, NativeForeignBridgeRequest},

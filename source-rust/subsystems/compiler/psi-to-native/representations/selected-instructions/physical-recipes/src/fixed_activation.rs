@@ -1,5 +1,6 @@
 //! Locations retained by a Linux x86-64 activation while its worker or caller is parked.
 use calling_conventions::MachineRegister;
+pub use target_vocabulary::FixedActivationAction;
 
 /// A SysV caller can keep these registers live across a call. Each side of
 /// the transfer needs its own saved values and floating-point controls.
@@ -57,4 +58,22 @@ impl<Origin> FixedTransferPlan<Origin> {
     pub fn transfer(&self) -> &FixedTransfer {
         &self.instructions
     }
+}
+
+/// The two post-call sequences differ only when the core operation returns a
+/// tagged outcome. The nonzero path is Ready for prepare/resume and Parked for step.
+pub struct FixedCall<Origin> {
+    pub binding: target_vocabulary::NormalizedForeignCallBinding,
+    pub before: post_allocation_machine::adapters::AdapterInstructions,
+    pub zero: post_allocation_machine::adapters::AdapterInstructions,
+    pub nonzero: Option<post_allocation_machine::adapters::AdapterInstructions>,
+    pub finish: post_allocation_machine::adapters::AdapterInstructions,
+    pub transfer: Option<FixedTransferPlan<Origin>>,
+    pub entry_bridge: Option<crate::native_entry_bridge::NativeEntryBridgePlan<Origin>>,
+    pub caller_stack_bytes:u64,
+}
+
+pub type FixedCallPlan<Origin> = crate::PhysicalRecipe<Origin, FixedCall<Origin>>;
+impl<Origin> FixedCallPlan<Origin> {
+    pub fn call(&self) -> &FixedCall<Origin> { &self.instructions }
 }

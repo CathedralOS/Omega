@@ -71,6 +71,16 @@ fn encode_stack(stack_top: u32) -> Result<EncodedFixedTransfer, AdapterEncodingE
     context(&mut step, WORKER_CONTEXT, true)?;
     step.push(0xc3);
 
+    Ok(EncodedFixedTransfer {
+        step,
+        worker_call,
+        park: encode_park()?,
+        prepare: Vec::new(),
+        resume: encode_resume()?,
+    })
+}
+
+fn encode_park() -> Result<Vec<u8>,AdapterEncodingError> {
     // A park takes the actual publication and the typed result destination.
     // The latter remains live on this worker's stack until a matching reply.
     let mut park = Vec::new();
@@ -110,13 +120,7 @@ fn encode_stack(stack_top: u32) -> Result<EncodedFixedTransfer, AdapterEncodingE
     context(&mut park, CALLER_CONTEXT, true)?;
     park.push(0xc3);
 
-    Ok(EncodedFixedTransfer {
-        step,
-        worker_call,
-        park,
-        prepare: Vec::new(),
-        resume: encode_resume()?,
-    })
+    Ok(park)
 }
 
 fn patch_forward(
@@ -359,3 +363,59 @@ mod tests {
 /// The native encoder alone can issue a new image with this origin.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedActivationEncoderOrigin(());
+
+/// Emit the call issued by physical planning. Each public entry calls only its
+/// own action and optional, statically selected worker in this text section.
+pub fn encode_call(plan:&physical_recipes::fixed_activation::FixedCallPlan<entry_planning::PhysicalRecipeOrigin>)
+    -> Result<machine_code::fixed_activation::EncodedFixedActivationCall<FixedActivationEncoderOrigin>,AdapterEncodingError> {
+    use physical_recipes::fixed_activation::FixedActivationAction as Action;
+    let call=plan.call();
+    let fixed=call.binding.fixed_activation().ok_or(AdapterEncodingError)?;
+    let mut code=Vec::new();
+    let emit=|code:&mut Vec<u8>,seq:&post_allocation_machine::adapters::AdapterInstructions| {
+        let model=isa_x86_64::validated_x86_64_physical_register_model();
+        for op in &seq.operations {encode_operation(Architecture::X86_64,model,op,code)?;}
+        Ok::<_,AdapterEncodingError>(())
+    };
+    emit(&mut code,&call.before)?;
+    code.push(0xe8);
+    let helper_call=code.len();
+    code.extend_from_slice(&[0;4]);
+    if let Some(success)=&call.nonzero {
+        code.extend_from_slice(&[0x85,0xc0,0x0f,0x85]); // test eax,eax; jne nonzero
+        let nonzero=code.len(); code.extend_from_slice(&[0;4]);
+        emit(&mut code,&call.zero)?;
+        code.push(0xe9);
+        let finish=code.len(); code.extend_from_slice(&[0;4]);
+        let at=code.len(); patch_forward(&mut code,nonzero,at)?;
+        emit(&mut code,success)?;
+        let at=code.len(); patch_forward(&mut code,finish,at)?;
+    } else {emit(&mut code,&call.zero)?;}
+    emit(&mut code,&call.finish)?;
+    let helper=code.len();
+    patch_forward(&mut code,helper_call,helper)?;
+    let worker_call=match fixed.action {
+        Action::Prepare{..}=>{
+            let t=call.transfer.as_ref().ok_or(AdapterEncodingError)?.transfer();
+            code.extend(encode_prepare(t.stack_top,t.alignment,t.argument_offset,t.argument_bytes)?);
+            None
+        }
+        Action::Step{worker,..}=>{
+            let encoded=encode(call.transfer.as_ref().ok_or(AdapterEncodingError)?)?;
+            let mut field=helper.checked_add(encoded.worker_call).ok_or(AdapterEncodingError)?;
+            code.extend(encoded.step);
+            if let Some(bridge)=&call.entry_bridge {
+                let (bridge,callee)=crate::adapters::encode_instructions(bridge.instructions())?;
+                let at=code.len();
+                patch_forward(&mut code,field,at)?;
+                field=at.checked_add(callee).ok_or(AdapterEncodingError)?;
+                code.extend(bridge);
+            }
+            Some((field,worker))
+        }
+        Action::Park{..}=>{code.extend(encode_park()?);None}
+        Action::Resume{..}=>{code.extend(encode_resume()?);None}
+    };
+    Ok(machine_code::fixed_activation::EncodedFixedActivationCall::from_encoder(
+        FixedActivationEncoderOrigin(()),call.binding.clone(),code,worker_call,call.caller_stack_bytes))
+}
