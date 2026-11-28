@@ -540,6 +540,80 @@ impl<'a> DescriptorAnalysis<'a> {
         family.pop()
     }
 
+    /// A use through a stored input reference follows the pointer present at
+    /// this cut. An indexed address can be exact without naming a static
+    /// descriptor slot in the machine.
+    pub fn observed_storage_family(
+        &mut self,
+        machine: &TerminalMachine,
+        position: DescriptorPosition,
+        location: &DescriptorLocation,
+    ) -> Result<Option<Vec<DescriptorCallOrigin>>, &'static str> {
+        let detail = match self.captured_storage_family_if_active(machine.id, position, location) {
+            Ok(family) => return Ok(family),
+            Err(detail) => detail,
+        };
+        let crossing = location
+            .path
+            .iter()
+            .rposition(|step| *step == DescriptorPathSegment::Referent)
+            .ok_or(detail)?;
+        let slot = DescriptorLocation {
+            root: location.root,
+            path: location.path[..crossing].to_vec(),
+        };
+        let types = self.replay.types;
+        let reference = descriptor_location_type(
+            types,
+            machine.structural_place_type(slot.root).ok_or(detail)?,
+            &slot.path,
+        )
+        .ok_or(detail)?;
+        let StructuralTypeShape::Reference { referent, .. } =
+            terminal_psi::find_structural_type(types, reference)
+                .ok_or(detail)?
+                .shape
+        else {
+            return Err(detail);
+        };
+        let rest = crate::descriptor_lifetimes::descriptor_path(
+            types,
+            reference,
+            &location.path[crossing..],
+        )
+        .ok_or(detail)?;
+        let Some((terminal_psi::StructuralPathSegment::Referent, suffix)) = rest.split_first()
+        else {
+            return Err(detail);
+        };
+        if !crate::projection_stays_in_inline_storage(types.iter(), referent, suffix) {
+            return Err(detail);
+        }
+        let DescriptorCallOrigin::Argument { source, projection } = self
+            .unchanged_selected_input_reference(machine, position, &slot)
+            .ok_or(detail)?
+        else {
+            return Err(detail);
+        };
+        let target = DescriptorCallOrigin::Argument {
+            source,
+            projection: projection.then(&Projection::new(&rest)),
+        };
+        let graph = self.replay.machine(machine.id).ok_or(detail)?;
+        let before = self
+            .replay
+            .snapshots
+            .get(&machine.id)
+            .and_then(|row| row.ready())
+            .and_then(|ready| ready.before.get(&position))
+            .ok_or(detail)?;
+        self.replay.checked_storage_family_if_active(
+            graph,
+            before,
+            StorageResolution::Projected(target),
+        )
+    }
+
     /// All captured addresses that this storage use can name. This is a
     /// complete address family, not loan permission or proof that two
     /// independently selected families choose the same member. Unknown
@@ -896,6 +970,105 @@ impl<'a> DescriptorAnalysis<'a> {
             self.replay
                 .read(machine, states.get(&position)?, location)?,
         )
+    }
+
+    /// The address of a reference inside a borrowed slice is distinct from
+    /// the pointer stored there. Recover its input loan only when the checked
+    /// capture selects a single element and the input value still reaches
+    /// this observation on every path.
+    pub(crate) fn unchanged_selected_input_reference(
+        &mut self,
+        machine: &TerminalMachine,
+        position: DescriptorPosition,
+        location: &DescriptorLocation,
+    ) -> Option<DescriptorCallOrigin> {
+        let types = self.replay.types;
+        let graph = self.replay.machine(machine.id)?;
+        if self.replay.slot_kind != DescriptorSlotKind::BorrowedStorage {
+            return None;
+        }
+        let current = descriptor_location_type(
+            types,
+            machine.structural_place_type(location.root)?,
+            &location.path,
+        )?;
+        let StructuralTypeShape::Reference {
+            access: StructuralAccess::SharedBorrow,
+            ..
+        } = terminal_psi::find_structural_type(types, current)?.shape
+        else {
+            return None;
+        };
+        let origin = self.storage_projection(machine.id, position, location)?;
+        let DescriptorCallOrigin::Argument { source, projection } = &origin else {
+            return None;
+        };
+        let parameter = exactly_one(machine.structural_parameters.iter(), |p| p.place == *source)?;
+        if !matches!(
+            parameter.access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        ) {
+            return None;
+        }
+        let StructuralTypeShape::ElementView { .. } =
+            terminal_psi::find_structural_type(types, parameter.structural_type)?.shape
+        else {
+            return None;
+        };
+        let path = projection.captured_storage_path()?;
+        let [StructuralPathSegment::RuntimeIndex { .. }, ..] = path.as_slice() else {
+            return None;
+        };
+        if !crate::reference_source_projection_accessible(
+            types.iter(),
+            parameter.structural_type,
+            parameter.multiplicity,
+            parameter.access,
+            &path,
+            StructuralAccess::SharedBorrow,
+        ) {
+            return None;
+        }
+        let query = crate::descriptor_results::descriptor_contents_query_with(
+            types,
+            *source,
+            parameter.structural_type,
+            &path,
+            None,
+            |id| {
+                let scalar = machine.parameters.iter().find(|p| p.id == id)?;
+                Some(semantic_vocabulary::ScalarTerm::Value {
+                    id,
+                    scalar_type: scalar.scalar_type,
+                })
+            },
+        )?;
+        if !query.is_symbolic_location()
+            || query.selected_type(types, parameter.structural_type)? != Some(current)
+            || !matches!(query.inline_steps(types, parameter.structural_type)?.as_slice(),
+                [false, suffix @ ..] if suffix.iter().all(|step| *step))
+        {
+            return None;
+        }
+        let targets = self.payload_targets(machine.id, position, &query)?;
+        let [DescriptorPayloadTarget::Incoming(incoming)] = targets.as_slice() else {
+            return None;
+        };
+        if *incoming != query && *incoming != query.without_selectors() {
+            return None;
+        }
+        let flow = self.storage_queries.incoming(graph)?;
+        crate::descriptor_results::payload_versions::require_unchanged_entry_storage_with_incoming(
+            types,
+            self.replay.machines,
+            self,
+            machine.id,
+            position,
+            &DescriptorPayloadTarget::Incoming(query),
+            &flow,
+        )
+        .ok()?;
+        Some(origin)
     }
 
     /// Recover incoming contents only when their entry version still

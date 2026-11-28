@@ -978,7 +978,7 @@ impl<'a> Storage<'a> {
         })?;
         let at = (block, before);
         let addresses =
-            match references.captured_storage_family_if_active(self.machine, at, &location) {
+            match references.observed_storage_family(self.lowered, at, &location) {
                 Ok(Some(addresses))
                     if addresses.iter().any(|source| {
                         matches!(source, DescriptorCallOrigin::NativeAddress { .. })

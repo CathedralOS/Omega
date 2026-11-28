@@ -1196,8 +1196,9 @@ impl<'a> DefaultRequirements<'a> {
                     self.error("default restoration has no exact descriptor location")
                 })?;
         let captured = references
-            .captured_storage_family(self.machine.id, before, &location)
-            .map_err(|detail| self.error(detail))?;
+            .observed_storage_family(self.machine, before, &location)
+            .map_err(|detail| self.error(detail))?
+            .ok_or_else(|| self.error("captured storage family is empty"))?;
         let mut backings = Vec::new();
         for origin in captured {
             if matches!(origin, DescriptorCallOrigin::NativeAddress { .. }) {
