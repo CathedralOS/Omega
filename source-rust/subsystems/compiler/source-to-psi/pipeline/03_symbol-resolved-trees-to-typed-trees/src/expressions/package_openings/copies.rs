@@ -1,65 +1,23 @@
 //! Storage openings and witness equalities that hold on the current control path.
 use super::*;
 
+mod history;
+pub(super) use history::CopyHistory;
+use history::CopyPoint;
+
 #[derive(Clone, Default)]
 pub(super) struct LiveOpenings {
     pub(super) openings: Vec<PackageOpeningHandle>,
     pub(super) names: Vec<SymbolHandle>,
-    pub(super) copies: CopyGroups,
+    pub(super) copies: CopyPoint,
 }
 
 impl LiveOpenings {
-    pub(super) fn retain_common(&mut self, other: &Self) {
+    pub(super) fn retain_common(&mut self, other: &Self, history: &mut CopyHistory) {
         self.openings
             .retain(|opening| other.openings.contains(opening));
         self.names.retain(|name| other.names.contains(name));
-        self.copies.0 = self
-            .copies
-            .0
-            .iter()
-            .flat_map(|left| {
-                other.copies.0.iter().filter_map(move |right| {
-                    let shared: Vec<_> = left
-                        .iter()
-                        .filter(|place| right.contains(place))
-                        .cloned()
-                        .collect();
-                    (shared.len() > 1).then_some(shared)
-                })
-            })
-            .collect();
-    }
-}
-
-/// Each group contains distinct places that still carry a copied witness.
-/// Removing one replaced place preserves the relation between surviving copies.
-#[derive(Clone, Default)]
-pub(super) struct CopyGroups(Vec<Vec<PackageSubject>>);
-
-impl CopyGroups {
-    pub(super) fn record(&mut self, source: PackageSubject, destination: PackageSubject) {
-        if source == destination {
-            return;
-        }
-        self.retain_subjects(|subject| subject != &destination);
-        if let Some(group) = self.0.iter_mut().find(|group| group.contains(&source)) {
-            group.push(destination);
-        } else {
-            self.0.push(vec![source, destination]);
-        }
-    }
-
-    pub(super) fn related(&self, left: &PackageSubject, right: &PackageSubject) -> bool {
-        self.0
-            .iter()
-            .any(|group| group.contains(left) && group.contains(right))
-    }
-
-    pub(super) fn retain_subjects(&mut self, survives: impl Fn(&PackageSubject) -> bool) {
-        self.0.retain_mut(|group| {
-            group.retain(&survives);
-            group.len() > 1
-        });
+        self.copies = history.join(self.copies, other.copies);
     }
 }
 
@@ -100,9 +58,20 @@ pub(super) fn value_copy(
     if !types.contains_type_reference(ty) {
         return None;
     }
-    let declaration = types.type_head_symbol(types.unconstrained_type_reference(ty))?;
-    let data = program.unique_data_definition_by_symbol(declaration)?;
-    if data.package_parameters.is_empty()
+    // An enclosing array or record can transfer a package at one of its
+    // member paths even when the outer declaration has no hidden parameter.
+    let base = types.unconstrained_type_reference(ty);
+    let aggregate = match types.type_reference(base) {
+        TypeReferenceNode::FixedArray { .. } => true,
+        _ => types
+            .type_head_symbol(base)
+            .and_then(|head| program.unique_data_definition_by_symbol(head))
+            .is_some_and(|data| {
+                !data.package_parameters.is_empty()
+                    || program.stored_data_fields(data).next().is_some()
+            }),
+    };
+    if !aggregate
         || program.stored_value_multiplicity(ty) != language_core::Multiplicity::Unrestricted
     {
         return None;
@@ -110,3 +79,6 @@ pub(super) fn value_copy(
     let source = stable_subject(program, state, &package_place(program, value)?)?;
     Some((source, destination))
 }
+
+#[cfg(test)]
+mod tests;

@@ -65,6 +65,7 @@ pub(crate) fn open_cohort(
                 .collect(),
                 ..LiveOpenings::default()
             },
+            copies: copies::CopyHistory::default(),
             version: 0,
             active: Vec::new(),
         };
@@ -159,12 +160,18 @@ struct OpeningScope<'a> {
     source: &'a resolved::SymbolResolvedTrees,
     names: &'a NamedOpenings,
     facts: LiveOpenings,
+    copies: copies::CopyHistory,
     version: u32,
     active: Vec<ExpressionHandle>,
 }
 
 impl OpeningScope<'_> {
-    fn invalidate(&mut self, program: &TypedTrees, write: Write) -> Result<(), Diagnostic> {
+    fn invalidate(
+        &mut self,
+        program: &TypedTrees,
+        write: Write,
+        copied: Option<(PackageSubject, PackageSubject)>,
+    ) -> Result<(), Diagnostic> {
         let call = match write {
             Write::StatementCall(Some(binding), operands) => Some((
                 binding.callee,
@@ -200,7 +207,12 @@ impl OpeningScope<'_> {
         self.facts
             .openings
             .retain(|&handle| survives(&program.package_opening(handle).subject));
-        self.facts.copies.retain_subjects(survives);
+        self.facts.copies = match copied {
+            Some((source, destination)) => {
+                self.copies.transfer(self.facts.copies, source, destination)
+            }
+            None => self.copies.written(self.facts.copies, written.as_ref()),
+        };
         self.facts.names.retain(|&symbol| {
             let subject = bound_subject(symbol);
             spared == Some(&subject)
@@ -264,15 +276,15 @@ impl OpeningScope<'_> {
             {
                 self.facts.names.push(local);
             }
-            if let Some(target) = write {
-                self.invalidate(program, target)?;
-            }
-            if let Some((source, destination)) = copies::value_copy(
+            let copied = copies::value_copy(
                 program,
                 self.state,
                 program.statement_table.statement(handle),
-            ) {
-                self.facts.copies.record(source, destination);
+            );
+            if let Some(target) = write {
+                self.invalidate(program, target, copied)?;
+            } else if let Some((source, destination)) = copied {
+                self.facts.copies = self.copies.transfer(self.facts.copies, source, destination);
             }
         }
         Ok(())
@@ -313,7 +325,7 @@ impl OpeningScope<'_> {
                 let fall_through = self.facts.clone();
                 self.visit(program, arm.value)?;
                 if let Some(joined) = &mut common {
-                    joined.retain_common(&self.facts);
+                    joined.retain_common(&self.facts, &mut self.copies);
                 } else {
                     common = Some(self.facts.clone());
                 }
@@ -349,7 +361,7 @@ impl OpeningScope<'_> {
                 self.project(program, expression, field, receiver)?;
             }
             if let Some(write) = write {
-                self.invalidate(program, write)?;
+                self.invalidate(program, write, None)?;
             }
         }
         self.active.pop();
@@ -500,7 +512,13 @@ impl OpeningScope<'_> {
                     let origin = program.package_opening(handle);
                     let source = copies::stable_subject(program, self.state, &origin.subject)?;
                     (origin.declaration == declaration
-                        && self.facts.copies.related(&source, &target)
+                        && self.copies.related(
+                            program,
+                            self.state,
+                            self.facts.copies,
+                            &source,
+                            &target,
+                        )
                         && self.names_match(program, origin, &subject))
                     .then(|| origin.witnesses.clone())
                 })
