@@ -66,7 +66,8 @@ resolution, typing, proof, ownership or realization code.
 Within a cohort, [expression meanings](src/expressions/expression_meanings.rs) prepares
 domain casts and selected operator calls from operands outward. A cast can
 give an operator its operand type, and an operator can give an enclosing cast
-its result type. The selected call keeps its static arguments and the
+its result type. A value cast retains its declared operand type so publication can
+identify an exact numeric conversion after specialization. The selected call keeps its static arguments and the
 author's declaration choice; typing adds no checking evidence. Closed type
 and const applications go to ordinary specialization; the lowered-form checker
 refuses unsupported domain applications.

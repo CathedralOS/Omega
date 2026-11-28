@@ -3299,6 +3299,7 @@ pub(crate) mod payloads {
                     }
                     expression::ExpressionNode::Cast(mut cast) => {
                         cast.target_type = self.type_reference(program, cast.target_type)?;
+                        cast.operand_type = self.type_reference(program, cast.operand_type)?;
                         cast.result_type = self.type_reference(program, cast.result_type)?;
                         cast.recast_storage_type =
                             self.type_reference(program, cast.recast_storage_type)?;

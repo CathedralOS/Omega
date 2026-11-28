@@ -4198,9 +4198,22 @@ pub(crate) mod qualification_casts {
             cast_destinations,
         )?;
         let mut updates = Vec::with_capacity(sites.len());
+        let mut types = crate::types::typing_queries::DeclaredExpressionTypes::default();
 
         for handle in sites {
             let cast = *program.expression_table.cast_node(handle).unwrap();
+            if cast.form == language_core::CastForm::Value && cast.semantic_domain.is_empty() {
+                let mut carriers = owners
+                    .expression_owners(handle)
+                    .map(|owner| types.get(program, owner, cast.value));
+                if let Some(Some(carrier)) = carriers.next()
+                    && carriers.all(|other| other == Some(carrier))
+                    && let ExpressionNode::Cast(row) =
+                        program.expression_table.expression_mut(handle)
+                {
+                    row.operand_type = carrier;
+                }
+            }
             // A run typing deferred to its declaration has no types to settle.
             if cast.form.entry().is_some() && !cast.result_type.is_valid() {
                 continue;
