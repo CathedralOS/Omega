@@ -298,7 +298,7 @@ impl<'a> Storage<'a> {
                 LoanRegion::Provider(_) => sources.push(Backing::direct(place)),
             }
         }
-        let backing = Backing::native_address(descriptor, sources, origin.exact);
+        let backing = Backing::native_address(address, descriptor, sources, origin.exact);
         Ok(LoanRegion::Storage(backing))
     }
 }

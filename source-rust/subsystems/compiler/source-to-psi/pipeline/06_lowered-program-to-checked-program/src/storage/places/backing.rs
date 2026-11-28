@@ -24,6 +24,9 @@ pub(crate) struct Backing {
     // the block's logical subject stays intact for predecessor substitution.
     pub(super) place: Lineage,
     regions: Vec<CapturedRegion>,
+    /// Two raw loans starting at the same SSA address have a known overlap,
+    /// even if their result descriptors have different roots and types.
+    native_operand: Option<ValueId>,
     subject: Option<(BlockId, Lineage)>,
 }
 
@@ -64,6 +67,7 @@ impl Backing {
                 origin: None,
                 index_can_change_on_reentry: false,
             }],
+            native_operand: None,
             subject: None,
         }
     }
@@ -71,19 +75,28 @@ impl Backing {
     /// A native address can have several incoming storage origins. Offset
     /// arithmetic preserves conflicts with that storage without identifying
     /// the resulting byte as an exact field for value or fact lookup.
-    pub(super) fn native_address(descriptor: &Lineage, sources: Vec<Self>, exact: bool) -> Self {
+    pub(super) fn native_address(address: ValueId, descriptor: &Lineage, sources: Vec<Self>, exact: bool) -> Self {
         let mut regions = sources.into_iter().flat_map(|source| source.regions).collect::<Vec<_>>();
         if regions.is_empty() {
             let mut referent = descriptor.clone();
             referent.segments.push(Segment::Referent);
-            return Self::direct(referent);
+            let mut backing = Self::direct(referent);
+            backing.native_operand = Some(address);
+            return backing;
         }
         if !exact {
             for region in &mut regions {
                 region.place_is_exact = false;
             }
         }
-        Self::captured(descriptor, regions, None).expect("known native address origins")
+        let mut backing = Self::captured(descriptor, regions, None).expect("known native address origins");
+        backing.native_operand = Some(address);
+        backing
+    }
+
+    pub(super) fn overlaps_loan(&self, other: &Self) -> bool {
+        self.native_operand.is_some_and(|address| other.native_operand == Some(address))
+            || overlap(self, other)
     }
 
     fn captured(
@@ -103,6 +116,7 @@ impl Backing {
         Ok(Self {
             place,
             regions,
+            native_operand: None,
             subject: owner.map(|owner| (owner, subject.clone())),
         })
     }
@@ -360,6 +374,7 @@ impl Backing {
                 self.place.clone()
             },
             regions: vec![region.clone()],
+            native_operand: self.native_operand,
             subject: None,
         })
     }
