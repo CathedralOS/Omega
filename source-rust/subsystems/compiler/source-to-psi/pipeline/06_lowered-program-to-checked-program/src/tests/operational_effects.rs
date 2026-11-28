@@ -168,6 +168,37 @@ machine main(kept: u32) crashes Trap {
 }
 "#;
 
+#[test]
+fn a_call_through_a_machine_value_parks_under_its_public_contract() {
+    let source = "data Callback = machine() -> u64 reaches none crashes none suspends;
+        machine main(selected: Callback) -> u64 invokes selected suspends {
+            let value: u64 = suspend selected();
+            value
+        }";
+    let mut elaboration = accepted(source).elaboration;
+    let module = &mut elaboration.module;
+    let [site] = module.execution.suspension_call_sites.as_slice() else {
+        panic!("one suspension at the call through selected");
+    };
+    let selected = module
+        .operations()
+        .find_map(|operation| operation.kind.callable_invocation())
+        .unwrap();
+    let (callee, contract) = (selected.callee, selected.contract);
+    assert_eq!(
+        site.target,
+        terminal_psi::TerminalSuspensionCallTarget::Callable { callee, contract }
+    );
+    let other = semantic_vocabulary::ValueId::new(callee.get() + 1).unwrap();
+    module.execution.suspension_call_sites[0].target =
+        terminal_psi::TerminalSuspensionCallTarget::Callable {
+            callee: other,
+            contract,
+        };
+    let rejected = crate::operational::judge(&elaboration).unwrap_err();
+    assert_eq!(rejected.reason, RefusalReason::ForeignIdentity);
+}
+
 /// calls_and_outcomes.md, "Suspension": "A suspension site binds the exact
 /// call, checked crossing, callee, and commitment to the complete ordered
 /// live frontier." Each call that may suspend is an operation with a
