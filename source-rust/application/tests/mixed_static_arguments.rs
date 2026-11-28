@@ -85,13 +85,88 @@ machine main() crashes Trap {
 }
 
 #[test]
+fn an_ordinary_caller_runs_the_core_worker_with_distinct_job_and_outcome_types() {
+    let source = r#"
+use {omega}/language/core/task.omg;
+
+machine call<Arguments, T, const Target: |task|::TaskWorker<Arguments, T>>(job: Arguments) -> T
+suspends blocks {
+    suspend block Target(job)
+}
+machine positive(arguments: u32) -> bool { arguments > 0u32 }
+machine main() crashes Trap {
+    let zero: bool = call::<u32, bool, positive>(0u32);
+    let one: bool = call::<u32, bool, positive>(1u32);
+    transition !zero && one { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}
+"#;
+    let directory = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "closed-worker-effects", false,
+    ).unwrap();
+    let path = directory.path().join("worker.psi");
+    let (output, report) = program::invoke(source, &["--emit-psi", path.to_str().unwrap()]);
+    assert!(output.status.success(), "{report}");
+    let saved = terminal_codec::CanonicalTerminalArtifact::from_bytes(&std::fs::read(path).unwrap()).unwrap();
+    let module = saved.semantic_module();
+    let owners = module.machines.iter().filter(|machine| {
+        machine.closed_reach_application.as_ref().is_some_and(|application| {
+            application.suspension_dependency.parameters == [2]
+                && application.blocking_dependency.parameters == [2]
+                && !application.suspension_dependency.concrete
+                && !application.blocking_dependency.concrete
+        })
+    }).collect::<Vec<_>>();
+    assert_eq!(owners.len(), 1, "the worker owns both operational dependencies");
+    assert!(!owners[0].published_may_suspend && !owners[0].published_may_block);
+    let mut missing = module.clone();
+    let owner = missing.machines.iter_mut().find(|machine| machine.id == owners[0].id).unwrap();
+    let application = owner.closed_reach_application.as_mut().unwrap();
+    application.suspension_dependency.parameters.clear();
+    application.blocking_dependency.parameters.clear();
+    application.template_commitment = terminal_psi::closed_reach_template_commitment(
+        application.template_base_commitment,
+        application.parameters(),
+        &application.suspension_dependency,
+        &application.blocking_dependency,
+        |_| None,
+    ).unwrap();
+    assert_eq!(
+        terminal_semantics::closed_reach::validate_closed_reach_applications(&missing),
+        Err("closed callback dependency omits an operational effect of its body"),
+    );
+    program::assert_silent_return(source);
+}
+
+#[test]
+fn a_selected_worker_and_an_independent_call_each_keep_their_own_waits() {
+    let source = r#"
+use {omega}/language/core/task.omg;
+machine fixed(arguments: u32) -> u32 suspends { arguments }
+machine work(arguments: u32) -> bool blocks { arguments == 1u32 }
+machine call<const Target: |task|::TaskWorker<u32, bool>>(job: u32) -> bool suspends blocks {
+    let value: u32 = suspend fixed(job);
+    suspend block Target(value)
+}
+machine main() suspends blocks {
+    let answer: bool = MARK call::<work>(1u32);
+}
+"#;
+    for (marker, missing) in [("suspend", "block acknowledgement"), ("block", "suspend acknowledgement")] {
+        let (output, report) = program::invoke(&source.replace("MARK", marker), &["--check"]);
+        assert!(!output.status.success(), "{report}");
+        assert!(report.contains(missing), "{report}");
+    }
+}
+
+#[test]
 fn choosing_activation_storage_alone_does_not_establish_custody() {
     for (entry, outcome) in [("start", "Task<T>"), ("try_start", "StartOutcome<T, T>")] {
         let source = format!(
             r#"
 use {{omega}}/language/core/task.omg;
-machine schedule<T, machine Worker, const Plan: |task|::ActivationStorage>(job: T) -> |task|::{outcome}
-requires machine Worker(arguments: T) -> T suspends blocks;
+machine schedule<T, const Worker: |task|::TaskWorker<T, T>, const Plan: |task|::ActivationStorage>(job: T) -> |task|::{outcome}
 reaches |task|::TaskRuntime invokes |task|::TaskRuntime crashes Trap crashes Abort {{
     |task|::TaskRuntime::{entry}::<T, T, Worker, Plan>(job)
 }}

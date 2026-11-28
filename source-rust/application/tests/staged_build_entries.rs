@@ -60,11 +60,13 @@ machine build(plan: @mutable BuildPlan) {
     let obsolete = format!("use helpers;\n{stage}");
     let (status, report) = check(&obsolete);
     assert!(!status.success(), "{report}");
+    // `use` names a file, so the parser refuses the bare namespace where
+    // the filename's extension is missing.
     assert!(
-        report.contains("Build import `helpers` requires an exact .omg filename"),
+        report.contains("expected `/ or the .omg filename extension`"),
         "{report}"
     );
-    assert!(report.contains("stage.omg:1:5"), "{report}");
+    assert!(report.contains("stage.omg:1:12"), "{report}");
 }
 
 #[test]
@@ -213,7 +215,7 @@ machine build(plan: @mutable BuildPlan) {
                     "use {api}/main.omg as table; public data Header { value: |table|::Table; }",
                 ),
                 ("library/build.omg", &library),
-                ("library/main.omg", "public data Table { invoke: addr; }"),
+                ("library/main.omg", "public data Table { invoke: u64; }"),
             ],
             &["--check"],
         );
