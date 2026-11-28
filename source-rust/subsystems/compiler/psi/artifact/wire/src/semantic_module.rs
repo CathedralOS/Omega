@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 304`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 305`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -508,6 +508,14 @@ pub(crate) mod canonical_order {
                 "boundary fixed service reach by ServiceId"
             );
         }
+        check_order!(
+            module
+                .interfaces
+                .provider_exports
+                .iter()
+                .map(|row| (row.schema_declaration, row.schema_application)),
+            "provider exports by exact schema"
+        );
         check_order!(
             module.interfaces.provider_candidates.iter().map(|c| (
                 c.boundary,
@@ -4078,6 +4086,7 @@ pub(crate) use wire::{Reader, Writer, decode_canonical};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
+// Marker 305 records the supplier's exported provider records separately from local selections.
 // Marker 304 appends the optional assembly exit constraint to each block.
 // Marker 303 makes task activation storage refer to the ordinary program declarations.
 // Marker 302 adds each theorem application's sum arguments after its scalar
@@ -4091,7 +4100,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // at the FloatMeaning carrier and retires proposition tag 19.
 // Marker 295 retires byte-sequence equality proposition tag 12, which only
 // an uncalled producer wrote.
-pub(crate) const FORMAT_MARKER: u16 = 304;
+pub(crate) const FORMAT_MARKER: u16 = 305;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
