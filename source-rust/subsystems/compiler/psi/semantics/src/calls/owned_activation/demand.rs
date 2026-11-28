@@ -198,11 +198,20 @@ pub fn caller_demand(
             for op in &block.operations {
                 if let Some(call) = op.declared_invocation() {
                     child(module, call.callee, &mut children)?;
-                } else if matches!(
-                    op.kind,
-                    OperationKind::CallMachine { .. } | OperationKind::CallDynamic { .. }
-                ) {
-                    return Err("prepared frame has an indirect call with no selected body bound");
+                } else if let OperationKind::CallMachine { contract, .. } = op.kind {
+                    // Every actual machine value must resolve to a descriptor in
+                    // this closed catalog under this exact contract. Size for
+                    // all constructible alternatives, even when the argument
+                    // is supplied later and the unique value is unknown.
+                    let mut choices = module.execution.callables.descriptors.iter()
+                        .filter(|descriptor| descriptor.contract == contract)
+                        .peekable();
+                    if choices.peek().is_none() {
+                        return Err("prepared frame has no checked descriptor for its callable argument");
+                    }
+                    children.extend(choices.map(|descriptor| descriptor.machine));
+                } else if matches!(op.kind, OperationKind::CallDynamic { .. }) {
+                    return Err("prepared frame has a dynamic call with no selected body bound");
                 }
                 let Some(crossing) = op.suspension_crossing else {
                     continue;
