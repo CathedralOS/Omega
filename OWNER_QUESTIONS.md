@@ -65,4 +65,29 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-None currently recorded.
+<a id="run-partition-declarations"></a>
+### 1. Which declarations in core own the trusted split and merge of a live run?
+
+A vector needs to split and rejoin its initialized cells while preserving each
+cell's ownership and the backing from which it was borrowed. Both the caller
+and the compiler need to select the same public declaration for each transfer.
+An ordinary helper cannot establish the result from counts and byte ranges.
+
+[Split and merge contracts](wiki/spec/resources/typed_runs.md#split-and-merge-contracts)
+names `Run::split<P, T>` and `Run::merge<P, T>` as the two public, sealed
+machines and specifies their exact declaration identities as the trust boundary.
+[Static declarations and explicit state](wiki/spec/language/machines.md#static-declarations-and-explicit-state)
+says “A data declaration is not a machine owner or namespace.” The lowered-form
+checker rejects such declarations. Core declares `Run` as data. Neither
+partition machine has a catalog entry or an authored caller in the current tree.
+
+Should the sealed catalog and the establishment routes of `Run::Live` name two
+free machines in `core/run.omg`, selected by callers as `|run|::split` and
+`|run|::merge`? If the carrier-qualified names are required, which declaration
+owns them under the static machine rules?
+
+**Proposed specification text if free machines are selected.** “The public,
+bodyless machines `split<P, T>` and `merge<P, T>` in `core/run.omg` are
+compiler supplied. The sealed catalog and the establishment routes of
+`Run::Live` select those exact declarations.” The existing bounds, custody,
+backing, loan and constant-work requirements apply to both operations.

@@ -57,6 +57,8 @@ loans and failed growth. Each split/merge must perform constant runtime descript
 work. Existing singleton witnesses do not establish that acceptance; geometry and
 count equations alone still cannot admit a cell transfer.
 
+The [open declaration-identity question](../../../../OWNER_QUESTIONS.md#run-partition-declarations) records how the specified carrier-qualified names conflict with the language rule that data cannot own machines.
+
 Remaining implementation includes `RunParts<P, T>`, both public primitive
 declarations and `Live` establishment routes, exact sealed-catalog admission,
 and ordered custody through checking, lowering, validation, interpretation and
