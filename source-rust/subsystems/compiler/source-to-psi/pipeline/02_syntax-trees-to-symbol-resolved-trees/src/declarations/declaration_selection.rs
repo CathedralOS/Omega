@@ -1017,26 +1017,31 @@ impl<'base> ConstantSelection<'base> {
                     .items
                     .type_parameters(result)
                     .iter()
-                    .map(|parameter| match parameter.kind {
-                        syntax_trees::item::TypeParameterKind::Type => GenericParameterRole::Type,
-                        syntax_trees::item::TypeParameterKind::Implementation => {
-                            GenericParameterRole::Implementation
-                        }
-                        syntax_trees::item::TypeParameterKind::Const { .. } => {
-                            GenericParameterRole::Const
-                        }
-                        syntax_trees::item::TypeParameterKind::Value { .. } => {
-                            GenericParameterRole::Value
-                        }
-                        syntax_trees::item::TypeParameterKind::Machine { .. } => {
-                            GenericParameterRole::Machine
-                        }
-                        syntax_trees::item::TypeParameterKind::Proposition { .. } => {
-                            GenericParameterRole::Proposition
-                        }
-                        syntax_trees::item::TypeParameterKind::Proof { .. } => {
-                            GenericParameterRole::Proof
-                        }
+                    .filter_map(|parameter| {
+                        Some(match parameter.kind {
+                            syntax_trees::item::TypeParameterKind::SomeType => return None,
+                            syntax_trees::item::TypeParameterKind::Type => {
+                                GenericParameterRole::Type
+                            }
+                            syntax_trees::item::TypeParameterKind::Implementation => {
+                                GenericParameterRole::Implementation
+                            }
+                            syntax_trees::item::TypeParameterKind::Const { .. } => {
+                                GenericParameterRole::Const
+                            }
+                            syntax_trees::item::TypeParameterKind::Value { .. } => {
+                                GenericParameterRole::Value
+                            }
+                            syntax_trees::item::TypeParameterKind::Machine { .. } => {
+                                GenericParameterRole::Machine
+                            }
+                            syntax_trees::item::TypeParameterKind::Proposition { .. } => {
+                                GenericParameterRole::Proposition
+                            }
+                            syntax_trees::item::TypeParameterKind::Proof { .. } => {
+                                GenericParameterRole::Proof
+                            }
+                        })
                     })
                     .collect::<Vec<_>>(),
             );

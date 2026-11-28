@@ -57,6 +57,12 @@ fn lower_proposition_binders(
     for binder in syntax_trees.items.type_parameters(binders) {
         let kind = match binder.kind {
             TypeParameterKind::Type => PropositionBinderKind::Type,
+            TypeParameterKind::SomeType => {
+                return Err(Diagnostic::error(
+                    "a `some` type binder belongs to a data declaration",
+                )
+                .with_source_span(binder.name.source_span()));
+            }
             TypeParameterKind::Const { type_reference } => PropositionBinderKind::Const {
                 type_reference: lower_type_reference_handle(lowerer, syntax_trees, type_reference)?,
             },

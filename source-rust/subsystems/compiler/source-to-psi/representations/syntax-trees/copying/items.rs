@@ -876,6 +876,7 @@ impl SyntaxCopy<'_> {
             |this, parameter| {
                 let kind = match &parameter.kind {
                     TypeParameterKind::Type => TypeParameterKind::Type,
+                    TypeParameterKind::SomeType => TypeParameterKind::SomeType,
                     TypeParameterKind::Implementation => TypeParameterKind::Implementation,
                     TypeParameterKind::Const { type_reference } => TypeParameterKind::Const {
                         type_reference: this.copy_type_reference_handle(other, *type_reference),

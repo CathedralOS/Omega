@@ -43,6 +43,8 @@ pub enum TypeParameterKind {
     Proposition {
         contract: Option<PropositionParameterSignature>,
     },
+    /// A data value chooses this type. It is omitted from the external type application.
+    SomeType,
 }
 
 impl TypeParameterKind {
