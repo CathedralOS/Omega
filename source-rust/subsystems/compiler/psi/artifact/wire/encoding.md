@@ -1493,6 +1493,7 @@ part of the program fingerprint.
 | 1 | Construct | Counted concrete witness type IDs in parameter order |
 | 2 | Project | Opening index (`u32`), structural field ID |
 | 3 | Invoke | Opening index (`u32`) |
+| 4 | Store | Opening index (`u32`), destination structural field ID |
 
 Marker 298 encodes each service method’s declared caller-stack bound as a
 little-endian `u64` after its blocking flag and before its termination flag.
