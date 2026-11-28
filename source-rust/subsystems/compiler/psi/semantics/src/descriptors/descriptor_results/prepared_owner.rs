@@ -5,7 +5,7 @@ use crate::calls::owned_activation::{self, PreparationShape, ResumeShape, StepSh
 use crate::descriptors::descriptor_lifetimes::descriptor_location;
 use language_core::sealed_intrinsics::ActivationOperation;
 use semantic_vocabulary::{BoundaryMachineId, StructuralCaseId, StructuralFieldId};
-use terminal_psi::{BoundaryMachineDeclaration, BoundaryMachineResult};
+use terminal_psi::{BoundaryMachineDeclaration, BoundaryMachineResult, TerminalMachineResult};
 
 enum Transfer {
     Prepare(PreparationShape),
@@ -20,9 +20,13 @@ fn field(case: StructuralCaseId, member: StructuralFieldId) -> Vec<DescriptorPat
     ]
 }
 
-fn backing_from_owner(preparation: BoundaryMachineId) -> DescriptorStoredOrigin {
+fn backing_from_owner(
+    preparation: BoundaryMachineId,
+    worker_result: Option<Vec<DescriptorPathSegment>>,
+) -> DescriptorStoredOrigin {
     DescriptorStoredOrigin::OwnerBacking(replay::OwnerBacking {
         preparation,
+        worker_result,
         owner: Box::new(DescriptorStoredOrigin::IncomingSlot {
             position: 0,
             path: vec![DescriptorPathSegment::UnknownContents],
@@ -159,45 +163,72 @@ pub(super) fn invocation(
         );
     }
 
+    let selected = match &transfer {
+        Transfer::Prepare(s) => s.selected,
+        Transfer::Step(s) => s.selected,
+        Transfer::Resume(s) => s.selected,
+    };
+    let worker = module.machine(selected.entry_machine)?;
+    let mut worker_result = BTreeMap::new();
+    if let TerminalMachineResult::Structural(value) = &worker.result {
+        let inventory = kind.owned_inventory(types, value.place, value.structural_type)?;
+        let paths = inventory.slots.into_iter().map(|slot| slot.path).chain(
+            inventory
+                .unknown_contents
+                .into_iter()
+                .map(|slot| slot.location.path),
+        );
+        for path in paths {
+            let origins = match transfer {
+                Transfer::Prepare(_) => Vec::new(),
+                _ => vec![backing_from_owner(preparation, Some(path.clone()))],
+            };
+            worker_result.insert(path, origins);
+        }
+    }
+    let bind_worker_result = matches!(transfer, Transfer::Prepare(_)) && !worker_result.is_empty();
     if let Transfer::Step(s) = &transfer {
         let returned_stack = field(s.returned, s.retained);
         let returned_value = field(s.returned, s.value);
         let inventory = kind.owned_inventory(types, out.place, result)?;
+        let result_slot = |path: Vec<DescriptorPathSegment>| -> Option<DescriptorResultSlot> {
+            let projected = path.strip_prefix(returned_value.as_slice())?;
+            let origins = worker_result.get(projected)?.clone();
+            Some(DescriptorResultSlot { path, origins })
+        };
         for slot in inventory.slots {
             if slot.path == returned_stack {
                 results.push(DescriptorResultSlot {
                     path: slot.path,
-                    origins: vec![backing_from_owner(preparation)],
+                    origins: vec![backing_from_owner(preparation, None)],
                 });
             } else if slot.path.starts_with(&returned_value) {
-                // A worker returning a reference needs its own checked result
-                // summary applied to the original arguments at preparation.
-                return None;
+                results.push(result_slot(slot.path)?);
             }
         }
-        if inventory
-            .unknown_contents
-            .iter()
-            .any(|s| s.location.path.starts_with(&returned_value))
-        {
-            return None;
+        for slot in inventory.unknown_contents {
+            if slot.location.path.starts_with(&returned_value) {
+                contents.push(result_slot(slot.location.path)?);
+            }
         }
     }
-    let stack = if kind.tracks_views() {
-        let origin = match transfer {
+    let mut stack_sources = Vec::new();
+    if kind.tracks_views() {
+        stack_sources.push(match transfer {
             Transfer::Prepare(_) => DescriptorStoredOrigin::IncomingSlot {
                 position: formals.iter().position(|formal| formal.position == 1)?,
                 path: Vec::new(),
             },
-            _ => backing_from_owner(preparation),
-        };
-        Some(replay::ActivationBacking {
+            _ => backing_from_owner(preparation, None),
+        });
+    }
+    let stack = (!stack_sources.is_empty() || !worker_result.is_empty()).then_some(
+        replay::ActivationBacking {
             preparation,
-            sources: vec![origin],
-        })
-    } else {
-        None
-    };
+            sources: stack_sources,
+            worker_result,
+        },
+    );
     let mut hidden = next;
     hidden.push(DescriptorPathSegment::UnknownContents);
     let packet = replay::ProducedContents {
@@ -227,13 +258,21 @@ pub(super) fn invocation(
         argument_contents,
         native_address_arguments: Vec::new(),
         scalar_arguments: Vec::new(),
-        target: DescriptorInvocationTarget::Public {
-            effects_machine: None,
-            realizations: Vec::new(),
-            extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
-            results,
-            contents,
-            invalidates_contents: false,
+        target: if bind_worker_result {
+            DescriptorInvocationTarget::PrepareWorker {
+                worker: selected.entry_machine,
+                results,
+                contents,
+            }
+        } else {
+            DescriptorInvocationTarget::Public {
+                effects_machine: None,
+                realizations: Vec::new(),
+                extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+                results,
+                contents,
+                invalidates_contents: false,
+            }
         },
         result: Some(DescriptorLocation::whole(out.place)),
     })

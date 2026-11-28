@@ -3734,7 +3734,7 @@ fn stepping_an_owner_returns_its_original_stack_and_keeps_other_loans_private() 
         scalar_arguments: &[],
         native_address_arguments: &[],
     };
-    let query = |preparation| {
+    let query = |preparation, worker_result| {
         DescriptorStoredOrigin::OwnerBacking(OwnerBacking {
             preparation,
             owner: Box::new(DescriptorStoredOrigin::IncomingSlot {
@@ -3742,6 +3742,7 @@ fn stepping_an_owner_returns_its_original_stack_and_keeps_other_loans_private() 
                 path: hidden.path.clone(),
             }),
             projection: Projection::new(&[]),
+            worker_result,
         })
     };
     let mut state = State::default();
@@ -3750,9 +3751,14 @@ fn stepping_an_owner_returns_its_original_stack_and_keeps_other_loans_private() 
         Some([Origin::Incoming(hidden.clone())].into()),
     );
     let formal = replay
-        .substitute_actuals(machine, &state, actuals, &query(preparation))
+        .substitute_actuals(machine, &state, actuals, &query(preparation, None))
         .expect("a helper can retain the backing query for its incoming owner");
     assert_eq!(formal.len(), 1);
+    let observed = replay.resolved(machine, formal.clone()).unwrap();
+    assert!(
+        matches!(observed.as_slice(), [DescriptorCallOrigin::Argument { source, projection }]
+        if *source == owner.root && projection.indirect && !projection.exact)
+    );
     let summary = replay.exported(machine, formal.first().unwrap()).unwrap();
     // Two activations of the same worker each return their own caller storage.
     for stack_slot in [2, 4] {
@@ -3766,12 +3772,13 @@ fn stepping_an_owner_returns_its_original_stack_and_keeps_other_loans_private() 
             path: hidden.path.clone(),
             structural_type: id,
             lifetime_dependencies: vec![DescriptorLifetimeDebt {
-                origin: argument_loan,
+                origin: argument_loan.clone(),
                 access: StructuralAccess::SharedBorrow,
             }],
             activation_backing: Some(ActivationBacking {
                 preparation,
                 sources: vec![stack.clone()],
+                worker_result: [(Vec::new(), vec![argument_loan.clone()])].into(),
             }),
         };
         state.slots_mut().insert(
@@ -3782,9 +3789,13 @@ fn stepping_an_owner_returns_its_original_stack_and_keeps_other_loans_private() 
             replay.substitute_actuals(machine, &state, actuals, &summary),
             Some([stack].into())
         );
+        assert_eq!(replay.substitute_actuals(machine, &state, actuals, &query(preparation, Some(vec![]))),
+            Some([argument_loan].into()));
+        assert!(replay.substitute_actuals(machine, &state, actuals,
+            &query(preparation, Some(hidden.path.clone()))).is_none());
         assert!(
             replay
-                .substitute_actuals(machine, &state, actuals, &query(other_preparation))
+                .substitute_actuals(machine, &state, actuals, &query(other_preparation, None))
                 .is_none()
         );
     }
