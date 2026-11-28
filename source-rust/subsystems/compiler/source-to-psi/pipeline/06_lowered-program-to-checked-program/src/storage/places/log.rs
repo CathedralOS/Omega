@@ -172,7 +172,7 @@ pub(super) fn places_are_interned(machine: MachineId, tables: &MachineTables) ->
 impl<'a> Storage<'a> {
     /// A published write frame takes precedence. Without one, only calls with the
     /// corresponding installed core permission can widen the ordinary borrow ceiling.
-    fn native_write_ceiling(&self, operation: &Operation, concerns: Construct) -> Checked<(bool, bool)> {
+    pub(super) fn native_write_ceiling(&self, operation: &Operation, concerns: Construct) -> Checked<(bool, bool)> {
         use semantic_vocabulary::dependency_reach::UnsafeAtom::{BorrowMutabilityUpgrade, RawMemoryWrite};
         use terminal_psi::TargetMachineCallable;
         let reach = if let Some(call) = operation.declared_invocation() {
