@@ -9,6 +9,8 @@ pub struct NativeAddressOrigin<S> {
     pub observations: Vec<((semantic_vocabulary::BlockId, u32), usize)>,
     /// Scalar formals whose actual addresses must be resolved at a direct call.
     pub parameters: Vec<ValueId>,
+    /// An incoming route can supply an address with no known storage or formal.
+    pub opaque: bool,
     /// Every route supplies one unmodified storage address or scalar formal.
     pub exact: bool,
 }
@@ -39,6 +41,11 @@ pub fn trace_address<S: PartialEq>(
     let mut observations = Vec::new();
     let mut sources = Vec::new();
     let mut exact = true;
+    let mut opaque = Vec::new();
+    // A merged value may be opaque on any incoming edge. For arithmetic,
+    // both operands must lack a backing to produce an independent opaque
+    // address; a plain integer offset does not create a second address.
+    let mut dependents = Vec::new();
     while let Some(value) = work.pop() {
         if !visited.insert(value) {
             continue;
@@ -52,20 +59,51 @@ pub fn trace_address<S: PartialEq>(
                 observations.push((at, index));
             }
             AddressDefinition::Parameter => parameters.push(value),
-            AddressDefinition::Forward(operand) => work.push(operand),
+            AddressDefinition::Forward(operand) => {
+                dependents.push((operand, value, None));
+                work.push(operand);
+            }
             AddressDefinition::Adjust(left, right) => {
                 exact = false;
+                dependents.push((left, value, Some(right)));
+                dependents.push((right, value, Some(left)));
                 work.extend([left, right]);
             }
             AddressDefinition::Incoming(incoming) => {
-                exact &= !incoming.is_empty() && incoming.iter().all(Option::is_some);
-                work.extend(incoming.into_iter().flatten());
+                if incoming.is_empty() || incoming.iter().any(Option::is_none) {
+                    exact = false;
+                    opaque.push(value);
+                }
+                for operand in incoming.into_iter().flatten() {
+                    dependents.push((operand, value, None));
+                    work.push(operand);
+                }
             }
-            AddressDefinition::Opaque => exact = false,
+            AddressDefinition::Opaque => {
+                exact = false;
+                opaque.push(value);
+            }
+        }
+    }
+    let mut independent = std::collections::HashSet::new();
+    dependents.sort_unstable();
+    while let Some(operand) = opaque.pop() {
+        if !independent.insert(operand) {
+            continue;
+        }
+        let first = dependents.partition_point(|(source, _, _)| *source < operand);
+        for &(_, result, other) in dependents[first..]
+            .iter()
+            .take_while(|(source, _, _)| *source == operand)
+        {
+            if other.is_none_or(|other| independent.contains(&other)) {
+                opaque.push(result);
+            }
         }
     }
     parameters.sort_unstable();
     NativeAddressOrigin {
+        opaque: independent.contains(&value) || (observations.is_empty() && parameters.is_empty()),
         exact: exact && observations.len() + parameters.len() == 1,
         observations,
         sources,
@@ -186,4 +224,36 @@ pub fn required_services(
         services.dedup();
     }
     Ok(services)
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn separates_an_opaque_incoming_address_from_an_integer_offset() {
+        let value = |id| ValueId::new(id).unwrap();
+        let address = value(1);
+        let unknown = value(2);
+        let adjusted = value(3);
+        let joined = value(4);
+        let cycle = value(5);
+        let trace = |root| {
+            trace_address::<()>(root, |id| match id {
+                id if id == address => AddressDefinition::Parameter,
+                id if id == adjusted => AddressDefinition::Adjust(address, unknown),
+                id if id == joined => {
+                    AddressDefinition::Incoming(vec![Some(adjusted), Some(unknown)])
+                }
+                id if id == cycle => AddressDefinition::Incoming(vec![Some(cycle), Some(joined)]),
+                _ => AddressDefinition::Opaque,
+            })
+        };
+        assert!(!trace(address).opaque);
+        assert!(!trace(adjusted).opaque);
+        assert!(!trace(adjusted).exact);
+        assert!(trace(unknown).opaque);
+        assert!(trace(joined).opaque);
+        assert!(trace(cycle).opaque);
+        assert_eq!(trace(cycle).parameters, vec![address]);
+    }
 }
