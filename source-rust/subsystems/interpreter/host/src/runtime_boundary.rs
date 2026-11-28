@@ -9,17 +9,32 @@ fn runtime_borrows_the_produced_terminal_storage() {
     assert!(!source.contains("semantic_bytes()"));
 }
 
+fn production_depends_on(manifest: &str, package: &str) -> bool {
+    let mut in_dependencies = false;
+    for line in manifest.lines().map(str::trim) {
+        if line.starts_with('[') {
+            in_dependencies = line == "[dependencies]" || line.ends_with(".dependencies]");
+        } else if in_dependencies
+            && line
+                .split_once('=')
+                .is_some_and(|(key, _)| key.trim() == package)
+        {
+            return true;
+        }
+    }
+    false
+}
+
 #[test]
 fn compilation_and_cli_do_not_own_runtime_integration() {
     let compiler = include_str!("../../../compiler/compiler.rs");
     assert!(!compiler.contains("pub mod runtime"));
     let manifest = include_str!("../../../compiler/Cargo.toml");
-    let production = manifest.split("[dev-dependencies]").next().unwrap();
-    assert!(!production.contains("terminal-interpreter ="));
-    assert!(!production.contains("terminal-runtime ="));
+    assert!(!production_depends_on(manifest, "terminal-interpreter"));
+    assert!(!production_depends_on(manifest, "terminal-runtime"));
     let cli = include_str!("../../../../application/Cargo.toml");
-    assert!(!cli.contains("terminal-interpreter ="));
-    assert!(cli.contains("terminal-runtime ="));
+    assert!(!production_depends_on(cli, "terminal-interpreter"));
+    assert!(production_depends_on(cli, "terminal-runtime"));
     let runtime = include_str!("../Cargo.toml");
     assert!(!runtime.lines().any(|line| line.starts_with("compiler =")));
     for line in runtime.lines().filter(|line| line.contains("/pipeline/")) {
