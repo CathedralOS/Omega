@@ -1,1 +1,1 @@
-{"role":"intended-invalid","entry":"main.omg","rejection_contains":["implicitly converts `u64` to `u32`"]}
+{"role":"intended-invalid","entry":"main.omg","rejection_contains":["scalar carrier `u64`","requires `u32`","no implicit scalar conversion"]}

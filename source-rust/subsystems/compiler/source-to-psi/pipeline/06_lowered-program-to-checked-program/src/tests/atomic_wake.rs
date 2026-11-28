@@ -190,7 +190,7 @@ fn atomic_events_reject_plain_cells_illegal_orderings_and_mismatched_widths() {
     );
     refused(
         "data Cell { value: AtomicU32; } machine build_entry() { let cell: Cell; let wide: u64 = 1; cell.value.store(wide, Publish); }",
-        "exact resident type",
+        "this value has scalar carrier `u64` but the atomic cell requires `u32`",
     );
     refused(
         "data Cell { value: AtomicU32; } machine build_entry() { let cell: Cell; let prior: u64 = cell.value.fetch_or(1, Publish); }",
