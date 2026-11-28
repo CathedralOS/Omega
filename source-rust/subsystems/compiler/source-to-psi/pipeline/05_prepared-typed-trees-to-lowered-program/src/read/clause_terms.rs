@@ -1994,9 +1994,10 @@ impl Program<'_> {
                 }
                 (ExpressionNode::Name(path), Some(expected))
                     if path.reserved_result_of.is_valid()
-                        || scope
-                            .subject
-                            .is_some_and(|subject| subject.symbol == path.symbol) =>
+                        || scope.subject.is_some_and(|subject| {
+                            subject.symbol == path.symbol
+                                || (self.mathematical && subject.bare_fields)
+                        }) =>
                 {
                     let (root, path, ty) = self
                         .projected(id, scope, expression)?

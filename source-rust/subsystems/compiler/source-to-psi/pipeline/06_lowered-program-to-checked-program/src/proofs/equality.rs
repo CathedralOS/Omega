@@ -1858,6 +1858,19 @@ pub(crate) fn prove_licensed(
     // statement, and a squash is proved strictly (`squashed`).
     let head = weak_head_normalize(arena, context.signature(), goal, conversion)?;
     match arena.get(head) {
+        Term::Pi { .. } => {
+            // A hypothesis about every index of a particular sequence is
+            // already evidence for that entire statement. Keep the checked
+            // term, including its bound indices and the actual sequence.
+            for &citation in citations {
+                let ty = infer_type(arena, context, citation, conversion)?;
+                let ty = weak_head_normalize(arena, context.signature(), ty, conversion)?;
+                if arena.structurally_equal(ty, head) {
+                    return Ok(citation);
+                }
+            }
+            return Err(SearchError::NoProof);
+        }
         Term::Box { ty } => {
             let value = prove_licensed(
                 arena,
