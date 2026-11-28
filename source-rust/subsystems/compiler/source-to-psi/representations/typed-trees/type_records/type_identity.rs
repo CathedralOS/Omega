@@ -8813,7 +8813,7 @@ pub(crate) mod substitution {
 
 /// A domain's declaration determines whether an argument names a type or a
 /// static value. Signatures and the published domain identity use the same role.
-fn normalized_domain_index(
+pub(crate) fn normalized_domain_index(
     program: &TypedTrees,
     parameter: &crate::source_state::data::TypeParameter,
     argument: TypeReferenceHandle,
