@@ -97,6 +97,13 @@ pub(super) fn construct(
             ))
             .with_source_span(program.expression_table.source_span(expression))
         })?;
+        if program.package_witness_is_unsized(actual) {
+            return Err(Diagnostic::error(format!(
+                "package witness for hidden type `{}` must be sized",
+                binder.name
+            ))
+            .with_source_span(program.expression_table.source_span(expression)));
+        }
         substitutions.push((binder.symbol, actual));
         witnesses.push(actual);
     }
@@ -199,6 +206,36 @@ mod tests {
         assert_eq!(packages.len(), 2);
         assert_eq!(packages[0].0, packages[1].0);
         assert_ne!(packages[0].1, packages[1].1);
+    }
+
+    #[test]
+    fn packing_distinguishes_unsized_storage_from_a_sized_view_descriptor() {
+        let with_argument = |ty: &str| {
+            format!(
+                r#"
+            data Inline<T> {{ component: T; }}
+            data Indirect<T> {{ component: @T; }}
+            data Package<'a, some S> {{ state: @'a S; }}
+            machine pack(input: @{ty}) {{ let packed: Package = Package {{ state: input }}; }}
+        "#
+            )
+        };
+        for ty in ["[u8]", "[[u8]; 2]", "Inline<[u8]>"] {
+            let error = checked(&[("main.omg", &with_argument(ty))]).unwrap_err();
+            assert!(
+                error.contains("package witness for hidden type `S` must be sized"),
+                "{ty}: {error}"
+            );
+        }
+        for ty in ["[u8; 2]", "@[u8]", "Indirect<[u8]>", "Inline<@[u8]>"] {
+            checked(&[("main.omg", &with_argument(ty))])
+                .unwrap_or_else(|error| panic!("{ty}: {error}"));
+        }
+        let helper = r#"
+            data Package<'a, some S> { state: @'a S; }
+            machine pack<T>(input: @T) { let packed: Package = Package { state: input }; }
+        "#;
+        checked(&[("main.omg", helper)]).unwrap();
     }
 
     #[test]
