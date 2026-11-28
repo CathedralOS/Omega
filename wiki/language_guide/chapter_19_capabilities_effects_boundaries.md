@@ -263,10 +263,53 @@ and [Chapter 20](chapter_20_memory_layout_abi.md).
 
 ## Native borrows
 
-Use `@mutable T` parameters for ordinary mutation. The three operations in
-`{omega}/core/unsafe.omg` cover native addresses and shared-borrow upgrades.
-Each requires admission for its specific reach. Treat any use of `Unsafe`
-in a library as malicious. [Operations and diagnostics](../spec/resources/native_borrows.md)
+Use `@mutable T` parameters for ordinary mutation. A native interface that
+supplies only an address can use `borrow_at::<T>` to read a value or
+`borrow_mutable_at::<T>` to read and write it. The caller vouches for the
+address’s alignment, valid contents, lifetime and access for the entire borrow.
+
+Here the caller owns a live, aligned 16-bit status word for the duration of
+`clear_status`. It checks the original word after the native call. Put this
+code in `main.omg`.
+
+```omega
+use {omega}/language/core/unsafe.omg as native;
+
+machine clear_status(location: address) {
+    let status: @mutable u16 = |native|::borrow_mutable_at::<u16>(location);
+    $status = 0u16;
+}
+
+machine main() crashes Trap {
+    let mutable status: u16 = 42u16;
+    clear_status(address_of(@status));
+    transition status == 0u16 { true -> {}, false -> failed() }
+    machine failed() { crash Trap; }
+}
+```
+
+A mutable native borrow requires both `RawMemoryRead` and `RawMemoryWrite`.
+This `build.omg` grants both to a Linux x86-64 executable. Build it with
+`omega build build.omg` and run the published executable. The Psi interpreter
+refuses execution of either address-to-borrow operation before entry.
+
+```omega
+use {omega}/language/core/unsafe.omg as native;
+use main.omg as app;
+
+machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Application { name: "status_word" };
+    Build::enable_unsafe::<|native|::RawMemoryRead>(plan);
+    Build::enable_unsafe::<|native|::RawMemoryWrite>(plan);
+    Build::bind(plan, linux_x86_64::ProgramEntry, |app|::main);
+}
+```
+
+The third operation, `upgrade_mutability::<T>`, starts from a shared borrow.
+It preserves the backing, bounds and remaining lifetime. The caller vouches
+for writable storage and exclusive access during the new loan, and the Product
+must admit `BorrowMutabilityUpgrade`. Treat any use of `Unsafe` in a library as
+malicious. [Operations and diagnostics](../spec/resources/native_borrows.md)
 
 ## Small things worth knowing
 
