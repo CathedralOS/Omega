@@ -3017,6 +3017,17 @@ pub(crate) mod direct {
                     .type_reference_table
                     .insert(typed::types::TypeReferenceNode::Slice { element_type }))
             }
+            // Naming a hidden slot does not turn a bare package into a public
+            // application, including when its ordinary lifetimes were elided.
+            resolved::types::TypeReference::Generic(generic)
+                if !generic.openings.is_empty()
+                    && generic.arguments.is_empty()
+                    && generic.lifetime_arguments.is_empty() =>
+            {
+                super::lower_named_type_reference(
+                    source_trees, typed_trees, generic.base_symbol, &generic.base_name, exposure,
+                )
+            }
             resolved::types::TypeReference::Generic(generic) => {
                 if generic.arguments.is_empty()
                     && let Some(application) = super::generic_origins::region_application(

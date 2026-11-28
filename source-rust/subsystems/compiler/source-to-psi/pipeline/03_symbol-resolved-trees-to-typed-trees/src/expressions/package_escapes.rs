@@ -299,11 +299,11 @@ mod tests {
     }
 
     #[test]
-    fn a_block_scoped_witness_cannot_flow_to_an_outer_inferred_local() {
+    fn a_block_scoped_witness_cannot_flow_to_an_outer_local() {
         let source = format!(
             "{PAIR}
             machine leak(p: @Pair) {{
-                let value = {{ let inner: @Pair = p; inner.first }};
+                let value: @u8 = {{ let inner: @Pair = p; inner.first }};
             }}"
         );
         let error = checked(&[("main.omg", &source)]).unwrap_err();
@@ -326,7 +326,7 @@ mod tests {
     fn one_opening_can_repack_correlated_fields_without_exporting_its_witness() {
         let source = format!("{PAIR}
             machine repack(p: @Pair) -> Pair {{ Pair {{ first: p.first, second: p.second, tag: p.tag }} }}
-            machine tag(p: @Pair) -> u8 {{ p.tag }}");
+            machine tag(p: @Pair<some X>) -> u8 {{ p.tag }}");
         let program = checked(&[("main.omg", &source)]).unwrap();
         let package = program
             .expression_table
