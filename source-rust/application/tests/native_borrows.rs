@@ -110,6 +110,10 @@ machine main() crashes Trap {
 "#;
 
 const UPGRADED_BYTE: &str = r#"
+machine unused_reader(location: address) -> u8 {
+    let native_byte: @u8 = |native|::borrow_at::<u8>(location);
+    $native_byte
+}
 machine change(byte: @u8) {
     let writable: @mutable u8 = |native|::upgrade_mutability::<u8>(byte);
     $writable = 31u8;
