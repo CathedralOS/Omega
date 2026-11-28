@@ -1368,7 +1368,7 @@ fn reference_call_lifetimes_with_index(
                         Some(requirement),
                     )
                 } else {
-                    let contents = analysis.result_contents(callee.id).ok_or_else(|| {
+                    let contents = analysis.result_contents(module, callee.id).ok_or_else(|| {
                     // A dependency can fail before its return sources are
                     // exported. Keep that flow's actual machine and site.
                     analysis.flow(callee.id).err().unwrap_or_else(|| {

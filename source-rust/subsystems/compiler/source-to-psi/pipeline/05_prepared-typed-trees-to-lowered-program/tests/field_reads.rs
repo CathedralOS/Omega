@@ -131,6 +131,74 @@ machine main() {
 }
 
 #[test]
+fn returning_a_complete_package_retains_the_input_behind_each_hidden_reference() {
+    let source = r"
+data File { byte: u8; }
+data Pair<'a, some S> { slots: [@'a S; 2]; }
+machine pair<'a>(first: @'a File, second: @'a File) -> Pair<'a> {
+    let slots: [@'a File; 2] = [first, second];
+    Pair { slots: slots }
+}
+machine main() {
+    let left: File = File { byte: 17u8 };
+    let right: File = File { byte: 42u8 };
+    let result: Pair = pair(@left, @right);
+}";
+    let program = Program::of(source);
+    let machine = program.machine("pair");
+    let result = machine.result.structural().unwrap();
+    assert_eq!(result.reference_sources.len(), 2);
+    for (index, reference) in result.reference_sources.iter().enumerate() {
+        assert_eq!(
+            reference.path.last(),
+            Some(&StructuralPathSegment::FixedIndex(index as u64))
+        );
+        let [source] = reference.sources.as_slice() else {
+            panic!("each slot has one lender")
+        };
+        assert_eq!(
+            source.parameter().unwrap().place,
+            machine.structural_parameters[index].place
+        );
+    }
+    program.judged(|_| {}).accepted();
+    let crossed = program.judged_in("pair", |machine| {
+        let other = machine.structural_parameters[1].place;
+        let terminal_psi::TerminalMachineResult::Structural(result) = &mut machine.contract.result
+        else {
+            unreachable!()
+        };
+        let terminal_psi::StructuralReferenceOrigin::Parameter(source) =
+            &mut result.reference_sources[0].sources[0]
+        else {
+            unreachable!()
+        };
+        source.place = other;
+    });
+    match crossed {
+        program::Verdict::Refused(refusal) | program::Verdict::Unserved(refusal) => assert!(
+            refusal.detail.contains("actual returned backing")
+                || refusal
+                    .detail
+                    .contains("returned reference header differs from its actual body origins"),
+            "{refusal:?}",
+        ),
+        other => panic!("the changed header must identify the actual lender: {other:?}"),
+    }
+
+    let local = source
+        .replace(
+            "let slots:",
+            "let local: File = File { byte: 99u8 }; let slots:",
+        )
+        .replace("[first, second]", "[@local, second]");
+    let refusal = Program::try_of(&[("product/main.omg", &local)])
+        .err()
+        .expect("a helper cannot return its own local");
+    assert!(refusal.message.contains("local") || refusal.message.contains("temporary"));
+}
+
+#[test]
 fn a_branch_reads_plain_array_metadata_without_opening_the_witness() {
     let program = Program::of(
         r"

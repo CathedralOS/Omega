@@ -657,7 +657,7 @@ fn publish_results(
             .result
             .structural()
             .ok_or_else(|| unavailable(id, "reference result lost its structural declaration"))?;
-        let contents = analysis.result_contents(id).ok_or_else(|| {
+        let contents = analysis.result_contents(module, id).ok_or_else(|| {
             analysis
                 .preparation_error(id)
                 .map(|error| graph_unavailable(module, error))

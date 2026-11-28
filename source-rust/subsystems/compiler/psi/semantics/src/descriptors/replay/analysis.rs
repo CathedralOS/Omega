@@ -1172,7 +1172,33 @@ impl<'a> DescriptorAnalysis<'a> {
         })
     }
 
-    pub fn result_contents(&mut self, identity: MachineId) -> Option<DescriptorResultContents> {
+    /// The exact backing of this descriptor after this return's cleanup.
+    pub(crate) fn returned_origins(
+        &self,
+        identity: MachineId,
+        at: DescriptorPosition,
+        location: &DescriptorLocation,
+    ) -> Option<Vec<DescriptorStoredOrigin>> {
+        let machine = self.replay.machine(identity)?;
+        let state = self
+            .replay
+            .snapshots
+            .get(&identity)?
+            .ready()?
+            .normal_exits
+            .get(&at)?;
+        self.replay
+            .read(machine, state, location)?
+            .iter()
+            .map(|origin| self.replay.exported(machine, origin))
+            .collect()
+    }
+
+    pub fn result_contents(
+        &mut self,
+        module: &terminal_psi::TerminalModule,
+        identity: MachineId,
+    ) -> Option<DescriptorResultContents> {
         let summary = self.replay.summary(identity, 0)?;
         let super::engine::ResultObservations::Observed {
             slots,
@@ -1182,8 +1208,17 @@ impl<'a> DescriptorAnalysis<'a> {
         else {
             return None;
         };
+        let slots = slots.clone()?;
+        let package_referents = crate::packages::returned_referents(
+            module,
+            identity,
+            self.replay.machines,
+            self,
+            &slots,
+        );
         Some(DescriptorResultContents {
-            slots: slots.clone()?,
+            slots,
+            package_referents,
             unknown_contents: contents.clone(),
             unresolved_slots: unknown.clone(),
             case_facts: summary.result_cases.clone(),
