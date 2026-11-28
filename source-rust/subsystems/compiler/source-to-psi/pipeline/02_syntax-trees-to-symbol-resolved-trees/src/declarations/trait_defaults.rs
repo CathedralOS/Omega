@@ -258,22 +258,8 @@ pub(crate) fn synthesize_trait_defaults_with_selection(
             }
         }
 
-        let inherited_equality = requirements
-            .iter()
-            .find(|requirement| {
-                selection
-                    .header_symbols()
-                    .sealed_intrinsic(requirement.declaring_trait)
-                    == Some(language_core::sealed_intrinsics::SealedIntrinsic::EqualityProtocol)
-            })
-            .cloned();
-        let evidence_laws = requirements
-            .iter()
-            .filter(|requirement| requirement.declaring_trait == trait_symbol)
-            .cloned()
-            .collect::<Vec<_>>();
         let mut added = false;
-        for requirement in requirements {
+        for requirement in &requirements {
             let declaring_path = traits
                 .get(&requirement.declaring_trait)
                 .map(|definition| definition.path.clone())
@@ -318,21 +304,26 @@ pub(crate) fn synthesize_trait_defaults_with_selection(
                 language_core::sealed_intrinsics::SealedIntrinsic::EqualityProtocol
                     | language_core::sealed_intrinsics::SealedIntrinsic::EqualityEvidence
             )
-        ) && let Some(equality) = inherited_equality
-            && let Some(member) = synthesized_equality_member(
-                syntax,
-                &conformance.declaration,
-                &equality,
-                &closed_members,
-                conformance.handle,
-                sealed == Some(language_core::sealed_intrinsics::SealedIntrinsic::EqualityEvidence),
-            )
-        {
+        ) && let Some(equality) = requirements.iter().find(|requirement| {
+            selection
+                .header_symbols()
+                .sealed_intrinsic(requirement.declaring_trait)
+                == Some(language_core::sealed_intrinsics::SealedIntrinsic::EqualityProtocol)
+        }) && let Some(member) = synthesized_equality_member(
+            syntax,
+            &conformance.declaration,
+            equality,
+            &closed_members,
+            conformance.handle,
+            sealed == Some(language_core::sealed_intrinsics::SealedIntrinsic::EqualityEvidence),
+        ) {
             closed_members.push(member);
             added = true;
             if sealed == Some(language_core::sealed_intrinsics::SealedIntrinsic::EqualityEvidence) {
-                let declaring_path = conformed_trait.path.clone();
-                for law in evidence_laws {
+                for law in requirements
+                    .iter()
+                    .filter(|law| law.declaring_trait == trait_symbol)
+                {
                     let law_name = law.signature.name.as_str(syntax).to_string();
                     if closed_members
                         .iter()
@@ -343,8 +334,8 @@ pub(crate) fn synthesize_trait_defaults_with_selection(
                     closed_members.push(synthesized_evidence_law(
                         syntax,
                         &conformance.declaration,
-                        &law,
-                        &declaring_path,
+                        law,
+                        &conformed_trait.path,
                         conformed_trait,
                         conformance.handle,
                     ));

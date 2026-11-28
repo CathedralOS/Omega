@@ -4996,9 +4996,10 @@ pub(crate) mod element_views {
             Ok(OperationFlow::Advance)
         }
 
-        /// A shared reference to a view's whole window as `[T; extent]`. The
-        /// reference reads the view's own elements through its collection
-        /// loan; nothing is copied.
+        /// A shared or mutable reference to a view's whole window as
+        /// `[T; extent]`. The reference reaches the view's own elements
+        /// through its collection loan; nothing is copied, so a write through
+        /// a mutable reference lands in the view's backing.
         pub(crate) fn execute_element_view_fixed_array(
             &mut self,
             operation: &Operation,
@@ -5058,8 +5059,10 @@ pub(crate) mod element_views {
                 }
                 _ => return Err(malformed()),
             };
-            if access != StructuralAccess::SharedBorrow
-                || result.multiplicity != StructuralMultiplicity::Affine
+            if !matches!(
+                access,
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            ) || result.multiplicity != StructuralMultiplicity::Affine
                 || !matches_view
                 || view.len() != length
                 || u64::try_from(length).ok() != Some(*extent)

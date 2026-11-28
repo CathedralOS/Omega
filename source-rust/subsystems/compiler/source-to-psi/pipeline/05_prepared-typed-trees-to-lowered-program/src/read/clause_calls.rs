@@ -341,14 +341,8 @@ impl Program<'_> {
         if parameters.len() != 2 || arguments.len() != 2 {
             return Err(unserved("synthesized comparison takes two operands"));
         }
-        let mut callee_slots: Vec<super::Slot> = scope
-            .slots
-            .iter()
-            .map(|slot| super::Slot {
-                symbol: SymbolHandle::invalid(),
-                ..slot.clone()
-            })
-            .collect();
+        let mut callee_slots = Vec::with_capacity(parameters.len());
+        let mut actual_places = Vec::with_capacity(parameters.len());
         for (parameter, &argument) in parameters.iter().zip(arguments) {
             let (value_type, erased, borrowed) = self.formal(id, parameter)?;
             if erased
@@ -372,15 +366,7 @@ impl Program<'_> {
                     "operand of a synthesized comparison in a clause must name a formal",
                 ));
             };
-            let Some(slot_index) = scope
-                .slots
-                .iter()
-                .position(|slot| slot.symbol == path.symbol)
-            else {
-                return Err(unserved(
-                    "operand of a synthesized comparison in a clause is not a formal in scope",
-                ));
-            };
+            let slot_index = self.slot_of(id, scope.slots, path)?;
             let slot = &scope.slots[slot_index];
             let same_type = match (slot.value_type, value_type) {
                 (
@@ -389,12 +375,22 @@ impl Program<'_> {
                 ) => lent == formal && lent_qualification == formal_qualification,
                 _ => false,
             };
-            if slot.erased || slot.borrowed.is_some() != lent || !same_type {
+            if slot.erased
+                || slot.borrowed != lent.then_some(language_core::ReferenceAccess::Shared)
+                || !same_type
+            {
                 return Err(unserved(
                     "operand of a synthesized comparison differs from its parameter type",
                 ));
             }
-            callee_slots[slot_index].symbol = parameter.symbol;
+            callee_slots.push(super::Slot {
+                symbol: parameter.symbol,
+                ..slot.clone()
+            });
+            actual_places.push((
+                super::contracts::formal_place(id, scope.slots, slot_index)?,
+                Vec::new(),
+            ));
         }
         let formal_fields = scope.formal_fields;
         let (proposition, _) = self.within_unfolding(id, machine, 0, |program| {
@@ -410,7 +406,13 @@ impl Program<'_> {
             };
             program.clause(id, &callee, body)
         })?;
-        Ok(proposition)
+        // The body uses its own two formal places. Substitute both at once:
+        // one caller place can supply either argument or both of them.
+        terminal_semantics::substitution::substitute_proposition_structural_places_with(
+            &proposition,
+            &|place| actual_places.get(place.get() as usize - 1),
+        )
+        .map_err(unserved)
     }
 
     pub(super) fn clause_call_machine(

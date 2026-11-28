@@ -784,6 +784,19 @@ ensures |proof|::Identity::<Coin>(a, b) {{
     ));
 }
 
+#[test]
+fn a_synthesized_comparison_can_borrow_the_same_record_twice() {
+    let check = |goal| {
+        synthesized(
+            "value: i32;",
+            "EqualImpliesIdentity",
+            &format!("machine compare(a: Coin, b: Coin) ensures CoinEq::equals(@a, @{goal}) {{}}"),
+        )
+    };
+    accepted(&check("a"));
+    assert!(!unproved(&check("b")).is_empty());
+}
+
 /// The copy of a machine generic over the evidence reads `E::equals` as the
 /// synthesized comparison, so a comparison of one field does not discharge
 /// its premise.

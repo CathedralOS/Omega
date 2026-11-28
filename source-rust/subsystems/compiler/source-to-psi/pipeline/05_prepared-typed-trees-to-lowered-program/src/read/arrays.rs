@@ -562,8 +562,10 @@ impl Program<'_> {
     ) -> Checked<Option<Expression>> {
         use terminal_psi::StructuralAccess;
         let unavailable = |detail| refuse_at(machine, Unserved::Expression(detail));
-        let Some((ValueType::Record(array, _, _), StructuralAccess::SharedBorrow)) =
-            self.reference_referent(machine, expected)?
+        let Some((
+            ValueType::Record(array, _, _),
+            access @ (StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
+        )) = self.reference_referent(machine, expected)?
         else {
             return Ok(None);
         };
@@ -616,15 +618,17 @@ impl Program<'_> {
         ) {
             return Ok(None);
         }
+        // The reference lends exactly the view's own access: a shared view
+        // gives a shared reference and a mutable view a mutable one.
         let same_element = match self.data_type(machine, view_row)?.shape {
             StorageShape::ElementView {
                 element,
                 qualification: Qualification::NONE,
-                access: Some(StructuralAccess::SharedBorrow),
-            } => element == array_element,
+                access: Some(view_access),
+            } if view_access == access => element == array_element,
             StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
-                access: Some(StructuralAccess::SharedBorrow),
-            }) => matches!(
+                access: Some(view_access),
+            }) if view_access == access => matches!(
                 self.data_type(machine, array_element)?.shape,
                 StorageShape::PrimitiveScalar {
                     scalar_type: ScalarType::Integer(integer),
@@ -633,7 +637,7 @@ impl Program<'_> {
             ),
             _ => {
                 return Err(unavailable(
-                    "fixed-array reference to a view that is not a plain shared view",
+                    "fixed-array reference to a view that is not a plain view of the same access",
                 ));
             }
         };

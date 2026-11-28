@@ -1660,8 +1660,6 @@ fn exchange(
     Ok(reached)
 }
 
-/// Citations are instantiated terms from the checked signature. Inferring
-/// their types keeps both endpoints tied to the actual evidence supplied.
 /// What an equality of two pairs gives: the equality of their first
 /// components and of their second ones, as a record's identity gives the
 /// identity of each field. Each proof applies a projection to both sides;
@@ -1725,6 +1723,8 @@ fn paired(
     derived
 }
 
+/// Citations are instantiated terms from the checked signature. Inferring
+/// their types keeps both endpoints tied to the actual evidence supplied.
 pub(crate) fn prove(
     arena: &mut TermArena,
     context: &Context,

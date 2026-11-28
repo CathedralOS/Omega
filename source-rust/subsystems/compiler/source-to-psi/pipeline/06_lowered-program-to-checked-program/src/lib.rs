@@ -1133,6 +1133,16 @@ fn check_prepared_machine(
         )
         .map_err(|detail| refusal(RefusalReason::Unestablished, id, Construct::Machine, detail))?;
     let mut knowledge = KnowledgeIndex::new(graph, tables, id)?;
+    let has_call_congruence = tables
+        .knowledge
+        .iter()
+        .any(|(_, row)| matches!(row.justification, Justification::CallCongruence { .. }));
+    let identity_known = tables.knowledge.iter().any(|(_, row)| {
+        matches!(
+            tables.propositions.get(row.proposition),
+            Some(Proposition::DeclarationIdentity(_))
+        )
+    });
     for (index, (obligation, row)) in tables.obligations.iter().enumerate() {
         if decided[index].is_some() {
             continue;
@@ -1292,12 +1302,6 @@ fn check_prepared_machine(
             // same comparison is true"), and so is `x == y` over `bool`. A
             // conjunction of such comparisons, as a synthesized record
             // comparison states, is proved one comparison at a time.
-            let identity_known = tables.knowledge.iter().any(|(_, row)| {
-                matches!(
-                    tables.propositions.get(row.proposition),
-                    Some(Proposition::DeclarationIdentity(_))
-                )
-            });
             let identical_truth = |part: &Proposition| match part {
                 Proposition::Equal(left, right)
                     if let (ScalarType::Integer(scalar_type), ScalarType::Integer(other)) =
@@ -1335,9 +1339,7 @@ fn check_prepared_machine(
                 Some((left, right))
                     if left.scalar_type() == ScalarType::Boolean
                         && right.scalar_type() == ScalarType::Boolean
-                        && tables.knowledge.iter().any(|(_, row)| {
-                            matches!(row.justification, Justification::CallCongruence { .. })
-                        }) =>
+                        && has_call_congruence =>
                 {
                     vec![ClauseIdentity {
                         values: vec![boolean(left), boolean(right)],
@@ -1369,7 +1371,10 @@ fn check_prepared_machine(
             )
             .map(Discharged::Certificate);
             match decided {
-                Err(unproved) if !comparisons.is_empty() => {
+                Err(unproved)
+                    if matches!(unproved.reason, RefusalReason::Unproved(_))
+                        && !comparisons.is_empty() =>
+                {
                     let mut identities = Vec::with_capacity(comparisons.len());
                     for clause in &comparisons {
                         let identity = match row.kind {

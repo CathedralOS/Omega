@@ -1,0 +1,13 @@
+// The second equation names `m`, which equals `t`, so after rewriting `m`
+// to `t` both equations meet in `embed(r) + embed(t)`.
+machine transported(w: u64, r: u64, t: u64, m: u64, c: u64)
+requires embed(w) == embed(r) + embed(t), embed(r) + embed(m) == embed(c), m == t
+{
+    same(c, w);
+}
+
+machine same(a: u64, b: u64)
+requires a == b
+{}
+
+machine main() {}
