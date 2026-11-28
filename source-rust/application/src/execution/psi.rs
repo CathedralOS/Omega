@@ -32,7 +32,27 @@ pub(super) fn execute(
     use terminal_runtime::{
         TerminalFilesystemDelegation as Filesystem, TerminalNativeServiceDelegation as Services,
     };
-    let (filesystem, native_services, native_provider) = if directories.is_empty() {
+    // The working-directory view applies wherever the interpreter performs the
+    // Product's filesystem calls itself: a Linux program on its matching
+    // Linux host, with no native provider. Native code and another target's
+    // filesystem cannot be confined to that view, so those runs keep the host
+    // namespace unless the caller maps directories explicitly
+    // (OWNER_QUESTIONS.md#unconfinable-standalone-filesystem).
+    let confinable = directories.is_empty()
+        && Some(report.target) == target::TargetProfile::host_if_supported()
+        && matches!(
+            report.target,
+            target::TargetProfile::LinuxX64 | target::TargetProfile::LinuxArm64
+        )
+        && runtime.is_none_or(|runtime| runtime.published_native_adapters().next().is_none());
+    let directories = if directories.is_empty() && !confinable {
+        None
+    } else {
+        super::contained::standalone_directories(directories)?
+    };
+    let (filesystem, native_services, native_provider) = if let Some(directories) = directories {
+        (Filesystem::Mapped(directories), Services::Unprovided, None)
+    } else {
         (
             Filesystem::HostNamespace,
             Services::MatchingHost,
@@ -48,8 +68,6 @@ pub(super) fn execute(
                     .flat_map(|runtime| runtime.published_native_adapters()),
             )),
         )
-    } else {
-        (Filesystem::Mapped(directories), Services::Unprovided, None)
     };
     retained_image_runtime::execute(
         TerminalRuntimeRequest {

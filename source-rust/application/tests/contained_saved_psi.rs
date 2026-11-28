@@ -4,7 +4,7 @@
 //! It gets the host's reviewed bindings, standard streams and the standalone
 //! Product grant: the working directory read/write at `/`, replaced by any
 //! explicit run directory mappings. It gets no native code, no network and no
-//! native compilation.
+//! native compilation. A source run gets the same default directory grant.
 
 #![cfg(target_os = "linux")]
 
@@ -302,6 +302,31 @@ fn a_contained_run_gets_its_working_directory_or_the_explicit_mappings() {
     assert_eq!(mapped.stdout, b"S\0", "{}", report(&mapped));
     assert!(!data.join("out").exists());
     assert!(!saved.path("out").exists());
+}
+
+// A source run gets the same default grant: the caller's working directory
+// at `/`, not the host namespace, when the interpreter performs its
+// filesystem calls itself.
+#[test]
+fn a_source_run_gets_its_working_directory_at_the_root() {
+    let project = stage(
+        "source-run-working-directory",
+        &[("tool/main.omg", FILES), ("tool/build.omg", FILES_BUILD)],
+    );
+    let root = project.path();
+    let outside = root.parent().unwrap().join(format!(
+        "{}-outside",
+        root.file_name().unwrap().to_string_lossy()
+    ));
+    std::fs::write(&outside, b"X").unwrap();
+    std::fs::write(root.join("in"), b"R").unwrap();
+    std::os::unix::fs::symlink(&outside, root.join("link")).unwrap();
+    // The package lives elsewhere; the run sees the directory it starts in.
+    let run = omega(root, &[&["run"][..], &TARGET, &["tool/build.omg"]].concat());
+    std::fs::remove_file(&outside).ok();
+    assert!(run.status.success(), "{}", report(&run));
+    assert_eq!(run.stdout, b"R\0", "{}", report(&run));
+    assert_eq!(std::fs::read(root.join("out")).unwrap(), b"R");
 }
 
 #[test]

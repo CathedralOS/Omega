@@ -31,17 +31,17 @@ pub(crate) const CONTAINED_LIVE_PAYLOAD_BYTES: u64 = 256 << 20;
 /// Total time a contained guest may spend in live clock waits.
 pub(crate) const CONTAINED_LIVE_WAIT_NANOSECONDS: u64 = 60_000_000_000;
 
-/// The standalone Product grant (`wiki/spec/build/command_line.md#runtime-directory-mappings`):
-/// the caller's working directory read/write at `/`, unless explicit run
-/// directory mappings replace it. Mapped directories confine every path
-/// beneath their retained handles; a host without that namespace gets
-/// standard streams alone.
-fn filesystem(
+/// The standalone Product grant (`wiki/spec/build/command_line.md#runtime-directory-mappings`)
+/// for source and saved Psi alike: the caller's working directory read/write
+/// at `/`, unless explicit run directory mappings replace it. Mapped
+/// directories confine every path beneath their retained handles. `None`
+/// means this host has no mapped namespace and no explicit mapping was asked.
+pub(super) fn standalone_directories(
     mut directories: platform_custody::directory_mappings::DirectoryMappings,
-) -> Result<TerminalFilesystemDelegation, TerminalRuntimeError> {
+) -> Result<Option<platform_custody::directory_mappings::DirectoryMappings>, TerminalRuntimeError> {
     if directories.is_empty() {
         if !cfg!(target_os = "linux") {
-            return Ok(TerminalFilesystemDelegation::StandardStreamsOnly);
+            return Ok(None);
         }
         let unavailable = |error: std::io::Error| TerminalRuntimeError::MissingProvision {
             capability: "working directory mount",
@@ -56,7 +56,18 @@ fn filesystem(
             )
             .map_err(unavailable)?;
     }
-    Ok(TerminalFilesystemDelegation::Mapped(directories))
+    Ok(Some(directories))
+}
+
+/// A contained guest on a host without the mapped namespace gets standard
+/// streams alone.
+fn filesystem(
+    directories: platform_custody::directory_mappings::DirectoryMappings,
+) -> Result<TerminalFilesystemDelegation, TerminalRuntimeError> {
+    Ok(standalone_directories(directories)?.map_or(
+        TerminalFilesystemDelegation::StandardStreamsOnly,
+        TerminalFilesystemDelegation::Mapped,
+    ))
 }
 
 pub(super) fn execute(

@@ -14,7 +14,8 @@ use target::LinuxFilesystemOperation as Op;
 pub(super) struct Filesystem {
     roots: DirectoryMappings,
     fd_directory: std::os::fd::BorrowedFd<'static>,
-    descriptors: BTreeMap<i32, DirectoryAccess>,
+    /// The grant each issued guest descriptor was opened under.
+    descriptors: BTreeMap<i32, DirectoryMapping>,
 }
 
 struct Entry {
@@ -94,6 +95,27 @@ impl Entry {
         Ok(unsafe { File::from_raw_fd(fd) })
     }
 
+    /// The exact regular file or directory this entry names, held by an
+    /// `O_PATH` handle. A symbolic link, device or FIFO is refused.
+    fn pinned(&self) -> io::Result<File> {
+        let fd = unsafe {
+            libc::openat(
+                self.fd(),
+                self.leaf.as_ptr(),
+                libc::O_PATH | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+            )
+        };
+        if fd < 0 {
+            return Err(io::Error::last_os_error());
+        }
+        let pinned = unsafe { File::from_raw_fd(fd) };
+        let kind = pinned.metadata()?;
+        if !kind.is_file() && !kind.is_dir() {
+            return Err(io::ErrorKind::PermissionDenied.into());
+        }
+        Ok(pinned)
+    }
+
     fn fd(&self) -> i32 {
         self.parent.as_raw_fd()
     }
@@ -112,7 +134,7 @@ impl Filesystem {
         self.descriptors.remove(&descriptor);
     }
 
-    fn entry(&self, dir: i32, path: &CStr) -> io::Result<Entry> {
+    fn entry(&self, fs: &LinuxFilesystem, dir: i32, path: &CStr) -> io::Result<Entry> {
         // Absolute guest names ignore the directory argument as in openat(2).
         let bytes = path.to_bytes();
         let relative;
@@ -120,7 +142,7 @@ impl Filesystem {
             bytes
         } else {
             if dir != LINUX_AT_FDCWD {
-                return Err(io::ErrorKind::Unsupported.into());
+                return self.entry_beneath(fs, dir, bytes);
             }
             if bytes.is_empty() {
                 return Err(io::ErrorKind::NotFound.into());
@@ -135,6 +157,28 @@ impl Filesystem {
             leaf: CString::new(leaf)?,
             mapping: mapping.clone(),
             root: suffix.is_empty(),
+        })
+    }
+
+    /// A single normal name beneath a directory descriptor that a confined open
+    /// issued, as a recursive removal walks it. The descriptor already names
+    /// an object inside its grant, and one component that is neither `.` nor
+    /// `..` and opened without following links cannot leave it.
+    fn entry_beneath(&self, fs: &LinuxFilesystem, dir: i32, name: &[u8]) -> io::Result<Entry> {
+        let mapping = self
+            .descriptors
+            .get(&dir)
+            .ok_or_else(|| io::Error::from_raw_os_error(libc::EBADF))?;
+        if name.is_empty() || name == b"." || name == b".." || name.contains(&b'/') {
+            return Err(io::ErrorKind::Unsupported.into());
+        }
+        let native = fs.descriptor(dir)?;
+        let borrowed = unsafe { std::os::fd::BorrowedFd::borrow_raw(native) };
+        Ok(Entry {
+            parent: File::from(borrowed.try_clone_to_owned()?),
+            leaf: CString::new(name)?,
+            mapping: mapping.clone(),
+            root: false,
         })
     }
 
@@ -158,7 +202,7 @@ impl Filesystem {
     }
 
     fn write_allowed(&self, fd: i32) -> io::Result<()> {
-        match self.descriptors.get(&fd) {
+        match self.descriptors.get(&fd).map(DirectoryMapping::access) {
             Some(DirectoryAccess::ReadWrite) => Ok(()),
             Some(DirectoryAccess::ReadOnly) => Err(io::ErrorKind::PermissionDenied.into()),
             None => Err(io::Error::from_raw_os_error(libc::EBADF)),
@@ -177,7 +221,7 @@ impl Filesystem {
         use Arg::{Descriptor, Directory, Path, Value};
         match (operation, &mut *operands) {
             (Op::Openat, [Directory(dir), Path(path), Value(flags), Value(mode)]) => {
-                let entry = self.entry(*dir, path)?;
+                let entry = self.entry(fs, *dir, path)?;
                 let flags = i32::try_from(*flags).map_err(|_| io::ErrorKind::InvalidInput)?;
                 let supported = libc::O_ACCMODE
                     | libc::O_CREAT
@@ -199,26 +243,25 @@ impl Filesystem {
                 }
                 let file = entry.open(self.fd_directory, flags, *mode as libc::mode_t)?;
                 let guest = fs.issue(OwnedFd::from(file))?;
-                self.descriptors
-                    .insert(guest as i32, entry.mapping.access());
+                self.descriptors.insert(guest as i32, entry.mapping.clone());
                 Ok(guest)
             }
             (Op::Mkdirat, [Directory(dir), Path(path), Value(mode)]) => {
-                let entry = self.entry(*dir, path)?;
+                let entry = self.entry(fs, *dir, path)?;
                 entry.mutable_name()?;
                 status(unsafe {
                     libc::mkdirat(entry.fd(), entry.leaf.as_ptr(), *mode as libc::mode_t)
                 })
             }
             (Op::Unlinkat, [Directory(dir), Path(path), Value(flags)]) => {
-                let entry = self.entry(*dir, path)?;
+                let entry = self.entry(fs, *dir, path)?;
                 entry.mutable_name()?;
                 status(unsafe { libc::unlinkat(entry.fd(), entry.leaf.as_ptr(), *flags as i32) })
             }
             (Op::Renameat, [Directory(d1), Path(p1), Directory(d2), Path(p2)])
             | (Op::Linkat, [Directory(d1), Path(p1), Directory(d2), Path(p2), Value(0)]) => {
-                let from = self.entry(*d1, p1)?;
-                let to = self.entry(*d2, p2)?;
+                let from = self.entry(fs, *d1, p1)?;
+                let to = self.entry(fs, *d2, p2)?;
                 from.mutable_name()?;
                 to.mutable_name()?;
                 if from.mapping != to.mapping {
@@ -232,8 +275,24 @@ impl Filesystem {
                     }
                 })
             }
+            (Op::Fchmodat, [Directory(dir), Path(path), Value(mode)]) => {
+                let entry = self.entry(fs, *dir, path)?;
+                entry.writable()?;
+                // Pin the exact object without following a leaf link, then
+                // change it through Linux's private fd link.
+                let pinned = entry.pinned()?;
+                let link = CString::new(pinned.as_raw_fd().to_string())?;
+                status(unsafe {
+                    libc::fchmodat(
+                        self.fd_directory.as_raw_fd(),
+                        link.as_ptr(),
+                        *mode as libc::mode_t,
+                        0,
+                    )
+                })
+            }
             (Op::Readlinkat, [Directory(dir), Path(path), Arg::OutputView(out)]) => {
-                let entry = self.entry(*dir, path)?;
+                let entry = self.entry(fs, *dir, path)?;
                 let count = unsafe {
                     libc::readlinkat(
                         entry.fd(),
@@ -248,7 +307,7 @@ impl Filesystem {
                 Ok(count as i64)
             }
             (Op::Newfstatat, [Directory(dir), Path(path), Arg::Output(out), Value(flags)]) => {
-                let entry = self.entry(*dir, path)?;
+                let entry = self.entry(fs, *dir, path)?;
                 if out.len() < size_of::<libc::stat>()
                     || *flags & !i64::from(libc::AT_SYMLINK_NOFOLLOW) != 0
                 {
@@ -282,7 +341,7 @@ impl Filesystem {
                 let grant = self
                     .descriptors
                     .get(original)
-                    .copied()
+                    .cloned()
                     .ok_or_else(|| io::Error::from_raw_os_error(libc::EBADF))?;
                 let guest = fs.raw_call(number, operands, KernelResult::Descriptor)?;
                 if guest >= 0 {
@@ -404,7 +463,121 @@ mod tests {
             -i64::from(libc::EACCES)
         );
         assert_eq!(std::fs::read(directory.join("inside")).unwrap(), b"mapped");
+        let chmod = |fs: &mut LinuxFilesystem, path: &CStr| {
+            fs.call(
+                libc::SYS_fchmodat,
+                &mut [
+                    Arg::Directory(LINUX_AT_FDCWD),
+                    Arg::Path(path),
+                    Arg::Value(0o777),
+                ],
+                KernelResult::Status,
+            )
+            .unwrap()
+        };
+        assert_eq!(chmod(&mut fs, c"/view/inside"), -i64::from(libc::EACCES));
     }
+
+    #[test]
+    fn a_mapped_chmod_changes_only_the_granted_object() {
+        use std::os::unix::fs::PermissionsExt;
+        let temp = TemporaryDirectory::create("guest-chmod", false).unwrap();
+        let directory = temp.path().join("directory");
+        let other = temp.path().join("other");
+        std::fs::create_dir(&directory).unwrap();
+        std::fs::write(directory.join("inside"), b"mapped").unwrap();
+        std::fs::write(&other, b"outside").unwrap();
+        std::fs::set_permissions(&other, std::fs::Permissions::from_mode(0o600)).unwrap();
+        std::os::unix::fs::symlink(&other, directory.join("escape")).unwrap();
+        let mut grants = DirectoryMappings::default();
+        grants
+            .grant(&directory, "/", DirectoryAccess::ReadWrite)
+            .unwrap();
+        let mut fs = LinuxFilesystem::mapped(grants).unwrap();
+        let mut chmod = |path: &CStr, mode: i64| {
+            fs.call(
+                libc::SYS_fchmodat,
+                &mut [
+                    Arg::Directory(LINUX_AT_FDCWD),
+                    Arg::Path(path),
+                    Arg::Value(mode),
+                ],
+                KernelResult::Status,
+            )
+            .unwrap()
+        };
+        assert_eq!(chmod(c"/inside", 0o640), 0);
+        let mode = |path: &std::path::Path| {
+            std::fs::symlink_metadata(path)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777
+        };
+        assert_eq!(mode(&directory.join("inside")), 0o640);
+        assert!(chmod(c"/escape", 0o777) < 0);
+        assert_eq!(mode(&other), 0o600);
+    }
+    #[test]
+    fn a_directory_descriptor_names_only_its_own_children() {
+        let temp = TemporaryDirectory::create("guest-directory-relative", false).unwrap();
+        let directory = temp.path().join("directory");
+        std::fs::create_dir_all(directory.join("tree")).unwrap();
+        std::fs::write(directory.join("tree/leaf"), b"x").unwrap();
+        std::fs::write(temp.path().join("outside"), b"keep").unwrap();
+        let mut grants = DirectoryMappings::default();
+        grants
+            .grant(&directory, "/", DirectoryAccess::ReadWrite)
+            .unwrap();
+        let mut fs = LinuxFilesystem::mapped(grants).unwrap();
+        let tree = fs
+            .call(
+                libc::SYS_openat,
+                &mut [
+                    Arg::Directory(LINUX_AT_FDCWD),
+                    Arg::Path(c"/tree"),
+                    Arg::Value(i64::from(libc::O_DIRECTORY)),
+                    Arg::Value(0),
+                ],
+                KernelResult::Descriptor,
+            )
+            .unwrap() as i32;
+        assert!(tree >= 0);
+        let mut unlink = |name: &CStr, flags: i32| {
+            fs.call(
+                libc::SYS_unlinkat,
+                &mut [
+                    Arg::Directory(tree),
+                    Arg::Path(name),
+                    Arg::Value(i64::from(flags)),
+                ],
+                KernelResult::Status,
+            )
+            .unwrap()
+        };
+        assert_eq!(
+            unlink(c"..", libc::AT_REMOVEDIR),
+            -i64::from(libc::EOPNOTSUPP)
+        );
+        assert_eq!(unlink(c"../../outside", 0), -i64::from(libc::EOPNOTSUPP));
+        assert_eq!(unlink(c"leaf", 0), 0);
+        assert!(!directory.join("tree/leaf").exists());
+        assert_eq!(std::fs::read(temp.path().join("outside")).unwrap(), b"keep");
+        // A descriptor this namespace never issued names nothing.
+        let forged = fs
+            .call(
+                libc::SYS_unlinkat,
+                &mut [
+                    Arg::Directory(tree + 100),
+                    Arg::Path(c"leaf"),
+                    Arg::Value(0),
+                ],
+                KernelResult::Status,
+            )
+            .unwrap();
+        assert_eq!(forged, -i64::from(libc::EBADF));
+    }
+
     #[test]
     fn opening_the_mount_root_lists_the_retained_directory() {
         let temp = TemporaryDirectory::create("guest-directory-list", false).unwrap();
