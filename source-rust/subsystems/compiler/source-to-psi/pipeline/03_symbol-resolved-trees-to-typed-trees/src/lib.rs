@@ -78,6 +78,7 @@ mod declarations {
     pub(crate) mod constructor_applications;
     pub(crate) mod contracts_and_signatures;
     pub(crate) mod items;
+    pub(crate) mod package_fields;
 }
 
 mod patterns {
