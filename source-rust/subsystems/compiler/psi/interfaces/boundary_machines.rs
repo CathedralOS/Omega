@@ -252,6 +252,7 @@ pub enum CheckedBoundaryExecution {
     NumericPrimitive,
     /// Immutable snapshot of the layout-policy argument issued for this invocation.
     LayoutTargetFacts,
+    OwnedActivation(language_core::sealed_intrinsics::ActivationOperation),
     /// The actual primitive remains distinct from the public requirement.
     HostedPrimitive {
         operation: language_core::sealed_intrinsics::HostedOperation,
@@ -283,6 +284,7 @@ impl CheckedBoundaryExecution {
             Self::Provider
             | Self::NumericPrimitive
             | Self::LayoutTargetFacts
+            | Self::OwnedActivation(_)
             | Self::HostedPrimitive { .. }
             | Self::EmptyRunRelease
             | Self::AccessInitialize
@@ -301,6 +303,7 @@ impl CheckedBoundaryExecution {
             Self::Provider
             | Self::NumericPrimitive
             | Self::LayoutTargetFacts
+            | Self::OwnedActivation(_)
             | Self::HostedPrimitive { .. }
             | Self::EmptyRunRelease
             | Self::StaticInterruptInstall
