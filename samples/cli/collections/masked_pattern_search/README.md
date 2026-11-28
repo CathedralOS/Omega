@@ -15,6 +15,7 @@ To compare the published native program with the interpreter, run
 `mbx xtask sample-gate --filter samples/cli/collections/masked_pattern_search` from the repository root.
 
 Expected exit: 0, no output. Empty patterns deliberately produce no match.
-Native and Terminal Psi execution both return 0 on macOS arm64. The program
+The Linux x86-64 executable exits 0 on omega-linux and matches Psi on stdout
+and stderr. The previously recorded macOS ARM64 run also passed. The program
 exercises cross-state returned-window custody and temporary view arguments to
 structural-result calls; neither requires copying the matched bytes.

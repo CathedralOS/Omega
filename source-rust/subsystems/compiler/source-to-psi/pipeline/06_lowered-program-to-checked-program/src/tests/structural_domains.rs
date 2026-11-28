@@ -1381,3 +1381,24 @@ machine entry() -> u64 crashes none {
         assert_eq!(actual, expected, "{name}");
     }
 }
+
+#[test]
+fn a_cast_proves_each_clause_when_it_adds_two_record_domains() {
+    let source = r#"
+data Ticket { number: u32; }
+domain Ticket::Digit requires self.number >= 1u32 && self.number <= 9u32;
+domain Ticket::Small requires self.number <= 5u32;
+machine entry() -> u32 {
+    let checked: Ticket in Digit & Small = Ticket { number: 4u32 } as +Digit +Small;
+    (checked as -Digit -Small).number
+}
+"#;
+    assert_unsigned_invocation(source, 4);
+    for invalid in ["0u32", "7u32"] {
+        let input = source.replace("number: 4u32", &format!("number: {invalid}"));
+        assert!(
+            matches!(checked_invocation(&input).unwrap(), RouteVerdict::Rejected { ref unproved, .. } if !unproved.is_empty()),
+            "{input}"
+        );
+    }
+}

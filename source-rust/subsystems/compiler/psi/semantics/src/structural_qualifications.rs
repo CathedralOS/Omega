@@ -2108,16 +2108,18 @@ fn validate_change(
                     "a structural cast's domain predicate cannot be restated",
                 );
             };
-            let retained = module.proofs.scalar_block_invariants.iter().any(|invariant| {
-                Some(invariant.machine) == machine
-                    && invariant.header == target
-                    // The complete empty theory is encoded as Truth. Any
-                    // invariant at this arrival establishes that conjunct.
-                    && (expected == Proposition::Truth
-                        || crate::scalar_qualifications::retains_conjunct(
-                            &invariant.predicate, &expected,
-                        ))
-            });
+            let retained = module
+                .proofs
+                .scalar_block_invariants
+                .iter()
+                .any(|invariant| {
+                    Some(invariant.machine) == machine
+                        && invariant.header == target
+                        && crate::scalar_qualifications::retains_predicate(
+                            &expected,
+                            std::iter::once(&invariant.predicate),
+                        )
+                });
             if !retained {
                 return malformed(
                     machine,

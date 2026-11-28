@@ -602,7 +602,7 @@ impl<'source> ApplicationPreparation<'source> {
                 // Instantiating the member's type substitutes its carrier and
                 // written indices. Retain the domain at that same application
                 // before a field or selected case can use its membership.
-                let mut closed = self.reference(base_type)?;
+                let closed = self.reference(base_type)?;
                 let mut changed = None;
                 for position in 0..constraints.len() {
                     let rows = self.source.type_reference_table.constraints(constraints);
@@ -623,7 +623,7 @@ impl<'source> ApplicationPreparation<'source> {
                     // declaration's type parameter. Prepare its substituted
                     // carrier before interning the enclosing domain coordinate.
                     for &argument in &applied.arguments {
-                        closed &= self.reference(argument)?;
+                        self.reference(argument)?;
                     }
                     rebind_domain(self.source, base_type, &mut applied)?;
                     if previous != applied.semantic_id {

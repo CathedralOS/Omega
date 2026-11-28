@@ -403,8 +403,14 @@ impl Program<'_> {
                                     .parameter_arguments
                                     .iter()
                                     .filter(|(argument, _)| *argument == source_position)
-                                    .map(|(_, parameter)| parameter.invocation(suffix))
-                                    .collect();
+                                    .map(|(_, parameter)| {
+                                        let borrowed = target_signature.borrowed.iter()
+                                            .any(|formal| formal.position == source_position);
+                                        parameter.invocation(suffix, borrowed).ok_or_else(|| {
+                                            unavailable(id, "the invocation path does not reach the borrowed callable")
+                                        })
+                                    })
+                                    .collect::<Checked<_>>()?;
                                 if !forwarded.is_empty() {
                                     union(&mut reached.invocations, &forwarded);
                                     continue;
@@ -446,7 +452,10 @@ impl Program<'_> {
                         }
                     }
                     for parameter in &invocation.selected_parameters {
-                        union(&mut reached.invocations, &[parameter.invocation(&[])]);
+                        let selection = parameter.invocation(&[], false).ok_or_else(|| {
+                            unavailable(id, "the selected reference has no callable value")
+                        })?;
+                        union(&mut reached.invocations, &[selection]);
                     }
                 }
                 let policy = policies
@@ -1109,19 +1118,34 @@ fn callable_at(
 struct FormalSelection {
     position: u32,
     path: Vec<semantic_vocabulary::InvocationPathSegment>,
+    /// Reference carriers formed while selecting this caller place. A use
+    /// of their referent denotes the selected place itself.
+    borrows: usize,
 }
 impl FormalSelection {
-    fn invocation(&self, suffix: &[semantic_vocabulary::InvocationPathSegment]) -> Invocation {
+    fn invocation(
+        &self,
+        suffix: &[semantic_vocabulary::InvocationPathSegment],
+        borrowed_formal: bool,
+    ) -> Option<Invocation> {
+        use semantic_vocabulary::InvocationPathSegment as Step;
+        // Passing a borrowed formal already lends its referent. An owned
+        // reference actual retains each still-present layer in the callee.
+        let pending = self.borrows.saturating_sub(usize::from(borrowed_formal));
+        let (through, suffix) = suffix.split_at_checked(pending)?;
+        if !through.iter().all(|step| *step == Step::Referent) {
+            return None;
+        }
         if self.path.is_empty() && suffix.is_empty() {
-            return Invocation::Parameter(self.position);
+            return Some(Invocation::Parameter(self.position));
         }
         let mut path = Vec::with_capacity(self.path.len() + suffix.len());
         path.extend_from_slice(&self.path);
         path.extend_from_slice(suffix);
-        Invocation::ProjectedParameter {
+        Some(Invocation::ProjectedParameter {
             parameter: self.position,
             path,
-        }
+        })
     }
 }
 struct Use<'a> {
@@ -1169,6 +1193,7 @@ impl<'a> CallCollector<'a> {
                     position: u32::try_from(position)
                         .map_err(|_| unavailable(id, "invocation parameter coordinate overflow"))?,
                     path: Vec::new(),
+                    borrows: 0,
                 });
             }
         }
@@ -1252,6 +1277,9 @@ impl<'a> CallCollector<'a> {
                     return false;
                 };
                 for selection in &mut found[cut..] {
+                    if selection.borrows != 0 {
+                        return false;
+                    }
                     if let Some(case) = case {
                         selection.path.push(Step::Case(case.identity.clone()));
                     }
@@ -1265,7 +1293,11 @@ impl<'a> CallCollector<'a> {
                     return false;
                 }
                 for selection in &mut found[cut..] {
-                    selection.path.push(Step::Referent);
+                    if selection.borrows != 0 {
+                        selection.borrows -= 1;
+                    } else {
+                        selection.path.push(Step::Referent);
+                    }
                 }
                 true
             }
@@ -1284,11 +1316,23 @@ impl<'a> CallCollector<'a> {
                     return false;
                 }
                 for selection in &mut found[cut..] {
+                    if selection.borrows != 0 {
+                        return false;
+                    }
                     selection.path.push(Step::FixedIndex(index));
                 }
                 true
             }
-            E::Borrow { place, .. } => self.traced(place, found),
+            E::Borrow { place, .. } => {
+                let cut = found.len();
+                if !self.traced(place, found) {
+                    return false;
+                }
+                for selection in &mut found[cut..] {
+                    selection.borrows += 1;
+                }
+                true
+            }
             E::MachineValue { .. } => true,
             E::Requalify(value) => self.traced(value, found),
             _ => match Self::slot(expression).and_then(|slot| self.parameters.get(slot)) {

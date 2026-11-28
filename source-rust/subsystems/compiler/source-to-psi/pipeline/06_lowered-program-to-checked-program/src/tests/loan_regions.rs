@@ -367,3 +367,18 @@ machine entry() crashes Trap {
     let refused = run(&conflict).unwrap_err();
     assert!(refused.contains("ChangeWhileBorrowed"), "{refused}");
 }
+
+#[test]
+fn a_returned_case_keeps_its_payloads_input_lifetime() {
+    let source = r#"
+data Found<'a> { bytes: @'a [u8]; }
+data Maybe<T> { case Present(value: T); case Missing; }
+machine relay<'a, 'b>(first: Maybe<Found<'a>>, second: Maybe<Found<'b>>) -> Maybe<Found<'a>> {
+    first
+}
+machine build_entry() {}
+"#;
+    assert_eq!(verdict(source), "accepted");
+    let wrong = source.replace("    first\n", "    second\n");
+    assert!(verdict(&wrong).contains("another lifetime of the machine than its result names"));
+}

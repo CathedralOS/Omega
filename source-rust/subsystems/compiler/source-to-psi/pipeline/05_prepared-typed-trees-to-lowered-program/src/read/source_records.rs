@@ -157,7 +157,7 @@ pub(super) fn source_application_in_scope(
     checked_source_application(typed, data, reference, machine, scope, false)
 }
 
-/// The storage reader retains the region of a directly substituted borrow.
+/// The storage reader retains the region of a directly substituted type argument.
 /// Other callers use the region-free entrance above for nominal equations.
 fn checked_source_application(
     typed: &crate::source_state::TypedTrees,
@@ -444,7 +444,8 @@ fn checked_source_application(
                 return Err(refusal);
             }
             if scope.region_free_type_identity(typed, *argument).is_none()
-                && !(borrowed_storage && retained_borrow(typed, &scope, *argument).is_some())
+                && !(borrowed_storage
+                    && retained_argument_region(typed, &scope, *argument).is_some())
             {
                 return Err(unavailable(
                     "record application whose reference regions are not retained",
@@ -496,9 +497,10 @@ fn checked_source_application(
     })
 }
 
-/// The outer region must belong to this written operand. A retained
-/// binder cannot be inferred from the spelling of the result's field.
-pub(super) fn retained_borrow(
+/// A type argument can supply one region directly, through a reference or a
+/// named data type. Its other components must be region-free so this slot
+/// accounts for every lifetime that field substitution must preserve.
+pub(super) fn retained_argument_region(
     typed: &crate::source_state::TypedTrees,
     scope: &std::sync::Arc<crate::source_state::SourceTypeScope>,
     reference: TypeReferenceHandle,
@@ -507,21 +509,40 @@ pub(super) fn retained_borrow(
         lifetime_parameter_identity, lifetime_parameter_name,
     };
     let table = &typed.type_reference_table;
-    let TypeReferenceNode::Reference {
-        referee,
-        lifetime: Some(tag),
-        ..
-    } = table.type_reference(reference)
-    else {
-        return None;
+    let (tag, children) = match table.type_reference(reference) {
+        TypeReferenceNode::Reference {
+            referee,
+            lifetime: Some(tag),
+            ..
+        } => (tag, std::slice::from_ref(referee)),
+        TypeReferenceNode::Generic {
+            base_symbol,
+            lifetime_arguments,
+            arguments,
+            ..
+        } => {
+            let [tag] = lifetime_arguments.as_slice() else {
+                return None;
+            };
+            let declaration = typed.unique_data_definition_by_symbol(*base_symbol)?;
+            if declaration.lifetime_parameters.len() != 1
+                || typed.data_type_parameters(declaration).len() != arguments.len()
+            {
+                return None;
+            }
+            (tag, table.type_reference_handles(*arguments))
+        }
+        _ => return None,
     };
-    let supplied = scope.supplied_type_reference(typed, *referee).ok()?;
-    if !crate::source_state::domain::index_argument_is_closed(typed, supplied.reference) {
-        return None;
+    for child in children {
+        let supplied = scope.supplied_type_reference(typed, *child).ok()?;
+        if !crate::source_state::domain::index_argument_is_closed(typed, supplied.reference) {
+            return None;
+        }
+        supplied
+            .scope
+            .region_free_type_identity(typed, supplied.reference)?;
     }
-    supplied
-        .scope
-        .region_free_type_identity(typed, supplied.reference)?;
     let owner = table.operand_lifetime_owner(reference);
     let parameter = match table.operand_lifetimes(reference) {
         [parameter] if parameter.declaration.is_valid() => *parameter,
@@ -567,9 +588,8 @@ fn validate_applied_members(
         {
             return scope.region_free_type_identity(typed, actual).is_some();
         }
-        // A directly substituted borrow must reach the actual field with
-        // the retained region from the template argument. More complex
-        // applications still need correspondence for each nested leaf.
+        // The selected field must carry the same region as the type argument
+        // substituted for this template parameter.
         let TypeReferenceNode::Named { symbol, .. } =
             typed.type_reference_table.type_reference(expected)
         else {
@@ -578,8 +598,8 @@ fn validate_applied_members(
         substitutions
             .iter()
             .find(|(binder, _)| binder == symbol)
-            .and_then(|(_, argument)| retained_borrow(typed, scope, *argument))
-            .is_some_and(|region| retained_borrow(typed, scope, actual) == Some(region))
+            .and_then(|(_, argument)| retained_argument_region(typed, scope, *argument))
+            .is_some_and(|region| retained_argument_region(typed, scope, actual) == Some(region))
     };
     let same_field = |expected: &DataField, actual: &DataField, owner| {
         typed.data_constructor_field(reference, template.symbol, expected.symbol) == Some(actual)
