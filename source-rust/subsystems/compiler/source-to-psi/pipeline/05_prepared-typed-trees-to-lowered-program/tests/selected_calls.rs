@@ -529,6 +529,52 @@ machine main() -> bool {
     program.judged(|_| ()).accepted();
 }
 
+/// Rebuilding the public package borrows both hidden fields from the same
+/// opening. Its plain tag has no dependence on a hidden type.
+#[test]
+fn repacking_shared_fields_uses_the_opening_of_their_source() {
+    const SOURCE: &str = "data Pair<'a, some S> { first: @'a S; second: @'a S; tag: u8; }
+        machine repack<'a>(p: @Pair<'a>) -> Pair<'a> {
+            Pair { first: p.first, second: p.second, tag: p.tag }
+        }";
+    let program = Program::of(SOURCE);
+    let lowered = program.lower();
+    let operations = lowered.operations("repack");
+    let sites = &program.elaboration().module.execution.packages.sites;
+    let mut projected = Vec::new();
+    for site in sites {
+        if let terminal_psi::TerminalPackageEvent::Project { opening, field } = &site.event {
+            let (_, op) = operations
+                .iter()
+                .find(|(_, op)| op.id == site.operation)
+                .expect("a projected field must have its actual read");
+            assert!(matches!(op.kind, OperationKind::StructuralLeafCopy { .. }));
+            projected.push((*opening, *field));
+        }
+    }
+    let [(first, first_field), (second, second_field)] = projected.as_slice() else {
+        panic!("expected two hidden reference projections, found {projected:?}");
+    };
+    assert_eq!(first, second);
+    assert_ne!(first_field, second_field);
+    assert_eq!(sites.len(), 3);
+    assert!(sites.iter().any(|site| matches!(
+        site.event,
+        terminal_psi::TerminalPackageEvent::Construct { .. }
+    )));
+    program.judged(|_| {}).accepted();
+
+    let crossed = SOURCE
+        .replace("p: @Pair<'a>", "p: @Pair<'a>, q: @Pair<'a>")
+        .replace("second: p.second", "second: q.second");
+    let refusal = Program::try_of(&[("product/main.omg", &crossed)])
+        .err()
+        .unwrap();
+    assert_eq!(refusal.stage, "typing");
+    assert_eq!(refusal.at, "second");
+    assert!(refusal.message.contains("conflicting generic arguments"));
+}
+
 #[test]
 fn a_dependent_field_update_survives_publication_and_independent_replay() {
     use source_compiler::test_support::checking::{RouteVerdict, judge};
