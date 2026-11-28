@@ -53,26 +53,22 @@ fn interleaved_producers_keep_their_publications_locals_and_cleanup() {
 #[test]
 fn an_owner_or_answer_permit_cannot_be_used_twice() {
     let source = include_str!("../../../tests/fixtures/calls/run/caller_owned_generators/main.omg");
-    for (original, invalid, value) in [
-        (
-            "answer(move crossed.owner, move left_item.permit, crossed.answer)",
-            "answer(move right_parked, move left_item.permit, crossed.answer)",
-            "right_parked",
-        ),
-        (
-            "answer(move crossed.owner, move left_item.permit, crossed.answer)",
-            "answer(move crossed.owner, move right_item.permit, crossed.answer)",
-            "right_item",
-        ),
+    let original = "answer(move crossed.owner, move left_item.permit, crossed.answer)";
+    assert_eq!(source.matches(original).count(), 1);
+    for repeated in [
+        "answer(move right_parked, move left_item.permit, crossed.answer)",
+        "answer(move crossed.owner, move right_item.permit, crossed.answer)",
     ] {
-        assert!(source.contains(original));
-        let invalid = source.replace(original, invalid);
+        let invalid = source.replace(original, repeated);
         let (accepted, report) = project::check(
             "duplicated-generator-custody",
             &[("main.omg", &invalid)],
             &["--check", "main.omg"],
         );
-        assert!(!accepted && report.contains(value), "{report}");
-        assert!(!report.contains("defect of the checker"), "{report}");
+        assert!(!accepted, "{report}");
+        assert!(
+            report.contains("owned storage is used after its value was transferred or consumed"),
+            "{report}"
+        );
     }
 }
