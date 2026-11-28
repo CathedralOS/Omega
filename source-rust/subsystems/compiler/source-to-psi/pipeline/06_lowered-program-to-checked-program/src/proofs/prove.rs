@@ -1857,6 +1857,12 @@ impl<'a> Prover<'a> {
             }
         }
         candidates.truncate(INTERVAL_CANDIDATES);
+        let models = if candidates.is_empty() || !self.assumptions.local.is_empty() {
+            [None, None]
+        } else {
+            self.validated_endpoint_values(value, &subject, integer, minimum, maximum)
+        };
+
         let narrows = |candidate: IntegerValue, known: Option<IntegerValue>, wanted: Ordering| {
             known.is_none_or(|known| integer.compare(candidate, known) == Some(wanted))
         };
@@ -1865,6 +1871,10 @@ impl<'a> Prover<'a> {
                 continue;
             };
             if try_lower
+                && !models
+                    .iter()
+                    .flatten()
+                    .any(|v| integer.compare(*v, candidate) == Some(Ordering::Less))
                 && narrows(candidate, lower, Ordering::Greater)
                 && integer.compare(candidate, minimum) != Some(Ordering::Equal)
                 && self
@@ -1874,6 +1884,10 @@ impl<'a> Prover<'a> {
                 lower = Some(candidate);
             }
             if try_upper
+                && !models
+                    .iter()
+                    .flatten()
+                    .any(|v| integer.compare(*v, candidate) == Some(Ordering::Greater))
                 && narrows(candidate, upper, Ordering::Less)
                 && integer.compare(candidate, maximum) != Some(Ordering::Equal)
                 && self
