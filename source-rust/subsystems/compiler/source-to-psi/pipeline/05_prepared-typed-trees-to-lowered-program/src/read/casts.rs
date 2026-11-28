@@ -275,7 +275,7 @@ impl Program<'_> {
                     domain: ArithmeticDomain::Exact,
                 },
                 operand,
-                source,
+                handle,
             )?
         } else if let (Some(ScalarType::IeeeFloat(from)), Some(ScalarType::Integer(to))) =
             (source_type.scalar(), target.scalar())
@@ -315,7 +315,7 @@ impl Program<'_> {
                     domain: ArithmeticDomain::Exact,
                 },
                 operand,
-                source,
+                handle,
             )?
         } else if let (Some(ScalarType::Integer(from)), Some(ScalarType::IeeeFloat(to))) =
             (source_type.scalar(), target.scalar())
@@ -361,7 +361,7 @@ impl Program<'_> {
                     domain: ArithmeticDomain::Exact,
                 },
                 operand,
-                source,
+                handle,
             )?
         } else {
             let (Some(ScalarType::Integer(from)), Some(carrier @ ScalarType::Integer(to))) =
@@ -406,8 +406,14 @@ impl Program<'_> {
         id: MachineId,
         meaning: numerics::intrinsics::NumericIntrinsic,
         operand: Expression,
-        source: SourceOrigin,
+        handle: ExpressionHandle,
     ) -> Checked<Expression> {
+        let span = self.typed.expression_table.source_span(handle);
+        let source = self.authored_node(
+            id,
+            crate::source_state::SourceNode::Expression(handle),
+            span,
+        )?;
         let unavailable = |detail| refuse_at(id, Unserved::Expression(detail));
         let declaration = terminal_semantics::numeric_primitives::declaration_path(meaning)
             .map_err(unavailable)?;
@@ -1035,6 +1041,7 @@ mod tests {
         TableCastExpression {
             value: ExpressionHandle::invalid(),
             target_type: TypeReferenceHandle::invalid(),
+            operand_type: Default::default(),
             recast_storage_type: Default::default(),
             result_type: TypeReferenceHandle::invalid(),
             target_label: arena::HandleSpan::empty(),

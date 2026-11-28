@@ -1011,6 +1011,7 @@ pub(crate) mod source_occurrences {
                 .insert(ExpressionNode::Cast(TableCastExpression {
                     value: leaf,
                     target_type: authored_cast,
+                    operand_type: Default::default(),
                     recast_storage_type: Default::default(),
                     result_type: computed,
                     target_label: Default::default(),
@@ -4047,6 +4048,7 @@ pub fn visit_expression(
             visit_type_reference(program, retained, cast.target_type);
             if retained.derived_declaration_references() {
                 visit_type_reference(program, retained, cast.result_type);
+                visit_type_reference(program, retained, cast.operand_type);
                 visit_type_reference(program, retained, cast.recast_storage_type);
             }
             // Intrinsic conversions, recasts and builtin policy entries may
@@ -5799,6 +5801,7 @@ mod cast_dependency_tests {
         let mut cast = TableCastExpression {
             value,
             target_type: carrier,
+            operand_type: Default::default(),
             recast_storage_type: Default::default(),
             result_type: carrier,
             target_label: Default::default(),
