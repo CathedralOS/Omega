@@ -92,14 +92,19 @@ pub fn review_source_providers(
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
     let selected = provider_realization::select_published_providers(admitted, components)?;
     let artifact = selected.published_authorization().shared_artifact();
-    let has_exports = artifact
-        .semantic_module()
-        .interfaces
+    let interfaces = &artifact.semantic_module().interfaces;
+    let has_candidates = interfaces
         .provider_candidates
         .iter()
         .any(|candidate| candidate.source_candidate_package_identity == Some(package));
-    // Publishing an independent component is optional until a receiving Product selects it.
-    let description = if has_exports {
+    // An explicit export promises a loadable record even when no consumer
+    // selected this package. Only the older candidate-only publication is optional.
+    let description = if !interfaces.provider_exports.is_empty() {
+        Some(
+            native_artifact::describe_portable_component(artifact, selected.plans())
+                .map_err(|error| vec![Diagnostic::error(error.to_string())])?,
+        )
+    } else if has_candidates {
         native_artifact::describe_portable_component(artifact, selected.plans()).ok()
     } else {
         None
