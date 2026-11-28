@@ -8,7 +8,7 @@ use application_identity::conformance_identity::MachineOperandSelectionIdentity;
 enum RequirementArgumentSource {
     Type(String),
     Const(String),
-    Machine(SymbolHandle),
+    Machine(SymbolHandle, Option<super::CallbackBounds>),
 }
 
 /// Normalize an application once while its typed source is available. The
@@ -46,10 +46,10 @@ impl RequirementApplicationSource {
                     StaticMachineBindingValue::Const(_)) => RequirementArgumentSource::Const(
                         argument.application_identity().ok_or("a specialized primitive lost its typed constant")?
                     ),
-                (super::PreparedParameter::Machine { .. }, StaticMachineBindingValue::Machine(selected)) => {
+                (super::PreparedParameter::Machine { bounds, .. }, StaticMachineBindingValue::Machine(selected)) => {
                     let body = typed.machine_by_own_or_state_symbol(selected.symbol)
                         .ok_or("a specialized primitive lost its selected machine")?;
-                    RequirementArgumentSource::Machine(body.symbol)
+                    RequirementArgumentSource::Machine(body.symbol, Some(bounds))
                 }
                 _ => return Err("a specialized primitive changed a static argument's kind"),
             })).collect::<Result<Vec<_>, _>>()?;
@@ -123,7 +123,7 @@ impl RequirementApplicationSource {
                             |_| "the selected callback has no portable declaration identity",
                         )?;
                     selected.push(MachineOperandSelectionIdentity::Machine(identity));
-                    arguments.push(RequirementArgumentSource::Machine(machine.symbol));
+                    arguments.push(RequirementArgumentSource::Machine(machine.symbol, None));
                 }
                 StaticMachineBindingValue::Conformance(_)
                 | StaticMachineBindingValue::RuntimeValue { .. }
@@ -149,7 +149,7 @@ impl RequirementApplicationSource {
         &self,
         identities: &mut TerminalIdentityTableBuilder,
     ) -> Vec<terminal_psi::ClosedReachArgument> {
-        self.publish_arguments(identities, |_| None)
+        self.publish_arguments(identities, |_, _| None)
             .unwrap_or_default()
     }
 
@@ -158,6 +158,7 @@ impl RequirementApplicationSource {
         identities: &mut TerminalIdentityTableBuilder,
         mut callable: impl FnMut(
             SymbolHandle,
+            Option<&super::CallbackBounds>,
         ) -> Option<(terminal_psi::TerminalIdentityIndex, [u8; 32])>,
     ) -> Option<Vec<terminal_psi::ClosedReachArgument>> {
         self.arguments
@@ -170,8 +171,8 @@ impl RequirementApplicationSource {
                     RequirementArgumentSource::Const(text) => {
                         terminal_psi::ClosedReachArgument::Const(identities.intern(text))
                     }
-                    RequirementArgumentSource::Machine(symbol) => {
-                        let (identity, contract_commitment) = callable(*symbol)?;
+                    RequirementArgumentSource::Machine(symbol, bounds) => {
+                        let (identity, contract_commitment) = callable(*symbol, bounds.as_ref())?;
                         terminal_psi::ClosedReachArgument::Machine {
                             identity,
                             contract_commitment,
@@ -217,7 +218,7 @@ pub(super) fn complete_callbacks(
             .application
             .arguments
             .iter()
-            .any(|argument| matches!(argument, RequirementArgumentSource::Machine(_)))
+            .any(|argument| matches!(argument, RequirementArgumentSource::Machine(..)))
             .then_some(&applied.application)
     };
     if !module
@@ -235,7 +236,7 @@ pub(super) fn complete_callbacks(
         .filter_map(|machine| {
             Some((
                 symbol_key(*program.symbols.get(machine.id)?),
-                machine.id,
+                machine,
                 machine.declaration.as_ref()?,
             ))
         })
@@ -250,14 +251,22 @@ pub(super) fn complete_callbacks(
                 language_core::sealed_intrinsics::ActivationOperation::Prepare));
         let mut entry = None;
         let arguments = application
-            .publish_arguments(identities, |symbol| {
+            .publish_arguments(identities, |symbol, bounds| {
                 let key = symbol_key(symbol);
                 let start = contracts.partition_point(|(id, _, _)| *id < key);
                 let (id, body, declaration) = *contracts.get(start)?;
                 if id != key || contracts.get(start + 1).is_some_and(|(id, _, _)| *id == key) {
                     return None;
                 }
-                if is_prepare && entry.replace(body).is_some() {
+                if let Some(bounds) = bounds {
+                    bounds.admits(
+                        &body.published_service_ceiling,
+                        declaration.published_may_suspend,
+                        declaration.published_may_block,
+                        !body.crash_routes.is_empty(),
+                    ).ok()?;
+                }
+                if is_prepare && entry.replace(body.id).is_some() {
                     return None;
                 }
                 Some((declaration.semantic_declaration, declaration.contract))

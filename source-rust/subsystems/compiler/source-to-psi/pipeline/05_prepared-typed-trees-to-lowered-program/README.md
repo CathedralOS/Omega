@@ -613,6 +613,12 @@ selected reply type and the call's suspension crossing. Lowering obtains
 that declaration through the generated machine's source template. A
 similarly named package declaration does not acquire its execution meaning.
 
+A caller preparing a worker selects its body and storage plan as static
+arguments. Lowering keeps that exact body, checks the callback's effect
+bounds, and records its reachable frames and the values held at each park.
+It cannot substitute a scheduler provider or count an unknown callee as an
+empty frame. Native compilation supplies the target's frame sizes.
+
 A supply (`Supply { slot, provider }`) names a boundary trait or one of its
 requirements and the provider chosen for it, by a Build selection or by
 supply settlement for a requirement the compilation reaches. The provider

@@ -158,11 +158,39 @@ enum PreparedParameter {
     Ready(ClosedReachParameter),
     Machine {
         selected: terminal_psi::TerminalIdentityIndex,
-        upper_bound: Option<Vec<semantic_vocabulary::ServiceId>>,
-        upper_bound_may_suspend: bool,
-        upper_bound_may_block: bool,
-        upper_bound_crashes_none: bool,
+        bounds: CallbackBounds,
     },
+}
+
+#[derive(Debug, Clone)]
+struct CallbackBounds {
+    reach: Option<Vec<semantic_vocabulary::ServiceId>>,
+    may_suspend: bool,
+    may_block: bool,
+    crashes_none: bool,
+}
+
+impl CallbackBounds {
+    fn admits(
+        &self,
+        reach: &[semantic_vocabulary::ServiceId],
+        may_suspend: bool,
+        may_block: bool,
+        may_crash: bool,
+    ) -> Result<(), &'static str> {
+        if self.reach.as_ref().is_some_and(|upper| {
+            reach.iter().any(|service| upper.binary_search(service).is_err())
+        }) {
+            return Err("a selected static callback exceeds its authored reach bound");
+        }
+        if (may_suspend && !self.may_suspend) || (may_block && !self.may_block) {
+            return Err("a selected static callback exceeds its operational bound");
+        }
+        if may_crash && self.crashes_none {
+            return Err("a selected static callback may crash, and its binder declares `crashes none`");
+        }
+        Ok(())
+    }
 }
 
 fn build_identity_remap(
@@ -377,8 +405,8 @@ pub(crate) fn declare(
                     {
                         application.operational = Some(terminal_semantics::calls::operational_dependencies::direct(
                             &elaboration.module, machine, |binder| match application.telescope.get(binder as usize)? {
-                                PreparedParameter::Machine { upper_bound_may_suspend, upper_bound_may_block, .. } =>
-                                    Some([*upper_bound_may_suspend, *upper_bound_may_block]),
+                                PreparedParameter::Machine { bounds, .. } =>
+                                    Some([bounds.may_suspend, bounds.may_block]),
                                 _ => None,
                             },
                         )?);
@@ -1218,10 +1246,12 @@ fn application_bindings_commitment(
                     prepared.parameter_kinds.push(3);
                     prepared.telescope.push(PreparedParameter::Machine {
                         selected: identity,
-                        upper_bound: upper_bound.clone(),
-                        upper_bound_may_suspend: contract.signature().suspends,
-                        upper_bound_may_block: contract.signature().blocks,
-                        upper_bound_crashes_none: contract.signature().declares_no_crash_route,
+                        bounds: CallbackBounds {
+                            reach: upper_bound.clone(),
+                            may_suspend: contract.signature().suspends,
+                            may_block: contract.signature().blocks,
+                            crashes_none: contract.signature().declares_no_crash_route,
+                        },
                     });
                 }
             }
@@ -1685,27 +1715,9 @@ impl PreparedParameter {
         self,
         selections: &[(terminal_psi::TerminalIdentityIndex, ReachSelection)],
     ) -> Result<ClosedReachParameter, &'static str> {
-        let (
-            selected,
-            upper_bound,
-            upper_bound_may_suspend,
-            upper_bound_may_block,
-            upper_bound_crashes_none,
-        ) = match self {
+        let (selected, bounds) = match self {
             Self::Ready(parameter) => return Ok(parameter),
-            Self::Machine {
-                selected,
-                upper_bound,
-                upper_bound_may_suspend,
-                upper_bound_may_block,
-                upper_bound_crashes_none,
-            } => (
-                selected,
-                upper_bound,
-                upper_bound_may_suspend,
-                upper_bound_may_block,
-                upper_bound_crashes_none,
-            ),
+            Self::Machine { selected, bounds } => (selected, bounds),
         };
         let first = selections.partition_point(|(identity, _)| *identity < selected);
         let Some((_, callee)) = selections
@@ -1720,35 +1732,16 @@ impl PreparedParameter {
         {
             return Err("a selected static callback has multiple admitted executable declarations");
         }
-        if upper_bound.as_ref().is_some_and(|upper_bound| {
-            callee
-                .reach
-                .iter()
-                .any(|service| upper_bound.binary_search(service).is_err())
-        }) {
-            return Err("a selected static callback exceeds its authored reach bound");
-        }
-        if (callee.may_suspend && !upper_bound_may_suspend)
-            || (callee.may_block && !upper_bound_may_block)
-        {
-            return Err("a selected static callback exceeds its operational bound");
-        }
-        // effects.md: `crashes none` admits only crash-free selections. A
-        // private callback's inferred routes count as much as authored ones.
-        if callee.may_crash && upper_bound_crashes_none {
-            return Err(
-                "a selected static callback may crash, and its binder declares `crashes none`",
-            );
-        }
+        bounds.admits(&callee.reach, callee.may_suspend, callee.may_block, callee.may_crash)?;
         Ok(ClosedReachParameter::Machine(
             terminal_psi::ClosedReachMachineBinding {
                 nominal_requirement: None,
                 requirement_parameter_kinds: Vec::new(),
                 requirement_arguments: Vec::new(),
-                upper_bound,
-                upper_bound_may_suspend,
-                upper_bound_may_block,
-                upper_bound_crashes_none,
+                upper_bound: bounds.reach,
+                upper_bound_may_suspend: bounds.may_suspend,
+                upper_bound_may_block: bounds.may_block,
+                upper_bound_crashes_none: bounds.crashes_none,
                 selected_may_suspend: callee.may_suspend,
                 selected_may_block: callee.may_block,
                 selected_may_crash: callee.may_crash,
@@ -2824,7 +2817,7 @@ pub(crate) fn intrinsic_boundary_source(
 
 #[cfg(test)]
 mod crash_bound_tests {
-    use super::{PreparedParameter, ReachSelection};
+    use super::{CallbackBounds, PreparedParameter, ReachSelection};
     use semantic_vocabulary::MachineId;
     use terminal_psi::{ClosedReachParameter, TerminalIdentityIndex};
 
@@ -2836,10 +2829,12 @@ mod crash_bound_tests {
         let selected = TerminalIdentityIndex(5);
         PreparedParameter::Machine {
             selected,
-            upper_bound: None,
-            upper_bound_may_suspend: false,
-            upper_bound_may_block: false,
-            upper_bound_crashes_none: bound,
+            bounds: CallbackBounds {
+                reach: None,
+                may_suspend: false,
+                may_block: false,
+                crashes_none: bound,
+            },
         }
         .close(&[(
             selected,
