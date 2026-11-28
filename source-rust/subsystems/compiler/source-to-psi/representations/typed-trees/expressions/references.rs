@@ -1352,6 +1352,14 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     ) {
         self.extend([symbol]);
     }
+    /// The head of an application formed by an exact Product operand.
+    fn product_application_head(
+        &mut self,
+        _: StaticMachineApplicationHandle,
+        declaration: SymbolHandle,
+    ) {
+        self.formation_owner(declaration);
+    }
     /// The forming declaration supplies the application's lexical context. It
     /// remains reachable metadata, not an authored selection by its later user.
     fn static_application(
@@ -1500,6 +1508,13 @@ impl<References: TypedReferences> TypedReferences for CodeSelectionReferences<'_
         symbol: SymbolHandle,
     ) {
         self.0.product_type_input(input, symbol);
+    }
+    fn product_application_head(
+        &mut self,
+        application: StaticMachineApplicationHandle,
+        declaration: SymbolHandle,
+    ) {
+        self.0.product_application_head(application, declaration);
     }
     fn static_application(
         &mut self,
@@ -2788,25 +2803,16 @@ impl MachineSidecarIndex {
             visit_static_machine_bindings(program, roots, application.supplying_application);
             // The request selected the head in Product. Its supplied arguments
             // and the provider's own parents still have their original readers.
-            let head = source.binding_declaration;
-            let designated = (head.is_valid()
-                && head == application.argument.symbol
-                && (head == application.declaration
-                    || program
-                        .closed_requirement_application(application.declaration)
-                        .is_some_and(|closed| closed.template == head)))
-            .then_some(head);
+            let designated = application
+                .selected_head(program)
+                .map(|_| application.supplying_application);
             visit_static_argument_with_product_head(
                 program,
                 roots,
                 &application.argument,
                 designated,
             );
-            application.scope.visit_references_with_product_head(
-                program,
-                roots,
-                designated.map(|head| (source.lexical_owner, head)),
-            );
+            application.scope.visit_references(program, roots);
             roots.leave_lexical_scope();
         }
     }
@@ -2963,7 +2969,7 @@ fn visit_static_argument_with_product_head(
     program: &TypedTrees,
     retained: &mut impl TypedReferences,
     argument: &StaticMachineArgument,
-    designated: Option<SymbolHandle>,
+    designated: Option<StaticMachineApplicationHandle>,
 ) {
     if let Some(occurrence) = argument.authored_selection {
         visit_authored_selection(program, retained, occurrence);
@@ -2982,8 +2988,8 @@ fn visit_static_argument_with_product_head(
             TypeReferenceNode::Named { symbol, .. }
             | TypeReferenceNode::Generic { base_symbol: symbol, .. }
             if *symbol == argument.symbol);
-    if argument.symbol.is_valid() && designated == Some(argument.symbol) {
-        retained.formation_owner(argument.symbol);
+    if let Some(application) = designated {
+        retained.product_application_head(application, argument.symbol);
     } else if argument.symbol != SymbolHandle::invalid() && !named_data {
         visit_callable_symbol(program, retained, argument.symbol);
     }

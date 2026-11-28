@@ -2,7 +2,9 @@ use super::{AppliedDeclarationRegionScope, AppliedTraitScope};
 use crate::source_state::CallableSubstitution;
 use crate::source_state::TypedTrees;
 use crate::source_state::name::Identifier;
-use crate::source_state::static_applications::StaticMachineLifetimeBinding;
+use crate::source_state::static_applications::{
+    StaticMachineApplicationHandle, StaticMachineLifetimeBinding,
+};
 use crate::source_state::type_identity;
 use crate::source_state::types::TypeReferenceHandle;
 use arena::HandleSpan;
@@ -29,6 +31,8 @@ pub(crate) struct RetainedTraitApplicationFrame {
     declaration: SymbolHandle,
     // A parent argument names binders in the child that supplied it.
     argument_owner: SymbolHandle,
+    // Copies of a selected Product frame keep the application that formed it.
+    product_head: StaticMachineApplicationHandle,
     arguments: HandleSpan<CallableSubstitution>,
     lifetimes: HandleSpan<StaticMachineLifetimeBinding>,
 }
@@ -46,6 +50,20 @@ impl AppliedTraitScope<'_> {
 }
 
 impl TraitApplicationEnvironment {
+    pub(crate) fn retain_product_head(
+        &mut self,
+        application: StaticMachineApplicationHandle,
+        owner: SymbolHandle,
+        declaration: SymbolHandle,
+    ) {
+        if let Some(frame) = self.region_scopes.first_mut()
+            && frame.argument_owner == owner
+            && frame.declaration == declaration
+        {
+            frame.product_head = application;
+        }
+    }
+
     pub(crate) fn substitute_service(
         &mut self,
         program: &mut TypedTrees,
@@ -191,6 +209,7 @@ impl TraitApplicationEnvironment {
             frames.push(RetainedTraitApplicationFrame {
                 declaration: region.declaration,
                 argument_owner: region.argument_owner,
+                product_head: region.product_head,
                 arguments,
                 lifetimes,
             });
@@ -213,27 +232,13 @@ impl RetainedTraitScope {
         program: &TypedTrees,
         retained: &mut impl crate::source_state::references::TypedReferences,
     ) {
-        self.visit_references_with_product_head(program, retained, None);
-    }
-
-    pub(crate) fn visit_references_with_product_head(
-        self,
-        program: &TypedTrees,
-        retained: &mut impl crate::source_state::references::TypedReferences,
-        designated: Option<(SymbolHandle, SymbolHandle)>,
-    ) {
         retained.formation_owner(self.argument_owner);
-        for (ordinal, frame) in program
-            .trait_application_frames
-            .span_or_empty(self.frames)
-            .iter()
-            .enumerate()
-        {
+        for frame in program.trait_application_frames.span_or_empty(self.frames) {
             // The supplier selected this application. An imported parent may
             // expose the resulting signature without ever naming its client.
             retained.enter_lexical_scope(frame.argument_owner);
-            if ordinal == 0 && designated == Some((frame.argument_owner, frame.declaration)) {
-                retained.formation_owner(frame.declaration);
+            if frame.product_head.is_valid() {
+                retained.product_application_head(frame.product_head, frame.declaration);
             } else {
                 retained.declaration_description_dependency(frame.declaration);
             }
@@ -295,6 +300,7 @@ impl RetainedTraitScope {
             region_scopes.push(AppliedDeclarationRegionScope {
                 declaration: frame.declaration,
                 argument_owner: frame.argument_owner,
+                product_head: frame.product_head,
                 lifetimes: program
                     .callable_lifetime_substitutions
                     .span_or_empty(frame.lifetimes)
@@ -507,7 +513,7 @@ mod retained_reference_tests {
             .type_reference_table
             .retain_operand_lifetime_owner(nested_type, retained_supplier)
             .unwrap();
-        let scope = TraitApplicationEnvironment {
+        let mut environment = TraitApplicationEnvironment {
             declaration: observed,
             argument_owner: supplier,
             substitutions: vec![(formal, actual_type), (nested_formal, nested_type)],
@@ -516,17 +522,18 @@ mod retained_reference_tests {
                 AppliedDeclarationRegionScope {
                     declaration: formal_owner,
                     argument_owner: supplier,
+                    product_head: Default::default(),
                     lifetimes: Vec::new(),
                 },
                 AppliedDeclarationRegionScope {
                     declaration: nested_owner,
                     argument_owner: formal_owner,
+                    product_head: Default::default(),
                     lifetimes: Vec::new(),
                 },
             ],
-        }
-        .retain(&mut program)
-        .unwrap();
+        };
+        let scope = environment.retain(&mut program).unwrap();
         let mut references = ScopedReferences {
             owner: observed,
             outer: Vec::new(),
@@ -564,11 +571,23 @@ mod retained_reference_tests {
         // arguments still have to be read by the declarations that named them.
         references.descriptions.clear();
         references.names.clear();
-        scope.visit_references_with_product_head(
-            &program,
-            &mut references,
-            Some((supplier, formal_owner)),
+        let application = program.expression_table.retain_static_machine_application(
+            formal_owner,
+            Identifier::generated("Generic"),
+            &[],
         );
+        environment.retain_product_head(application, observed, formal_owner);
+        environment
+            .retain(&mut program)
+            .unwrap()
+            .visit_references(&program, &mut references);
+        assert!(references.descriptions.contains(&(supplier, formal_owner)));
+        references.descriptions.clear();
+        environment.retain_product_head(application, supplier, formal_owner);
+        environment
+            .retain(&mut program)
+            .unwrap()
+            .visit_references(&program, &mut references);
         assert!(references.formations.contains(&(supplier, formal_owner)));
         assert!(!references.descriptions.contains(&(supplier, formal_owner)));
         assert!(
@@ -582,13 +601,5 @@ mod retained_reference_tests {
                 .names
                 .contains(&(retained_supplier, nested_actual))
         );
-
-        references.descriptions.clear();
-        scope.visit_references_with_product_head(
-            &program,
-            &mut references,
-            Some((observed, formal_owner)),
-        );
-        assert!(references.descriptions.contains(&(supplier, formal_owner)));
     }
 }
