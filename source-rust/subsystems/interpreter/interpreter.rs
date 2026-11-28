@@ -47,6 +47,8 @@ mod layout_target;
 mod suspension;
 pub use call_observations::{ObservedTerminalCall, TerminalCallObservation};
 pub use suspension::TerminalSuspension;
+#[path = "memory/component_byte_loans.rs"]
+mod component_byte_loans;
 #[path = "embedding/program.rs"]
 mod embedding;
 #[path = "instructions/calls.rs"]

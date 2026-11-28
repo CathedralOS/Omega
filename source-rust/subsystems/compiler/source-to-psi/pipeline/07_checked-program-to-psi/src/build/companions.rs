@@ -350,6 +350,10 @@ fn installed_request_operation(
             BuildCompanionFile::SandboxStreams,
             TerminalBuildRequestOperation::SandboxWrite,
         ),
+        ("DatagramReplies", "receive") => (
+            BuildCompanionFile::SandboxDatagram,
+            TerminalBuildRequestOperation::ReceiveDatagram,
+        ),
         ("Datagram", "send") => (
             BuildCompanionFile::SandboxDatagram,
             TerminalBuildRequestOperation::SendDatagram,
