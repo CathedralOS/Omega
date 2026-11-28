@@ -36,6 +36,32 @@ mod tests {
     use terminal_psi::{StructuralAccess, StructuralArgument};
 
     #[test]
+    fn saved_program_must_own_each_package_operation() {
+        use crate::semantic_module::entry_tests::{identity_table, unit_machine};
+
+        let machine = MachineId::new(1).unwrap();
+        let mut module = terminal_psi::TerminalModule::for_entry(machine);
+        module.identities = identity_table(4);
+        module.machines.push(unit_machine(machine));
+        let original = crate::encode_module(&module).unwrap();
+        assert_eq!(crate::decode_module(&original).unwrap(), module);
+
+        module.execution.packages.sites.push(TerminalPackageSite {
+            machine,
+            operation: OperationId::new(99).unwrap(),
+            event: TerminalPackageEvent::Construct { witnesses: vec![] },
+        });
+        let bytes = crate::module_wire::encode_raw(&module).unwrap();
+        assert_ne!(original, bytes);
+        assert!(matches!(
+            crate::decode_module(&bytes),
+            Err(crate::CodecError::MalformedStructuralFoundation(
+                "package site names an absent operation"
+            ))
+        ));
+    }
+
+    #[test]
     fn package_catalog_preserves_witness_order_subject_and_operation_identity() {
         let ty = |n| StructuralTypeId::new(n).unwrap();
         let machine = MachineId::new(2).unwrap();

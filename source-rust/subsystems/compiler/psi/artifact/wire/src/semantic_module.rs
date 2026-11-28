@@ -4186,6 +4186,7 @@ pub fn decode_closed_parts_within(
     // already refused a repeated machine identity, the bundle's only refusal.
     let analyses = terminal_semantics::ModuleAnalyses::new(&module)
         .map_err(|_| CodecError::NonCanonicalOrder("machines by MachineId"))?;
+    analyses.package_sites().map_err(CodecError::MalformedStructuralFoundation)?;
     validate_structural_foundation(&analyses)?;
     // Canonical shape only; source-bound `verify_identity_formations` replays
     // the kernel. Decoding does not re-decide a carried judgment.
