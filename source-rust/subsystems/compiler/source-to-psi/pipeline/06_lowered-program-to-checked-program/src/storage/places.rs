@@ -5862,6 +5862,60 @@ impl<'a> Storage<'a> {
         point: ProgramPoint,
         concerns: Construct,
     ) -> Checked<Checked<Vec<ValueId>>> {
+        let opened_inputs = match concerns {
+            Construct::Operation(operation) if !used.is_empty() => u32::try_from(up_to)
+                .ok()
+                .map(|ordinal| {
+                    references.local_opened_inputs(self.machine, (block, ordinal), operation)
+                })
+                .unwrap_or_default(),
+            _ => Vec::new(),
+        };
+        let mut captured = Vec::new();
+        if !opened_inputs.is_empty() {
+            for place in used {
+                let home = place
+                    .descriptor_location()
+                    .and_then(|input| opened_inputs.iter().find(|(operand, _)| *operand == input));
+                let Some((_, home)) = home else {
+                    captured.push(place.clone());
+                    continue;
+                };
+                let root = self.root_type(home.root, concerns)?;
+                let path = terminal_semantics::descriptor_lifetimes::descriptor_path(
+                    &self.module.types.structural_types,
+                    root,
+                    &home.path,
+                )
+                .ok_or_else(|| {
+                    self.unsupported(
+                        concerns,
+                        "the checked local callback input lost its storage path",
+                    )
+                })?;
+                let Some((Segment::Referent, carrier)) = place.segments.split_last() else {
+                    captured.push(place.clone());
+                    continue;
+                };
+                if path.iter().any(|part| {
+                    !matches!(
+                        part,
+                        StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+                    )
+                }) {
+                    captured.push(place.clone());
+                    continue;
+                }
+                // Reading through a locally stored reference requires both
+                // its live descriptor and the original borrowed storage.
+                captured.push(Lineage {
+                    root: place.root,
+                    segments: carrier.to_vec(),
+                });
+                captured.push(self.stored_at(home.root, &path, concerns)?);
+            }
+        }
+        let used = if captured.is_empty() { used } else { &captured };
         for place in used {
             let missing = self.any_leaf(
                 place,
