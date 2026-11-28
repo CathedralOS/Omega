@@ -1,0 +1,21 @@
+     7.202 ms  Open / prepare: ProjectInput -> LocalPreparation
+     2.509 ms  Open / acquire root: LocalPreparation -> CapturedRoot
+   665.349 ms  Open / execute Build: CapturedRoot -> BuildStage
+  6873.470 ms  Open / resolve sources: BuildStage -> ProjectSources
+  2862.652 ms  Open / dependency handoff: ProjectSources -> PlannedProducts
+     6.226 ms  Open / dispose session: PlannedProducts -> ProjectProducts
+     0.981 ms  Build / Source acquisition: SourcePaths -> SourceFiles
+   165.615 ms  Build / Source ingress: SourceFiles -> SyntaxTrees
+   184.647 ms  Build / build-source-judgment: TypedTrees -> AcceptedTerminalSource
+     4.684 ms  Dependency Builds / Source acquisition: SourcePaths -> SourceFiles
+   127.456 ms  Dependency Builds / Source ingress: SourceFiles -> SyntaxTrees
+  6006.115 ms  Dependency Builds / build-source-judgment: TypedTrees -> AcceptedTerminalSource
+warning: unreachable branch: the `_` arm of a transition in machine `entry` state `entry` can never run; its condition contradicts the facts in force here: a block invariant
+    in package `system`, /workspace/Omega/.agents/worktree/worker-1/source/library/system/posix_filesystem_adapter.omg:1583:35
+warning: unreachable branch: the `_` arm of a transition in machine `rds_push_go` state `entry` can never run; its condition can never hold
+    in package `system`, /workspace/Omega/.agents/worktree/worker-1/source/library/system/posix_filesystem_adapter.omg:1566:27
+   0.828..10421.843 ms (10421.015 ms)  timeline / open_products
+10422.680..10434.361 ms (  11.681 ms)  timeline / prepare_targets
+218791.315..218862.617 ms (  71.302 ms)  timeline / teardown
+218862.733..218862.954 ms (   0.221 ms)  timeline / teardown
+218863.119 ms  total elapsed

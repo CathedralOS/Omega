@@ -2,6 +2,8 @@
 
 The experiment asks whether an application can change its own source and consume the same checked independent provider through the native compiler. The shipped CLI provides the reference build. The test host supplies the optional artifact through the compiler's existing `ComponentSuppliers` API.
 
+Measured CLI durations, per-input hashes, dependency publication costs and the cold profile are in [Linux results](MEASUREMENTS.md).
+
 ## Run
 
 Use benchmark base `e6477bc08c36684b78cca182ba91bd012b4c5a4d` for the release compiler. The experiment changes an integration test and tools. It leaves the compiler and the filesystem fixture at that revision.
