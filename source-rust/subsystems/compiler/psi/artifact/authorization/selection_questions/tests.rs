@@ -517,27 +517,32 @@ fn authority_walks_follow_the_evaluated_machine_and_leave_unused_code_out() {
     }
     let contract = CallableContractId::new(1).unwrap();
     let identity = identities.intern("closed no-argument callable");
-    module.execution.callables.contracts.push(TerminalCallableContract {
-        id: contract,
-        identity,
-        scalar_parameters: Vec::new(),
-        parameter_order: Vec::new(),
-        structural_parameters: Vec::new(),
-        result: terminal_psi::BoundaryMachineResult::Unit,
-        proof_result: TerminalMachineResult::Unit,
-        entry_claim_paths: Vec::new(),
-        result_claim_paths: Vec::new(),
-        result_reference_regions: Vec::new(),
-        proof: MachineContract::empty(ContractId::new(1).unwrap()),
-        evidence_contract: Vec::new(),
-        envelope: TerminalCallableEnvelope {
-            service_reach: Vec::new(),
-            invocations: Vec::new(),
-            suspends: false,
-            blocks: false,
-            termination: TerminalCallableTermination::NotGuaranteed,
-        },
-    });
+    module
+        .execution
+        .callables
+        .contracts
+        .push(TerminalCallableContract {
+            id: contract,
+            identity,
+            requirement: None,
+            scalar_parameters: Vec::new(),
+            parameter_order: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: terminal_psi::BoundaryMachineResult::Unit,
+            proof_result: TerminalMachineResult::Unit,
+            entry_claim_paths: Vec::new(),
+            result_claim_paths: Vec::new(),
+            result_reference_regions: Vec::new(),
+            proof: MachineContract::empty(ContractId::new(1).unwrap()),
+            evidence_contract: Vec::new(),
+            envelope: TerminalCallableEnvelope {
+                service_reach: Vec::new(),
+                invocations: Vec::new(),
+                suspends: false,
+                blocks: false,
+                termination: TerminalCallableTermination::NotGuaranteed,
+            },
+        });
     for ordinal in 1..=2 {
         let descriptor = MachineDescriptorId::new(ordinal).unwrap();
         module

@@ -1416,7 +1416,7 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     fn type_reference(&mut self, _: TypeReferenceHandle) -> bool {
         true
     }
-    fn visit_universe_levels(&self) -> bool {
+    fn visit_proof_operands(&self) -> bool {
         true
     }
     fn type_alias_application(
@@ -1604,7 +1604,7 @@ struct ReferenceCollector {
     callable_uses: HashSet<SymbolHandle>,
     descriptor_symbols: HashSet<SymbolHandle>,
     classify_static_arguments: Option<StaticArgumentClassifier>,
-    skip_universe_levels: bool,
+    skip_proof_operands: bool,
     skip_published_data_layouts: bool,
     statements: HashSet<StatementHandle>,
     expressions: HashSet<ExpressionHandle>,
@@ -1628,8 +1628,8 @@ impl TypedReferences for ReferenceCollector {
     fn published_data_layouts(&self) -> bool {
         !self.skip_published_data_layouts
     }
-    fn visit_universe_levels(&self) -> bool {
-        !self.skip_universe_levels
+    fn visit_proof_operands(&self) -> bool {
+        !self.skip_proof_operands
     }
 
     fn type_alias_application(
@@ -1642,7 +1642,7 @@ impl TypedReferences for ReferenceCollector {
         }
         let mut description = ReferenceCollector {
             describing_alias_arguments: true,
-            skip_universe_levels: self.skip_universe_levels,
+            skip_proof_operands: self.skip_proof_operands,
             skip_published_data_layouts: self.skip_published_data_layouts,
             ..ReferenceCollector::default()
         };
@@ -1981,14 +1981,14 @@ pub fn collect_program_operand_owners(program: &TypedTrees) -> ProgramOperandOwn
     collect_operand_owners(program, TypeOccurrences::default())
 }
 
-/// Collects the operands that could request source evaluation. Universe
-/// levels are formed by the proof calculus, while any ordinary use of the
-/// same handle still belongs to the source evaluator.
+/// Collects the operands that could request source evaluation. The proof
+/// calculus reads universe levels and the formula under Box or Squash. An
+/// ordinary occurrence of the same handle still requires source evaluation.
 pub fn collect_source_evaluation_references(program: &TypedTrees) -> ProgramReferences {
     collect_program_references_from(
         program,
         ReferenceCollector {
-            skip_universe_levels: true,
+            skip_proof_operands: true,
             ..ReferenceCollector::default()
         },
     )
@@ -2000,7 +2000,7 @@ pub fn collect_source_evaluation_operand_owners(program: &TypedTrees) -> Program
     collect_operand_owners(
         program,
         TypeOccurrences {
-            skip_universe_levels: true,
+            skip_proof_operands: true,
             ..TypeOccurrences::default()
         },
     )
@@ -2057,7 +2057,7 @@ fn collect_operand_owners_in_parallel(
 
     let mut counter = TypeOccurrences {
         selection: occurrences.selection.clone(),
-        skip_universe_levels: occurrences.skip_universe_levels,
+        skip_proof_operands: occurrences.skip_proof_operands,
         operand_owners_only: true,
         unit_range: Some(0..0),
         ..TypeOccurrences::default()
@@ -2078,7 +2078,7 @@ fn collect_operand_owners_in_parallel(
             let end = units * (run + 1) / runs;
             let mut walk = TypeOccurrences {
                 selection: occurrences.selection.clone(),
-                skip_universe_levels: occurrences.skip_universe_levels,
+                skip_proof_operands: occurrences.skip_proof_operands,
                 operand_owners_only: true,
                 unit_range: Some(start..end),
                 seen_types: ScopedOccurrences::with_zeroed_slots(type_slots),
@@ -2129,7 +2129,7 @@ pub(crate) fn collect_program_application_occurrences(
 #[derive(Default)]
 struct TypeOccurrences {
     selection: DeclarationSelection,
-    skip_universe_levels: bool,
+    skip_proof_operands: bool,
     owner: SymbolHandle,
     outer_owners: Vec<SymbolHandle>,
     types: Vec<TypeOccurrence>,
@@ -2262,8 +2262,8 @@ impl TypedReferences for TypeOccurrences {
         }
     }
 
-    fn visit_universe_levels(&self) -> bool {
-        !self.skip_universe_levels
+    fn visit_proof_operands(&self) -> bool {
+        !self.skip_proof_operands
     }
 
     fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
@@ -3904,7 +3904,7 @@ pub fn visit_type_reference(
             let arguments = program.type_reference_handles(*arguments);
             // A universe level may use the same syntax node as a computed
             // type. Only its edge from the exact sort makes it a level.
-            if !retained.visit_universe_levels()
+            if !retained.visit_proof_operands()
                 && arguments.len() == 1
                 && lifetime_arguments.is_empty()
                 && program
@@ -4188,6 +4188,29 @@ fn visit_described_argument(
     visit_type_reference(program, retained, argument.type_reference);
     if let Some(application) = &argument.application {
         for nested in &application.arguments {
+            // The kernel reads the expression inside a strict type former. Its
+            // carrier and arguments can still contain ordinary evaluation requests.
+            if !retained.visit_proof_operands()
+                && application.arguments.len() == 1
+                && application.lifetime_arguments.is_empty()
+                && program.symbols.symbols().nodes().is_valid(argument.symbol)
+                && matches!(
+                    program
+                        .symbols
+                        .fixed_core_declaration_for_symbol(argument.symbol),
+                    Some(
+                        symbols::FixedCoreDeclaration::Box | symbols::FixedCoreDeclaration::Squash
+                    )
+                )
+                && program
+                    .type_reference_table
+                    .contains_type_reference(nested.type_reference)
+                && let TypeReferenceNode::ConstExpression(expression) =
+                    program.type_reference_node(nested.type_reference)
+            {
+                visit_expression(program, retained, *expression);
+                continue;
+            }
             visit_described_argument(program, retained, nested);
         }
         if let Some(member) = program.expression_table.static_member(application.member) {

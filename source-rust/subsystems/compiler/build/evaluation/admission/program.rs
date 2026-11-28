@@ -52,11 +52,12 @@ impl AdmittedBuildProgram {
             self.artifact_only,
         );
         requests.extend(self.programs.requests(&bounds, self.execution_profile));
-        if let Some(send) = &self.providers.network {
-            requests.push(RestrictedBuildRequest::for_datagram(
-                send.peer,
-                send.call_path.clone(),
-                bounds,
+        for call in &self.providers.network {
+            requests.push(RestrictedBuildRequest::for_udp(
+                call.access,
+                call.peer,
+                call.call_path.clone(),
+                bounds.clone(),
                 self.execution_profile,
             ));
         }

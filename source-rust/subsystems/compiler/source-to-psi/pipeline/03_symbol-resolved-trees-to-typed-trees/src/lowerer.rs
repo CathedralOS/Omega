@@ -1946,6 +1946,17 @@ pub(crate) fn type_resolved_cohort(
         )?;
         lowerer.typed_trees.push_mathematical_definition(definition);
     }
+    // A dispatch subject can project through data with an implementation
+    // parameter. Its field type is checked while lowering the machine body
+    // and needs both the requirement and the selected conformance.
+    for trait_definition in source.traits.iter().skip(cohort.traits) {
+        lowerer.typed_trees.begin_declaration_output();
+        lowerer.lower_trait_declaration(trait_definition)?;
+    }
+    for conformance in source.conformances.iter().skip(cohort.conformances) {
+        lowerer.typed_trees.begin_declaration_output();
+        crate::declarations::items::conformance::lower_conformance(lowerer, conformance)?;
+    }
     let completed_positions = source
         .machines
         .iter()
@@ -1981,14 +1992,6 @@ pub(crate) fn type_resolved_cohort(
             })?;
         lowerer.typed_trees.push_operator(operator);
     }
-    for trait_definition in source.traits.iter().skip(cohort.traits) {
-        lowerer.typed_trees.begin_declaration_output();
-        lowerer.lower_trait_declaration(trait_definition)?;
-    }
-    for conformance in source.conformances.iter().skip(cohort.conformances) {
-        lowerer.typed_trees.begin_declaration_output();
-        crate::declarations::items::conformance::lower_conformance(lowerer, conformance)?;
-    }
     for wire_schema in source.wire_schemas.iter().skip(cohort.wire_schemas) {
         lowerer.typed_trees.begin_declaration_output();
         let wire_schema = lowerer.with_type_reference_exposure(
@@ -1997,6 +2000,7 @@ pub(crate) fn type_resolved_cohort(
         )?;
         lowerer.typed_trees.push_wire_schema(wire_schema);
     }
+    crate::expressions::runtime_callables::finish_requirement_types(&mut lowerer.typed_trees)?;
     lowerer.lower_const_initializer_evidence(cohort.const_declarations)
 }
 

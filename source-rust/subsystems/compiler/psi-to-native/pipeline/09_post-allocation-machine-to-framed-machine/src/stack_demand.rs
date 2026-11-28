@@ -7,4 +7,4 @@ pub use machine_code::physical_stack::{
 };
 
 mod physical;
-pub use physical::plan_physical_stack_program;
+pub use physical::{plan_physical_stack_program, plan_physical_stack_program_for_entry};

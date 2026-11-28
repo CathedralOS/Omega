@@ -71,27 +71,32 @@ fn machine(id: u64) -> TerminalMachine {
 }
 fn module() -> TerminalModule {
     let mut module = TerminalModule::for_entry(machine_id(1));
-    module.execution.callables.contracts.push(TerminalCallableContract {
-        id: contract_id(),
-        identity: TerminalIdentityIndex(1),
-        scalar_parameters: Vec::new(),
-        parameter_order: Vec::new(),
-        structural_parameters: Vec::new(),
-        result: BoundaryMachineResult::Unit,
-        proof_result: TerminalMachineResult::Unit,
-        entry_claim_paths: Vec::new(),
-        result_claim_paths: Vec::new(),
-        result_reference_regions: Vec::new(),
-        proof: MachineContract::empty(ContractId::new(1).unwrap()),
-        evidence_contract: Vec::new(),
-        envelope: TerminalCallableEnvelope {
-            service_reach: Vec::new(),
-            invocations: Vec::new(),
-            suspends: false,
-            blocks: false,
-            termination: TerminalCallableTermination::NotGuaranteed,
-        },
-    });
+    module
+        .execution
+        .callables
+        .contracts
+        .push(TerminalCallableContract {
+            id: contract_id(),
+            identity: TerminalIdentityIndex(1),
+            requirement: None,
+            scalar_parameters: Vec::new(),
+            parameter_order: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: BoundaryMachineResult::Unit,
+            proof_result: TerminalMachineResult::Unit,
+            entry_claim_paths: Vec::new(),
+            result_claim_paths: Vec::new(),
+            result_reference_regions: Vec::new(),
+            proof: MachineContract::empty(ContractId::new(1).unwrap()),
+            evidence_contract: Vec::new(),
+            envelope: TerminalCallableEnvelope {
+                service_reach: Vec::new(),
+                invocations: Vec::new(),
+                suspends: false,
+                blocks: false,
+                termination: TerminalCallableTermination::NotGuaranteed,
+            },
+        });
     for (descriptor, selected) in [(1, 3), (2, 4), (3, 5)] {
         module
             .execution.callables

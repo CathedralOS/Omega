@@ -11587,6 +11587,12 @@ fn validate_callable_scalar_types(module: &TerminalModule) -> Result<(), CodecEr
     }
     for (ordinal, contract) in module.execution.callables.contracts.iter().enumerate() {
         if usize::try_from(contract.id.get() - 1).ok() != Some(ordinal)
+            || contract.requirement.is_some_and(|requirement| {
+                module
+                    .identities
+                    .text(requirement)
+                    .is_none_or(str::is_empty)
+            })
             || module
                 .identities
                 .text(contract.identity)

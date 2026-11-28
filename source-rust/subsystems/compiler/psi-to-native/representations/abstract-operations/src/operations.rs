@@ -195,6 +195,8 @@ define_abstract_operations! {
         value: AbstractResult,
     },
     PrimitiveScalarRead {
+        /// Type of the stored scalar before a dependent callable field is opened.
+        storage_scalar: semantic_vocabulary::ScalarType,
         psi_operation: OperationId,
         result: AbstractResult,
         source: PlaceId,
@@ -457,12 +459,15 @@ define_abstract_operations! {
     EstablishRecord {
         psi_operation: OperationId,
         result: OperationResult,
+        instantiated: operation_operands::structural_stores::InstantiatedFieldTypes,
         fields: Vec<terminal_psi::RecordFieldInitializer>,
     },
     CallStructural {
         psi_operation: OperationId,
         suspension_crossing: Option<semantic_vocabulary::SuspensionCrossingId>,
         callee: AbstractCallTarget,
+        /// Stored referent for each argument the call reborrows through a package opening.
+        opened_referents: Vec<(usize, semantic_vocabulary::StructuralTypeId)>,
         arguments: Vec<ValueId>, // Runtime scalar arguments in exact Terminal call order.
         structural_arguments: Vec<StructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,

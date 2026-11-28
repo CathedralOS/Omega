@@ -8,3 +8,11 @@ public machine send(bytes: @[u8]) -> bool
 {
     block |datagram|::Datagram::send(bytes)
 }
+
+public machine receive_reply(bytes: @mutable [u8]) -> |datagram|::ReceiveResult
+    reaches |authority|::NetworkReceive
+    blocks
+    crashes none
+{
+    block |datagram|::DatagramReplies::receive(bytes)
+}

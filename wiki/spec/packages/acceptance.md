@@ -163,51 +163,7 @@ audit. Exceeding a packet limit rejects rather than silently truncating evidence
 
 ## Assumed binding contract acceptance
 
-**Version 4 only.** These historical rows describe the old review workflow.
-Reject an old registration during migration. Its approval grants no unsafe reach.
-
-Ordinary applications should reject this category outright. A dependency must
-not turn an ordinary ownership, proof, contract or compiler failure into a
-request for consumer trust. Exceptional acceptance needs a concrete requirement
-to operate outside the checked model, following the
-[usage rule](../build/assumed_binding_contracts.md). A compiler rejection by
-itself supplies no such requirement.
-
-An explicit [assumed binding contract](../build/assumed_binding_contracts.md)
-is an **Extremely high risk - assumed binding contract** finding, including
-when reached only through dependencies or wrappers. Install, update and audit
-show both contracts, the actual selected provider/implementation, the exact
-admitted difference and any authority introduced, runtime scope, dependency
-path, and old/new acceptance. It is never an ordinary provider-selection change
-that merely recommends review.
-
-The root may explicitly assume the semantic connection even when the checker
-can refute it. Audit must show the exact conflicting statements, mapped subjects
-and supporting refutation facts, not describe a known contradiction as only a
-missing proof. It remains the same extremely-high-risk relationship and requires
-the same exact acceptance, not a second override facility. Acceptance records
-the consumer's trust decision; it neither proves the connection nor makes
-resulting conditional guarantees unconditional. Ordinary refutable grants and
-structural/operational incompatibilities remain rejected.
-
-Root authorization is not itself package acceptance. Require an explicit project
-decision for the exact relationship and its selected implementation/dependency
-identity. Changed contracts, mapping, selected code or semantic dependency closure
-invalidate that acceptance even when the public signature is unchanged. This is
-a risk-bearing assumption row, so the ordinary resolution-only preservation rule
-does not preserve a changed row. Identical accepted rows need no repeated prompt;
-the high-risk classification remains visible.
-
-Retain the compact readable relationship and exact commitments in `omega.lock`;
-reconstruct complete findings from the candidate. No old-source compiler pass,
-full provider-plan dump, or separate approval file is needed. Missing or stale
-acceptance prevents use of the assumed relationship. Dependency locks cannot
-grant it on behalf of the consumer, and receivers may refuse it independently.
-
-This decision is runtime-only. It cannot authorize execution of the relationship
-or use of its assumptions by build code, generators, semantic evaluation or
-automatic build-time tests. That rejection is not a pending restricted-build
-request that broader host permissions can satisfy.
+Historical version 4 approvals could name a relationship between different contracts. The current lock reader rejects those rows. Remove the registration and migrate the provider or its adapter to the caller's checked contract. Review the new implementation and its actual authority under current package rules. [Provider contract migration](../build/assumed_binding_contracts.md) · [Lock migration](locks.md)
 
 ## Restricted-build acceptance
 

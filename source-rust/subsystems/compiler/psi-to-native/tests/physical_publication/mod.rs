@@ -1120,6 +1120,58 @@ fn check_canonical_publication(
 }
 
 #[test]
+fn fixed_activation_sizes_a_staged_worker_and_does_not_substitute_a_windows_stack() {
+    use calling_conventions::{
+        CallSignature, CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,
+    };
+    use entry_planning::fixed_activation::FixedActivationLayout;
+    use target::TargetProfile;
+    let artifact = constant_artifact(false);
+    for profile in [TargetProfile::LinuxX64, TargetProfile::WindowsX64] {
+        let (_, _, _, admitted) = admit_fixture(&artifact, false, profile);
+        emit_body_inspecting_physical(
+            admitted,
+            profile,
+            false,
+            |_| {},
+            |physical| {
+                let frame = &physical.stage.program().frame;
+                let call = evaluate_ordinary_boundary_entry_plan(
+                    CallingPolicy::native_for_target(profile.native_target()),
+                    &CallSignature {
+                        parameters: vec![],
+                        result: Some(ValueShape::integer(8, 8)),
+                    },
+                )
+                .unwrap();
+                let transport = entry_planning::callable_entry::plan_callable_entry_transport(
+                    frame,
+                    physical.stage.installations().for_entry_planning(),
+                    call.plan(),
+                    &[],
+                )
+                .unwrap();
+                let layout = FixedActivationLayout::for_worker(frame, transport);
+                if profile == TargetProfile::WindowsX64 {
+                    assert_eq!(
+                        layout.unwrap_err(),
+                        "fixed activation has no stack-transfer layout for this target entry"
+                    );
+                } else {
+                    let layout = layout.unwrap();
+                    // This leaf needs no local frame, but its call still pushes a
+                    // return address below the aligned top on the retained stack.
+                    let stack = layout.stack_range();
+                    assert_eq!(stack.end - stack.start, 16);
+                    assert!(layout.fits(0x1000, stack.end));
+                    assert!(!layout.fits(0x1000, stack.end - 1));
+                }
+            },
+        );
+    }
+}
+
+#[test]
 fn placed_scalar_return_has_the_expected_bytes_on_every_hosted_target() {
     use target::TargetProfile::*;
     let artifact = constant_artifact(false);
@@ -1139,12 +1191,10 @@ fn placed_scalar_return_has_the_expected_bytes_on_every_hosted_target() {
             object.text_bytes().to_vec()
         };
         let ordinary = emit(false);
-        // Return 7 in the ABI result register. AArch64 also emits the selected register copy.
+        // Return 7 in the ABI result register, then return to the caller.
         let expected: &[u8] = match profile.native_target().architecture {
             target::Architecture::X86_64 => &[0x48, 0xb8, 7, 0, 0, 0, 0, 0, 0, 0, 0xc3],
-            target::Architecture::Aarch64 => {
-                &[0xe0, 0, 0x80, 0xd2, 0xe0, 3, 0, 0xaa, 0xc0, 3, 0x5f, 0xd6]
-            }
+            target::Architecture::Aarch64 => &[0xe0, 0, 0x80, 0xd2, 0xc0, 3, 0x5f, 0xd6],
         };
         assert_eq!(ordinary, expected, "{profile:?}");
         assert_eq!(ordinary, emit(true), "{profile:?}");

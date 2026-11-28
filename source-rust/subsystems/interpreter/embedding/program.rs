@@ -790,6 +790,8 @@ pub(crate) mod instance {
                             }
                         }
                         TerminalExecutionResult::ScalarCase(_)
+                            if execution.returned_claims.is_empty() => {}
+                        TerminalExecutionResult::ScalarCase(_)
                         | TerminalExecutionResult::ScalarArray(_) => {
                             return Err(
                                 "component return requires a selected case or array storage transfer carrier",

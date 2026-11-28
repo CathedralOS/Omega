@@ -1293,12 +1293,12 @@ pub(crate) mod byte_buffers {
     }
 
     impl BoundaryArguments {
-        /// Extract immutable byte descriptors with self-contained shared backing.
+        /// Extract byte descriptors whose checked backing can be lent across instances.
         /// Every other companion needs its own checked cross-instance carrier.
         pub(crate) fn take_component_byte_views(
             &mut self,
             original_identity_cursor: Option<u64>,
-        ) -> Result<std::collections::BTreeMap<usize, ByteSequenceView>, TerminalInterpretError>
+        ) -> Result<std::collections::BTreeMap<usize, ByteSequenceBinding>, TerminalInterpretError>
         {
             if self.local_identity_cursor != original_identity_cursor
                 || self.aggregate_backings.iter().any(Option::is_some)
@@ -1317,7 +1317,10 @@ pub(crate) mod byte_buffers {
             for (index, binding) in self.byte_sequences.iter_mut().enumerate() {
                 match binding.take() {
                     None => {}
-                    Some(ByteSequenceBinding::Immutable(view)) => {
+                    Some(
+                        view @ (ByteSequenceBinding::Immutable(_)
+                        | ByteSequenceBinding::MutableArray { .. }),
+                    ) => {
                         views.insert(index, view);
                     }
                     Some(_) => {

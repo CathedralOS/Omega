@@ -2024,7 +2024,7 @@ pub(crate) mod stack_demand {
 
     fn physical_stack_facts(artifact: &ObjectArtifact) -> PhysicalStackProgram {
         PhysicalStackProgram {
-            psi: artifact.psi, target: artifact.target,
+            psi: artifact.psi, target: artifact.target, entry: artifact.entry(),
             functions: artifact.functions.iter().map(|function| {
                 let local = match (function.unit_stack, function.scalar_stack) {
                     (Some(_), Some(_)) => LocalStackExtent::Conflicting,

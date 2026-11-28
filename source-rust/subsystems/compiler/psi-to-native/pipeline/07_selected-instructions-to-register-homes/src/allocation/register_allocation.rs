@@ -40,7 +40,7 @@ pub fn stage_register_allocation(
     optimized: selected_rewrites::SelectedInstructionOptimizationOutput,
 ) -> Result<
     (
-        RetainedAllocation,
+        crate::allocation::AllocationResult,
         Option<selected_rewrites::SelectedOptimizationReplay>,
     ),
     RegisterAllocationError,
@@ -51,7 +51,7 @@ pub fn stage_register_allocation(
     } else {
         (optimized.into_allocation_input(), None)
     };
-    Ok((allocate(input, body)?, replay))
+    Ok((allocate(input, body)?.publish(), replay))
 }
 
 fn allocate(

@@ -2306,6 +2306,23 @@ pub(crate) mod operation_encoding {
     field!(u16, |bytes, value| bytes.u16(*value));
     field!(u32, |bytes, value| bytes.u32(*value));
     field!(u64, |bytes, value| bytes.u64(*value));
+    field!(
+        abstract_operations::InstantiatedFieldTypes,
+        |bytes, fields| {
+            bytes.len(fields.fields().len());
+            for (id, field_type) in fields.fields() {
+                bytes.id(*id);
+                encode_scalar_restriction(bytes, field_type);
+            }
+        }
+    );
+    field!(
+        (usize, semantic_vocabulary::StructuralTypeId),
+        |bytes, referent| {
+            bytes.len(referent.0);
+            bytes.id(referent.1);
+        }
+    );
     field!(bool, |bytes, value| bytes.boolean(*value));
     field!(abstract_operations::AbstractResult, |bytes, value| {
         encode_abstract_result(bytes, *value)
@@ -2951,6 +2968,49 @@ pub(crate) mod operation_encoding {
         Option<abstract_operations::AtomicResidencyEdge>,
         |bytes, value| atomic::encode_residency_edge(bytes, value)
     );
+
+    #[cfg(test)]
+    #[test]
+    fn package_operands_encode_the_field_types_and_parameter_positions() {
+        use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};
+        use terminal_psi::StructuralFieldType;
+
+        let first = StructuralFieldId::new(1).unwrap();
+        let second = StructuralFieldId::new(2).unwrap();
+        let witness = StructuralTypeId::new(9).unwrap();
+        let scalar = StructuralFieldType::Scalar(ScalarType::Boolean);
+        let reference = StructuralFieldType::Structural(witness);
+        let fields = abstract_operations::InstantiatedFieldTypes::from_fields(vec![
+            (second, reference.clone()),
+            (first, scalar.clone()),
+        ])
+        .unwrap();
+        assert!(
+            abstract_operations::InstantiatedFieldTypes::from_fields(vec![
+                (first, scalar.clone()),
+                (first, reference.clone()),
+            ])
+            .is_none()
+        );
+
+        let mut output = CanonicalBytes::collect();
+        fields.encode(&mut output);
+        let mut expected = CanonicalBytes::collect();
+        expected.len(2);
+        expected.id(first);
+        encode_scalar_restriction(&mut expected, &scalar);
+        expected.id(second);
+        encode_scalar_restriction(&mut expected, &reference);
+        assert_eq!(output.finish(), expected.finish());
+
+        let mut output = CanonicalBytes::collect();
+        vec![(3usize, witness)].encode(&mut output);
+        let mut expected = CanonicalBytes::collect();
+        expected.len(1);
+        expected.len(3);
+        expected.id(witness);
+        assert_eq!(output.finish(), expected.finish());
+    }
 
     pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
         macro_rules! encode_fields {

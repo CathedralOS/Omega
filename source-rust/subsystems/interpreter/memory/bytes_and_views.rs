@@ -10,7 +10,6 @@
 pub(crate) mod byte_sequences {
     pub(crate) mod binding {
         use crate::boundary::errors::{TerminalInterpretError, malformed};
-        use crate::boundary::structural_inputs::byte_arrays;
         use crate::boundary::structural_inputs::byte_arrays::storage::ArrayStorage;
         use crate::boundary::values::StructuralByteSequenceRuntimeField;
         use crate::boundary::values::TerminalStructuralValue;
@@ -333,7 +332,7 @@ pub(crate) mod byte_sequences {
                         _ => (
                             referent.path.as_slice(),
                             *offset == 0
-                                && byte_arrays::byte_array_length(&structural_types, *array_type)
+                                && execution.checked_byte_array_extent(array, *array_type)
                                     == Some(*length),
                         ),
                     };
@@ -360,7 +359,8 @@ pub(crate) mod byte_sequences {
                             &referent.qualifications,
                         )
                         .is_some()
-                        && byte_arrays::byte_array_length(&structural_types, *array_type)
+                        && execution
+                            .checked_byte_array_extent(array, *array_type)
                             .is_some_and(|extent| {
                                 offset.checked_add(*length).is_some_and(|end| end <= extent)
                             })
@@ -859,9 +859,9 @@ pub(crate) mod byte_sequences {
                         ..
                     } => {
                         binding.validate_mutable_referent(self, selected)?;
-                        let extent =
-                            byte_arrays::byte_array_length(&self.structural_types(), *array_type)
-                                .ok_or(malformed())?;
+                        let extent = self
+                            .checked_byte_array_extent(array, *array_type)
+                            .ok_or(malformed())?;
                         if self.stored_byte_array_length(array)? as u128 != u128::from(extent)
                             || offset.checked_add(*length).is_none_or(|end| end > extent)
                         {
@@ -2705,7 +2705,6 @@ pub(crate) mod byte_sequences {
         }
     }
     pub(crate) mod write {
-        use crate::boundary::structural_inputs::byte_arrays::byte_array_length;
         use semantic_vocabulary::{IntegerSign, IntegerType, PlaceId, ValueId};
         use terminal_psi::{
             Operation, OperationKind, OperationResult, StructuralAccess, StructuralArgument,
@@ -2823,7 +2822,8 @@ pub(crate) mod byte_sequences {
                     ..
                 } = binding
                 {
-                    let length = byte_array_length(&self.structural_types(), *array_type)
+                    let length = self
+                        .checked_byte_array_extent(array, *array_type)
                         .ok_or(malformed())?;
                     if self.stored_byte_array_length(array)? as u128 != u128::from(length) {
                         return Err(malformed());

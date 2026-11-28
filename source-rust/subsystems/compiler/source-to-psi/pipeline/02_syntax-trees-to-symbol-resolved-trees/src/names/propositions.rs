@@ -132,6 +132,65 @@ fn fixed_core_static_symbols(
     }
 }
 
+/// A foundation type in a contract owns the expressions in its static
+/// arguments. Resolve the imported constructor first, so unrelated static
+/// applications retain their ordinary declaration binding.
+pub(super) fn foundation_arguments(
+    symbols: &SymbolTable,
+    owner: SymbolHandle,
+    parameters: &[TypeParameter],
+    types: &Arena<crate::source_resolved::types::TypeReference>,
+    expressions: &mut ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<Vec<ExpressionHandle>> {
+    let ExpressionNode::Name(path) = expressions.expression(expression) else {
+        return None;
+    };
+    let application = path.static_application;
+    let mut member = expressions.static_member(application)?.clone();
+    let written = formula_arguments(symbols, owner, parameters, types, &mut member);
+    let symbol = member.symbol;
+    if !matches!(
+        symbols.fixed_core_declaration_for_symbol(symbol),
+        Some(symbols::FixedCoreDeclaration::Box | symbols::FixedCoreDeclaration::Squash)
+    ) {
+        return None;
+    }
+    *expressions.static_member_mut(application)? = member;
+    if let ExpressionNode::Name(path) = expressions.expression_mut(expression) {
+        path.head_symbol = symbol;
+        path.symbol = symbol;
+    }
+    Some(written)
+}
+
+/// Resolve the selected type and return the expressions in its static
+/// arguments. The caller binds each expression in its own contract scope.
+fn formula_arguments(
+    symbols: &SymbolTable,
+    owner_symbol: SymbolHandle,
+    local_type_parameters: &[TypeParameter],
+    child_type_references: &Arena<crate::source_resolved::types::TypeReference>,
+    member: &mut crate::source_resolved::expression::StaticMachineArgument,
+) -> Vec<ExpressionHandle> {
+    assign_static_argument_symbols(symbols, owner_symbol, local_type_parameters, member, true);
+    fixed_core_static_symbols(symbols, member);
+    let mut written = Vec::new();
+    let mut pending = vec![&*member];
+    while let Some(argument) = pending.pop() {
+        if argument.type_reference.is_valid()
+            && let crate::source_resolved::types::TypeReference::ConstExpression(constant) =
+                child_type_references.get(argument.type_reference)
+        {
+            written.push(constant.expression);
+        }
+        if let Some(application) = &argument.application {
+            pending.extend(application.arguments.iter());
+        }
+    }
+    written
+}
+
 fn assign_expression_symbols_in_role(
     expressions: &mut ExpressionTable,
     child_type_references: &mut crate::source_resolved::types::TypeReferenceArena,
@@ -311,27 +370,13 @@ fn assign_expression_symbols_in_role(
                 .static_member(path.static_application)
                 .cloned()
                 .expect("the guard found the applied member");
-            assign_static_argument_symbols(
+            let written = formula_arguments(
                 symbols,
                 owner_symbol,
                 local_type_parameters,
+                child_type_references,
                 &mut member,
-                true,
             );
-            fixed_core_static_symbols(symbols, &mut member);
-            let mut written = Vec::new();
-            let mut pending = vec![&member];
-            while let Some(argument) = pending.pop() {
-                if argument.type_reference.is_valid()
-                    && let crate::source_resolved::types::TypeReference::ConstExpression(constant) =
-                        child_type_references.get(argument.type_reference)
-                {
-                    written.push(constant.expression);
-                }
-                if let Some(application) = &argument.application {
-                    pending.extend(application.arguments.iter());
-                }
-            }
             for argument in written {
                 recurse!(argument);
             }

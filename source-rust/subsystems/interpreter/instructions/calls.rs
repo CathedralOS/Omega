@@ -1187,11 +1187,41 @@ pub(crate) mod component_arguments {
         pub(crate) source: Option<crate::boundary::effects::byte_buffers::BoundaryArguments>,
         pub(crate) values: Vec<TerminalStructuralValue>,
         pub(crate) contents: Vec<crate::TerminalStructuralContents>,
-        byte_arguments: BTreeMap<usize, ByteSequenceView>,
+        byte_arguments: BTreeMap<usize, ComponentByteInput>,
         opaque_arguments: Vec<usize>,
         scalar_arguments: Vec<LentScalarArgument>,
         empty_arguments: Vec<SharedEmptyArgument>,
         _scalar_scope: Option<crate::storage::scalar_storage::ScalarLoanScope>,
+    }
+
+    enum ComponentByteInput {
+        Shared(ByteSequenceView),
+        Mutable(crate::component_byte_loans::ComponentByteArray),
+    }
+
+    impl ComponentByteInput {
+        fn range(
+            &self,
+        ) -> Result<
+            Option<crate::storage::storage_addresses::ByteAddressRange<'_>>,
+            TerminalInterpretError,
+        > {
+            let (first, offset, length) = match self {
+                Self::Shared(view) => {
+                    let Some((first, offset)) = view.component_array_address(0) else {
+                        return Ok(None);
+                    };
+                    (first, offset, view.len())
+                }
+                Self::Mutable(array) => {
+                    let Some(first) = &array.first else {
+                        return Ok(None);
+                    };
+                    (first, 0, array.cells.cells().len())
+                }
+            };
+            first.byte_range(offset, length).map(Some)
+        }
     }
 
     impl ComponentInputCustody {
@@ -1202,15 +1232,20 @@ pub(crate) mod component_arguments {
             if self.source.is_none() && self.byte_arguments.is_empty() {
                 return Ok(());
             }
-            let entry = child.program.verified_machine(child.current_machine)?;
+            let program = child.program.clone();
+            let entry = program.verified_machine(child.current_machine)?;
             if entry.structural_parameters.len() != self.values.len() {
                 return Err(malformed());
             }
             for (&index, view) in &self.byte_arguments {
                 let parameter = entry.structural_parameters.get(index).ok_or(malformed())?;
                 let home = child.structural_value(parameter.place)?.clone();
-                let binding =
-                    ByteSequenceBinding::Immutable(view.clone().with_descriptor_home(home));
+                let binding = match view {
+                    ComponentByteInput::Shared(bytes) => {
+                        ByteSequenceBinding::Immutable(bytes.clone().with_descriptor_home(home))
+                    }
+                    ComponentByteInput::Mutable(lender) => lender.bind(child, home)?,
+                };
                 if child
                     .byte_sequence_values
                     .insert(parameter.place, binding)?
@@ -1321,7 +1356,7 @@ pub(crate) mod component_arguments {
                 self.account.as_ref(),
             )?;
             validate_boundary_requirements(receiver, |index| prepared.values.get(index))?;
-            let mut byte_arguments =
+            let byte_arguments =
                 prepared.take_component_byte_views(self.local_structural_identities.cursor())?;
             let lending = arguments
                 .iter()
@@ -1389,19 +1424,25 @@ pub(crate) mod component_arguments {
                     ));
                 }
                 let byte_view = byte_arguments.contains_key(&argument_index);
-                let shared_view = |shape: &terminal_psi::StructuralTypeShape| {
-                    matches!(shape, terminal_psi::StructuralTypeShape::ByteSequence(carrier)
-                        if carrier.is_shared_readable_view())
-                };
-                if byte_view
-                    && (!shared_view(&receiver_type.shape)
-                        || !shared_view(&provider_type.shape)
-                        || required.access != StructuralAccess::SharedBorrow)
-                {
-                    return Err(error(format!(
-                        "shared byte backing requires matching read-only views: receiving {:?} {:?}, provider {:?} {:?}",
-                        required.access, receiver_type.shape, supplied.access, provider_type.shape
-                    )));
+                if let Some(binding) = byte_arguments.get(&argument_index) {
+                    let admits = |shape: &terminal_psi::StructuralTypeShape| match shape {
+                        terminal_psi::StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { access },
+                        ) => access.is_none_or(|access| access == required.access),
+                        _ => false,
+                    };
+                    if binding.access() != required.access
+                        || !admits(&receiver_type.shape)
+                        || !admits(&provider_type.shape)
+                    {
+                        return Err(error(format!(
+                            "byte loan has incompatible access or shape: receiving {:?} {:?}, provider {:?} {:?}",
+                            required.access,
+                            receiver_type.shape,
+                            supplied.access,
+                            provider_type.shape
+                        )));
+                    }
                 }
                 // A shared descriptor only lends its checked view and never
                 // transfers ownership of the array. Owned and generic carriers
@@ -1608,12 +1649,15 @@ pub(crate) mod component_arguments {
                 arguments,
                 completion_receipts,
             )?;
-            let borrowed_mutations = scalar_arguments
+            let mut borrowed_mutations: Vec<_> = scalar_arguments
                 .iter()
                 .filter_map(|argument| argument.mutated_home().cloned())
                 .collect();
-            let scalar_scope = (!scalar_arguments.is_empty())
-                .then(crate::storage::scalar_storage::ScalarLoanScope::new);
+            let scalar_scope = (!scalar_arguments.is_empty()
+                || byte_arguments
+                    .values()
+                    .any(|binding| binding.access() == StructuralAccess::MutableBorrow))
+            .then(crate::storage::scalar_storage::ScalarLoanScope::new);
             let mut scalar_views = BTreeMap::new();
             let scalar_arguments = scalar_arguments
                 .into_iter()
@@ -1625,8 +1669,50 @@ pub(crate) mod component_arguments {
                     )
                 })
                 .collect::<Result<_, _>>()?;
-            for view in byte_arguments.values_mut() {
-                view.lend_array_to_component(self)?;
+            let byte_arguments = byte_arguments
+                .into_iter()
+                .map(|(index, binding)| {
+                    let input = match binding {
+                        ByteSequenceBinding::Immutable(mut view) => {
+                            view.lend_array_to_component(self)?;
+                            ComponentByteInput::Shared(view)
+                        }
+                        ByteSequenceBinding::MutableArray {
+                            array,
+                            array_type,
+                            offset,
+                            length,
+                            ..
+                        } => {
+                            borrowed_mutations.push(array.referent.clone());
+                            let window = crate::storage::byte_sequences::OriginalByteArrayWindow {
+                                array,
+                                array_type,
+                                offset: usize::try_from(offset).map_err(|_| malformed())?,
+                                length: usize::try_from(length).map_err(|_| malformed())?,
+                            };
+                            ComponentByteInput::Mutable(self.lend_component_byte_array(
+                                &window,
+                                scalar_scope.as_ref().ok_or(malformed())?,
+                            )?)
+                        }
+                        _ => return Err(malformed()),
+                    };
+                    Ok((index, input))
+                })
+                .collect::<Result<BTreeMap<_, _>, _>>()?;
+            let mut ranges = Vec::new();
+            for input in byte_arguments.values() {
+                if let Some(range) = input.range()? {
+                    let mutable = matches!(input, ComponentByteInput::Mutable(_));
+                    if ranges
+                        .iter()
+                        .any(|(prior, exclusive)| (mutable || *exclusive) && range.overlaps(prior))
+                    {
+                        return Err(reject("component byte inputs overlap an exclusive window"));
+                    }
+                    ranges.push((range, mutable));
+                }
             }
             Ok(PreparedComponentArguments {
                 custody: ComponentInputCustody {
@@ -1801,6 +1887,26 @@ pub(crate) mod component_calls {
                     TerminalExecutionResult::Scalar(value),
                 ) if left == right && value.scalar_type() == left.scalar_type => {
                     TerminalEffectResult::Scalar(*value)
+                }
+                (
+                    BoundaryMachineResult::Structural(left),
+                    BoundaryMachineResult::Structural(right),
+                    TerminalExecutionResult::ScalarCase(case),
+                ) if left.multiplicity == right.multiplicity
+                    && left.multiplicity != terminal_psi::StructuralMultiplicity::Linear
+                    && left.qualifications.is_empty()
+                    && right.qualifications.is_empty()
+                    && left.projected_qualifications.is_empty()
+                    && right.projected_qualifications.is_empty()
+                    && case.value().structural_type == right.structural_type
+                    && matches!(&operation.result, OperationResult::Structural(result) if result.claims.is_empty())
+                    && completed.returned_claims().is_some_and(<[_]>::is_empty) =>
+                {
+                    TerminalEffectResult::Aggregate(self.receive_component_case(
+                        provider,
+                        case.value(),
+                        left.structural_type,
+                    )?)
                 }
                 (
                     BoundaryMachineResult::Structural(left),
@@ -2002,6 +2108,49 @@ pub(crate) mod component_contents {
                 destination_types: provider.program.structural_types(),
                 destination_identities: &provider.program.catalogs.identities,
             }
+        }
+
+        pub(crate) fn receive_component_case(
+            &self,
+            provider: &TerminalProgram<'_>,
+            result: &crate::TerminalAggregateValue,
+            destination: StructuralTypeId,
+        ) -> Result<crate::TerminalAggregateValue, TerminalInterpretError> {
+            let mapping = ComponentContentsMapping {
+                source_types: provider.program.structural_types(),
+                source_identities: &provider.program.catalogs.identities,
+                destination_types: self.structural_types(),
+                destination_identities: &self.program.catalogs.identities,
+            };
+            let source = result.structural_type;
+            let case = result.result_case.ok_or(malformed())?;
+            let root = mapping.rehome(
+                source,
+                destination,
+                TerminalBoundaryStorageValue {
+                    path: Vec::new(),
+                    contents: TerminalStorageContents::Case(case),
+                },
+            )?;
+            let TerminalStorageContents::Case(received_case) = root.contents else {
+                return Err(malformed());
+            };
+            let mut fields = Vec::with_capacity(result.fields.len());
+            for field in &result.fields {
+                let mut rooted = field.clone();
+                rooted.path.insert(0, Path::Case(case));
+                let mut received = mapping.rehome(source, destination, rooted)?;
+                if received.path.first() != Some(&Path::Case(received_case)) {
+                    return Err(malformed());
+                }
+                received.path.remove(0);
+                fields.push(received);
+            }
+            Ok(crate::TerminalAggregateValue {
+                structural_type: destination,
+                result_case: Some(received_case),
+                fields,
+            })
         }
 
         pub(crate) fn capture_component_contents(
