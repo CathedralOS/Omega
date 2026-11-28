@@ -21,6 +21,8 @@ pub struct VirtualRegister {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VirtualRegisterOrigin {
+    /// Native input lent by the execution owner. It has no source-level value ID.
+    ActivationOwner,
     InstructionScratch {
         instruction: SelectedInstructionId,
         operand: u16,
@@ -65,6 +67,7 @@ pub enum VirtualRegisterOrigin {
 impl VirtualRegisterOrigin {
     pub fn encode_identity(&self, bytes: &mut Vec<u8>) {
         match self {
+            VirtualRegisterOrigin::ActivationOwner => bytes.push(10),
             VirtualRegisterOrigin::InstructionScratch {
                 instruction,
                 operand,

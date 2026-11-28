@@ -4725,6 +4725,7 @@ pub(crate) mod tests {
             constraints: &constraints,
             catalog,
             registers: vec![],
+            activation_owner: None,
             pending_result_origins: vec![],
             instructions: vec![],
             implementation_blocks: vec![],

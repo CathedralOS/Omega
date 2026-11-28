@@ -1907,7 +1907,8 @@ pub(crate) mod edge_values {
         }
         let source = index.unique_register(argument).ok_or_else(mismatch)?;
         let value = match source.origin {
-            VirtualRegisterOrigin::StructuralParameter { .. }
+            VirtualRegisterOrigin::ActivationOwner
+            | VirtualRegisterOrigin::StructuralParameter { .. }
             | VirtualRegisterOrigin::SpillAddress { .. }
             | VirtualRegisterOrigin::StructuralObservation { .. }
             | VirtualRegisterOrigin::ScalarAbiAddress { .. }

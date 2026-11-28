@@ -1812,7 +1812,8 @@ pub(crate) mod selected_lowering {
                                     removed_instructions,
                                 )?;
                             }
-                            VirtualRegisterOrigin::EntryParameter { .. }
+                            VirtualRegisterOrigin::ActivationOwner
+                            | VirtualRegisterOrigin::EntryParameter { .. }
                             | VirtualRegisterOrigin::StructuralParameter { .. }
                             | VirtualRegisterOrigin::BlockParameter { .. } => {}
                         }
