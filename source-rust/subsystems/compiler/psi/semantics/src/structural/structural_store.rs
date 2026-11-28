@@ -199,7 +199,9 @@ fn disposable_storage<'types>(
     visiting.push(identity);
     let valid = match &declaration.shape {
         StructuralTypeShape::Opaque => declaration.no_code_affine_cleanup,
-        StructuralTypeShape::TypeParameter => false,
+        // A [copy] binder permits discarding a copy during replacement.
+        // The concrete application still checks the type and its loan paths.
+        StructuralTypeShape::TypeParameter => declaration.is_copyable(),
         StructuralTypeShape::PrimitiveScalar(_) => true,
         StructuralTypeShape::AtomicCell(_) => true,
         StructuralTypeShape::ByteSequence(carrier) => {
