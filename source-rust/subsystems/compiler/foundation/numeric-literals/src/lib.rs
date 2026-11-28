@@ -346,6 +346,11 @@ enum IntegerRepresentation {
         text: Arc<String>,
         landing: Option<IntegerLanding>,
     },
+    /// A computed value wider than the inline magnitude already has exact limbs.
+    Computed {
+        value: Arc<bignum::BigInt>,
+        landing: Option<IntegerLanding>,
+    },
 }
 
 pub struct CanonicalIntegerSpelling<'literal> {
@@ -354,6 +359,7 @@ pub struct CanonicalIntegerSpelling<'literal> {
 
 enum IntegerSpellingStorage<'literal> {
     Borrowed(&'literal str),
+    Computed(String),
     Inline { bytes: [u8; 67], start: u8 },
 }
 
@@ -361,6 +367,7 @@ impl CanonicalIntegerSpelling<'_> {
     pub fn as_str(&self) -> &str {
         match &self.storage {
             IntegerSpellingStorage::Borrowed(text) => text,
+            IntegerSpellingStorage::Computed(text) => text,
             IntegerSpellingStorage::Inline { bytes, start } => {
                 std::str::from_utf8(&bytes[usize::from(*start)..])
                     .expect("canonical integer formatting writes only ASCII")
@@ -412,6 +419,18 @@ impl PartialEq for IntegerLiteral {
                 IntegerRepresentation::Large { text: left, .. },
                 IntegerRepresentation::Large { text: right, .. },
             ) => left == right,
+            (
+                IntegerRepresentation::Computed { value: left, .. },
+                IntegerRepresentation::Computed { value: right, .. },
+            ) => left == right,
+            (
+                IntegerRepresentation::Computed { value, .. },
+                IntegerRepresentation::Large { text, .. },
+            )
+            | (
+                IntegerRepresentation::Large { text, .. },
+                IntegerRepresentation::Computed { value, .. },
+            ) => bignum::BigInt::from_decimal_str(text).as_ref() == Some(value.as_ref()),
             _ => false,
         }
     }
@@ -480,6 +499,22 @@ impl IntegerLiteral {
         })
     }
 
+    pub fn from_integer(value: bignum::BigInt) -> Self {
+        let representation = match value.magnitude_words() {
+            [] | [_] => IntegerRepresentation::Small {
+                magnitude: value.magnitude_words().first().copied().unwrap_or(0),
+                radix: IntegerRadix::Decimal,
+                negative: value.is_negative(),
+                landing: None,
+            },
+            _ => IntegerRepresentation::Computed {
+                value: Arc::new(value),
+                landing: None,
+            },
+        };
+        Self { representation }
+    }
+
     pub fn from_value(value: i64) -> Self {
         Self {
             representation: IntegerRepresentation::Small {
@@ -499,6 +534,7 @@ impl IntegerLiteral {
         let mut result = self.clone();
         match &mut result.representation {
             IntegerRepresentation::Small { landing: slot, .. }
+            | IntegerRepresentation::Computed { landing: slot, .. }
             | IntegerRepresentation::Large { landing: slot, .. } => *slot = Some(landing),
         }
         result
@@ -507,6 +543,7 @@ impl IntegerLiteral {
     pub fn landing(&self) -> Option<IntegerLanding> {
         match self.representation {
             IntegerRepresentation::Small { landing, .. }
+            | IntegerRepresentation::Computed { landing, .. }
             | IntegerRepresentation::Large { landing, .. } => landing,
         }
     }
@@ -515,6 +552,7 @@ impl IntegerLiteral {
         match &self.representation {
             IntegerRepresentation::Small { negative, .. } => *negative,
             IntegerRepresentation::Large { text, .. } => text.starts_with('-'),
+            IntegerRepresentation::Computed { value, .. } => value.is_negative(),
         }
     }
 
@@ -531,6 +569,12 @@ impl IntegerLiteral {
                     radix: *radix,
                     landing: *landing,
                     negative: !(*magnitude == 0 && *radix == IntegerRadix::Decimal) && !negative,
+                },
+            },
+            IntegerRepresentation::Computed { value, landing } => Self {
+                representation: IntegerRepresentation::Computed {
+                    value: Arc::new(value.negate()),
+                    landing: *landing,
                 },
             },
             IntegerRepresentation::Large { text, landing } => Self {
@@ -576,6 +620,7 @@ impl IntegerLiteral {
     pub fn magnitude_u128(&self) -> Option<u128> {
         match &self.representation {
             IntegerRepresentation::Small { magnitude, .. } => Some(u128::from(*magnitude)),
+            IntegerRepresentation::Computed { value, .. } => value.abs().to_u128(),
             IntegerRepresentation::Large { text, .. } => {
                 let (radix, digits) = split_radix(text.strip_prefix('-').unwrap_or(text));
                 u128::from_str_radix(digits, radix).ok()
@@ -585,6 +630,7 @@ impl IntegerLiteral {
 
     pub fn value_bignum(&self) -> Option<bignum::BigInt> {
         match &self.representation {
+            IntegerRepresentation::Computed { value, .. } => Some(value.as_ref().clone()),
             IntegerRepresentation::Small {
                 magnitude,
                 negative,
@@ -632,6 +678,7 @@ impl IntegerLiteral {
             }),
             IntegerRepresentation::Small { .. } => None,
             IntegerRepresentation::Large { text, .. } => text.parse().ok(),
+            IntegerRepresentation::Computed { value, .. } => value.to_i128(),
         }
     }
 
@@ -643,12 +690,16 @@ impl IntegerLiteral {
             } => self.value_bignum(),
             IntegerRepresentation::Small { .. } => None,
             IntegerRepresentation::Large { text, .. } => bignum::BigInt::from_decimal_str(text),
+            IntegerRepresentation::Computed { value, .. } => Some(value.as_ref().clone()),
         }
     }
 
     pub fn canonical_spelling(&self) -> CanonicalIntegerSpelling<'_> {
         let storage = match &self.representation {
             IntegerRepresentation::Large { text, .. } => IntegerSpellingStorage::Borrowed(text),
+            IntegerRepresentation::Computed { value, .. } => {
+                IntegerSpellingStorage::Computed(value.to_string())
+            }
             IntegerRepresentation::Small {
                 magnitude,
                 radix,
@@ -901,6 +952,32 @@ mod tests {
         assert!(!LandedIntegerType::U64.is_signed());
         assert_eq!(LandedIntegerType::U64.bit_width(), 64);
         assert!(LandedIntegerType::Fixed(FixedInteger::signed(8)).is_signed());
+    }
+
+    #[test]
+    fn computed_wide_integer_survives_storage_with_its_declared_type() {
+        use record_storage::{RecordLimits, decode, encode};
+
+        let digits = u128::MAX.to_string();
+        let computed =
+            IntegerLiteral::from_integer(bignum::BigInt::from_decimal_str(&digits).unwrap());
+        let authored = IntegerLiteral::from_parts(false, IntegerRadix::Decimal, &digits).unwrap();
+        assert_eq!(computed, authored);
+        let landing = IntegerLanding {
+            landed_type: LandedIntegerType::Fixed(FixedInteger::unsigned(128)),
+            domain: numerics::arithmetic::ArithmeticDomain::Wrapping,
+        };
+        let computed = computed.with_landing(landing);
+        let bytes = encode(&computed, RecordLimits::default()).unwrap();
+        let restored: IntegerLiteral = decode(&bytes, RecordLimits::default()).unwrap();
+        assert_eq!(restored.landing(), Some(landing));
+        assert_eq!(restored.magnitude_u128(), Some(u128::MAX));
+        assert_eq!(restored.value_u64(), None);
+        assert_eq!(restored.negated(), authored.negated());
+        assert_eq!(
+            restored.negated().canonical_spelling().as_str(),
+            format!("-{digits}")
+        );
     }
 
     #[test]

@@ -10,7 +10,7 @@ gives the stage order.
 
 ## Private allocation entrance
 
-stage 06 hands this stage one `SelectedAllocationInput`, whatever it did: the
+Stage 06 hands this stage one `SelectedBody`, whatever it did: the
 current program, the analyses stage 06 already established for it, and the
 program's `SelectedOptimizationRecord` (the completed rewrite phase, if any,
 and the transformations it applied). The entrance takes the selected
@@ -37,8 +37,10 @@ Plain, fixed-view-copy, rematerialization and executable-spill results share
 one allocation view.
 
 Liveness and live-range record types live in `selected-instructions`;
-legality, home and pressure record types live in `register-homes`. Algorithms,
-errors and receipts stay with the transform that produces them. Register views, storage and write units, fixed operands, ties,
+legality, home and pressure record types live in `register-homes`. Completed
+analysis receipts and per-function counts travel in `SelectedBody`. Algorithms
+and errors stay with their analysis implementation. Register views, storage and
+write units, fixed operands, ties,
 early clobbers, reservations and ABI call effects come from the validated
 target register description. A fixed operand constrains one occurrence; it does
 not preassign the value everywhere. Aliasing follows register units, not

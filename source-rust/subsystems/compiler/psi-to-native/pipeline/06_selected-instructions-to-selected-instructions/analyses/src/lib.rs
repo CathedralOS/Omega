@@ -40,11 +40,11 @@
   receipts (`StagedOptimizedLiveness`, `StagedOptimizedLiveRanges`,
   `StagedOptimizedAllocationLegality`) consumed by
   `06_selected-instructions-to-selected-instructions` and
-  `07_selected-instructions-to-register-homes`. `SelectedAllocationInput` is the
-  one form Omega 04 hands Omega 05: the current program, the analyses Omega 04
-  already established for it, and its `SelectedOptimizationRecord`. Omega 04's
-  rewrite history is evidence in that record, never a choice of how Omega 05
-  allocates.
+  `07_selected-instructions-to-register-homes`. Staged carriers are local views
+  used by these analysis procedures. The stages exchange the issued `SelectedBody`
+  representation; the driver carries optional producer replay evidence separately.
+  Rewrite history is data in that representation, never a choice of allocation
+  procedure. `handoff` moves admitted plans and count rows without recomputing them.
 */
 
 #[macro_export]
@@ -494,49 +494,10 @@ pub mod codec_bytes {
     pub use ::wire::codec_bytes::push_encoded;
     pub use ::wire::codec_bytes::{decode_header, encode_header};
 }
-mod selected_optimization_record {
-
-    use std::sync::Arc;
-
-    use register_homes::PostAllocationSelectedTransformation;
-    use selected_instructions::SelectedInstructionPlan;
-
-    /// What earlier selected-instruction rewrites did to the program a stage
-    /// receives: the program each completed Omega 04 phase ended with, and the
-    /// transformations they applied in order. Allocation copies it into its
-    /// manifest as evidence; it never chooses how a later stage runs.
-    /// Instruction selection's output carries the empty record. A validator
-    /// that kept a phase's run compares that run's output with the program
-    /// named here.
-    #[derive(Debug, Clone, Default, PartialEq, Eq)]
-    pub struct SelectedOptimizationRecord {
-        pub selected_lowering_output: Option<Arc<SelectedInstructionPlan>>,
-        pub pre_allocation_output: Option<Arc<SelectedInstructionPlan>>,
-        pub transformations: Vec<PostAllocationSelectedTransformation>,
-    }
-
-    impl SelectedOptimizationRecord {
-        /// Whether an Omega 04 rewrite phase produced the program.
-        pub const fn is_rewritten(&self) -> bool {
-            self.selected_lowering_output.is_some() || self.pre_allocation_output.is_some()
-        }
-
-        /// This record followed by transformations a later stage applied.
-        pub fn followed_by(
-            &self,
-            later: &[PostAllocationSelectedTransformation],
-        ) -> Vec<PostAllocationSelectedTransformation> {
-            let mut transformations = Vec::with_capacity(self.transformations.len() + later.len());
-            transformations.extend_from_slice(&self.transformations);
-            transformations.extend_from_slice(later);
-            transformations
-        }
-    }
-}
-pub use selected_optimization_record::SelectedOptimizationRecord;
-mod allocation_input;
+pub use selected_analysis_facts::SelectedOptimizationRecord;
+mod handoff;
 pub use ::wire::cursor;
-pub use allocation_input::SelectedAllocationInput;
+pub use handoff::{prepare_allocation_legality, publish_legality, publish_live_ranges};
 pub mod rewriting;
 pub mod work_accounting;
 pub use work_accounting::WorkDefect;
@@ -976,7 +937,7 @@ impl UnsealedRecoveryFacts {
                     prior,
                 )
                 .map_err(RecoveryReanalysisError::Legality)?;
-                allocation_legality::validate::FunctionCounts::new(&legality, index)
+                allocation_legality::validate::count_function(&legality, index)
                     .map_err(RecoveryReanalysisError::Legality)?;
                 Arc::new(legality)
             };

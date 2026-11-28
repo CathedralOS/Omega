@@ -1,6 +1,5 @@
-//! Authenticate the exact selected Darwin import, ABI plan and arguments of
-//! every reachable call before assigning its physical authority.
-#[path = "darwin_imports/contracts.rs"]
+//! Bind each checked POSIX import contract to all of its selected call sites.
+#[path = "posix_imports/contracts.rs"]
 mod contracts;
 use super::{TerminalAuthorityPolicy, TerminalAuthorityPolicyRow};
 use crate::{

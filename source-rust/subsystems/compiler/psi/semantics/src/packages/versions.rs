@@ -13,8 +13,9 @@ pub(super) fn same_storage_version(
     materialized: Option<semantic_vocabulary::PlaceId>,
 ) -> bool {
     use crate::descriptors::descriptor_lifetimes::descriptor_location;
+    use crate::descriptors::descriptor_results::payload_versions::require_preserved_observed_storage;
     use crate::descriptors::descriptor_results::{
-        DescriptorPayloadTarget, require_unchanged_observed_storage,
+        DescriptorPayloadTarget,
         terminal_borrowed_storage_graph_from,
     };
     let position = |id| {
@@ -106,7 +107,7 @@ pub(super) fn same_storage_version(
     let Ok(graph) = terminal_borrowed_storage_graph_from(module, [machine.id], &[]) else {
         return false;
     };
-    let unchanged = |place, path: &[StructuralPathSegment]| {
+    let preserved = |place, path: &[StructuralPathSegment], witness: bool| {
         let Some(root) = machine.structural_place_type(place) else {
             return false;
         };
@@ -115,18 +116,87 @@ pub(super) fn same_storage_version(
         else {
             return false;
         };
-        require_unchanged_observed_storage(
+        require_preserved_observed_storage(
             &module.types.structural_types,
             &graph,
             machine.id,
             read,
             use_site,
             &DescriptorPayloadTarget::current(location),
+            |(block, position)| {
+                witness
+                    && machine
+                        .block(&block)
+                        .and_then(|block| block.operations.get(position as usize))
+                        .is_some_and(|operation| {
+                            preserves_package_witness(module, machine, opened, operation)
+                        })
+            },
         )
         .is_ok()
     };
-    unchanged(opened.subject.place, &opened.subject.path)
-        && materialized.is_none_or(|place| unchanged(place, &[]))
+    // Field replacement preserves the package association, while an independently
+    // materialized reference must also survive as its own unchanged storage.
+    preserved(opened.subject.place, &opened.subject.path, true)
+        && materialized.is_none_or(|place| preserved(place, &[], false))
+}
+
+/// Updating one member keeps the witness. Whole-package writes, indirect selectors
+/// and changes of the separately materialized carrier still require ordinary replay.
+fn preserves_package_witness(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    opened: &TerminalPackageOpening,
+    operation: &Operation,
+) -> bool {
+    if !matches!(
+        operation.kind,
+        OperationKind::StructuralScalarFieldStore { .. }
+            | OperationKind::StoreStructuralField { .. }
+    ) {
+        return false;
+    }
+    if !opened.subject.path.iter().all(|step| {
+        matches!(
+            step,
+            StructuralPathSegment::Field(_)
+                | StructuralPathSegment::Case(_)
+                | StructuralPathSegment::FixedIndex(_)
+        )
+    }) {
+        return false;
+    }
+    let sites = &module.execution.packages.sites;
+    if let Ok(index) =
+        sites.binary_search_by_key(&(machine.id, operation.id), |s| (s.machine, s.operation))
+    {
+        // Every Store in the returned module must independently prove its exact
+        // destination, source and witness. Whole-package replacements cannot
+        // supply this receipt, even when they write another value of the same type.
+        return matches!(sites[index].event,
+            TerminalPackageEvent::Store { opening: index, .. }
+                if opening(module, machine.id, index).ok() == Some(opened));
+    }
+    let OperationKind::StructuralScalarFieldStore {
+        destination,
+        path,
+        field,
+        ..
+    } = &operation.kind
+    else {
+        return false;
+    };
+    // An ordinary scalar member such as a tag needs no opening evidence.
+    *destination == opened.subject.place
+        && crate::structural_paths_select_same_location(path, &opened.subject.path)
+        && fields(module, opened.record).is_ok_and(|fields| {
+            fields.iter().any(|decl| {
+                decl.id == *field
+                    && matches!(decl.field_type, StructuralFieldType::Scalar(_))
+                    && !decl.relevance.is_erased()
+                    && !fields::field_needs_opening(module, opened.record, decl)
+            })
+        })
 }
 
 /// A separate scalar or scalar collection can lend its elements without

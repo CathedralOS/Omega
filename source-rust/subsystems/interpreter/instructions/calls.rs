@@ -3211,17 +3211,95 @@ impl<'artifact> TerminalExecution<'artifact> {
             callee: operand, contract, ref arguments, ref structural_arguments,
             ref claim_transfers, ..
         });
-        let callee = self
-            .scalar_value(operand)?
-            .selected_machine(&program.catalogs.execution.callables, contract)
-            .ok_or_else(malformed)?;
-        self.execute_selected_call(
+        let descriptor = self.scalar_value(operand)?;
+        let sites = program.package_sites()?;
+        let catalog = &program.catalogs.execution.callables;
+        let opened = sites.invocation_contract(self.current_machine, operation.id);
+        let dispatch_contract = if let Some(required) = opened {
+            let crate::boundary::values::TerminalScalarValue::Callable {
+                contract: actual, ..
+            } = descriptor
+            else {
+                return Err(malformed());
+            };
+            if required != contract
+                || !sites.admits_descriptor(
+                    &program.catalogs,
+                    self.current_machine,
+                    operation.id,
+                    actual,
+                )
+            {
+                return Err(malformed());
+            }
+            actual
+        } else {
+            contract
+        };
+        let callee = descriptor
+            .selected_machine(catalog, dispatch_contract)
+            .ok_or(malformed())?;
+        if opened.is_some() {
+            let concrete = catalog.contract(dispatch_contract).ok_or(malformed())?;
+            self.opened_call_references = self.prepare_opened_call_references(
+                sites,
+                operation.id,
+                structural_arguments,
+                &concrete.structural_parameters,
+            )?;
+        }
+        let outcome = self.execute_selected_call(
             operation,
             callee,
             arguments,
             structural_arguments,
             claim_transfers,
-        )
+        );
+        self.opened_call_references.clear();
+        outcome
+    }
+
+    fn prepare_opened_call_references(
+        &self,
+        sites: &terminal_semantics::packages::CheckedPackageSites,
+        operation: semantic_vocabulary::OperationId,
+        arguments: &[terminal_psi::StructuralArgument],
+        parameters: &[terminal_psi::StructuralParameterDeclaration],
+    ) -> Result<
+        crate::storage::runtime_rows::RuntimeRows<
+            crate::boundary::values::StructuralRuntimePlace,
+            semantic_vocabulary::StructuralTypeId,
+        >,
+        TerminalInterpretError,
+    > {
+        let mut references = crate::storage::runtime_rows::RuntimeRows::new(self.account.as_ref());
+        for (index, (arg, param)) in arguments.iter().zip(parameters).enumerate() {
+            let Some(public) = sites.borrowed_argument(self.current_machine, operation, index)
+            else {
+                continue;
+            };
+            let Some((terminal_psi::StructuralPathSegment::Referent, prefix)) =
+                arg.path.split_last()
+            else {
+                return Err(malformed());
+            };
+            let carrier = self.resolve_live_projection(arg.place, prefix, arg.access)?;
+            let (referent, authority) = self.reference_contract(carrier.structural_type)?;
+            if referent != public
+                || arg.access != param.access
+                || !terminal_psi::structural_access_covers(authority, param.access)
+            {
+                return Err(malformed());
+            }
+            let home = crate::boundary::values::StructuralRuntimePlace::from(&carrier);
+            if references
+                .insert(home, param.structural_type)?
+                .is_some_and(|previous| previous != param.structural_type)
+            {
+                return Err(malformed());
+            }
+        }
+        Ok(references)
     }
 
     pub(crate) fn execute_call_dynamic(

@@ -276,18 +276,42 @@ pub fn require_unchanged_observed_storage(
     use_position: DescriptorPosition,
     storage: &DescriptorPayloadTarget,
 ) -> Result<(), &'static str> {
+    require_preserved_observed_storage(
+        types,
+        graph,
+        identity,
+        completed_observation,
+        use_position,
+        storage,
+        |_| false,
+    )
+}
+
+/// Replay the observation on every path, permitting only writes proved to preserve
+/// the property being observed. Ordinary value and descriptor observations permit none.
+pub(crate) fn require_preserved_observed_storage(
+    types: &[StructuralTypeDeclaration],
+    graph: &[DescriptorMachine],
+    identity: MachineId,
+    completed_observation: DescriptorPosition,
+    use_position: DescriptorPosition,
+    storage: &DescriptorPayloadTarget,
+    preserved_write: impl Fn(DescriptorPosition) -> bool,
+) -> Result<(), &'static str> {
     let machine =
         descriptor_machine(graph, identity).ok_or("observed storage machine is absent")?;
     if completed_observation == use_position {
         return Err("storage observation has not completed before its use");
     }
     let mut analysis = DescriptorAnalysis::with_reference_slots(types, graph);
-    require_unchanged_between(
+    require_preserved_from(
         machine,
         &mut analysis,
-        completed_observation,
+        VersionStart::Completed(completed_observation),
         use_position,
         storage,
+        None,
+        preserved_write,
     )
 }
 
@@ -396,6 +420,26 @@ fn require_unchanged_from(
     payload: &DescriptorPayloadTarget,
     incoming: Option<&super::payload_reachability::IncomingFlow>,
 ) -> Result<(), &'static str> {
+    require_preserved_from(
+        machine,
+        analysis,
+        start,
+        observation,
+        payload,
+        incoming,
+        |_| false,
+    )
+}
+
+fn require_preserved_from(
+    machine: &DescriptorMachine,
+    analysis: &mut DescriptorAnalysis<'_>,
+    start: VersionStart,
+    observation: DescriptorPosition,
+    payload: &DescriptorPayloadTarget,
+    incoming: Option<&super::payload_reachability::IncomingFlow>,
+    preserved_write: impl Fn(DescriptorPosition) -> bool,
+) -> Result<(), &'static str> {
     let identity = machine.id;
     let relevant = match incoming {
         Some(incoming) => super::payload_reachability::predecessors_with_incoming(
@@ -425,6 +469,9 @@ fn require_unchanged_from(
         observation,
         |position, ordinal| relevant.includes_edge(position, ordinal),
         |position, step| {
+            if preserved_write(position) {
+                return Ok(false);
+            }
             if machine.unresolved_contents_writes.contains(&position) {
                 return Ok(true);
             }

@@ -331,7 +331,20 @@ fn out_of_order_body_completion_matches_fresh_typing_semantics() {
     cohort = cohort.completing(&completed);
     let scoped = CohortOperandOwners::collect(&incremental_typed, &cohort);
     let full = collect_program_operand_owners(&incremental_typed);
+    let separate = machine_by_name(&incremental_typed, "deferred_extent");
+    let mut separate_expressions = 0;
     for (handle, node) in incremental_typed.expression_table.iter_expressions() {
+        if full
+            .expression_owners(handle)
+            .any(|owner| owner == separate)
+        {
+            separate_expressions += 1;
+            assert!(
+                scoped
+                    .expression_owners(handle)
+                    .all(|owner| owner != separate)
+            );
+        }
         let is_driver_expr = full.expression_owners(handle).any(|owner| owner == driver);
         if is_driver_expr {
             assert!(
@@ -342,6 +355,7 @@ fn out_of_order_body_completion_matches_fresh_typing_semantics() {
             );
         }
     }
+    assert!(separate_expressions > 0);
 }
 
 // Each body completion closes a cohort holding one machine. `apply` makes a

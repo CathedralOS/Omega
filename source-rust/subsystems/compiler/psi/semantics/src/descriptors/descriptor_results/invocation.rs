@@ -167,7 +167,7 @@ impl DescriptorMachine {
                 .iter()
                 .map(|formal| formal.id)
                 .zip(arguments.iter().copied()),
-            |actual| crate::storage::native_borrows::address_origin(caller, actual),
+            |actual| crate::storage::native_borrows::address_origin(module, caller, actual),
             tracks_native_addresses,
         )
     }

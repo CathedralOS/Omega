@@ -9,7 +9,8 @@ This crate reads and writes the complete program, validates incoming records, co
 - [semantic_module.rs](src/semantic_module.rs) runs canonical ordering,
   representation checks, encoding, decoding and semantic identity.
   The `*_wire` files beside it handle individual payloads; [foundation_validation.rs](src/foundation_validation.rs)
-  checks representation shape and [wire_fields.rs](src/wire_fields.rs) defines fields specific to complete programs.
+  checks representation shape and passes the complete module to the shared
+  [content verifier](../../semantics/src/content_transformations.rs). [wire_fields.rs](src/wire_fields.rs) defines fields specific to complete programs.
 - [closed_types.rs](src/closed_types.rs) records the closed integer types one
   complete encoding retains.
 

@@ -730,6 +730,7 @@ impl<'a> Storage<'a> {
                         })?;
                     for &value in actuals {
                         let origin = terminal_semantics::storage::native_borrows::address_origin(
+                            self.module,
                             self.lowered,
                             value,
                         );

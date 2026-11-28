@@ -418,13 +418,11 @@ impl Arguments {
             },
             accounting,
         )?;
-        use application_identity::const_value::DecodedCanonicalConstValue;
-        let spelling = match decoded(program, job.carrier, &result)? {
-            DecodedCanonicalConstValue::Integer { value, .. } => value.to_string(),
-            DecodedCanonicalConstValue::Boolean(value) => value.to_string(),
-            _ => return Err("the value is neither an integer nor a Boolean".into()),
-        };
-        data_applications::settle_const_argument(program, job.argument, &spelling)
+        let value = decoded(program, job.carrier, &result)?;
+        let literal = program
+            .materialize_canonical_const_value(job.carrier, &value)
+            .ok_or("the evaluated argument does not have its declared carrier")?;
+        data_applications::settle_const_argument(program, job.argument, literal)
     }
 }
 
