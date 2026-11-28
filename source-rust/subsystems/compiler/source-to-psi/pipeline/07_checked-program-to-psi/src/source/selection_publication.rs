@@ -3382,7 +3382,7 @@ machine entry() reaches Input {}
             "data Read<S> = machine(state: @S) -> u8 reaches none crashes none;
              data Reader<some S> { read: Read<S>; }
              machine copy(left: @Reader, right: @Reader) -> Reader {
-                 right.read;
+                 let other: Reader = Reader { read: right.read };
                  Reader { read: left.read }
              }
              machine entry() {}",
@@ -3414,24 +3414,28 @@ machine entry() reaches Input {}
         assert!(projections.next().is_none());
         assert_eq!(left_state, state);
         assert_ne!(left_witness, right_witness);
-        let received = typed
+        let mut received = typed
             .expression_table
             .expression_entries()
-            .find_map(|(_, expression)| {
+            .filter_map(|(_, expression)| {
                 let ExpressionNode::StructLiteral(literal) = expression else {
                     return None;
                 };
                 let package = literal.package.as_ref()?;
                 Some(signature(package.fields[0].ty))
-            })
-            .unwrap();
-        assert_ne!(received, left);
+            });
+        let right_copy = received.next().unwrap();
+        let left_copy = received.next().unwrap();
+        assert!(received.next().is_none());
+        assert_ne!(left_copy, left);
+        assert_ne!(right_copy, right);
         let mut declarations = Declarations::new(&source, source.module()).unwrap();
         let mut questions = SelectionQuestions::default();
         for (owner, own, foreign) in [
             (left, left_witness, right_witness),
             (right, right_witness, left_witness),
-            (received, left_witness, right_witness),
+            (left_copy, left_witness, right_witness),
+            (right_copy, right_witness, left_witness),
         ] {
             declarations
                 .local_binding(&mut questions, owner, own, state)
