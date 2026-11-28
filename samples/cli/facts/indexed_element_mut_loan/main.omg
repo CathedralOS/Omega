@@ -16,16 +16,16 @@ machine bump(room: @mutable Room) {
 
 data Main { hits: i32 in Wrapping; }
 
-machine Main::main(main: @mutable Main) crashes Trap {
-    main.hits = 0;
-    let mutable rooms: [Room; 2] = [Room { exit_count: 0 }, Room { exit_count: 10 }];
+machine check_rooms(main: @mutable Main) crashes Trap {
+    main.hits = 0i32 as +Wrapping;
+    let mutable rooms: [Room; 2] = [Room { exit_count: 0u32 as +Wrapping }, Room { exit_count: 10u32 as +Wrapping }];
     let from_index: u64 = 1;
     bump(@mutable rooms[from_index]);
     transition rooms[0].exit_count == 0 && rooms[1].exit_count == 11 {
         true -> pass(main),
         _ -> fail(main)
     }
-    machine pass(main: @mutable Main) { main.hits = 1; }
+    machine pass(main: @mutable Main) { main.hits = 1i32 as +Wrapping; }
     machine fail(main: @mutable Main) { crash Trap; }
 }
 
@@ -33,5 +33,5 @@ machine Main::main(main: @mutable Main) crashes Trap {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() crashes Trap {
     let mutable entry_storage: Main;
-    Main::main(@mutable entry_storage);
+    check_rooms(@mutable entry_storage);
 }
