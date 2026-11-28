@@ -1,6 +1,8 @@
 //! A saved program must not turn its own bodyless declaration into a park
 //! operation, or use one publication to request a different reply.
 mod preparation;
+mod demand;
+pub use demand::caller_demand;
 pub use preparation::PreparationShape;
 use application_identity::{
     conformance_identity::MachineApplicationCommitment,
@@ -147,7 +149,7 @@ fn reply_result_matches(
     result: &terminal_psi::BoundaryMachineResult,
     reply: &str,
 ) -> bool {
-    use semantic_vocabulary::{IeeeFloatFormat, IntegerSign, ScalarQualificationSetId, ScalarType};
+    use semantic_vocabulary::ScalarQualificationSetId;
     use terminal_psi::BoundaryMachineResult;
     match result {
         BoundaryMachineResult::Unit => {
@@ -165,27 +167,22 @@ fn reply_result_matches(
             if result.qualifications != ScalarQualificationSetId::ZERO {
                 return false;
             }
-            let atom = match result.scalar_type {
-                ScalarType::Boolean => "bool".to_string(),
-                ScalarType::Integer(i) if i.is_address() => "address".to_string(),
-                ScalarType::Integer(i) => {
-                    let Some(bits) = i.bits() else { return false };
-                    format!(
-                        "{}{bits}",
-                        if i.sign() == IntegerSign::Signed {
-                            'i'
-                        } else {
-                            'u'
-                        }
-                    )
-                }
-                ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => "f32".into(),
-                ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => "f64".into(),
-                ScalarType::Callable(_) => return false,
-            };
-            application_identity::type_identity::compiler_type_identity(&atom) == reply
+            scalar_identity(result.scalar_type).as_deref() == Some(reply)
         }
     }
+}
+
+fn scalar_identity(scalar: semantic_vocabulary::ScalarType) -> Option<String> {
+    use semantic_vocabulary::{IeeeFloatFormat, IntegerSign, ScalarType};
+    let atom = match scalar {
+        ScalarType::Boolean => "bool".into(),
+        ScalarType::Integer(i) if i.is_address() => "address".into(),
+        ScalarType::Integer(i) => format!("{}{}", if i.sign() == IntegerSign::Signed { 'i' } else { 'u' }, i.bits()?),
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => "f32".into(),
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => "f64".into(),
+        ScalarType::Callable(_) => return None,
+    };
+    Some(application_identity::type_identity::compiler_type_identity(&atom))
 }
 
 fn checked_reply<'m>(

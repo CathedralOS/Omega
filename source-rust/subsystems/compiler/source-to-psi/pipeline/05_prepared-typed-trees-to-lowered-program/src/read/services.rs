@@ -1918,11 +1918,21 @@ impl<'t> Program<'t> {
         &mut self,
         owner: MachineId,
     ) -> Checked<crate::declare::BinderReach> {
+        let symbol = self.machine_symbol(owner)?;
+        self.application_binders_for(owner, symbol)
+    }
+
+    /// A callable passed to a bodyless operation needs its checked body too.
+    /// The context locates diagnostics; the selected declaration owns the binders.
+    pub(super) fn application_binders_for(
+        &mut self,
+        owner: MachineId,
+        symbol: symbols::SymbolHandle,
+    ) -> Checked<crate::declare::BinderReach> {
         use crate::source_state::static_applications::StaticMachineBindingValue;
 
         let typed = self.typed;
         let unserved = |what| refuse_at(owner, Unserved::Declaration(what));
-        let symbol = self.machine_symbol(owner)?;
         let Some(instantiation) = typed.machine_instantiation(symbol).map_err(unserved)? else {
             return Ok(Vec::new());
         };
