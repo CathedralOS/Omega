@@ -742,6 +742,7 @@ pub(crate) mod borrowed_windows {
             path,
             *field,
             StructuralAccess::MutableBorrow,
+            None,
         ) {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
@@ -851,6 +852,7 @@ pub(crate) mod borrowed_windows {
                 path,
                 *field,
                 disposition.required_access(),
+                Some(*disposition),
             ))
             || value.access != StructuralAccess::Owned
             || !value.path.is_empty()
@@ -967,6 +969,7 @@ pub(crate) mod borrowed_windows {
         path: &[StructuralPathSegment],
         field: Option<StructuralFieldId>,
         required_access: StructuralAccess,
+        replacement: Option<terminal_psi::StructuralStoreDisposition>,
     ) -> bool {
         if terminal_semantics::structural_window_selects_child(path, field) {
             return true;
@@ -982,14 +985,43 @@ pub(crate) mod borrowed_windows {
         else {
             return false;
         };
-        let Some(origins) = descriptors
-            .into_iter()
-            .flat_map(|leaf| leaf.root.origins())
-            .map(|origin| origin.base.root_place())
-            .collect::<Option<Vec<_>>>()
-        else {
-            return false;
-        };
+        let mut places = Vec::new();
+        let mut native_backing = false;
+        for leaf in descriptors {
+            let origins = leaf.root.origins();
+            if origins.is_empty() {
+                return false;
+            }
+            for origin in origins {
+                if let Some(place) = origin.base.root_place() {
+                    places.push(place);
+                    continue;
+                }
+                // A native loan has no Omega-owned root. Whole replacement
+                // can discard the initialized pointee only under the same
+                // type and custody rules as a replacement in local storage.
+                if replacement != Some(terminal_psi::StructuralStoreDisposition::ReplaceDiscardable)
+                    || !matches!(
+                        origin.base,
+                        target_operations::TargetReferenceOriginBase::NativeAddress { .. }
+                    )
+                    || !types.get(leaf.referent).is_some_and(|ty| {
+                        terminal_semantics::discardable_store_value(
+                            types.values().copied(),
+                            ty.id,
+                            ty.multiplicity,
+                            ty.owns_linear_claim,
+                        )
+                    })
+                {
+                    return false;
+                }
+                native_backing = true;
+            }
+        }
+        if places.is_empty() {
+            return native_backing;
+        }
         terminal_semantics::structural_window_origins(
             function.structural_parameters.iter().chain(
                 function
@@ -997,7 +1029,7 @@ pub(crate) mod borrowed_windows {
                     .iter()
                     .flat_map(|block| &block.structural_parameters),
             ),
-            origins,
+            places,
             required_access,
             |place| {
                 live.structural_homes.get(&place).is_some_and(|home| {

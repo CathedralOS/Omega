@@ -149,6 +149,53 @@ machine main() crashes Trap {
 "#;
 
 #[test]
+fn a_mutable_native_borrow_can_replace_its_whole_pointee() {
+    let body = r#"
+data Pair { tag: u8; value: u64 }
+machine reset(location: address) {
+    let destination: @mutable TYPE = |native|::borrow_mutable_at::<TYPE>(location);
+    $destination = NEW;
+}
+machine main() crashes Trap {
+    let mutable value: TYPE = OLD;
+    reset(address_of(@value));
+    transition MATCH { true -> {}, false -> wrong() }
+    machine wrong() { crash Trap; }
+}"#;
+    for (ty, original, replacement, verify) in [
+        (
+            "Pair",
+            "Pair { tag: 5u8, value: 7u64 }",
+            "Pair { tag: 17u8, value: 383u64 }",
+            "value.tag == 17u8 && value.value == 383u64",
+        ),
+        (
+            "[u8; 2]",
+            "[5u8, 7u8]",
+            "[17u8, 31u8]",
+            "value[0u64] == 17u8 && value[1u64] == 31u8",
+        ),
+    ] {
+        let source = body
+            .replace("TYPE", ty)
+            .replace("OLD", original)
+            .replace("NEW", replacement)
+            .replace("MATCH", verify);
+        Program::new(&source, &[READ, WRITE]).assert_native_returns();
+
+        let shared = source
+            .replace("@mutable ", "@")
+            .replace("borrow_mutable_at", "borrow_at");
+        let refused = Program::new(&shared, &[READ]).check();
+        let diagnostic = report(&refused);
+        assert!(
+            !refused.status.success() && diagnostic.contains("shared access only"),
+            "{diagnostic}"
+        );
+    }
+}
+
+#[test]
 fn native_references_read_and_write_an_owned_byte_at_its_exposed_address() {
     Program::new(ADDRESSED_BYTES, &[READ, WRITE]).assert_native_returns();
 }
