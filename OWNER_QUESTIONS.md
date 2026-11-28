@@ -65,36 +65,56 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### 1. May a proof that a same-carrier integer `==` is true supply kernel `Identity` of its operands?
+### 1. May core `Real` be the quotient of one regular function sequence type?
 
-A comparison-implies-identity law over integer fields cannot be proved today.
-Take `CoinByValue satisfies EqualImpliesIdentity<Coin>`, whose `equals`
-ensures `result == (left.value == right.value)`. The law's body receives the
-premise `equals(@left, @right)`, the repeated call's congruence with it, and
-that guarantee. The identity prover builds the record's `Identity` from field
-identities in the mathematical kernel. There, `left.value == right.value` is
-an opaque Boolean constant, so its truth never yields
-`Identity::<i32>(left.value, right.value)`. A Boolean comparison is also kept
-from standing in for kernel `Id` when Id formations are received.
-Synthesized bridges over integer fields hit the same limit.
-[Identity prover](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/proofs/equality.rs) ·
-[Id formation receiving](source-rust/subsystems/compiler/psi/artifact/wire/src/identity_formations.rs)
+The Real ruling leaves two things without a source form. Every regular
+`Sequence<S, At>` must project into one `Real`, but no declaration names a
+quotient over a whole carrier family. The ruling also requires regularity
+before projection, yet `as Quotient` takes no premise. Take
+`Sequence<Rat, repeat>` for a constant and `Sequence<Nat -> Rat, apply>` for
+a theorem's `f`. Both must give values of one `Real`.
 
-The language rule is stated. [Equality bridges](wiki/spec/proofs/contracts.md#equality-bridges-and-comparison-facts):
-"Same-carrier integer equality can support both directions."
-[Integer goals and certificates](wiki/spec/terminal-psi/integer_certificates.md#comparison-denotations):
-"Builtin fixed-integer comparisons ... denote the exact mathematical
-relation between the original operands." Neither document gives a
-certificate rule that carries that denotation into kernel `Identity`, and
-[record identity from field identities](wiki/spec/proofs/contracts.md#record-identity-from-field-identities)
-accepts only identity evidence for each field. Checked: those three
-sections, the elementary certificate rules, and the Id formation receiving
-code.
+Read literally, the carrier is the total family
+`Σ (S: Type<0>). Σ (At: Sampler<S>). Sequence<S, At>`, restricted to regular
+values. A sum over every state type is a large type, so `Real` would live in
+`Type<1>`. The spec forbids resizing it. `Identity::<Real>` would then sit at
+level 1. A sequence or quotient of reals would also need a level above that.
 
-Recommendation: yes. Add an elementary rule for a true same-carrier,
-non-address fixed-integer `x == y`. The checker and the receiving verifier
-would both admit a kernel `Identity` of `x` and `y`. The converse would be
-derived the same way. Cross-carrier comparisons, address carriers and IEEE
-`==` stay excluded. Without the rule, such laws stay unprovable over integer
-fields, and synthesis of either direction for records of integers stays
-blocked.
+Checked and found silent:
+[Cauchy sequences and the Real quotient](wiki/spec/proofs/quotients.md#cauchy-sequences-and-the-real-quotient)
+names the carrier but no declaration.
+[Families, relations, and evidence](wiki/spec/proofs/quotients.md#families-relations-and-evidence)
+interprets a family through `A = Σ (I : IndexPack). C<I>` but gives no
+source spelling. [Formation and representation](wiki/spec/proofs/quotients.md#formation-and-representation)
+declares `data Q = C % R` over one carrier, with `as Q` as the sole
+construction route. [Generics](wiki/spec/language/generics.md) and
+[proof contracts](wiki/spec/proofs/contracts.md) state the projection
+requirement but no form for it.
+
+Recommendation: yes, with ordinary declarations only.
+
+```omega
+data Regular {
+    samples: Sequence<Nat -> Rat, apply>;
+}
+requires regular::<Nat -> Rat, apply>(value.samples);
+
+data Real = Regular % converge_together
+requires converge_together satisfies MereEquivalence<Regular, converge_together>
+    as Together;
+
+machine project<S, const At: Sampler<S>>(s: Sequence<S, At>) -> Real
+requires regular::<S, At>(s)
+{
+    // the representative with state `λn. At(s.state, n)`
+}
+```
+
+The data predicate keeps every representative regular, so the convergence
+relation is an equivalence on the whole carrier. A sequence enters `Real`
+only through `project`, whose `requires` checks regularity for those exact
+samples. Two projections are equal when their
+samples converge together, whatever their `S` and `At`. `Real` stays in
+`Type<0>`. The alternative is a new family-quotient declaration with a
+carrier premise on `as`. That costs a large `Real`, a new surface, and Σ
+over types in the checker.

@@ -68,7 +68,8 @@ use terminal_check_tables::{
 };
 use terminal_psi::StructuralAccess;
 use terminal_semantics::descriptor_lifetimes::{
-    DescriptorFlowStep, DescriptorLocation, DescriptorPosition, descriptor_path,
+    DescriptorFlowStep, DescriptorLocation, DescriptorPathSegment, DescriptorPosition,
+    descriptor_path,
 };
 
 use super::{Backing, Storage, index, lineage};
@@ -1525,13 +1526,8 @@ impl<'a> Storage<'a> {
                     }
                     if let Some(accesses) = &effects.accesses {
                         for (raw, backing, access) in accesses {
-                            if competing_borrows(
-                                loan.access,
-                                &loan.lineage,
-                                *access,
-                                &LoanRegion::Storage(backing.clone()),
-                            )
-                            .is_some()
+                            if competing_borrows(loan.access, &loan.lineage, *access, backing)
+                                .is_some()
                                 && ((access.is_exclusive() && !loan.access.is_exclusive())
                                     || !self.authorized_cleanup_reference(
                                         loan,
@@ -1737,7 +1733,7 @@ impl<'a> Storage<'a> {
         edge: semantic_vocabulary::EdgeId,
         ordinal: u32,
         cleanup: &terminal_psi::OwnedCleanupInvocation,
-    ) -> Checked<Vec<(super::Lineage, Backing, ReferenceAccess)>> {
+    ) -> Checked<Vec<(super::Lineage, LoanRegion, ReferenceAccess)>> {
         let concerns = Construct::Edge(edge);
         let mut accesses = self
             .cleanup_writes
@@ -1753,10 +1749,10 @@ impl<'a> Storage<'a> {
                         root: write.captured.root,
                         segments: write.captured.path.clone(),
                     },
-                    Backing::direct(super::Lineage {
+                    LoanRegion::Storage(Backing::direct(super::Lineage {
                         root: write.backing.root,
                         segments: write.backing.path.clone(),
-                    }),
+                    })),
                     ReferenceAccess::Mutable,
                 )
             })
@@ -1770,6 +1766,11 @@ impl<'a> Storage<'a> {
             .ok_or_else(|| {
                 self.unsupported(concerns, "cleanup has no finite reference access inventory")
             })?;
+        let (block, before) = self.graph.locate(ProgramPoint::BeforeCleanup {
+            edge,
+            action_ordinal: ordinal,
+        })?;
+        let position = (block, crate::position(before, self.machine)?);
         for leaf in inventory.slots {
             let path = descriptor_path(self.types, cleanup.structural_type, &leaf.path)
                 .ok_or_else(|| self.unsupported(concerns, "cleanup reference access is untyped"))?;
@@ -1787,12 +1788,31 @@ impl<'a> Storage<'a> {
                 continue;
             }
             let raw = self.stored_at(cleanup.subject.place, &actual, concerns)?;
-            // Keep the exact typed descriptor-coordinate admission. The
-            // backing query then uses this cleanup action's own prestate.
-            raw.descriptor_location().ok_or_else(|| {
+            let mut descriptor = raw.descriptor_location().ok_or_else(|| {
                 self.unsupported(concerns, "cleanup read has no exact captured path")
             })?;
-            let backing = self.cleanup_backing(references, &raw, edge, ordinal, concerns)?;
+            if descriptor.path.pop() != Some(DescriptorPathSegment::Referent) {
+                return Err(self.unsupported(concerns, "cleanup reference has no final referent"));
+            }
+            let owner = terminal_psi::InvocationOwner::Cleanup {
+                edge,
+                action_ordinal: ordinal,
+            };
+            let access = references
+                .provider_access_at_invocation(
+                    self.module,
+                    self.lowered,
+                    position,
+                    owner,
+                    &descriptor,
+                )
+                .map_err(|reason| self.unsupported(concerns, reason))?;
+            let backing = match access {
+                Some(access) => LoanRegion::Provider(access),
+                None => LoanRegion::Storage(
+                    self.cleanup_backing(references, &raw, edge, ordinal, concerns)?,
+                ),
+            };
             accesses.push((raw, backing, ReferenceAccess::Shared));
         }
         Ok(accesses)
@@ -2062,7 +2082,6 @@ impl<'a> Storage<'a> {
                         for (_, backing, effect) in
                             self.cleanup_reference_accesses(references, edge, ordinal, cleanup)?
                         {
-                            let backing = LoanRegion::Storage(backing);
                             if captured.iter().any(|(access, capture)| {
                                 competing_borrows(*access, capture, effect, &backing).is_some()
                             }) {
@@ -3591,7 +3610,7 @@ struct PreparedOperationEffects {
 
 struct PreparedCleanupEffects {
     cleaned: LoanRegion,
-    accesses: Option<Vec<(super::Lineage, Backing, ReferenceAccess)>>,
+    accesses: Option<Vec<(super::Lineage, LoanRegion, ReferenceAccess)>>,
 }
 
 struct PreparedSiteEffects {

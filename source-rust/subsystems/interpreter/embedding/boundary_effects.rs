@@ -3203,7 +3203,6 @@ pub(crate) mod results {
             let Some(declaration) = types.get(&current) else {
                 return true;
             };
-            let mut fields = Vec::new();
             match &declaration.shape {
                 StructuralTypeShape::Reference { .. } | StructuralTypeShape::TypeParameter => {
                     return true;
@@ -3214,19 +3213,10 @@ pub(crate) mod results {
                 StructuralTypeShape::Opaque | StructuralTypeShape::PrimitiveScalar(_) => {}
                 StructuralTypeShape::FixedArray { element, .. }
                 | StructuralTypeShape::ElementView { element, .. } => pending.push(*element),
-                StructuralTypeShape::Record {
-                    fields: members, ..
-                } => fields.extend(members),
+                StructuralTypeShape::Record { .. } | StructuralTypeShape::Mixed { .. } => {}
                 StructuralTypeShape::Sum { .. } => return true,
-                StructuralTypeShape::Mixed {
-                    fields: members,
-                    cases,
-                } => {
-                    fields.extend(members);
-                    fields.extend(cases.iter().flat_map(|case| &case.fields));
-                }
             }
-            for field in fields {
+            for field in declaration.shape.fields() {
                 match field.field_type {
                     terminal_psi::StructuralFieldType::BoundedInteger(_)
                     | terminal_psi::StructuralFieldType::RefinedScalar(_) => return true,

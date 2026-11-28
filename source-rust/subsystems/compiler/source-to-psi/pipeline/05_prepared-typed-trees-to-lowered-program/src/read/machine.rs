@@ -414,15 +414,11 @@ impl<'t> Program<'t> {
             // Application copies are private symbols even when their source
             // declaration is public or belongs to an implementation.
             let template = crate::template_of(self.typed, symbol);
-            let declaration = self
-                .typed
-                .machine_by_symbol(template.unwrap_or(symbol))
-                .ok_or_else(|| {
-                    refuse_at(
-                        id,
-                        Unserved::Machine("a local body has no originating declaration"),
-                    )
-                })?;
+            let declaration = self.required_machine(
+                id,
+                template.unwrap_or(symbol),
+                "local body's originating declaration",
+            )?;
             if machine.satisfies.is_empty()
                 && declaration.satisfies.is_empty()
                 && self
@@ -552,6 +548,21 @@ impl<'t> Program<'t> {
                 Err(refused)
             }
         }
+    }
+
+    /// A prepared selection that names a machine must have a declaration for its exact symbol.
+    pub(super) fn required_machine(
+        &self,
+        id: MachineId,
+        symbol: SymbolHandle,
+        role: &str,
+    ) -> Checked<&'t Machine> {
+        self.typed.machine_by_symbol(symbol).ok_or_else(|| {
+            super::unavailable(
+                id,
+                format!("{role} {symbol:?} has no typed machine declaration"),
+            )
+        })
     }
 
     /// The typed-tree machine whose row `reserve_row` reserved at `id`.
@@ -1145,15 +1156,8 @@ impl<'t> Program<'t> {
         let mut source = WitnessRequirement::Declared;
         let id = self.next_identity()?;
         if self.rigid {
-            let machine = self
-                .typed
-                .machine_by_symbol(implementation)
-                .ok_or_else(|| {
-                    refuse_at(
-                        id,
-                        Unserved::Machine("generic witness lost its actual body"),
-                    )
-                })?;
+            let machine =
+                self.required_machine(id, implementation, "generic witness implementation")?;
             self.scope = self.generic_scope(id, machine)?;
             self.retain_rigid_scope();
         }
@@ -1225,12 +1229,8 @@ impl<'t> Program<'t> {
             .map(|(conformance, _)| conformance.symbol);
         let outer_conformance = std::mem::replace(&mut self.witness_conformance, conformance);
         let witnessed = if self.rigid {
-            let implementation = self
-                .typed
-                .machine_by_symbol(implementation)
-                .ok_or_else(|| {
-                    crate::read::unavailable(id, "the refinement check lost its implementation")
-                })?;
+            let implementation =
+                self.required_machine(id, implementation, "refinement implementation")?;
             self.with_method_parameters(id, implementation, declared, |program| {
                 program.witnessed_signature(declared, arguments, expected)
             })
@@ -2855,10 +2855,7 @@ impl<'t> Program<'t> {
             .machine_instantiation(machine.symbol)
             .map_err(unserved)?
             .ok_or_else(|| unserved("member lost its exact value application"))?;
-        let template = self
-            .typed
-            .machine_by_symbol(application.template())
-            .ok_or_else(|| unserved("member application lost its template"))?;
+        let template = self.required_machine(id, application.template(), "member template")?;
         let parameters = self.typed.machine_callable_parameters(template);
         let binders = self.value_binder_correspondence(id, &required, (&parameters).into())?;
         let binding = application.binding_application();

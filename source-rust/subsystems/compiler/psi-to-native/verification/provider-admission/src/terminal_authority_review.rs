@@ -37,7 +37,8 @@ pub(crate) fn review_terminal_authority_closure(
     terminal_artifact_identity: [u8; 32],
     target_profile: target::TargetProfile,
     input: &crate::AdmissionSource<'_>,
-    analyses: Option<&terminal_semantics::ModuleAnalyses<'_>>,
+    graph: reachability::AuthorityGraph<'_>,
+    root_edges: reachability::ReachableAuthorityEdges,
     selected: &SelectedProviderPlanFacts,
     physical_policy: &TerminalAuthorityPolicy,
     permission_policy: Option<&TerminalAuthorityPermissionPolicy>,
@@ -50,7 +51,7 @@ pub(crate) fn review_terminal_authority_closure(
     let context = ReviewContext::new(
         target_profile,
         input,
-        analyses,
+        graph,
         selected,
         physical_policy,
         permission_policy,
@@ -60,9 +61,6 @@ pub(crate) fn review_terminal_authority_closure(
         components,
         installed_interrupts,
     )?;
-    let root_edges = context
-        .graph
-        .reachable_authority_edges(input.plan().entry)?;
     let mut reviewer = Reviewer::new(context);
     for instruction in root_edges.checked_operations {
         reviewer.admit_program_root(instruction)?;

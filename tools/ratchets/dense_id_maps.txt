@@ -32,7 +32,7 @@
 3 source-rust/subsystems/compiler/psi-to-native/representations/machine-code/stack-demand/demand.rs
 1 source-rust/subsystems/compiler/psi-to-native/targets/calling-conventions/src/terminal_layout.rs
 3 source-rust/subsystems/compiler/psi-to-native/verification/component-description/inventory.rs
-2 source-rust/subsystems/compiler/psi-to-native/verification/provider-admission/src/access_lifecycles.rs
+1 source-rust/subsystems/compiler/psi-to-native/verification/provider-admission/src/access_lifecycles.rs
 1 source-rust/subsystems/compiler/psi-to-native/verification/provider-admission/src/settlements_source_imports.rs
 2 source-rust/subsystems/compiler/psi-to-native/verification/provider-admission/src/terminal_authority_review/context.rs
 2 source-rust/subsystems/compiler/psi-to-native/verification/provider-admission/src/terminal_authority_review/reachability.rs

@@ -282,9 +282,14 @@ fn require_containable(
             "a guest admitted without producer trust cannot reach native providers or services",
         ));
     }
-    if !matches!(request.filesystem, TerminalFilesystemDelegation::Unprovided) {
+    if !matches!(
+        request.filesystem,
+        TerminalFilesystemDelegation::Unprovided
+            | TerminalFilesystemDelegation::StandardStreamsOnly
+            | TerminalFilesystemDelegation::Mapped(_)
+    ) {
         return Err(refuse(
-            "a guest admitted without producer trust gets no filesystem delegation",
+            "a guest admitted without producer trust gets only mapped directories",
         ));
     }
     if request.output_limits.is_none() {
@@ -405,18 +410,14 @@ impl<'program> HostedTerminalProgram<'program> {
                     error,
                 ))
             })?;
-        let mut host_boundaries = host_imports::HostBoundarySelections::default();
-        if let Some(provisions) = request.provisions {
-            for provision in provisions.host() {
-                if matches!(&provision.realization,
-                target_vocabulary::BoundarySettlementRealization::NormalizedForeignCall(binding)
-                    if matches!(binding.mechanism, target_vocabulary::NormalizedForeignCallMechanism::Component { .. }))
-                {
-                    continue;
-                }
-                host_boundaries.add(&program, provision);
-            }
-        }
+        let host_boundaries = request
+            .provisions
+            .map_or_else(Default::default, |provisions| {
+                host_imports::HostBoundarySelections::from_provisions(
+                    &program,
+                    provisions.host_provisions(),
+                )
+            });
 
         let providers = proposed_installation
             .map(std::borrow::Cow::Owned)
@@ -609,6 +610,14 @@ mod containment_tests {
             request.filesystem = TerminalFilesystemDelegation::HostNamespace;
         }));
         assert!(refused(|request| request.output_limits = None));
+        // A namespace of standard streams alone reaches no host descriptor.
+        assert!(!refused(|request| {
+            request.filesystem = TerminalFilesystemDelegation::StandardStreamsOnly;
+        }));
+        // Mapped directories confine every path beneath their handles.
+        assert!(!refused(|request| {
+            request.filesystem = TerminalFilesystemDelegation::Mapped(Default::default());
+        }));
 
         let observation = execute(request(contained.artifact(), containment)).unwrap();
         assert!(matches!(

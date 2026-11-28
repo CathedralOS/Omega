@@ -25,15 +25,7 @@ use terminal_semantics::descriptor_results::{
     self, DescriptorMachine, ValueIdentityAnalysis, ValueIdentitySeed,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct ArrivalHelperUse {
-    pub installation_machine: MachineId,
-    pub installation: OperationId,
-    pub machine: MachineId,
-    pub callback_application: u32,
-    pub operation: OperationId,
-    pub kind: StaticInterruptOperation,
-}
+use crate::AdmittedInstalledInterruptHelper;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Token {
@@ -59,7 +51,7 @@ struct Root<'a> {
 
 #[derive(Default)]
 struct Associations {
-    helpers: Vec<ArrivalHelperUse>,
+    helpers: Vec<AdmittedInstalledInterruptHelper>,
     calls: BTreeSet<(MachineId, Option<InvocationSite>, MachineId)>,
 }
 
@@ -69,15 +61,13 @@ pub(super) fn validate(
     entry_custody: &super::super::callback_entries::PreparedEntries<'_>,
     call_graph: &terminal_semantics::synchronous_calls::SynchronousCallGraph<'_>,
     reached_operations: &[super::OperationSite],
-) -> Result<Vec<ArrivalHelperUse>, String> {
+) -> Result<Vec<AdmittedInstalledInterruptHelper>, String> {
     let module = input.module();
     if module.interfaces.installed_interrupt_registrations.is_empty() {
         return Ok(Vec::new());
     }
-    let bodies = flat_rows(module.machines.iter().map(|body| (body.id, body)).collect())?;
-    let reached_count = reached_operations.len();
-    let reached_operations: BTreeSet<_> = reached_operations.iter().copied().collect();
-    if reached_operations.len() != reached_count {
+    let bodies = &entry_custody.bodies;
+    if reached_operations.windows(2).any(|pair| pair[0] >= pair[1]) {
         return Err("reached interrupt operation is duplicated".into());
     }
     let reached_machines = membership(
@@ -97,7 +87,9 @@ pub(super) fn validate(
         .interfaces.installed_interrupt_registrations
         .iter()
         .filter(|registration| {
-            reached_operations.contains(&(registration.machine, registration.operation))
+            reached_operations
+                .binary_search(&(registration.machine, registration.operation))
+                .is_ok()
                 || registration.callbacks.iter().any(|callback| {
                     occurrences
                         .get(&callback.application_index)
@@ -124,7 +116,7 @@ pub(super) fn validate(
         .collect::<Result<Vec<_>, _>>()?;
     let invocations = Calls::new(
         module,
-        &bodies,
+        bodies,
         call_graph,
         roots
             .iter()
@@ -218,7 +210,7 @@ pub(super) fn validate(
                 &graph,
                 &mut identities,
                 &mut orders,
-                &bodies,
+                bodies,
                 &invocations,
                 &root,
                 callback.application_index,
@@ -382,7 +374,7 @@ fn check_closure<'a>(
                     }
                     StaticInterruptOperation::Install => unreachable!(),
                 }
-                associations.helpers.push(ArrivalHelperUse {
+                associations.helpers.push(AdmittedInstalledInterruptHelper {
                     installation_machine: root.registration.machine,
                     installation: root.registration.operation,
                     machine: body.id,
@@ -604,37 +596,24 @@ fn require_completed_controller(
 
 fn flat_rows<Id: NumericId, T>(mut rows: Vec<(Id, T)>) -> Result<IdTable<Id, Option<T>>, String> {
     rows.sort_unstable_by_key(|(identity, _)| *identity);
-    if rows.windows(2).any(|pair| pair[0].0 == pair[1].0) {
-        return Err("arrival helper roster repeats an identity".into());
-    }
-    let Some((first, last)) = rows.first().zip(rows.last()) else {
-        return Ok(IdTable::default());
-    };
-    let first = first.0.get();
-    let length = last
-        .0
-        .get()
-        .checked_sub(first)
-        .and_then(|distance| distance.checked_add(1))
-        .and_then(|length| usize::try_from(length).ok())
-        .ok_or("arrival helper identity span cannot be indexed")?;
-    let mut slots = Vec::new();
-    slots
-        .try_reserve_exact(length)
-        .map_err(|_| "arrival helper identity span cannot be allocated")?;
-    slots.resize_with(length, || None);
-    for (identity, row) in rows {
-        let offset = usize::try_from(identity.get() - first)
-            .map_err(|_| "arrival helper identity cannot be indexed")?;
-        slots[offset] = Some(row);
-    }
-    IdTable::from_rows(slots.into_iter().enumerate().map(|(offset, row)| {
-        (
-            Id::new(first + offset as u64).expect("validated nonzero identity interval"),
-            row,
-        )
-    }))
-    .map_err(|_| "arrival helper identity interval is inconsistent".into())
+    IdTable::from_rows_with_gaps(
+        rows.into_iter().map(|(id, row)| (id, Some(row))),
+        usize::MAX,
+    )
+    .map_err(|error| {
+        match error {
+            arena::IdTableBuildError::RepeatedOrUnordered { .. } => {
+                "arrival helper roster repeats an identity"
+            }
+            arena::IdTableBuildError::AllocationFailed => {
+                "arrival helper identity span cannot be allocated"
+            }
+            arena::IdTableBuildError::SpanOverflow | arena::IdTableBuildError::SpanLimit { .. } => {
+                "arrival helper identity span cannot be indexed"
+            }
+        }
+        .to_owned()
+    })
 }
 
 fn membership<Id: NumericId>(identities: &[Id]) -> Result<IdTable<Id, Option<()>>, String> {

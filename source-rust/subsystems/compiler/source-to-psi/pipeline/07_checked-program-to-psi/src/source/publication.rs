@@ -137,15 +137,17 @@ impl SourcePublication {
                     "Product publication lost its source declaration selections",
                 )]
             })?;
-            packet
-                .admit(
-                    artifact.view().into(),
-                    &psi_authorization::selection_questions::SelectionAuthorities {
-                        build: None,
-                        product: authority,
-                    },
-                )
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            timings.record_result(artifacts::compile_timings::source::CHECK_SELECTIONS, || {
+                packet
+                    .admit(
+                        artifact.view().into(),
+                        &psi_authorization::selection_questions::SelectionAuthorities {
+                            build: None,
+                            product: authority,
+                        },
+                    )
+                    .map_err(|reason| vec![Diagnostic::error(reason)])
+            })?;
             let artifact = produced
                 .into_portable_publication()
                 .map_err(|error| vec![Diagnostic::error(error.to_string())])?;

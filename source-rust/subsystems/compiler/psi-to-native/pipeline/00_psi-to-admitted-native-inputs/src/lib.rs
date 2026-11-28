@@ -2,16 +2,16 @@
 #![forbid(unsafe_code)]
 
 use provider_demand::{IssuedProviderDemand, ProviderDemandInputs};
-use psi_authorization::{ArtifactTrustError, AuthorizedTerminalArtifact};
+use psi_authorization::{AdmittedTerminalArtifact, ArtifactTrustError};
 
 /// Stage 01 consumes the demand together with the authorization checked here.
 pub struct AdmittedProviderDemand<Publisher> {
     demand: IssuedProviderDemand<Publisher>,
-    authorization: AuthorizedTerminalArtifact,
+    authorization: AdmittedTerminalArtifact,
 }
 
 pub fn admit<Publisher>(
-    authorization: AuthorizedTerminalArtifact,
+    authorization: AdmittedTerminalArtifact,
     demand: IssuedProviderDemand<Publisher>,
 ) -> Result<AdmittedProviderDemand<Publisher>, ArtifactTrustError> {
     let artifact = match demand.inputs() {
@@ -30,7 +30,7 @@ impl<Publisher> AdmittedProviderDemand<Publisher> {
         self.demand.inputs()
     }
 
-    pub fn into_parts(self) -> (IssuedProviderDemand<Publisher>, AuthorizedTerminalArtifact) {
+    pub fn into_parts(self) -> (IssuedProviderDemand<Publisher>, AdmittedTerminalArtifact) {
         (self.demand, self.authorization)
     }
 }
@@ -64,7 +64,7 @@ mod tests {
 
         let receive = |artifact, producer: Option<&HostProducerTrust>| {
             let authorization = authorize_terminal_artifact(artifact, producer)?;
-            admit(authorization, issue())
+            admit(authorization.into(), issue())
         };
         let reopened =
             Arc::new(CanonicalTerminalArtifact::from_bytes(&original.to_bytes()).unwrap());

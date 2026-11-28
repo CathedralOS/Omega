@@ -36,7 +36,7 @@ pub(crate) struct AuthorityGraph<'a> {
     functions: BTreeMap<MachineId, &'a AbstractFunction>,
     calls: terminal_semantics::synchronous_calls::SynchronousCallGraph<'a>,
     target_profile: target::TargetProfile,
-    installed_scopes: Option<Vec<&'a crate::AdmittedInstalledInterruptScope>>,
+    installed_scopes: Vec<&'a crate::AdmittedInstalledInterruptScope>,
 }
 
 impl<'a> AuthorityGraph<'a> {
@@ -46,6 +46,7 @@ impl<'a> AuthorityGraph<'a> {
         input: &'a crate::AdmissionSource<'a>,
         analyses: Option<&'a terminal_semantics::ModuleAnalyses<'_>>,
         target_profile: target::TargetProfile,
+        installed: &'a crate::AdmittedInstalledInterruptCohort,
     ) -> Result<Self, String> {
         let plan = input.plan();
         let mut functions = BTreeMap::new();
@@ -68,20 +69,7 @@ impl<'a> AuthorityGraph<'a> {
             .map(|entry| (entry.boundary(), entry.entry()));
         let calls =
             crate::adapters::admission_call_graph(input.module(), analyses, bridge, Vec::new())?;
-        Ok(Self {
-            input,
-            functions,
-            calls,
-            target_profile,
-            installed_scopes: None,
-        })
-    }
-
-    pub(crate) fn with_installed_interrupts(
-        mut self,
-        installed: &'a crate::AdmittedInstalledInterruptCohort,
-    ) -> Result<Self, String> {
-        if installed.psi() != self.input.plan().psi {
+        if installed.psi() != plan.psi {
             return Err("authority review installation belongs to another Terminal program".into());
         }
         let mut scopes: Vec<_> = installed.scopes().iter().collect();
@@ -91,15 +79,20 @@ impl<'a> AuthorityGraph<'a> {
         }) {
             return Err("authority review repeats an installed Scope operation".into());
         }
-        self.installed_scopes = Some(scopes);
-        Ok(self)
+        Ok(Self {
+            input,
+            functions,
+            calls,
+            target_profile,
+            installed_scopes: scopes,
+        })
     }
 
     fn installed_scope(
         &self,
         operation: (MachineId, OperationId),
     ) -> Option<&crate::AdmittedInstalledInterruptScope> {
-        let scopes = self.installed_scopes.as_ref()?;
+        let scopes = &self.installed_scopes;
         let index = scopes
             .binary_search_by_key(&operation, |scope| (scope.machine(), scope.operation()))
             .ok()?;
@@ -126,8 +119,7 @@ impl<'a> AuthorityGraph<'a> {
                     format!("reachable internal call names absent machine {machine:?}")
                 })?;
                 for operation in function.operations() {
-                    if self.installed_scopes.is_some()
-                        && let AbstractOperation::BoundaryCall {
+                    if let AbstractOperation::BoundaryCall {
                             boundary,
                             psi_operation,
                             ..

@@ -81,8 +81,8 @@ fn evaluate_scope<'artifact>(
     if import_realizations.is_some() && observations.target().is_none() {
         return Err("scalar import realizations require an explicit deployment selection".into());
     }
-    let program =
-        TerminalProgram::borrow(observations.artifact()).map_err(|error| error.to_string())?;
+    let program = TerminalProgram::borrow_admitted(observations.artifact())
+        .map_err(|error| error.to_string())?;
     let mut conditions = observations.conditions(value_scope, requested)?;
     let mut jobs = demand::discover(
         &program,
@@ -153,8 +153,8 @@ fn execute_entry(
     };
     let observations = admission.observations();
     let account = meter.payment().invocation().cloned();
-    let program =
-        TerminalProgram::borrow(observations.artifact()).map_err(|error| error.to_string())?;
+    let program = TerminalProgram::borrow_admitted(observations.artifact())
+        .map_err(|error| error.to_string())?;
     let mut instance = program
         .instantiate(TerminalInstantiation {
             float_evaluation:

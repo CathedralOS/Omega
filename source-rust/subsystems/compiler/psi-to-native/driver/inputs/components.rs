@@ -119,7 +119,7 @@ fn verify_publication(
         component.package_permissions,
         component.semantic_bindings,
     )?;
-    let admitted = native_inputs::admit(component.authorization, issued)
+    let admitted = native_inputs::admit(component.authorization.into(), issued)
         .map_err(|why| refuse(why.to_string()))?;
     let selection = provider_realization::select_published_providers(admitted, descriptions)?;
     let description = native_artifact::describe_portable_component(&artifact, selection.plans())

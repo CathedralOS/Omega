@@ -4722,16 +4722,27 @@ impl<'a> Analysis<'a> {
         };
         family
             .into_iter()
-            .map(|origin| {
+            .filter_map(|origin| {
                 let crate::descriptor_results::DescriptorCallOrigin::Argument {
                     source,
                     projection,
                 } = origin
                 else {
-                    return Err(unresolved());
+                    return Some(Err(unresolved()));
                 };
-                let path = projection.captured_storage_path().ok_or_else(unresolved)?;
-                Ok((source, path))
+                // A reference into a view's window, such as
+                // `@mutable row[a..b] as @mutable [T; N]`, names no static
+                // path of the lender. Only a move leaves a vacancy, and a
+                // move needs one exact backing, so a window has none here.
+                if projection.window.is_some() {
+                    return None;
+                }
+                Some(
+                    projection
+                        .captured_storage_path()
+                        .ok_or_else(unresolved)
+                        .map(|path| (source, path)),
+                )
             })
             .collect::<Result<Vec<_>, _>>()
             .map(WindowBacking::Alternatives)

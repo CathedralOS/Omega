@@ -2842,27 +2842,39 @@ impl<'a> Lowering<'a> {
                 let Some(ValueType::Record(view, _, _)) = base.result else {
                     return Err(self.internal("a fixed-array cast lost its view"));
                 };
+                // The reference lends the view's own access.
                 let shape = &self.record_type(view)?.shape;
-                if !matches!(
-                    shape,
+                let access = match shape {
                     StorageShape::ElementView {
-                        access: Some(StructuralAccess::SharedBorrow),
+                        access:
+                            Some(
+                                access @ (StructuralAccess::SharedBorrow
+                                | StructuralAccess::MutableBorrow),
+                            ),
                         ..
-                    } | StorageShape::ByteSequence(
+                    }
+                    | StorageShape::ByteSequence(
                         terminal_psi::ByteSequenceCarrier::BorrowedView {
-                            access: Some(StructuralAccess::SharedBorrow),
-                        }
-                    )
-                ) {
-                    return Err(self.internal("a fixed-array cast of a view that is not shared"));
-                }
+                            access:
+                                Some(
+                                    access @ (StructuralAccess::SharedBorrow
+                                    | StructuralAccess::MutableBorrow),
+                                ),
+                        },
+                    ) => *access,
+                    _ => {
+                        return Err(self.internal(
+                            "a fixed-array cast of a view that is neither shared nor mutable",
+                        ));
+                    }
+                };
                 let reads_length = shape
                     .length_operation()
                     .ok_or_else(|| self.internal("a fixed-array cast has no readable view"))?;
                 let source = StructuralArgument {
                     place: captured,
                     path: Vec::new(),
-                    access: StructuralAccess::SharedBorrow,
+                    access,
                 };
                 let exact = self.exact_root(captured)?;
                 self.name_contents(exact, ValueType::record(view))?;

@@ -212,11 +212,7 @@ impl DeclarationTypeScopes {
             if let Some((_, inherited)) = owned.iter().find(|(owner, _)| *owner == parent.symbol) {
                 parameters = declaration_type_scope(&parameters, inherited);
             }
-            if let Some(data) = program
-                .data_definitions
-                .iter()
-                .find(|data| data.symbol == parent.attached_data_symbol)
-            {
+            if let Some(data) = program.data_definition_by_symbol(parent.attached_data_symbol) {
                 parameters = declaration_type_scope(
                     &parameters,
                     program.data_type_parameters(data.type_parameters),

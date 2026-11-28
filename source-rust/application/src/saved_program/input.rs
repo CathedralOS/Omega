@@ -30,12 +30,27 @@ pub(crate) fn read_artifact(
     Ok(bytes)
 }
 
-pub(crate) fn open_trusted_program(
+/// Open saved Psi for `omega run`. With `--trusted-artifact` the host vouches
+/// for the producer of that exact manifest; without it the program is admitted
+/// only for contained interpretation.
+pub(crate) fn open_run_program(
     path: &std::path::Path,
     trusted_artifact: Option<&str>,
     max_input_bytes: Option<u64>,
-) -> Result<psi_authorization::AuthorizedTerminalArtifact, Vec<Diagnostic>> {
-    let expected = trusted_artifact.ok_or_else(|| vec![Diagnostic::error("saved Psi execution requires --trusted-artifact with the manifest identity supplied by the trusted producer")])?;
+) -> Result<psi_authorization::AdmittedTerminalArtifact, Vec<Diagnostic>> {
+    if trusted_artifact.is_some() {
+        return open_trusted_program(path, trusted_artifact, max_input_bytes).map(Into::into);
+    }
+    let artifact = decode(path, max_input_bytes)?;
+    psi_authorization::admit_contained_interpretation(std::sync::Arc::new(artifact))
+        .map(Into::into)
+        .map_err(|reason| vec![Diagnostic::error(reason.to_string())])
+}
+
+fn decode(
+    path: &std::path::Path,
+    max_input_bytes: Option<u64>,
+) -> Result<terminal_codec::CanonicalTerminalArtifact, Vec<Diagnostic>> {
     let bytes = read_artifact(path, max_input_bytes).map_err(|error| {
         vec![Diagnostic::error(format!(
             "cannot read Psi artifact {}: {error}",
@@ -46,15 +61,23 @@ pub(crate) fn open_trusted_program(
         max_input_bytes,
         ..Default::default()
     };
-    let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes_within(&bytes, limits)
-        .map_err(|error| {
-            let reason = if error.is_resource_refusal() {
-                "saved Psi exceeds the host's load limits"
-            } else {
-                "cannot inspect Psi artifact"
-            };
-            vec![Diagnostic::error(format!("{reason}: {error}"))]
-        })?;
+    terminal_codec::CanonicalTerminalArtifact::from_bytes_within(&bytes, limits).map_err(|error| {
+        let reason = if error.is_resource_refusal() {
+            "saved Psi exceeds the host's load limits"
+        } else {
+            "cannot inspect Psi artifact"
+        };
+        vec![Diagnostic::error(format!("{reason}: {error}"))]
+    })
+}
+
+pub(crate) fn open_trusted_program(
+    path: &std::path::Path,
+    trusted_artifact: Option<&str>,
+    max_input_bytes: Option<u64>,
+) -> Result<psi_authorization::AuthorizedTerminalArtifact, Vec<Diagnostic>> {
+    let expected = trusted_artifact.ok_or_else(|| vec![Diagnostic::error("saved Psi execution requires --trusted-artifact with the manifest identity supplied by the trusted producer")])?;
+    let artifact = decode(path, max_input_bytes)?;
     if artifact.manifest().identity().to_string() != expected {
         return Err(vec![Diagnostic::error(
             "saved Psi manifest differs from the artifact authorized by this host",

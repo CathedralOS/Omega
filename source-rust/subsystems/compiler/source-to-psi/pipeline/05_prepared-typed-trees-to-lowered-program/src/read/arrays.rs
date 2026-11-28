@@ -562,8 +562,10 @@ impl Program<'_> {
     ) -> Checked<Option<Expression>> {
         use terminal_psi::StructuralAccess;
         let unavailable = |detail| refuse_at(machine, Unserved::Expression(detail));
-        let Some((ValueType::Record(array, _, _), StructuralAccess::SharedBorrow)) =
-            self.reference_referent(machine, expected)?
+        let Some((
+            ValueType::Record(array, _, _),
+            access @ (StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
+        )) = self.reference_referent(machine, expected)?
         else {
             return Ok(None);
         };
@@ -616,15 +618,17 @@ impl Program<'_> {
         ) {
             return Ok(None);
         }
+        // The reference lends exactly the view's own access: a shared view
+        // gives a shared reference and a mutable view a mutable one.
         let same_element = match self.data_type(machine, view_row)?.shape {
             StorageShape::ElementView {
                 element,
                 qualification: Qualification::NONE,
-                access: Some(StructuralAccess::SharedBorrow),
-            } => element == array_element,
+                access: Some(view_access),
+            } if view_access == access => element == array_element,
             StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
-                access: Some(StructuralAccess::SharedBorrow),
-            }) => matches!(
+                access: Some(view_access),
+            }) if view_access == access => matches!(
                 self.data_type(machine, array_element)?.shape,
                 StorageShape::PrimitiveScalar {
                     scalar_type: ScalarType::Integer(integer),
@@ -633,7 +637,7 @@ impl Program<'_> {
             ),
             _ => {
                 return Err(unavailable(
-                    "fixed-array reference to a view that is not a plain shared view",
+                    "fixed-array reference to a view that is not a plain view of the same access",
                 ));
             }
         };
@@ -1145,7 +1149,7 @@ impl Program<'_> {
         }
         let constant_input_owner = self.storage_constant_input_owner(machine, &shape)?;
         let identity = super::places::storage_identity_for_inputs(identity, constant_input_owner);
-        let id = self.records.push(RecordType {
+        let record_type = RecordType {
             multiplicity: crate::body::source_multiplicity(
                 self.typed.stored_value_multiplicity(reference),
             ),
@@ -1155,11 +1159,11 @@ impl Program<'_> {
             requires: Vec::new(),
             authored_layout: false,
             erased: Vec::new(),
-        });
+        };
         let mut source = physical_source_application(application);
         source.constant_input_owner = constant_input_owner;
         source.region_owner = self.lifetime_owner;
-        self.record_sources.push(source);
+        let id = self.push_record_row(record_type, source);
         Ok(ValueType::Record(id, Qualification::NONE, regions))
     }
 
@@ -1279,7 +1283,7 @@ impl Program<'_> {
         let identity = self.storage_identity(machine, &application)?;
         let constant_input_owner = self.storage_constant_input_owner(machine, &shape)?;
         let identity = super::places::storage_identity_for_inputs(identity, constant_input_owner);
-        let id = self.records.push(RecordType {
+        let record_type = RecordType {
             multiplicity,
             cleanup: None,
             identity,
@@ -1287,10 +1291,10 @@ impl Program<'_> {
             requires: Vec::new(),
             authored_layout: false,
             erased: Vec::new(),
-        });
+        };
         let mut source = physical_source_application(application);
         source.constant_input_owner = constant_input_owner;
-        self.record_sources.push(source);
+        let id = self.push_record_row(record_type, source);
         // The row is the element's carrier; the regions its elements hold
         // belong to the array value's type, as a record's do (`regions`).
         Ok(ValueType::Record(id, Qualification::NONE, value.regions()))
@@ -1361,7 +1365,7 @@ impl Program<'_> {
         // identity. Keep the same substitutions for the row and its source.
         let application = self.storage_source_application(reference);
         let identity = self.storage_identity(machine, &application)?;
-        let id = self.records.push(RecordType {
+        let record_type = RecordType {
             multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             cleanup: None,
             identity,
@@ -1372,10 +1376,8 @@ impl Program<'_> {
             requires: Vec::new(),
             authored_layout: false,
             erased: Vec::new(),
-        });
-        self.record_sources
-            .push(physical_source_application(application));
-        Ok(id)
+        };
+        Ok(self.push_record_row(record_type, physical_source_application(application)))
     }
 
     fn storage_identity(

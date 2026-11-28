@@ -141,8 +141,8 @@ pub(crate) fn compute_post_allocation_machine_plan(
     // `validate_roots` proved the effects plan names this selected program.
     Ok(PostAllocationMachinePlan {
         selected: Arc::clone(&allocation.effects.selected),
-        homes: allocation.homes_identity,
-        post_allocation_manifest: allocation.publication.record().identity,
+        homes: Arc::clone(allocation.homes),
+        post_allocation_manifest: Arc::clone(allocation.publication.record()),
         target: selected_plan.target,
         register_environment: sources.register_environment,
         physical_register_model: sources.physical.identity(),
@@ -166,7 +166,6 @@ fn validate_roots(sources: &PlanSources<'_>) -> Result<(), PostAllocationMachine
         ranges,
         legality,
         homes,
-        homes_identity,
         ..
     } = allocation;
     let manifest = allocation.publication.record();
@@ -199,15 +198,15 @@ fn validate_roots(sources: &PlanSources<'_>) -> Result<(), PostAllocationMachine
     }
     if manifest.target != selected.plan.target
         || *manifest.selected != *selected.plan
-        || manifest.homes != homes_identity
+        || manifest.homes != *homes
         || manifest.register_environment != register_environment
     {
         return Err(PostAllocationMachineError::PostAllocationManifestMismatch);
     }
-    let preservation = allocation.preservation.plan();
+    let preservation = allocation.preservation;
     if *preservation.selected != *selected.plan
-        || preservation.homes != homes_identity
-        || preservation.post_allocation_manifest != manifest.identity
+        || preservation.homes != *homes
+        || preservation.post_allocation_manifest != *manifest
         || preservation.register_environment != register_environment
         || preservation.physical_register_model != physical.identity()
         || preservation.target != selected.plan.target
@@ -601,7 +600,6 @@ mod tests {
     use post_allocation_machine::PhysicalOperandFootprint;
     use register_model::{
         RegisterClassId, RegisterOperandAccess, RegisterViewId, ValidatedPhysicalRegisterModel,
-        validate_physical_register_model,
     };
     use selected_instructions::{
         MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
@@ -610,8 +608,8 @@ mod tests {
 
     use super::choose_alternative;
 
-    fn physical() -> ValidatedPhysicalRegisterModel {
-        validate_physical_register_model(target_x86_64::x86_64_physical_register_model()).unwrap()
+    fn physical() -> &'static ValidatedPhysicalRegisterModel {
+        target_x86_64::validated_x86_64_physical_register_model()
     }
 
     fn view(physical: &ValidatedPhysicalRegisterModel, name: &str) -> RegisterViewId {
@@ -695,9 +693,9 @@ mod tests {
     #[test]
     fn x86_subtract_home_partition_selects_each_unique_variant() {
         let physical = physical();
-        let rax = view(&physical, "rax");
-        let rbx = view(&physical, "rbx");
-        let rcx = view(&physical, "rcx");
+        let rax = view(physical, "rax");
+        let rbx = view(physical, "rbx");
+        let rcx = view(physical, "rcx");
         let alternatives = subtract_alternatives();
         for (views, expected) in [
             ([rax, rax, rax], 0),
@@ -711,7 +709,7 @@ mod tests {
                 .map(|(number, view)| operand(u16::try_from(number).unwrap(), view))
                 .collect::<Vec<_>>();
             assert_eq!(
-                choose_alternative(7, &operands, &alternatives, &physical)
+                choose_alternative(7, &operands, &alternatives, physical)
                     .unwrap()
                     .key
                     .variant,
@@ -723,8 +721,8 @@ mod tests {
     #[test]
     fn x86_lea_add_accepts_r12_as_a_rex_extended_sib_index() {
         let physical = physical();
-        let rax = view(&physical, "rax");
-        let r12 = view(&physical, "r12");
+        let rax = view(physical, "rax");
+        let r12 = view(physical, "r12");
         let add = MachineAlternative {
             key: MachineAlternativeKey {
                 family: MachineAlternativeFamily::ExactAddI64,
@@ -743,7 +741,7 @@ mod tests {
         };
         let operands = [operand(0, r12), operand(1, r12), operand(2, rax)];
         assert_eq!(
-            choose_alternative(8, &operands, std::slice::from_ref(&add), &physical)
+            choose_alternative(8, &operands, std::slice::from_ref(&add), physical)
                 .unwrap()
                 .key,
             add.key
@@ -753,7 +751,7 @@ mod tests {
     #[test]
     fn the_legality_rule_never_chooses_an_optimizer_selected_form() {
         let physical = physical();
-        let rax = view(&physical, "rax");
+        let rax = view(physical, "rax");
         let operands = [operand(2, rax)];
         let alternatives = [
             alternative(0, MachineAlternativeApplicability::Always),
@@ -766,14 +764,14 @@ mod tests {
             ),
         ];
         assert_eq!(
-            choose_alternative(9, &operands, &alternatives, &physical)
+            choose_alternative(9, &operands, &alternatives, physical)
                 .unwrap()
                 .key
                 .variant,
             0
         );
         assert_eq!(
-            choose_alternative(9, &operands, &alternatives[1..], &physical),
+            choose_alternative(9, &operands, &alternatives[1..], physical),
             Err(
                 crate::machine::PostAllocationMachineError::NoApplicableAlternative {
                     instruction: 9

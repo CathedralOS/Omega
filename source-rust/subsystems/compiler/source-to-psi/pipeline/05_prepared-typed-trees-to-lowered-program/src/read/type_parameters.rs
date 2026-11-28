@@ -119,7 +119,7 @@ impl Program<'_> {
             language_core::Multiplicity::Affine => terminal_psi::StructuralMultiplicity::Affine,
             language_core::Multiplicity::Linear => terminal_psi::StructuralMultiplicity::Linear,
         };
-        let storage = self.records.push(RecordType {
+        let record_type = RecordType {
             multiplicity,
             cleanup: None,
             identity,
@@ -127,8 +127,8 @@ impl Program<'_> {
             requires: Vec::new(),
             authored_layout: false,
             erased: Vec::new(),
-        });
-        self.record_sources.push(RecordSource {
+        };
+        let source = RecordSource {
             constant_input_owner: None,
             declaration: symbol,
             cleanup: None,
@@ -141,7 +141,8 @@ impl Program<'_> {
             fields: Vec::new(),
             cases: Vec::new(),
             erased: Vec::new(),
-        });
+        };
+        let storage = self.push_record_row(record_type, source);
         self.rigid_storage
             .resize_with(self.rigid_storage.len().max(ordinal + 1), || None);
         self.rigid_storage[ordinal] = Some(ParameterStorage {

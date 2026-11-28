@@ -43,7 +43,6 @@ fresh liveness, live-range, and legality checks before its homes are accepted.
 
 use selected_instruction_analyses as analyses;
 pub(crate) use selected_instruction_analyses::*;
-use selected_instructions::FixedViewCopyIdentity;
 
 #[macro_use]
 mod assignment;
@@ -108,7 +107,7 @@ pub use rewrites::{
     PressureRematerializationPolicy, RuntimeRematerializationError, RuntimeSpillError,
     RuntimeSpillSpanPolicy, RuntimeSplitError, ValidatedFixedOccurrences,
     ValidatedPressureRematerialization, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
-    ValidatedRuntimeSplit, fixed_view_copy_identity, materialize_selected_fixed_occurrences,
+    ValidatedRuntimeSplit, materialize_selected_fixed_occurrences,
     probe_optimized_fixed_precolored_segment_homes, rematerialize_selected_active_resident,
     rematerialize_selected_runtime_value, spill_selected_runtime_value,
     spill_selected_runtime_value_with_crossing_status, split_selected_runtime_value,
@@ -124,8 +123,7 @@ pub(crate) use assignment::baseline::{
     StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterFixedViewCopies,
 };
 pub use assignment::home_assignment::{
-    AssignedRegisterHomes, FunctionRegisterHomes, RegisterHomeIdentity, RegisterHomePlan,
-    VirtualRegisterHome, register_home_identity,
+    AssignedRegisterHomes, FunctionRegisterHomes, RegisterHomePlan, VirtualRegisterHome,
 };
 pub(crate) use assignment::home_assignment::{
     RegisterHomeError, RegisterHomeReceipt, assign_register_homes,

@@ -1,6 +1,5 @@
 /*
-Whole-function exit contracts (`WholeFunctionExitContract`) and their canonical SHA-256 identity
-(`WholeFunctionExitContractIdentity`, schema `omega.terminal.whole-function-exit-contract.v16\0`).
+Whole-function exit contracts (`WholeFunctionExitContract`).
 
 Every emitted machine function must account for how its frame, stack delta, callee-saved register
 units, returns (`WholeFunctionReturnEvidence`), process exits (`WholeFunctionProcessExitEvidence`),
@@ -8,8 +7,8 @@ and traps (`WholeFunctionCrashEvidence`) terminate execution under the target AB
 and frame disposition (`WholeFunctionFrameDisposition`). Recording this exit contract alongside its
 upstream layout custody (`WholeFunctionExitLayoutCustody`) lets fragment and text-section admission
 verify return/epilogue correspondence without re-running frame layout synthesis. The contract
-holds the machine plan, resolved layout and frame plan it was built from; checks compare those
-plans, and the identity digest covers only the contract's own evidence and roots.
+holds the machine plan, resolved layout, frame plan and frame protocol it was built from; checks
+compare those plans and the contract itself, not a digest of it.
 */
 
 use register_model::{RegisterUnitId, RegisterViewId};
@@ -22,23 +21,20 @@ use target::NativeTarget;
 use std::sync::Arc;
 
 use crate::{
-    ResolvedMachineLayout, SelectedFormEncodingIdentity, TargetFrameLayoutPlan,
-    TargetFrameProtocolEncodingIdentity, X86BranchRelaxationIdentity, encode_units,
+    ResolvedMachineLayout, SelectedFormEncodingHandle, TargetFrameLayoutPlan,
+    TargetFrameProtocolEncodingPlan, X86BranchRelaxationIdentity,
 };
 
 pub mod exit_contract {
     pub use super::{
         WholeFunctionCrashEvidence, WholeFunctionEntryAssumption, WholeFunctionExitContract,
-        WholeFunctionExitContractIdentity, WholeFunctionExitEvidence,
-        WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy, WholeFunctionFrameDisposition,
-        WholeFunctionHardeningPolicy, WholeFunctionProcessExitEvidence,
-        WholeFunctionReturnEvidence, WholeFunctionReturnFragmentEvidence,
-        WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
-        whole_function_exit_contract_identity,
+        WholeFunctionExitEvidence, WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy,
+        WholeFunctionFrameDisposition, WholeFunctionHardeningPolicy,
+        WholeFunctionProcessExitEvidence, WholeFunctionReturnEvidence,
+        WholeFunctionReturnFragmentEvidence, WholeFunctionReturnMechanism,
+        WholeFunctionReturnValueEvidence,
     };
 }
-
-register_homes::identity_newtype! { pub struct WholeFunctionExitContractIdentity([u8; 32]); }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WholeFunctionExitPolicy {
@@ -57,7 +53,7 @@ pub enum WholeFunctionFrameDisposition {
     FramelessV1,
     CanonicalFixedFrameV1 {
         layout: Arc<TargetFrameLayoutPlan>,
-        protocol: TargetFrameProtocolEncodingIdentity,
+        protocol: Arc<TargetFrameProtocolEncodingPlan>,
     },
 }
 
@@ -157,12 +153,10 @@ pub struct WholeFunctionExitEvidence {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WholeFunctionExitContract {
-    pub identity: WholeFunctionExitContractIdentity,
-    pub post_allocation_manifest: optimization_core::PostAllocationOptimizationManifestIdentity,
     pub post_allocation_machine: std::sync::Arc<post_allocation_machine::PostAllocationMachinePlan>,
     pub register_environment: register_model::TargetRegisterEnvironmentIdentity,
     pub physical_register_model: register_model::PhysicalRegisterModelIdentity,
-    pub pre_layout: SelectedFormEncodingIdentity,
+    pub pre_layout: SelectedFormEncodingHandle,
     pub resolved_layout: Arc<ResolvedMachineLayout>,
     pub layout_custody: WholeFunctionExitLayoutCustody,
     pub target: NativeTarget,
@@ -183,144 +177,5 @@ impl WholeFunctionExitContract {
         self.functions
             .iter()
             .find(|function| function.machine == machine)
-    }
-
-    pub fn recomputed_identity(&self) -> WholeFunctionExitContractIdentity {
-        whole_function_exit_contract_identity(self)
-    }
-}
-
-const CONTRACT_SCHEMA: &[u8] = b"omega.terminal.whole-function-exit-contract.v17\0";
-
-pub fn whole_function_exit_contract_identity(
-    contract: &WholeFunctionExitContract,
-) -> WholeFunctionExitContractIdentity {
-    let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(CONTRACT_SCHEMA);
-    hasher.raw(&contract.post_allocation_manifest.bytes());
-    hasher.raw(&contract.register_environment.bytes());
-    hasher.raw(&contract.physical_register_model.bytes());
-    hasher.raw(&contract.pre_layout.bytes());
-    match contract.layout_custody {
-        WholeFunctionExitLayoutCustody::BaselineNearLayoutV1 => hasher.byte(1),
-        WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 { relaxation } => {
-            hasher.byte(2);
-            hasher.raw(&relaxation.bytes());
-        }
-    }
-    hasher.raw(&contract.target.wire_identity_bytes());
-    hasher.byte(exit_policy_tag(contract.policy));
-    match &contract.frame {
-        WholeFunctionFrameDisposition::FramelessV1 => hasher.byte(1),
-        WholeFunctionFrameDisposition::CanonicalFixedFrameV1 { protocol, .. } => {
-            hasher.byte(2);
-            hasher.raw(&protocol.bytes());
-        }
-    }
-    hasher.byte(1);
-    match contract.entry_assumption {
-        WholeFunctionEntryAssumption::CallerReturnAddressAtStackPointerV1 => {
-            hasher.byte(1);
-        }
-        WholeFunctionEntryAssumption::CallerLinkRegisterV1 { link_register } => {
-            hasher.byte(2);
-            hasher.raw(&link_register.0.to_le_bytes());
-        }
-    }
-    hasher.raw(&contract.stack_pointer.0.to_le_bytes());
-    hasher.raw(&contract.stack_alignment.to_le_bytes());
-    hasher.raw(&contract.red_zone_bytes.to_le_bytes());
-    hasher.raw(&contract.result_view.0.to_le_bytes());
-    encode_units(&mut hasher, &contract.callee_saved_units);
-    hasher.u64(contract.functions.len() as u64);
-    for function in contract.functions.iter() {
-        hasher.raw(&function.machine.get().to_le_bytes());
-        hasher.raw(&function.entry_block.0.to_le_bytes());
-        hasher.raw(&function.body_stack_delta.to_le_bytes());
-        encode_units(&mut hasher, &function.modified_callee_saved_units);
-        hasher.u64(function.crashes.len() as u64);
-        for crash in &function.crashes {
-            hasher.raw(&crash.block.0.to_le_bytes());
-            hasher.raw(&crash.psi_edge.get().to_le_bytes());
-            hasher.byte(match crash.cause {
-                terminal_psi::CrashCause::Trap => 1,
-                terminal_psi::CrashCause::Abort => 2,
-            });
-            hasher.raw(&crash.instruction.0.to_le_bytes());
-            hasher.raw(&crash.offset.to_le_bytes());
-            hasher.bytes(&crash.bytes);
-        }
-        hasher.u64(function.process_exits.len() as u64);
-        for exited in &function.process_exits {
-            hasher.raw(&exited.block.0.to_le_bytes());
-            hasher.raw(&exited.completion_edge.get().to_le_bytes());
-            hasher.raw(&exited.instruction.0.to_le_bytes());
-            hasher.raw(&exited.offset.to_le_bytes());
-            hasher.bytes(&exited.bytes);
-        }
-        hasher.u64(function.returns.len() as u64);
-        for returned in &function.returns {
-            hasher.raw(&returned.block.0.to_le_bytes());
-            hasher.raw(&returned.psi_return_edge.get().to_le_bytes());
-            hasher.raw(&returned.instruction.0.to_le_bytes());
-            hasher.raw(&returned.offset.to_le_bytes());
-            hasher.bytes(&returned.bytes);
-            match &returned.value {
-                WholeFunctionReturnValueEvidence::UnitV1 => hasher.byte(1),
-                WholeFunctionReturnValueEvidence::AggregateV1 { fragments } => {
-                    hasher.byte(3);
-                    hasher.u64(fragments.len() as u64);
-                    for fragment in fragments {
-                        hasher.raw(&fragment.virtual_register.0.to_le_bytes());
-                        hasher.raw(&fragment.view.0.to_le_bytes());
-                        encode_units(&mut hasher, &fragment.units);
-                    }
-                }
-                WholeFunctionReturnValueEvidence::ScalarV1 {
-                    virtual_register,
-                    view,
-                    units,
-                } => {
-                    hasher.byte(2);
-                    hasher.raw(&virtual_register.0.to_le_bytes());
-                    hasher.raw(&view.0.to_le_bytes());
-                    encode_units(&mut hasher, units);
-                }
-            }
-            hasher.byte(1);
-            match returned.mechanism {
-                WholeFunctionReturnMechanism::X86ActivationStackReturnV1 {
-                    stack_pointer,
-                    read_bytes,
-                    pop_bytes,
-                } => {
-                    hasher.byte(1);
-                    hasher.raw(&stack_pointer.0.to_le_bytes());
-                    hasher.raw(&read_bytes.to_le_bytes());
-                    hasher.raw(&pop_bytes.to_le_bytes());
-                }
-                WholeFunctionReturnMechanism::Aarch64LinkRegisterReturnV1 {
-                    stack_pointer,
-                    link_register,
-                } => {
-                    hasher.byte(2);
-                    hasher.raw(&stack_pointer.0.to_le_bytes());
-                    hasher.raw(&link_register.0.to_le_bytes());
-                }
-            }
-        }
-    }
-    WholeFunctionExitContractIdentity::from_bytes(hasher.finish())
-}
-
-pub(crate) fn exit_policy_tag(policy: WholeFunctionExitPolicy) -> u8 {
-    match policy {
-        WholeFunctionExitPolicy::SystemVAMD64FramelessLeafV1 => 1,
-        WholeFunctionExitPolicy::MicrosoftX64FramelessLeafV1 => 2,
-        WholeFunctionExitPolicy::Aapcs64FramelessLeafV1 => 3,
-        WholeFunctionExitPolicy::DarwinAapcs64FramelessLeafV1 => 4,
-        WholeFunctionExitPolicy::SystemVAMD64CanonicalFixedFrameV1 => 7,
-        WholeFunctionExitPolicy::Aapcs64CanonicalFixedFrameV1 => 8,
-        WholeFunctionExitPolicy::DarwinAapcs64CanonicalFixedFrameV1 => 9,
-        WholeFunctionExitPolicy::MicrosoftX64CanonicalFixedFrameV1 => 11,
     }
 }

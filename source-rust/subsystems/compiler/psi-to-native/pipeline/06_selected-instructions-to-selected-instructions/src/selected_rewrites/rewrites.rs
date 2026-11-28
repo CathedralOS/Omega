@@ -821,7 +821,6 @@ pub(crate) mod pre_allocation {
         };
         use optimization_core::{
             OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
-            PreAllocationOptimizationCompletionIdentity,
         };
         use register_environment::ValidatedTargetRegisterEnvironment;
         use register_model::RegisterOperandAccess;
@@ -2050,10 +2049,7 @@ pub(crate) mod pre_allocation {
                 Some(step) => step.legality.receipt().virtual_register_count(),
                 None => source.legality().receipt().virtual_register_count(),
             };
-            let mut receipt = StagedPreAllocationOptimizationCustodyReceipt {
-                identity: PreAllocationOptimizationCompletionIdentity::from_canonical_bytes(
-                    b"pending",
-                ),
+            StagedPreAllocationOptimizationCustodyReceipt {
                 source: source_receipt,
                 selections: selections.identity(),
                 pre_allocation_selections: pre_allocation_selections.identity(),
@@ -2069,16 +2065,14 @@ pub(crate) mod pre_allocation {
                 iterations: steps.iter().map(iteration_receipt).collect(),
                 attempt: attempt_receipt(attempt),
                 final_virtual_register_count: final_vregs,
-            };
-            receipt.identity = pre_allocation_completion_identity(&receipt);
-            receipt
+            }
         }
 
         fn iteration_receipt(
             step: &StagedOptimizedPreAllocationStep,
         ) -> StagedOptimizedPreAllocationIterationReceipt {
             StagedOptimizedPreAllocationIterationReceipt {
-                transformation: step.transformation.identity(),
+                transformation: step.transformation.kind(),
                 function_index: step.transformation.function_index(),
                 instruction: step.transformation.instruction(),
                 declined: step.declined,
@@ -2093,76 +2087,6 @@ pub(crate) mod pre_allocation {
                 candidates: attempt.candidates,
                 declined: attempt.declined,
             }
-        }
-
-        fn pre_allocation_completion_identity(
-            receipt: &StagedPreAllocationOptimizationCustodyReceipt,
-        ) -> PreAllocationOptimizationCompletionIdentity {
-            let mut canonical = Vec::new();
-            canonical.extend_from_slice(b"omega.pre-allocation-optimization-completion.v9\0");
-            let source = receipt.source;
-            for identity in [
-                source.optimization_unit().bytes(),
-                source.selection().bytes(),
-                source.register_environment().bytes(),
-                source.allocator_availability().bytes(),
-                receipt.selections.bytes(),
-                receipt.pre_allocation_selections.bytes(),
-            ] {
-                canonical.extend_from_slice(&identity);
-            }
-            crate::selected_rewrites::codec_bytes::push_encoded(
-                &mut canonical,
-                receipt.policy.canonical_bits().to_le_bytes(),
-            );
-            canonical.extend_from_slice(&source.budget_per_pass().encode());
-            canonical.extend_from_slice(&receipt.budget.encode());
-            canonical.extend_from_slice(&receipt.usage.encode());
-            for count in [
-                receipt.iteration_bound,
-                receipt.removal_count,
-                receipt.initial_virtual_register_count,
-                receipt.iterations.len(),
-            ] {
-                encode_count(&mut canonical, count);
-            }
-            macro_rules! encode_transformations {
-                ($canonical:ident, $transformation:expr; $($variant:ident, $tag:literal),* $(,)?) => {
-                    match $transformation {
-                        $(
-                            crate::selected_rewrites::PreAllocationTransformationIdentity::$variant(identity) => {
-                                $canonical.push($tag);
-                                $canonical.extend_from_slice(&identity.bytes());
-                            }
-                        )*
-                    }
-                };
-            }
-            for iteration in &receipt.iterations {
-                encode_transformations!(canonical, iteration.transformation();
-                    CopyRemoval, 1, RedundantExtension, 2, AddressFold, 3, ConstantBoolean, 4,
-                    ConstantBranch, 5, DeadCompare, 6, RedundantCompare, 7, EquivalentCompare, 8,
-                    CopiedCallOperand, 9, StoredLoadForwarding, 10);
-                encode_count(&mut canonical, iteration.function_index());
-                crate::selected_rewrites::codec_bytes::push_encoded(
-                    &mut canonical,
-                    iteration.instruction().0.to_le_bytes(),
-                );
-                encode_count(&mut canonical, iteration.declined());
-                encode_count(&mut canonical, iteration.evaluated());
-            }
-            encode_count(&mut canonical, receipt.attempt.candidates());
-            encode_count(&mut canonical, receipt.attempt.declined());
-            encode_count(&mut canonical, receipt.final_virtual_register_count);
-            PreAllocationOptimizationCompletionIdentity::from_canonical_bytes(&canonical)
-        }
-
-        fn encode_count(canonical: &mut Vec<u8>, count: usize) {
-            canonical.extend_from_slice(
-                &u64::try_from(count)
-                    .expect("pre-allocation completion count fits u64")
-                    .to_le_bytes(),
-            );
         }
     }
     pub(crate) mod model {
@@ -2183,14 +2107,8 @@ pub(crate) mod pre_allocation {
         use optimization_core::{
             Optimization, OptimizationSelectionIdentity, OptimizationSelections,
             OptimizationWorkBudget, OptimizationWorkUsage,
-            PreAllocationOptimizationCompletionIdentity,
         };
-        use selected_instructions::{
-            AddressFoldIdentity, ConstantBooleanIdentity, ConstantBranchIdentity,
-            CopiedCallOperandIdentity, CopyRemovalIdentity, DeadCompareIdentity,
-            EquivalentCompareIdentity, RedundantCompareIdentity, RedundantExtensionIdentity,
-            SelectedInstructionId, SelectedInstructionPlan, StoredLoadForwardingIdentity,
-        };
+        use selected_instructions::{SelectedInstructionId, SelectedInstructionPlan};
 
         pub use selected_instruction_analyses::rewriting::PreAllocationPolicy;
 
@@ -2253,55 +2171,54 @@ pub(crate) mod pre_allocation {
                 }
             }
 
-            pub fn identity(&self) -> PreAllocationTransformationIdentity {
+            /// Which rule this rewrite applied. The step keeps the rewrite and
+            /// the programs it read and wrote; the kind is what the program's
+            /// transformation ledger records.
+            pub fn kind(&self) -> PreAllocationTransformationKind {
                 macro_rules! project {
-                    ($($variant:ident($binding:ident)),* $(,)?) => {
+                    ($($variant:ident),* $(,)?) => {
                         match self {
-                            $(Self::$variant($binding) => {
-                                PreAllocationTransformationIdentity::$variant($binding.receipt().identity())
-                            })*
+                            $(Self::$variant(_) => PreAllocationTransformationKind::$variant,)*
                         }
                     };
                 }
                 project!(
-                    CopyRemoval(removal),
-                    RedundantExtension(removal),
-                    AddressFold(fold),
-                    ConstantBoolean(fold),
-                    ConstantBranch(fold),
-                    DeadCompare(removal),
-                    RedundantCompare(removal),
-                    EquivalentCompare(removal),
-                    CopiedCallOperand(reroute),
-                    StoredLoadForwarding(forwarding),
+                    CopyRemoval,
+                    RedundantExtension,
+                    AddressFold,
+                    ConstantBoolean,
+                    ConstantBranch,
+                    DeadCompare,
+                    RedundantCompare,
+                    EquivalentCompare,
+                    CopiedCallOperand,
+                    StoredLoadForwarding,
                 )
             }
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-        pub enum PreAllocationTransformationIdentity {
-            CopyRemoval(CopyRemovalIdentity),
-            RedundantExtension(RedundantExtensionIdentity),
-            AddressFold(AddressFoldIdentity),
-            ConstantBoolean(ConstantBooleanIdentity),
-            ConstantBranch(ConstantBranchIdentity),
-            DeadCompare(DeadCompareIdentity),
-            RedundantCompare(RedundantCompareIdentity),
-            EquivalentCompare(EquivalentCompareIdentity),
-            CopiedCallOperand(CopiedCallOperandIdentity),
-            StoredLoadForwarding(StoredLoadForwardingIdentity),
+        pub enum PreAllocationTransformationKind {
+            CopyRemoval,
+            RedundantExtension,
+            AddressFold,
+            ConstantBoolean,
+            ConstantBranch,
+            DeadCompare,
+            RedundantCompare,
+            EquivalentCompare,
+            CopiedCallOperand,
+            StoredLoadForwarding,
         }
 
-        impl From<PreAllocationTransformationIdentity>
+        impl From<PreAllocationTransformationKind>
             for register_homes::PostAllocationSelectedTransformation
         {
-            fn from(identity: PreAllocationTransformationIdentity) -> Self {
+            fn from(kind: PreAllocationTransformationKind) -> Self {
                 macro_rules! forward {
                     ($($variant:ident),* $(,)?) => {
-                        match identity {
-                            $(PreAllocationTransformationIdentity::$variant(identity) => {
-                                Self::$variant(identity)
-                            })*
+                        match kind {
+                            $(PreAllocationTransformationKind::$variant => Self::$variant,)*
                         }
                     };
                 }
@@ -2430,8 +2347,12 @@ pub(crate) mod pre_allocation {
                     .collect::<Vec<_>>();
                 let source = self.source.record();
                 selected_instruction_analyses::SelectedOptimizationRecord {
-                    selected_lowering_completion: source.selected_lowering_completion,
-                    pre_allocation_completion: Some(self.custody.identity),
+                    selected_lowering_output: source.selected_lowering_output.clone(),
+                    pre_allocation_output: Some(
+                        crate::selected_rewrites::SelectedProgramView::shared_selected_plan(
+                            &self.current(),
+                        ),
+                    ),
                     transformations: source.followed_by(&applied),
                 }
             }
@@ -2451,7 +2372,6 @@ pub(crate) mod pre_allocation {
 
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub struct StagedPreAllocationOptimizationCustodyReceipt {
-            pub(crate) identity: PreAllocationOptimizationCompletionIdentity,
             pub(crate) source: StagedOptimizedAllocationLegalityCustodyReceipt,
             pub(crate) selections: OptimizationSelectionIdentity,
             pub(crate) pre_allocation_selections: OptimizationSelectionIdentity,
@@ -2468,7 +2388,6 @@ pub(crate) mod pre_allocation {
 
         impl StagedPreAllocationOptimizationCustodyReceipt {
             receipt_accessor_rows!(ref StagedPreAllocationOptimizationCustodyReceipt {
-                    identity: PreAllocationOptimizationCompletionIdentity,
                     source: StagedOptimizedAllocationLegalityCustodyReceipt,
                     selections: OptimizationSelectionIdentity,
                     pre_allocation_selections: OptimizationSelectionIdentity,
@@ -2489,7 +2408,7 @@ pub(crate) mod pre_allocation {
         copy_receipt! {
             #[derive(Debug, Clone, Copy, PartialEq, Eq)]
             pub struct StagedOptimizedPreAllocationIterationReceipt {
-                pub(crate) transformation: PreAllocationTransformationIdentity,
+                pub(crate) transformation: PreAllocationTransformationKind,
                 pub(crate) function_index: usize,
                 pub(crate) instruction: SelectedInstructionId,
                 pub(crate) declined: usize,
@@ -2573,10 +2492,9 @@ pub(crate) mod pre_allocation {
         StagedPreAllocationOptimizationRun,
     };
     pub(crate) use model::{
-        PreAllocationPolicy, PreAllocationTransformationIdentity,
-        StagedOptimizedPreAllocationAttempt, StagedOptimizedPreAllocationAttemptReceipt,
-        StagedOptimizedPreAllocationIterationReceipt, StagedOptimizedPreAllocationStep,
-        ValidatedPreAllocationTransformation,
+        PreAllocationPolicy, StagedOptimizedPreAllocationAttempt,
+        StagedOptimizedPreAllocationAttemptReceipt, StagedOptimizedPreAllocationIterationReceipt,
+        StagedOptimizedPreAllocationStep, ValidatedPreAllocationTransformation,
     };
 
     impl From<PreAllocationRuleCatalogError> for OptimizedPreAllocationCustodyError {
@@ -2794,26 +2712,25 @@ pub use pre_allocation::{
 };
 pub(crate) use pre_allocation::{
     PRE_ALLOCATION_RULE_CATALOG, PreAllocationPolicy, PreAllocationRuleCatalogEntry,
-    PreAllocationTransformationIdentity, StagedOptimizedPreAllocationAttempt,
-    StagedOptimizedPreAllocationAttemptReceipt, StagedOptimizedPreAllocationIterationReceipt,
-    StagedOptimizedPreAllocationStep, ValidatedPreAllocationTransformation,
-    resolve_pre_allocation_rules, run_pre_allocation_optimizations,
-    validate_pre_allocation_optimization_custody,
+    StagedOptimizedPreAllocationAttempt, StagedOptimizedPreAllocationAttemptReceipt,
+    StagedOptimizedPreAllocationIterationReceipt, StagedOptimizedPreAllocationStep,
+    ValidatedPreAllocationTransformation, resolve_pre_allocation_rules,
+    run_pre_allocation_optimizations, validate_pre_allocation_optimization_custody,
 };
 pub(crate) use redundant_extension::{RedundantExtensionError, ValidatedRedundantExtension};
 pub(crate) use redundant_extension::{
     measured_steps as redundant_extension_measured_steps, remove_selected_redundant_extension,
 };
 
+pub use selected_lowering::ValidatedLiteralFold;
 pub(crate) use selected_lowering::{
     FunctionLiteralFold, LiteralFoldAction, LiteralFoldError, LiteralFoldPlan, LiteralFoldPolicy,
     LiteralFoldValidationReceipt, PairResultDisposition, PairUnitDefRelation,
     SELECTED_LOWERING_RULE_CATALOG, SelectedInstructionPairRule, SelectedLoweringRuleCatalogEntry,
     SelectedLoweringRuleCatalogError, resolve_selected_lowering_rules,
 };
-pub use selected_lowering::{LiteralFoldIdentity, ValidatedLiteralFold};
 pub(crate) use selected_lowering::{
-    enabled_pair_rules_by_optimization, fold_selected_incoming_literal, literal_fold_identity,
+    enabled_pair_rules_by_optimization, fold_selected_incoming_literal,
 };
 
 pub(crate) use selected_instruction_analyses::rewriting::*;

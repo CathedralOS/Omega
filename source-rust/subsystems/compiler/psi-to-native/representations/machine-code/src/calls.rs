@@ -192,32 +192,6 @@ pub mod callbacks {
         pub byte_count: usize,
         pub encoding: CallbackAddressEncoding,
     }
-
-    pub(crate) fn encode_callback_destination_identity(
-        hasher: &mut crate::digest_encoder::DomainDigestEncoder,
-        destination: &CallbackAddressDestination,
-    ) {
-        match destination {
-            CallbackAddressDestination::Register(register) => {
-                hasher.byte(0);
-                hasher.byte(register.codec_index());
-            }
-            CallbackAddressDestination::OutgoingStack { byte_offset } => {
-                hasher.byte(1);
-                hasher.raw(&byte_offset.to_le_bytes());
-            }
-            CallbackAddressDestination::RecordField {
-                root_register,
-                placements,
-            } => {
-                hasher.byte(2);
-                hasher.byte(root_register.codec_index());
-                let mut encoded = Vec::new();
-                calling_conventions::encode_private_callback_placements(&mut encoded, placements);
-                hasher.raw(&encoded);
-            }
-        }
-    }
 }
 
 pub mod fixups {
@@ -288,74 +262,6 @@ pub mod fixups {
         pub patch_byte_width: u8,
         pub addend: i64,
         pub callbacks: Vec<SelectedFormCallbackMaterialization>,
-    }
-
-    impl SelectedFormInternalMachineFixup {
-        pub(crate) fn encode_identity(
-            &self,
-            hasher: &mut crate::digest_encoder::DomainDigestEncoder,
-        ) {
-            hasher.byte(match self.kind {
-                SelectedFormInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1 => 0,
-                SelectedFormInternalMachineFixupKind::Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1 => 1,
-            });
-            hasher.byte(match self.state {
-                SelectedFormInternalMachineFixupState::UnresolvedZeroFieldV1 => 0,
-            });
-            hasher.raw(&self.callee.get().to_le_bytes());
-            hasher.raw(&self.opcode_row_offset.to_le_bytes());
-            hasher.raw(&self.patch_row_offset.to_le_bytes());
-            hasher.raw(&self.reference_row_offset.to_le_bytes());
-            hasher.byte(self.patch_byte_width);
-            hasher.raw(&self.addend.to_le_bytes());
-        }
-    }
-
-    impl SelectedFormNormalizedForeignCallFixup {
-        pub(crate) fn encode_identity(
-            &self,
-            hasher: &mut crate::digest_encoder::DomainDigestEncoder,
-        ) {
-            hasher.byte(match self.kind {
-                SelectedFormNormalizedForeignCallFixupKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1 => 0,
-                SelectedFormNormalizedForeignCallFixupKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1 => 1,
-            });
-            hasher.byte(match self.state {
-                SelectedFormNormalizedForeignCallFixupState::UnresolvedImportFieldV1 => 0,
-            });
-            hasher.raw(&self.boundary.get().to_le_bytes());
-            hasher.raw(&self.ordinal.to_le_bytes());
-            hasher.raw(&self.opcode_row_offset.to_le_bytes());
-            hasher.raw(&self.patch_row_offset.to_le_bytes());
-            hasher.raw(&self.reference_row_offset.to_le_bytes());
-            hasher.byte(self.patch_byte_width);
-            hasher.raw(&self.addend.to_le_bytes());
-            hasher.len(self.callbacks.len());
-            for callback in &self.callbacks {
-                crate::calls::callbacks::encode_callback_destination_identity(
-                    hasher,
-                    &callback.destination,
-                );
-                hasher.raw(&callback.code_row_offset.to_le_bytes());
-                hasher.raw(&callback.code_byte_count.to_le_bytes());
-                match callback.encoding {
-                    SelectedFormCallbackMaterializationEncoding::X86_64Relative32 {
-                        patch_row_offset,
-                    } => {
-                        hasher.byte(0);
-                        hasher.raw(&patch_row_offset.to_le_bytes());
-                    }
-                    SelectedFormCallbackMaterializationEncoding::Aarch64PageAddress {
-                        page_patch_row_offset,
-                        page_offset_patch_row_offset,
-                    } => {
-                        hasher.byte(1);
-                        hasher.raw(&page_patch_row_offset.to_le_bytes());
-                        hasher.raw(&page_offset_patch_row_offset.to_le_bytes());
-                    }
-                }
-            }
-        }
     }
 }
 

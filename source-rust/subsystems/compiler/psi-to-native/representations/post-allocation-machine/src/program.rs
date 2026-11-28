@@ -46,8 +46,9 @@ impl PostAllocationMachineProgram {
         self.environment.physical()
     }
 
-    /// Bind the settled roots. Neither the machine plan nor the function rows
-    /// are hashed: every record that meets them shares them and compares them
+    /// Bind the settled roots. Neither the machine plan, the function rows,
+    /// the preservation requirements nor the allocation publication are
+    /// hashed: every record that meets them shares them and compares them
     /// directly.
     pub fn recomputed_identity(&self) -> [u8; 32] {
         let mut digest =
@@ -59,8 +60,6 @@ impl PostAllocationMachineProgram {
         digest.raw(&self.contracts.identity_bytes());
         digest.raw(&self.environment.identity().bytes());
         digest.raw(&self.physical().identity().bytes());
-        digest.raw(&self.preservation.identity().bytes());
-        digest.raw(&self.publication.identity_bytes());
         digest.raw(&self.phase.complete_selection().bytes());
         digest.raw(&self.phase.phase_selections().bytes());
         digest.u64(self.functions.len() as u64);
