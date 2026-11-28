@@ -3528,19 +3528,22 @@ pub(crate) mod primitive_local_input {
                 storage_scalar,
             } => {
                 let loaded = scalar.as_checking();
-                if *storage_scalar != loaded && !matches!(
-                    (*storage_scalar, loaded),
-                    (semantic_vocabulary::ScalarType::Callable(_), semantic_vocabulary::ScalarType::Callable(_))
-                ) {
+                if *storage_scalar != loaded
+                    && !matches!(
+                        (*storage_scalar, loaded),
+                        (
+                            semantic_vocabulary::ScalarType::Callable(_),
+                            semantic_vocabulary::ScalarType::Callable(_)
+                        )
+                    )
+                {
                     return None;
                 }
 
                 crate::instruction_selection::selection::scalar_call_abi::scalar_shape(scalar)?;
                 if let Some((_, _, actual, _)) = local(source, *place) {
-                    return (path.is_empty()
-                        && indices.is_empty()
-                        && actual == *storage_scalar)
-                    .then_some((*place, 0, Vec::new()));
+                    return (path.is_empty() && indices.is_empty() && actual == *storage_scalar)
+                        .then_some((*place, 0, Vec::new()));
                 }
                 source.structural.as_ref()?;
                 let structural_type = if let Some((_, result)) =

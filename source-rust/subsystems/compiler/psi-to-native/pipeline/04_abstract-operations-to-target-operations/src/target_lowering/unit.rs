@@ -135,7 +135,8 @@ pub(crate) mod boundary_call {
         };
         use super::super::super::scalar_abi::fixed_native_scalar_shape;
         use super::super::super::structural_layout::{
-            ReferenceEndpoint, reference_referent_projection, resolve_structural_projection_path, structural_shape,
+            ReferenceEndpoint, reference_referent_projection, resolve_structural_projection_path,
+            structural_shape,
         };
         use super::{
             AbstractFunction, BoundaryMachineId, CallSignature, LoweringError, NativeTarget,

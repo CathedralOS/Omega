@@ -1064,7 +1064,10 @@ pub(crate) mod scalar_graph {
                     else {
                         panic!("read");
                     };
-                    assert_eq!((source, actual_path, storage_scalar), (place, path.clone(), scalar_type));
+                    assert_eq!(
+                        (source, actual_path, storage_scalar),
+                        (place, path.clone(), scalar_type)
+                    );
                     assert_eq!(
                         (
                             indices[0].operand.value,

@@ -2310,10 +2310,13 @@ pub(crate) mod operation_encoding {
             }
         }
     );
-    field!((usize, semantic_vocabulary::StructuralTypeId), |bytes, referent| {
-        bytes.len(referent.0);
-        bytes.id(referent.1);
-    });
+    field!(
+        (usize, semantic_vocabulary::StructuralTypeId),
+        |bytes, referent| {
+            bytes.len(referent.0);
+            bytes.id(referent.1);
+        }
+    );
     field!(bool, |bytes, value| bytes.boolean(*value));
     field!(abstract_operations::AbstractResult, |bytes, value| {
         encode_abstract_result(bytes, *value)
