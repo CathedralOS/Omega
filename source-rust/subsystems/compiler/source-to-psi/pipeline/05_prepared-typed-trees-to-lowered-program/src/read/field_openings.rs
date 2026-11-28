@@ -21,6 +21,10 @@ pub(crate) struct FieldOpening {
 pub(crate) struct FieldOpenings(HashMap<(MachineId, ExpressionHandle), FieldOpening>);
 
 impl FieldOpenings {
+    pub(crate) fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     pub(crate) fn get(&self, source: SourceOrigin) -> Option<&FieldOpening> {
         let (_, SourceNode::Expression(expression)) = source.node()? else {
             return None;
