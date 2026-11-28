@@ -255,13 +255,20 @@ machine main() crashes Trap {
     );
     Program::new(&native, &[READ]).assert_native_returns();
 
-    let overlapping_write = native
-        .replace("let slot:", "let mutable slot:")
-        .replace("    relay(view)", "    slot = source;\n    relay(view)");
-    let refused = Program::new(&overlapping_write, &[READ]).check();
+    let mutable_cell = native.replace("let slot:", "let mutable slot:");
+    let replace = "let edit: @mutable @'a u8 = |native|::borrow_mutable_at::<@'a u8>(address_of(@slot)); $edit = source;";
+    let grants = &[READ, super::WRITE];
+    let before = mutable_cell.replace("    let view:", &format!("    {replace}\n    let view:"));
+    Program::new(&before, grants).assert_native_returns();
+    let overlapping = mutable_cell.replace(
+        "    relay(view)",
+        &format!("    {replace}\n    relay(view)"),
+    );
+    let refused = Program::new(&overlapping, grants).check();
     let message = super::report(&refused);
     assert!(
-        !refused.status.success() && message.contains("grants shared access only"),
+        !refused.status.success()
+            && message.contains("storage is changed while a conflicting reference remains live"),
         "{message}"
     );
 }
