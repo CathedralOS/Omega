@@ -45,6 +45,7 @@ pub struct NativeEmission {
 /// A native invocation whose target provider demand was matched to its authorized
 /// program. Its reviewed assumptions travel to the same entry and installation checks.
 pub struct NativeProgram {
+    policy_source: driver::inputs::published_application::ProductPolicySource,
     terminal: RetainedTerminalArtifact,
     suppliers: driver::inputs::components::VerifiedSuppliers,
     permissions: provider_admission::TerminalAuthorityPermissionPolicy,
@@ -114,6 +115,7 @@ impl NativeProgram {
     ) -> Result<T, Vec<Diagnostic>> {
         let Self {
             terminal,
+            policy_source,
             suppliers,
             permissions,
             isolated_execution_grant,
@@ -121,6 +123,7 @@ impl NativeProgram {
         } = self;
         let mut receipts = Vec::new();
         let request = NativeCompileRequest {
+            policy_source,
             suppliers: &suppliers,
             retain_native_stage_inputs,
             installation_assumptions: &installation_assumptions,

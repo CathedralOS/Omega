@@ -1094,15 +1094,9 @@ impl Program<'_> {
         {
             return self.qualified_type(id, *base_type, *constraints);
         }
-        // `Inner<'a>`: data applied at lifetime arguments and nothing else
-        // is the declaration's one record row, because a lifetime argument
-        // is an erased region; the regions it names are part of the value
-        // type (`places::occurrence_regions`, `regions`). The
-        // application itself is checked against the declaration and the
-        // owner of the lifetimes it names (`lifetime_application`). An
-        // application with a type, const or machine argument, or of data
-        // that declares one, stays with the scalar route's refusal (`type
-        // generic application`).
+        // An explicit lifetime belongs to this occurrence, even if other
+        // arguments select a shared record layout. Check those lifetimes
+        // against the template before using the applied record's storage.
         if handle.is_valid()
             && let TypeReferenceNode::Generic {
                 base_symbol,
@@ -1110,11 +1104,13 @@ impl Program<'_> {
                 arguments,
                 ..
             } = self.typed.type_reference_table.type_reference(handle)
-            && arguments.is_empty()
             && base_symbol.is_valid()
             && self.typed.symbols.builtin_type_atom(*base_symbol).is_none()
             && let Some(data) = self.data_declaration(*base_symbol)
-            && data.type_parameters.is_empty()
+            && ((arguments.is_empty() && data.type_parameters.is_empty())
+                || (!lifetime_arguments.is_empty() && !arguments.is_empty()
+                    && (self.typed.data_application_definition(handle).is_some()
+                        || self.typed.closed_data_definition(handle).is_some())))
         {
             use super::places::RetainedLifetime;
             use crate::source_state::type_identity::{
@@ -1475,11 +1471,24 @@ impl Program<'_> {
         let Some(plain) = carrier.qualified(crate::body::Qualification::NONE) else {
             return unserved("domain on a type parameter");
         };
-        let subject =
-            match self.logical_byte_domain_carrier(id, definition.target_type, Some(plain))? {
-                Some(subject) => subject,
-                None => self.value_type(id, definition.target_type)?,
-            };
+        let subject = match self.logical_byte_domain_carrier(id, definition.target_type, Some(plain))? {
+            Some(subject) => subject,
+            None => {
+                // A domain on a bare lifetime-parameterized record describes
+                // that declaration, not a new elided loan. The qualified
+                // occurrence already carries its exact record and regions.
+                if let TypeReferenceNode::Named { symbol, .. } = typed.type_reference_table.type_reference(definition.target_type)
+                    && self.data_declaration(*symbol).is_some_and(|data| !data.lifetime_parameters.is_empty() && data.type_parameters.is_empty() && data.generic_instance.is_none())
+                {
+                    let previous = std::mem::replace(&mut self.elision, super::regions::Elision::Declaration);
+                    let subject = self.value_type(id, definition.target_type);
+                    self.elision = previous;
+                    super::places::with_regions(subject?, plain.regions())
+                } else {
+                    self.value_type(id, definition.target_type)?
+                }
+            }
+        };
         let mut required = subject.qualification();
         let parent = parent.map(|parent| crate::body::DomainInstance {
             declaration: parent.domain_symbol,

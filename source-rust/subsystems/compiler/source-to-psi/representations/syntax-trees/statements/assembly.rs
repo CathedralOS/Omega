@@ -14,6 +14,7 @@ use arena::{Handle, HandleSpan};
     record_storage::Record,
 )]
 pub struct AuthoredAssembly {
+    pub is_machine_body: bool,
     pub source_span: source_text::SourceSpan,
     pub requires: Box<[ExpressionHandle]>,
     pub ensures: Box<[ExpressionHandle]>,
@@ -61,6 +62,10 @@ impl AuthoredAssembly {
     record_storage::Record,
 )]
 pub struct AuthoredAssemblyBlock {
+    /// The enclosing block's index in lexical preorder. The root has no parent.
+    pub parent: Option<u32>,
+    pub adjacent: Option<Identifier>,
+    pub clobbers: Option<Box<[Identifier]>>,
     pub label: Option<Identifier>,
     pub requires: Box<[ExpressionHandle]>,
     pub ensures: Box<[ExpressionHandle]>,
@@ -146,6 +151,8 @@ pub struct AssemblyBlock {
 pub enum AssemblyExit {
     #[default]
     Fallthrough,
+    Adjacent,
+    Return,
     Jump(Identifier),
     ZeroFlag(Identifier, bool),
     EnclosingTransition,

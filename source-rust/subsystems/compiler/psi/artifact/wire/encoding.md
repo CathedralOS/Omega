@@ -63,6 +63,28 @@ module-local prepare boundary ID, selected machine ID and storage plan
 suspension information follow. A machine ID must identify the body selected
 by the closed prepare application; it is not a new source of call authority.
 
+Marker 306 adds typed native address borrows (operation 145), mutability
+upgrades (146), and upgraded parameter origins (reference source tag 3).
+The reader rejects earlier markers before reading the payload.
+
+Marker 305 adds the supplier's counted provider exports after its provider
+selections. Each export names its schema declaration and application, its
+provider declaration and identity, and the checked boundary/machine pair for
+each operation. An internal provider selection does not add an export.
+
+Marker 304 appends an optional assembly exit constraint immediately after each
+block terminator. Tag 1 carries a successor block ID followed by a counted list
+of register-view bytes. The successor is the jump target or the conditional's
+not-taken target. Each register holds the ordinary scalar edge argument at the
+same position and supplies the corresponding successor parameter. Tag 2 carries
+one register-view byte for the ordinary scalar return value.
+
+Register bytes 0–13 select `eax`, `ebx`, `ecx`, `edx`, `esi`, `edi`, then
+`r8d` through `r15d`. Bytes 22–50 select `w0` through `w28`. Other bytes
+reject. These views hold live 32-bit integers and require their architecture
+on the machine. Each view can occur once on an edge. Readers reject earlier
+format markers before reading the payload.
+
 Marker 303 encodes section 54 as a counted list of task activation demands.
 Structural arguments, outcomes and frame residents refer to the module's
 structural storage declarations by ID. The module's target layout applications
@@ -1143,6 +1165,8 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 142 | PackedIntegerBinary | selector byte, optional shuffle indices, left and right structural arguments |
 | 143 | PackedIntegerUnary | selector byte, optional shift count, source structural argument |
 | 144 | ElementViewFixedArray | source structural argument naming a shared element or byte view + length value id + `u64` extent + obligation id; affine shared reference to `[T; extent]` result, immediately after the view's length measurement |
+| 145 | BorrowAt | address value id; affine shared or mutable reference result specifies referent type and access |
+| 146 | UpgradeMutability | structural argument selecting the input shared reference; affine mutable result preserves its referent, extent and lifetime |
 
 Tag 142 selects wrapping 16-bit addition (0), wrapping 16-bit subtraction
 (1), a two-input shuffle (2), wrapping 16-byte unsigned addition (3),
@@ -3039,6 +3063,13 @@ to agree. Constraint
 and array-length type arguments do not become stored reference occurrences.
 Unresolved nominal or method-argument frontiers remain unavailable.
 
+Within a result's returned-reference alternatives, source tag 1 names an
+ordinary parameter and tag 2 names invocation backing. Tag 3 names a parameter
+whose shared input was reborrowed through a checked mutability upgrade. It
+stores the parameter place, shared input access, extent and projection using
+the same fields as tag 1. Its effective result access is mutable. The checker
+validates this origin against the returned value's actual formation.
+
 These groups come from the original public signature and its complete method
 tuple before lifetime erasure. No commitment replaces that independent
 declaration check. The implementing body's actual return origins remain separate:
@@ -3364,7 +3395,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 300 | yes |
+| semantic module | `PSITERM\0` | 306 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | published artifact | `PSIART\0\0` | 4 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |

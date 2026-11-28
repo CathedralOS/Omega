@@ -132,6 +132,9 @@ pub(crate) struct Lineage {
 /// A complete storage-address family, sorted by root and then path.
 /// Unknown or empty captured families are refused before this interface.
 pub(crate) trait StorageAddresses {
+    fn native_storage(&self, _index: usize) -> bool {
+        false
+    }
     fn address_count(&self) -> usize;
     fn address(&self, index: usize) -> &Lineage;
 }
@@ -149,6 +152,7 @@ impl StorageAddresses for Lineage {
 /// Descriptor storage and the payload it permits access to are different
 /// places. Initializing or replacing a descriptor does not write payload bytes.
 enum StorageEffect {
+    NativeWrite(Lineage, Backing),
     Storage(Lineage),
     Payload(Lineage),
 }
@@ -205,13 +209,13 @@ pub(crate) fn overlap(left: &impl StorageAddresses, right: &impl StorageAddresse
     fn partition(
         addresses: &impl StorageAddresses,
         range: std::ops::Range<usize>,
-        mut same: impl FnMut(&Lineage) -> bool,
+        mut same: impl FnMut(&Lineage, usize) -> bool,
     ) -> usize {
         let mut start = range.start;
         let mut end = range.end;
         while start < end {
             let middle = start + (end - start) / 2;
-            if same(addresses.address(middle)) {
+            if same(addresses.address(middle), middle) {
                 start = middle + 1;
             } else {
                 end = middle;
@@ -268,10 +272,10 @@ pub(crate) fn overlap(left: &impl StorageAddresses, right: &impl StorageAddresse
         while left_index < left_range.end && right_index < right_range.end {
             let a = left.address(left_index).segments[depth];
             let b = right.address(right_index).segments[depth];
-            let left_end = partition(left, left_index..left_range.end, |place| {
+            let left_end = partition(left, left_index..left_range.end, |place, _| {
                 place.segments[depth] == a
             });
-            let right_end = partition(right, right_index..right_range.end, |place| {
+            let right_end = partition(right, right_index..right_range.end, |place, _| {
                 place.segments[depth] == b
             });
             match a.cmp(&b) {
@@ -298,13 +302,19 @@ pub(crate) fn overlap(left: &impl StorageAddresses, right: &impl StorageAddresse
     let mut left_index = 0;
     let mut right_index = 0;
     while left_index < left.address_count() && right_index < right.address_count() {
-        let a = left.address(left_index).root;
-        let b = right.address(right_index).root;
-        let left_end = partition(left, left_index..left.address_count(), |place| {
-            place.root == a
+        let a = (
+            left.address(left_index).root,
+            left.native_storage(left_index),
+        );
+        let b = (
+            right.address(right_index).root,
+            right.native_storage(right_index),
+        );
+        let left_end = partition(left, left_index..left.address_count(), |place, i| {
+            (place.root, left.native_storage(i)) == a
         });
-        let right_end = partition(right, right_index..right.address_count(), |place| {
-            place.root == b
+        let right_end = partition(right, right_index..right.address_count(), |place, i| {
+            (place.root, right.native_storage(i)) == b
         });
         match a.cmp(&b) {
             std::cmp::Ordering::Less => left_index = left_end,
@@ -429,6 +439,36 @@ fn case_name(names: &[CaseName], place: ExactPlaceId, case: StructuralCaseId) ->
         .binary_search_by(|name| (name.place, name.case).cmp(&(place, case)))
         .ok()
         .map(|found| names[found].value)
+}
+
+/// The names of one sum arrive in increasing value order from `initial_contents`.
+/// Both the disjunction and every exclusion therefore have canonical operand order.
+fn sum_case_premises(names: &[CaseName]) -> impl Iterator<Item = Proposition> {
+    let holds = |name: &CaseName, value| {
+        Proposition::Equal(
+            ScalarTerm::value(name.value, ScalarType::Boolean),
+            ScalarTerm::Boolean(value),
+        )
+    };
+    let some = match names {
+        [only] => holds(only, true),
+        _ => Proposition::Disjunction(names.iter().map(|name| holds(name, true)).collect()),
+    };
+    let exclusions = (0..names.len()).filter_map(move |chosen| {
+        let conclusion = match names {
+            [_] => return None,
+            [_, _] => holds(&names[1 - chosen], false),
+            _ => {
+                let others = names[..chosen].iter().chain(&names[chosen + 1..]);
+                Proposition::Conjunction(others.map(|name| holds(name, false)).collect())
+            }
+        };
+        Some(Proposition::Implication {
+            premise: Box::new(holds(&names[chosen], true)),
+            conclusion: Box::new(conclusion),
+        })
+    });
+    std::iter::once(some).chain(exclusions)
 }
 
 fn initial_contents(
@@ -1173,6 +1213,7 @@ pub(crate) struct Storage<'a> {
     machine: MachineId,
     lowered: &'a TerminalMachine,
     module: &'a terminal_psi::TerminalModule,
+    native_write_services: std::cell::OnceCell<[Option<semantic_vocabulary::ServiceId>; 2]>,
     float_meanings: std::cell::OnceCell<
         Result<terminal_semantics::float_meaning_sources::Sources, &'static str>,
     >,
@@ -1324,6 +1365,7 @@ impl<'a> Storage<'a> {
             machine,
             lowered,
             module,
+            native_write_services: std::cell::OnceCell::new(),
             float_meanings: std::cell::OnceCell::new(),
             types: &module.types.structural_types,
             type_index,
@@ -1388,7 +1430,16 @@ impl<'a> Storage<'a> {
                 {
                     return Ok(None);
                 }
-                let backing = if call_write {
+                let backing = if let Stored::MayChange {
+                    exposed_at: Some((block, cut)),
+                } = row.stored
+                {
+                    // A scalar write frame identifies the allocation, without
+                    // promising a byte offset or a particular access width.
+                    storage
+                        .backing(references, &row.destination, block, cut as usize, concerns)?
+                        .enclosing_allocation()
+                } else if call_write {
                     let Some(backing) = storage.optional_backing(
                         references,
                         &row.destination,
@@ -3253,6 +3304,19 @@ impl<'a> Storage<'a> {
         let mut weakened = false;
         loop {
             let row = &self.log[row_index];
+            if matches!(row.stored, Stored::MayChange { .. }) {
+                let prior = self.reaching_backing_supply(
+                    references,
+                    tables,
+                    asked,
+                    watched,
+                    (row.block, row.position - 1),
+                    0,
+                    budget,
+                    concerns,
+                )?;
+                return Ok(prior.without_identity());
+            }
             if budget.initialization == Initialization::WholeArray {
                 // A partial transfer can introduce an unavailable element;
                 // a vacancy, unknown alias effect or non-array producer has
@@ -3424,7 +3488,9 @@ impl<'a> Storage<'a> {
                     .without_identity());
             };
             let reached = match (&row.stored, asked) {
-                (Stored::UnknownPayloadWrite { .. }, _) => Reached::Unknown,
+                (Stored::MayChange { .. } | Stored::UnknownPayloadWrite { .. }, _) => {
+                    Reached::Unknown
+                }
                 (Stored::Vacated, Asked::Contents(_)) => Reached::Unestablished,
                 (Stored::Vacated, Asked::Case(..)) => Reached::Unknown,
                 (Stored::Vacated, Asked::Window { .. }) => {
@@ -4145,8 +4211,8 @@ impl<'a> Storage<'a> {
             )
             && (up_to != usize::MAX || budget.used.is_some())
             && let Some(at) = self.descriptor_position((block, up_to))
-            && let Some((referent, _)) =
-                self.provider_referent(references, original, at, concerns)?
+            && let Some((referent, _, _)) =
+                self.external_referent(references, original, at, concerns)?
         {
             let declaration = self.declaration(referent, concerns)?;
             let depth = if original.segments.last() == Some(&Segment::Referent)
@@ -4737,25 +4803,19 @@ impl<'a> Storage<'a> {
     /// holds, and each excludes the others. Each premise is available where
     /// its names are bound: at entry, by the formal's declared type, and on a
     /// call's normal continuation, by what the call establishes.
-    pub(crate) fn case_name_premises(
-        &self,
+    pub(crate) fn case_name_premises<'s>(
+        &'s self,
         tables: &MachineTables,
-    ) -> Checked<Vec<(ProgramPoint, Option<OperationId>, Proposition)>> {
-        let holds = |name: &CaseName, holds: bool| {
-            Proposition::Equal(
-                ScalarTerm::value(name.value, ScalarType::Boolean),
-                ScalarTerm::Boolean(holds),
-            )
-        };
-        let mut premises = Vec::new();
+    ) -> Checked<impl Iterator<Item = (ProgramPoint, Option<OperationId>, Proposition)> + use<'s>>
+    {
+        let mut validated = Vec::new();
         let boundaries = std::iter::once((None, self.entry_case_names.as_slice())).chain(
             self.returned_case_names
                 .iter()
                 .enumerate()
-                .filter(|(_, names)| !names.is_empty())
                 .map(|(position, names)| (Some(position), names.as_slice())),
         );
-        for (call, names) in boundaries {
+        for (call, names) in boundaries.filter(|(_, names)| !names.is_empty()) {
             let after = call
                 .map(|position| {
                     u64::try_from(position + 1)
@@ -4785,40 +4845,17 @@ impl<'a> Storage<'a> {
                 if cases.len() != sum.len() {
                     return Err(self.foreign(concerns, "a sum's case names omit a declared case"));
                 }
-                let mut some = sum.iter().map(|name| holds(name, true)).collect::<Vec<_>>();
-                some.sort();
-                premises.push((
-                    point,
-                    after,
-                    match some.len() {
-                        1 => some.remove(0),
-                        _ => Proposition::Disjunction(some),
-                    },
-                ));
-                for name in sum {
-                    let mut others = sum
-                        .iter()
-                        .filter(|other| other.case != name.case)
-                        .map(|other| holds(other, false))
-                        .collect::<Vec<_>>();
-                    others.sort();
-                    let conclusion = match others.len() {
-                        0 => continue,
-                        1 => others.remove(0),
-                        _ => Proposition::Conjunction(others),
-                    };
-                    premises.push((
-                        point,
-                        after,
-                        Proposition::Implication {
-                            premise: Box::new(holds(name, true)),
-                            conclusion: Box::new(conclusion),
-                        },
-                    ));
-                }
             }
+            validated.push((point, after, names));
         }
-        Ok(premises)
+        // Validate all boundaries before publishing knowledge. Borrow their names
+        // so the proposition table can take each tree as soon as it is built.
+        Ok(validated.into_iter().flat_map(|(point, after, names)| {
+            names
+                .chunk_by(|left, right| left.place == right.place)
+                .flat_map(sum_case_premises)
+                .map(move |premise| (point, after, premise))
+        }))
     }
 
     /// A membership test of a sum that still holds the case it held at a
@@ -5377,6 +5414,7 @@ impl<'a> Storage<'a> {
                 Ok(vec![self.stored_at(*source, path, concerns)?])
             }
             OperationKind::DecomposeStructuralValue { subject: source }
+            | OperationKind::UpgradeMutability { source }
             | OperationKind::EstablishReference { source, .. } => {
                 Ok(vec![self.argument(source, concerns)?])
             }
@@ -5523,6 +5561,17 @@ impl<'a> Storage<'a> {
             .iter()
             .filter(|row| row.operation == operation.id)
             .map(|row| {
+                if matches!(
+                    row.stored,
+                    Stored::MayChange {
+                        exposed_at: Some(_)
+                    }
+                ) {
+                    return StorageEffect::NativeWrite(
+                        row.destination.clone(),
+                        row.backing.clone(),
+                    );
+                }
                 if payloads.iter().any(|payload| {
                     row.destination.root == payload.root
                         && row.destination.segments.starts_with(&payload.segments)

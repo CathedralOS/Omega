@@ -7,14 +7,19 @@
     before restoring caller frames.
 */
 
+#[path = "cleanup_delta.rs"]
+mod cleanup_delta;
+
 pub(crate) mod block_bindings {
+    use super::cleanup_delta::{CleanupFrontier, CleanupHomes, ProjectedTransfers};
     use crate::boundary::structural_inputs::case_membership::{
         case_projection_with_checked_membership_is_active, stored_case_at_projection,
     };
     use crate::engine::custody::{
-        bind_active_retained_arguments, bind_active_structural_arguments, bind_affine_frontier,
-        bind_arguments, projected_ownership_claims, resolve_single_structural_argument,
-        verified_structural_place, whole_path_discard,
+        AffineFrontier, StructuralHomes, bind_active_retained_arguments,
+        bind_active_structural_arguments, bind_affine_frontier, bind_arguments,
+        projected_ownership_claims, resolve_single_structural_argument, verified_structural_place,
+        whole_path_discard,
     };
     use crate::storage::runtime_rows::RuntimeRows;
     use crate::storage::scalar_storage::ScalarCell;
@@ -33,6 +38,12 @@ pub(crate) mod block_bindings {
     use crate::engine::execution::{LiveClaim, TerminalExecution};
     use crate::storage::byte_sequences::binding::ByteSequenceBinding;
     use terminal_semantics::{borrowed_storage_parameter, view_descriptor_parameter};
+
+    pub(super) enum CleanupExit<'a> {
+        Successor,
+        Return,
+        ReturnStructural(PlaceId, &'a [terminal_psi::StructuralResultClaimBinding]),
+    }
 
     pub(crate) struct BlockBindings {
         scalars: RuntimeRows<ValueId, TerminalScalarValue>,
@@ -178,14 +189,19 @@ pub(crate) mod block_bindings {
             Ok(())
         }
 
-        pub(crate) fn prepare_cleanup_actions(
+        pub(super) fn prepare_cleanup_actions(
             &self,
             execution: &TerminalExecution,
             structural_arguments: &[StructuralArgument],
             actions: &[terminal_psi::TerminalAffineCleanupAction],
-            structural_return: Option<(PlaceId, &[terminal_psi::StructuralResultClaimBinding])>,
-        ) -> Result<Vec<terminal_psi::TerminalAffineCleanupAction>, TerminalInterpretError>
-        {
+            exit: CleanupExit<'_>,
+        ) -> Result<
+            (
+                Vec<terminal_psi::TerminalAffineCleanupAction>,
+                ProjectedTransfers,
+            ),
+            TerminalInterpretError,
+        > {
             use terminal_psi::TerminalAffineCleanupAction;
             let mut selected = actions.to_vec();
             for (action, selected) in actions.iter().zip(&mut selected) {
@@ -203,31 +219,50 @@ pub(crate) mod block_bindings {
                     )?;
                 }
             }
-            let mut discarded = BTreeSet::new();
-            let mut values = execution.structural_values.try_clone()?;
-            for (place, home) in execution.linear_homes.iter() {
-                if values.insert(*place, home.clone())?.is_some() {
-                    return Err(malformed());
-                }
-            }
-            let mut scalar_arrays: BTreeSet<_> =
-                execution.scalar_array_values.keys().copied().collect();
-            let mut frontier = execution.live_affine_frontier.clone();
-            let mut claims = execution.live_claims.clone();
+            let account = execution.account.as_ref();
+            let mut values = CleanupHomes::new(execution)?;
+            let mut projected_frontier = CleanupFrontier {
+                base: &execution.live_affine_frontier,
+                changes: RuntimeRows::new(account),
+            };
+            let mut transferred_claims = RuntimeRows::<ClaimId, ()>::new(account);
             for argument in structural_arguments.iter().filter(|argument| {
                 argument.access == StructuralAccess::Owned
                     && !argument.path.is_empty()
                     && self.projected_sources.contains(&argument.place)
             }) {
-                crate::engine::custody::consume_projected_ownership(
+                let held = projected_ownership_claims(
+                    execution
+                        .live_claims
+                        .iter()
+                        .filter(|(id, _)| !transferred_claims.contains_key(id)),
+                    argument,
+                )?;
+                let affine = crate::engine::custody::consume_projected_affine_complement(
                     &execution.structural_types(),
                     &values,
                     &execution.array_initialization.cases(&execution.structural_cases),
-                    &mut frontier,
-                    &mut claims,
+                    &mut projected_frontier,
                     argument,
                 )?;
+                if !affine && held.is_empty() {
+                    return Err(TerminalInterpretError::AffineFrontierMismatch);
+                }
+                for (id, _) in held {
+                    transferred_claims.insert(id, ())?;
+                }
             }
+            let mut frontier = CleanupFrontier {
+                base: &projected_frontier,
+                changes: RuntimeRows::new(account),
+            };
+            let mut removed_claims = RuntimeRows::<ClaimId, ()>::new(account);
+            let claims = || {
+                execution
+                    .live_claims
+                    .iter()
+                    .filter(|(id, _)| !transferred_claims.contains_key(id))
+            };
             for action in &selected {
                 let place = action.place();
                 let path = action.path();
@@ -238,7 +273,8 @@ pub(crate) mod block_bindings {
                 {
                     return Err(TerminalInterpretError::AffineFrontierMismatch);
                 }
-                discarded.insert(place);
+                let remaining_claims =
+                    || claims().filter(|(id, _)| !removed_claims.contains_key(id));
                 match action {
                     TerminalAffineCleanupAction::InvokeOwned(cleanup) => {
                         terminal_semantics::nominal_cleanup::owned_target(
@@ -251,12 +287,15 @@ pub(crate) mod block_bindings {
                         // Preflight removes only the caller's transferred
                         // custody; it never simulates the target's body.
                         let types = execution.structural_types();
-                        let cases = &execution.array_initialization.cases(&execution.structural_cases);
+                        let cases = &execution
+                            .array_initialization
+                            .cases(&execution.structural_cases);
                         let held = crate::engine::custody::projected_ownership_claims(
-                            &claims,
+                            remaining_claims(),
                             &cleanup.subject,
                         )?;
-                        let mut active = Vec::new();
+                        let mut expected =
+                            held.iter().map(|(id, claim)| (*id, claim.path.as_slice()));
                         for transfer in &cleanup.claim_transfers {
                             if transfer.argument_index != 0 {
                                 return Err(TerminalInterpretError::ClaimTransferMismatch);
@@ -266,15 +305,17 @@ pub(crate) mod block_bindings {
                             if crate::boundary::structural_inputs::case_membership::case_projection_is_active(
                                 &types, &values, cases, place, &path,
                             )? {
-                                active.push((transfer.claim, transfer.path.as_slice()));
-                            } else if claims.contains_key(&transfer.claim) {
+                                if expected.next() != Some((transfer.claim, transfer.path.as_slice())) {
+                                    return Err(TerminalInterpretError::ClaimTransferMismatch);
+                                }
+                            } else if execution.live_claims.contains_key(&transfer.claim)
+                                && !transferred_claims.contains_key(&transfer.claim)
+                                && !removed_claims.contains_key(&transfer.claim)
+                            {
                                 return Err(TerminalInterpretError::ClaimTransferMismatch);
                             }
                         }
-                        if active
-                            .into_iter()
-                            .ne(held.iter().map(|(id, claim)| (*id, claim.path.as_slice())))
-                        {
+                        if expected.next().is_some() {
                             return Err(TerminalInterpretError::ClaimTransferMismatch);
                         }
                         if held.is_empty() {
@@ -291,35 +332,33 @@ pub(crate) mod block_bindings {
                                 &values,
                                 cases,
                                 &frontier,
-                                claims.values(),
+                                remaining_claims().map(|(_, claim)| claim),
                                 &cleanup.subject,
                                 cleanup.structural_type,
                             )?;
                             for entry in owned {
-                                frontier.remove(&entry);
+                                frontier.discard(&entry)?;
                             }
                             for (id, _) in held {
-                                claims.remove(&id);
+                                removed_claims.insert(id, ())?;
                             }
                         }
                         if cleanup.subject.path.is_empty() {
-                            values.remove(&cleanup.subject.place);
+                            values.remove(cleanup.subject.place)?;
                         }
                     }
                     TerminalAffineCleanupAction::DiscardRoot(_) => {
-                        let structural_type =
-                            verified_structural_place(&execution.structural_values, place)
-                                .map(|value| value.structural_type)?;
-                        if crate::engine::custody::place_is_claimed(&claims, place)
+                        let structural_type = values.require_home(place)?.structural_type;
+                        if remaining_claims().any(|(_, claim)| claim.place == Some(place))
                             || frontier
-                                .iter()
+                                .entries()
                                 .filter(|entry| entry.place == place)
                                 .ne(std::iter::once(&whole_path_discard(place, structural_type)))
                         {
                             return Err(TerminalInterpretError::AffineFrontierMismatch);
                         }
-                        crate::engine::custody::remove_affine_root(&mut frontier, place);
-                        values.remove(&place);
+                        frontier.discard(&whole_path_discard(place, structural_type))?;
+                        values.remove(place)?;
                     }
 
                     TerminalAffineCleanupAction::DiscardResidual(discard) => {
@@ -328,18 +367,16 @@ pub(crate) mod block_bindings {
                             &values,
                             &execution.array_initialization.cases(&execution.structural_cases),
                             &mut frontier,
-                            &claims,
+                            remaining_claims().map(|(_, claim)| claim),
                             discard,
                         )?;
                     }
                     TerminalAffineCleanupAction::RetireHome(_) => {
-                        crate::engine::custody::retire_cleanup_home(
-                            &mut values,
-                            &mut scalar_arrays,
-                            &mut frontier,
-                            &claims,
-                            place,
-                        )?;
+                        if remaining_claims().any(|(_, claim)| claim.place == Some(place)) {
+                            return Err(TerminalInterpretError::AffineFrontierMismatch);
+                        }
+                        values.retire(place)?;
+                        frontier.discard_matching(|entry| entry.place == place)?;
                     }
                 }
             }
@@ -347,36 +384,50 @@ pub(crate) mod block_bindings {
                 execution.live_affine_discard_at(*place).is_some()
                     && !self.owned_sources.contains(place)
                     && !self.projected_sources.contains(place)
-                    && !discarded.contains(place)
+                    && !selected.iter().any(|action| action.place() == *place)
             }) {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
-            claims.retain(|_, claim| {
-                !claim
-                    .place
-                    .is_some_and(|place| self.owned_sources.contains(&place))
-            });
-            if self
-                .claims
-                .keys()
-                .any(|identity| claims.contains_key(identity))
-            {
+            let kept = |id: &ClaimId, claim: &LiveClaim| {
+                !transferred_claims.contains_key(id)
+                    && !removed_claims.contains_key(id)
+                    && !claim
+                        .place
+                        .is_some_and(|place| self.owned_sources.contains(&place))
+            };
+            if self.claims.keys().any(|id| {
+                execution
+                    .live_claims
+                    .get(id)
+                    .is_some_and(|claim| kept(id, claim))
+            }) {
                 return Err(TerminalInterpretError::ClaimTransferMismatch);
             }
-            if let Some((source, expected)) = structural_return {
-                let mut actual = Vec::new();
-                let mut unreturned = Vec::new();
-                for (id, claim) in claims {
-                    if claim.place == Some(source) {
-                        actual.push(terminal_psi::StructuralResultClaimBinding {
-                            claim: id,
-                            path: claim.path,
-                        });
-                    } else {
-                        unreturned.push(id);
+            if let CleanupExit::ReturnStructural(source, expected) = exit {
+                let remaining = || {
+                    execution
+                        .live_claims
+                        .iter()
+                        .filter(|(id, claim)| kept(id, claim))
+                };
+                if !remaining()
+                    .map(|(id, claim)| (claim.place, *id, &claim.path))
+                    .eq(expected
+                        .iter()
+                        .map(|binding| (Some(source), binding.claim, &binding.path)))
+                {
+                    let mut actual = Vec::new();
+                    let mut unreturned = Vec::new();
+                    for (id, claim) in remaining() {
+                        if claim.place == Some(source) {
+                            actual.push(terminal_psi::StructuralResultClaimBinding {
+                                claim: *id,
+                                path: claim.path.clone(),
+                            });
+                        } else {
+                            unreturned.push(*id);
+                        }
                     }
-                }
-                if actual != expected || !unreturned.is_empty() {
                     return Err(TerminalInterpretError::StructuralReturnClaimsMismatch {
                         source,
                         expected: expected.to_vec(),
@@ -385,7 +436,37 @@ pub(crate) mod block_bindings {
                     });
                 }
             }
-            Ok(selected)
+            if !matches!(exit, CleanupExit::Successor) {
+                let returned_place = match exit {
+                    CleanupExit::ReturnStructural(place, _) => Some(place),
+                    _ => None,
+                };
+                let mut affine = frontier
+                    .entries()
+                    .filter(|entry| Some(entry.place) != returned_place)
+                    .peekable();
+                let mut claims = execution
+                    .live_claims
+                    .iter()
+                    .filter(|(id, claim)| {
+                        kept(id, claim)
+                            && !(returned_place.is_some() && claim.place == returned_place)
+                    })
+                    .peekable();
+                if affine.peek().is_some() || claims.peek().is_some() {
+                    return Err(TerminalInterpretError::UnsettledReturnFrontier {
+                        affine: affine.cloned().collect(),
+                        claims: claims.map(|(id, _)| *id).collect(),
+                    });
+                }
+            }
+            Ok((
+                selected,
+                ProjectedTransfers {
+                    frontier: projected_frontier.changes,
+                    claims: transferred_claims,
+                },
+            ))
         }
     }
 
@@ -1187,6 +1268,101 @@ pub(crate) mod block_bindings {
         use crate::storage::byte_sequences::{
             ByteSequenceView, binding::ByteSequenceBinding, storage::ByteSequenceStorage,
         };
+
+        #[test]
+        fn cleanup_preflight_reserves_only_changes_and_releases_them_on_yield_or_failure() {
+            use crate::engine::execution::TerminatorFlow;
+            use build_model::accounting::BuildEvaluationSponsor;
+            use build_model::contracts::{
+                BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
+                TerminalStorageScheduleIdentity,
+            };
+            use terminal_psi::{TerminalAffineCleanupAction::RetireHome, Terminator};
+            use terminal_work::WorkMeter;
+
+            // The frame and its three homes leave room for exactly one staged retirement.
+            let measurement = EvaluationMeasurementIdentity::TerminalPsi {
+                work_schedule: terminal_work::WorkSchedule::CURRENT.identity(),
+                storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
+            };
+            let sponsor = BuildEvaluationSponsor::new_with_measurement(
+                BuildEvaluationSponsorLimits::new(100, 8, 2, 2, 5, 100, 100, 100).unwrap(),
+                measurement,
+            )
+            .unwrap();
+            let account = sponsor.begin_invocation(measurement, 100).unwrap();
+            let mut execution = TerminalExecution::start_with_program(
+                empty_program(),
+                &[],
+                Default::default(),
+                None,
+                Some(account),
+            )
+            .unwrap();
+            let first = PlaceId::new(1).unwrap();
+            let second = PlaceId::new(2).unwrap();
+            let linear = PlaceId::new(3).unwrap();
+            let value =
+                TerminalStructuralValue::minted(42, StructuralTypeId::new(1).unwrap(), Vec::new());
+            execution
+                .structural_values
+                .insert(first, value.clone())
+                .unwrap();
+            execution
+                .structural_values
+                .insert(second, value.clone())
+                .unwrap();
+            execution
+                .linear_homes
+                .insert(linear, value.clone())
+                .unwrap();
+            let target = execution.current;
+            let jump = |cleanup_actions| Terminator::Jump {
+                edge: EdgeId::new(1).unwrap(),
+                target,
+                arguments: vec![],
+                erased_arguments: vec![],
+                erased_proof_arguments: vec![],
+                structural_arguments: vec![],
+                cleanup_actions,
+            };
+            let mut meter = WorkMeter::with_budget(0);
+            assert!(matches!(
+                execution.settle_jump(
+                    &jump(vec![RetireHome(first), RetireHome(second)]),
+                    &mut meter
+                ),
+                Err(TerminalInterpretError::Storage(_))
+            ));
+            assert!(matches!(
+                execution.settle_jump(&jump(vec![RetireHome(first), RetireHome(first)]), &mut meter),
+                Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(place)) if place == first
+            ));
+            let edge = jump(vec![RetireHome(linear)]);
+            assert!(matches!(
+                execution.settle_jump(&edge, &mut meter).unwrap(),
+                TerminatorFlow::Yield(crate::TerminalExecutionStatus::SponsorExhausted(_))
+            ));
+            assert_eq!(execution.structural_values.get(&first), Some(&value));
+            assert_eq!(execution.structural_values.get(&second), Some(&value));
+            assert_eq!(execution.linear_homes.get(&linear), Some(&value));
+            assert_eq!(sponsor.live_storage_cells(), 4);
+
+            // A duplicate outside an empty schedule must still refuse the edge.
+            execution.linear_homes.insert(first, value).unwrap();
+            assert!(matches!(
+                execution.settle_jump(&jump(vec![]), &mut meter),
+                Err(TerminalInterpretError::VerifiedOperationMalformed { .. })
+            ));
+            execution.linear_homes.remove(&first);
+            meter.replenish(100).unwrap();
+            assert!(matches!(
+                execution.settle_jump(&edge, &mut meter).unwrap(),
+                TerminatorFlow::Continue
+            ));
+            assert!(!execution.linear_homes.contains_key(&linear));
+            assert_eq!(sponsor.live_storage_cells(), 3);
+        }
 
         fn byte_arrival(
             bytes: &[u8],
@@ -2346,12 +2522,13 @@ pub(crate) mod structural_return {
                 }
             };
             completed.destination = destination;
-            let cleanup_actions = block_bindings::BlockBindings::default().prepare_cleanup_actions(
-                self,
-                &[],
-                cleanup_actions,
-                Some((*source, &active_returned_claims)),
-            )?;
+            let (cleanup_actions, _) = block_bindings::BlockBindings::default()
+                .prepare_cleanup_actions(
+                    self,
+                    &[],
+                    cleanup_actions,
+                    block_bindings::CleanupExit::ReturnStructural(*source, &active_returned_claims),
+                )?;
             if let Err(error) = meter.charge_terminator(terminator) {
                 return meter_status(error).map(TerminatorFlow::Yield);
             }
@@ -2441,9 +2618,7 @@ use crate::boundary::results::{
     TerminalScalarCaseResult, TerminalStructuralResult,
 };
 use crate::boundary::values::TerminalScalarValue;
-use crate::engine::custody::{
-    commit_cleanup_action, consume_projected_ownership, rebind_structural_result_claims,
-};
+use crate::engine::custody::{commit_cleanup_action, rebind_structural_result_claims};
 use crate::engine::execution::{
     CleanupContinuation, CompletedReturn, SuspendedCall, SuspendedCallResult, TerminalExecution,
     TerminatorFlow,
@@ -2595,26 +2770,17 @@ impl TerminalExecution<'_> {
             .map_err(|error| {
                 error.in_argument_preparation("state arrival storage and memberships")
             })?;
-        let cleanup_actions =
-            bindings.prepare_cleanup_actions(self, structural_arguments, cleanup_actions, None)?;
+        let (cleanup_actions, transfers) = bindings.prepare_cleanup_actions(
+            self,
+            structural_arguments,
+            cleanup_actions,
+            block_bindings::CleanupExit::Successor,
+        )?;
         if let Err(error) = meter.charge_edge(edge, terminator) {
             return meter_status(error).map(TerminatorFlow::Yield);
         }
         bindings.reserve_identities(self);
-        for argument in structural_arguments.iter().filter(|argument| {
-            argument.access == StructuralAccess::Owned
-                && !argument.path.is_empty()
-                && bindings.projected_sources.contains(&argument.place)
-        }) {
-            consume_projected_ownership(
-                &self.program.structural_types(),
-                &self.structural_values,
-                &self.array_initialization.cases(&self.structural_cases),
-                &mut self.live_affine_frontier,
-                &mut self.live_claims,
-                argument,
-            )?;
-        }
+        transfers.commit(self);
         let remaining = cleanup_actions;
         self.continue_cleanup_actions(
             remaining.into_iter(),
@@ -2760,12 +2926,13 @@ impl TerminalExecution<'_> {
             ) => (None, cleanup_actions),
             _ => return Err(malformed()),
         };
-        let cleanup_actions = block_bindings::BlockBindings::default().prepare_cleanup_actions(
-            self,
-            &[],
-            cleanup_actions,
-            None,
-        )?;
+        let (cleanup_actions, _) = block_bindings::BlockBindings::default()
+            .prepare_cleanup_actions(
+                self,
+                &[],
+                cleanup_actions,
+                block_bindings::CleanupExit::Return,
+            )?;
         if let Err(error) = meter.charge_terminator(terminator) {
             return meter_status(error).map(TerminatorFlow::Yield);
         }

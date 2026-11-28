@@ -15,6 +15,7 @@ use typed_trees::TypedTrees;
 
 pub(crate) struct AdmittedProductPolicy {
     pub providers: Vec<ProviderSelection>,
+    pub exports: Vec<ProviderSelection>,
     pub representations: Vec<OpaqueRepresentationSelection>,
     pub native_bindings: Vec<NativeBindingSelection>,
     pub grants: Vec<AuthoredRootGrant>,
@@ -114,6 +115,16 @@ pub(super) fn admit_product_policy(
         provider_events,
         &formations,
     )?;
+    let exports = super::provider_declarations::collect_provider_records(
+        super::provider_declarations::ProviderPlanningContext::new(
+            typed,
+            source_provenance::DependencyScope::Product,
+        ),
+        activation,
+        request.declared,
+        request.executed,
+        BuildOperation::ProviderExport,
+    )?;
     let mut native_formations = formations
         .iter()
         .filter(|(request, _)| request.operation == BuildOperation::NativeBinding)
@@ -163,6 +174,7 @@ pub(super) fn admit_product_policy(
     )?;
     Ok(AdmittedProductPolicy {
         providers,
+        exports,
         representations,
         native_bindings,
         grants,

@@ -533,6 +533,9 @@ impl Lowering<'_> {
                 }
             }
             ExpressionKind::Index { base, index } => self.read_index(base, index, expression),
+            ExpressionKind::NativeBorrow { .. } => {
+                Err(self.internal("a native reference requires structural result storage"))
+            }
             ExpressionKind::Referent(_) => self.read_referent(expression),
             ExpressionKind::Field { base, field } => self.read_field(base, *field, expression),
             ExpressionKind::StorageLocation {

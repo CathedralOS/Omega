@@ -65,7 +65,7 @@ impl PreparedBuildMachineEntry {
     pub(crate) fn source_invocation_inputs(&self) -> SourceInvocationInputs<'_> {
         SourceInvocationInputs {
             site: production::SourceInvocationSite {
-                accepted: &self.accepted,
+                source: self.accepted.source(),
                 request_source: &self.source,
                 machine: self.symbol,
                 requester: self.requester,

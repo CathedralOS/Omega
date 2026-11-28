@@ -1,0 +1,6 @@
+use {omega}/language/core/reply.omg;
+
+machine main<'p>(slot: @'p mutable |reply|::ReplySlot) -> |reply|::ReplyPair<'p, u8>
+reaches none crashes none {
+    |reply|::new_reply_pair::<u8>(@mutable slot)
+}

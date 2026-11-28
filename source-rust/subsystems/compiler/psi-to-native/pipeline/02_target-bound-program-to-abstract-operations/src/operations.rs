@@ -16,6 +16,11 @@ mod error {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum LoweringError {
         InvalidDescriptorTableOperation(semantic_vocabulary::OperationId),
+        UnsupportedAssemblyAdjacency {
+            machine: MachineId,
+            block: BlockId,
+            reason: &'static str,
+        },
         UnclosedScalarConditions,
         UnclosedScalarApplication(semantic_vocabulary::ScalarApplicationId),
         ScalarApplicationCarrierMismatch(semantic_vocabulary::OperationId),
@@ -139,6 +144,7 @@ fn structural_result(
     result.ok_or(invalid(operation.id))
 }
 
+mod assembly_adjacency;
 mod scalars;
 mod storage;
 
@@ -207,6 +213,7 @@ mod machine {
                         ..
                     } => AbstractOperation::CallStructural {
                         psi_operation: operation.id,
+                        suspension_crossing: operation.suspension_crossing,
                         callee: AbstractCallTarget::Callable { callee, contract },
                         arguments,
                         structural_arguments,
@@ -240,6 +247,7 @@ mod machine {
                         ..
                     } => AbstractOperation::CallStructural {
                         psi_operation: operation.id,
+                        suspension_crossing: operation.suspension_crossing,
                         callee: AbstractCallTarget::Dynamic {
                             selector,
                             interface,
@@ -276,6 +284,7 @@ mod machine {
                         crash_continuations,
                     } => AbstractOperation::CallStructural {
                         psi_operation: operation.id,
+                        suspension_crossing: operation.suspension_crossing,
                         callee: callee.into(),
                         arguments,
                         structural_arguments,
@@ -297,6 +306,7 @@ mod machine {
                         let result = operation.result.expect_scalar();
                         AbstractOperation::CallStructural {
                             psi_operation: operation.id,
+                            suspension_crossing: operation.suspension_crossing,
                             result: AbstractStructuralCallResult::Scalar(result.into()),
                             callee: callee.into(),
                             arguments,
@@ -334,6 +344,7 @@ mod machine {
                         };
                         AbstractOperation::CallStructural {
                             psi_operation: operation.id,
+                            suspension_crossing: operation.suspension_crossing,
                             result: AbstractStructuralCallResult::Structural {
                                 result,
                                 selected_evidence,
@@ -380,6 +391,7 @@ mod machine {
                         completion_claim_sources.sort();
                         AbstractOperation::BoundaryCall {
                             psi_operation: operation.id,
+                            suspension_crossing: operation.suspension_crossing,
                             result: match &operation.result {
                                 terminal_psi::OperationResult::Unit => {
                                     abstract_operations::AbstractBoundaryResult::Unit
@@ -411,6 +423,7 @@ mod machine {
                         crash_continuations,
                     } => AbstractOperation::Call {
                         psi_operation: operation.id,
+                        suspension_crossing: operation.suspension_crossing,
                         result: operation.result.expect_scalar().id,
                         scalar_type: operation.result.expect_scalar().scalar_type,
                         callee,
@@ -827,6 +840,30 @@ mod machine {
                             result: result.into(),
                             source: source.place,
                             path: source.path.clone(),
+                        })
+                    }
+                    OperationKind::BorrowAt { address } => {
+                        let result = operation
+                            .result
+                            .structural()
+                            .cloned()
+                            .ok_or(LoweringError::UnsupportedReferenceCustody(operation.id))?;
+                        Ok(AbstractOperation::BorrowAt {
+                            psi_operation: operation.id,
+                            result,
+                            address: *address,
+                        })
+                    }
+                    OperationKind::UpgradeMutability { source } => {
+                        let result = operation
+                            .result
+                            .structural()
+                            .cloned()
+                            .ok_or(LoweringError::UnsupportedReferenceCustody(operation.id))?;
+                        Ok(AbstractOperation::UpgradeMutability {
+                            psi_operation: operation.id,
+                            result,
+                            source: source.clone(),
                         })
                     }
                     OperationKind::EstablishReference { source, storage } => {
@@ -1860,6 +1897,7 @@ mod machine {
             });
         }
 
+        let lowered_blocks = super::assembly_adjacency::physical_blocks(machine, lowered_blocks)?;
         Ok(AbstractFunction {
             machine: machine.id,
             attachment: machine.attachment,

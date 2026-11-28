@@ -2729,6 +2729,12 @@ pub(crate) mod control {
                                 super::value_provenance(value),
                             )?;
                             output
+                        } else if builder.instructions.last().is_some_and(|instruction| {
+                            matches!(instruction.kind, SelectedInstructionKind::MaterializeI64 { .. })
+                                && matches!(instruction.operands.as_slice(), [definition] if definition.virtual_register == input)
+                        }) {
+                            // This literal can be materialized directly in the required return register.
+                            input
                         } else {
                             builder.copy(input, value, site, value_type)?
                         };
@@ -5928,6 +5934,7 @@ pub(crate) mod process_exit {
                 .external_execution(binding.execution)
                 .ok_or_else(SelectedInstructionError::custody)?;
             let call = legalized_operations::LegalizedNormalizedForeignCall {
+                suspension_crossing: None,
                 boundary: *boundary,
                 provider_execution,
                 binding: foreign.clone(),
@@ -6469,6 +6476,7 @@ pub(crate) mod structural_case {
                 if crate::instruction_selection::selection::aggregate_result_input::owned_parameter_uses_local_home(
                     source,
                     declaration,
+                    &builder.transport.parameter_homes,
                 )
                 .ok_or(invalid())? =>
             {
@@ -7238,6 +7246,13 @@ pub(crate) fn select_function(
         transport: structural::Transport::default(),
     };
     structural::indirect_results::entry(source, environment, &mut builder)?;
+    if let Some(abi) = input.plan().function_abi(source.machine) {
+        builder.required_values.extend(
+            abi.assembly_register_versions
+                .iter()
+                .map(|version| version.value),
+        );
+    }
     structural::entry(function, source, environment, &mut builder)?;
     for (index, parameter) in source.parameters.iter().enumerate() {
         if scalar_stack_placement(&parameter.placement).is_some() {
@@ -7632,6 +7647,8 @@ pub(crate) fn select_function(
                     | LegalizedScalarInstructionKind::StoreStructuralField { .. }
                     | LegalizedScalarInstructionKind::DecomposeStructuralValue { .. }
                     | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
+                    | LegalizedScalarInstructionKind::BorrowAt { .. }
+                    | LegalizedScalarInstructionKind::UpgradeMutability { .. }
                     | LegalizedScalarInstructionKind::EstablishReference { .. }
                     | LegalizedScalarInstructionKind::EstablishAccessReference { .. }
                     | LegalizedScalarInstructionKind::ElementViewFixedArray { .. }

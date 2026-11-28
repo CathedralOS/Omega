@@ -90,13 +90,13 @@ pub(super) fn validate_direct_leaves<'a>(
             return Err("direct leaf has no unique checked boundary declaration".into());
         };
         let boundary = &module.interfaces.boundary_machines[*position];
-        if boundary.declaration.as_ref().is_some_and(|declaration| {
-            matches!(
-                declaration.execution,
-                terminal_psi::CheckedBoundaryExecution::HostedPrimitive { .. }
-                    | terminal_psi::CheckedBoundaryExecution::NumericPrimitive
-            )
-        }) {
+        let declared = boundary
+            .declaration
+            .as_ref()
+            .ok_or("direct leaf lost its checked declaration")?;
+        if direct_boundary_bindings::DirectBindingSource::try_from(declared.execution)?
+            == direct_boundary_bindings::DirectBindingSource::CompilerCatalog
+        {
             leaf.validate_bound_calling_custody(module)?;
             if !super::entries_with_key(&primitive_keys, key)
                 .iter()
@@ -134,10 +134,6 @@ pub(super) fn validate_direct_leaves<'a>(
             }
             continue;
         }
-        let declared = boundary
-            .declaration
-            .as_ref()
-            .ok_or("direct leaf lost its checked declaration")?;
         let mut external = module
             .interfaces
             .external_providers

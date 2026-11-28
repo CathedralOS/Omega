@@ -66,6 +66,12 @@ impl Program<'_> {
         if !application.is_valid() {
             return Ok(true);
         }
+        // A closed machine declaration already consumed its arguments in
+        // preparation. Let the common generated-callee check verify that
+        // this call names the matching template and application.
+        if self.typed.machine_specialization(declaration).is_some() {
+            return Ok(false);
+        }
         let actual = self
             .typed
             .expression_table
@@ -155,14 +161,14 @@ impl Program<'_> {
         {
             return Ok(Some((id, source.signature.clone())));
         }
-        if typed.symbols.sealed_intrinsic(target)
-            == Some(language_core::sealed_intrinsics::SealedIntrinsic::LayoutTargetFacts)
-        {
+        if matches!(typed.sealed_callable(target),
+            Some(language_core::sealed_intrinsics::SealedIntrinsic::LayoutTargetFacts |
+                 language_core::sealed_intrinsics::SealedIntrinsic::OwnedActivation(_))) {
             let (_, declared) = typed
                 .bodyless_declaration(target)
                 .map_err(|reason| crate::read::unavailable(context, reason))?
                 .ok_or_else(|| {
-                    crate::read::unavailable(context, "layout snapshot lost its core declaration")
+                    crate::read::unavailable(context, "compiler operation lost its core declaration")
                 })?;
             let (signature, _) = self.boundary_signature(context, &declared)?;
             let envelope = self.signature_envelope(context, &declared)?;

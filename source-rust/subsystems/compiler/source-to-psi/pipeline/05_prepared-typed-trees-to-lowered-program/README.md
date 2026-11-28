@@ -13,6 +13,8 @@ Build, see
 
 Each emitted Psi machine carries the instruction catalog target required by its source body. When recursive transitions share a machine, their bodies must admit a common target.
 
+For a supplier export, this stage records which checked implementation supplies each member of the exported requirement. A target's private provider selection is separate, even when the two records satisfy the same requirement.
+
 Data that contains itself by value has no storage, so a machine over it never
 runs. Such declarations take a second route: [mathematics.rs](src/mathematics.rs)
 reads them with the same reader, in a reader of its own so none of them is
@@ -487,6 +489,16 @@ unserved forms are refused explicitly. Callable values and boundary calls keep
 their complete declared contracts; retaining one does not supply an executable
 implementation or prove its obligations. A
 refusal anywhere in the compilation refuses the whole compilation.
+For an [assembly-bodied machine](../../../../../../wiki/spec/language/assembly.md#explicit-control-flow),
+[the instruction reader](src/read/assembly.rs) tracks which working-register
+slots a reached move has initialized. An explicit `transition -> finish;`
+carries those values as scalar parameters of the next Psi block. A local
+`requires` becomes an ordinary block invariant. Every incoming edge must prove
+it. `ret;` identifies the returned scalar and its register view for the
+selected calling plan. The current body reader serves a straight-line chain
+with one initialized result register. Conditional branches, register entry
+bindings, and hardware flag restoration still require additional lowering.
+
 The base subset is machines with one state and a complete body whose
 formals, locals and result are builtin integers (`i8` to `u64`) or `bool`.
 Such a body may use:
@@ -595,6 +607,11 @@ another package's private requirement. Actual calls keep their visibility and
 operational checks; providers are judged separately as supplies. Other
 selected declarations, including ordinary traits and operator families, are
 refused.
+
+A closed caller-controlled park names its sealed core declaration, the
+selected reply type and the call's suspension crossing. Lowering obtains
+that declaration through the generated machine's source template. A
+similarly named package declaration does not acquire its execution meaning.
 
 A supply (`Supply { slot, provider }`) names a boundary trait or one of its
 requirements and the provider chosen for it, by a Build selection or by

@@ -1,0 +1,11 @@
+use {omega}/language/core/reply.omg;
+
+machine main<'p>(slot: @'p mutable |reply|::ReplySlot) -> |reply|::ReplyPair<'p, u8>
+reaches none crashes none {
+    let request: |reply|::Publication<'p> = |reply|::Publication { anchor: @slot.anchor };
+    let permit: |reply|::Publication<'p> = |reply|::Publication { anchor: @slot.anchor };
+    |reply|::ReplyPair {
+        request: request as + |reply|::Issued<|reply|::RequestRole, u8>,
+        permit: permit as + |reply|::Issued<|reply|::AnswerRole, u8>
+    }
+}

@@ -1400,7 +1400,7 @@ impl<'t> Program<'t> {
             if let Some(earlier) =
                 wildcard.or_else(|| case.as_ref().and_then(|case| full_cases[case.case]))
             {
-                if let Some(names) = self.names.get_mut(id) {
+                if let Some(names) = self.machine_names_mut(id) {
                     names.shadowed_patterns.push((arm.source_span, earlier));
                 }
                 continue;
@@ -1538,7 +1538,7 @@ impl<'t> Program<'t> {
             MatchPattern::Value(head) | MatchPattern::Guard(head) => table.display_name(*head),
             MatchPattern::Destructure(pattern) => table.display_name(pattern.head),
         };
-        if let Some(names) = self.names.get_mut(id) {
+        if let Some(names) = self.machine_names_mut(id) {
             names
                 .arms
                 .push((span, format!("the `{label}` arm of a match")));
@@ -2440,6 +2440,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 // Each evaluation forms its own loan and temporary home.
                 | ExpressionKind::OwnedTemporary { .. }
                 | ExpressionKind::Borrow { .. }
+                | ExpressionKind::NativeBorrow { .. }
                 | ExpressionKind::Referent(_),
                 _,
             ) => false,

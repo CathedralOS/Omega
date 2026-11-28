@@ -9,6 +9,8 @@ mod fixture_repository;
 mod function_table;
 #[path = "provider_publication/provider_grants.rs"]
 mod provider_grants;
+#[path = "provider_publication/owned_psi.rs"]
+mod owned_psi;
 
 use compiler::{Artifact, CompileRequest, NativeTarget, Program, TargetProviderInstallation};
 use host_provider_inputs::ProviderInstallationInputs;
@@ -1948,6 +1950,101 @@ fn selected_provider_review_preserves_declared_crash_suspend_and_stack_contracts
 }
 
 #[test]
+fn a_supplier_exports_one_record_without_selecting_it_for_local_calls() {
+    let tmp =
+        platform_custody::temporary_directory::TemporaryDirectory::create("supplier-export", false)
+            .unwrap();
+    let path = tmp.path().join("build.omg");
+    std::fs::write(
+        &path,
+        r#"use main.omg as app;
+    machine build(builder: @mutable BuildPlan) {
+        builder.product = BuildProduct::Package { name: "numbers" };
+        Build::select_provider::<|app|::Reading, |app|::Internal>(builder, linux_x86_64);
+        Build::export_provider::<|app|::Reading, |app|::External>(builder);
+    }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        tmp.path().join("main.omg"),
+        r#"
+        public boundary trait Reading {
+            machine value() -> u64 reaches none crashes none;
+        }
+        public Internal satisfies Reading { machine value() -> u64 { 11u64 } }
+        public External satisfies Reading { machine value() -> u64 { 29u64 } }
+    "#,
+    )
+    .unwrap();
+    let target = TargetProfile::LinuxX64;
+    let (stage, inputs) = run_project_build(&path, &[target]);
+    let product = stage
+        .settle_dependency(inputs.clone())
+        .unwrap()
+        .open_product(inputs)
+        .unwrap();
+    let stage = product.product_stage(&[target]).unwrap();
+    let deployed = source_compiler::compile_for_target(stage.source(), target.target_name(), None)
+        .unwrap()
+        .into_parts()
+        .0;
+    let reopened =
+        terminal_codec::CanonicalTerminalArtifact::from_bytes(&deployed.to_bytes()).unwrap();
+    let module = reopened.semantic_module();
+    let [export] = module.interfaces.provider_exports.as_slice() else {
+        panic!("only the explicitly exported satisfaction belongs to the supplier API");
+    };
+    let inventory = component_description::inventory::derive_component_inventory(module).unwrap();
+    assert_eq!(
+        inventory
+            .export_contracts
+            .iter()
+            .filter(|e| e.identity.starts_with("export:provider:"))
+            .count(),
+        1
+    );
+    let [member] = export.members.as_slice() else {
+        panic!("one exported operation")
+    };
+    assert!(
+        module
+            .interfaces
+            .provider_candidates
+            .iter()
+            .any(|candidate| candidate.boundary == member.boundary
+                && candidate.candidate == member.machine
+                && candidate.provider_identity == export.provider_identity)
+    );
+    let local = module
+        .provider_selection(
+            target.target_name(),
+            export.schema_declaration,
+            export.schema_application,
+        )
+        .unwrap();
+    assert_ne!(local.provider_identity, export.provider_identity);
+    let private = module
+        .interfaces
+        .provider_candidates
+        .iter()
+        .find(|row| {
+            row.provider_identity == local.provider_identity && row.boundary == member.boundary
+        })
+        .unwrap();
+    let mut forged = export.clone();
+    forged.members[0].machine = private.candidate;
+    assert_eq!(
+        forged.check_members(module),
+        Err("exported member is not this provider's checked candidate")
+    );
+    forged.members.clear();
+    assert_eq!(
+        forged.check_members(module),
+        Err("export must provide one checked member per requirement")
+    );
+}
+
+#[test]
 fn review_and_deployment_publish_the_same_entryless_provider() {
     let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
         "review-entryless-provider",
@@ -1993,6 +2090,22 @@ public ConstantReading satisfies Reading {
     assert_eq!(reviewed.view().identity(), deployed.view().identity());
     let candidates = &reviewed.semantic_module().interfaces.provider_candidates;
     assert_eq!(candidates.len(), 1);
+    assert!(
+        reviewed
+            .semantic_module()
+            .interfaces
+            .provider_exports
+            .is_empty()
+    );
+    let inventory =
+        component_description::inventory::derive_component_inventory(reviewed.semantic_module())
+            .unwrap();
+    assert!(
+        !inventory
+            .export_contracts
+            .iter()
+            .any(|e| e.identity.starts_with("export:provider:"))
+    );
 }
 
 /// A selected provider may publish a guarded crash route its requirement

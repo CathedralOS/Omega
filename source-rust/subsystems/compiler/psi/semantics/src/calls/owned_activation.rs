@@ -77,6 +77,40 @@ pub(super) fn validate_prepared_entry(
     Ok(())
 }
 
+fn stored_reply(reply: &str) -> std::borrow::Cow<'_, str> {
+    application_identity::type_identity::compiler_type_atom(reply).map_or_else(
+        || reply.into(),
+        |name| compound(TypeForm::Named, [atom(Label::Name, &name)]).into(),
+    )
+}
+
+fn reply_result_matches(module: &TerminalModule, result: &terminal_psi::BoundaryMachineResult, reply: &str) -> bool {
+    use semantic_vocabulary::{ScalarQualificationSetId, ScalarType, IntegerSign, IeeeFloatFormat};
+    use terminal_psi::BoundaryMachineResult;
+    match result {
+        BoundaryMachineResult::Unit => reply == application_identity::type_identity::encoding::bare(TypeForm::Unit),
+        BoundaryMachineResult::Structural(result) => module.structural_type(result.structural_type).is_some_and(|ty|
+            result.qualifications.is_empty() && result.projected_qualifications.is_empty()
+            && ty.multiplicity == result.multiplicity
+            && module.identities.text(ty.identity) == Some(stored_reply(reply).as_ref())),
+        BoundaryMachineResult::Scalar(result) => {
+            if result.qualifications != ScalarQualificationSetId::ZERO { return false; }
+            let atom = match result.scalar_type {
+                ScalarType::Boolean => "bool".to_string(),
+                ScalarType::Integer(i) if i.is_address() => "address".to_string(),
+                ScalarType::Integer(i) => {
+                    let Some(bits) = i.bits() else { return false };
+                    format!("{}{bits}", if i.sign() == IntegerSign::Signed { 'i' } else { 'u' })
+                }
+                ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => "f32".into(),
+                ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => "f64".into(),
+                ScalarType::Callable(_) => return false,
+            };
+            application_identity::type_identity::compiler_type_identity(&atom) == reply
+        }
+    }
+}
+
 fn checked_reply<'m>(
     module: &'m TerminalModule,
     boundary: &BoundaryMachineDeclaration,
@@ -121,6 +155,17 @@ fn checked_reply<'m>(
         || boundary.service_reach_is_installation_bound
         || boundary.attachment.is_some()
         || boundary.numeric_intrinsic.is_some()
+        || source.contract == [0; 32]
+        || !boundary.requires.is_empty()
+        || !boundary.normal_qualifications.is_empty()
+        || !boundary.scalar_domain_requirements.is_empty()
+        || !boundary.membership_ensures.is_empty()
+        || !boundary.scalar_requires.is_empty()
+        || !boundary.scalar_ensures.is_empty()
+        || !boundary.reference_outputs.is_empty()
+        || !boundary.result_reference_regions.is_empty()
+        || !boundary.program_local_root_introductions.is_empty()
+        || !boundary.content_guarantees.is_empty()
     {
         return Err("park differs from its sealed source or suspension contract");
     }
@@ -148,7 +193,7 @@ pub fn validate_park(
         .ok_or("park lacks its declaration")?
         .source;
     let text = |id| module.identities.text(id);
-    if text(source.result_type) != Some(reply) {
+    if text(source.result_type) != Some(reply) || !reply_result_matches(module, &boundary.result, reply) {
         return Err("park result differs from its reply");
     }
     let [request] = boundary.structural_parameters.as_slice() else {
@@ -169,6 +214,11 @@ pub fn validate_park(
         || carrier.multiplicity != StructuralMultiplicity::Linear
         || carrier.shape != StructuralTypeShape::Opaque
         || text(carrier.declaration_identity) != Some("toolchain::ParkRequest")
+        || text(carrier.identity) != Some(applied("ParkRequest", &stored_reply(reply)).as_str())
+        || !carrier.owns_linear_claim
+        || !request.qualifications.is_empty()
+        || !request.projected_qualifications.is_empty()
+        || !request.additional_input_qualifications.is_empty()
     {
         return Err("park must consume an opaque linear request for its exact reply type");
     }
@@ -216,15 +266,16 @@ pub fn reply_pair_shape(
         || !boundary.structural_parameters.is_empty()
         || text(source.result_type) != Some(applied("ReplyPair", reply).as_str())
         || text(record.declaration_identity) != Some("toolchain::ReplyPair")
+        || text(record.identity) != Some(applied("ReplyPair", &stored_reply(reply)).as_str())
         || fields.len() != 2
-        || record.is_copyable()
+        || record.multiplicity != StructuralMultiplicity::Affine || record.owns_linear_claim
         || result.multiplicity != record.multiplicity
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
     {
         return Err("reply pair must denote the sealed pair at the selected reply type");
     }
-    let field = |member: &str, carrier: &str| {
+    let field = |member: &str, carrier: &str, name: &str| {
         let field = fields
             .iter()
             .find(|field| text(field.declaration_identity) == Some(member))
@@ -238,6 +289,7 @@ pub fn reply_pair_shape(
         if field.relevance != language_core::BindingRelevance::Relevant
             || field.storage.is_some()
             || text(handle.declaration_identity) != Some(carrier)
+            || text(handle.identity) != Some(applied(name, &stored_reply(reply)).as_str())
             || handle.shape != StructuralTypeShape::Opaque
             || handle.multiplicity != StructuralMultiplicity::Linear
             || !handle.owns_linear_claim
@@ -246,8 +298,8 @@ pub fn reply_pair_shape(
         }
         Ok((field.id, id))
     };
-    let (request, request_type) = field("toolchain::ReplyPair::request", "toolchain::ParkRequest")?;
-    let (permit, permit_type) = field("toolchain::ReplyPair::permit", "toolchain::AnswerPermit")?;
+    let (request, request_type) = field("toolchain::ReplyPair::request", "toolchain::ParkRequest", "ParkRequest")?;
+    let (permit, permit_type) = field("toolchain::ReplyPair::permit", "toolchain::AnswerPermit", "AnswerPermit")?;
     if request == permit || request_type == permit_type {
         return Err("reply pair aliases its two handles");
     }

@@ -804,8 +804,9 @@ impl<'source> ApplicationPreparation<'source> {
         if parameters.is_empty() {
             return Ok(true);
         }
-        if lifetimes != 0
-            || parameters.iter().any(|parameter| {
+        // Lifetime arguments were matched to the declaration above; they
+        // stay on this occurrence while the other parameters close its fields.
+        if parameters.iter().any(|parameter| {
                 !matches!(
                     parameter.kind,
                     TypeParameterKind::Type

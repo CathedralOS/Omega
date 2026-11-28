@@ -873,6 +873,7 @@ pub(crate) mod frames {
                 loan_completions: Vec::new(),
                 entry,
                 blocks: vec![Block {
+                    assembly_exit: None,
                     id: entry,
                     parameters: Vec::new(),
                     erased_scalar_formals: Vec::new(),

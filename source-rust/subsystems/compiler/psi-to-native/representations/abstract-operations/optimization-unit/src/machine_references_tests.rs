@@ -55,6 +55,7 @@ fn direct_callees_are_operation_references_for_both_call_forms() {
     let callee = MachineId::new(2).unwrap();
     let returning = AbstractOperation::Call {
         psi_operation: OperationId::new(1).unwrap(),
+        suspension_crossing: None,
         result: ValueId::new(2).unwrap(),
         scalar_type: ScalarType::Boolean,
         callee,

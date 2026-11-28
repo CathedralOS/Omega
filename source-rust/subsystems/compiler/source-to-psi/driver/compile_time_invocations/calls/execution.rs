@@ -49,13 +49,9 @@ impl PreparedBuildMachineEntry {
             &mut meter,
             observed_calls,
         );
-        RecordedSourceInvocation::record(
-            self.source_invocation_inputs(),
-            &produced,
-            admitted,
-            &meter,
-            run,
-        )?
+        let call = self.source_invocation_inputs();
+        let published = self.accepted.check_invocation(&call.site, &produced)?;
+        RecordedSourceInvocation::record(call, published, admitted, &meter, run)?
         .finish(accounting, |(value, events)| complete(value, events))
     }
 

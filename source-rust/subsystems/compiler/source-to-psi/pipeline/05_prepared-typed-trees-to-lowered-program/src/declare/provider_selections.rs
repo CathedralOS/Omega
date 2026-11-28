@@ -3,13 +3,12 @@
 //! separate ordinary judgments.
 
 use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
-use semantic_vocabulary::source_selections::CompositionMode;
 use semantic_vocabulary::{MachineId, PackageKeyIdentity};
 use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
 
 pub use lowered_source_publication::provider_selections::{
-    ProviderSelectionInput, ProviderSelections,
+    ProviderSelectionInput, ProviderSelections, ProviderUse,
 };
 
 pub(crate) struct SourceProviderSelections<'source> {
@@ -18,7 +17,8 @@ pub(crate) struct SourceProviderSelections<'source> {
 }
 
 pub(crate) struct SourceProviderSelection {
-    pub(crate) target: String,
+    pub(crate) use_as: ProviderUse,
+    pub(crate) members: Vec<terminal_psi::ProviderExportMember>,
     pub(crate) schema_declaration: String,
     pub(crate) schema_application: String,
     pub(crate) surface: std::sync::Arc<service_surface::ServiceSurface>,
@@ -27,7 +27,6 @@ pub(crate) struct SourceProviderSelection {
     pub(crate) provider_application: Option<String>,
     pub(crate) provider_package: Option<PackageKeyIdentity>,
     pub(crate) provider_custody: DeclarationCustody,
-    pub(crate) composition_mode: CompositionMode,
 }
 
 pub(crate) fn publish(
@@ -36,7 +35,9 @@ pub(crate) fn publish(
     elaboration: &mut crate::Elaboration,
 ) -> Checked<()> {
     use crate::read::services::unavailable;
-    if !elaboration.module.interfaces.provider_selections.is_empty() {
+    if !elaboration.module.interfaces.provider_selections.is_empty()
+        || !elaboration.module.interfaces.provider_exports.is_empty()
+    {
         return Err(unavailable(
             context,
             "competing source provider-selection publication",
@@ -50,11 +51,11 @@ pub(crate) fn publish(
     let mut rows: Vec<terminal_psi::TerminalProviderSelection> =
         Vec::with_capacity(source.rows.len());
     let mut schemas: Vec<terminal_psi::TerminalServiceSchema> = Vec::new();
+    let mut exports: Vec<terminal_psi::TerminalProviderExport> = Vec::new();
     let source_owner = source.source;
     let prepared = (|| {
         for source in &source.rows {
-            if source.target.is_empty()
-                || source.provider_identity.is_empty()
+            if source.provider_identity.is_empty()
                 || !source.provider_declaration.is_valid()
                 || source.schema_declaration.is_empty()
                 || source.surface.root_application_identity()
@@ -76,8 +77,39 @@ pub(crate) fn publish(
                 application,
                 surface: std::sync::Arc::clone(&source.surface),
             });
+            let provider_declaration = crate::declare::nominal(
+                source_owner,
+                &source_identities,
+                source.provider_declaration,
+                &mut identities,
+            )
+            .map_err(|reason| unavailable(context, reason))?;
+            let ProviderUse::Selection {
+                target,
+                composition_mode,
+            } = &source.use_as
+            else {
+                if exports.iter().any(|row| {
+                    row.schema_declaration == declaration && row.schema_application == application
+                }) {
+                    return Err(unavailable(
+                        context,
+                        "the supplier exports this requirement more than once",
+                    ));
+                }
+                let mut members = source.members.clone();
+                members.sort_unstable();
+                exports.push(terminal_psi::TerminalProviderExport {
+                    schema_declaration: declaration,
+                    schema_application: application,
+                    provider_declaration,
+                    provider_identity: identities.intern(&source.provider_identity),
+                    members,
+                });
+                continue;
+            };
             if rows.iter().any(|row| {
-                row.target == source.target
+                row.target == *target
                     && row.schema_declaration == declaration
                     && row.schema_application == application
             }) {
@@ -86,15 +118,8 @@ pub(crate) fn publish(
                     "source provider selection repeats an exact target slot",
                 ));
             }
-            let provider_declaration = crate::declare::nominal(
-                source_owner,
-                &source_identities,
-                source.provider_declaration,
-                &mut identities,
-            )
-            .map_err(|reason| unavailable(context, reason))?;
             rows.push(terminal_psi::TerminalProviderSelection {
-                target: source.target.clone(),
+                target: target.clone(),
                 schema_declaration: declaration,
                 schema_application: application,
                 provider_declaration,
@@ -105,7 +130,7 @@ pub(crate) fn publish(
                     .map(|value| identities.intern(value)),
                 provider_package: source.provider_package,
                 provider_custody: source.provider_custody,
-                composition_mode: source.composition_mode,
+                composition_mode: *composition_mode,
             });
         }
         Ok(())
@@ -118,5 +143,7 @@ pub(crate) fn publish(
     )
     .map_err(|reason| unavailable(context, reason))?;
     elaboration.module.interfaces.provider_selections = rows;
+    exports.sort_unstable_by_key(|row| (row.schema_declaration, row.schema_application));
+    elaboration.module.interfaces.provider_exports = exports;
     Ok(())
 }

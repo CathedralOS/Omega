@@ -3,7 +3,9 @@
 //! preparation algorithms remain in stage 04 and lowering reads only this product.
 #![forbid(unsafe_code)]
 
+mod constant_reads;
 mod values;
+pub use constant_reads::ConstantRead;
 use diagnostics::Diagnostic;
 use prepared_source_issuer::PreparationIssuer;
 use symbols::SymbolHandle;

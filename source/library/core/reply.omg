@@ -1,0 +1,42 @@
+use {omega}/language/core/access/access.omg;
+use {omega}/language/core/layout.omg;
+use {omega}/language/core/reflect/reflect.omg;
+
+// The slot's byte gives a live publication a stable, nonempty address. Its
+// contents are not a ticket or a readiness flag.
+public data ReplySlot {
+    anchor: u8;
+}
+
+public data Publication<'slot> [linear] {
+    anchor: @'slot u8;
+}
+
+public data RequestRole {}
+public data AnswerRole {}
+public domain<Role, Reply> Publication::Issued<Role, Reply> access ReplyIssuance;
+
+public ReplyIssuance satisfies |layout|::AccessPolicy {
+    machine plan(schema: |reflect|::TypeSchema) -> |layout|::AccessPlan
+    reaches none crashes none terminates {
+        let mutable plan: |layout|::AccessPlan = |access|::new_plan(
+            @schema, |layout|::Issuance::Only { routes: [|reflect|::callable(new_reply_pair)] }
+        );
+        |access|::allow_writers(@mutable plan, |layout|::AccessRegion::Subject { schema: schema }, []);
+        plan
+    }
+}
+
+public data ReplyPair<'slot, Reply> {
+    request: Publication<'slot> in Issued<RequestRole, Reply>;
+    permit: Publication<'slot> in Issued<AnswerRole, Reply>;
+}
+
+// Neither retained reference can survive the slot. The second exclusive
+// borrow needed to issue another pair must wait until both halves settle.
+public machine new_reply_pair<'slot, Reply>(slot: @'slot mutable ReplySlot) -> ReplyPair<'slot, Reply>
+reaches none crashes none {
+    let request: Publication<'slot> = Publication { anchor: @slot.anchor };
+    let permit: Publication<'slot> = Publication { anchor: @slot.anchor };
+    ReplyPair { request: request as +Issued<RequestRole, Reply>, permit: permit as +Issued<AnswerRole, Reply> }
+}

@@ -76,6 +76,8 @@ impl SourceOrigin {
 /// The invariant carries the proposition.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EstablishedCondition {
+    /// Each incoming assembly edge must prove the destination block's authored precondition.
+    AssemblyBlockEntry(String),
     /// Every remaining arrival must satisfy the last authored guard.
     DispatchCoverage,
     /// `value as +D` for a domain with predicates
