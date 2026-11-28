@@ -50,6 +50,13 @@ caller's assertion. In particular, an address into a dead stack frame can
 produce a dangling reference. A false assertion can invalidate checked proofs
 and optimizer assumptions elsewhere, with no guaranteed diagnostic or trap.
 
+A saved Psi publication currently omits the source Product's unsafe grants and
+dependency ceilings. When the native entry or a selected provider reaches one
+of these operations, run `omega build path/to/build.omg` on the original source
+Product so the compiler can check those grants. A saved Product
+whose selected code uses no such operation can still emit native code under
+the usual producer trust and installation requirements.
+
 The Psi interpreter rejects execution paths that invoke either address-to-borrow
 operation, including through helpers or selected providers. Product admission
 cannot make a native address dereference executable during an interpreted
