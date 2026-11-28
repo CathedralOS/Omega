@@ -3092,36 +3092,19 @@ impl<'a> Lowering<'a> {
                 let arguments = self.structural_arguments(captured, site, expression.source)?;
                 let kind = match primitive {
                     crate::body::PackedIntegerOperation::Unary(primitive) => {
-                        let [source] = arguments.try_into().map_err(|_| {
-                            self.internal("packed unary operation requires one array")
-                        })?;
-                        OperationKind::PackedIntegerUnary {
-                            operation: *primitive,
-                            source,
-                        }
+                        let [source] = arguments.try_into().map_err(|_| self.internal("packed unary operation requires one array"))?;
+                        OperationKind::PackedIntegerUnary { operation: *primitive, source }
                     }
                     crate::body::PackedIntegerOperation::Binary(primitive) => {
-                        let [left, right] = arguments.try_into().map_err(|_| {
-                            self.internal("packed binary operation requires two arrays")
-                        })?;
-                        OperationKind::PackedIntegerBinary {
-                            operation: *primitive,
-                            left,
-                            right,
-                        }
+                        let [left, right] = arguments.try_into().map_err(|_| self.internal("packed binary operation requires two arrays"))?;
+                        OperationKind::PackedIntegerBinary { operation: *primitive, left, right }
                     }
                 };
                 let (root, place) = self.produce(operation, value_type, kind)?;
                 self.unknown_contents(place, operation)?;
                 self.name_contents(place, value_type)?;
                 self.retire_homes(&homes, expression.source)?;
-                Ok(Reached::Value(Located {
-                    root,
-                    place,
-                    path: Vec::new(),
-                    record,
-                    fresh: true,
-                }))
+                Ok(Reached::Value(Located { root, place, path: Vec::new(), record, fresh: true }))
             }
             ExpressionKind::Call {
                 callee,
