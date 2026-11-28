@@ -8,12 +8,14 @@ From this directory, publish the selected Build with the bundled library.
 omega --emit-psi /tmp/linux_x86_64.psi --target linux_x86_64 --build-input build.omg --build-input main.omg build.omg
 ```
 
-At `41ed93687a04`, the compiler read 51 source files and published this fixture under semantic format marker 307 and proof-system marker 10. Format 307 supports observations of borrowed storage alignment in contracts. Two runs produced identical bytes. The compiler executable SHA-256 was `db4b92e29a7d57e8976104a179dfec49175b2d21fd2bf2c00771b94e1a7cb6c8`. The bundled `source/library` tree is Git object `fc90be67cb3f0f0b40925840ec74ae8398b2d1bb`.
+At `7fdb7bf61e0515e44cac03675e9270ab5e57553b`, the compiler read 51 source files and published this fixture under semantic format marker 310 and proof-system marker 10. Two independent compilations produced identical bytes. The compiler executable SHA-256 was `dc90a74616ebec65363ccace28024386389851fb675577863e9d4fc195125fb8`. The bundled `source/library` tree was `172675ba9f599cc20a5e9eed612265f7f6e06d66`.
+
+Format 310 records routed domain membership on each exact machine input. It preserves independently exported supplier records (305), typed native borrows (306), borrowed alignment (307), callable-field invocation paths (308) and per-value package evidence (309).
 
 | Input or receipt | Digest |
 | --- | --- |
-| Canonical artifact manifest | `4931d0a9fbb1f7d9f15b821b70ecaef6c71a962452c688039f69eba8956b6441` |
-| Saved file SHA-256, 227062 bytes | `dc87964b1a3fb328e4a1f076c59b403b91912640088f5dc98513e6f006828ad1` |
+| Canonical artifact manifest | `666da55bb20ca5d2a029f6b7c7678d8700654cb822e1d01227c540cf51bc8960` |
+| Saved file SHA-256, 227206 bytes | `b8a0bec53994f0b8104994605ab263ea254e68731c909fdae6dd2a5f1d279d28` |
 | main.omg SHA-256 | `073768333496caabb3c28a753482d2888a9a527b0765f7f12941332eba6c8e58` |
 | build.omg SHA-256 | `95e9fe2fa4d640385511dfecef410202674234e1fd9181a02caaea77cc862e54` |
 | `source/library/system/targets/linux_x86_64/entry.omg` SHA-256 | `da744cd48323520484545a412be9d6334b81d3b55806e056dcf920cda444ac2b` |
