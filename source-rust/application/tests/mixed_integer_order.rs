@@ -3,7 +3,6 @@
 
 #[path = "support/program.rs"]
 mod program;
-mod support;
 
 const SOURCE: &str = include_str!("fixtures/contracts/run/mixed_integer_order/main.omg");
 

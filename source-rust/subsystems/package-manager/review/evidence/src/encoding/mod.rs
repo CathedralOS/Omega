@@ -9,6 +9,8 @@ Versioned magic headers and schema version constants live at this boundary so bo
 
 mod encode;
 mod intrinsic_tags;
+mod limits;
+#[cfg(any(test, feature = "full-policy-recovery"))]
 mod recovery;
 pub use encode::membership::{
     MalformedIdentityExcerpt, PackagePolicyMembershipError, PackagePolicyMembershipFailure,
@@ -17,7 +19,8 @@ pub use encode::membership::{
 pub(crate) use encode::runtime_permission_rows;
 pub use encode::{restricted_build_request_acceptance_text, restricted_build_request_payload};
 
-pub use recovery::PackagePolicyRecoveryLimits;
+pub use limits::PackagePolicyRecoveryLimits;
+#[cfg(any(test, feature = "full-policy-recovery"))]
 pub(crate) use recovery::{PackagePolicyRecoveryError, PackagePolicyRecoveryUsage};
 
 // Calling plans distinguish Darwin integer composites from scalar values.

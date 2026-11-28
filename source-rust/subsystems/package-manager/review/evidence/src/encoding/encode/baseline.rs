@@ -235,6 +235,7 @@ pub(super) fn native_application(
 
 // Canonical baseline verification encoding using preallocated recovery scratch capacity.
 
+#[cfg(any(test, feature = "full-policy-recovery"))]
 impl PackagePolicyBaseline {
     pub(in crate::encoding) fn canonical_bytes_for_recovery(
         &self,
