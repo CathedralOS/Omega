@@ -55,11 +55,11 @@ pub struct StructuralQualificationError {
     pub violation: Option<QualificationViolation>,
 }
 
-/// A checked access plan excludes this source operation or cast.
+/// The originating operation or cast that lacks permission to establish or use a domain.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QualificationViolation {
     Establishment(DeniedEstablishment),
-    MemoryAccess {
+    Operation {
         machine: MachineId,
         operation: OperationId,
     },
@@ -541,6 +541,16 @@ impl<'a> DefaultRequirements<'a> {
                     .iter()
                     .any(|step| matches!(step, StructuralPathSegment::Referent))
                 {
+                    // A marker domain has no storage predicate to restore.
+                    // Its issuer still controls partial writes through the loan.
+                    if domain.byte_predicate.is_none()
+                        && domain
+                            .predicate
+                            .as_ref()
+                            .is_some_and(|p| p.proposition == Proposition::Truth)
+                    {
+                        continue;
+                    }
                     return Err(
                         self.error("a reference display is not a lender's declared default")
                     );
@@ -2573,6 +2583,24 @@ fn validate_machine(
                         "an element view does not keep its source elements' exact domains",
                     )?;
                 }
+                OperationKind::BorrowAt { .. } if !produced.is_empty() => {
+                    return Err(StructuralQualificationError {
+                        machine: id,
+                        detail: "a native address carries no domain membership for its referent; establish the domain through its declared route",
+                        violation: Some(QualificationViolation::Operation {
+                            machine: machine.id,
+                            operation: operation.id,
+                        }),
+                    });
+                }
+                // The same referent and projected fields remain qualified when
+                // only the descriptor's access changes.
+                OperationKind::UpgradeMutability { source } => require_exact(
+                    &places,
+                    &places.argument(source),
+                    &produced,
+                    "upgrading mutability must preserve the source borrow's exact domains",
+                )?,
                 // A reference carries the source's exact memberships at
                 // the referent, including the source's whole-value domains.
                 OperationKind::EstablishReference { source, .. } => {
