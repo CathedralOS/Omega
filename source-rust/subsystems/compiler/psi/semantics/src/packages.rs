@@ -17,6 +17,8 @@ use terminal_psi::{
 mod construction;
 mod fields;
 mod opening;
+mod restoration;
+pub(crate) use restoration::local_restoration_homes;
 mod substitution;
 mod versions;
 
@@ -120,6 +122,51 @@ impl CheckedPackageSites {
     ) -> Option<CallableContractId> {
         self.calls.get(&(machine, operation)).copied()
     }
+}
+
+/// Does this scalar read transport the declared descriptor of its exact
+/// package field into the opened callable type? It establishes no equation
+/// between the descriptor and a proof term.
+pub fn projects_stored_callable(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+    stored: ScalarType,
+) -> bool {
+    if !matches!(stored, ScalarType::Callable(_)) {
+        return false;
+    }
+    let sites = &module.execution.packages.sites;
+    let Ok(i) = sites.binary_search_by_key(&(machine.id, operation.id), |site| {
+        (site.machine, site.operation)
+    }) else {
+        return false;
+    };
+    let TerminalPackageEvent::Project {
+        opening: index,
+        field,
+    } = sites[i].event
+    else {
+        return false;
+    };
+    let Ok(opened) = opening(module, machine.id, index) else {
+        return false;
+    };
+    fields(module, opened.record).is_ok_and(|fields| {
+        fields
+            .iter()
+            .any(|decl| decl.id == field && decl.field_type.scalar_type() == Some(stored))
+    }) && matches!(
+        projection(
+            module,
+            machine,
+            operation,
+            index,
+            field,
+            &mut CheckedPackageSites::default()
+        ),
+        Ok(Projected::Descriptor(_))
+    )
 }
 
 /// Determine whether the descriptor at an already checked opening preserves
