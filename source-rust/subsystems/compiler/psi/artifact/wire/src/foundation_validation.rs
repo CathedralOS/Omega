@@ -1802,6 +1802,10 @@ pub(crate) mod declaration_foundations {
                         )
                     })?;
             }
+            for row in &module.interfaces.provider_exports {
+                row.check_members(module)
+                    .map_err(CodecError::MalformedStructuralFoundation)?;
+            }
             for request in &module.interfaces.calling_policy_requests {
                 match &request.declaration {
                     Ok(identity)
@@ -3638,6 +3642,7 @@ pub(crate) mod machine_foundations {
             .validate_whole_discards(|ty| module.structural_type(ty))
             .map_err(CodecError::MalformedStructuralFoundation)?;
         for block in &machine.blocks {
+            crate::block_wire::assembly_exit::validate(machine, block, &scalar_index)?;
             super::call_foundations::validate_external_completion(
                 module,
                 &scalar_index,
@@ -8380,6 +8385,64 @@ pub(crate) mod storage_foundations {
         Ok(())
     }
 
+    pub(crate) fn validate_native_borrow(
+        module: &TerminalModule,
+        machine: &TerminalMachine,
+        operation: &Operation,
+    ) -> Result<(), CodecError> {
+        let Some(result) = operation.result.structural() else {
+            return malformed("native borrow requires a structural reference result");
+        };
+        let Some(StructuralTypeShape::Reference { referent, access }) = module
+            .structural_type(result.structural_type)
+            .map(|ty| &ty.shape)
+        else {
+            return malformed("native borrow result must be a reference");
+        };
+        use terminal_psi::StructuralAccess::{MutableBorrow, SharedBorrow};
+        if result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
+            || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+            || !result.additional_input_qualifications.is_empty()
+            || !result.qualification_establishments.is_empty()
+            || !result.claims.is_empty()
+        {
+            return malformed(
+                "native borrow requires an affine unqualified reference without claims",
+            );
+        }
+        match &operation.kind {
+            OperationKind::BorrowAt { address } => {
+                if !matches!(access, SharedBorrow | MutableBorrow)
+                    || !matches!(declared_scalar_type(machine, *address), Some(ScalarType::Integer(ty)) if ty.is_address())
+                {
+                    return malformed(
+                        "native borrow requires an address and a shared or mutable reference result",
+                    );
+                }
+            }
+            OperationKind::UpgradeMutability { source } => {
+                let input = structural_place_type(machine, source.place).and_then(|root| {
+                    terminal_semantics::runtime_structural_path_tip(
+                        module.types.structural_types.iter(),
+                        root,
+                        &source.path,
+                    )
+                });
+                if *access != MutableBorrow
+                    || source.access != SharedBorrow
+                    || !matches!(input.map(|ty| &ty.shape), Some(StructuralTypeShape::Reference { referent: source, access: SharedBorrow }) if source == referent)
+                {
+                    return malformed(
+                        "mutability upgrade requires a shared reference to the same referent",
+                    );
+                }
+            }
+            _ => unreachable!("dispatched native borrow"),
+        }
+        Ok(())
+    }
+
     pub(crate) fn validate_establish_reference(
         module: &TerminalModule,
         machine: &TerminalMachine,
@@ -8896,6 +8959,134 @@ pub(crate) mod storage_foundations {
             StructuralTypeId, ValueId,
         };
         use terminal_psi::*;
+
+        #[test]
+        fn native_borrows_require_address_or_exact_shared_reference_and_affine_result() {
+            use super::validate_native_borrow;
+            use StructuralAccess::{MutableBorrow, SharedBorrow};
+            let ty = |id| StructuralTypeId::new(id).unwrap();
+            let byte = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+            let address_ty = ScalarType::Integer(IntegerType::address(64).unwrap());
+            let address = ValueId::new(1).unwrap();
+            let argument = PlaceId::new(1).unwrap();
+            let mut module = TerminalModule::declarations();
+            let shapes = [
+                StructuralTypeShape::PrimitiveScalar(byte),
+                StructuralTypeShape::Reference {
+                    referent: ty(1),
+                    access: SharedBorrow,
+                },
+                StructuralTypeShape::Reference {
+                    referent: ty(1),
+                    access: MutableBorrow,
+                },
+                StructuralTypeShape::Reference {
+                    referent: ty(2),
+                    access: MutableBorrow,
+                },
+            ];
+            for (index, shape) in shapes.into_iter().enumerate() {
+                module
+                    .types
+                    .structural_types
+                    .push(StructuralTypeDeclaration {
+                        declaration_identity: Default::default(),
+                        id: ty(index as u64 + 1),
+                        identity: TerminalIdentityIndex(index as u32 + 1),
+                        shape,
+                        quotient_carrier: None,
+                        owns_linear_claim: false,
+                        multiplicity: StructuralMultiplicity::Affine,
+                        no_code_affine_cleanup: true,
+                        descriptor_cleanup: false,
+                        nominal_cleanup: None,
+                        scalar_restriction: None,
+                        requires: Vec::new(),
+                    });
+            }
+            let mut machine = unit_machine(MachineId::new(1).unwrap());
+            machine.parameters.push(ValueDeclaration {
+                id: address,
+                scalar_type: address_ty,
+                qualifications: Default::default(),
+            });
+            machine.structural_places.push(StructuralPlaceDeclaration {
+                id: argument,
+                kind: StructuralPlaceKind::Parameter { position: 0 },
+            });
+            machine
+                .structural_parameters
+                .push(StructuralParameterDeclaration {
+                    place: argument,
+                    position: 0,
+                    structural_type: ty(2),
+                    multiplicity: StructuralMultiplicity::Affine,
+                    access: SharedBorrow,
+                    qualifications: vec![],
+                    projected_qualifications: vec![],
+                    additional_input_qualifications: vec![],
+                });
+            let operation = |kind, result_ty, multiplicity| Operation {
+                id: OperationId::new(1).unwrap(),
+                required_contract: None,
+                static_reach_binding: None,
+                suspension_crossing: None,
+                result: OperationResult::Structural(StructuralOperationResult {
+                    place: PlaceId::new(2).unwrap(),
+                    structural_type: result_ty,
+                    multiplicity,
+                    qualifications: vec![],
+                    projected_qualifications: vec![],
+                    additional_input_qualifications: vec![],
+                    qualification_establishments: vec![],
+                    claims: vec![],
+                }),
+                kind,
+            };
+            let affine = StructuralMultiplicity::Affine;
+            let at = OperationKind::BorrowAt { address };
+            for result in [ty(2), ty(3)] {
+                validate_native_borrow(&module, &machine, &operation(at.clone(), result, affine))
+                    .unwrap();
+            }
+            assert!(
+                validate_native_borrow(&module, &machine, &operation(at.clone(), ty(1), affine))
+                    .is_err()
+            );
+            machine.parameters[0].scalar_type = byte;
+            assert!(
+                validate_native_borrow(&module, &machine, &operation(at, ty(3), affine)).is_err()
+            );
+
+            let upgrade = OperationKind::UpgradeMutability {
+                source: StructuralArgument::whole(argument, SharedBorrow),
+            };
+            validate_native_borrow(
+                &module,
+                &machine,
+                &operation(upgrade.clone(), ty(3), affine),
+            )
+            .unwrap();
+            for (result, multiplicity) in [
+                (ty(2), affine),
+                (ty(4), affine),
+                (ty(3), StructuralMultiplicity::Unrestricted),
+            ] {
+                assert!(
+                    validate_native_borrow(
+                        &module,
+                        &machine,
+                        &operation(upgrade.clone(), result, multiplicity)
+                    )
+                    .is_err()
+                );
+            }
+            machine.structural_parameters[0].structural_type = ty(3);
+            assert!(
+                validate_native_borrow(&module, &machine, &operation(upgrade, ty(3), affine))
+                    .is_err()
+            );
+        }
 
         #[test]
         fn byte_views_measure_the_original_field_and_keep_reference_crossings() {
@@ -12450,6 +12641,9 @@ fn validate_operation_foundation(
         )?;
     }
     match &operation.kind {
+        OperationKind::BorrowAt { .. } | OperationKind::UpgradeMutability { .. } => {
+            storage_foundations::validate_native_borrow(module, machine, operation)?
+        }
         OperationKind::EstablishAccessReference { .. } => {
             storage_foundations::validate_establish_access_reference(module, machine, operation)?
         }

@@ -7,6 +7,11 @@ The [stage entry](src/lib.rs) lowers checked Psi for native execution. The build
 selection names the functions that need target support. Test fixtures can exercise whole-module lowering through the opt-in test support API. Unused library helpers thus demand no
 unavailable target operations.
 
+A call carries its checked suspension occurrence through native call planning.
+Selecting a provider or assigning arguments to registers does not create another
+occurrence. The native optimizer keeps that call so a parked caller has the
+same place to resume.
+
 Public entry needs host-authorized producer trust bound to the complete
 canonical artifact. Decoding bytes establishes their identity, not permission
 to run them. The authorization travels with the native input through lowering
@@ -138,6 +143,16 @@ selected. The old direct-assignment and one-fragment publication routes are not
 alternatives. Machine-effect facts must still
 reach final call placement, frame and return-address preservation,
 relocations, bytes and independently validated publication.
+
+## Adjacent assembly blocks
+
+A Psi block may require that its jump to the next local block emit no
+instruction. [Assembly edge lowering](src/operations/assembly_adjacency.rs)
+joins the blocks of a straight-line assembly machine into one physical range.
+The source SSA value and its destination block parameter name the same value,
+so binding that parameter emits no register copy. This runs even when the
+build selects no optional optimizations. A second incoming path, edge cleanup
+or structural transfer needs a separate layout and currently rejects.
 
 ## Structural results and residual cleanup
 

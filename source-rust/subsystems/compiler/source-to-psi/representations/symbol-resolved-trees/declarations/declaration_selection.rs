@@ -129,6 +129,7 @@ mod product {
                 Self::Declaration(request) => matches!(
                     request.operation,
                     BuildOperation::ProviderSelection
+                        | BuildOperation::ProviderExport
                         | BuildOperation::RepresentationSelection
                         | BuildOperation::NativeBinding
                         | BuildOperation::ServiceExclusion
@@ -1059,46 +1060,30 @@ pub fn is_unresolved_provider_selection_call(
 impl From<BuildOperation> for AuthoredDeclarationSelectionIntrinsic {
     fn from(operation: BuildOperation) -> Self {
         match operation {
-            BuildOperation::ParameterDescription => {
-                Self::BuildParameterDescription
-            }
+            BuildOperation::ParameterDescription => Self::BuildParameterDescription,
             BuildOperation::FieldDescription => Self::BuildFieldDescription,
             BuildOperation::ServiceDescription => Self::BuildServiceDescription,
             BuildOperation::EnableUnsafe => Self::BuildEnableUnsafe,
             BuildOperation::NativeBinding => Self::BuildNativeBinding,
-            BuildOperation::ProviderReadiness => {
-                Self::BuildProviderReadiness
-            }
-            BuildOperation::ProviderSelection => {
-                Self::BuildProviderSelection
-            }
-            BuildOperation::RepresentationSelection => {
-                Self::BuildRepresentationSelection
-            }
+            BuildOperation::ProviderReadiness => Self::BuildProviderReadiness,
+            BuildOperation::ProviderSelection => Self::BuildProviderSelection,
+            BuildOperation::ProviderExport => Self::BuildProviderExport,
+            BuildOperation::RepresentationSelection => Self::BuildRepresentationSelection,
             BuildOperation::ServiceExclusion => Self::BuildServiceExclusion,
             BuildOperation::ServiceAudit => Self::BuildServiceAudit,
-            BuildOperation::OptimizationSelection => {
-                Self::BuildOptimizationSelection
-            }
-            BuildOperation::OptimizationReportRequest => {
-                Self::BuildOptimizationReportRequest
-            }
-            BuildOperation::BoundaryAcceptance => {
-                Self::BuildBoundaryAcceptance
-            }
-            BuildOperation::WireCompatibilityRequest => {
-                Self::BuildWireCompatibilityRequest
-            }
+            BuildOperation::OptimizationSelection => Self::BuildOptimizationSelection,
+            BuildOperation::OptimizationReportRequest => Self::BuildOptimizationReportRequest,
+            BuildOperation::BoundaryAcceptance => Self::BuildBoundaryAcceptance,
+            BuildOperation::WireCompatibilityRequest => Self::BuildWireCompatibilityRequest,
             BuildOperation::LogWriteLine => Self::BuildLogWriteLine,
-            BuildOperation::TestGroupRegistration => {
-                Self::BuildTestGroupRegistration
-            }
+            BuildOperation::TestGroupRegistration => Self::BuildTestGroupRegistration,
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
-pub enum AuthoredDeclarationSelectionIntrinsic {    BuildNativeBinding,
+pub enum AuthoredDeclarationSelectionIntrinsic {
+    BuildNativeBinding,
     BuildProviderReadiness,
     BuildServiceDescription,
     BuildEnableUnsafe,
@@ -1113,6 +1098,7 @@ pub enum AuthoredDeclarationSelectionIntrinsic {    BuildNativeBinding,
         role: ProductOperandRole,
     },
     BuildProviderSelection,
+    BuildProviderExport,
     BuildRepresentationSelection,
     BuildServiceExclusion,
     BuildServiceAudit,

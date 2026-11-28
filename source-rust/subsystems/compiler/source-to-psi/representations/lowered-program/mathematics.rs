@@ -290,6 +290,9 @@ pub enum SignatureEntryKind {
     /// (kernel_metatheory.md, "Boolean values denote `Two`"). A signature
     /// declares it once, the first time a machine needs it.
     Boolean,
+    /// A proof-only view of an admitted total unary callable: its closed
+    /// function type. Records keep this entry when a field holds it.
+    FunctionType,
     /// The inductive former of a generic data declaration (`Seq<T>`), a
     /// function from its type parameters to a type. Its constructors and
     /// recursor follow it as `Encoding` entries; each application the

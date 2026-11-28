@@ -6,6 +6,13 @@ an explicit host request. It admits the requested target and bindings, sets up
 private entry storage, installs host adapters and runs it on the Psi
 interpreter. Replenishing work resumes the same instance.
 
+An embedder can [load an exported operation record](src/owned_provider.rs)
+from a closed Psi supplier. Loading checks the caller's complete requirement
+against the description and the host-authorized image. A projected member
+and a running call borrow that installation; loading a failed replacement
+does not disturb it. This route refuses outstanding imports and platform or
+resource obligations. It does not install native code.
+
 The portable `execute` and `execute_sliced` entries run without a native image. The [retained-image host](retained-image/execution.rs) also accepts the completed image for programs that observe linked code layout. It checks the supplied image against the target and the canonical Psi manifest before reading the root machine descriptors. Build’s registered test runner uses this entry for comparisons and reports inspection failures as execution errors.
 
 [Clock bindings](clock/bindings.rs) and [filesystem bindings](filesystem/bindings.rs)

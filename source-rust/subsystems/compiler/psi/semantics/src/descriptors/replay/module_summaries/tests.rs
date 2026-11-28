@@ -126,6 +126,7 @@ fn returning(identity: u64, callee: Option<u64>) -> DescriptorMachine {
                 .insert_call(
                     point(0),
                     DescriptorInvocation {
+                        native_address_arguments: Vec::new(),
                         scalar_arguments: Vec::new(),
                         owner: DescriptorInvocationOwner::Operation(OperationId::new(1).unwrap()),
                         target: DescriptorInvocationTarget::Machine(id(callee)),
@@ -276,6 +277,7 @@ fn an_opaque_write_invalidates_its_argument_and_requires_concrete_loan_origins()
             .insert_call(
                 point(0),
                 DescriptorInvocation {
+                    native_address_arguments: Vec::new(),
                     scalar_arguments: Vec::new(),
                     owner: DescriptorInvocationOwner::Operation(OperationId::new(1).unwrap()),
                     target: DescriptorInvocationTarget::Machine(id(LEAF)),

@@ -22,6 +22,10 @@ impl SynchronousCallGraph<'_> {
         for body in closure.machines {
             concrete.extend(body.declared_service_reach.iter().flatten().copied());
             for operation in body.operations() {
+                concrete.extend(crate::storage::native_borrows::required_services(
+                    self.module,
+                    operation,
+                )?);
                 let service = match operation.kind {
                     OperationKind::PortWrite { service, .. } => Some(service),
                     OperationKind::RegisterAccess { service, .. } => service,

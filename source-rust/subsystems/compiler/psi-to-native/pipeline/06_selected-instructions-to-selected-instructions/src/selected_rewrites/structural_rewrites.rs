@@ -78,11 +78,20 @@ impl StructuralRewrite {
     fn apply(
         self,
         functions: &mut [SelectedFunction],
+        contracts: &selected_instructions::SelectedProgramContracts,
         environment: &ValidatedTargetRegisterEnvironment,
     ) -> Result<(), StructuralRewriteError> {
         match self {
             Self::AcyclicCallInlining => {
-                crate::selected_rewrites::call_inlining::inline_and_simplify(functions, environment)
+                crate::selected_rewrites::call_inlining::inline_and_simplify(
+                    functions,
+                    environment,
+                    |machine| {
+                        contracts
+                            .function_abi(machine)
+                            .is_some_and(|abi| abi.assembly_return.is_some())
+                    },
+                )
             }
             Self::PackedVectorPromotion => {
                 crate::selected_rewrites::vector_promotion::promote_and_simplify(
@@ -313,7 +322,7 @@ fn execute(
         ));
     }
     let mut functions: Vec<SelectedFunction> = input.functions.iter().cloned().collect();
-    rewrite.apply(&mut functions, environment)?;
+    rewrite.apply(&mut functions, &input.contracts, environment)?;
     functions.sort_by_key(|function| function.machine);
     Ok(SelectedInstructionPlan {
         contracts: Arc::clone(&input.contracts),

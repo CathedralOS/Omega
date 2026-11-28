@@ -115,7 +115,7 @@ pub(crate) mod entry {
     };
     use crate::instruction_selection::SelectedInstructionError;
     use crate::instruction_selection::selection::aggregate_result_input::{
-        inline_argument_fragments, parameter_home_required,
+        inline_argument_fragments, parameter_homes,
     };
     use crate::instruction_selection::selection::construction::scalar_graph::structural::invalid;
     use crate::instruction_selection::selection::construction::scalar_graph::structural::transport_register;
@@ -136,6 +136,7 @@ pub(crate) mod entry {
         if !accepts_graph(&source.call_plan, &parameters, source.geometry()) {
             return Err(SelectedInstructionError::unsupported_shape(function));
         }
+        builder.transport.parameter_homes = parameter_homes(source, signature);
         for (parameter_index, parameter) in signature.parameters.iter().enumerate() {
             let place = parameter.semantic.place;
             let owned_pointer =
@@ -325,7 +326,7 @@ pub(crate) mod entry {
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
         let place = parameter.semantic.place;
-        if !parameter_home_required(source, place) {
+        if !builder.transport.parameter_homes[parameter.semantic.position as usize] {
             return Ok(());
         }
         let shape = parameter.target.shape;
@@ -3457,6 +3458,7 @@ pub(crate) mod reference {
                 .ok_or(invalid())?;
         let result = match &row.kind {
             LegalizedScalarInstructionKind::EstablishReference { result, .. }
+            | LegalizedScalarInstructionKind::UpgradeMutability { result, .. }
             | LegalizedScalarInstructionKind::EstablishAccessReference { result, .. } => result,
             _ => return Err(invalid()),
         };
@@ -3554,6 +3556,44 @@ pub(crate) mod reference {
         } else {
             None
         };
+        write_descriptor(builder, row, result, value, codec)
+    }
+
+    pub(crate) fn borrow_at(
+        source: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
+        row: &LegalizedScalarInstruction,
+        builder: &mut Builder<'_>,
+    ) -> Result<(), SelectedInstructionError> {
+        let (result, address, codec) =
+            crate::instruction_selection::selection::reference_input::native_address(source, row)
+                .ok_or_else(invalid)?;
+        let (_, value, _, address_type) = builder.resolve(address).ok_or_else(invalid)?;
+        if !matches!(address_type, semantic_vocabulary::ClosedScalarType::Integer(integer) if integer.is_address() && integer.bits() == 64)
+        {
+            return Err(invalid());
+        }
+        let codec = codec
+            .map(|codec| {
+                let bits = codec.encode().ok_or_else(invalid)?;
+                let register = transport_register(builder, result.place, 8)?;
+                builder.emit_materialize_i64(
+                    semantic_vocabulary::IntegerValue::Unsigned(u128::from(bits)),
+                    register,
+                    provenance(row),
+                )?;
+                Ok(register)
+            })
+            .transpose()?;
+        write_descriptor(builder, row, result, value, codec)
+    }
+
+    fn write_descriptor(
+        builder: &mut Builder<'_>,
+        row: &LegalizedScalarInstruction,
+        result: &terminal_psi::StructuralOperationResult,
+        value: super::VirtualRegisterId,
+        codec: Option<super::VirtualRegisterId>,
+    ) -> Result<(), SelectedInstructionError> {
         let byte_size = if codec.is_some() { 16 } else { 8 };
         let slot =
             builder
@@ -6092,6 +6132,7 @@ pub(crate) use element_views::element_observation;
 
 #[derive(Default)]
 pub(crate) struct Transport {
+    pub(crate) parameter_homes: Vec<bool>,
     pub(crate) result_pointer: Option<VirtualRegisterId>,
     pub pointers: Vec<(PlaceId, VirtualRegisterId)>,
     pub(crate) views: Vec<ByteViewHomes>,
@@ -6355,9 +6396,10 @@ pub(crate) fn operation(
         Kind::EstablishElementView { .. } => {
             element_establishment::establish(source, builder, row)?
         }
-        Kind::EstablishReference { .. } | Kind::EstablishAccessReference { .. } => {
-            reference::establish(source, row, builder)?
-        }
+        Kind::BorrowAt { .. } => reference::borrow_at(source, row, builder)?,
+        Kind::UpgradeMutability { .. }
+        | Kind::EstablishReference { .. }
+        | Kind::EstablishAccessReference { .. } => reference::establish(source, row, builder)?,
         Kind::ElementViewFixedArray { .. } => {
             reference::establish_view_window(source, row, builder)?
         }

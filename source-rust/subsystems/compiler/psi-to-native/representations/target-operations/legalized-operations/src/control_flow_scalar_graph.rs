@@ -352,7 +352,9 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::StructuralScalarFieldRead { .. }
             | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
             | LegalizedScalarInstructionKind::BoundarySettlement(_) => {}
-            LegalizedScalarInstructionKind::EstablishAccessReference { indices, .. } => {
+            LegalizedScalarInstructionKind::BorrowAt { address, .. } => visit(*address),
+            LegalizedScalarInstructionKind::EstablishAccessReference { indices, .. }
+            | LegalizedScalarInstructionKind::UpgradeMutability { indices, .. } => {
                 indices.iter().for_each(|index| visit(index.operand.value));
             }
             LegalizedScalarInstructionKind::ElementViewFixedArray {
@@ -694,6 +696,17 @@ pub enum LegalizedScalarInstructionKind {    InstallStaticInterrupt {
         extent: u64,
         obligation: semantic_vocabulary::ObligationId,
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
+        shape: calling_conventions::ValueShape,
+    },
+    BorrowAt {
+        result: terminal_psi::StructuralOperationResult,
+        address: ValueId,
+        shape: calling_conventions::ValueShape,
+    },
+    UpgradeMutability {
+        result: terminal_psi::StructuralOperationResult,
+        source: terminal_psi::StructuralArgument,
+        indices: Vec<LegalizedRuntimeIndexOperand>,
         shape: calling_conventions::ValueShape,
     },
     EstablishReference {
@@ -1072,6 +1085,8 @@ impl LegalizedScalarInstructionKind {
             | Self::EstablishZeroedStructural { result, .. }
             | Self::EstablishStructuralLocal { result, .. }
             | Self::EstablishCase { result, .. }
+            | Self::BorrowAt { result, .. }
+            | Self::UpgradeMutability { result, .. }
             | Self::EstablishReference { result, .. }
             | Self::EstablishAccessReference { result, .. }
             | Self::ElementViewFixedArray { result, .. }
@@ -1223,6 +1238,7 @@ mod structural_result_tests {
     fn structural_call_result_lookup_preserves_absence_and_presence() {
         let expected = result();
         let mut call = LegalizedScalarCall {
+            suspension_crossing: None,
             descriptor_origins: Vec::new(),
             access_bindings: Vec::new(),
             source: target_vocabulary::NativeCallOrigin::Authored,
@@ -1440,6 +1456,7 @@ impl LegalizedScalarTerminator {
             return None;
         };
         Some(LegalizedScalarCall {
+            suspension_crossing: None,
             descriptor_origins: Vec::new(),
             access_bindings: Vec::new(),
             source: origin.clone(),

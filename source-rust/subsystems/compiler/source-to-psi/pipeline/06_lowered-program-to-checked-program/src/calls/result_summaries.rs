@@ -64,6 +64,7 @@ there when alternatives were kept). Storage a helper writes through a
 borrowed formal gets no summary.
 */
 
+use rayon::prelude::*;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, EdgeId, IntegerType, IntegerValue, MachineId, ObligationId,
     PlaceId, Proposition, ScalarTerm, ScalarType, StructuralCaseId, ValueId,
@@ -95,8 +96,78 @@ pub(crate) fn infer(
     if elaboration.local_results.is_empty() {
         return Ok(());
     }
-    for id in callees_first(elaboration)? {
-        summarize(scope, id, unreached, inhabitation, activity)?;
+    let machines = callees_first(elaboration)?;
+    let workers = worker_budget::current_workers();
+    let mut remaining = machines.as_slice();
+    let mut window = 1;
+    while let Some((&first, rest)) = remaining.split_first() {
+        // A larger body can take longer than all of its predecessors put
+        // together. Start it in a fresh batch so that a cheap helper which
+        // publishes a summary cannot make us prepare that body twice.
+        let values = |id| {
+            scope
+                .source()
+                .tables
+                .machines
+                .get(id)
+                .expect("postorder visits machines with tables")
+                .values
+                .len()
+        };
+        let capacity = values(first)
+            .checked_next_power_of_two()
+            .unwrap_or(usize::MAX);
+        let width = 1 + rest
+            .iter()
+            .take(window - 1)
+            .take_while(|&&id| values(id) <= capacity)
+            .count();
+        let batch = &remaining[..width];
+        let evaluate = |&id: &MachineId| {
+            let mut searched = activity.continuation();
+            let mut beyond = false;
+            let proposal = summarize(
+                scope,
+                id,
+                unreached,
+                inhabitation,
+                &mut beyond,
+                &mut searched,
+            );
+            (proposal, beyond, searched)
+        };
+        let mut proposals = if width == 1 {
+            vec![evaluate(&first)]
+        } else {
+            batch.par_iter().map(evaluate).collect()
+        };
+        for (_, _, searched) in &mut proposals {
+            activity.record_continuation_work(searched);
+        }
+        let mut consumed = 0;
+        for (&id, (proposal, beyond, searched)) in batch.iter().zip(proposals) {
+            consumed += 1;
+            // A search can consume the allowance for later goals even when
+            // it proposes no fact. Keep only the prefix checked under the
+            // same contracts, unreached values and remaining proof budget.
+            let spent = activity.finish_continuation(searched);
+            let newly_unreached = beyond && unreached.mark_result(id);
+            if let Some(proposal) = proposal? {
+                scope.summarize(id, proposal.summary, &proposal.exits, activity)?;
+                break;
+            }
+            if newly_unreached || spent {
+                break;
+            }
+        }
+        remaining = &remaining[consumed..];
+        // Grow the read-only batch while inputs stay stable. After a
+        // conflict, limit lookahead to the prefix that actually survived.
+        window = if consumed == width {
+            (window * 2).min(workers)
+        } else {
+            consumed
+        };
     }
     Ok(())
 }
@@ -395,23 +466,29 @@ fn with_formation_conditions(parts: Vec<Proposition>) -> Vec<Proposition> {
     formed
 }
 
+struct ResultProposal {
+    summary: Proposition,
+    exits: Vec<(EdgeId, ValueId)>,
+}
+
 fn summarize(
-    scope: &mut crate::ReplayScope<'_>,
+    scope: &crate::ReplayScope<'_>,
     id: MachineId,
-    unreached: &mut crate::Unreached,
+    unreached: &crate::Unreached,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+    result_beyond: &mut bool,
     activity: &mut crate::ProofSearchActivity,
-) -> Checked<()> {
+) -> Checked<Option<ResultProposal>> {
     let elaboration = scope.source();
     let module = &elaboration.module;
     let lowered = terminal_machine(&module.machines, id, id)?;
     let TerminalMachineResult::Scalar(declared) = &lowered.result else {
-        return Ok(());
+        return Ok(None);
     };
     // Callable values cross the result boundary with their contract type.
     // They have no mathematical equality to strengthen with a body summary.
     if matches!(declared.scalar_type, ScalarType::Callable(_)) {
-        return Ok(());
+        return Ok(None);
     }
     let result = ScalarTerm::value(declared.id, declared.scalar_type);
     let exits: Vec<(EdgeId, ValueId)> = lowered
@@ -423,7 +500,7 @@ fn summarize(
         })
         .collect();
     if exits.is_empty() {
-        return Ok(());
+        return Ok(None);
     }
     // One machine's construction scratch, as private-input description
     // uses: the evidence tables stay without knowledge until discharge.
@@ -474,7 +551,7 @@ fn summarize(
         if let ScalarType::Integer(integer) = declared.scalar_type {
             let Ok(known) = hypotheses(&prepared.graph, &scratch, id, row_identity(0)?, point)
             else {
-                return Ok(());
+                return Ok(None);
             };
             let mut prover = prove::Prover::new(
                 &prepared.context,
@@ -486,7 +563,7 @@ fn summarize(
             // A caller's goal on this result then depends on an operation
             // the integer rules do not reach, whatever is described of it.
             if prover.value_beyond_rules(*value, &beyond) {
-                unreached.mark_result(id);
+                *result_beyond = true;
             }
             let (lower, upper) = prover.literal_bounds(*value);
             lowest = widest(lowest, lower, integer, std::cmp::Ordering::Less);
@@ -526,7 +603,7 @@ fn summarize(
         parts.push(joins::connective(values, false));
     }
     let Ok(summary) = entry_inputs::canonical(joins::connective(parts, true), id) else {
-        return Ok(());
+        return Ok(None);
     };
     let parts = match summary {
         Proposition::Conjunction(parts) => parts,
@@ -543,7 +620,7 @@ fn summarize(
             .iter()
             .any(|clause| clause.proposition == summary)
     {
-        return Ok(());
+        return Ok(None);
     }
     // Derived, now checked: the clause is added only when every normal
     // return establishes it by a certificate the kernel accepts. A return
@@ -563,10 +640,10 @@ fn summarize(
         )
         .is_err()
         {
-            return Ok(());
+            return Ok(None);
         }
     }
-    scope.summarize(id, summary, &exits, activity)
+    Ok(Some(ResultProposal { summary, exits }))
 }
 
 pub(crate) fn publish(

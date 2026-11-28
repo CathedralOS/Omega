@@ -186,6 +186,10 @@ pub(crate) mod capabilities {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum TerminalUnsupportedCapability {
+        NativeAddressBorrow {
+            machine: MachineId,
+            operation: &'static str,
+        },
         NativeCodeLayout {
             machine: semantic_vocabulary::MachineId,
         },
@@ -196,6 +200,33 @@ pub(crate) mod capabilities {
             boundary: BoundaryMachineId,
             kind: ExternalCompletionKind,
         },
+    }
+
+    pub(crate) fn native_address_borrow_error(
+        program: &AdmittedTerminalProgram<'_>,
+        machine: MachineId,
+        operation: &terminal_psi::Operation,
+    ) -> TerminalInterpretError {
+        let Some(result) = operation.result.structural() else {
+            return malformed();
+        };
+        let Ok(declaration) = program.structural_declaration(result.structural_type) else {
+            return malformed();
+        };
+        let terminal_psi::StructuralTypeShape::Reference { access, .. } = declaration.shape else {
+            return malformed();
+        };
+        let name = match access {
+            terminal_psi::StructuralAccess::SharedBorrow => "borrow_at",
+            terminal_psi::StructuralAccess::MutableBorrow => "borrow_mutable_at",
+            _ => return malformed(),
+        };
+        TerminalInterpretError::UnsupportedCapability(
+            TerminalUnsupportedCapability::NativeAddressBorrow {
+                machine,
+                operation: name,
+            },
+        )
     }
 
     /// One witness per reachable import, sharing caller prefixes from the
@@ -448,6 +479,45 @@ pub(crate) mod capabilities {
         }
     }
 
+    /// Reached internal assembly returns use the installed target's ordinary calling
+    /// convention. A boundary candidate must instead satisfy its own selected policy.
+    fn check_assembly_return(
+        program: &AdmittedTerminalProgram,
+        machine: &terminal_psi::TerminalMachine,
+        view: terminal_psi::AsmRegisterView,
+        target: Option<&str>,
+    ) -> Result<(), TerminalInterpretError> {
+        use language_core::native_call::{NativeCallingConvention, target_platform};
+        let reject = TerminalInterpretError::UnsupportedSemanticVariant;
+        if !machine.structural_parameters.is_empty()
+            || !machine.entry_claims.is_empty()
+            || program
+                .catalogs
+                .interfaces
+                .provider_candidates
+                .iter()
+                .any(|row| row.candidate == machine.id)
+        {
+            return Err(reject(
+                "assembly return requires its selected boundary or structural calling plan",
+            ));
+        }
+        let Some((architecture, format)) = target.and_then(target_platform) else {
+            return Err(reject("assembly return requires a concrete native target"));
+        };
+        let convention = NativeCallingConvention::for_target(architecture, format);
+        if !matches!(&machine.result, terminal_psi::TerminalMachineResult::Scalar(result)
+            if matches!(result.scalar_type, semantic_vocabulary::ScalarType::Integer(integer)
+                if !integer.is_address() && integer.bits() == Some(32)))
+            || convention.integer_result_registers().first() != Some(&view.parent())
+        {
+            return Err(reject(
+                "authored assembly register does not hold this calling convention's scalar result",
+            ));
+        }
+        Ok(())
+    }
+
     /// The requirements of everything `entry` reaches, read from the module's
     /// analyses. `prepared` holds the provider bodies a reused
     /// `TerminalCallableAnalysis` read for its own installation.
@@ -463,6 +533,14 @@ pub(crate) mod capabilities {
         >,
         mut paths: Option<&mut TerminalImportPaths>,
     ) -> Result<TerminalExecutionRequirements, TerminalInterpretError> {
+        let selected_target = installation
+            .and_then(|supplies| supplies.target_machines.as_ref())
+            .map(|selection| selection.target());
+        let layout_target = program
+            .target_layouts
+            .as_ref()
+            .map(|layouts| layouts.target());
+        let target = selected_target.or(layout_target);
         let mut imports = BTreeSet::new();
         let mut missing_providers = BTreeSet::new();
         let mut installation_bound_call = false;
@@ -527,22 +605,15 @@ pub(crate) mod capabilities {
                     .map(|parameter| parameter.structural_type),
             );
             let requirement = machine.assembly_target_requirement;
-            if requirement != terminal_psi::RegisterTargetApplicability::Any {
-                let selected = installation
-                    .and_then(|supplies| supplies.target_machines.as_ref())
-                    .map(|selection| selection.target());
-                let layouts = program
-                    .target_layouts
-                    .as_ref()
-                    .map(|layouts| layouts.target());
-                let target = selected.or(layouts);
-                if selected.zip(layouts).is_some_and(|(a, b)| a != b)
-                    || target.is_none_or(|target| !requirement.accepts_target_name(target))
-                {
-                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                        "assembly catalog target requirement is not established by the target environment",
-                    ));
-                }
+            if requirement != terminal_psi::RegisterTargetApplicability::Any
+                && (selected_target
+                    .zip(layout_target)
+                    .is_some_and(|(a, b)| a != b)
+                    || target.is_none_or(|target| !requirement.accepts_target_name(target)))
+            {
+                return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "assembly catalog target requirement is not established by the target environment",
+                ));
             }
             // `TerminalMachine::block` scans the machine's blocks, so this walk
             // over every reachable block finds each one through a sorted index.
@@ -567,6 +638,11 @@ pub(crate) mod capabilities {
                     continue;
                 }
                 let block = &machine.blocks[position];
+                if let Some(terminal_psi::AssemblyExitConstraint::ScalarReturn(view)) =
+                    block.assembly_exit
+                {
+                    check_assembly_return(program, machine, view, target)?;
+                }
                 storage_roots.extend(
                     block
                         .structural_parameters
@@ -594,6 +670,11 @@ pub(crate) mod capabilities {
                         scalar_applications.insert(application);
                     }
                     let callee = match &operation.kind {
+                        OperationKind::BorrowAt { .. } => {
+                            return Err(native_address_borrow_error(
+                                program, machine_id, operation,
+                            ));
+                        }
                         OperationKind::EstablishNativeCodeLayout { machine } => {
                             if installation
                                 .and_then(|supplies| supplies.native_code_layouts.as_ref())
@@ -981,6 +1062,7 @@ pub(crate) mod capabilities {
             };
             let block_id = BlockId::new(1).unwrap();
             let block = Block {
+                assembly_exit: None,
                 id: block_id,
                 parameters: Vec::new(),
                 erased_scalar_formals: Vec::new(),
@@ -1721,6 +1803,43 @@ pub(crate) mod capabilities {
         }
 
         #[test]
+        fn ordinary_assembly_plan_cannot_admit_a_boundary_candidate() {
+            let mut program = program();
+            use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, ValueId};
+            let candidate = MachineId::new(2).unwrap();
+            let mut body = machine(0, Vec::new());
+            body.contract.result = TerminalMachineResult::Scalar(terminal_psi::ValueDeclaration {
+                id: ValueId::new(1).unwrap(),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+                ),
+                qualifications: Default::default(),
+            });
+            let view = terminal_psi::AsmRegisterView::from_scratch_slot(0).unwrap();
+            let target = Some("linux_x86_64");
+            set_machine(&mut program, candidate, body);
+            check_assembly_return(
+                &program,
+                program.verified_machine(candidate).unwrap(),
+                view,
+                target,
+            )
+            .unwrap();
+            add_provider(&mut program, BoundaryMachineId::new(1).unwrap());
+            assert!(matches!(
+                check_assembly_return(
+                    &program,
+                    program.verified_machine(candidate).unwrap(),
+                    view,
+                    target,
+                ),
+                Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "assembly return requires its selected boundary or structural calling plan"
+                ))
+            ));
+        }
+
+        #[test]
         fn capability_graph_requires_environment_for_reachable_catalog_target() {
             let mut program = program();
             let mut demanding = machine(1, Vec::new());
@@ -1761,6 +1880,108 @@ pub(crate) mod capabilities {
                     },
                 ))
             );
+        }
+
+        #[test]
+        fn native_address_formation_is_refused_only_when_reachable() {
+            let mut program = program();
+            let entry = MachineId::new(1).unwrap();
+            let helper = MachineId::new(2).unwrap();
+            let operand = semantic_vocabulary::ValueId::new(1).unwrap();
+            let reference = PlaceId::new(1).unwrap();
+            let reference_type = StructuralTypeId::new(1).unwrap();
+            let mut forming = machine(
+                0,
+                vec![
+                    OperationKind::IntegerConstant {
+                        value: semantic_vocabulary::IntegerValue::Unsigned(0),
+                    },
+                    OperationKind::BorrowAt { address: operand },
+                    OperationKind::ReleaseReference {
+                        source: reference,
+                        path: Vec::new(),
+                    },
+                ],
+            );
+            forming
+                .structural_places
+                .push(terminal_psi::StructuralPlaceDeclaration {
+                    id: reference,
+                    kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                        producer: OperationId::new(2).unwrap(),
+                        structural_type: reference_type,
+                    },
+                });
+            forming.blocks[0].operations[0].result =
+                OperationResult::Scalar(terminal_psi::ValueDeclaration {
+                    id: operand,
+                    scalar_type: semantic_vocabulary::ScalarType::Integer(
+                        semantic_vocabulary::IntegerType::address(64).unwrap(),
+                    ),
+                    qualifications: Default::default(),
+                });
+            forming.blocks[0].operations[1].result =
+                OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                    place: PlaceId::new(1).unwrap(),
+                    structural_type: StructuralTypeId::new(1).unwrap(),
+                    multiplicity: StructuralMultiplicity::Affine,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                    qualification_establishments: Vec::new(),
+                    claims: Vec::new(),
+                });
+            set_machine(&mut program, entry, machine(0, Vec::new()));
+            set_machine(&mut program, helper, forming.clone());
+            check(&program, None).expect("the reachable entry is empty");
+
+            let boundary = BoundaryMachineId::new(1).unwrap();
+            add_provider(&mut program, boundary);
+            let installation = TerminalRuntimeSupplies {
+                provider_selections: None,
+                x86_flags: None,
+                memory_ordering: None,
+                code_identity: program.identity.clone(),
+                entry: None,
+                supplies: BTreeMap::from([(
+                    boundary,
+                    AdmittedBoundarySupply::CheckedProvider(helper),
+                )]),
+                folded_constant_target: None,
+                target_machines: None,
+                target_layouts: None,
+                native_code_layouts: None,
+            };
+            for (entry_body, refused, supplies) in [
+                (machine(0, vec![unit_call(helper)]), helper, None),
+                (
+                    machine(0, vec![boundary_call(boundary)]),
+                    helper,
+                    Some(&installation),
+                ),
+                (forming, entry, None),
+            ] {
+                set_machine(&mut program, entry, entry_body);
+                for (access, operation) in [
+                    (StructuralAccess::SharedBorrow, "borrow_at"),
+                    (StructuralAccess::MutableBorrow, "borrow_mutable_at"),
+                ] {
+                    program.fixture_module_mut().types.structural_types[0].shape =
+                        terminal_psi::StructuralTypeShape::Reference {
+                            referent: StructuralTypeId::new(2).unwrap(),
+                            access,
+                        };
+                    assert_eq!(
+                        check(&program, supplies),
+                        Err(TerminalInterpretError::UnsupportedCapability(
+                            TerminalUnsupportedCapability::NativeAddressBorrow {
+                                machine: refused,
+                                operation
+                            }
+                        ))
+                    );
+                }
+            }
         }
 
         #[test]
@@ -2898,6 +3119,7 @@ pub(crate) mod execution {
         pub(crate) next_operation: usize,
         pub(crate) call_stack: Vec<SuspendedCall>,
         pub(crate) awaiting_effect: Option<Box<crate::engine::calls::PendingBoundaryCall>>,
+        pub(crate) last_park: u64,
         pub(crate) result: Option<TerminalExecutionResult>,
         pub(crate) returned_byte_sequence: Option<ByteSequenceBinding>,
         pub(crate) returned_element_view: Option<crate::storage::element_views::ElementView>,
@@ -3364,6 +3586,7 @@ pub(crate) mod execution {
                 scalar_entry_checks: None,
                 call_stack: Vec::new(),
                 awaiting_effect: None,
+                last_park: 0,
                 result: None,
                 returned_byte_sequence: None,
                 returned_element_view: None,
@@ -3950,14 +4173,8 @@ pub(crate) mod execution {
                     {
                         return meter_status(error);
                     }
-                    let selected;
-                    let operation = if operation.kind.runtime_indexes().is_empty() {
-                        operation
-                    } else {
-                        selected = self.select_runtime_elements(operation)?;
-                        &selected
-                    };
-                    self.validate_case_projections(operation)?;
+                    let selected = self.select_operation_projections(operation)?;
+                    let operation = selected.as_ref();
                     if self.call_observations.is_some()
                         && let Some(call) = terminal_psi::direct_call_parts(&operation.kind)
                     {
@@ -3987,6 +4204,15 @@ pub(crate) mod execution {
                                         }
                                         OperationKind::StorageAddress { ref source } => {
                                             self.execute_storage_address(operation, source)?;
+                                            OperationFlow::Advance
+                                        }
+                                        OperationKind::BorrowAt { .. } => {
+                                            return Err(crate::engine::capabilities::native_address_borrow_error(
+                                                &self.program, self.current_machine, operation,
+                                            ));
+                                        }
+                                        OperationKind::UpgradeMutability { ref source } => {
+                                            self.upgrade_mutability(operation, source)?;
                                             OperationFlow::Advance
                                         }
                                         OperationKind::EstablishAccessReference { ref source, .. } => {

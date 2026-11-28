@@ -447,6 +447,7 @@ struct ReachedMachines {
 /// Everything derived from one immutable module that several checks read.
 /// See the module documentation for what may be shared.
 pub struct ModuleAnalyses<'m> {
+    tracks_native_addresses: bool,
     module: &'m TerminalModule,
     machine_slots: MachineSlots,
     /// The module's machines sorted by identity, as row adaptation reads them.
@@ -481,6 +482,9 @@ impl<'m> ModuleAnalyses<'m> {
             .map(|(_, slot)| &module.machines[*slot])
             .collect();
         Ok(Self {
+            tracks_native_addresses: crate::storage::native_borrows::tracks_native_addresses(
+                module,
+            ),
             module,
             machine_slots,
             roster,
@@ -756,6 +760,7 @@ impl<'m> ModuleAnalyses<'m> {
                 .with_borrow_mut(|bodies| bodies.push(self.module.machines[slot].id));
         }
         terminal_flow::adapt(
+            self.tracks_native_addresses,
             self.module,
             &self.roster,
             &self.module.machines[slot],

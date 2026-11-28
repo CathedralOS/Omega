@@ -401,6 +401,7 @@ mod program_image {
         let (_, _, live, operations, provenance) = site.parts();
         let AbstractOperation::BoundaryCall {
             psi_operation,
+            suspension_crossing: None,
             result,
             boundary,
             arguments,
@@ -2792,8 +2793,12 @@ pub(crate) fn lower(
     }) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let prepared =
-        super::function_signature::prepare_function_signature(function, target, structural_types)?;
+    let prepared = super::function_signature::prepare_function_signature(
+        function,
+        target,
+        structural_types,
+        scalar_abis.get(&function.machine),
+    )?;
     let parameters_by_place = super::function_signature::parameters_by_place(&prepared.parameters);
     let mut definitions = BTreeSet::new();
     for parameter in &function.parameters {
@@ -2889,6 +2894,8 @@ pub(crate) fn lower(
             | AbstractOperation::EstablishRecord { result, .. }
             | AbstractOperation::EstablishZeroedStructural { result, .. }
             | AbstractOperation::EstablishCase { result, .. }
+            | AbstractOperation::BorrowAt { result, .. }
+            | AbstractOperation::UpgradeMutability { result, .. }
             | AbstractOperation::EstablishReference { result, .. }
             | AbstractOperation::EstablishAccessReference { result, .. }
             | AbstractOperation::CallStructural {
@@ -3369,6 +3376,8 @@ pub(crate) fn lower(
         provenance.edges.extend(block.edges);
     }
     Ok(TargetFunction {
+        assembly_return: None,
+        assembly_register_versions: Vec::new(),
         machine: function.machine,
         attachment: function.attachment,
         scalar_abi: None,

@@ -794,6 +794,7 @@ pub(crate) mod input_site {
             )
             .unwrap();
             let call = |requirement| LegalizedScalarCall {
+                suspension_crossing: None,
                 source: NativeCallOrigin::Authored,
                 target: NativeCallTarget::Machine(MachineId::new(2).unwrap()),
                 call_plan: call_plan.clone(),

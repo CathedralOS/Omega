@@ -4,6 +4,7 @@ use super::*;
 
 mod contained_guest;
 mod guest_discard;
+mod owned_activation;
 
 const BLOCKING: &str = r#"
 public machine may_wait() -> u32 blocks { 7 }

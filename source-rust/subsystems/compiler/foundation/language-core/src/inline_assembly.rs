@@ -350,6 +350,49 @@ mod register_operations {
     }
 }
 
+/// A complete general-purpose register view the source instruction catalog models.
+/// Scratch temporaries, flags, and unmodeled aliases have no register view.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct AsmRegisterView(u8);
+
+impl AsmRegisterView {
+    pub fn from_scratch_slot(slot: usize) -> Option<Self> {
+        let name = *ASM_SCRATCH_NAMES.get(slot)?;
+        scratch_register(name)?;
+        Some(Self(u8::try_from(slot).ok()?))
+    }
+
+    pub const fn slot(self) -> u8 {
+        self.0
+    }
+
+    pub fn name(self) -> &'static str {
+        ASM_SCRATCH_NAMES[usize::from(self.0)]
+    }
+
+    /// The entire physical register written by this 32-bit view, including the zeroed high bits.
+    pub fn parent(self) -> crate::native_call::MachineRegister {
+        use crate::native_call::MachineRegister::*;
+        const X86_PARENTS: [crate::native_call::MachineRegister; ASM_ZERO_FLAG_SLOT] = [
+            X86Rax, X86Rbx, X86Rcx, X86Rdx, X86Rsi, X86Rdi, X86R8, X86R9, X86R10, X86R11, X86R12,
+            X86R13, X86R14, X86R15,
+        ];
+        if let Some(parent) = X86_PARENTS.get(usize::from(self.0)) {
+            *parent
+        } else {
+            Aarch64X(self.0 - scratch_registers::ASM_ARM_REGISTER_START as u8)
+        }
+    }
+
+    pub fn target(self) -> AsmTargetApplicability {
+        if usize::from(self.0) < ASM_ZERO_FLAG_SLOT {
+            AsmTargetApplicability::X86_64
+        } else {
+            AsmTargetApplicability::Aarch64
+        }
+    }
+}
+
 mod scratch_registers {
     pub const ASM_SCRATCH_SLOT_COUNT: usize = 51;
     pub const ASM_ZERO_FLAG_SLOT: usize = 14;
@@ -527,6 +570,7 @@ pub enum AsmInstructionAvailability {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AsmInstructionShape {
+    CheckedReturn,
     JumpState,
     Subtract,             // Modular 32-bit x86 subtraction; establishes arithmetic flags.
     SubtractThreeOperand, // AArch64 SUBS over W-registers; establishes NZCV.
@@ -907,13 +951,12 @@ impl AsmTargetApplicability {
     }
 
     pub fn accepts_target_name(self, target: &str) -> bool {
+        use crate::native_call::{Architecture, target_platform};
+        let architecture = target_platform(target).map(|(architecture, _)| architecture);
         match self {
             Self::Any => true,
-            Self::X86_64 => matches!(
-                target,
-                "linux_x86_64" | "windows_x86_64" | "macos_x86_64" | "uefi_x86_64"
-            ),
-            Self::Aarch64 => matches!(target, "linux_arm64" | "macos_arm64" | "windows_arm64"),
+            Self::X86_64 => architecture == Some(Architecture::X86_64),
+            Self::Aarch64 => architecture == Some(Architecture::Aarch64),
         }
     }
 }
@@ -1587,15 +1630,19 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             flags_data_flow: NoFlagsDataFlow,
             clobbers: NO_CLOBBERS,
         }),
-        "ret" | "retq" | "retn" | "retw" | "retaa" | "retab" | "retf" | "lret" | "iret"
-        | "iretd" | "iretw" | "call" | "callq" | "callf" | "lcall" | "jmpq" | "jmpf" | "jmpl"
-        | "ljmp" | "ljmpl" | "br" | "blr" | "bl" | "bx" | "blx" | "bc" | "braa" | "brab"
-        | "braaz" | "brabz" | "blraa" | "blrab" | "blraaz" | "blrabz" | "eretaa" | "eretab"
-        | "drps" | "cbz" | "cbnz" | "tbz" | "tbnz" | "loop" | "loope" | "loopne" | "loopz"
-        | "loopnz" | "jcxz" | "jecxz" | "jrcxz" | "int" | "int1" | "int3" | "into" | "je"
-        | "jne" | "ja" | "jae" | "jb" | "jbe" | "jna" | "jnae" | "jnb" | "jnbe" | "jg" | "jge"
-        | "jl" | "jle" | "jng" | "jnge" | "jnl" | "jnle" | "jo" | "jno" | "js" | "jns" | "jp"
-        | "jpe" | "jnp" | "jpo" | "jc" | "jnc" => Refused(HiddenControlExit),
+        "ret" => Contract(AsmInstructionContract::without_side_effects(
+            AsmInstructionShape::CheckedReturn,
+            Any,
+        )),
+        "retq" | "retn" | "retw" | "retaa" | "retab" | "retf" | "lret" | "iret" | "iretd"
+        | "iretw" | "call" | "callq" | "callf" | "lcall" | "jmpq" | "jmpf" | "jmpl" | "ljmp"
+        | "ljmpl" | "br" | "blr" | "bl" | "bx" | "blx" | "bc" | "braa" | "brab" | "braaz"
+        | "brabz" | "blraa" | "blrab" | "blraaz" | "blrabz" | "eretaa" | "eretab" | "drps"
+        | "cbz" | "cbnz" | "tbz" | "tbnz" | "loop" | "loope" | "loopne" | "loopz" | "loopnz"
+        | "jcxz" | "jecxz" | "jrcxz" | "int" | "int1" | "int3" | "into" | "je" | "jne" | "ja"
+        | "jae" | "jb" | "jbe" | "jna" | "jnae" | "jnb" | "jnbe" | "jg" | "jge" | "jl" | "jle"
+        | "jng" | "jnge" | "jnl" | "jnle" | "jo" | "jno" | "js" | "jns" | "jp" | "jpe" | "jnp"
+        | "jpo" | "jc" | "jnc" => Refused(HiddenControlExit),
         "mov" | "movq" => Contract(AsmInstructionContract::without_side_effects(
             RegisterMove,
             Any,
@@ -2068,13 +2115,13 @@ mod tests {
         );
         assert_eq!(branch.flags_data_flow, AsmFlagsDataFlow::ZeroFlagBranch);
         for mnemonic in [
-            "ret", "retq", "retn", "retw", "retaa", "retab", "retf", "lret", "iret", "iretd",
-            "iretw", "call", "callq", "callf", "lcall", "jmpq", "jmpf", "jmpl", "ljmp", "ljmpl",
-            "br", "blr", "bl", "bx", "blx", "bc", "braa", "brab", "braaz", "brabz", "blraa",
-            "blrab", "blraaz", "blrabz", "eretaa", "eretab", "drps", "cbz", "cbnz", "tbz", "tbnz",
-            "loop", "loope", "loopne", "loopz", "loopnz", "jcxz", "jecxz", "jrcxz", "int", "int1",
-            "int3", "into", "je", "jne", "ja", "jae", "jb", "jbe", "jna", "jnae", "jnb", "jnbe",
-            "jg", "jge", "jl", "jle", "jng", "jnge", "jnl", "jnle", "jo", "jno", "js", "jns", "jp",
+            "retq", "retn", "retw", "retaa", "retab", "retf", "lret", "iret", "iretd", "iretw",
+            "call", "callq", "callf", "lcall", "jmpq", "jmpf", "jmpl", "ljmp", "ljmpl", "br",
+            "blr", "bl", "bx", "blx", "bc", "braa", "brab", "braaz", "brabz", "blraa", "blrab",
+            "blraaz", "blrabz", "eretaa", "eretab", "drps", "cbz", "cbnz", "tbz", "tbnz", "loop",
+            "loope", "loopne", "loopz", "loopnz", "jcxz", "jecxz", "jrcxz", "int", "int1", "int3",
+            "into", "je", "jne", "ja", "jae", "jb", "jbe", "jna", "jnae", "jnb", "jnbe", "jg",
+            "jge", "jl", "jle", "jng", "jnge", "jnl", "jnle", "jo", "jno", "js", "jns", "jp",
             "jpe", "jnp", "jpo", "jc", "jnc",
         ] {
             assert_eq!(

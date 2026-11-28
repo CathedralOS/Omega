@@ -211,11 +211,26 @@ impl ModuleDemand {
         target: Option<&str>,
         numeric_support: Option<&language_core::float_operations::NumericTargetCapabilities>,
     ) -> Result<PreparedTargetSupply, Vec<Diagnostic>> {
+        // An entryless supplier can still call services from an exported
+        // operation. Follow those bodies just as for a bound program entry.
+        let mut roots = std::borrow::Cow::Borrowed(self.roots.as_slice());
+        if !module.interfaces.provider_exports.is_empty() {
+            let roots = roots.to_mut();
+            roots.extend(
+                module
+                    .interfaces
+                    .provider_exports
+                    .iter()
+                    .flat_map(|record| record.members.iter().map(|member| member.machine)),
+            );
+            roots.sort_unstable();
+            roots.dedup();
+        }
         PreparedTargetSupply::prepare(TargetSupplyRequest {
             source,
             module,
             declared: &self.declared,
-            roots: &self.roots,
+            roots: &roots,
             judged: &self.judged,
             build,
             native_bindings,

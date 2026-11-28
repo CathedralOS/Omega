@@ -5,6 +5,56 @@ use provider_realization::published_application::{
 };
 use std::sync::Arc;
 
+/// A saved publication carries its declaration custody, not the source
+/// Build's grants for each selected Product dependency.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ProductPolicySource {
+    SourceBuild,
+    SavedPsi,
+}
+
+impl ProductPolicySource {
+    pub(crate) fn admit_native_emission(
+        self,
+        artifact: &terminal_codec::CanonicalTerminalArtifact,
+        reached: &[semantic_vocabulary::MachineId],
+    ) -> Result<(), Vec<Diagnostic>> {
+        if self == Self::SourceBuild {
+            return Ok(());
+        }
+        let module = artifact.semantic_module();
+        for &machine in reached {
+            let body = module.machine(machine).ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "native reach names a missing Psi machine",
+                )]
+            })?;
+            for operation in body.operations() {
+                let Some((name, atoms)) =
+                    terminal_semantics::storage::native_borrows::required_authority(
+                        module, operation,
+                    )
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?
+                else {
+                    continue;
+                };
+                let reach = std::iter::once("Unsafe")
+                    .chain(atoms.iter().map(|atom| atom.name()))
+                    .collect::<Vec<_>>()
+                    .join(" + ");
+                let caller = artifact
+                    .publication_metadata()
+                    .map(|metadata| metadata.machine_provenance().label(machine))
+                    .unwrap_or_else(|| format!("Psi machine {machine}"));
+                return Err(vec![Diagnostic::error(format!(
+                    "saved Psi has no source Build policy for {name} ({reach}) in {caller}; build the original source Product to check its unsafe grants and dependency ceilings"
+                ))]);
+            }
+        }
+        Ok(())
+    }
+}
+
 /// Target, permissions and installations explicitly supplied by the receiving host.
 pub struct SavedProgramTarget<'a> {
     pub profile: target::TargetProfile,
@@ -52,6 +102,7 @@ pub fn prepare_source_program(
     let supplied = super::components::verify(packages, target.profile, publish)?;
     let program = prepare_issued_program(
         authorization.into(),
+        ProductPolicySource::SourceBuild,
         issued,
         supplied,
         target.settings,
@@ -92,14 +143,19 @@ pub fn review_source_providers(
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
     let selected = provider_realization::select_published_providers(admitted, components)?;
     let artifact = selected.published_authorization().shared_artifact();
-    let has_exports = artifact
-        .semantic_module()
-        .interfaces
+    let interfaces = &artifact.semantic_module().interfaces;
+    let has_candidates = interfaces
         .provider_candidates
         .iter()
         .any(|candidate| candidate.source_candidate_package_identity == Some(package));
-    // Publishing an independent component is optional until a receiving Product selects it.
-    let description = if has_exports {
+    // An explicit export promises a loadable record even when no consumer
+    // selected this package. Only the older candidate-only publication is optional.
+    let description = if !interfaces.provider_exports.is_empty() {
+        Some(
+            native_artifact::describe_portable_component(artifact, selected.plans())
+                .map_err(|error| vec![Diagnostic::error(error.to_string())])?,
+        )
+    } else if has_candidates {
         native_artifact::describe_portable_component(artifact, selected.plans()).ok()
     } else {
         None
@@ -158,6 +214,7 @@ fn prepare_admitted_saved_program(
     )?;
     prepare_issued_program(
         authorization,
+        ProductPolicySource::SavedPsi,
         issued,
         Default::default(),
         NativeApplicationSettings {
@@ -175,6 +232,7 @@ fn prepare_admitted_saved_program(
 /// providers and application settings to prepare one native invocation.
 fn prepare_issued_program<Publisher>(
     authorization: psi_authorization::AdmittedTerminalArtifact,
+    policy_source: ProductPolicySource,
     issued: provider_demand::IssuedProviderDemand<Publisher>,
     components: super::components::VerifiedSuppliers,
     settings: NativeApplicationSettings<'_>,
@@ -192,6 +250,7 @@ fn prepare_issued_program<Publisher>(
         bind_published_application(admitted, settings, descriptions, behavior_exclusions)?;
     Ok(crate::NativeProgram {
         terminal,
+        policy_source,
         suppliers: components,
         permissions,
         isolated_execution_grant,

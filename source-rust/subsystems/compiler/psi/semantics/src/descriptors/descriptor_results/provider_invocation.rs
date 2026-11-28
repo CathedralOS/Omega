@@ -145,6 +145,7 @@ pub fn provider_invocation(
         crate::descriptor_lifetimes::DescriptorLocation::whole(result.unwrap().place)
     });
     Some(DescriptorInvocation {
+        native_address_arguments: Vec::new(),
         scalar_arguments: Vec::new(),
         owner: DescriptorInvocationOwner::Operation(operation),
         target: DescriptorInvocationTarget::Provider {

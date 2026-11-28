@@ -1959,7 +1959,13 @@ impl Program<'_> {
                         arguments,
                     }
                 }
-                (_, Some(expected)) if expected.scalar().is_some() => {
+                // A mathematical function argument is the bound term, or the
+                // projection holding it. It has no integer-like scalar read.
+                (_, Some(expected))
+                    if expected.scalar().is_some()
+                        && !(self.mathematical
+                            && matches!(expected.scalar(), Some(ScalarType::Callable(_)))) =>
+                {
                     let (term, actual) = self
                         .clause_term(id, scope, expression, ClauseUse::Scalar(expected.scalar()))?
                         .scalar(id)?;
@@ -2020,7 +2026,10 @@ impl Program<'_> {
                             "Identity operand has no exact input observation",
                         ));
                     }
-                    if matches!(expected, ValueType::Rigid(_)) {
+                    if matches!(
+                        expected,
+                        ValueType::Rigid(_) | ValueType::Scalar(ScalarType::Callable(_), _)
+                    ) {
                         ClauseOperand::Formal(
                             u32::try_from(position)
                                 .map_err(|_| unavailable("formal ordinal overflow"))?,

@@ -271,7 +271,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 <a id="checked-assembly-control-flow"></a>
 
-- **CHECKED-ASM-LABEL-CONTRACTS.** Implement `asm machine`, block declarations, `align_of(value)`, port settlements (`provider_custody.rs`), and [interpreted assembly](wiki/spec/language/assembly.md#interpreted-execution).
+- **CHECKED-ASM-LABEL-CONTRACTS.** Extend `asm machine` beyond the checked straight-line local transfers and scalar register returns. Serve conditional branches and backedges, entry register bindings, block exit guarantees, `align_of(value)`, port settlements (`provider_custody.rs`), and the remaining [interpreted assembly](wiki/spec/language/assembly.md#interpreted-execution) operations.
   - Migrate [flag restoration](samples/cli/facts/checked_asm_flag_restore) and customers of colon labels or implicit fall-through to [explicit assembly control flow](wiki/spec/language/assembly.md#explicit-control-flow). Preserve the original output and the authored rejection on invalid edges. Run target-specific code on its target or a supplied Psi model.
 
 - **SAMPLE-CORPUS.** (covers **CANARY-CORPUS**, **SQUALR-HEADLESS**, **MACOS-APPLICATION-PUBLICATION**, **FACT-SAMPLE-DEPENDENCIES**) Run the release programs, [Squalr](samples/apps/README.md) and [macOS application bundles](wiki/spec/build/macos_application.md) under the [release matrix](wiki/drafts/reference/rust_compiler_completion.md#release-matrix).
@@ -330,7 +330,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 <a id="psi-untrusted-interpretation"></a>
 
-- **PSI-UNTRUSTED-INTERPRETATION.** Settle runs that need a native provider or another target's filesystem ([owner question 2](OWNER_QUESTIONS.md#unconfinable-standalone-filesystem)), and bound a contained guest's file writes ([owner question 1](OWNER_QUESTIONS.md#contained-file-write-bound)). [Containment audit](wiki/drafts/designs/psi_containment_audit.md#remaining)
+- **PSI-UNTRUSTED-INTERPRETATION.** Remove the standalone interpreter’s fallback to the host filesystem. Enforce the [directory grants](wiki/spec/build/command_line.md#runtime-directory-mappings) on Windows and the other affected targets. Refuse a required provider that cannot honor them before guest effects. Verify on Windows that a run can read and write inside the caller’s working directory and cannot access a file outside it. [Containment audit](wiki/drafts/designs/psi_containment_audit.md#remaining)
 
 - **EMBEDDING-SOURCE-TO-HOST.** (covers **INTERPRETED-CATHEDRAL**) Finish [embedding](wiki/spec/build/embedding.md), evidence-bearing qualified host inputs, and interpreted Cathedral.
   - Exercise an [explicitly installed or embedded entry](wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge) that lends a protected record. Check handback against the [original backing bytes](samples/cli/probes/placed_entry_ram/README.md). Reject missing arguments, forged backing and a mutable byte view of a protected field. Exercise the [Linux argument view](wiki/drafts/designs/structured_program_entry.md#how-linux-supplies-the-editors-pathname) through a static ELF entry. Check the indexed pathname, an empty argument, and refusal of a fabricated view or an out-of-range projection.

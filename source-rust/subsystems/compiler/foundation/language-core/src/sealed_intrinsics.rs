@@ -89,6 +89,15 @@ pub enum CompilerPrimitive {
     FloatSemantics,
     NaturalRanking,
     Collection(CollectionPrimitive),
+    NativeBorrow(NativeBorrow),
+}
+
+/// Formation of an ordinary typed reference at an explicit native trust boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum NativeBorrow {
+    SharedAt,
+    MutableAt,
+    Upgrade,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -365,6 +374,26 @@ const ROWS: &[SealedIntrinsicRow] = &[
         "IdentityImpliesEqual",
         BundledFile::CoreEquality,
         SealedIntrinsic::EqualityEvidence,
+    ),
+    row(
+        "unsafe.omg",
+        "borrow_at",
+        BundledFile::CoreUnsafe,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::NativeBorrow(NativeBorrow::SharedAt)),
+    ),
+    row(
+        "unsafe.omg",
+        "borrow_mutable_at",
+        BundledFile::CoreUnsafe,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::NativeBorrow(
+            NativeBorrow::MutableAt,
+        )),
+    ),
+    row(
+        "unsafe.omg",
+        "upgrade_mutability",
+        BundledFile::CoreUnsafe,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::NativeBorrow(NativeBorrow::Upgrade)),
     ),
     row(
         "indexing/indexing.omg",

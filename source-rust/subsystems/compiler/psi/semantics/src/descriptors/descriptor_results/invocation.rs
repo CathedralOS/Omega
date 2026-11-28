@@ -88,6 +88,7 @@ pub fn machine_invocation_for_signature(
         }
     }
     Some(DescriptorInvocation {
+        native_address_arguments: Vec::new(),
         scalar_arguments: Vec::new(),
         owner,
         target: DescriptorInvocationTarget::Machine(callee.machine),
@@ -98,11 +99,87 @@ pub fn machine_invocation_for_signature(
 }
 
 impl DescriptorMachine {
+    /// Record the backing of scalar actuals when the callee can publish a
+    /// reference through its result or a writable structural parameter.
+    pub fn bind_native_address_arguments<S: std::borrow::Borrow<StructuralArgument>>(
+        &self,
+        call: &mut DescriptorInvocation,
+        types: &[StructuralTypeDeclaration],
+        position: DescriptorPosition,
+        structural_parameters: &[terminal_psi::StructuralParameterDeclaration],
+        result: Option<&terminal_psi::StructuralOperationResult>,
+        scalar_bindings: impl IntoIterator<Item = (ValueId, ValueId)>,
+        mut address_origin: impl FnMut(
+            ValueId,
+        )
+            -> crate::storage::native_borrows::NativeAddressOrigin<S>,
+        tracks_native_addresses: bool,
+    ) -> Option<()> {
+        let returns_reference = result.is_some_and(|result| {
+            terminal_psi::structural_type_contains_reference(types, result.structural_type)
+        });
+        let writes_reference = structural_parameters.iter().any(|formal| {
+            matches!(
+                formal.access,
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            ) && terminal_psi::structural_type_contains_reference(types, formal.structural_type)
+        });
+        if returns_reference || writes_reference || tracks_native_addresses {
+            for (formal, actual) in scalar_bindings {
+                let origin = address_origin(actual);
+                call.native_address_arguments.push(
+                    self.native_address_actual(
+                        types,
+                        position,
+                        formal,
+                        origin
+                            .observed_sources()
+                            .map(|(at, source)| (at, source.borrow())),
+                        origin.exact,
+                        origin.parameters.clone(),
+                        origin.opaque,
+                    )?,
+                );
+            }
+        }
+        Some(())
+    }
+
+    pub(crate) fn bind_terminal_native_addresses(
+        &self,
+        tracks_native_addresses: bool,
+        call: &mut DescriptorInvocation,
+        module: &TerminalModule,
+        caller: &TerminalMachine,
+        callee: &TerminalMachine,
+        position: DescriptorPosition,
+        arguments: &[ValueId],
+        result: Option<&terminal_psi::StructuralOperationResult>,
+    ) -> Option<()> {
+        self.bind_native_address_arguments(
+            call,
+            &module.types.structural_types,
+            position,
+            &callee.structural_parameters,
+            result,
+            callee
+                .parameters
+                .iter()
+                .map(|formal| formal.id)
+                .zip(arguments.iter().copied()),
+            |actual| crate::storage::native_borrows::address_origin(caller, actual),
+            tracks_native_addresses,
+        )
+    }
+
     // A call that never returns can still read or write its arguments.
     // Both call forms use the shared signature checks and retain the
     // complete parameter list and supplied arguments at the pre-call cut.
     pub(crate) fn direct_invocation(
         &self,
+        tracks_native_addresses: bool,
+        caller: &TerminalMachine,
+        position: DescriptorPosition,
         module: &TerminalModule,
         callee: &TerminalMachine,
         slot_kind: DescriptorSlotKind,
@@ -154,6 +231,16 @@ impl DescriptorMachine {
                     .map(|actual| self.place_types.get(&actual.place).copied()),
             )?
         };
+        self.bind_terminal_native_addresses(
+            tracks_native_addresses,
+            &mut call,
+            module,
+            caller,
+            callee,
+            position,
+            inputs.arguments,
+            result,
+        )?;
         call.scalar_arguments = descriptor_scalar_arguments(
             callee
                 .parameters
@@ -246,6 +333,7 @@ fn public_invocation_at(
         return None;
     }
     Some(DescriptorInvocation {
+        native_address_arguments: Vec::new(),
         scalar_arguments: Vec::new(),
         owner,
         target: DescriptorInvocationTarget::Public {
@@ -324,8 +412,7 @@ pub(crate) fn public_result_slots(
             let index = match region.origin {
                 TerminalDynamicReferenceOrigin::Parameter { argument_index } => argument_index,
                 TerminalDynamicReferenceOrigin::Invocation { carrier_type } => {
-                    let mut projection = Projection::new(&region.source_path);
-                    projection.forget_address();
+                    let projection = Projection::declared_reference_region(&region.source_path);
                     origins.push(DescriptorStoredOrigin::Invocation {
                         carrier_type,
                         projection,
