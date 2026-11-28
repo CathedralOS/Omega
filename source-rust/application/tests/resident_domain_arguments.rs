@@ -2,6 +2,10 @@
 #[path = "support/program.rs"]
 mod program;
 
+#[cfg(all(target_os = "linux", target_arch = "x86_64", target_env = "gnu"))]
+#[path = "support/project.rs"]
+mod project;
+
 const DOMAINS: &str = r#"use {omega}/language/core/extent.omg as extent;
 use {omega}/language/core/layout.omg as layout;
 use {omega}/language/core/access/access.omg as access;
@@ -220,6 +224,51 @@ fn partition_calls_require_live_custody_on_each_consumed_run() {
             "{report}"
         );
     }
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64", target_env = "gnu"))]
+#[test]
+fn merge_evaluates_its_first_nonreturning_operand_in_psi_and_native_code() {
+    let source = format!(
+        r#"{DOMAINS}
+use {{omega}}/language/core/process_exit.omg as process;
+data Cells = |run|::Run<WordPlacement, Word> in |run|::Run::Live<WordPlacement, Word>;
+machine stop(status: i32) -> Cells reaches |process|::ProcessExit {{
+    |process|::ProcessExit::exit_process(status);
+}}
+machine main() reaches |process|::ProcessExit crashes Trap {{
+    let cells: Cells = |run|::merge::<WordPlacement, Word>(stop(37), stop(38));
+    crash Trap;
+}}"#
+    );
+    let build = r#"use main.omg as app;
+use {omega}/language/core/external_binding.omg as binding;
+use {omega}/language/core/process_exit.omg as process;
+machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Application { name: "partition_order" };
+    Build::bind(plan, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind_native::<|process|::ProcessExit::exit_process>(plan, linux_x86_64,
+        |binding|::ForeignBinding::DllImport { import: |binding|::DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "exit", version: "GLIBC_2.2.5"
+        } });
+}"#;
+    let directory = project::stage(
+        "run-partition-order",
+        &[("build.omg", build), ("main.omg", &source)],
+    );
+    let inputs = [
+        "--target",
+        "linux_x86_64",
+        "--build-input",
+        "build.omg",
+        "--build-input",
+        "main.omg",
+        "build.omg",
+    ];
+    let interpreted = project::omega(directory.path(), &[&["run"][..], &inputs].concat());
+    assert_eq!(interpreted.status.code(), Some(37), "{interpreted:?}");
+    let native = project::build_and_run(directory.path(), &inputs);
+    assert_eq!(native.status.code(), Some(37), "{native:?}");
 }
 
 #[test]

@@ -1,0 +1,111 @@
+// Expected exit: 0
+// A granted vacant extent retains actual backing through transport, initialization, permitted writes, and extraction.
+
+use {omega}/language/core/run.omg as run;
+use {omega}/language/core/foundation.omg as proof;
+use {omega}/language/core/extent.omg as extent;
+use {omega}/language/core/content.omg as content;
+use {omega}/language/core/nat.omg as nat;
+use {omega}/language/core/process_exit.omg as process;
+use {omega}/language/core/layout.omg as layout;
+use {omega}/language/core/access/access.omg as access;
+use {omega}/language/core/reflect/reflect.omg as reflect;
+
+data TestMemory {}
+public data Word { prefix: u64; value: u64; suffix: u64; }
+public data WordStorage = |layout|::LayoutStorage<Word, WordLayout>;
+public domain Word::Placed access WordAccess;
+public data WordPlacement = Word in Word::Placed;
+
+public WordLayout satisfies |layout|::FixedLayout<Word> {
+    machine plan(schema: |layout|::Schema, target: |layout|::LayoutTarget) -> |layout|::LayoutPlan
+    reaches none crashes none terminates {
+        let mutable entries: [|layout|::FieldEntry; 64];
+        entries[0] = |layout|::FieldEntry { key: schema.fields[0].key, representation: |layout|::FieldPlan::At { offset: 0 } };
+        entries[1] = |layout|::FieldEntry { key: schema.fields[1].key, representation: |layout|::FieldPlan::At { offset: 8 } };
+        entries[2] = |layout|::FieldEntry { key: schema.fields[2].key, representation: |layout|::FieldPlan::At { offset: 16 } };
+        |layout|::LayoutPlan { entries: entries, entry_count: 3, size_fixed: 24, size_is_dynamic: false, align: 8 }
+    }
+}
+
+public WordAccess satisfies |layout|::AccessPolicy {
+    machine plan(schema: |reflect|::TypeSchema) -> |layout|::AccessPlan
+    reaches none crashes none terminates {
+        let mutable plan: |layout|::AccessPlan = |access|::new_plan(@schema, |layout|::Issuance::Unrestricted);
+        |access|::observe(@mutable plan, |reflect|::field(Word::prefix),
+            |layout|::FieldAccess::Stable { read: true, take: false, write: true, swap: false, exposure: |layout|::Exposure::Exported });
+        |access|::observe(@mutable plan, |reflect|::field(Word::value),
+            |layout|::FieldAccess::Stable { read: true, take: false, write: true, swap: false, exposure: |layout|::Exposure::Exported });
+        |access|::observe(@mutable plan, |reflect|::field(Word::suffix),
+            |layout|::FieldAccess::Stable { read: true, take: false, write: true, swap: false, exposure: |layout|::Exposure::Exported });
+        plan
+    }
+}
+
+MemorySupply satisfies |layout|::ResourceProfileSupply<TestMemory> {
+    machine profile(storage: @|extent|::Extent in |extent|::Extent::Granted) -> |layout|::ResourceProfile {
+        let services: [u64; 32];
+        let mutable regions: [|layout|::ResourceRegion; 32];
+        regions[0] = |layout|::ResourceRegion {
+            range: |layout|::RelativeRange { offset: 0, length: storage.length },
+            peer: |layout|::PeerWritability::Exclusive,
+            stable: |layout|::StableCapability::ReadWrite,
+            external: |layout|::ExternalCapability::None,
+            atomic: |layout|::AtomicCapability::None,
+            reach: |layout|::BoundaryReach { services: services, service_count: 0 },
+        };
+        |layout|::ResourceProfile { regions: regions, region_count: 1 }
+    }
+}
+
+boundary trait NativeAllocation {
+    machine allocate(count: u64, width: u64) -> address reaches none crashes none;
+}
+TestRoots satisfies |extent|::ExtentRootProvider {
+    machine grant(root: |extent|::Extent) -> |extent|::Extent { root }
+}
+TestVacant satisfies |extent|::VacantContentTransfer {
+    machine transfer(storage: |extent|::Extent in |extent|::Extent::Granted) -> |extent|::Extent
+        ensures result in |extent|::Extent::Granted,
+            |proof|::Identity::<|content|::IntervalSet<|nat|::Nat>>(
+                |extent|::Granted::content(old(@storage)),
+                |extent|::Granted::content(@result)
+            )
+    { storage as - |extent|::Extent::Granted }
+}
+
+
+data Free = |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant;
+data Cells = |run|::Run<WordPlacement, Word> in |run|::Run::Live<WordPlacement, Word>;
+machine main() crashes Trap {
+    let base: address = NativeAllocation::allocate(1, 24);
+    transition base != 0 { true -> allocated(base), false -> bad() }
+    machine allocated(base: address) {
+        let grant: |extent|::Extent in |extent|::Extent::Granted =
+            |extent|::ExtentRootProvider::grant(|extent|::Extent { base: base, length: 24 }) as + |extent|::Extent::Granted;
+        let vacant: Free = |extent|::VacantContentTransfer::transfer(grant) as + |extent|::Extent::Granted + |extent|::Extent::Vacant;
+        transition |run|::initialize_cell::<WordPlacement, Word, TestMemory>(vacant, Word { prefix: 101, value: 17, suffix: 103 }) {
+            |layout|::AccessOutcome::Ready { view } -> extract(roundtrip(view)),
+            |layout|::AccessOutcome::Rejected { returned, reason } -> bad()
+        }
+    }
+    machine extract(whole: Cells) requires whole.count == 1 {
+        transition |run|::extract_cell::<WordPlacement, Word, TestMemory>(whole) {
+            |layout|::AccessExtraction::Moved { storage, value } -> finish(storage, value)
+        }
+    }
+    machine finish(storage: Free, value: Word) {
+        transition value.prefix == 101 && value.value == 17 && value.suffix == 103 {
+            true -> success(storage), false -> bad()
+        }
+    }
+    machine success(storage: Free) { |process|::ProcessExit::exit_process(0); }
+    machine bad() { crash Trap; }
+}
+
+machine roundtrip(input: Cells) -> Cells
+requires input.count == 1
+ensures result.count == input.count {
+    let parts: |run|::RunParts<WordPlacement, Word> = |run|::split::<WordPlacement, Word>(input, 1);
+    |run|::merge::<WordPlacement, Word>(parts.left, parts.right)
+}

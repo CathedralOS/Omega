@@ -92,7 +92,7 @@ ensures
 public domain<P, T> Run<P, T>::Singleton<P, T>
 requires self.count == 1;
 
-public machine Run::initialize_cell<P, T, Role>(
+public machine initialize_cell<P, T, Role>(
     storage: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant, value: T
 ) -> |layout|::AccessOutcome<
     Run<P, T> in Live<P, T> & Singleton<P, T>,
@@ -110,7 +110,7 @@ ensures (match result {
     Run::initialize_from_profile::<P, T, Role>(storage, value, @profile)
 }
 
-public machine Run::extract_cell<P, T, Role>(run: Run<P, T> in Live<P, T>)
+public machine extract_cell<P, T, Role>(run: Run<P, T> in Live<P, T>)
     -> |layout|::AccessExtraction<|extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant, T>
 requires run.count == 1
 ensures (match result {

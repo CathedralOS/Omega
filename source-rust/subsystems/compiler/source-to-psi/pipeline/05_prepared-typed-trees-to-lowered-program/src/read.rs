@@ -503,6 +503,8 @@ pub(crate) struct Program<'t> {
         arena::Handle<crate::source_state::expression::CompletedValueCapture>,
         crate::body::Expression,
     )>,
+    /// Lexically active subjects of structural matches inside contract clauses.
+    clause_match_subjects: Vec<contracts::ClauseMatchSubject>,
     /// The subject's generic machines, set aside by `subject_declarations`.
     pub generic_templates: Vec<SymbolHandle>,
     /// The operations the subject's implementations select, set aside by
@@ -721,6 +723,7 @@ impl<'t> Program<'t> {
             fields_minted: 0,
             cases_minted: 0,
             captures: Vec::new(),
+            clause_match_subjects: Vec::new(),
             generic_templates: Vec::new(),
             conformance_witnesses: Vec::new(),
             supplied: Vec::new(),

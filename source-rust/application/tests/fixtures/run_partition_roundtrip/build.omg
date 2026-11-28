@@ -1,0 +1,17 @@
+use main.omg as app;
+use {omega}/language/core/external_binding.omg as binding;
+use {omega}/language/core/extent.omg as extent;
+use {omega}/language/core/process_exit.omg as process;
+use {omega}/language/core/layout.omg as layout;
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "live_partition" };
+    Build::accept_boundary::<|app|::MemorySupply>(builder);
+    Build::accept_boundary::<|app|::TestRoots>(builder);
+    Build::accept_boundary::<|app|::TestVacant>(builder);
+    Build::select_provider::<|extent|::ExtentRootProvider, |app|::TestRoots>(builder, linux_x86_64);
+    Build::select_provider::<|extent|::VacantContentTransfer, |app|::TestVacant>(builder, linux_x86_64);
+    Build::select_provider::<|layout|::ResourceProfileSupply<|app|::TestMemory>, |app|::MemorySupply>(builder, linux_x86_64);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind_native::<|app|::NativeAllocation::allocate>(builder, linux_x86_64, |binding|::ForeignBinding::DllImport { import: |binding|::DllImport::ElfVersioned { object: "libc.so.6", symbol: "calloc", version: "GLIBC_2.2.5" } });
+    Build::bind_native::<|process|::ProcessExit::exit_process>(builder, linux_x86_64, |binding|::ForeignBinding::DllImport { import: |binding|::DllImport::ElfVersioned { object: "libc.so.6", symbol: "exit", version: "GLIBC_2.2.5" } });
+}
