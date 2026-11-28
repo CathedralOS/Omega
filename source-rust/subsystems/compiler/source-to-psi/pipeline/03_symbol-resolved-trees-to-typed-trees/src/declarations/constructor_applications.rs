@@ -1236,12 +1236,13 @@ fn infer_array(
 }
 
 fn integer_argument(program: &mut TypedTrees, value: usize) -> TypeReferenceHandle {
+    let literal = numeric_literals::IntegerLiteral::from_integer(value.into());
+    let expression = program
+        .expression_table
+        .insert(ExpressionNode::Integer(literal));
     program
         .type_reference_table
-        .insert(TypeReferenceNode::Named {
-            symbol: SymbolHandle::invalid(),
-            name: Identifier::generated(value.to_string()),
-        })
+        .insert(TypeReferenceNode::ConstExpression(expression))
 }
 
 /// A fixed-array field or parameter receives the literal's owned bytes.
@@ -1348,23 +1349,21 @@ fn call_result(
         let Ok(reference) = program.static_operand_type_reference(argument) else {
             return Ok(None);
         };
-        let reference = if parameter.kind.is_const_or_value() {
-            let Some(value) = program
+        if parameter.kind.is_const_or_value()
+            && program
                 .static_const_literal_from_type_reference(reference)
                 .and_then(|literal| literal.value_u64())
                 .and_then(|value| usize::try_from(value).ok())
-            else {
-                return Ok(None);
-            };
-            integer_argument(program, value)
-        } else {
-            reference
-        };
+                .is_none()
+        {
+            return Ok(None);
+        }
         substitutions.push((parameter.symbol, reference));
     }
     program
+        .tables
         .type_reference_table
-        .instantiate(result, &substitutions)
+        .instantiate(result, &substitutions, &program.tables.expression_table)
         .map(Some)
         .map_err(Diagnostic::error)
 }

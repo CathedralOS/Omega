@@ -2321,13 +2321,13 @@ fn settle_const_expressions(
         }
     }
     for (handle, value) in candidates {
-        data_applications::settle_const_argument(program, handle, &value)
+        data_applications::settle_const_argument(program, handle, ExpressionNode::Integer(value))
             .map_err(Stop::Rejected)?;
     }
     Ok(())
 }
 
-/// The decimal value of a const expression once each value parameter is
+/// The integer value of a const expression once each value parameter is
 /// its operand's literal, which carries the parameter's type as its landing.
 /// The fold is exact (`const_integer::exact_value`): `None` leaves an
 /// expression it cannot decide as written, and a closed expression with no
@@ -2336,7 +2336,7 @@ fn substituted_const_int(
     program: &TypedTrees,
     expression: ExpressionHandle,
     operands: &[Operand],
-) -> Served<Option<String>> {
+) -> Served<Option<numeric_literals::IntegerLiteral>> {
     use crate::source_state::const_integer::{ExactInteger, Operators, exact_value};
     let operand_literal = |path: &TableNamePath| {
         if !path.symbol.is_valid()
@@ -2359,7 +2359,13 @@ fn substituted_const_int(
         Operators::Ring,
         &operand_literal,
     ) {
-        ExactInteger::Value { value, .. } => Ok(Some(value.to_string())),
+        ExactInteger::Value { value, landing } => {
+            let literal = numeric_literals::IntegerLiteral::from_integer(value);
+            Ok(Some(match landing {
+                Some(landing) => literal.with_landing(landing),
+                None => literal,
+            }))
+        }
         ExactInteger::Undecided => Ok(None),
         ExactInteger::Refused(refusal) => Err(Stop::Rejected(format!(
             "the constant argument `{}` of this application has no value: {refusal}",
@@ -2592,18 +2598,15 @@ fn substitute_arguments(
                 && let TypeReferenceNode::ConstExpression(expression) = *program
                     .type_reference_table
                     .type_reference(argument.type_reference)
-                && let Some(spelling) = substituted_const_int(program, expression, operands)?
+                && let Some(literal) = substituted_const_int(program, expression, operands)?
             {
-                let fresh = program
-                    .type_reference_table
-                    .insert(TypeReferenceNode::Named {
-                        symbol: SymbolHandle::invalid(),
-                        name: Identifier::generated(spelling.clone()),
-                    });
-                argument.type_reference = fresh;
-                argument.const_literal = None;
+                argument.type_reference = TypeReferenceHandle::invalid();
+                argument.const_literal = Some(literal);
                 argument.symbol = SymbolHandle::invalid();
-                argument.path = Box::new([Identifier::generated(spelling)]);
+                argument.path = Box::default();
+                argument.type_reference = program
+                    .static_operand_type_reference(argument)
+                    .map_err(Stop::Defect)?;
             }
         }
         Served::Ok(())
