@@ -32,6 +32,39 @@ fn parse_parameters(
 }
 
 #[test]
+fn data_values_bind_hidden_types_in_declaration_order() {
+    let trees = crate::tests::parse_source(
+        "data Reader<'a, Context, some S, some T> { context: Context; first: @'a S; second: @'a T; }",
+    );
+    let Item::Data(data) = trees.root_items().next().unwrap() else {
+        panic!("data declaration")
+    };
+    let params = trees.items.type_parameters(data.type_parameters);
+    assert_eq!(data.lifetime_parameters[0].as_str(&trees), "a");
+    assert_eq!(
+        params
+            .iter()
+            .map(|p| p.name.as_str(&trees))
+            .collect::<Vec<_>>(),
+        ["Context", "S", "T"]
+    );
+    assert!(matches!(params[0].kind, TypeParameterKind::Type));
+    assert!(matches!(params[1].kind, TypeParameterKind::SomeType));
+    assert!(matches!(params[2].kind, TypeParameterKind::SomeType));
+
+    for source in [
+        "machine call<some S>() {}",
+        "trait Read<some S> {}",
+        "data Alias<some S> = u8;",
+        "data Repeated<S, some S> {}",
+        "data Repeated<some S, S> {}",
+    ] {
+        let tokens = Lexer::new(source).tokenize().unwrap();
+        assert!(crate::parse_syntax_trees(&tokens).is_err(), "{source}");
+    }
+}
+
+#[test]
 fn inline_callable_bounds_are_rejected_and_inferred_binders_remain_admitted() {
     for syntax in SYNTAX_CHOICES {
         assert!(parse_parameters("<const Callback: machine()>", syntax).is_err());
