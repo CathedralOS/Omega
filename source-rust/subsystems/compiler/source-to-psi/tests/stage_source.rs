@@ -2616,3 +2616,62 @@ machine main() {}";
         "{errors:?}"
     );
 }
+
+#[test]
+fn a_generic_array_store_retains_the_replacement_loan() {
+    let package = PackageKeyIdentity::from_digest([0x78; 32]).unwrap();
+    let source = r#"
+        public data Cell { value: u64; }
+        data Reader<'a> [copy] { cell: @'a Cell; }
+        machine put<T [copy]>(slots: @mutable [T; 2], index: u64, next: @T)
+        requires index < 2 { slots[index] = $next; }
+        public machine read<'a>(first: @'a mutable Cell, second: @'a mutable Cell) -> u64 {
+            let old: Reader<'a> = Reader { cell: @$first };
+            let new: Reader<'a> = Reader { cell: @$second };
+            let mutable slots: [Reader<'a>; 2] = [old, old];
+            put::<Reader<'a>>(@mutable slots, 1u64, @new);
+            slots[1].cell.value
+        }"#;
+    let (files, root) = captured(package, source);
+    compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+
+    let conflict = source.replace(
+        "slots[1].cell.value",
+        "second.value = 6u64; slots[1].cell.value",
+    );
+    let (files, root) = captured(package, &conflict);
+    let errors = compile(product(files, root, package, &[]).unwrap(), None).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("conflicting loans")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn a_bounded_addend_extends_a_scaled_count() {
+    let package = PackageKeyIdentity::from_digest([0x78; 32]).unwrap();
+    let source = r#"
+        machine accept(count: u64, total: u64) -> u64
+        requires count <= 12
+        requires total <= count * 1000000
+        { total }
+        public machine extend(count: u64, total: u64, next: u64) -> u64
+        requires count < 12
+        requires total <= count * 1000000
+        requires next <= 1000000
+        { accept(count + 1, total + next) }"#;
+    let (files, root) = captured(package, source);
+    compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+
+    let oversized = source.replace("next <= 1000000", "next <= 1000001");
+    let (files, root) = captured(package, &oversized);
+    let errors = compile(product(files, root, package, &[]).unwrap(), None).unwrap_err();
+    assert!(
+        errors.iter().any(|error| error
+            .message
+            .contains("cannot prove requires contract for call accept")),
+        "{errors:?}"
+    );
+}

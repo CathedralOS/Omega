@@ -1284,6 +1284,7 @@ fn adapt_flow(
                             },
                             result.structural_type,
                             true,
+                            selector,
                         )?,
                     );
                     if let Some(source) = location(&graph, *source, path, *field) {
@@ -1327,6 +1328,7 @@ fn adapt_flow(
                             },
                             value_type,
                             false,
+                            selector,
                         )?,
                     );
                     if let (Some(destination), Some(source)) = (
@@ -1360,6 +1362,7 @@ fn adapt_flow(
                             *graph.place_types.get(destination)?,
                             path,
                             *field,
+                            graph.contents_transfers.get(&position)?,
                         )?);
                         step.may_escape = true;
                     }
@@ -1525,6 +1528,7 @@ fn adapt_flow(
                                 },
                                 result.structural_type,
                                 false,
+                                selector,
                             )?,
                         );
                     } else if operation.result.scalar_ref().is_none() {

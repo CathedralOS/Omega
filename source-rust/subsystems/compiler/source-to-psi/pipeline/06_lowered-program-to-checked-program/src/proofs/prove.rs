@@ -2992,7 +2992,8 @@ impl<'a> Prover<'a> {
         let relation = self
             .prove_direct_subgoal(&lifted)
             .ok()
-            .or_else(|| self.strict_sum_order(&unfolded, &lifted))?;
+            .or_else(|| self.strict_sum_order(&unfolded, &lifted))
+            .or_else(|| self.bounded_addend_order(&lifted))?;
         let proof = node(
             unfolded,
             ProofRule::IntegerOrderSubstitution {
@@ -3013,6 +3014,68 @@ impl<'a> Prover<'a> {
         ))
     }
 
+    /// Preserve a symbolic bound on one addend while bounding the other.
+    /// For instance, used <= count * stride and next <= stride imply
+    /// used + next <= (count + 1) * stride.
+    fn bounded_addend_order(&mut self, goal: &Proposition) -> Option<ProofNode> {
+        let Proposition::IntegerMathLessOrEqual(sum @ IntegerMathTerm::Add(a, b), limit) = goal
+        else {
+            return None;
+        };
+        for (part, other) in [(a.as_ref(), b.as_ref()), (b.as_ref(), a.as_ref())] {
+            let mut other_bound = None;
+            for index in 0..self.facts.len() {
+                let premise = self.facts[index].proposition();
+                let Proposition::LessOrEqual(left, right) = premise else {
+                    continue;
+                };
+                if !matches!(left, ScalarTerm::Value { .. })
+                    || is_bare_scalar(right)
+                    || IntegerMathTerm::embed(left.clone()).as_ref() != Some(part)
+                {
+                    continue;
+                }
+                let Some(lifted) = proof_admission::lift_fixed_integer_relation(premise) else {
+                    continue;
+                };
+                let Proposition::IntegerMathLessOrEqual(_, high) = &lifted else {
+                    continue;
+                };
+                let Some(bound) = other_bound
+                    .get_or_insert_with(|| self.arithmetic_image(other, Direction::Upper).ok())
+                    .as_ref()
+                else {
+                    break;
+                };
+                let (_, other_limit) = ends(bound)?;
+                let total =
+                    IntegerMathTerm::Add(Box::new(high.clone()), Box::new(other_limit.clone()));
+                let Some(closing) = self.closed(Proposition::IntegerMathLessOrEqual(
+                    total.clone(),
+                    limit.clone(),
+                )) else {
+                    continue;
+                };
+                let middle = IntegerMathTerm::Add(Box::new(high.clone()), Box::new(other.clone()));
+                let first_goal = Proposition::IntegerMathLessOrEqual(sum.clone(), middle.clone());
+                let second_goal = Proposition::IntegerMathLessOrEqual(middle, total);
+                let first = self.prepare_mathematical_order_translation(
+                    &lifted,
+                    other.clone(),
+                    &first_goal,
+                )?;
+                let second =
+                    self.translate_mathematical_order(bound.clone(), high.clone(), &second_goal)?;
+                let first = first.apply(proof_admission::restate_integer_relation(
+                    lifted,
+                    self.facts[index].proof(&self.facts),
+                    self.assumptions.len(),
+                ));
+                return chain_math(chain_math(first, second)?, closing);
+            }
+        }
+        None
+    }
     /// Preserve a strict remaining-capacity relation that separate literal
     /// operand ranges lose. Search only existing order edges and equations;
     /// the requested sum is never a premise of that search.
@@ -4866,12 +4929,37 @@ impl<'a> Prover<'a> {
             let (raw, at_plain) = self.literal_endpoint(order_proof, limit_side, direction)?;
             return step_strict(raw, at_plain);
         }
+        // If no operand bounds the expression, its arithmetic image can still
+        // bound the subject, as in total <= count * stride.
+        let direct_image = |prover: &mut Self| {
+            if open_side != subject
+                || is_bare_scalar(limit_side)
+                || term_mentions(limit_side, subject)
+            {
+                return None;
+            }
+            let bound = prover
+                .bound_from_arithmetic_image(limit_side, direction)
+                .ok()?;
+            if !improves_direct(bound.literal, order.strict()) {
+                return None;
+            }
+            let relation = prover.compound_order_proof(order)?;
+            let chained = match direction {
+                Direction::Upper => chain(relation, bound.proof),
+                Direction::Lower => chain(bound.proof, relation),
+            }
+            .ok()?;
+            step_strict(bound.literal, chained)
+        };
         match direction {
             Direction::Upper => {
                 let (upper, step_out) = if matches!(limit_side, ScalarTerm::Value { .. }) {
                     (limit_side.clone(), None)
                 } else {
-                    let (sup, step_out) = self.upper_subterm(limit_side)?;
+                    let Some((sup, step_out)) = self.upper_subterm(limit_side) else {
+                        return direct_image(self);
+                    };
                     (sup, Some(step_out))
                 };
                 let ScalarTerm::Value { id, .. } = upper else {
@@ -4952,13 +5040,16 @@ impl<'a> Prover<'a> {
                         }
                     }
                 }
-                candidates.into_iter().reduce(|best, next| {
-                    if direction.prefers(integer.compare(next.0, best.0)) {
-                        next
-                    } else {
-                        best
-                    }
-                })
+                candidates
+                    .into_iter()
+                    .reduce(|best, next| {
+                        if direction.prefers(integer.compare(next.0, best.0)) {
+                            next
+                        } else {
+                            best
+                        }
+                    })
+                    .or_else(|| direct_image(self))
             }
         }
     }

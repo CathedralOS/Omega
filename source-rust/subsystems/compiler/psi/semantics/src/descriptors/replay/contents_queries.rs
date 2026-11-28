@@ -450,24 +450,17 @@ impl Replay<'_> {
         if state.contents_path_invalidated(query) {
             return None;
         }
-        self.validate_query(machine, state, query, depth)?;
-        let mut carrier = query.clone();
-        carrier.steps.pop()?;
         let mut origins = BTreeSet::new();
-        for target in self.contents_targets_with_depth(machine, state, &carrier, depth)? {
+        for target in self.contents_targets_with_depth(machine, state, query, depth)? {
             match target {
                 DescriptorPayloadTarget::Storage {
-                    mut location,
+                    location,
                     completed,
                 } => {
-                    location.path.push(DescriptorPathSegment::UnknownContents);
                     let captured = self.target_state(machine, state, completed, depth)?;
                     origins.extend(self.read_with_depth(machine, captured, &location, depth)?);
                 }
-                DescriptorPayloadTarget::Incoming(mut incoming) => {
-                    incoming.steps.push(DescriptorContentsStep::Address(
-                        DescriptorPathSegment::UnknownContents,
-                    ));
+                DescriptorPayloadTarget::Incoming(incoming) => {
                     origins.extend(self.read_incoming_contents(machine, state, &incoming, depth)?);
                 }
             }
@@ -590,6 +583,30 @@ impl Replay<'_> {
             return None;
         }
         self.validate_query(machine, state, query, depth)?;
+        // The packet records loans inside the selected value. Resolve the
+        // carrier's address before attaching its packet to that storage.
+        let packet = DescriptorPathSegment::UnknownContents;
+        if query.steps.last() == Some(&DescriptorContentsStep::Address(packet)) {
+            let mut carrier = query.clone();
+            carrier.steps.pop()?;
+            let targets = self.contents_targets_with_depth(machine, state, &carrier, depth)?;
+            return Some(
+                targets
+                    .into_iter()
+                    .map(|mut target| {
+                        match &mut target {
+                            DescriptorPayloadTarget::Storage { location, .. } => {
+                                location.path.push(packet)
+                            }
+                            DescriptorPayloadTarget::Incoming(input) => {
+                                input.steps.push(DescriptorContentsStep::Address(packet))
+                            }
+                        }
+                        target
+                    })
+                    .collect(),
+            );
+        }
         if self.contents_address_hidden(machine, state, query) {
             return None;
         }

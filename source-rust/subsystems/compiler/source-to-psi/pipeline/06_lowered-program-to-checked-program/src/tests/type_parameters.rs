@@ -273,6 +273,23 @@ fn a_copy_bound_permits_replacing_a_field_with_a_borrowed_copy() {
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 }
 
+#[test]
+fn a_copy_bound_permits_replacing_the_selected_array_element() {
+    let source = super::boundary_calls::typed(
+        "data Buffer<T [copy]> { items: [T; 2]; }
+         machine entry<T [copy]>(buffer: @mutable Buffer<T>, index: u64, fresh: @T)
+         requires index < 2 {
+             buffer.items[index] = $fresh;
+         }",
+    );
+    let verdict = judge(crate::lowering::elaborate_generic(
+        &source,
+        super::boundary_calls::entry(&source),
+    ))
+    .unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
 /// One machine with a `u32` result: its formals, contract and statements.
 struct Shape {
     parameters: Vec<ValueType>,

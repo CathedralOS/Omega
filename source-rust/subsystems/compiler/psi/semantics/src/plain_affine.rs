@@ -2971,7 +2971,13 @@ impl<'a> Analysis<'a> {
         for unknown in inventory.unknown_contents {
             let mut carrier = path.to_vec();
             carrier.extend(unknown.path);
-            let carrier = self.canonical(source, &carrier)?;
+            // Reading a selected opaque value requires its containing array
+            // to be intact. This check cannot move or restore an element.
+            let carrier = crate::canonical_inline_region(self.types.iter(), root_type, &carrier)
+                .or_else(|| runtime_array_region(self.types, root_type, &carrier))
+                .ok_or(Error::unsupported(
+                    "opaque value has no inline restoration region",
+                ))?;
             // Hidden references cannot be opened through this carrier. Keep
             // the entire value established when handing it on; a whole move
             // does not claim that its referents were individually released.

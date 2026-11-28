@@ -222,6 +222,41 @@ impl DescriptorStoredEffect {
             )
     }
 
+    /// A call may replace one runtime-selected element of an inline array.
+    /// Each possible slot still holds its previous reference on paths where
+    /// the index selected a different element.
+    pub fn writable_paths(
+        &self,
+        types: &[StructuralTypeDeclaration],
+        root: PlaceId,
+        root_type: StructuralTypeId,
+        access: StructuralAccess,
+    ) -> Option<Vec<Vec<DescriptorPathSegment>>> {
+        if let Some(path) = self.exact_path() {
+            return Some(vec![path]);
+        }
+        let query = DescriptorContentsQuery {
+            root,
+            steps: self.steps.clone(),
+        };
+        query.validate(types, root_type)?;
+        if !query.is_symbolic_location()
+            || !query
+                .inline_steps(types, root_type)?
+                .into_iter()
+                .all(|inline| inline)
+        {
+            return None;
+        }
+        let paths: Vec<_> = DescriptorSlotKind::References
+            .writable_slots(types, root, root_type, access)?
+            .into_iter()
+            .filter(|slot| query.selects_inline_slot(slot))
+            .map(|slot| slot.path)
+            .collect();
+        (!paths.is_empty()).then_some(paths)
+    }
+
     pub fn exact_path(&self) -> Option<Vec<DescriptorPathSegment>> {
         self.steps
             .iter()
@@ -488,6 +523,7 @@ impl DescriptorSlotKind {
         structural_type: StructuralTypeId,
         path: &[StructuralPathSegment],
         field: Option<semantic_vocabulary::StructuralFieldId>,
+        transfers: &[DescriptorContentsTransfer],
     ) -> Option<Vec<DescriptorLocation>> {
         let mut destination = path.to_vec();
         if let Some(field) = field {
@@ -498,8 +534,22 @@ impl DescriptorSlotKind {
             runtime_structural_path_tip(types.iter(), structural_type, path)?;
         }
         let mut overwritten = Vec::new();
-        for slot in self.slots(types, root, structural_type)? {
-            let resident = descriptor_path(types, structural_type, &slot.path)?;
+        let inventory = self.inventory(types, root, structural_type)?;
+        if inventory
+            .unknown_contents
+            .iter()
+            .any(|packet| packet.kind != UnknownContentsKind::Value)
+        {
+            return None;
+        }
+        for slot in inventory.into_observations() {
+            // The packet describes loans in this value. The store overlaps
+            // its containing value at the same address as any other field.
+            let carrier = slot
+                .path
+                .strip_suffix(&[DescriptorPathSegment::UnknownContents])
+                .unwrap_or(&slot.path);
+            let resident = descriptor_path(types, structural_type, carrier)?;
             let mut overlaps = true;
             for (position, selected) in destination.iter().enumerate() {
                 if matches!(selected, StructuralPathSegment::RepresentationView { .. }) {
@@ -519,7 +569,14 @@ impl DescriptorSlotKind {
                     break;
                 }
             }
-            if overlaps {
+            // A symbolic write selects one element and keeps its alternatives
+            // in the contents table. Its fixed siblings still hold their entry
+            // loans on paths where the selector names another element.
+            if overlaps
+                && !transfers
+                    .iter()
+                    .any(|transfer| transfer.destination.selects_inline_slot(&slot))
+            {
                 overwritten.push(slot);
             }
         }
