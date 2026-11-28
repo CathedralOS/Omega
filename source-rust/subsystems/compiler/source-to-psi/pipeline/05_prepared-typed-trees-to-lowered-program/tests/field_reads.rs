@@ -274,6 +274,37 @@ machine main() {
 }
 
 #[test]
+fn packing_a_borrowed_record_preserves_the_outer_lifetime() {
+    let source = r"
+data File { byte: u8; }
+data Socket<'a> { file: @'a File; }
+data Reader<'a, some S> { state: @'a S; tag: u8; }
+machine pack<'a, T>(value: @'a T, tag: u8) -> Reader<'a> {
+    Reader { state: value, tag: tag }
+}
+machine inspect<'outer, 'inside>(socket: @'outer Socket<'inside>) -> u8 {
+    let packed: Reader<'outer> = pack::<Socket<'inside>>(socket, 42u8);
+    packed.tag
+}
+machine main() crashes Trap {
+    let file: File = File { byte: 17u8 };
+    let socket: Socket = Socket { file: @file };
+    transition inspect(@socket) == 42u8 { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}";
+    Program::of(source).judged(|_| {}).accepted();
+    let wrong = source.replace("let packed: Reader<'outer>", "let packed: Reader<'inside>");
+    let refusal = Program::try_of(&[("product/main.omg", &wrong)])
+        .err()
+        .expect("packing cannot lengthen a borrowed input's outer lifetime");
+    assert!(
+        refusal.message.contains("lifetime") || refusal.message.contains("region"),
+        "{refusal:?}"
+    );
+}
+
+#[test]
 fn a_branch_reads_plain_array_metadata_without_opening_the_witness() {
     let program = Program::of(
         r"

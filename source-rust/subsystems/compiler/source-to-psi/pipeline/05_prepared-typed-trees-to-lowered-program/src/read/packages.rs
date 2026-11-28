@@ -148,6 +148,58 @@ pub(super) fn check_construction<'a>(
 }
 
 impl super::Program<'_> {
+    /// The concrete initializer has already been checked against the entire
+    /// witness substitution. Retain the lifetimes that its public field exposes.
+    pub(super) fn package_field_storage_agrees(
+        &self,
+        package: SymbolHandle,
+        witnesses: &[semantic_vocabulary::StructuralTypeId],
+        storage: crate::body::ValueType,
+        concrete: crate::body::ValueType,
+    ) -> bool {
+        use crate::body::{StorageShape, ValueType};
+        use semantic_vocabulary::ScalarType;
+        match (storage, concrete) {
+            (
+                ValueType::Scalar(ScalarType::Callable(_), public),
+                ValueType::Scalar(ScalarType::Callable(_), actual),
+            ) => public == actual,
+            (ValueType::Record(public, pq, pr), ValueType::Record(actual, aq, ar)) if pq == aq => {
+                if pr == ar {
+                    return true;
+                }
+                // @'a S exposes 'a. Any further regions belong to the selected
+                // concrete S. Only that binder and that actual witness may erase them.
+                let reference = |row| match self.records.get(row)?.shape {
+                    StorageShape::Reference { referent, access } => Some((referent, access)),
+                    _ => None,
+                };
+                let (Some((hidden, public_access)), Some((witness, actual_access))) =
+                    (reference(public), reference(actual))
+                else {
+                    return false;
+                };
+                let Some(data) = self.data_declaration(package) else {
+                    return false;
+                };
+                let binders = self
+                    .typed
+                    .data_type_parameters
+                    .span_or_empty(data.package_parameters);
+                public_access == actual_access
+                    && matches!((self.region_tuple(pr), self.region_tuple(ar)),
+                        ([outer], [actual_outer, ..]) if outer == actual_outer)
+                    && binders.iter().zip(witnesses).any(|(parameter, chosen)| {
+                        *chosen == witness
+                            && self
+                                .witness_index(parameter.symbol)
+                                .is_ok_and(|index| self.package_witnesses[index].1 == hidden)
+                    })
+            }
+            _ => false,
+        }
+    }
+
     pub(super) fn witness_index(&self, symbol: SymbolHandle) -> Result<usize, usize> {
         self.package_witnesses
             .binary_search_by_key(&symbol_key(symbol), |(binder, _)| symbol_key(*binder))
