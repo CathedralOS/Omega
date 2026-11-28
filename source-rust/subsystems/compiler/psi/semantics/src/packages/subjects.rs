@@ -5,7 +5,7 @@ use crate::descriptor_results::{
     require_unchanged_observed_storage, terminal_borrowed_storage_graph_from,
 };
 use crate::descriptors::descriptor_lifetimes::{
-    DescriptorLocation, DescriptorPosition, descriptor_location, descriptor_location_type,
+    DescriptorLocation, DescriptorPosition, descriptor_location,
 };
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 use terminal_psi::StructuralMultiplicity;
@@ -36,19 +36,39 @@ pub(super) fn copied_witness_at(
     first: &TerminalPackageOpening,
     second: &TerminalPackageOpening,
 ) -> bool {
-    if first.machine != machine.id
-        || second.machine != machine.id
-        || first.record != second.record
-        || first.witnesses != second.witnesses
-        || !module
-            .structural_type(first.record)
-            .is_some_and(|ty| ty.multiplicity == StructuralMultiplicity::Unrestricted)
+    first.machine == machine.id
+        && second.machine == machine.id
+        && first.record == second.record
+        && first.witnesses == second.witnesses
+        && copies_value_at(
+            module,
+            machine,
+            operation,
+            first,
+            second.subject.place,
+            &second.subject.path,
+        )
+}
+
+/// Compare a borrowed operand's package with the selected callback's package.
+/// A real whole-value copy can retain the witness at another address.
+pub(super) fn copies_value_at(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+    opened: &TerminalPackageOpening,
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+) -> bool {
+    if !module
+        .structural_type(opened.record)
+        .is_some_and(|ty| ty.multiplicity == StructuralMultiplicity::Unrestricted)
     {
         return false;
     }
-    with_history(module, machine, operation, first.record, |history| {
-        let left = history.ancestry(&first.subject);
-        let right = history.ancestry(&second.subject);
+    with_history(module, machine, operation, opened.record, |history| {
+        let left = history.ancestry(opened.subject.place, &opened.subject.path);
+        let right = history.ancestry(place, path);
         // Two labels for one slot do not establish a copy.
         left.first()
             .zip(right.first())
@@ -133,10 +153,22 @@ impl StorageHistory<'_> {
             return None;
         }
         let root = self.machine.structural_place_type(place)?;
-        let slot = descriptor_location(self.types, place, root, path, field)?;
-        if descriptor_location_type(self.types, root, &slot.path)? != self.record {
+        let tip = crate::runtime_structural_path_tip(self.types.iter(), root, path)?;
+        let selected = match field {
+            None => tip.id,
+            Some(field) => {
+                let mut matching = tip.shape.fields().filter(|row| row.id == field);
+                let ty = matching.next()?.field_type.as_structural()?;
+                if matching.next().is_some() {
+                    return None;
+                }
+                ty
+            }
+        };
+        if selected != self.record {
             return None;
         }
+        let slot = descriptor_location(self.types, place, root, path, field)?;
         let location = self.replay.location(self.machine.id, at, &slot)?;
         let home = DescriptorLocation::captured(location.root, &location.path)?;
         Some(Observation { home, at })
@@ -168,9 +200,9 @@ impl StorageHistory<'_> {
                 || self.unchanged(&a.home, b.at, a.at))
     }
 
-    fn ancestry(&mut self, value: &StructuralArgument) -> Vec<Observation> {
+    fn ancestry(&mut self, place: PlaceId, path: &[StructuralPathSegment]) -> Vec<Observation> {
         let mut chain = Vec::new();
-        let mut next = self.observe(value.place, &value.path, self.now);
+        let mut next = self.observe(place, path, self.now);
         while let Some(observed) = next {
             if chain.contains(&observed) {
                 break;

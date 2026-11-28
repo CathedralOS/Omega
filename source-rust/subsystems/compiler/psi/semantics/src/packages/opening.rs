@@ -85,12 +85,21 @@ pub(super) fn projection(
     Ok(projected)
 }
 
+/// Checking the witness of a shared input may follow copies. Proving that a
+/// call spared the stored reference requires the original storage address.
+#[derive(Clone, Copy)]
+pub(super) enum FieldMatch {
+    StoredReference,
+    Witness,
+}
+
 pub(super) fn subject_field<'a>(
     module: &'a TerminalModule,
     machine: &TerminalMachine,
     operation: &Operation,
     opening: &TerminalPackageOpening,
     arg: &StructuralArgument,
+    required: FieldMatch,
 ) -> Option<&'a StructuralFieldDeclaration> {
     let [
         parent @ ..,
@@ -100,7 +109,12 @@ pub(super) fn subject_field<'a>(
     else {
         return None;
     };
-    if !subjects::same_storage_at(module, machine, operation, opening, arg.place, parent) {
+    let same = subjects::same_storage_at(module, machine, operation, opening, arg.place, parent);
+    if !(same
+        || matches!(required, FieldMatch::Witness)
+            && arg.access == StructuralAccess::SharedBorrow
+            && subjects::copies_value_at(module, machine, operation, opening, arg.place, parent))
+    {
         return None;
     }
     fields(module, opening.record)
@@ -160,7 +174,7 @@ pub(super) fn invocation(
         else {
             continue;
         };
-        let field = subject_field(module, machine, operation, opened, arg)
+        let field = subject_field(module, machine, operation, opened, arg, FieldMatch::Witness)
             .ok_or("package argument comes from another opening")?;
         let Some(StructuralTypeShape::Reference { referent, access }) = field
             .field_type

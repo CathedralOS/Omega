@@ -56,11 +56,12 @@ pub(super) fn checked_store(
     let &(origin, producer) = projected
         .get(&(machine.id, Projected::Reference(value.place)))
         .ok_or("a package field store has no projected source")?;
-    if origin != index
+    let source = opening(module, machine.id, origin)?;
+    if (origin != index && !subjects::copied_witness_at(module, machine, operation, opened, source))
         || !versions::same_storage_version(
             module,
             machine,
-            opened,
+            source,
             producer,
             operation.id,
             Some(value.place),

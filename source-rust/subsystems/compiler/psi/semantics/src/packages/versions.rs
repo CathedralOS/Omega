@@ -75,7 +75,12 @@ pub(super) fn same_storage_version(
                                     && formal.access == arg.access
                                     && opened.witnesses.contains(&formal.structural_type)
                                     && opening::subject_field(
-                                        module, machine, operation, opened, arg,
+                                        module,
+                                        machine,
+                                        operation,
+                                        opened,
+                                        arg,
+                                        opening::FieldMatch::StoredReference,
                                     )
                                     .is_some()
                             })

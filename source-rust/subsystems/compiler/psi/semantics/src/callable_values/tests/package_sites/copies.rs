@@ -114,6 +114,75 @@ fn assigning_a_copy_replaces_the_destination_witness() {
 }
 
 #[test]
+fn stored_callbacks_accept_shared_state_from_a_live_copy() {
+    let mut program = readers();
+    // This Reader can copy its shared reference and callable.
+    let state_ref = &mut program.types.structural_types[5];
+    let StructuralTypeShape::Reference { access, .. } = &mut state_ref.shape else {
+        panic!("Reader state reference")
+    };
+    *access = StructuralAccess::SharedBorrow;
+    for callable in &mut program.execution.callables.contracts {
+        callable.structural_parameters[0].access = StructuralAccess::SharedBorrow;
+        callable.proof.structural_parameters[0].access = StructuralAccess::SharedBorrow;
+    }
+    let machine = &mut program.machines[0];
+    for id in [1, 2] {
+        machine
+            .parameter_order
+            .push(BoundaryParameterKind::Structural);
+        machine.structural_places.push(StructuralPlaceDeclaration {
+            id: place(id),
+            kind: StructuralPlaceKind::Parameter {
+                position: (id - 1) as u32,
+            },
+        });
+    }
+    insert_copy(machine, 0, 3, 6);
+    let O::CallMachine {
+        structural_arguments,
+        ..
+    } = &mut machine.blocks[0].operations[2].kind
+    else {
+        panic!("the stored callback call")
+    };
+    structural_arguments[0].place = place(6);
+    structural_arguments[0].access = StructuralAccess::SharedBorrow;
+    check_package_sites(&program).expect("the copied state is accepted by the original callback");
+
+    select_copy_source(&mut program.machines[0].blocks[0].operations[0], 2);
+    assert_eq!(
+        check_package_sites(&program).unwrap_err(),
+        "package argument comes from another opening"
+    );
+}
+
+#[test]
+fn a_copy_can_supply_a_shared_reference_to_the_original_package() {
+    let mut program = original_and_copy();
+    let op = &mut program.machines[0].blocks[0].operations[3];
+    op.kind = O::StoreStructuralField {
+        disposition: terminal_psi::StructuralStoreDisposition::ReplaceDiscardable,
+        destination: place(1),
+        path: vec![],
+        field: Some(field(1)),
+        value: StructuralArgument::whole(place(4), StructuralAccess::Owned),
+    };
+    op.result = OperationResult::Unit;
+    program.machines[0]
+        .structural_places
+        .retain(|p| p.id != place(5));
+    program.execution.packages.sites[2].event = TerminalPackageEvent::Store {
+        opening: 0,
+        field: field(1),
+    };
+    check_package_sites(&program).expect("the changed field retains the destination's witness");
+
+    select_copy_source(&mut program.machines[0].blocks[0].operations[0], 2);
+    assert!(check_package_sites(&program).is_err());
+}
+
+#[test]
 fn copies_compare_the_value_at_each_read_even_after_replacing_the_original() {
     let mut program = original_and_copy();
     let machine = &mut program.machines[0];
