@@ -1,5 +1,8 @@
 //! Trace exposed storage and scalar formals through the value that supplies a native address.
 mod returned_addresses;
+mod returned_storage;
+pub use super::borrowed_storage::Position;
+pub use returned_storage::{ReturnedStorage, StorageHome};
 pub use returned_addresses::AddressReturnBody;
 use semantic_vocabulary::{MachineId, ValueId};
 use terminal_psi::{OperationKind, StructuralArgument, TerminalMachine};
@@ -20,6 +23,8 @@ pub struct NativeAddressOrigin<S> {
     pub parameters: Vec<ValueId>,
     /// An incoming route can supply an address with no known storage or formal.
     pub opaque: bool,
+    /// Some contributing storage belonged to an invocation that has returned.
+    pub expired: bool,
     /// Every route supplies one unmodified storage address or scalar formal.
     pub exact: bool,
 }
@@ -40,27 +45,33 @@ pub enum AddressDefinition<S> {
     Storage(S, (semantic_vocabulary::BlockId, u32)),
     Parameter,
     Forward(ValueId),
-    Call(MachineId, Vec<ValueId>),
+    Call(AddressCall<S>),
     Adjust(ValueId, ValueId),
     Incoming(Vec<Option<ValueId>>),
     Opaque,
 }
 
-pub fn trace_address<S: PartialEq>(
+#[derive(Clone)]
+pub struct AddressCall<S> {
+    pub callee: MachineId,
+    pub scalars: Vec<ValueId>,
+    pub storage: Vec<S>,
+    pub at: Position,
+}
+
+pub fn trace_address(
     value: ValueId,
-    definition: impl FnMut(ValueId) -> AddressDefinition<S>,
+    definition: impl FnMut(ValueId) -> AddressDefinition<StructuralArgument>,
     mut returned: impl FnMut(MachineId) -> Option<AddressReturnBody>,
-) -> NativeAddressOrigin<S> {
+) -> NativeAddressOrigin<StructuralArgument> {
     let mut calls = returned_addresses::ReturnSources::default();
-    trace_local(value, definition, |callee, actuals| {
-        calls.actuals(callee, actuals, &mut returned)
-    })
+    trace_local(value, definition, |call| calls.actuals(call, &mut returned))
 }
 
 fn trace_local<S: PartialEq>(
     value: ValueId,
     mut definition: impl FnMut(ValueId) -> AddressDefinition<S>,
-    mut returned: impl FnMut(MachineId, &[ValueId]) -> returned_addresses::ReturnedActuals,
+    mut returned: impl FnMut(&AddressCall<S>) -> returned_addresses::ReturnedActuals<S>,
 ) -> NativeAddressOrigin<S> {
     let mut work = vec![value];
     let mut visited = std::collections::HashSet::new();
@@ -69,6 +80,17 @@ fn trace_local<S: PartialEq>(
     let mut sources = Vec::new();
     let mut exact = true;
     let mut opaque = Vec::new();
+    let mut expired = false;
+    let mut observe = |source: S, at| {
+        let index = sources
+            .iter()
+            .position(|known| known == &source)
+            .unwrap_or_else(|| {
+                sources.push(source);
+                sources.len() - 1
+            });
+        observations.push((at, index));
+    };
     // A merged value may be opaque on any incoming edge. For arithmetic,
     // both operands must lack a backing to produce an independent opaque
     // address; a plain integer offset does not create a second address.
@@ -78,22 +100,17 @@ fn trace_local<S: PartialEq>(
             continue;
         }
         match definition(value) {
-            AddressDefinition::Storage(source, at) => {
-                let index = sources
-                    .iter()
-                    .position(|known| known == &source)
-                    .unwrap_or_else(|| {
-                        sources.push(source);
-                        sources.len() - 1
-                    });
-                observations.push((at, index));
-            }
+            AddressDefinition::Storage(source, at) => observe(source, at),
             AddressDefinition::Parameter => parameters.push(value),
-            AddressDefinition::Call(callee, arguments) => {
-                let inputs = returned(callee, &arguments);
+            AddressDefinition::Call(call) => {
+                let inputs = returned(&call);
                 exact &= inputs.exact;
+                expired |= inputs.expired;
                 if inputs.opaque {
                     opaque.push(value);
+                }
+                for source in inputs.storage {
+                    observe(source, call.at);
                 }
                 for input in inputs.values {
                     dependents.push((input, value, None));
@@ -144,7 +161,9 @@ fn trace_local<S: PartialEq>(
     }
     parameters.sort_unstable();
     NativeAddressOrigin {
-        opaque: independent.contains(&value) || (observations.is_empty() && parameters.is_empty()),
+        expired,
+        opaque: independent.contains(&value)
+            || (observations.is_empty() && parameters.is_empty() && !expired),
         exact: exact && observations.len() + parameters.len() == 1,
         observations,
         sources,
@@ -152,11 +171,11 @@ fn trace_local<S: PartialEq>(
     }
 }
 
-pub fn address_origin<'m>(
+pub fn address_origin(
     module: &terminal_psi::TerminalModule,
-    machine: &'m TerminalMachine,
+    machine: &TerminalMachine,
     value: ValueId,
-) -> NativeAddressOrigin<&'m StructuralArgument> {
+) -> NativeAddressOrigin<StructuralArgument> {
     trace_address(
         value,
         |v| terminal_definition(machine, v),
@@ -174,15 +193,71 @@ pub fn address_origin<'m>(
                 body.parameters.iter().map(|p| p.id).collect(),
                 results,
                 |v| terminal_definition(body, v),
+                |source, at| {
+                    ReturnedStorage::classify(
+                        &module.types.structural_types,
+                        source,
+                        at,
+                        |place, cut| terminal_home(body, place, cut),
+                    )
+                },
             ))
         },
     )
 }
 
+fn terminal_home(
+    machine: &TerminalMachine,
+    place: semantic_vocabulary::PlaceId,
+    at: Position,
+) -> StorageHome<'_> {
+    if let Some((ordinal, formal)) = machine
+        .structural_parameters
+        .iter()
+        .enumerate()
+        .find(|(_, p)| p.place == place)
+    {
+        return StorageHome::Formal(ordinal, formal.access, formal.structural_type);
+    }
+    let Some((producer, ty)) = machine
+        .structural_places
+        .iter()
+        .find(|row| row.id == place)
+        .and_then(|row| row.kind.as_operation_result())
+    else {
+        return StorageHome::Other;
+    };
+    let Some(operation) = machine.operation(producer) else {
+        return StorageHome::Other;
+    };
+    match &operation.kind {
+        OperationKind::EstablishPrimitiveLocal { .. }
+        | OperationKind::EstablishStructuralLocal { .. } => StorageHome::Local(ty),
+        OperationKind::EstablishReference {
+            source,
+            storage: None,
+        } => {
+            let Some(index) = at.1.checked_sub(1) else {
+                return StorageHome::Other;
+            };
+            if machine
+                .block(&at.0)
+                .and_then(|block| block.operations.get(index as usize))
+                .is_some_and(|previous| previous.id == producer)
+            {
+                StorageHome::FreshReference(source, (at.0, index))
+            } else {
+                StorageHome::Other
+            }
+        }
+        _ => StorageHome::Other,
+    }
+}
+
 fn terminal_definition(
     machine: &TerminalMachine,
     value: ValueId,
-) -> AddressDefinition<&StructuralArgument> {
+) -> AddressDefinition<StructuralArgument> {
     if let Some((operation, at)) = machine.blocks.iter().find_map(|block| {
         block
             .operations
@@ -197,10 +272,17 @@ fn terminal_definition(
             })
     }) {
         if let Some(call) = operation.module_invocation() {
-            return AddressDefinition::Call(call.callee, call.arguments.to_vec());
+            return AddressDefinition::Call(AddressCall {
+                callee: call.callee,
+                scalars: call.arguments.to_vec(),
+                storage: call.structural_arguments.to_vec(),
+                at,
+            });
         }
         return match &operation.kind {
-            OperationKind::StorageAddress { source } => AddressDefinition::Storage(source, at),
+            OperationKind::StorageAddress { source } => {
+                AddressDefinition::Storage(source.clone(), at)
+            }
             OperationKind::ScalarRepresentationView { operand, .. }
             | OperationKind::IntegerWiden { operand }
             | OperationKind::IntegerExactCast { operand, .. } => {
@@ -314,7 +396,7 @@ mod tests {
         let joined = value(4);
         let cycle = value(5);
         let trace = |root| {
-            trace_address::<()>(
+            trace_address(
                 root,
                 |id| match id {
                     id if id == address => AddressDefinition::Parameter,
