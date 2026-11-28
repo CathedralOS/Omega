@@ -1031,17 +1031,15 @@ fn publish_parents(
                         let result = operation.result.as_structural().ok_or_else(|| {
                             unavailable(machine.id, "native reference has no result descriptor")
                         })?;
-                        let ty = module
-                            .types
-                            .structural_types
-                            .iter()
-                            .find(|ty| ty.id == result.structural_type)
-                            .ok_or_else(|| {
-                                unavailable(
-                                    machine.id,
-                                    "native reference result has no structural type",
-                                )
-                            })?;
+                        let ty =
+                            module
+                                .structural_type(result.structural_type)
+                                .ok_or_else(|| {
+                                    unavailable(
+                                        machine.id,
+                                        "native reference result has no structural type",
+                                    )
+                                })?;
                         let terminal_psi::StructuralTypeShape::Reference { access, .. } = ty.shape
                         else {
                             return Err(unavailable(

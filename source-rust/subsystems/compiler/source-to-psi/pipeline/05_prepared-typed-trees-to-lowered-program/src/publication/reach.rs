@@ -52,6 +52,7 @@ struct ServiceSource {
     id: ServiceId,
     identity: String,
     name: String,
+    unsafe_atom: Option<language_core::core_vocabulary::UnsafeAtom>,
     parents: Vec<ServiceId>,
     schema: crate::source_state::service_declarations::RetainedServiceSurface,
 }
@@ -131,6 +132,12 @@ impl ServiceMap {
                     id,
                     identity,
                     name: scope.declaration.name.as_str().to_owned(),
+                    unsafe_atom: match typed.core_vocabulary(scope.declaration.symbol) {
+                        Some(language_core::core_vocabulary::CoreVocabulary::UnsafeAtom(atom)) => {
+                            Some(atom)
+                        }
+                        _ => None,
+                    },
                     parents: parents.clone(),
                     schema,
                 },
@@ -157,6 +164,51 @@ impl ServiceMap {
                 unavailable(context, "service is outside the retained canonical closure")
             })
     }
+    /// A native borrow contributes the installed Core atom and its boundary parents
+    /// even in a machine with no calls and no written reach annotation.
+    fn operation_reach(
+        &self,
+        module: &TerminalModule,
+        machine: &terminal_psi::TerminalMachine,
+    ) -> Checked<Vec<ServiceId>> {
+        let mut pending = Vec::new();
+        for op in machine.operations() {
+            if let Some((_, atoms)) =
+                terminal_semantics::storage::native_borrows::required_authority(module, op)
+                    .map_err(|reason| unavailable(machine.id, reason))?
+            {
+                for &atom in atoms {
+                    let source = self
+                        .declarations
+                        .iter()
+                        .find(|source| source.unsafe_atom == Some(atom))
+                        .ok_or_else(|| {
+                            unavailable(
+                                machine.id,
+                                "native borrow lacks its installed core service",
+                            )
+                        })?;
+                    pending.push(source.id);
+                }
+            }
+        }
+        let mut reached = Vec::new();
+        while let Some(service) = pending.pop() {
+            if !reached.contains(&service) {
+                let declaration = module.service(service).ok_or_else(|| {
+                    unavailable(
+                        machine.id,
+                        "intrinsic reach has no installed service declaration",
+                    )
+                })?;
+                reached.push(service);
+                pending.extend_from_slice(&declaration.parents);
+            }
+        }
+        reached.sort_unstable();
+        Ok(reached)
+    }
+
     pub(crate) fn identity(&self, service: ServiceId) -> Option<&str> {
         self.declarations
             .iter()
@@ -406,10 +458,16 @@ pub(crate) fn publish(
         // that contract creates neither an executable body nor an envelope.
         ceilings.push(machine.declared_service_reach.clone());
     }
-    let mut published = ceilings
+    let mut published = elaboration
+        .module
+        .machines
         .iter()
-        .map(|ceiling| ceiling.clone().unwrap_or_default())
-        .collect::<Vec<_>>();
+        .zip(&ceilings)
+        .map(|(machine, ceiling)| match ceiling {
+            Some(row) => Ok(row.clone()),
+            None => services.operation_reach(&elaboration.module, machine),
+        })
+        .collect::<Checked<Vec<_>>>()?;
     let position = |machine: MachineId| {
         usize::try_from(machine.get() - 1)
             .map_err(|_| unavailable(diagnostic, "machine coordinate exceeds host width"))
