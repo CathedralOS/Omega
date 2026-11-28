@@ -34,10 +34,16 @@ impl Lowering<'_> {
             self.package_uses.openings.get(slot).copied().flatten()
         {
             let existing = &self.packages.openings[opening as usize];
-            if handle != source.opening || existing != &row {
-                return Err(self.internal(
-                    "one checked package opening denotes different terminal places or types",
-                ));
+            // Another immutable reference can perform a later read of this
+            // same source opening. The terminal checker resolves the actual
+            // operand of each operation against the original storage.
+            if handle != source.opening
+                || existing.machine != row.machine
+                || existing.record != row.record
+                || existing.witnesses != row.witnesses
+            {
+                return Err(self
+                    .internal("one checked package opening denotes different machines or types"));
             }
             opening
         } else {

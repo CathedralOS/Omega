@@ -23,9 +23,8 @@ pub(super) fn projection(
     let Some((StructuralPathSegment::Field(identity), parent)) = path.split_last() else {
         return Err("package projection does not read a field");
     };
-    if *source != opened.subject.place
-        || !crate::structural_paths_select_same_location(parent, &opened.subject.path)
-        || *identity != declaration.identity
+    if *identity != declaration.identity
+        || !same_subject_at(module, machine, operation, opened, *source, parent)
     {
         return Err("package projection reads a field of another subject");
     }
@@ -86,23 +85,74 @@ pub(super) fn projection(
     Ok(projected)
 }
 
+/// Follow ordinary checked reference formation at the operation's prestate.
+/// Equal sets of possible targets do not prove that two references select
+/// the same one. Only one resolved storage location can match the anchor.
+pub(super) fn same_subject_at(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+    opened: &TerminalPackageOpening,
+    place: semantic_vocabulary::PlaceId,
+    path: &[StructuralPathSegment],
+) -> bool {
+    use crate::descriptor_results::{DescriptorAnalysis, terminal_borrowed_storage_graph_from};
+    use crate::descriptors::descriptor_lifetimes::{DescriptorLocation, descriptor_location};
+    let anchor = &opened.subject;
+    if anchor.place == place && crate::structural_paths_select_same_location(&anchor.path, path) {
+        return true;
+    }
+    if path
+        .iter()
+        .chain(&anchor.path)
+        .any(|step| matches!(step, StructuralPathSegment::RuntimeIndex { .. }))
+    {
+        return false;
+    }
+    let Some(position) = machine.blocks.iter().find_map(|block| {
+        let offset = block
+            .operations
+            .iter()
+            .position(|op| op.id == operation.id)?;
+        Some((block.id, u32::try_from(offset).ok()?))
+    }) else {
+        return false;
+    };
+    let Ok(graph) = terminal_borrowed_storage_graph_from(module, [machine.id], &[]) else {
+        return false;
+    };
+    let types = &module.types.structural_types;
+    let mut replay = DescriptorAnalysis::with_borrowed_storage_slots(types, &graph);
+    let mut address = |place, path: &[StructuralPathSegment]| {
+        let root = machine.structural_place_type(place)?;
+        let ty = crate::runtime_structural_path_tip(types.iter(), root, path)?;
+        if ty.id != opened.record {
+            return None;
+        }
+        let coordinate = descriptor_location(types, place, root, path, None)?;
+        let resolved = replay.location(machine.id, position, &coordinate)?;
+        DescriptorLocation::captured(resolved.root, &resolved.path)
+    };
+    address(anchor.place, &anchor.path)
+        .is_some_and(|recorded| address(place, path) == Some(recorded))
+}
+
 pub(super) fn subject_field<'a>(
     module: &'a TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
     opening: &TerminalPackageOpening,
     arg: &StructuralArgument,
 ) -> Option<&'a StructuralFieldDeclaration> {
-    if arg.place != opening.subject.place || arg.path.len() != opening.subject.path.len() + 2 {
-        return None;
-    }
-    let (parent, tail) = arg.path.split_at(opening.subject.path.len());
     let [
+        parent @ ..,
         StructuralPathSegment::Field(field),
         StructuralPathSegment::Referent,
-    ] = tail
+    ] = arg.path.as_slice()
     else {
         return None;
     };
-    if !crate::structural_paths_select_same_location(parent, &opening.subject.path) {
+    if !same_subject_at(module, machine, operation, opening, arg.place, parent) {
         return None;
     }
     fields(module, opening.record)
@@ -162,7 +212,7 @@ pub(super) fn invocation(
         else {
             continue;
         };
-        let field = subject_field(module, opened, arg)
+        let field = subject_field(module, machine, operation, opened, arg)
             .ok_or("package argument comes from another opening")?;
         let Some(StructuralTypeShape::Reference { referent, access }) = field
             .field_type

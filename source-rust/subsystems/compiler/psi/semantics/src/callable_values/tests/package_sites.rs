@@ -435,6 +435,60 @@ fn result(slot: u64, ty: StructuralTypeId) -> OperationResult {
 }
 
 #[test]
+fn a_field_read_through_an_alias_must_reach_its_recorded_package() {
+    let mut program = readers();
+    program.machines[0].structural_places = vec![
+        StructuralPlaceDeclaration {
+            id: place(1),
+            kind: StructuralPlaceKind::Parameter { position: 0 },
+        },
+        StructuralPlaceDeclaration {
+            id: place(2),
+            kind: StructuralPlaceKind::Parameter { position: 1 },
+        },
+        StructuralPlaceDeclaration {
+            id: place(3),
+            kind: StructuralPlaceKind::OperationResult {
+                producer: operation_id(3),
+                structural_type: ty(8),
+            },
+        },
+    ];
+    let mut descriptor = byte_view_descriptor(8, None);
+    descriptor.shape = StructuralTypeShape::Reference {
+        referent: ty(7),
+        access: StructuralAccess::SharedBorrow,
+    };
+    program.types.structural_types.push(descriptor);
+    let operations = &mut program.machines[0].blocks[0].operations;
+    let O::PrimitiveScalarRead { source, path } = &mut operations[0].kind else {
+        unreachable!()
+    };
+    *source = place(3);
+    path.insert(0, StructuralPathSegment::Referent);
+    operations.insert(
+        0,
+        Operation::unsuspended(
+            operation_id(3),
+            result(3, ty(8)),
+            O::EstablishReference {
+                source: StructuralArgument::whole(place(1), StructuralAccess::SharedBorrow),
+                storage: None,
+            },
+        ),
+    );
+    check_package_sites(&program).expect("the alias borrows the recorded reader");
+    let O::EstablishReference { source, .. } =
+        &mut program.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    source.place = place(2);
+    let error = check_package_sites(&program).unwrap_err();
+    assert_eq!(error, "package projection reads a field of another subject");
+}
+
+#[test]
 fn package_sites_repack_only_references_from_the_same_live_opening() {
     use terminal_psi::{RecordFieldInitializer, RecordFieldValue};
     let mut program = shared_pair_projections();

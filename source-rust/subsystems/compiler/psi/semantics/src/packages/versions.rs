@@ -74,7 +74,10 @@ pub(super) fn same_storage_version(
                                 arg.access != StructuralAccess::Owned
                                     && formal.access == arg.access
                                     && opened.witnesses.contains(&formal.structural_type)
-                                    && opening::subject_field(module, opened, arg).is_some()
+                                    && opening::subject_field(
+                                        module, machine, operation, opened, arg,
+                                    )
+                                    .is_some()
                             })
                 }),
             _ => false,
