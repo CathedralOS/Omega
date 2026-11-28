@@ -8,7 +8,8 @@ use application_identity::{
     conformance_identity::MachineApplicationCommitment,
     type_identity::{
         encoding::{atom, byte_atom, compound},
-        vocabulary::{Label, NameForm, OwnerForm, TypeForm},
+        schema_region,
+        vocabulary::{IndexForm, Label, NameForm, OwnerForm, TypeForm},
     },
 };
 pub use demand::caller_demand;
@@ -124,12 +125,61 @@ fn declared_operands<'a>(
         .identities
         .text(ty)
         .ok_or("activation declaration lost a type")?;
-    application_identity::type_identity::named_application_operands(
+    application_identity::type_identity::declared_application_operands(
         identity,
         &toolchain_name(family),
     )
     .map_err(|_| "activation declaration has malformed type operands")?
     .ok_or("activation declaration names a different type family")
+}
+
+/// A source declaration can spell the plan as a variant or as an evaluated
+/// constant. Match each type's operands against the closed worker selection.
+fn declares_worker(
+    module: &TerminalModule,
+    selected: terminal_psi::TerminalPreparedActivationEntry,
+    ty: terminal_psi::TerminalIdentityIndex,
+    family: &str,
+    reply: Option<&str>,
+) -> Result<bool, &'static str> {
+    let operands = declared_operands(module, ty, family)?;
+    let (arguments, result, entry, storage) = match (operands.as_slice(), reply) {
+        ([backing, arguments, out, entry, plan], None) if *backing == schema_region(0) => {
+            (*arguments, *out, *entry, *plan)
+        }
+        ([backing, permit, arguments, out, value, entry, plan], Some(reply))
+            if *backing == schema_region(0) && *permit == schema_region(1) && *value == reply =>
+        {
+            (*arguments, *out, *entry, *plan)
+        }
+        _ => return Ok(false),
+    };
+    let worker = module
+        .machine(selected.entry_machine)
+        .and_then(|body| body.declaration.as_ref())
+        .ok_or("activation lost its selected worker declaration")?;
+    let [input] = worker.parameter_types.as_slice() else {
+        return Ok(false);
+    };
+    Ok(module.identities.text(*input) == Some(arguments)
+        && module.identities.text(worker.result_type) == Some(result)
+        && declared_worker_operand(module, worker).as_deref() == Some(entry)
+        && selected.storage.matches_type_operand(storage))
+}
+
+fn declared_worker_operand(
+    module: &TerminalModule,
+    worker: &terminal_psi::CheckedMachineDeclaration,
+) -> Option<String> {
+    let text = |id| module.identities.text(id).filter(|s| !s.is_empty());
+    Some(compound(
+        IndexForm::StaticApplication,
+        [
+            atom(IndexForm::ConstName, text(worker.machine.identity())?),
+            atom(IndexForm::ConstName, text(worker.state.identity())?),
+            atom(IndexForm::ConstName, text(worker.callable)?),
+        ],
+    ))
 }
 
 /// A preparation borrows storage; it does not call the worker. Verify the
@@ -232,17 +282,24 @@ pub fn prepare_shape(
     }
     let backing = compound(
         TypeForm::MutableReference,
-        [compound(
-            TypeForm::Slice,
-            [application_identity::type_identity::compiler_type_identity(
-                "u8",
-            )],
-        )],
+        [
+            compound(
+                TypeForm::Slice,
+                [application_identity::type_identity::compiler_type_identity(
+                    "u8",
+                )],
+            ),
+            schema_region(0),
+        ],
     );
-    let parameters = declared_operands(module, source.result_type, "ActivationPreparation")?;
     if text(source.parameter_types[1])? != backing
-        || !matches!(parameters.as_slice(), [arguments, result, _, _]
-            if *arguments == text(*args)? && *result == text(*out)?)
+        || !declares_worker(
+            module,
+            selected,
+            source.result_type,
+            "ActivationPreparation",
+            None,
+        )?
     {
         return Err("prepare lost its declared backing or worker types");
     }
@@ -342,7 +399,7 @@ fn only_declared_inputs(boundary: &BoundaryMachineDeclaration) -> bool {
         && boundary.content_guarantees.is_empty()
 }
 
-fn publication_types(role: &str, reply: &str) -> (String, String, String) {
+fn publication_types(role: &str, reply: &str, region: usize) -> (String, String, String) {
     use application_identity::type_identity::vocabulary::ConstraintForm;
     use language_core::bundled_files::core_revision;
     let carrier = named(&toolchain_name("Publication"));
@@ -358,7 +415,13 @@ fn publication_types(role: &str, reply: &str) -> (String, String, String) {
     let declared = compound(
         TypeForm::Constrained,
         [
-            carrier.clone(),
+            compound(
+                TypeForm::Generic,
+                [
+                    atom(Label::Name, &toolchain_name("Publication")),
+                    schema_region(region),
+                ],
+            ),
             compound(
                 ConstraintForm::DeclaredDomain,
                 [atom(Label::Name, &source_domain)],
@@ -540,6 +603,7 @@ pub fn park_shape(
         *request_declared,
         source.result_type,
         "RequestRole",
+        0,
     )
 }
 
@@ -622,7 +686,7 @@ pub fn resume_permit(
         .get(1)
         .filter(|p| p.position == 1)
         .ok_or("resume needs its original answer permit")?;
-    publication_shape(module, permit, *declared, *reply, "AnswerRole")
+    publication_shape(module, permit, *declared, *reply, "AnswerRole", 1)
 }
 
 fn publication_shape(
@@ -631,6 +695,7 @@ fn publication_shape(
     declared_type: terminal_psi::TerminalIdentityIndex,
     reply_type: terminal_psi::TerminalIdentityIndex,
     role: &str,
+    region: usize,
 ) -> Result<ParkShape, &'static str> {
     let text = |id| module.identities.text(id);
     let reply = text(reply_type).ok_or("publication has no closed reply type")?;
@@ -704,7 +769,7 @@ fn publication_shape(
     {
         return Err("the publication must borrow the slot's ordinary byte");
     }
-    let (base, declared, issued) = publication_types(role, reply);
+    let (base, declared, issued) = publication_types(role, reply, region);
     if text(declared_type) != Some(declared.as_str())
         || text(qualified.identity) != Some(issued.as_str())
         || text(qualified.subject_identity) != Some(base.as_str())
@@ -723,6 +788,20 @@ fn publication_shape(
 mod preparation_commitment_tests {
     use super::*;
     use terminal_psi::TerminalActivationStorage::{Fixed, Split};
+
+    #[test]
+    fn the_result_plan_may_name_the_case_or_its_evaluated_constant() {
+        use application_identity::type_identity::vocabulary::IndexForm;
+        let direct = atom(
+            IndexForm::ConstName,
+            &toolchain_name("ActivationStorage::Fixed"),
+        );
+        let evaluated = Fixed.canonical_value().unwrap().index_identity().unwrap();
+        for operand in [direct, evaluated] {
+            assert!(Fixed.matches_type_operand(&operand));
+            assert!(!Split.matches_type_operand(&operand));
+        }
+    }
 
     #[test]
     fn reopens_the_source_workers_typed_storage_constant() {
