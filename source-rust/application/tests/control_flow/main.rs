@@ -11,3 +11,10 @@ mod parenthesized_guard;
 mod record_callback_loop;
 mod straight_line_loop_value;
 mod unit_callable_alias;
+
+#[test]
+fn a_suspending_machine_parameter_preserves_its_argument_and_result() {
+    program::assert_silent_return(include_str!(
+        "../fixtures/callables/run/suspending_parameter/main.omg"
+    ));
+}
