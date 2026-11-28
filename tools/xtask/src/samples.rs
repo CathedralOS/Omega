@@ -1,6 +1,8 @@
 //! Check samples and compare native/Psi execution (`cargo xtask sample-gate`).
 
 mod application;
+#[cfg(target_os = "macos")]
+mod darwin_exit;
 mod file_outputs;
 
 use std::collections::BTreeSet;
@@ -20,12 +22,21 @@ const REJECTION_FILES: &[&str] = &[
 /// Each non-empty line is a fragment the native build's output must contain.
 const NATIVE_REJECTION_FILE: &str = "expected_native_error.txt";
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum PackageWorkflow {
+    #[default]
+    Locked,
+    Staged,
+}
+
 #[derive(Debug, Clone)]
 pub struct SampleProject {
     pub directory: PathBuf,
     pub rel_path: String,
     pub entry: Option<PathBuf>,
     pub role: String,
+    package_workflow: PackageWorkflow,
     pub source_inputs: Vec<String>, // The same explicit caller inventory for preparation and execution.
     pub(crate) output_files: file_outputs::Declarations,
     pub rejection: Vec<String>,
@@ -102,8 +113,9 @@ pub fn project_at(directory: &Path, repo: &Path) -> Result<SampleProject, String
     };
     let entry = entry_name.map(|n| directory.join(n));
 
-    let build_raw = optional_text(&directory.join("build.omg"))?.unwrap_or_default();
-    let build = strip_comments(&build_raw);
+    let build_file = directory.join("build.omg");
+    let build_raw = optional_text(&build_file)?;
+    let build = strip_comments(build_raw.as_deref().unwrap_or_default());
     let dir_name = directory.file_name().and_then(|s| s.to_str()).unwrap_or("");
     let diag_file = REJECTION_FILES
         .iter()
@@ -174,6 +186,18 @@ pub fn project_at(directory: &Path, repo: &Path) -> Result<SampleProject, String
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
+    let package_workflow = meta
+        .get("package_workflow")
+        .map(|value| serde_json::from_value(value.clone()))
+        .transpose()
+        .map_err(|e| format!("{}: package_workflow: {e}", meta_path.display()))?
+        .unwrap_or_default();
+    // A checked package may expose multiple modules without a main file.
+    // The update checks the complete source inventory before we check its Build.
+    let entry = entry.or_else(|| {
+        (role == "check-only" && package_workflow == PackageWorkflow::Locked && build_raw.is_some())
+            .then_some(build_file)
+    });
     let source_inputs = match meta.get("source_inputs") {
         None => project_source_inputs(directory)?,
         Some(value) => {
@@ -212,6 +236,7 @@ pub fn project_at(directory: &Path, repo: &Path) -> Result<SampleProject, String
         rel_path,
         entry,
         role,
+        package_workflow,
         source_inputs,
         output_files: file_outputs::declarations(meta.get("output_files"), &meta_path)?,
         rejection,
@@ -685,13 +710,15 @@ pub fn verify_sample(
         return Ok("not-host-runnable".to_owned());
     }
 
-    settle_review(
-        cli,
-        &project.directory,
-        target,
-        evidence,
-        &project.source_inputs,
-    )?;
+    if project.package_workflow == PackageWorkflow::Locked {
+        settle_review(
+            cli,
+            &project.directory,
+            target,
+            evidence,
+            &project.source_inputs,
+        )?;
+    }
 
     // The CLI selects Build from the file it is asked to run or compile.
     // The sample's source entry carries its expected exit and output.
@@ -736,7 +763,7 @@ pub fn verify_sample(
     let has_input = input
         .try_exists()
         .map_err(|error| format!("{}: {error}", input.display()))?;
-    let oracle = application::Oracle::load(project, entry, target, has_input, evidence)?;
+    let oracle = application::Oracle::load(project, entry, target, evidence)?;
     if !has_input && oracle.is_empty() {
         if project.rel_path.split('/').any(|p| p == "probes") {
             return Ok("no-oracle".to_owned());
@@ -834,6 +861,15 @@ fn failure_report(sample: &str, reason: &str, evidence: &Path) -> String {
 }
 
 pub fn run(args: &[String]) -> Result<(), u8> {
+    #[cfg(target_os = "macos")]
+    if let [mode, artifact, record] = args
+        && mode == darwin_exit::OBSERVER
+    {
+        return darwin_exit::observe(Path::new(artifact), Path::new(record)).map_err(|error| {
+            eprintln!("sample-gate: cannot observe native termination: {error}");
+            1
+        });
+    }
     let repo = repo_root()?;
     let mut filters: Vec<String> = Vec::new();
     let mut facts_only = false;
@@ -1077,6 +1113,19 @@ mod tests {
         fs::remove_dir_all(directory).unwrap();
     }
 
+    #[test]
+    fn samples_must_name_a_known_package_workflow() {
+        let directory = execution::reserve_directory(&std::env::temp_dir()).unwrap();
+        let metadata = directory.join("sample.json");
+        let project = || project_at(&directory, &directory);
+        assert_eq!(project().unwrap().package_workflow, PackageWorkflow::Locked);
+        fs::write(&metadata, r#"{"package_workflow":"staged"}"#).unwrap();
+        assert_eq!(project().unwrap().package_workflow, PackageWorkflow::Staged);
+        fs::write(&metadata, r#"{"package_workflow":"stage"}"#).unwrap();
+        assert!(project().unwrap_err().contains("package_workflow"));
+        fs::remove_dir_all(directory).unwrap();
+    }
+
     fn invalid_sample(directory: &Path) -> SampleProject {
         fs::write(directory.join("main.omg"), "machine main() {}\n").unwrap();
         fs::write(directory.join("build.omg"), "").unwrap();
@@ -1127,6 +1176,32 @@ mod tests {
         assert_eq!(project_at(&owner, &root).unwrap().role, "check-only");
         fs::write(owner.join("expected.txt"), "cannot prove\n").unwrap();
         assert_eq!(project_at(&owner, &root).unwrap().role, "intended-invalid");
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn a_package_with_nested_modules_is_checked_through_its_build() {
+        let root = execution::reserve_directory(&std::env::temp_dir()).unwrap();
+        fs::create_dir(root.join("choices")).unwrap();
+        fs::write(root.join("choices/types.omg"), "public data Choice {}").unwrap();
+        fs::write(
+            root.join("build.omg"),
+            r#"machine build(builder: @mutable BuildPlan) {
+                builder.product = BuildProduct::Package { name: "choices" };
+            }"#,
+        )
+        .unwrap();
+        let samples = discover_samples(&root, &root, &[]).unwrap();
+        assert_eq!(samples.len(), 1);
+        assert_eq!(samples[0].entry, Some(root.join("build.omg")));
+        assert_eq!(samples[0].role, "check-only");
+        assert!(
+            samples[0]
+                .source_inputs
+                .contains(&"choices/types.omg".to_owned())
+        );
+        fs::write(root.join("sample.json"), r#"{"role":"program"}"#).unwrap();
+        assert!(project_at(&root, &root).unwrap().entry.is_none());
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -1581,6 +1656,7 @@ mod result_file_tests {
             rel_path: path.to_owned(),
             entry: None,
             role: "program".to_owned(),
+            package_workflow: PackageWorkflow::Locked,
             source_inputs: Vec::new(),
             output_files: Default::default(),
             rejection: Vec::new(),

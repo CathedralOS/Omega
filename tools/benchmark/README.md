@@ -1,5 +1,7 @@
 # Measuring a compiler change
 
+Run `omega-bench chart <run-directory> <new-file.html>` to plot a completed comparison. The command verifies the journal and opens no new compiler processes. The chart shows each baseline and candidate together, with separate scales for elapsed time, total process CPU time, and any child-reported work. Each complete series includes the median paired difference and its bootstrap interval.
+
 Use `omega-bench compare <plan.json> <new-directory>` to compare two executables on one declared program. A compiler measurement includes process startup, compilation and publication. The runner executes each native output separately and checks its exit status, stdout and stderr against the plan.
 
 Set `measurement.stage_timings` to `false` for an uninstrumented compiler comparison. Omitting the field preserves stage timing collection in existing plans. To benchmark the Build entry point, put `"build"` first in each command’s `arguments`. The plan supplies the source, library, target and output directory.

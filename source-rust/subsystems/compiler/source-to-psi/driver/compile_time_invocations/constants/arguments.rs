@@ -6,10 +6,10 @@
 //! Each expression becomes a zero-argument source machine. Ordinary checking
 //! judges that machine with the parameter's carrier before execution. The
 //! materialized value updates the original type argument through
-//! [`data_applications::settle_const_argument`].
+//! [`constant_arguments::settle_const_argument`].
 
 use std::sync::Arc;
-use typed_trees::data_applications;
+use typed_trees_to_prepared_typed_trees::constant_arguments;
 use typed_trees_to_prepared_typed_trees::{PreparedValue, TargetInputs, ValueInputs};
 
 use crate::source_state::TypedTrees;
@@ -422,7 +422,7 @@ impl Arguments {
         let literal = program
             .materialize_canonical_const_value(job.carrier, &value)
             .ok_or("the evaluated argument does not have its declared carrier")?;
-        data_applications::settle_const_argument(program, job.argument, literal)
+        constant_arguments::settle_const_argument(program, job.argument, literal)
     }
 }
 

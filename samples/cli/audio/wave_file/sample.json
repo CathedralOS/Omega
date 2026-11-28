@@ -1,4 +1,6 @@
 {
-  "source_inputs": ["main.omg", "build.omg"],
+  "role": "program",
+  "package_workflow": "staged",
+  "source_inputs": ["main.omg", "build.omg", "configure.omg"],
   "output_files": {"two_frames.wav": "expected/two_frames.wav"}
 }

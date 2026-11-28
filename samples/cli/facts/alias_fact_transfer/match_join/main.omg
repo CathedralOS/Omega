@@ -16,14 +16,14 @@ data Main {
     observed: i32;
 }
 
-machine Main::inspect(player: Player) -> i32
+machine inspect(player: Player) -> i32
 requires
     player in Player::Alive
 {
     player.health
 }
 
-machine Main::choose(main: @Main, flag: bool) -> i32
+machine choose(main: @Main, flag: bool) -> i32
 requires
     main.player in Player::Alive,
     main.spare in Player::Alive
@@ -32,22 +32,22 @@ requires
         true -> main.player,
         false -> main.spare,
     };
-    Main::inspect(copy)
+    inspect(copy)
 }
 
-machine Main::main(main: @mutable Main)
+machine observe_player(main: @mutable Main)
 requires
     main.player in Player::Alive,
     main.spare in Player::Alive
 {
-    main.observed = Main::choose(main, true);
+    main.observed = choose(main, true);
 }
 
 machine entry() crashes Trap {
     let mutable a: Main = Main { player: Player { health: 42 }, spare: Player { health: 99 }, observed: 0 };
-    Main::main(@mutable a);
+    observe_player(@mutable a);
     let mutable b: Main = Main { player: Player { health: 1 }, spare: Player { health: 99 }, observed: 0 };
-    Main::main(@mutable b);
+    observe_player(@mutable b);
     transition a.observed == 42 && b.observed == 1 {
         true -> done(),
         _ -> bad()

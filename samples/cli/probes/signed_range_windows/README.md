@@ -1,10 +1,6 @@
 # Signed Range Windows
 
-Compile-scope probe: signed `i64` index and range bounds discharged
-from `requires` rosters on free machines, exclusive and inclusive range
-subslices, a subslice view of a view, and the named numeric-conversion
-machines. One core import (`numeric_conversion`); no standard-library
-dependency.
+The program uses signed `i64` indices to read and slice a byte array. It checks that the selected byte and the measured lengths add up to 55. A different total traps.
 
 - `head`/`window_len` carry `requires` rosters with `&&` chains and
   `.length` bounds — `0 <= index && index < items.length` proven from literal
@@ -23,11 +19,4 @@ annotation, subslice inheritance, and a `boundary operator` with
 (`"cannot prove requires contract"`); routed slice-domain grants stay a
 gap.
 
-Compile-checked only (no ProcessExit provider):
-
-```sh
-mbx run -p omega -- --check samples/cli/probes/signed_range_windows/main.omg
-mbx run -p omega -- packages update --project samples/cli/probes/signed_range_windows
-```
-
-Both green on Linux x86-64; `omega.lock` publishes locally, ignored.
+Run the native and Psi checks with `mbx xtask sample-gate --filter samples/cli/probes/signed_range_windows`.

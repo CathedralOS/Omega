@@ -20,9 +20,8 @@ machine select(choice: Choice, counter: @mutable u64) -> Packet {
 machine consume(packet: Packet) -> u64 {
     transition packet { Packet::Value { payload } -> (7u64 - payload) }
 }
-data Relay {}
-machine Relay::forward(packet: Packet) -> u64 { consume(packet) }
-machine evaluate(packet: Packet) -> u64 { Relay::forward(packet) }
+machine forward(packet: Packet) -> u64 { consume(packet) }
+machine evaluate(packet: Packet) -> u64 { forward(packet) }
 machine main() crashes Trap {
     let mutable counter: u64 = 0;
     let first: u64 = evaluate(select(Choice::First, @mutable counter));

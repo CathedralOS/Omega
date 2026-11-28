@@ -1011,6 +1011,7 @@ pub(crate) mod source_occurrences {
                 .insert(ExpressionNode::Cast(TableCastExpression {
                     value: leaf,
                     target_type: authored_cast,
+                    operand_type: Default::default(),
                     recast_storage_type: Default::default(),
                     result_type: computed,
                     target_label: Default::default(),
@@ -1352,6 +1353,14 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     ) {
         self.extend([symbol]);
     }
+    /// The head of an application formed by an exact Product operand.
+    fn product_application_head(
+        &mut self,
+        _: StaticMachineApplicationHandle,
+        declaration: SymbolHandle,
+    ) {
+        self.formation_owner(declaration);
+    }
     /// The forming declaration supplies the application's lexical context. It
     /// remains reachable metadata, not an authored selection by its later user.
     fn static_application(
@@ -1500,6 +1509,13 @@ impl<References: TypedReferences> TypedReferences for CodeSelectionReferences<'_
         symbol: SymbolHandle,
     ) {
         self.0.product_type_input(input, symbol);
+    }
+    fn product_application_head(
+        &mut self,
+        application: StaticMachineApplicationHandle,
+        declaration: SymbolHandle,
+    ) {
+        self.0.product_application_head(application, declaration);
     }
     fn static_application(
         &mut self,
@@ -2120,15 +2136,15 @@ pub fn collect_program_conformance_occurrences(
     occurrences.conformance_applications(program)
 }
 
-pub(crate) struct ProgramApplicationOccurrences {
-    pub requirement_applications: Vec<TypeOccurrence>,
-    pub conformance_applications: Vec<StaticMachineApplicationHandle>,
+pub struct ProgramApplicationOccurrences {
+    pub(crate) requirement_applications: Vec<TypeOccurrence>,
+    pub(crate) conformance_applications: Vec<StaticMachineApplicationHandle>,
     /// Every static application written in its own lexical owner, including
     /// ordinary generic calls that bind evidence without a direct selection.
     pub invocation_applications: Vec<StaticMachineApplicationHandle>,
 }
 
-pub(crate) fn collect_program_application_occurrences(
+pub fn collect_program_application_occurrences(
     program: &TypedTrees,
 ) -> ProgramApplicationOccurrences {
     let mut occurrences = TypeOccurrences::default();
@@ -2786,7 +2802,17 @@ impl MachineSidecarIndex {
                 }
             }
             visit_static_machine_bindings(program, roots, application.supplying_application);
-            visit_static_argument(program, roots, &application.argument);
+            // The request selected the head in Product. Its supplied arguments
+            // and the provider's own parents still have their original readers.
+            let designated = application
+                .selected_head(program)
+                .map(|_| application.supplying_application);
+            visit_static_argument_with_product_head(
+                program,
+                roots,
+                &application.argument,
+                designated,
+            );
             application.scope.visit_references(program, roots);
             roots.leave_lexical_scope();
         }
@@ -2937,6 +2963,15 @@ pub fn visit_static_argument(
     retained: &mut impl TypedReferences,
     argument: &StaticMachineArgument,
 ) {
+    visit_static_argument_with_product_head(program, retained, argument, None);
+}
+
+fn visit_static_argument_with_product_head(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    argument: &StaticMachineArgument,
+    designated: Option<StaticMachineApplicationHandle>,
+) {
     if let Some(occurrence) = argument.authored_selection {
         visit_authored_selection(program, retained, occurrence);
     }
@@ -2954,7 +2989,9 @@ pub fn visit_static_argument(
             TypeReferenceNode::Named { symbol, .. }
             | TypeReferenceNode::Generic { base_symbol: symbol, .. }
             if *symbol == argument.symbol);
-    if argument.symbol != SymbolHandle::invalid() && !named_data {
+    if let Some(application) = designated {
+        retained.product_application_head(application, argument.symbol);
+    } else if argument.symbol != SymbolHandle::invalid() && !named_data {
         visit_callable_symbol(program, retained, argument.symbol);
     }
     visit_type_reference(program, retained, argument.type_reference);
@@ -4047,6 +4084,7 @@ pub fn visit_expression(
             visit_type_reference(program, retained, cast.target_type);
             if retained.derived_declaration_references() {
                 visit_type_reference(program, retained, cast.result_type);
+                visit_type_reference(program, retained, cast.operand_type);
                 visit_type_reference(program, retained, cast.recast_storage_type);
             }
             // Intrinsic conversions, recasts and builtin policy entries may
@@ -5799,6 +5837,7 @@ mod cast_dependency_tests {
         let mut cast = TableCastExpression {
             value,
             target_type: carrier,
+            operand_type: Default::default(),
             recast_storage_type: Default::default(),
             result_type: carrier,
             target_label: Default::default(),

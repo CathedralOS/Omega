@@ -1,0 +1,41 @@
+use {omega}/language/core/extent.omg;
+use {omega}/language/core/run.omg;
+
+// Ordinary native array placement. The element keeps its own access rules.
+// The compiler checks the actual backing and selected profile at each transfer.
+public domain<T> T::VectorPlacement;
+public data Vacant = |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant;
+
+public data Vec<T> [linear]
+requires embed(self.live.storage.length) == embed(self.live.count) * embed(size_of::<[T; 1]>()),
+    embed(self.live.storage.length) + embed(self.spare.length) <= 18446744073709551615,
+    self.spare.length == 0 || embed(self.spare.base) == embed(self.live.storage.base) + embed(self.live.storage.length)
+{
+    live: |run|::Run<T in VectorPlacement, T> in |run|::Run::Live<T in VectorPlacement, T>;
+    spare: Vacant;
+}
+
+// Use the stride of an array at the vector's selected native placement.
+machine cell_bytes<T>() -> u64 { size_of::<[T; 1]>() }
+
+// How many whole cells fit in an allocation of this size. A zero-byte cell is
+// limited by the logical count, independently of the available payload bytes.
+public machine capacity_for<T>(bytes: u64) -> u64 {
+    let stride: u64 = cell_bytes::<T>();
+    transition stride == 0 {
+        true -> 18446744073709551615,
+        false -> count_cells(bytes, stride)
+    }
+    machine count_cells(bytes: u64, stride: u64) -> u64
+    requires stride != 0
+    { bytes / stride }
+}
+
+// Capacity includes the occupied cells as well as the vacant suffix.
+public machine capacity<T>(vec: @Vec<T>) -> u64 {
+    capacity_for::<T>(vec.live.storage.length + vec.spare.length)
+}
+
+public machine length<T>(vec: @Vec<T>) -> u64
+ensures result == vec.live.count
+{ vec.live.count }

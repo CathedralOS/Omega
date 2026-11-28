@@ -1,3 +1,7 @@
+use invalid.omg as app;
+
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "travel_time_invalid_bounds" };
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
 }

@@ -1,5 +1,7 @@
-# system_clock_binding
+# System clock binding
 
-Canonical system `Clock` provider through static machine with `reaches ProcessExit + Clock` multi-service ceiling + `Clock::sleep(200)`; `build.omg` uses `Build::dependency(builder, dependency::from_source(Source::Path{system}))` and binds `ProgramEntry` for hosted targets (`windows_x86_64`, `linux_x86_64`, `linux_arm64`, `macos_arm64`).
-
-Expected exit: 70.
+The program waits for the system clock with `Clock::sleep(200)` and exits
+with status 70. The initial Build supplies the bundled system package to
+`configure.omg`. That stage binds the program entry and grants the application
+access to `Clock` and `ProcessExit` on Linux x86-64 and ARM64, macOS ARM64,
+and Windows x86-64.

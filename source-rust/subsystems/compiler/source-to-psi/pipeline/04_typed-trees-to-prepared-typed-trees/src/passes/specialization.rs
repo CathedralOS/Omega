@@ -2342,8 +2342,12 @@ fn settle_const_expressions(
         }
     }
     for (handle, value) in candidates {
-        data_applications::settle_const_argument(program, handle, ExpressionNode::Integer(value))
-            .map_err(Stop::Rejected)?;
+        crate::constant_arguments::settle_const_argument(
+            program,
+            handle,
+            ExpressionNode::Integer(value),
+        )
+        .map_err(Stop::Rejected)?;
     }
     Ok(())
 }

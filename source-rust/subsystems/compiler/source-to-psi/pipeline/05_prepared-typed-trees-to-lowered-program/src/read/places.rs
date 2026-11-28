@@ -298,7 +298,7 @@ impl Program<'_> {
                 continue;
             }
             // One slot can be substituted simultaneously at every field.
-            // Several reference arguments need independent declaration-local
+            // Several region-bearing arguments need independent declaration-local
             // slots even if their original concrete lifetimes coincide.
             if !tuple.is_empty() {
                 return Err(refuse_at(
@@ -306,14 +306,17 @@ impl Program<'_> {
                     Unserved::Type("record application with multiple borrowed type arguments"),
                 ));
             }
-            let actual =
-                super::source_records::retained_borrow(typed, &application.scope, *supplied)
-                    .ok_or_else(|| {
-                        refuse_at(
-                            id,
-                            Unserved::Type("record occurrence lost its borrow region"),
-                        )
-                    })?;
+            let actual = super::source_records::retained_argument_region(
+                typed,
+                &application.scope,
+                *supplied,
+            )
+            .ok_or_else(|| {
+                refuse_at(
+                    id,
+                    Unserved::Type("record occurrence lost its borrow region"),
+                )
+            })?;
             tuple.push(super::regions::Region::Parameter(actual));
         }
         Ok(self.intern_regions(tuple))

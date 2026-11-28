@@ -1,3 +1,4 @@
+// Expected exit: 0
 // Adding Marked preserves the underlying u32. Removing it exposes that
 // scalar again for the comparison.
 

@@ -38,6 +38,29 @@ pub struct ProductOperandApplication {
     pub implementation: Option<crate::source_state::ClosedConformanceApplication>,
 }
 
+impl ProductOperandApplication {
+    /// A closed requirement can have its own symbol, while its written operand
+    /// still selects the requirement template.
+    pub fn selected_head(&self, program: &TypedTrees) -> Option<SymbolHandle> {
+        if !program
+            .expression_table
+            .static_machine_application_is_valid(self.supplying_application)
+        {
+            return None;
+        }
+        let source = program.static_machine_application(self.supplying_application);
+        let head = source.binding_declaration;
+        (head.is_valid()
+            && source.lexical_owner == self.owner
+            && head == self.argument.symbol
+            && (head == self.declaration
+                || program
+                    .closed_requirement_application(self.declaration)
+                    .is_some_and(|closed| closed.template == head)))
+        .then_some(head)
+    }
+}
+
 impl TypedTrees {
     pub fn product_operand_application_identity(
         &self,

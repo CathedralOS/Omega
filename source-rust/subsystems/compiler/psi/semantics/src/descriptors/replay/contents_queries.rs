@@ -1,4 +1,4 @@
-use super::engine::{DescriptorReadDepth, Origin, State, Value};
+use super::engine::{DescriptorReadDepth, Origin, State, StorageResolution, Value};
 use super::*;
 
 impl Replay<'_> {
@@ -370,6 +370,12 @@ impl Replay<'_> {
         if state.contents_path_invalidated(query) {
             return None;
         }
+        if self.slot_kind.tracks_references()
+            && !state.contents_invalidated
+            && let Some(origin) = self.initialized_native_reference(machine, state, query, depth)
+        {
+            return Some(BTreeSet::from([Origin::Backing(origin)]));
+        }
         let mut origins = BTreeSet::new();
         for target in self.contents_targets_with_depth(machine, state, query, depth)? {
             match target {
@@ -393,6 +399,41 @@ impl Replay<'_> {
             }
         }
         Some(origins)
+    }
+
+    fn initialized_native_reference(
+        &self,
+        machine: &DescriptorMachine,
+        state: &State,
+        query: &DescriptorContentsQuery,
+        depth: &DescriptorReadDepth<'_>,
+    ) -> Option<DescriptorCallOrigin> {
+        let location = query.exact_location()?;
+        if self.location_capture(machine, &location, depth).is_some() {
+            return None;
+        }
+        let (_, endpoint) = self.resolved_location(machine, state, &location, depth)?;
+        if !matches!(
+            self.type_index.find(endpoint?)?.shape,
+            StructuralTypeShape::Reference { access: StructuralAccess::SharedBorrow, .. }
+        ) {
+            return None;
+        }
+        let StorageResolution::Projected(mut origin) =
+            self.resolve_storage_with_depth(machine, state, &location, depth)?
+        else {
+            return None;
+        };
+        let DescriptorCallOrigin::NativeAddress { projection, .. } = &mut origin else {
+            return None;
+        };
+        // A valid native cell contains a shared reference whose backing lies
+        // one pointer read beyond the address used to borrow the cell.
+        if projection.is_native_enclosing_storage() || projection.captured_address_path().is_err() {
+            return None;
+        }
+        *projection = projection.then(&Projection::new(&[StructuralPathSegment::Referent]));
+        Some(origin)
     }
 
     fn read_value_packet(

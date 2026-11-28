@@ -782,7 +782,7 @@ pub(super) fn form(
         })),
         ..StaticMachineArgument::default()
     };
-    let scope = if role == ProductOperandRole::Requirement {
+    let mut scope = if role == ProductOperandRole::Requirement {
         let (owner, _) = program
             .trait_machine_signature(declaration)
             .ok_or(unserved("an applied requirement lost its declaring trait"))?;
@@ -836,9 +836,6 @@ pub(super) fn form(
         }
         .ok_or(incomplete)?
     };
-    if role == ProductOperandRole::BoundarySubject {
-        prepare_boundary_requirements(program, &scope, author)?;
-    }
     let requirement = matches!(
         role,
         ProductOperandRole::Requirement | ProductOperandRole::TestRequirement
@@ -862,6 +859,10 @@ pub(super) fn form(
         .static_machine_application_mut(supplying);
     retained.binding_declaration = declaration;
     retained.lexical_owner = author;
+    scope.retain_product_head(supplying, author, declaration);
+    if role == ProductOperandRole::BoundarySubject {
+        prepare_boundary_requirements(program, &scope, author)?;
+    }
     let selected = if requirement {
         use crate::static_operand_binding::{
             Stop as RequirementStop, prepare_requirement_in_scope,

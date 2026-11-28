@@ -1,6 +1,6 @@
 //! Compare the published host executable with Psi interpretation of the same entry.
 
-mod process_exit;
+pub(super) mod process_exit;
 
 use super::file_outputs;
 use super::{SampleProject, host_target, optional_text, parse_header_oracle, with_source_inputs};
@@ -11,8 +11,14 @@ use std::{
     process::{Command, Stdio},
 };
 
+#[derive(Clone, Copy)]
+enum ExpectedTermination {
+    Exit(i32),
+    Trap,
+}
+
 pub(super) struct Oracle {
-    exit: Option<i32>,
+    termination: Option<ExpectedTermination>,
     stdout: Option<Vec<u8>>,
     stdout_contains: Option<String>,
     stderr: Option<Vec<u8>>,
@@ -24,42 +30,40 @@ impl Oracle {
         project: &SampleProject,
         entry: &Path,
         target: &str,
-        has_input: bool,
         evidence: &Path,
     ) -> Result<Self, String> {
         let directory = &project.directory;
         let (exit, stdout_contains) = parse_header_oracle(entry)?;
-        let mut oracle = Self {
-            exit,
-            stdout: None,
+        let mut termination = exit.map(ExpectedTermination::Exit);
+        for path in [
+            directory.join(format!("expected_native_exit.{target}.txt")),
+            directory.join("expected_native_exit.txt"),
+        ] {
+            if let Some(text) = optional_text(&path)? {
+                termination = Some(match text.trim() {
+                    "trap" => ExpectedTermination::Trap,
+                    code => ExpectedTermination::Exit(code.parse().map_err(|_| {
+                        format!("{} requires an i32 exit status or `trap`", path.display())
+                    })?),
+                });
+                break;
+            }
+        }
+        Ok(Self {
+            termination,
+            stdout: optional_bytes(&directory.join("expected_stdout.txt"))?,
             stdout_contains,
-            stderr: None,
+            stderr: optional_bytes(&directory.join("expected_stderr.txt"))?,
             files: file_outputs::expected(
                 directory,
                 &project.output_files,
                 &evidence.join("expected-files"),
             )?,
-        };
-        if has_input {
-            let target_exit = directory.join(format!("expected_native_exit.{target}.txt"));
-            let generic_exit = directory.join("expected_native_exit.txt");
-            for path in [target_exit, generic_exit] {
-                if let Some(text) = optional_text(&path)? {
-                    oracle.exit =
-                        Some(text.trim().parse::<i32>().map_err(|_| {
-                            format!("{} requires an i32 exit status", path.display())
-                        })?);
-                    break;
-                }
-            }
-            oracle.stdout = optional_bytes(&directory.join("expected_stdout.txt"))?;
-            oracle.stderr = optional_bytes(&directory.join("expected_stderr.txt"))?;
-        }
-        Ok(oracle)
+        })
     }
 
     pub(super) fn is_empty(&self) -> bool {
-        self.exit.is_none()
+        self.termination.is_none()
             && self.stdout.is_none()
             && self.stdout_contains.is_none()
             && self.stderr.is_none()
@@ -67,13 +71,19 @@ impl Oracle {
     }
 
     fn check(&self, observation: &Observation) -> Result<(), String> {
-        if let Some(expected) = self.exit
-            && observation.exit != Some(expected)
-        {
-            return Err(format!(
-                "expected exit {expected}, got {}",
-                observation.termination
-            ));
+        match self.termination {
+            Some(ExpectedTermination::Exit(code)) if observation.exit != Some(code) => {
+                return Err(format!(
+                    "expected exit {code}, got {}",
+                    observation.termination
+                ));
+            }
+            Some(ExpectedTermination::Trap)
+                if observation.trap != Some(true) || observation.explicit_native_exit =>
+            {
+                return Err(format!("expected Trap, got {}", observation.termination));
+            }
+            _ => {}
         }
         if let Some(expected) = &self.stdout {
             equal_bytes("expected stdout", expected, &observation.stdout)?;
@@ -124,6 +134,7 @@ struct Observation {
     termination: String,
     returned_unit: bool,
     explicit_native_exit: bool,
+    signed_native_zero: bool,
     exit: Option<i32>,
     trap: Option<bool>,
     stdout: Vec<u8>,
@@ -162,6 +173,9 @@ impl Observation {
             ("native", ["explicit-exit", code, _]) if !process_exit_excluded => {
                 (Some(number(code)?), native_trap(&fields)?)
             }
+            ("native", ["signed-zero", _]) if !process_exit_excluded => {
+                (Some(0), native_trap(&fields)?)
+            }
             ("native", ["exit", code, _]) => (Some(number(code)?), native_trap(&fields)?),
             ("native", ["signal", signal, _]) => {
                 number(signal)?;
@@ -182,6 +196,7 @@ impl Observation {
             returned_unit: fields.first() == Some(&"return")
                 || (exit == Some(0) && process_exit_excluded),
             explicit_native_exit: fields.first() == Some(&"explicit-exit"),
+            signed_native_zero: fields.first() == Some(&"signed-zero"),
             exit,
             trap,
             stdout: execution::read_bounded(&directory.join("stdout"))?,
@@ -205,6 +220,12 @@ fn agreement(native: &Observation, psi: &Observation) -> Result<(), String> {
     equal_bytes("stderr", &native.stderr, &psi.stderr)?;
     file_outputs::compare(&native.files, &psi.files)?;
     if let Some(code) = psi.exit {
+        if native.signed_native_zero && code != 0 {
+            return Err(format!(
+                "native signed exit status 0 vs Psi {}",
+                psi.termination
+            ));
+        }
         if native.explicit_native_exit {
             if !psi.returned_unit && native.exit == Some(code) {
                 return Ok(());
@@ -220,7 +241,11 @@ fn agreement(native: &Observation, psi: &Observation) -> Result<(), String> {
         if !psi.returned_unit && native.returned_unit {
             return Err(format!("native returned unit vs explicit Psi exit {code}"));
         }
-        if cfg!(unix) && !psi.returned_unit && native.exit == Some(code & 255) {
+        if cfg!(unix)
+            && !native.signed_native_zero
+            && !psi.returned_unit
+            && native.exit == Some(code & 255)
+        {
             return Err(format!(
                 "unavailable: native wait status {} exposes only the low byte of the process exit; Psi explicitly exited {code}",
                 code & 255
@@ -327,7 +352,9 @@ fn run_artifact(
         "other"
     };
     let termination = match explicit_exit {
-        Some(code) => format!("explicit-exit\t{code}"),
+        Some(process_exit::ExitEvidence::Explicit(code)) => format!("explicit-exit\t{code}"),
+        #[cfg(target_os = "macos")]
+        Some(process_exit::ExitEvidence::SignedZero) => String::from("signed-zero"),
         None => termination.replace(' ', "\t"),
     };
     fs::create_dir(directory)
@@ -357,6 +384,7 @@ pub(super) fn compare(
             host_target()
         ));
     }
+    fs::create_dir_all(evidence).map_err(|e| format!("{}: {e}", evidence.display()))?;
     let snapshot = evidence.join("stdin");
     if let Some(path) = input {
         fs::copy(path, &snapshot).map_err(|e| format!("capture {}: {e}", path.display()))?;
@@ -481,6 +509,23 @@ mod tests {
                 comparison.unwrap();
             }
         }
+        let signed_zero = read(
+            "native",
+            "native\tsigned-zero\tother\tprocess-exit-possible\n",
+        )
+        .unwrap();
+        let psi_256 = read("psi", "psi\texit\t256\n").unwrap();
+        assert!(
+            agreement(&signed_zero, &psi_256)
+                .unwrap_err()
+                .contains("signed exit status 0")
+        );
+        let psi_0 = read("psi", "psi\texit\t0\n").unwrap();
+        assert!(
+            agreement(&signed_zero, &psi_0)
+                .unwrap_err()
+                .contains("cannot distinguish")
+        );
         let native_trap =
             read("native", "native\tsignal\t4\ttrap\tprocess-exit-excluded\n").unwrap();
         let psi_trap = read("psi", "psi\tcrash\tTrap\n").unwrap();
@@ -492,6 +537,16 @@ mod tests {
                 .unwrap_err()
                 .contains("unavailable")
         );
+        let entry = dir.join("main.omg");
+        fs::write(&entry, "// Expected exit: 0.\n").unwrap();
+        fs::write(dir.join("expected_native_exit.txt"), "trap\n").unwrap();
+        let project = super::super::project_at(&dir, &dir).unwrap();
+        let oracle = Oracle::load(&project, &entry, "linux_x86_64", &dir).unwrap();
+        oracle.check(&native_trap).unwrap();
+        oracle.check(&psi_trap).unwrap();
+        for wrong in [&known_return, &psi_return, &psi_abort] {
+            assert!(oracle.check(wrong).unwrap_err().contains("expected Trap"));
+        }
         for kind in ["incomplete", "unavailable", "failed"] {
             let report = format!("psi\t{kind}\treason\n");
             let result = read("psi", &report);

@@ -356,7 +356,11 @@ data clause is about. So a term form read once is read in every clause; `!b`,
 for example, is a Boolean operand (`a == !b`) as well as a whole clause, and
 so is a comparison (`flag == (a < b)`): it is the Boolean value it computes,
 with `>` and `>=` read as `<` and `<=` of the exchanged operands and `!=` as
-the negation of `==`. A comparison under an arithmetic policy is refused as
+the negation of `==`. For a negated integer order, the reader publishes the bound that
+holds when the comparison is false. For example, `!(value > limit)` gives
+`value <= limit`. The reader makes this choice after resolving the comparison.
+An IEEE float can be unordered, so its negation keeps the IEEE comparison.
+A comparison under an arithmetic policy is refused as
 an operand by name. A case test `x in S::C` is read in a machine clause as
 well as in a data clause, of a formal or of the result (`requires outcome in
 Outcome::Good`, `ensures result in Result::Ok`), beside an alternative
@@ -809,7 +813,9 @@ operand value is representable in `T` (a wider carrier of the same sign, or
 unsigned to a wider signed one), and otherwise `IntegerExactCast` with an
 `OperationSafety` obligation ("exact widening, or narrowing with
 representability proved"). A cast to the operand's own carrier converts
-nothing and is its operand.
+nothing and is its operand. When a cast involves a floating-point carrier, the
+reader attaches the cast expression and its lexical owner to the call of the
+sealed Core conversion. The checker still requires exact representability.
 
 The reader decides from what the typed trees record, never from the cast's
 spelling: a recast (`CastForm::Recast`), a cast with a domain symbol, a cast

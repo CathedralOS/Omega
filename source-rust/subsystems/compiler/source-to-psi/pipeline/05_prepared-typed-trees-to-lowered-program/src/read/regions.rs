@@ -354,7 +354,7 @@ impl Program<'_> {
                     .substitutions
                     .iter()
                     .filter_map(|(_, argument)| {
-                        super::source_records::retained_borrow(
+                        super::source_records::retained_argument_region(
                             self.typed,
                             &application.scope,
                             *argument,
@@ -388,8 +388,10 @@ impl Program<'_> {
                 .as_ref()
                 .is_some_and(|app| {
                     app.substitutions.iter().any(|(_, arg)| {
-                        super::source_records::retained_borrow(self.typed, &app.scope, *arg)
-                            .is_some()
+                        super::source_records::retained_argument_region(
+                            self.typed, &app.scope, *arg,
+                        )
+                        .is_some()
                     })
                 })
             {

@@ -16,7 +16,7 @@ invokes |console|::Console
         transition { _ -> magnitude(0 - value) }
     }
     machine magnitude(value: i64 in Wrapping) {
-        transition { _ -> find_divisor(value, 1) }
+        transition { _ -> find_divisor(value, 1i64 as +Wrapping) }
     }
     machine find_divisor(value: i64 in Wrapping, divisor: i64 in Wrapping) {
         transition divisor > 0 {
@@ -35,7 +35,7 @@ invokes |console|::Console
     machine emit(value: i64 in Wrapping, divisor: i64 in Wrapping)
     requires divisor > 0
     {
-        let digit: i32 = ((value / divisor) % 10) as i32;
+        let digit: i32 = ((value / divisor) % 10) as -Wrapping as i32;
         |console|::Console::write_byte(digit + 48);
         transition divisor >= 10 {
             true -> emit(value, divisor / 10),

@@ -334,8 +334,10 @@ external submodules use their own gates.
 checkout with `mbx` and authenticates its Cargo artifacts, fingerprints and
 effective Rust flags. It rejects `--cli`: an external executable cannot supply
 the required current-source build evidence. Builds use the checkout's own Cargo
-target directory (`target/`, or `CARGO_TARGET_DIR`). The gate then runs each
-sample's `omega packages update`, builds it and runs it. By default a sample's
+target directory (`target/`, or `CARGO_TARGET_DIR`). By default the gate prepares
+each project's package lock with `omega packages update`, then builds and runs
+the sample. Projects that declare `"package_workflow": "staged"` in `sample.json`
+use the authored Build stages to supply and admit their dependencies. By default a sample's
 inputs are its files, assets and module subdirectories, stopping at nested
 projects with their own `build.omg` or `sample.json`, which are found
 separately. A `source_inputs` list in the sample replaces that default. The
@@ -363,8 +365,12 @@ A Unix wait status exposes only the low byte of the exit code. On Linux x86-64,
 when `strace` is available and the compiler reports the addresses of the
 program's process-exit instructions, the gate records the execution in
 `native-process.trace`. A single process that exits from a reported instruction
-supplies the full signed argument for comparison with Psi. Otherwise a matching
-wait byte leaves an explicit Psi exit unverified. For a unit return, the gate
+supplies the full signed argument for comparison with Psi. On macOS a
+single-child observer reads the signed status from Darwin's child-exit signal
+and checks its low byte against the wait status. A nonzero signed status
+distinguishes process exit from a unit return even when the wait byte is zero.
+A signed zero alone leaves an explicit Psi exit unverified. On hosts with only
+a wait byte, a matching byte also leaves an explicit Psi exit unverified. For a unit return, the gate
 requires native wait status zero and a retained program whose instructions
 exclude process exit. A
 failure caused by this checkout's stale package state (an accepted lock or
@@ -391,13 +397,14 @@ evidence folder; the default is one), and `--out <file.json>` writes one row per
 sample with the gate's verdict (`pass`, `checked`, `rejected`, `no-oracle`,
 `not-host-runnable` or `fail`) and, for a failure, its reason.
 
-The sample gate executes a project carrying `input.txt` beside its entry with
-that file as stdin (absent means an empty stream) and then scores the authored
-`expected_native_exit[.<target>].txt`, `expected_stdout.txt` and
-`expected_stderr.txt` files exactly where present, falling back to the
-header oracle for channels without a file. Samples without `input.txt` run
-with empty stdin under the header oracle alone. Every non-execution child in
-both gates still gets an empty stdin. Close stdin
+The sample gate feeds each program its `input.txt`, or an empty stream when
+that file is absent. For every program it checks `expected_stdout.txt` and
+`expected_stderr.txt` byte for byte when present. For termination it reads
+`expected_native_exit.<target>.txt` first, then `expected_native_exit.txt`.
+A signed integer specifies the expected exit status. The value `trap` requires
+the native executable to terminate with its published trap presentation and Psi
+to report a `Trap` crash. The source header supplies expectations for channels
+without a file. Non-execution commands receive empty stdin. Close stdin
 (`< /dev/null`, or `$null |` in PowerShell) on a direct `omega` command run in
 the background: `omega run` forwards stdin and otherwise waits at zero CPU.
 

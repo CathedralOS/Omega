@@ -394,6 +394,10 @@ impl Lowering<'_> {
                 self.enter(next);
                 Ok(Reached::Value(()))
             }
+            Statement::AssemblyRegister { slot } => {
+                *self.slot_mut(*slot)? = Some(Bound::UninitializedRegister);
+                Ok(Reached::Value(()))
+            }
             Statement::Bind { slot, value } => {
                 // A loan or a write inside a branch may require this scalar
                 // to live in storage. Later assignments update the same place.

@@ -2,6 +2,6 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "cannot prove requires contract for call inspect from Main::main: roster.member in Player::Alive in state `main`"
+    "cannot prove requires contract for call inspect from observe_player: roster.member in Player::Alive"
   ]
 }

@@ -1,3 +1,4 @@
+// Expected exit: 0
 // Build selects one implementation of the same requirement for each hosted target.
 boundary trait PlatformProbe {
     machine probe() -> i32 reaches none crashes none;

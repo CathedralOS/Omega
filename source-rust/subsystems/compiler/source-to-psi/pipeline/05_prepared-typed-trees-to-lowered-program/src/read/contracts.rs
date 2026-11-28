@@ -659,12 +659,22 @@ impl Program<'_> {
                 };
             }
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
-                // A callable predicate is Boolean, including a named input
-                // and its negation. Keep its actual contract input identity;
-                // a caller substitutes that identity, never its spelling.
-                return Ok(Proposition::Implication {
-                    premise: Box::new(self.clause(id, scope, unary.operand)?),
-                    conclusion: Box::new(Proposition::Falsehood),
+                // An integer order and its reverse cover every pair of values.
+                // Publish the reverse bound so subtraction can use it directly.
+                // IEEE comparisons have their own proposition and may be unordered.
+                return Ok(match self.clause(id, scope, unary.operand)? {
+                    Proposition::LessThan(left, right) => Proposition::LessOrEqual(right, left),
+                    Proposition::LessOrEqual(left, right) => Proposition::LessThan(right, left),
+                    Proposition::IntegerMathLessThan(left, right) => {
+                        Proposition::IntegerMathLessOrEqual(right, left)
+                    }
+                    Proposition::IntegerMathLessOrEqual(left, right) => {
+                        Proposition::IntegerMathLessThan(right, left)
+                    }
+                    premise => Proposition::Implication {
+                        premise: Box::new(premise),
+                        conclusion: Box::new(Proposition::Falsehood),
+                    },
                 });
             }
             ExpressionNode::Name(path)

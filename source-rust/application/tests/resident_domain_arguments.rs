@@ -197,16 +197,51 @@ requires input.count == 0, input.storage.length == 0
 ensures result.base == input.storage.base, result.length == input.storage.length {
     |run|::Run::release_empty::<WordPlacement, Word>(input)
 }"#;
-    let (output, report) = inspect(release);
+    let scratch = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "saved-empty-run-release",
+        false,
+    )
+    .unwrap();
+    let artifact = scratch.path().join("release.psi");
+    let source = format!("{DOMAINS}\n{release}\nmachine main() {{}}");
+    let (output, report) = program::invoke(
+        &source,
+        &[
+            "psi",
+            "inspect",
+            "--machine",
+            "carry",
+            "--output",
+            artifact.to_str().unwrap(),
+        ],
+    );
     assert!(output.status.success(), "{report}");
     assert!(report.contains("psi selected_machine=carry"), "{report}");
+    let bytes = std::fs::read(artifact).unwrap();
+    let reopened = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+    assert!(
+        reopened
+            .semantic_module()
+            .interfaces
+            .boundary_machines
+            .iter()
+            .any(|boundary| {
+                boundary.declaration.as_ref().is_some_and(|decl| {
+                    decl.execution == terminal_psi::CheckedBoundaryExecution::EmptyRunRelease
+                })
+            }),
+        "the saved program must carry the checked empty-run operation"
+    );
     for (premise, nonzero) in [
         ("input.count == 0", "input.count == 1"),
         ("input.storage.length == 0", "input.storage.length == 1"),
     ] {
         let (output, report) = inspect(&release.replace(premise, nonzero));
         assert!(!output.status.success(), "{report}");
-        assert!(report.contains("cannot prove requires contract"), "{report}");
+        assert!(
+            report.contains("cannot prove requires contract"),
+            "{report}"
+        );
         assert!(report.contains(premise), "{report}");
     }
 }

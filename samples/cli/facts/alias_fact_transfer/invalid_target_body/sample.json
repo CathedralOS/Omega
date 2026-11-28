@@ -2,6 +2,7 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "cannot prove requires contract for call inspect from X86InspectTarget::inspect_target: player in Player::Alive in state `inspect_target`"
+    "cannot prove requires contract for call inspect from X86InspectTarget::inspect_target: player in Player::Alive",
+    "cannot prove requires contract for call inspect from ArmInspectTarget::inspect_target: player in Player::Alive"
   ]
 }

@@ -1163,7 +1163,7 @@ impl<'a> Lowering<'a> {
             // An erased binding evaluates nothing, so it is no executable
             // statement and none is reported for it.
             let first = statements.find_map(|statement| match statement {
-                Statement::Witness { .. } => None,
+                Statement::Witness { .. } | Statement::AssemblyRegister { .. } => None,
                 Statement::Observe { value, .. }
                 | Statement::Bind { value, .. }
                 | Statement::Decompose { subject: value }
@@ -1359,6 +1359,14 @@ impl<'a> Lowering<'a> {
 
     fn position(&self, index: usize) -> Checked<u32> {
         u32::try_from(index).map_err(|_| self.internal("position exceeds u32"))
+    }
+
+    fn uninitialized_register(&self, source: SourceOrigin) -> Refusal {
+        reject(
+            self.id,
+            source,
+            "assembly reads a register before an instruction or entry binding initialized it",
+        )
     }
 
     fn slot_mut(&mut self, slot: usize) -> Checked<&mut Option<Bound>> {

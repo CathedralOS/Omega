@@ -1638,7 +1638,7 @@ impl<'a> Storage<'a> {
     ) -> Checked<Option<LoanConflict>> {
         let access = match touch {
             Touch::Read | Touch::AtomicChange => ReferenceAccess::Shared,
-            Touch::Change | Touch::NativeWrite => ReferenceAccess::Mutable,
+            Touch::Change | Touch::CallUpgrade | Touch::NativeWrite => ReferenceAccess::Mutable,
         };
         if competing_borrows(loan.access, &loan.lineage, access, backing).is_none() {
             return Ok(None);
@@ -1664,7 +1664,9 @@ impl<'a> Storage<'a> {
             // overlapping live loan conflicts with this write through it.
             Touch::NativeWrite => return Ok(Some(LoanConflict::ChangeWhileBorrowed)),
             Touch::Read => LoanConflict::ObserveWhileExclusive,
-            Touch::Change | Touch::AtomicChange => LoanConflict::ChangeWhileBorrowed,
+            Touch::Change | Touch::CallUpgrade | Touch::AtomicChange => {
+                LoanConflict::ChangeWhileBorrowed
+            }
         };
         // A shared parent may be suspended by an explicitly upgraded child.
         // Only the child's live exclusive descriptor can perform that write.
@@ -3480,6 +3482,8 @@ impl<'a> Storage<'a> {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Touch {
     NativeWrite,
+    /// The checked callee can upgrade the shared view supplied at this call.
+    CallUpgrade,
     Read,
     Change,
     /// An atomic access changes storage that a shared loan may also observe.
@@ -3943,11 +3947,16 @@ fn resolve_effect<'a>(
         super::StorageEffect::NativeWrite(place, backing) => {
             return Ok((place, LoanRegion::Storage(backing), Touch::NativeWrite));
         }
-        super::StorageEffect::CallWrite(place, backing) => {
+        super::StorageEffect::CallWrite { place, backing, may_upgrade } => {
             let region = match storage.provider_referent(references, &place, at, concerns)? {
                 Some((_, access)) => LoanRegion::Provider(access),
                 None => LoanRegion::Storage(backing),
             };
+            if may_upgrade {
+                // The callee may suspend the lent view for its own exclusive
+                // reborrow. Independent caller loans must still be compatible.
+                return Ok((place, region, Touch::CallUpgrade));
+            }
             (place, region)
         }
         super::StorageEffect::Payload(place) => {

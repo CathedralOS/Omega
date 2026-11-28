@@ -74,6 +74,7 @@ fn unavailable_judgment(construct: &str) -> diagnostics::Diagnostic {
 }
 
 mod declarations {
+    pub(crate) mod applied_callable_signatures;
     pub(crate) mod constant_initializers;
     pub(crate) mod constructor_applications;
     pub(crate) mod contracts_and_signatures;

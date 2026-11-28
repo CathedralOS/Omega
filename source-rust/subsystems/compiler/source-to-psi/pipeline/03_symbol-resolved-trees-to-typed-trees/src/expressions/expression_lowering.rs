@@ -1621,6 +1621,7 @@ pub(crate) mod expression {
                                     typed::expression::TableCastExpression {
                                         value,
                                         target_type,
+                                        operand_type: Default::default(),
                                         recast_storage_type: Default::default(),
                                         result_type: typed::types::TypeReferenceHandle::invalid(),
                                         target_label,
