@@ -39,7 +39,12 @@ pub(super) fn satisfies_binder(
 ) -> Served<()> {
     // Reflection asks for a complete judgment here. Ordinary specialization
     // compares invocation ceilings in the closed callback conformance.
-    if !binder.invokes.is_empty() {
+    if !binder.invokes.is_empty()
+        || program
+            .authored_service_reach_rows_for(binder.symbol)
+            .next()
+            .is_some()
+    {
         return Err(unserved(
             "a callback binder needs a refinement proof for its full interface",
         ));
