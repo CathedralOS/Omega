@@ -1,0 +1,9 @@
+data Mode [copy] { case Fixed; case Split; }
+data Packet<const M: Mode> { value: u32; }
+
+data Frame { packet: Packet<Mode::Fixed>; }
+
+machine read<const M: Mode>(packet: Packet<M>) -> u32 { packet.value }
+machine entry(frame: Frame) -> u32 {
+    read::<Mode::Fixed>(frame.packet)
+}

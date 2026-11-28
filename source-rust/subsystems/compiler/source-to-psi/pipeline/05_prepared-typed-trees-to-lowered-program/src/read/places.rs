@@ -544,9 +544,7 @@ impl Program<'_> {
                 let enclosing = std::mem::replace(&mut self.lifetime_owner, symbol);
                 let read = (|| {
                     if let Some(application) = &application {
-                        for (_, argument) in &application.substitutions {
-                            self.value_type(id, *argument)?;
-                        }
+                        self.admit_record_argument_types(id, symbol, application)?;
                     }
                     self.declared_members(id, typed.data_members(data))
                 })();
@@ -659,20 +657,7 @@ impl Program<'_> {
                         }
                     }
                 }
-                for (parameter, argument) in typed
-                    .data_type_parameters(template)
-                    .iter()
-                    .zip(&application.substitutions)
-                {
-                    if matches!(
-                        parameter.kind,
-                        crate::source_state::data::TypeParameterKind::Type
-                    ) {
-                        self.value_type(id, argument.1)?;
-                    }
-                    // source_application checks each const against its carrier;
-                    // a const is not itself a runtime value type to read here.
-                }
+                self.admit_record_argument_types(id, symbol, application)?;
             }
             // The supplied types are admitted above; the members are read as
             // fields of this declaration, which state their lifetimes.
@@ -1199,7 +1184,6 @@ impl Program<'_> {
                     Unserved::Typing("applied data without an argument for its value parameter"),
                 ));
             };
-            let scalar_type = self.scalar_type(id, type_reference)?;
             if let TypeReferenceNode::Named { symbol, .. } =
                 self.typed.type_reference_table.type_reference(*argument)
                 && self
@@ -1209,12 +1193,44 @@ impl Program<'_> {
             {
                 owner = Some(id);
             }
-            bound.push((
-                parameter.symbol,
-                self.bound_scalar_value(id, scalar_type, *argument, true)?,
-            ));
+            // Only authored data clauses consume these scalar terms. A record
+            // with no such clauses still keeps its checked index and its owner.
+            if !template.requires_facts.is_empty() {
+                let scalar_type = self.scalar_type(id, type_reference)?;
+                bound.push((
+                    parameter.symbol,
+                    self.bound_scalar_value(id, scalar_type, *argument, true)?,
+                ));
+            }
         }
         Ok((bound, owner))
+    }
+
+    /// Fresh and cached records admit the same types. The source application
+    /// has already checked constant and machine arguments against their binders.
+    fn admit_record_argument_types(
+        &mut self,
+        id: MachineId,
+        declaration: SymbolHandle,
+        application: &crate::source_state::SourceTypeApplication,
+    ) -> Checked<()> {
+        let typed = self.typed;
+        let template = typed
+            .unique_data_definition_by_symbol(declaration)
+            .ok_or_else(|| refuse_at(id, Unserved::Typing("applied data lost its template")))?;
+        for (parameter, (_, argument)) in typed
+            .data_type_parameters(template)
+            .iter()
+            .zip(&application.substitutions)
+        {
+            if matches!(
+                parameter.kind,
+                crate::source_state::data::TypeParameterKind::Type
+            ) {
+                self.value_type(id, *argument)?;
+            }
+        }
+        Ok(())
     }
 
     fn source(&self, id: MachineId, record: StructuralTypeId) -> Checked<&RecordSource> {
