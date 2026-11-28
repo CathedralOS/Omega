@@ -539,7 +539,9 @@ impl<'a> Storage<'a> {
                 self.fixed_array_view(references, operation)?;
                 rows.push((fresh()?, Stored::Established));
             }
-            OperationKind::EstablishReference { .. }
+            OperationKind::BorrowAt { .. }
+            | OperationKind::UpgradeMutability { .. }
+            | OperationKind::EstablishReference { .. }
             | OperationKind::EstablishElementView { .. }
             | OperationKind::EstablishMutableElementView { .. } => {
                 rows.push((fresh()?, Stored::Established));

@@ -68,6 +68,22 @@ impl Backing {
         }
     }
 
+    /// A native address can have several incoming storage origins. Offset
+    /// arithmetic preserves conflicts with that storage without identifying
+    /// the resulting byte as an exact field for value or fact lookup.
+    pub(super) fn native_address(descriptor: &Lineage, sources: Vec<Self>, exact: bool) -> Self {
+        let mut regions = sources.into_iter().flat_map(|source| source.regions).collect::<Vec<_>>();
+        if regions.is_empty() {
+            return Self::direct(descriptor.clone());
+        }
+        if !exact {
+            for region in &mut regions {
+                region.place_is_exact = false;
+            }
+        }
+        Self::captured(descriptor, regions, None).expect("known native address origins")
+    }
+
     fn captured(
         subject: &Lineage,
         mut regions: Vec<CapturedRegion>,

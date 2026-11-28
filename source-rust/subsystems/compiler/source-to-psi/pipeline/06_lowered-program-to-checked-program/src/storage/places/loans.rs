@@ -101,6 +101,9 @@ struct Formed {
     lender: Lender,
     selected_parents: Box<[ObligationId]>,
     from: Option<terminal_semantics::descriptor_lifetimes::DescriptorLocation>,
+    /// Only a checked mutability-upgrade occurrence may strengthen a shared
+    /// parent. Its identity and lifetime still govern every overlapping use.
+    upgrades_shared: bool,
     /// Derived at this formation from the canonical source path, never a
     /// supplied acceptance marker or a property of a descriptor's shape alone.
     permitted: bool,
@@ -316,6 +319,8 @@ pub(crate) fn reference_graph_with_generic_calls<'r>(
                 matches!(
                     operation.kind,
                     terminal_psi::OperationKind::EstablishReference { .. }
+                        | terminal_psi::OperationKind::BorrowAt { .. }
+                        | terminal_psi::OperationKind::UpgradeMutability { .. }
                         | terminal_psi::OperationKind::EstablishElementView { .. }
                         | terminal_psi::OperationKind::EstablishMutableElementView { .. }
                         | terminal_psi::OperationKind::ReleaseReference { .. }
@@ -966,7 +971,7 @@ impl<'a> Storage<'a> {
             // The argument's own loan is retained only when the result keeps
             // its whole place; a narrower retained region gets its own row.
             let lifetime = retained
-                .next_if(|loan| loan.position == structural_position && loan.path == argument.path)
+                .next_if(|loan| !loan.upgraded_mutability && loan.position == structural_position && loan.path == argument.path)
                 .map(|loan| loan.lifetime);
             let cut = {
                 let (block, before) = self.graph.locate(before)?;
@@ -978,6 +983,7 @@ impl<'a> Storage<'a> {
                 )
             };
             formed.push(Formed {
+                upgrades_shared: false,
                 obligation,
                 invocation: Some(invocation),
                 position,
@@ -1007,6 +1013,11 @@ impl<'a> Storage<'a> {
                         self.foreign(concerns, "a retained call region lies outside its argument")
                     );
                 }
+                let access = if narrower.upgraded_mutability {
+                    ReferenceAccess::Mutable
+                } else {
+                    access
+                };
                 let region = terminal_psi::StructuralArgument {
                     place: argument.place,
                     path: narrower.path,
@@ -1044,6 +1055,7 @@ impl<'a> Storage<'a> {
                 }
                 claimed[index(obligation.get())] = true;
                 formed.push(Formed {
+                    upgrades_shared: narrower.upgraded_mutability,
                     obligation,
                     invocation: None,
                     position,
@@ -1060,7 +1072,7 @@ impl<'a> Storage<'a> {
                     lender,
                     selected_parents: Box::default(),
                     from,
-                    permitted,
+                    permitted: permitted || narrower.upgraded_mutability,
                     at: self.loan_position(before, concerns)?,
                     formed_in: cut.0,
                     lifetime: Some(narrower.lifetime),
@@ -1096,6 +1108,27 @@ impl<'a> Storage<'a> {
         Ok((block, position))
     }
 
+    fn native_address_loan_region(
+        &self,
+        references: &mut super::DescriptorAnalysis<'a>,
+        address: semantic_vocabulary::ValueId,
+        descriptor: &super::Lineage,
+        at: DescriptorPosition,
+        concerns: Construct,
+    ) -> Checked<LoanRegion> {
+        let origin = terminal_semantics::storage::native_borrows::address_origin(self.lowered, address);
+        let mut sources = Vec::new();
+        for source in origin.sources {
+            let place = self.argument(source, concerns)?;
+            match self.storage_loan_region(references, &place, at, concerns)? {
+                LoanRegion::Storage(backing) => sources.push(backing),
+                LoanRegion::Provider(_) => sources.push(Backing::direct(place)),
+            }
+        }
+        let backing = Backing::native_address(descriptor, sources, origin.exact);
+        Ok(LoanRegion::Storage(backing))
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn reference_loan(
         &self,
@@ -1120,11 +1153,39 @@ impl<'a> Storage<'a> {
         };
         let concerns = Construct::Operation(operation.id);
         let result = operation.result.as_structural();
+        if !matches!(&operation.kind, OperationKind::EstablishReference { .. }
+            | OperationKind::EstablishElementView { .. }
+            | OperationKind::EstablishMutableElementView { .. }
+            | OperationKind::BorrowAt { .. } | OperationKind::UpgradeMutability { .. }) {
+            return Ok(());
+        }
+        let result = result.ok_or_else(|| self.foreign(concerns, "loan formation has no descriptor result"))?;
+        let at = self.loan_position(before, concerns)?;
+        let upgrades_shared = matches!(operation.kind, OperationKind::UpgradeMutability { .. });
+        let (captured, access, lineage, expected_lender, parent, from, permitted) =
+        if let OperationKind::BorrowAt { address } = operation.kind {
+            let StructuralTypeShape::Reference { access: declared, .. } =
+                self.declaration(result.structural_type, concerns)?.shape else {
+                return Err(self.foreign(concerns, "native address formation must produce a reference"));
+            };
+            let access = match declared {
+                StructuralAccess::SharedBorrow => ReferenceAccess::Shared,
+                StructuralAccess::MutableBorrow => ReferenceAccess::Mutable,
+                _ => return Err(self.foreign(concerns, "native address formation requires shared or mutable access")),
+            };
+            if !tables.values.get(address).is_some_and(|row| matches!(row.scalar_type,
+                semantic_vocabulary::ScalarType::Integer(i) if i.is_address())) {
+                return Err(self.foreign(concerns, "native borrow requires an address operand"));
+            }
+            let descriptor = self.stored_at(result.place, &[], concerns)?;
+            let captured = self.interned(tables, &descriptor, concerns)?.ok_or_else(||
+                self.foreign(concerns, "native address formation has no captured result row"))?;
+            let raw = self.native_address_loan_region(references, address, &descriptor, at, concerns)?;
+            (captured, access, raw, Some(Lender::NativeAddress), None, None, true)
+        } else {
+        let upgraded;
         let (source, declared, reference_referent) = match &operation.kind {
             OperationKind::EstablishReference { source, storage } => {
-                let result = result.ok_or_else(|| {
-                    self.foreign(concerns, "reference formation has no descriptor result")
-                })?;
                 let StructuralTypeShape::Reference { referent, access } =
                     self.declaration(result.structural_type, concerns)?.shape
                 else {
@@ -1134,6 +1195,27 @@ impl<'a> Storage<'a> {
                 };
                 (source, access, Some((referent, storage.as_ref())))
             }
+            OperationKind::UpgradeMutability { source } => {
+                let descriptor = self.argument(source, concerns)?;
+                let super::Shape::Typed(ty) = self.shape(&descriptor, concerns)? else {
+                    return Err(self.foreign(concerns, "mutability upgrade requires a shared reference descriptor"));
+                };
+                let StructuralTypeShape::Reference { referent, access: StructuralAccess::SharedBorrow } =
+                    self.declaration(ty, concerns)?.shape else {
+                    return Err(self.foreign(concerns, "mutability upgrade requires a shared reference"));
+                };
+                if source.access != StructuralAccess::SharedBorrow ||
+                    self.declaration(result.structural_type, concerns)?.shape != (StructuralTypeShape::Reference {
+                        referent, access: StructuralAccess::MutableBorrow
+                    }) {
+                    return Err(self.foreign(concerns, "mutability upgrade must preserve the referent type"));
+                }
+                let mut actual = source.clone();
+                actual.path.push(terminal_psi::StructuralPathSegment::Referent);
+                actual.access = StructuralAccess::MutableBorrow;
+                upgraded = actual;
+                (&upgraded, StructuralAccess::MutableBorrow, Some((referent, None)))
+            }
             OperationKind::EstablishElementView { source, .. }
             | OperationKind::EstablishMutableElementView { source, .. } => {
                 self.array_view_formation(operation)?;
@@ -1141,8 +1223,6 @@ impl<'a> Storage<'a> {
             }
             _ => return Ok(()),
         };
-        let result = result
-            .ok_or_else(|| self.foreign(concerns, "loan formation has no descriptor result"))?;
         if source.access != declared {
             return Err(self.foreign(concerns, "reference formation changes its source access"));
         }
@@ -1259,7 +1339,10 @@ impl<'a> Storage<'a> {
             self.foreign(concerns, "reference formation has no captured place row")
         })?;
         let (expected_lender, parent, from, permitted) =
-            self.source_lender(&raw, &source.path, access, resource, concerns)?;
+            self.source_lender(&raw, &source.path, if upgrades_shared { ReferenceAccess::Shared } else { access }, resource, concerns)?;
+        let lineage = self.borrow_backing(references, &raw, &source.path, resource, at, concerns)?;
+        (captured, access, lineage, expected_lender, parent, from, permitted)
+        };
         let (obligation, row) = tables
             .obligations
             .iter()
@@ -1290,7 +1373,6 @@ impl<'a> Storage<'a> {
                 "reference loan is not created at its actual formation",
             ));
         }
-        let at = self.loan_position(before, concerns)?;
         let flow = flow.ok_or_else(|| {
             self.unsupported(concerns, "persistent loan has no complete descriptor flow")
         })?;
@@ -1313,11 +1395,12 @@ impl<'a> Storage<'a> {
         }
         claimed[index(obligation.get())] = true;
         formed.push(Formed {
+            upgrades_shared,
             obligation,
             invocation: None,
             position: 0,
             access,
-            lineage: self.borrow_backing(references, &raw, &source.path, resource, at, concerns)?,
+            lineage,
             parent,
             lender,
             selected_parents: Box::default(),
@@ -1582,12 +1665,11 @@ impl<'a> Storage<'a> {
             Touch::Read => LoanConflict::ObserveWhileExclusive,
             Touch::Change | Touch::AtomicChange => LoanConflict::ChangeWhileBorrowed,
         };
-        // A shared loan permits no ordinary write through any alias.
-        if touch == Touch::Change && !loan.access.is_exclusive() {
-            return Ok(Some(conflict));
-        }
+        // A shared parent may be suspended by an explicitly upgraded child.
+        // Only the child's live exclusive descriptor can perform that write.
+        let exclusive_descendant = touch == Touch::Change && !loan.access.is_exclusive();
         Ok(
-            (!self.authorized_reference(references, loan, place, at, formed, post_loans)?)
+            (!self.authorized_reference(references, loan, place, at, formed, post_loans, exclusive_descendant)?)
                 .then_some(conflict),
         )
     }
@@ -1826,6 +1908,7 @@ impl<'a> Storage<'a> {
         at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
         formed: &[Formed],
         post_loans: &PostRetentionLoanIndex<'_>,
+        exclusive_descendant: bool,
     ) -> Checked<bool> {
         let crossing = place
             .segments
@@ -1875,6 +1958,7 @@ impl<'a> Storage<'a> {
         let holding = post_loans.holding_at(at);
         for &candidate_idx in holding {
             let candidate = &formed[candidate_idx];
+            if exclusive_descendant && !candidate.access.is_exclusive() { continue; }
             if candidate.lifetime.as_ref().is_some_and(|life| {
                 life.surviving
                     .get(&at)
@@ -1928,6 +2012,7 @@ impl<'a> Storage<'a> {
             {
                 continue;
             }
+            if exclusive_descendant && !candidate.access.is_exclusive() { return Ok(false); }
             relevant = true;
             if candidate.obligation != loan.obligation
                 && !self.descends(candidate, loan, formed, post_loans.by_obligation)?
@@ -2038,7 +2123,7 @@ impl<'a> Storage<'a> {
                                 PostRetentionLoanIndex::build(formed, active_loans.by_obligation())
                             });
                             if !self
-                                .authorized_reference(references, loan, &raw, at, formed, index)?
+                                .authorized_reference(references, loan, &raw, at, formed, index, false)?
                             {
                                 return Err(self.successor_conflict(concerns, conflict));
                             }
@@ -2229,7 +2314,7 @@ impl<'a> Storage<'a> {
                 return Err(self.unsupported(concerns, "a returning view has a distinct initial lender"));
             }
             let compatible = match parent.access {
-                ReferenceAccess::Shared => child.access == ReferenceAccess::Shared,
+                ReferenceAccess::Shared => child.access == ReferenceAccess::Shared || child.upgrades_shared,
                 ReferenceAccess::Mutable => true,
                 ReferenceAccess::WriteOnly => child.access == ReferenceAccess::WriteOnly,
             };
@@ -2584,6 +2669,8 @@ impl<'a> Storage<'a> {
                     matches!(
                         operation.kind,
                         terminal_psi::OperationKind::EstablishReference { .. }
+                        | terminal_psi::OperationKind::BorrowAt { .. }
+                        | terminal_psi::OperationKind::UpgradeMutability { .. }
                             | terminal_psi::OperationKind::EstablishElementView { .. }
                             | terminal_psi::OperationKind::EstablishMutableElementView { .. }
                     )
@@ -2791,6 +2878,7 @@ impl<'a> Storage<'a> {
                     }
                     claimed[index(obligation.get())] = true;
                     formed.push(Formed {
+                        upgrades_shared: false,
                         obligation,
                         invocation: None,
                         position,
@@ -3268,7 +3356,7 @@ impl<'a> Storage<'a> {
             let site = used.map_or(Construct::Obligation(loan.obligation), |(at, _)| at);
             let exclusive = loan.access.is_exclusive();
             let mut found = used.map(|(_, conflict)| (None, conflict));
-            if found.is_none() && exclusive && loan.parent == Some(ReferenceAccess::Shared) {
+            if found.is_none() && exclusive && !loan.upgrades_shared && loan.parent == Some(ReferenceAccess::Shared) {
                 found = Some((None, LoanConflict::ExclusiveOfShared));
             }
             if found.is_none() && !loan.permitted {

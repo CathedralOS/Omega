@@ -61,3 +61,28 @@ pub fn address_origin(machine: &TerminalMachine, value: ValueId) -> NativeAddres
     }
     NativeAddressOrigin { exact: exact && sources.len() == 1, sources }
 }
+
+
+/// The typed operation determines its authority even when the source omitted a
+/// reach annotation. Product and dependency admission use the installed core's
+/// identity for each listed atom.
+pub fn required_authority(
+    module: &terminal_psi::TerminalModule,
+    operation: &terminal_psi::Operation,
+) -> Result<Option<(&'static str, &'static [semantic_vocabulary::dependency_reach::UnsafeAtom])>, &'static str> {
+    use semantic_vocabulary::dependency_reach::UnsafeAtom::*;
+    use terminal_psi::{StructuralAccess, StructuralTypeShape};
+    match operation.kind {
+        OperationKind::UpgradeMutability { .. } => Ok(Some(("upgrade_mutability", &[BorrowMutabilityUpgrade]))),
+        OperationKind::BorrowAt { .. } => {
+            let result = operation.result.as_structural().and_then(|result| module.structural_type(result.structural_type))
+                .ok_or("native address borrow has no reference result")?;
+            match result.shape {
+                StructuralTypeShape::Reference { access: StructuralAccess::SharedBorrow, .. } => Ok(Some(("borrow_at", &[RawMemoryRead]))),
+                StructuralTypeShape::Reference { access: StructuralAccess::MutableBorrow, .. } => Ok(Some(("borrow_mutable_at", &[RawMemoryRead, RawMemoryWrite]))),
+                _ => Err("native address borrow has invalid result access"),
+            }
+        }
+        _ => Ok(None),
+    }
+}

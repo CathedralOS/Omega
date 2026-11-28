@@ -5377,6 +5377,7 @@ impl<'a> Storage<'a> {
                 Ok(vec![self.stored_at(*source, path, concerns)?])
             }
             OperationKind::DecomposeStructuralValue { subject: source }
+            | OperationKind::UpgradeMutability { source }
             | OperationKind::EstablishReference { source, .. } => {
                 Ok(vec![self.argument(source, concerns)?])
             }
