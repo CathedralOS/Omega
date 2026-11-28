@@ -417,15 +417,18 @@ pub fn reply_application_commitment(
     application: [u8; 32],
     declared: &str,
     exact: &str,
-) -> [u8; 32] {
+) -> Result<[u8; 32], &'static str> {
+    if !application_identity::type_identity::exact_type_describes(declared, exact) {
+        return Err("publication reply owner and declared type differ");
+    }
     if declared == exact {
-        return application;
+        return Ok(application);
     }
     let mut digest =
         crate::digest_encoder::DomainDigestEncoder::new(b"omega.activation-reply-owner\0");
     digest.raw(&application);
     digest.string(exact);
-    digest.finish()
+    Ok(digest.finish())
 }
 
 fn named(name: &str) -> String {
@@ -616,7 +619,7 @@ fn checked_reply(
     let template = text(specialized.template_callable).ok_or("park lacks its template callable")?;
     let mut commitment = MachineApplicationCommitment::new(template)?;
     commitment.type_argument(declared)?;
-    if specialized.commitment != reply_application_commitment(commitment.finish(), declared, exact)
+    if specialized.commitment != reply_application_commitment(commitment.finish(), declared, exact)?
     {
         return Err("park reply differs from its closed application");
     }
@@ -740,7 +743,8 @@ pub fn resume_permit(
         text(*identity)?,
         text(*plan)?,
     )?;
-    if reply_application_commitment(application, declared_reply, text(*reply)?) != closed.commitment
+    if reply_application_commitment(application, declared_reply, text(*reply)?)?
+        != closed.commitment
     {
         return Err("resume differs from its checked reply, worker or storage application");
     }

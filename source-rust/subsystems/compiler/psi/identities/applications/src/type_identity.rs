@@ -123,7 +123,10 @@ pub mod encoding {
     }
 
     pub fn atom(tag: impl Spelled, value: &str) -> String {
-        let tag = tag.spelling();
+        framed_atom(tag.spelling(), value)
+    }
+
+    pub(super) fn framed_atom(tag: &str, value: &str) -> String {
         let mut output = String::with_capacity(tag.len() + value.len() + 2);
         output.push_str(tag);
         output.push('(');
@@ -564,6 +567,7 @@ mod framing {
         position: usize,
         pub(super) callable_regions: bool,
         pub(super) erased_schema: Option<Box<super::ErasedSchema>>,
+        projected_owners: Option<Vec<(usize, usize, String)>>,
     }
 
     impl<'a> Reader<'a> {
@@ -573,7 +577,35 @@ mod framing {
                 position: 0,
                 callable_regions: false,
                 erased_schema: None,
+                projected_owners: None,
             }
+        }
+
+        pub(super) fn project_owners(&mut self, on: bool) {
+            self.projected_owners = on.then(Vec::new);
+        }
+
+        pub(super) fn projects_owners(&self) -> bool {
+            self.projected_owners.is_some()
+        }
+
+        pub(super) fn replace_owner(&mut self, start: usize, replacement: String) {
+            if let Some(edits) = &mut self.projected_owners {
+                edits.push((start, self.position, replacement));
+            }
+        }
+
+        pub(super) fn projected(self) -> Option<String> {
+            let edits = self.projected_owners.filter(|edits| !edits.is_empty())?;
+            let mut projected = String::with_capacity(self.text.len());
+            let mut offset = 0;
+            for (start, end, replacement) in edits {
+                projected.push_str(&self.text[offset..start]);
+                projected.push_str(&replacement);
+                offset = end;
+            }
+            projected.push_str(&self.text[offset..]);
+            Some(projected)
         }
 
         pub(super) fn position(&self) -> usize {
@@ -1031,16 +1063,33 @@ mod grammar {
         tag: impl Spelled,
         visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
     ) -> Result {
+        let start = reader.position();
         let name = reader.atom(tag, visitor)?;
-        semantic_name(&name, visitor, reader.callable_regions)
+        if let Some(projected) = project_name(
+            &name,
+            visitor,
+            reader.callable_regions,
+            reader.projects_owners(),
+        )? {
+            reader.replace_owner(start, super::encoding::atom(tag, &projected));
+        }
+        Ok(())
     }
 
     pub(super) fn name_value(
         reader: &mut Reader<'_>,
         visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
     ) -> Result {
+        let start = reader.position();
         let name = reader.leaf_atom(visitor)?;
-        semantic_name(&name, visitor, reader.callable_regions)?;
+        if let Some(projected) = project_name(
+            &name,
+            visitor,
+            reader.callable_regions,
+            reader.projects_owners(),
+        )? {
+            reader.replace_owner(start, super::encoding::framed_atom("", &projected));
+        }
         visitor.static_name(&name)
     }
 
@@ -1049,14 +1098,24 @@ mod grammar {
         visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
         callable_regions: bool,
     ) -> Result {
+        project_name(name, visitor, callable_regions, false).map(drop)
+    }
+
+    fn project_name(
+        name: &str,
+        visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
+        callable_regions: bool,
+        project: bool,
+    ) -> Result<Option<String>> {
         scoped(visitor, |visitor| {
             let mut reader = Reader::new(name);
             reader.callable_regions = callable_regions;
+            reader.project_owners(project);
             let Some(form) = reader.peek_compound::<NameForm>() else {
                 if reader.opens_vocabulary_compound() {
                     return Err(Error::MalformedIdentity);
                 }
-                return visitor.embedded_name(name);
+                return visitor.embedded_name(name).map(|()| None);
             };
             reader.production::<NameForm>()?;
             match form {
@@ -1078,7 +1137,8 @@ mod grammar {
                     return Err(unadmitted(Unadmitted::InvalidIdentity));
                 }
             }
-            reader.finish()
+            reader.finish()?;
+            Ok(reader.projected())
         })
     }
 
@@ -1148,6 +1208,7 @@ mod grammar {
         reader: &mut Reader<'_>,
         visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
     ) -> Result<(OwnerForm, Option<[u8; 32]>)> {
+        let start = reader.position();
         let form = reader.production::<OwnerForm>()?;
         match form {
             OwnerForm::Package => {
@@ -1158,7 +1219,13 @@ mod grammar {
                 visitor.package_owner(digest)?;
                 Ok((form, Some(digest)))
             }
-            OwnerForm::ToolchainSource => Ok((form, Some(owner_digest(reader, visitor)?))),
+            OwnerForm::ToolchainSource => {
+                let digest = owner_digest(reader, visitor)?;
+                if reader.projects_owners() {
+                    reader.replace_owner(start, super::encoding::bare(OwnerForm::Toolchain));
+                }
+                Ok((form, Some(digest)))
+            }
             OwnerForm::Toolchain => {
                 visitor.descriptive_toolchain_owner()?;
                 Ok((form, None))
@@ -1186,13 +1253,25 @@ mod grammar {
         reader: &mut Reader<'_>,
         visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
     ) -> Result {
+        let start = reader.position();
         let name = reader.atom(Label::Name, visitor)?;
         let mut nested = Reader::new(&name);
-        if nested.peek_compound::<ConstraintForm>() == Some(ConstraintForm::DeclaredDomain) {
-            constraint(&mut nested, visitor)?;
-            nested.finish()?;
-        } else {
-            semantic_name(&name, visitor, reader.callable_regions)?;
+        nested.project_owners(reader.projects_owners());
+        let projected =
+            if nested.peek_compound::<ConstraintForm>() == Some(ConstraintForm::DeclaredDomain) {
+                constraint(&mut nested, visitor)?;
+                nested.finish()?;
+                nested.projected()
+            } else {
+                project_name(
+                    &name,
+                    visitor,
+                    reader.callable_regions,
+                    reader.projects_owners(),
+                )?
+            };
+        if let Some(projected) = projected {
+            reader.replace_owner(start, super::encoding::atom(Label::Name, &projected));
         }
         while reader.next(b',') {
             reader.expect(b',')?;
@@ -2134,6 +2213,7 @@ fn closed_callable_matches(
 struct DeclarationIdentitySyntax {
     depth: usize,
     signature_regions: bool,
+    require_exact_owners: bool,
 }
 
 impl TypeIdentityPackageOwnerVisitor for DeclarationIdentitySyntax {
@@ -2163,6 +2243,9 @@ impl TypeIdentityPackageOwnerVisitor for DeclarationIdentitySyntax {
         Ok(())
     }
     fn descriptive_toolchain_owner(&mut self) -> Result {
+        if self.require_exact_owners {
+            return Err(Error::MalformedIdentity);
+        }
         Ok(())
     }
     fn schema_region(&mut self, _: u32) -> Result {
@@ -2283,6 +2366,69 @@ pub fn validate_source_type_description(description: &str) -> Result<(), TypeIde
     visit_type_identity_package_owners(description, &mut DeclarationIdentitySyntax::default())
 }
 
+/// Compare a closed callable type with the same type under exact source ownership.
+/// Only nominal owner nodes may acquire revisions. Paths, package digests, type
+/// structure and opaque constant payloads must remain byte-for-byte identical.
+pub fn exact_type_describes(declared: &str, exact: &str) -> bool {
+    let mut reader = framing::Reader::new(exact);
+    reader.project_owners(true);
+    let mut syntax = DeclarationIdentitySyntax {
+        require_exact_owners: true,
+        ..Default::default()
+    };
+    grammar::type_identity(&mut reader, &mut syntax)
+        .and_then(|()| reader.finish())
+        .is_ok()
+        && reader.projected().as_deref().unwrap_or(exact) == declared
+}
+
+#[cfg(test)]
+mod exact_type_tests {
+    use super::*;
+    use encoding::{atom, bare, byte_atom, compound};
+    use vocabulary::{Label, NameForm, OwnerForm, TypeForm};
+
+    #[test]
+    fn exact_source_owners_preserve_the_complete_declared_type() {
+        let nominal = |owner, path| compound(NameForm::Nominal, [owner, atom(Label::Path, path)]);
+        let named =
+            |owner, path| compound(TypeForm::Named, [atom(Label::Name, &nominal(owner, path))]);
+        let declared = named(bare(OwnerForm::Toolchain), "Decision");
+        let actual = named(byte_atom(OwnerForm::ToolchainSource, &[1; 32]), "Decision");
+        assert!(exact_type_describes(&declared, &actual));
+        assert!(!exact_type_describes(&declared, &declared));
+        assert!(!exact_type_describes(
+            &declared.replace("Decision", "Other"),
+            &actual
+        ));
+        assert!(!exact_type_describes(
+            &compiler_type_identity("u8"),
+            &actual
+        ));
+
+        let record = |key, ty| {
+            compound(
+                TypeForm::Generic,
+                [
+                    atom(
+                        Label::Name,
+                        &nominal(byte_atom(OwnerForm::Package, &[key; 32]), "ReplyBatch"),
+                    ),
+                    compound(TypeForm::Slice, [ty]),
+                ],
+            )
+        };
+        assert!(exact_type_describes(
+            &record(2, declared.clone()),
+            &record(2, actual.clone())
+        ));
+        assert!(!exact_type_describes(
+            &record(3, declared),
+            &record(2, actual)
+        ));
+    }
+}
+
 /// Borrow the complete ordered arguments of a named generic application.
 /// The caller can compare two related carriers without dropping lifetime,
 /// machine or const operands, and malformed nested arguments never match.
@@ -2328,8 +2474,8 @@ pub fn schema_carrier_region_count(
     let mut reader = framing::Reader::new(declared);
     reader.erased_schema = Some(Box::default());
     let mut syntax = DeclarationIdentitySyntax {
-        depth: 0,
         signature_regions: true,
+        ..Default::default()
     };
     grammar::type_identity(&mut reader, &mut syntax).ok()?;
     reader.finish().ok()?;
@@ -2394,8 +2540,8 @@ fn visit_named_arguments<'a>(
     use vocabulary::{Label, TypeForm};
     let mut reader = framing::Reader::new(description);
     let mut syntax = DeclarationIdentitySyntax {
-        depth: 0,
         signature_regions,
+        ..Default::default()
     };
     reader.expect_tag(TypeForm::Generic)?;
     let arguments = grammar::compound(&mut reader, &mut syntax, |reader, syntax| {

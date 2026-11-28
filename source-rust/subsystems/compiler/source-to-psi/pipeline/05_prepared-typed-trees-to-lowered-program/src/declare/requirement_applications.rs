@@ -106,7 +106,7 @@ impl RequirementApplicationSource {
                 .ok_or("an activation reply lost its exact type owner")?;
             commitment = terminal_semantics::calls::owned_activation::reply_application_commitment(
                 commitment, declared, &exact,
-            );
+            )?;
             *declared = exact;
         }
         Ok(Self {
