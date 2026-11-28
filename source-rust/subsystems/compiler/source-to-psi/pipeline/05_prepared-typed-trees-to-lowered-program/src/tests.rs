@@ -223,6 +223,7 @@ fn signature(parameters: Vec<ScalarType>, result: Option<ScalarType>) -> Signatu
         erased: Vec::new(),
         borrowed: Vec::new(),
         result: result.map(ValueType::plain),
+        membership_requires: Vec::new(),
         membership_ensures: Vec::new(),
         content_ensures: Vec::new(),
         requires: Vec::new(),

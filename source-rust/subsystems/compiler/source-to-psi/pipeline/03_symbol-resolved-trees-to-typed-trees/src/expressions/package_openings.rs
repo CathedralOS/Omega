@@ -540,11 +540,13 @@ impl OpeningScope<'_> {
                                     state.symbol.arena_index(),
                                     expression.arena_index()
                                 );
-                                program.symbols.insert_generated_root_from(
-                                    binder,
-                                    SymbolKind::TypeParameter,
-                                    &name,
-                                )
+                                program
+                                    .symbols
+                                    .append_generated_children_from(
+                                        state.symbol,
+                                        [(binder, SymbolKind::TypeParameter, name.as_str())],
+                                    )
+                                    .handle_at(0)
                             });
                         let witness = program
                             .type_reference_table

@@ -219,6 +219,7 @@ pub struct BoundaryMachineDeclaration {
     pub requires: Vec<StructuralDomainRequirement>,
     pub normal_qualifications: Vec<StructuralDomainRequirement>,
     pub scalar_domain_requirements: Vec<ScalarDomainRequirement>,
+    pub membership_requires: Vec<crate::RuntimeDomainMembership>,
     pub membership_ensures: Vec<crate::RuntimeDomainMembership>,
     pub scalar_requires: Vec<Proposition>,
     pub scalar_ensures: Vec<Proposition>,
@@ -252,6 +253,7 @@ pub enum CheckedBoundaryExecution {
     NumericPrimitive,
     /// Immutable snapshot of the layout-policy argument issued for this invocation.
     LayoutTargetFacts,
+    OwnedActivation(language_core::sealed_intrinsics::ActivationOperation),
     /// The actual primitive remains distinct from the public requirement.
     HostedPrimitive {
         operation: language_core::sealed_intrinsics::HostedOperation,
@@ -283,6 +285,7 @@ impl CheckedBoundaryExecution {
             Self::Provider
             | Self::NumericPrimitive
             | Self::LayoutTargetFacts
+            | Self::OwnedActivation(_)
             | Self::HostedPrimitive { .. }
             | Self::EmptyRunRelease
             | Self::AccessInitialize
@@ -301,6 +304,7 @@ impl CheckedBoundaryExecution {
             Self::Provider
             | Self::NumericPrimitive
             | Self::LayoutTargetFacts
+            | Self::OwnedActivation(_)
             | Self::HostedPrimitive { .. }
             | Self::EmptyRunRelease
             | Self::StaticInterruptInstall

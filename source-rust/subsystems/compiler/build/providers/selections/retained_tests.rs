@@ -15,7 +15,7 @@ fn selection_identity_matches_the_published_v6_digest() {
     );
     assert_eq!(
         wire::digest_encoder::hex(selected.identity_digest().as_bytes()),
-        "52ee599c657b697f0630f6e4df6b527f4b753d6a1221962ba8dd53a5536ff876"
+        "69fe35decb8617c3719d7965133a3874307cbfd59b09c5dd89fa4dd08f69c82c"
     );
 }
 

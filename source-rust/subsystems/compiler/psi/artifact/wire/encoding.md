@@ -55,6 +55,14 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
+Marker 311 records routed memberships on exact formal arguments in machine and
+boundary preconditions. A service method identifies each roster entry as
+normal result or input (with its ordered runtime formal ordinal), followed by the
+projection and canonical domain identity. The phases are committed separately.
+For each explicitly exported provider member, the receiver compares these
+rows with the checked boundary of the same requirement. Moving a premise to a
+different input changes the public contract even when both inputs have the same type.
+
 Marker 310 adds an optional requirement identity after the callable contract's
 identity. Structural contracts omit it. A descriptor for a nominal contract
 must retain its binding to that exact requirement.
@@ -1854,6 +1862,11 @@ equivalence to the IEEE predicate. The marker supplies no target execution
 authority: settlement retains the exact target-table realization and its ISA
 and floating-control obligations, and receiving checks these against the
 authenticated boundary and canonical method schema.
+Tag 12 names the issued layout target snapshot. Tag 13 carries an owned
+activation operation byte (0: park; all other values reject). Publication
+and reply handles are created by checked source, not by a wire operation. A park is a
+checked specialization of core's `activation.omg` park, not an installable host
+import. Its owned request and result share the same closed reply type.
 Other tags reject. Earlier formats reject at the header, before any table is
 decoded. Marker 275 retained the structural qualification rows and marker 273's
 machine-contract account of public result lifetimes. It refused formats 271,
@@ -2722,21 +2735,23 @@ contract `requires` rule) and strictly ordered service ceilings. Provider candid
 by boundary machine id, then provider identity, then selecting declaration, then candidate identity, then
 candidate machine id.
 
-Calls retain promised domain membership even when their declared result type
-does not display it. Machine proof contracts and boundary declarations encode
-these normal-result facts in a separate counted field. A row names either a scalar term and
-scalar domain, or a structural result root, canonical path, content version and
-structural domain. Rows are strictly increasing without duplicates. Every row
-must name the exact normal result or one of its typed projections. These facts
-change neither the declared result type nor its overload key. Predicates remain
-ordinary guarantees, and checked bodies must establish the facts after cleanup.
+Machine proof contracts and boundary declarations encode separate counted
+lists for input and normal-result domain memberships. An input row names one
+formal or a projection of it. A result row names the normal result or a
+projection of it. Both lists use the same row encoding: a scalar term and
+scalar domain, or a structural root, canonical path, content version and
+structural domain. Each list is strictly increasing. The declared types and
+overload keys stay the same. Predicates remain ordinary requirements or
+guarantees, and checked bodies must establish the promised facts after cleanup.
 
-The complete service method also retains each authored normal-result membership
-as a result path and canonical domain application identity. Field and case steps
-retain named or numbered member identities; fixed indices retain their exact
-integer. Native receiving checks compare the complete published roster with
-that selected service method, including missing rows. Updating a header digest
-cannot authorize a different guarantee.
+Each service method encodes its membership list in public parameter order,
+followed by normal-result memberships. A row starts with a one-byte subject tag:
+`1` for the normal result, or `2` followed by a little-endian `u32` input
+ordinal. Next come the counted path and the canonical domain application
+identity. Field and case steps retain named or numbered member identities;
+fixed indices retain their exact integer. Receivers validate the input ordinal
+or result presence against the signature. Native checks compare the complete
+roster with the selected service method, including the phase and projection.
 
 ### Runtime callable contracts and selections
 
@@ -3422,7 +3437,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 310 | yes |
+| semantic module | `PSITERM\0` | 311 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | published artifact | `PSIART\0\0` | 4 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |

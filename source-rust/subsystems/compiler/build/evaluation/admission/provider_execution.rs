@@ -179,14 +179,17 @@ impl BuildProviderScope {
             .source_selections()
             .and_then(|selections| selections.questions_for(artifact))
             .ok_or_else(|| failure("Build lost the source choices for its executable"))?;
-        psi_provider_selections::dependency_reach::check(
+        let _ = psi_provider_selections::dependency_reach::check(
             module,
             entry,
             &implementations,
             None,
-            &self.reach_policy,
-            &prepared.unsafe_services()?,
-            &selections.dependency_calls,
+            psi_provider_selections::dependency_reach::SourceReach {
+                policy: &self.reach_policy,
+                unsafe_services: &prepared.unsafe_services()?,
+                imported_calls: &selections.dependency_calls,
+            },
+            psi_provider_selections::dependency_reach::Findings::Admission,
         )?;
         let authority = self.selection_scope(build_declarations::DependencyPurpose::Build);
         let pending = build_model::admission::admit_declaration_selections(
