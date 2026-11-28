@@ -135,6 +135,7 @@ impl DescriptorMachine {
                         origin.observed_sources().map(|(at, source)| (at, source.borrow())),
                         origin.exact,
                         origin.parameters.clone(),
+                        origin.opaque,
                     )?);
             }
         }

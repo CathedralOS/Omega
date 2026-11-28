@@ -110,6 +110,8 @@ pub enum DescriptorCallOrigin {
         projection: Projection,
     },
     NativeAddress {
+        /// An independent native alternative has no tracked lifetime source.
+        opaque: bool,
         exact_parameters: bool,
         parameters: Vec<semantic_vocabulary::ValueId>,
         machine: MachineId,
@@ -780,6 +782,7 @@ pub struct NativeAddressObservation {
 }
 
 pub struct NativeAddressActual {
+    pub(crate) opaque: bool,
     pub parameter: ValueId,
     pub(crate) exact: bool,
     pub(crate) sources: Vec<NativeAddressObservation>,

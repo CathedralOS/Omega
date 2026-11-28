@@ -939,6 +939,7 @@ fn adapt_flow(
                         origin.observed_sources().map(|(at, source)| (at, *source)),
                         origin.exact,
                         origin.parameters.clone(),
+                        origin.opaque,
                     )?;
                 }
                 OperationKind::UpgradeMutability { source } => {
@@ -2593,9 +2594,10 @@ impl DescriptorMachine {
         sources: impl IntoIterator<Item = (DescriptorPosition, &'a StructuralArgument)>,
         exact: bool,
         parameters: Vec<ValueId>,
+        opaque: bool,
     ) -> Option<NativeAddressActual> {
         Some(NativeAddressActual {
-            parameter, exact, parameters,
+            parameter, exact, parameters, opaque,
             sources: sources.into_iter().map(|(at, source)| self.native_observation(types, at, source))
                 .collect::<Option<Vec<_>>>()?,
         })
@@ -2625,6 +2627,7 @@ impl DescriptorMachine {
         sources: impl IntoIterator<Item = (DescriptorPosition, &'a StructuralArgument)>,
         exact: bool,
         parameters: Vec<ValueId>,
+        opaque: bool,
     ) -> Option<()> {
         let destination = DescriptorLocation::whole(result.place);
         let StructuralTypeShape::Reference { referent, .. } =
@@ -2650,19 +2653,17 @@ impl DescriptorMachine {
         }
         let origins = self.originations.entry(position).or_default();
         origins.retain(|(location, _)| location != &destination);
-        if !known || needs_native_formation || !parameters.is_empty() {
-            origins.push((
-                destination,
-                DescriptorCallOrigin::NativeAddress {
-                    exact_parameters: exact,
-                    parameters,
-                    machine: self.id,
-                    operation,
-                    place: result.place,
-                    carrier: result.structural_type,
-                    projection: Projection::new(&[]),
-                },
-            ));
+        if !known || opaque || needs_native_formation || !parameters.is_empty() {
+            origins.push((destination, DescriptorCallOrigin::NativeAddress {
+                opaque,
+                exact_parameters: exact,
+                parameters,
+                machine: self.id,
+                operation,
+                place: result.place,
+                carrier: result.structural_type,
+                projection: Projection::new(&[]),
+            }));
         }
         Some(())
     }

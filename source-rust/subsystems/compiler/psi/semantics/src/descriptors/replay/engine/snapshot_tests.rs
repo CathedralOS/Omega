@@ -813,6 +813,7 @@ fn native_borrow_results_follow_scalar_address_actuals_back_to_their_storage() {
     let formal = ValueId::new(1).unwrap();
     let forwarded = ValueId::new(2).unwrap();
     let make_origin = |parameters| DescriptorStoredOrigin::NativeAddress {
+        opaque: false,
         exact_parameters: true,
         machine: MachineId::new(2).unwrap(),
         operation: OperationId::new(1).unwrap(),
@@ -826,6 +827,7 @@ fn native_borrow_results_follow_scalar_address_actuals_back_to_their_storage() {
                 exact: bool,
                 observed_type| {
         let native_address_arguments = [NativeAddressActual {
+            opaque: storage.is_none() && forwarded.is_none(),
             parameter: formal,
             exact,
             sources: storage.into_iter().map(|location| NativeAddressObservation {
@@ -906,6 +908,7 @@ fn native_writes_name_only_the_formals_or_storage_backing_the_written_reference(
     for (origin, target) in [
         (
             DescriptorCallOrigin::NativeAddress {
+                opaque: false,
                 machine: machine.id, operation: OperationId::new(1).unwrap(), place: descriptor.root,
                 carrier: pointer, projection: Projection::new(&[]), parameters: vec![address], exact_parameters: true,
             },
@@ -919,6 +922,18 @@ fn native_writes_name_only_the_formals_or_storage_backing_the_written_reference(
         state.slots_mut().insert(descriptor.clone(), Some(BTreeSet::from([Origin::Backing(origin)])));
         assert_eq!(replay.native_write_targets(&machine, &state, &written), Some(vec![target]));
     }
+    state.slots_mut().insert(descriptor.clone(), Some(BTreeSet::from([
+        Origin::Backing(DescriptorCallOrigin::NativeAddress {
+            opaque: true, exact_parameters: false, parameters: Vec::new(), machine: machine.id,
+            operation: OperationId::new(1).unwrap(), place: descriptor.root,
+            carrier: pointer, projection: Projection::new(&[]),
+        }),
+        Origin::Backing(DescriptorCallOrigin::Argument {
+            source: source.root, projection: Projection::new(&[]).as_native_enclosing_storage(),
+        }),
+    ])));
+    assert!(replay.native_write_targets(&machine, &state, &written).unwrap().contains(&StorageWriteTarget::Unlocated));
+
 }
 
 #[test]
@@ -942,6 +957,7 @@ fn native_subobjects_and_header_only_calls_publish_their_checked_reference_type(
         unknown_contents: Vec::new(), unresolved_slots: Vec::new(), case_facts: Default::default(),
     });
     let native = |path| DescriptorStoredOrigin::NativeAddress {
+        opaque: false,
         parameters: Vec::new(), exact_parameters: true, machine: MachineId::new(1).unwrap(),
         operation: OperationId::new(1).unwrap(), place: location(2).root, carrier: base, projection: Projection::new(path),
     };

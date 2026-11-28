@@ -117,7 +117,7 @@ fn machine_write_frame(
     for target in written {
         use crate::descriptors::replay::StorageWriteTarget;
         let StorageWriteTarget::Storage(region) = target else {
-            let StorageWriteTarget::NativeAddress(formal) = target else { unreachable!() };
+            let StorageWriteTarget::NativeAddress(formal) = target else { return Ok(None); };
             let scalar = machine.parameters.iter().position(|parameter| parameter.id == formal)
                 .ok_or("native write frame has no corresponding scalar formal")?;
             let ordinal = machine.structural_parameters.len().checked_add(scalar)

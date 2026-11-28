@@ -29,6 +29,7 @@ use engine::Replay;
 pub(crate) enum StorageWriteTarget {
     Storage(DescriptorLocation),
     NativeAddress(semantic_vocabulary::ValueId),
+    Unlocated,
 }
 
 impl StorageWriteTarget {
@@ -95,6 +96,8 @@ pub enum DescriptorStoredOrigin {
         projection: Projection,
     },
     NativeAddress {
+        /// An independent native alternative has no tracked lifetime source.
+        opaque: bool,
         exact_parameters: bool,
         parameters: Vec<semantic_vocabulary::ValueId>,
         machine: MachineId,

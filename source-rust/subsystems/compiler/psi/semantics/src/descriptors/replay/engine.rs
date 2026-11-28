@@ -586,7 +586,7 @@ impl<'a> Replay<'a> {
         Ok(self.write_targets(identity, position)?.and_then(|targets| {
             targets.into_iter().map(|target| match target {
                 StorageWriteTarget::Storage(location) => Some(location),
-                StorageWriteTarget::NativeAddress(_) => None,
+                StorageWriteTarget::NativeAddress(_) | StorageWriteTarget::Unlocated => None,
             }).collect()
         }))
     }
@@ -613,7 +613,8 @@ impl<'a> Replay<'a> {
         let mut targets = Vec::new();
         for origin in origins {
             match origin {
-                DescriptorSourceOrigin::Backing(DescriptorCallOrigin::NativeAddress { parameters, .. }) => {
+                DescriptorSourceOrigin::Backing(DescriptorCallOrigin::NativeAddress { parameters, opaque, .. }) => {
+                    if opaque { targets.push(StorageWriteTarget::Unlocated); }
                     targets.extend(parameters.into_iter().map(StorageWriteTarget::NativeAddress));
                 }
                 DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument { source, projection }) => {
@@ -792,10 +793,11 @@ impl<'a> Replay<'a> {
                 .ok_or("write frame call has no callee")?;
             for written in frame {
                 let StorageWriteTarget::Storage(written) = written else {
-                    let StorageWriteTarget::NativeAddress(formal) = written else { unreachable!() };
+                    let StorageWriteTarget::NativeAddress(formal) = written else { return Ok(None); };
                     let Some(actual) = call.native_address_arguments.iter().find(|row| row.parameter == *formal) else {
                         return Ok(None);
                     };
+                    if actual.opaque { return Ok(None); }
                     located.extend(actual.parameters.iter().copied().map(StorageWriteTarget::NativeAddress));
                     for observed in &actual.sources {
                         let Some(captured) = states.get(&observed.at) else { return Ok(None); };
@@ -988,6 +990,7 @@ impl<'a> Replay<'a> {
                 return Ok(None);
             };
             for write in writes {
+                if write == StorageWriteTarget::Unlocated { return Ok(None); }
                 let StorageWriteTarget::Storage(location) = &write else {
                     frame.push(write);
                     continue;
@@ -2479,6 +2482,7 @@ impl<'a> Replay<'a> {
                     projection: prefix.then(projection),
                 })),
                 Origin::Backing(DescriptorCallOrigin::NativeAddress {
+                    opaque,
                     exact_parameters,
                     parameters,
                     machine,
@@ -2487,6 +2491,7 @@ impl<'a> Replay<'a> {
                     carrier,
                     projection: prefix,
                 }) => Some(Origin::Backing(DescriptorCallOrigin::NativeAddress {
+                    opaque,
                     exact_parameters,
                     parameters,
                     machine,
@@ -3994,29 +3999,18 @@ impl<'a> Replay<'a> {
                     projection: projection.clone(),
                 },
             )])),
-            DescriptorStoredOrigin::NativeAddress {
-                machine: formed_in,
-                operation,
-                place,
-                carrier,
-                projection,
-                parameters,
-                exact_parameters,
-            } => {
-                let StructuralTypeShape::Reference { referent, .. } =
-                    self.type_index.find(*carrier)?.shape
-                else {
+            DescriptorStoredOrigin::NativeAddress { machine: formed_in, operation, place, carrier, projection, parameters, exact_parameters, opaque } => {
+                let StructuralTypeShape::Reference { referent, .. } = self.type_index.find(*carrier)?.shape else {
                     return None;
                 };
                 let mut origins = BTreeSet::new();
                 let mut forwarded = BTreeSet::new();
                 let mut forwarded_exact = *exact_parameters;
+                let mut opaque = *opaque;
                 let mut needs_formation = false;
                 for parameter in parameters {
-                    let actual = actuals
-                        .native_address_arguments
-                        .iter()
-                        .find(|row| row.parameter == *parameter)?;
+                    let actual = actuals.native_address_arguments.iter().find(|row| row.parameter == *parameter)?;
+                    opaque |= actual.opaque;
                     if !actual.parameters.is_empty() {
                         forwarded_exact &= actual.exact;
                     }
@@ -4033,13 +4027,14 @@ impl<'a> Replay<'a> {
                     }
                     forwarded.extend(actual.parameters.iter().copied());
                 }
-                if origins.is_empty() || needs_formation || !forwarded.is_empty() {
+                if origins.is_empty() || opaque || needs_formation || !forwarded.is_empty() {
                     origins.insert(Origin::Backing(DescriptorCallOrigin::NativeAddress {
                         machine: *formed_in,
                         operation: *operation,
                         place: *place,
                         carrier: *carrier,
                         exact_parameters: forwarded_exact,
+                        opaque,
                         parameters: forwarded.into_iter().collect(),
                         projection: projection.clone(),
                     }));
@@ -4385,6 +4380,7 @@ impl<'a> Replay<'a> {
                 projection: projection.clone().without_runtime_coordinates(),
             }),
             Origin::Backing(DescriptorCallOrigin::NativeAddress {
+                opaque,
                 exact_parameters,
                 parameters,
                 machine,
@@ -4393,6 +4389,7 @@ impl<'a> Replay<'a> {
                 carrier,
                 projection,
             }) => Some(DescriptorStoredOrigin::NativeAddress {
+                opaque: *opaque,
                 exact_parameters: *exact_parameters,
                 parameters: parameters.clone(),
                 machine: *machine,
