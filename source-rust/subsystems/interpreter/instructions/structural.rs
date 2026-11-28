@@ -579,6 +579,7 @@ impl TerminalExecution<'_> {
         crate::storage::structural_storage::prune_rows(&mut self.structural_byte_descriptors, from);
         crate::storage::structural_storage::prune_rows(&mut self.structural_byte_storage, from);
         crate::storage::structural_storage::prune_rows(&mut self.structural_cases, from);
+        crate::storage::structural_storage::prune_rows(&mut self.package_owner_storage, from);
         crate::storage::structural_storage::prune_rows(&mut self.reference_referents, from);
         crate::storage::structural_storage::prune_rows(
             &mut self.structural_element_view_fields,
@@ -1226,11 +1227,12 @@ impl TerminalExecution<'_> {
         let mut identity_cursor = self.local_structural_identities.cursor();
         let crate::storage::record::owned_value::StagedOwnedValue {
             mut value, storage, ..
-        } = self.stage_owned_value(
+        } = self.stage_owned_value_for_move(
             source,
             result.structural_type,
             result.multiplicity,
             &mut identity_cursor,
+            Some(operation),
         )?;
         let whole = &value.qualifications;
         let projected = &value.projected_qualifications;
@@ -2421,7 +2423,60 @@ impl TerminalExecution<'_> {
         )
         .ok_or(malformed())?;
         parent.path.extend(carrier.path);
+        // A projected nominal owner may have different field IDs on the stored
+        // concrete record. Its retained home identifies the actual backing row.
+        let field = self.package_owner_member(&parent, carrier.structural_type, field)?;
         Ok(StructuralScalarRuntimeField::member(parent, field))
+    }
+
+    fn package_owner_member(
+        &self,
+        parent: &StructuralRuntimePlace,
+        public: semantic_vocabulary::StructuralTypeId,
+        field: semantic_vocabulary::StructuralFieldId,
+    ) -> Result<semantic_vocabulary::StructuralFieldId, TerminalInterpretError> {
+        if self.package_owner_storage.is_empty() {
+            return Ok(field);
+        }
+        let mut ancestor = parent.clone();
+        loop {
+            if let Some(&stored) = self.package_owner_storage.get(&ancestor) {
+                let types = self.structural_types();
+                let suffix = &parent.path[ancestor.path.len()..];
+                let actual =
+                    terminal_semantics::runtime_structural_path_tip(types.values(), stored, suffix)
+                        .ok_or_else(malformed)?;
+                if actual.id == public {
+                    return Ok(field);
+                }
+                let expected = self.structural_declaration(public)?;
+                let member = expected
+                    .shape
+                    .fields()
+                    .find(|member| member.id == field)
+                    .ok_or_else(malformed)?;
+                if expected.declaration_identity.is_absent()
+                    || expected.declaration_identity != actual.declaration_identity
+                    || member.declaration_identity.is_absent()
+                {
+                    return Err(malformed());
+                }
+                let mut matches = actual.shape.fields().filter(|candidate| {
+                    candidate.declaration_identity == member.declaration_identity
+                        && candidate.identity == member.identity
+                        && candidate.relevance == member.relevance
+                        && candidate.field_type == member.field_type
+                });
+                return matches
+                    .next()
+                    .map(|member| member.id)
+                    .filter(|_| matches.next().is_none())
+                    .ok_or_else(malformed);
+            }
+            if ancestor.path.pop().is_none() {
+                return Ok(field);
+            }
+        }
     }
 
     pub(crate) fn execute_boolean_structural_field(
