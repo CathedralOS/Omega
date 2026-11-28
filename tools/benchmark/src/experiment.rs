@@ -406,14 +406,21 @@ pub(crate) fn measure(
 ) -> Result<(), String> {
     let mut arguments = command.arguments.clone();
     let build_dir = output.join("build");
-    if let Measurement::Compiler { target, .. } = &plan.measurement {
+    if let Measurement::Compiler {
+        target,
+        stage_timings,
+        ..
+    } = &plan.measurement
+    {
         let source = plan
             .measurement
             .compiler_source(&sample.role)
             .ok_or("missing compiler source")?;
         fs::create_dir(&build_dir).map_err(|error| error.to_string())?;
+        if *stage_timings {
+            arguments.push("--timings".into());
+        }
         arguments.extend([
-            "--timings".into(),
             "--build-dir".into(),
             build_dir.display().to_string(),
             "--target".into(),
@@ -536,7 +543,16 @@ pub(crate) fn stage_timings(text: &str) -> BTreeMap<String, f64> {
             && duration.is_finite()
             && duration >= 0.0
         {
-            *stages.entry(label.trim().to_owned()).or_default() += duration;
+            // Observation counts belong to the measurement, not the stage
+            // identity. Runs with different counts must still compare.
+            let label = label.trim();
+            let label = label
+                .rsplit_once("  [n=")
+                .and_then(|(label, count)| {
+                    count.strip_suffix(']')?.parse::<u64>().ok().map(|_| label)
+                })
+                .unwrap_or(label);
+            *stages.entry(label.to_owned()).or_default() += duration;
         }
     }
     stages
@@ -694,8 +710,9 @@ mod tests {
 
     #[test]
     fn keeps_each_samples_stage_values_and_accumulates_repeated_labels() {
-        let rows =
-            stage_timings("  1.25 ms  Psi 05\n  2.75 ms  Psi 05\n garbage ms  bad\n NaN ms  bad\n");
+        let rows = stage_timings(
+            "  1.25 ms  Psi 05\n  2.75 ms  Psi 05  [n=2]\n garbage ms  bad\n NaN ms  bad\n",
+        );
         assert_eq!(rows.len(), 1);
         assert_eq!(rows["Psi 05"], 4.0);
     }
