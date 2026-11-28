@@ -13,6 +13,8 @@ wherever it is declared, so a program that only applies a library operation
 still has the library's laws for it judged and available.
 */
 
+pub(crate) mod dependent_records;
+
 use crate::source_state::TypedTrees;
 use semantic_vocabulary::{MachineId, PackageKeyIdentity};
 use source_provenance::DependencyScope;
@@ -36,7 +38,10 @@ pub(crate) fn read(
         .mathematical_subjects(first, subjects, *purpose)
         .map_err(alone)?;
     if machines.is_empty() && data.is_empty() {
-        return Ok(MathematicalSignature::default());
+        let mut signature = MathematicalSignature::default();
+        dependent_records::append(&program, first, subjects, *purpose, &mut signature)
+            .map_err(alone)?;
+        return Ok(signature);
     }
     program.collected = Some(Vec::new());
     for declared in data {
@@ -151,5 +156,8 @@ pub(crate) fn read(
     if !refused.is_empty() {
         return Err(refused);
     }
-    program.mathematical_signature(&bodies, &satisfactions)
+    let mut signature = program.mathematical_signature(&bodies, &satisfactions)?;
+    dependent_records::append(&program, first, subjects, *purpose, &mut signature)
+        .map_err(alone)?;
+    Ok(signature)
 }

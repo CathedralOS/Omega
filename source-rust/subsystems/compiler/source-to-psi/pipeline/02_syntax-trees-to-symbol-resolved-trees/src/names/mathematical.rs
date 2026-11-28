@@ -15,7 +15,8 @@
 
 use crate::source_resolved::data::TypeParameterKind;
 use crate::source_resolved::mathematical::{MathematicalBody, MathematicalType};
-use crate::source_symbols::SymbolTable;
+use crate::source_resolved::types::TypeReference;
+use crate::source_symbols::{SymbolLookup, SymbolTable};
 
 use super::propositions::assign_expression_symbols;
 use super::type_references::{
@@ -80,11 +81,29 @@ pub(super) fn assign_mathematical_expression_symbols(
             );
         }
 
-        let mut worklist = vec![definition.result];
+        // A mathematical application can take a named mathematical function as
+        // its head. Its occurrence keeps ordinary visibility and binder scope.
+        let bind_applied_head = |reference: &mut TypeReference| {
+            if let TypeReference::Named { name, symbol, .. } = reference
+                && !symbol.is_valid()
+                && symbols
+                    .find_child_by_name(definition.symbol, name.as_str())
+                    .is_none()
+                && symbols.lookup_source_type(name.as_str(), name.source_span())
+                    == SymbolLookup::NotFound
+            {
+                *symbol = super::lookup::top_level_symbol_for_source(
+                    symbols,
+                    symbols::SymbolKind::MathematicalDefinition,
+                    name,
+                );
+            }
+        };
+        let mut worklist = vec![(definition.result, false)];
         for parameter in mathematical_parameters.span_or_empty(definition.parameters) {
-            worklist.push(parameter.ty);
+            worklist.push((parameter.ty, false));
         }
-        while let Some(handle) = worklist.pop() {
+        while let Some((handle, applied_head)) = worklist.pop() {
             let mut node = mathematical_types.get(handle).clone();
             match &mut node {
                 MathematicalType::Ordinary(reference) => {
@@ -95,6 +114,9 @@ pub(super) fn assign_mathematical_expression_symbols(
                         &local_type_parameters,
                         reference,
                     );
+                    if applied_head {
+                        bind_applied_head(reference);
+                    }
                     bind_binder_value_arguments(
                         &declared,
                         child_type_references,
@@ -105,11 +127,11 @@ pub(super) fn assign_mathematical_expression_symbols(
                 MathematicalType::Arrow {
                     domain, codomain, ..
                 } => {
-                    worklist.push(*domain);
-                    worklist.push(*codomain);
+                    worklist.push((*domain, false));
+                    worklist.push((*codomain, false));
                 }
                 MathematicalType::Application { callee, arguments } => {
-                    worklist.push(*callee);
+                    worklist.push((*callee, true));
                     for argument in expressions.expression_handles(*arguments).to_vec() {
                         assign_expression_symbols(
                             expressions,
@@ -144,9 +166,9 @@ pub(super) fn assign_mathematical_expression_symbols(
         let mut arrow_worklist: Vec<_> = mathematical_parameters
             .span_or_empty(arrow_binders)
             .iter()
-            .map(|parameter| parameter.ty)
+            .map(|parameter| (parameter.ty, false))
             .collect();
-        while let Some(handle) = arrow_worklist.pop() {
+        while let Some((handle, applied_head)) = arrow_worklist.pop() {
             let mut node = mathematical_types.get(handle).clone();
             match &mut node {
                 MathematicalType::Ordinary(reference) => {
@@ -157,6 +179,9 @@ pub(super) fn assign_mathematical_expression_symbols(
                         &body_type_parameters,
                         reference,
                     );
+                    if applied_head {
+                        bind_applied_head(reference);
+                    }
                     bind_binder_value_arguments(
                         &declared,
                         child_type_references,
@@ -167,11 +192,11 @@ pub(super) fn assign_mathematical_expression_symbols(
                 MathematicalType::Arrow {
                     domain, codomain, ..
                 } => {
-                    arrow_worklist.push(*domain);
-                    arrow_worklist.push(*codomain);
+                    arrow_worklist.push((*domain, false));
+                    arrow_worklist.push((*codomain, false));
                 }
                 MathematicalType::Application { callee, arguments } => {
-                    arrow_worklist.push(*callee);
+                    arrow_worklist.push((*callee, true));
                     for argument in expressions.expression_handles(*arguments).to_vec() {
                         assign_expression_symbols(
                             expressions,

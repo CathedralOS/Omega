@@ -435,3 +435,74 @@ machine stored(p: OnlyZero) ensures |proof|::Squash::<|proof|::Identity::<N>(p.v
         );
     }
 }
+
+const ELEMENT_FIELDS: &str = "use {omega}/language/core/foundation.omg as proof;
+data Element { State: |proof|::Type<0>; value: State; }
+let get_value(p: Element): element_type(p) = p.value;
+let element_type(p: Element): |proof|::Type<0> = p.State;
+machine main() {}";
+
+#[test]
+fn a_record_projects_its_own_stored_type_and_a_value_of_that_type() {
+    use mathematical_kernel::{Budget, Level, Sort, Term, check_signature};
+    let verdicts = judged(ELEMENT_FIELDS);
+    judged_laws(&verdicts);
+    let judgment = verdicts
+        .iter()
+        .find_map(|v| match v {
+            RouteVerdict::Laws(judgment) => Some(judgment),
+            _ => None,
+        })
+        .expect("a checked dependent record and both selector bodies");
+    assert_eq!(judgment.declarations, 3);
+    let [carrier] = judgment.carriers.as_slice() else {
+        panic!("one record carrier")
+    };
+    let mut key = terminal_codec::decode_mathematical_certificate(&carrier.carrier_key).unwrap();
+    check_signature(
+        &mut key.arena,
+        &key.certificate.signature,
+        &mut Budget::default(),
+    )
+    .unwrap();
+    let [record] = key.certificate.signature.as_slice() else {
+        panic!("closed record declaration")
+    };
+    assert!(matches!(
+        key.arena.get(record.ty),
+        Term::Sort(Sort::Type(Level::Constant(1)))
+    ));
+    let Term::Sigma { domain, codomain } = key.arena.get(record.body.expect("record definition"))
+    else {
+        panic!("dependent pair")
+    };
+    assert!(matches!(
+        key.arena.get(domain),
+        Term::Sort(Sort::Type(Level::Constant(0)))
+    ));
+    assert!(matches!(key.arena.get(codomain), Term::Variable(0)));
+}
+
+#[test]
+fn a_projection_cannot_give_the_stored_type_another_universe() {
+    let source = ELEMENT_FIELDS.replace("Type<0> = p.State", "Type<1> = p.State");
+    let verdicts = judged(&source);
+    assert!(
+        verdicts.iter().any(|verdict| matches!(verdict,
+            RouteVerdict::UnprovedLaws(laws) if laws.iter().any(|law|
+                law.machine == "element_type" && law.statement.contains("not well formed"))
+        )),
+        "{verdicts:?}"
+    );
+}
+
+#[test]
+fn a_value_field_cannot_be_used_as_a_type_field() {
+    let verdicts = judged("data Element { State: bool; value: State; } machine main() {}");
+    assert!(
+        violations(&verdicts)
+            .iter()
+            .any(|statement| statement.contains("this type name has no visible declaration")),
+        "{verdicts:?}"
+    );
+}

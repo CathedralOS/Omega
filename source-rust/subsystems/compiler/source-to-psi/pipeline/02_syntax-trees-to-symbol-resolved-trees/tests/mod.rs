@@ -119,3 +119,68 @@ fn a_value_binder_does_not_stand_where_data_takes_a_type() {
     assert_eq!(binders.len(), 1);
     assert_ne!(named, binders);
 }
+
+#[test]
+fn a_record_field_type_resolves_the_earlier_type_witness_of_that_record() {
+    use crate::source_resolved::data::DataMember;
+    use crate::source_resolved::types::TypeReference;
+
+    let trees = domain_lookup_tests::resolve_result(
+        "use {omega}/language/core/foundation.omg as proof;
+         data First { State: |proof|::Type<0>; value: State; }
+         data Second { State: |proof|::Type<1>; value: State; }
+         data WrongKind { State: bool; value: State; }
+         data Forward { value: State; State: |proof|::Type<0>; }
+         data Outside { value: State; }",
+    )
+    .unwrap();
+    for definition in trees.roots.data_definitions.iter() {
+        let field = |name| {
+            trees
+                .data_members(definition.members)
+                .iter()
+                .find_map(|member| match member {
+                    DataMember::Field(field) if field.name.as_str() == name => Some(field),
+                    _ => None,
+                })
+                .unwrap()
+        };
+        let TypeReference::Named { symbol, .. } = &field("value").type_reference else {
+            panic!("a named field type");
+        };
+        match definition.name.as_str() {
+            "First" | "Second" => {
+                assert!(symbol.is_valid());
+                assert_eq!(*symbol, field("State").symbol);
+            }
+            "WrongKind" | "Forward" | "Outside" => assert!(!symbol.is_valid()),
+            name => panic!("unexpected declaration {name}"),
+        }
+    }
+}
+
+#[test]
+fn a_mathematical_result_application_selects_the_visible_type_function() {
+    use crate::source_resolved::mathematical::MathematicalType;
+    use crate::source_resolved::types::TypeReference;
+
+    let trees = domain_lookup_tests::resolve_result(
+        "use {omega}/language/core/foundation.omg as proof;
+         data Element { State: |proof|::Type<0>; value: State; }
+         let get_value(p: Element): element_type(p) = p.value;
+         let element_type(p: Element): |proof|::Type<0> = p.State;",
+    )
+    .unwrap();
+    let types = &trees.tables.declarations.mathematical_types;
+    let mut definitions = trees.roots.mathematical_definitions.iter();
+    let get_value = definitions.next().unwrap();
+    let element_type = definitions.next().unwrap();
+    let MathematicalType::Application { callee, .. } = types.get(get_value.result) else {
+        panic!("written result applies the type selector");
+    };
+    let MathematicalType::Ordinary(TypeReference::Named { symbol, .. }) = types.get(*callee) else {
+        panic!("named selector");
+    };
+    assert!(symbol.is_valid());
+    assert_eq!(*symbol, element_type.symbol);
+}

@@ -412,10 +412,33 @@ mod assignment {
                         }
                     }
                 }
+                // A type-valued field binds its type for subsequent record fields.
+                // Keep its field symbol so a projection refers to that exact witness.
+                let mut field_scope = std::borrow::Cow::Borrowed(type_parameters.as_slice());
                 for member in data_members.span_mut_or_empty(data_definition.members) {
                     match member {
                         DataMember::Field(field) => {
-                            assign!(&mut field.type_reference);
+                            assign_type_reference_symbol_with_locals_and_constraints(
+                                symbols,
+                                child_type_references,
+                                type_constraints,
+                                &field_scope,
+                                &mut field.type_reference,
+                            );
+                            if let TypeReference::Generic(sort) = &field.type_reference
+                                && symbols.universe_sort_for_symbol(sort.base_symbol)
+                                    == Some(symbols::FixedCoreDeclaration::Type)
+                            {
+                                field_scope.to_mut().insert(
+                                    0,
+                                    TypeParameter {
+                                        name: field.name.clone(),
+                                        symbol: field.symbol,
+                                        kind: TypeParameterKind::Type,
+                                        bounds: Default::default(),
+                                    },
+                                );
+                            }
                         }
                         DataMember::Variant(variant) => {
                             for field in data_payload_fields.span_mut_or_empty(variant.payload) {

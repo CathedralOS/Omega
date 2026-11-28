@@ -87,6 +87,7 @@ fn carriers(
     for (position, entry) in entries.iter().enumerate() {
         let (SignatureEntryKind::Data { type_identity, .. }
         | SignatureEntryKind::Record { type_identity, .. }
+        | SignatureEntryKind::DependentRecord { type_identity, .. }
         | SignatureEntryKind::Quotient { type_identity, .. }) = &entry.kind
         else {
             continue;

@@ -290,6 +290,7 @@ impl Definitions {
                     }
                     SignatureEntryKind::Data { .. }
                     | SignatureEntryKind::Record { .. }
+                    | SignatureEntryKind::DependentRecord { .. }
                     | SignatureEntryKind::Boolean
                     | SignatureEntryKind::FunctionType
                     | SignatureEntryKind::Encoding { .. }
@@ -315,7 +316,8 @@ impl Definitions {
                         },
                         None => Definition::Opaque,
                     },
-                    SignatureEntryKind::Function { cases: None, .. } => Definition::Abbreviation,
+                    SignatureEntryKind::FieldProjection { .. }
+                    | SignatureEntryKind::Function { cases: None, .. } => Definition::Abbreviation,
                 })
                 .collect(),
             entries

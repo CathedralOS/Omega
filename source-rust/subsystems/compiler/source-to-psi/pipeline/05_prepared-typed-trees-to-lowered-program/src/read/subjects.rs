@@ -550,7 +550,9 @@ impl Program<'_> {
                 {
                     return Ok(());
                 }
-                if self.is_mathematical_data(data) {
+                if self.is_mathematical_data(data)
+                    || crate::mathematics::dependent_records::has_field_binder(typed, data)
+                {
                     return Ok(());
                 }
                 // A declaration with type or const parameters has no record
@@ -648,7 +650,10 @@ impl Program<'_> {
                 // A definition that returns indexed data hands evidence on
                 // and never runs; the mathematical reader checks it
                 // (`families::evidence_definition`).
-                if self.returns_indexed_data(definition) {
+                if self.returns_indexed_data(definition)
+                    || crate::mathematics::dependent_records::projection_domain(typed, definition)
+                        .is_some()
+                {
                     return Ok(());
                 }
                 if self.owner(entry, definition.symbol, subjects, purpose)? == Owner::Subject {

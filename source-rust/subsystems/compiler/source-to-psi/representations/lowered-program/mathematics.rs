@@ -285,6 +285,13 @@ pub enum SignatureEntryKind {
         strict_conditions: usize,
         type_identity: String,
     },
+    /// A record whose field types depend on earlier fields of the same record.
+    DependentRecord {
+        declaration: SymbolHandle,
+        type_identity: String,
+    },
+    /// A transparent mathematical definition projecting from a dependent record.
+    FieldProjection { declaration: SymbolHandle },
     /// `bool`, the carrier of a Boolean formal or result: a definition equal
     /// to the kernel's `Two`, with `false` its zero and `true` its one
     /// (kernel_metatheory.md, "Boolean values denote `Two`"). A signature
