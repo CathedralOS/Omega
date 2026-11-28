@@ -174,7 +174,7 @@ fn action(
             .map_err(|_| "missing publication or role")?
             .shape
             .fields()
-            .find(|f| f.id == id)
+            .find(|f| f.id == id && !f.relevance.is_erased())
             .ok_or("activation role has no checked anchor field")?;
         field_at(geometry, root, field, 0)
     };
@@ -285,6 +285,7 @@ fn case<const N: usize>(
         let (field, packed) = case
             .fields
             .iter()
+            .filter(|field| !field.relevance.is_erased())
             .zip(fields)
             .find(|(field, _)| field.id == role)
             .ok_or("case has no selected field")?;
