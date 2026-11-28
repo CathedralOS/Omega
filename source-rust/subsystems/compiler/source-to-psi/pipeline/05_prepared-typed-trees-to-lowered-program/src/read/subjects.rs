@@ -944,8 +944,14 @@ impl Program<'_> {
                 self.template_type(entry, declaration, parameters, *element_type, depth + 1)
             }
             TypeReferenceNode::Constrained { .. } => {
-                // Keep the qualification's formation checks. Reading only its
-                // underlying type would accept a domain on the wrong carrier.
+                // Checking a qualified field can form a record over a rigid
+                // binder. That record belongs to the declaration's check form.
+                if !self.is_generic_check_form() && !self.reading_schema {
+                    if !self.generic_templates.contains(&declaration) {
+                        self.generic_templates.push(declaration);
+                    }
+                    return Ok(());
+                }
                 self.value_type(entry, reference).map(|_| ())
             }
             TypeReferenceNode::Generic {
@@ -1028,7 +1034,6 @@ impl Program<'_> {
     ) -> Checked<()> {
         use crate::source_state::data::TypeParameterKind;
         let diagnostic = MachineId::new(1).expect("1 is nonzero");
-        self.subject_data_template(diagnostic, declared)?;
         let parameters = self.typed.data_type_parameters(declared);
         // `data Index<Limit: u32> requires value < Limit` holds for every
         // `Limit`, so the predicate is formed with each `const` or value
@@ -1080,7 +1085,10 @@ impl Program<'_> {
             .extend(parameters.iter().map(|parameter| parameter.symbol));
         self.source_scope = std::sync::Arc::new(source);
         self.admitted_declarations.include(declared.symbol);
-        self.record_at(diagnostic, declared.predicate_subject_type)?;
+        self.subject_data_template(diagnostic, declared)?;
+        if !declared.requires_facts.is_empty() {
+            self.record_at(diagnostic, declared.predicate_subject_type)?;
+        }
         Ok(())
     }
 
