@@ -152,8 +152,12 @@ fn declared_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Diagnostic>> 
             continue;
         }
         match typed.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::ConstExpression(_)
-                if !typed
+            TypeReferenceNode::ConstExpression(expression)
+                if !matches!(
+                    typed.expression_table.expression(*expression),
+                    typed_trees::expression::ExpressionNode::Integer(_)
+                        | typed_trees::expression::ExpressionNode::Boolean(_)
+                ) && !typed
                     .constant_recipe_for_const_application(reference)
                     .is_valid()
                     && typed_trees::source_state::domain::index_argument_is_closed(

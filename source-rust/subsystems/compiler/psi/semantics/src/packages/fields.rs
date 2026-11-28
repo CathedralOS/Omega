@@ -46,7 +46,7 @@ pub(super) fn uses_witness(
     }
 }
 
-fn field_needs_opening(
+pub(super) fn field_needs_opening(
     module: &TerminalModule,
     record: StructuralTypeId,
     field: &StructuralFieldDeclaration,

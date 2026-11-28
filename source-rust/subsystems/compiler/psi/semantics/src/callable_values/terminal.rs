@@ -92,7 +92,8 @@ pub fn boundary_call_reach_in<'p>(
             ReachedCallableTarget::Callable(values) => {
                 for ceiling in &values.unresolved_ceilings {
                     let contract = module
-                        .execution.callables
+                        .execution
+                        .callables
                         .contract(*ceiling)
                         .ok_or("reached callable has no exact unresolved contract")?;
                     if !contract.envelope.invocations.is_empty() {
@@ -198,7 +199,11 @@ fn terminal_callable_values_with_error_context(
         module.machines.iter().map(|machine| machine.id),
     )
     .map_err(CallableValuePreparationError::StorageFlow)?;
-    project_callable_values(module, graph)
+    project_callable_values(
+        module,
+        graph,
+        &crate::packages::check_package_sites(module)?,
+    )
 }
 
 /// The same projection, adapting the reference rows with the shared
@@ -223,13 +228,14 @@ pub(crate) fn terminal_callable_values_in<'m>(
         .into_iter()
         .collect::<Result<Vec<_>, _>>()
         .map_err(CallableValuePreparationError::StorageFlow)?;
-    project_callable_values(module, graph)
+    project_callable_values(module, graph, analyses.package_sites()?)
 }
 
-fn project_callable_values(
-    module: &TerminalModule,
+fn project_callable_values<'m>(
+    module: &'m TerminalModule,
     graph: Vec<DescriptorMachine>,
-) -> Result<CallableValueProgram<'_>, CallableValuePreparationError> {
+    packages: &crate::packages::CheckedPackageSites,
+) -> Result<CallableValueProgram<'m>, CallableValuePreparationError> {
     // Each machine and each cleanup caller looks up its row by identity.
     // Sorting (identity, position) pairs keeps the first row for an identity
     // first, which is the row a front-to-back search would return.
@@ -289,6 +295,46 @@ fn project_callable_values(
                     block.id,
                     u32::try_from(index).map_err(|_| "callable Terminal position overflow")?,
                 );
+                if let O::EstablishRecord { fields } = &operation.kind {
+                    for field in fields {
+                        if let Some(actual) =
+                            packages.field_type(machine.id, operation.id, field.field)
+                        {
+                            let record = operation
+                                .result
+                                .as_structural()
+                                .ok_or("package construction lost its result")?;
+                            body.package_sites.record_field(
+                                &module.types.structural_types,
+                                position,
+                                record,
+                                field.field,
+                                actual,
+                            )?;
+                        }
+                    }
+                }
+                if let O::CallMachine {
+                    structural_arguments,
+                    ..
+                } = &operation.kind
+                    && let Some(contract) = packages.invocation_contract(machine.id, operation.id)
+                {
+                    let referents = (0..structural_arguments.len()).filter_map(|i| {
+                        packages
+                            .borrowed_argument(machine.id, operation.id, i)
+                            .map(|t| (i, t))
+                    });
+                    body.package_sites.opened_call(
+                        &module.execution.callables,
+                        operation.id,
+                        contract,
+                        packages
+                            .invocation_witnesses(module, machine.id, operation.id)
+                            .ok_or("package call lacks its checked witness tuple")?,
+                        referents,
+                    )?;
+                }
                 if let Some(result) = operation.result.as_structural() {
                     body.retain_structural_result(position, result.place);
                 }
@@ -321,6 +367,16 @@ fn project_callable_values(
                 };
                 let definition = match &operation.kind {
                     O::SelectMachine { descriptor } => CallableDefinition::Constructed(*descriptor),
+                    O::PrimitiveScalarRead { .. }
+                        if packages.projected_field(machine.id, operation.id).is_some() =>
+                    {
+                        opened_stored_callable_definition(
+                            &module.types.structural_types,
+                            flow,
+                            position,
+                            result.id,
+                        )?
+                    }
                     _ if body.has_primary_invocation(position) => {
                         CallableDefinition::Invocation(position)
                     }
@@ -453,6 +509,7 @@ fn project_callable_values(
         }
     }
     Ok(CallableValueProgram {
+        module: Some(module),
         catalog: &module.execution.callables,
         structural_types: &module.types.structural_types,
         graph,
@@ -647,5 +704,9 @@ pub fn stored_callable_definition(
     reads
         .next()
         .is_none()
-        .then_some(CallableDefinition::Stored { position, location })
+        .then_some(CallableDefinition::Stored {
+            position,
+            location,
+            storage_contract: None,
+        })
 }

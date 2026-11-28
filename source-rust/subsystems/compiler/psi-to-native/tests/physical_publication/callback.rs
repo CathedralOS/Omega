@@ -726,6 +726,7 @@ fn check_callback_publication(retain_body_source: bool) {
         admitted,
         target::TargetProfile::WindowsX64,
         retain_body_source,
+        &optimization_core::PostTerminalOptimizationSelections::default(),
         |target| {
             assert!(
                 target

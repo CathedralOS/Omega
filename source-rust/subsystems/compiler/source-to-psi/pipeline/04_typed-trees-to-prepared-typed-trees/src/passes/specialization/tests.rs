@@ -3246,7 +3246,7 @@ fn a_substituted_const_expression_is_exact_in_its_parameter_type() {
     };
     assert!(matches!(
         super::substituted_const_int(&program, sum, &[operand(landed("3", "u8"))]),
-        Ok(Some(value)) if value == "4"
+        Ok(Some(value)) if value.value_u64() == Some(4) && value.landing().unwrap().landed_type == numeric_literals::LandedIntegerType::U8
     ));
     assert!(matches!(
         super::substituted_const_int(
@@ -3254,7 +3254,7 @@ fn a_substituted_const_expression_is_exact_in_its_parameter_type() {
             sum,
             &[operand(landed("340282366920938463463374607431768211454", "u128"))],
         ),
-        Ok(Some(value)) if value == "340282366920938463463374607431768211455"
+        Ok(Some(value)) if value.magnitude_u128() == Some(u128::MAX) && value.landing().unwrap().landed_type.bit_width() == 128
     ));
     assert!(matches!(
         super::substituted_const_int(&program, sum, &[operand(landed("255", "u8"))]),
