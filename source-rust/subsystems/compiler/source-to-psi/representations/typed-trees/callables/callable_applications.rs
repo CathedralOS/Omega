@@ -1,3 +1,5 @@
+#[path = "specialization_regions.rs"]
+mod specialization_regions;
 #[path = "static_callback_contracts.rs"]
 mod static_callback_contracts;
 pub use static_callback_contracts::AppliedStaticCallbackRequirement;
@@ -2963,6 +2965,10 @@ pub(crate) mod payloads {
                     .collect::<Result<Vec<_>, _>>()?
                     };
                     for lifetime in &lifetimes {
+                        if lifetime.origin == CallableLifetimeOrigin::Specialized {
+                            applied_owner = lifetime.region.declaration;
+                            continue;
+                        }
                         if lifetime.region.declaration.is_valid()
                             && crate::source_state::type_identity::lifetime_parameter_name(
                                 program,
@@ -8617,6 +8623,7 @@ pub struct CopiedCallableBody {
 /// Substitutes the bindings of one declaration while copying typed records.
 /// Reuse the same application for types, facts and static arguments that share a scope.
 pub struct CallableApplication {
+    specialized_regions: std::collections::VecDeque<specialization_regions::RegionUse>,
     owned_signature: SymbolHandle,
     runtime_values: Vec<SymbolHandle>,
     region_scope: SymbolHandle,
@@ -8661,6 +8668,7 @@ struct CallableLifetimeBinding {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum CallableLifetimeOrigin {
+    Specialized,
     Lexical,
     Rigid,
     Captured,
@@ -8832,12 +8840,23 @@ impl CallableApplication {
     }
 
     fn scoped_lifetime(
-        &self,
+        &mut self,
         program: &TypedTrees,
         reference: types::TypeReferenceHandle,
         slot: usize,
         original: &crate::source_state::name::Identifier,
     ) -> Result<ScopedCallableLifetime, &'static str> {
+        if let Some(site) = self.specialized_regions.front()
+            && site.reference == reference
+            && site.slot == slot
+        {
+            let site = self.specialized_regions.pop_front().unwrap();
+            return Ok(ScopedCallableLifetime {
+                name: site.name,
+                region: site.region,
+                origin: CallableLifetimeOrigin::Specialized,
+            });
+        }
         if let Some(region) = program
             .type_reference_table
             .operand_lifetimes(reference)
