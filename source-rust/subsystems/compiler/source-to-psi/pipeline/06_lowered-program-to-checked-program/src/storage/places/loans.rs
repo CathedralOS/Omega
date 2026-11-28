@@ -127,64 +127,6 @@ enum Ancestry {
 }
 
 impl Formed {
-    /// During one call, a reference held in a borrowed record may be
-    /// reborrowed through the local descriptor that actually holds its
-    /// exclusive loan. The field still supplies its own checked input loan.
-    fn borrows_stored_input_through(&self, carrier: &Formed) -> bool {
-        if self.invocation.is_none()
-            || self.lifetime.is_some()
-            || self.returned_by.is_some()
-            || self.lender != Lender::Incoming
-            || !self.permitted
-            || carrier.invocation.is_some()
-            || carrier.access != ReferenceAccess::Mutable
-        {
-            return false;
-        }
-        let (Some(source), Some(live)) = (&self.from, &carrier.lifetime) else {
-            return false;
-        };
-        let [
-            DescriptorPathSegment::Referent,
-            DescriptorPathSegment::Field(field),
-        ] = source.path.as_slice()
-        else {
-            return false;
-        };
-        let local = DescriptorLocation::whole(source.root);
-        if !live
-            .authorized
-            .get(&self.at)
-            .is_some_and(|names| names.contains(&local))
-            || !live
-                .surviving
-                .get(&self.at)
-                .is_some_and(|names| names.contains(&local))
-        {
-            return false;
-        }
-        let (LoanRegion::Storage(parent), LoanRegion::Storage(target)) =
-            (&carrier.lineage, &self.lineage)
-        else {
-            return false;
-        };
-        let (Some(parent_place), Some(target_place)) =
-            (parent.single_place(), target.single_place())
-        else {
-            return false;
-        };
-        target_place
-            .segments
-            .strip_prefix(parent_place.segments.as_slice())
-            == Some(
-                &[
-                    DescriptorPathSegment::Field(*field),
-                    DescriptorPathSegment::Referent,
-                ][..],
-            )
-            && parent.strictly_contains(target)
-    }
-
     fn immediate_parents(&self) -> impl Iterator<Item = &ObligationId> {
         let single = match &self.lender {
             Lender::Loan(parent) => Some(parent),
@@ -447,6 +389,87 @@ fn graph_refusal(
 }
 
 impl<'a> Storage<'a> {
+    /// During one call, a reference held in a borrowed record may be
+    /// reborrowed through the local descriptor that actually holds its
+    /// exclusive loan. The field still supplies its own checked input loan.
+    fn borrows_stored_input_through(
+        &self,
+        references: &mut super::DescriptorAnalysis<'a>,
+        call: &Formed,
+        carrier: &Formed,
+    ) -> bool {
+        if call.invocation.is_none()
+            || call.lifetime.is_some()
+            || call.returned_by.is_some()
+            || call.lender != Lender::Incoming
+            || !call.permitted
+            || carrier.invocation.is_some()
+            || carrier.access != ReferenceAccess::Mutable
+        {
+            return false;
+        }
+        let (Some(source), Some(live)) = (&call.from, &carrier.lifetime) else {
+            return false;
+        };
+        let [
+            DescriptorPathSegment::Referent,
+            DescriptorPathSegment::Field(field),
+        ] = source.path.as_slice()
+        else {
+            return false;
+        };
+        let local = DescriptorLocation::whole(source.root);
+        if !live
+            .authorized
+            .get(&call.at)
+            .is_some_and(|names| names.contains(&local))
+            || !live
+                .surviving
+                .get(&call.at)
+                .is_some_and(|names| names.contains(&local))
+        {
+            return false;
+        }
+        let (LoanRegion::Storage(parent), LoanRegion::Storage(target)) =
+            (&carrier.lineage, &call.lineage)
+        else {
+            return false;
+        };
+        let slot = super::Lineage {
+            root: source.root,
+            segments: source.path.clone(),
+        };
+        let Ok(slot) = self.backing(
+            references,
+            &slot,
+            call.at.0,
+            call.at.1 as usize,
+            Construct::Obligation(call.obligation),
+        ) else {
+            return false;
+        };
+        let (Some(parent_place), Some(slot_place), Some(target_place)) = (
+            parent.single_place(),
+            slot.single_place(),
+            target.single_place(),
+        ) else {
+            return false;
+        };
+        // The record covers the field containing the reference. The target
+        // crosses that exact slot using the independent permission it holds.
+        parent_place.root == slot_place.root
+            && slot_place.root == target_place.root
+            && slot_place
+                .segments
+                .strip_prefix(parent_place.segments.as_slice())
+                == Some(&[DescriptorPathSegment::Field(*field)][..])
+            && target_place
+                .segments
+                .strip_prefix(slot_place.segments.as_slice())
+                == Some(&[DescriptorPathSegment::Referent][..])
+            && parent.strictly_contains(&slot)
+    }
+
     pub(super) fn borrowed_resource(
         &self,
         parameter: &terminal_psi::StructuralParameterDeclaration,
@@ -1629,7 +1652,7 @@ impl<'a> Storage<'a> {
                     .from
                     .as_ref()
                     .is_some_and(|slot| slot.root == place.root && slot.path == before)
-                    && argument.borrows_stored_input_through(loan)
+                    && self.borrows_stored_input_through(references, argument, loan)
                     && matches!(&argument.lineage, LoanRegion::Storage(target)
                         if target.same_single_region(touched))
             })
@@ -3372,11 +3395,6 @@ impl<'a> Storage<'a> {
                     if returned(loan, earlier) || returned(earlier, loan) {
                         continue;
                     }
-                    if loan.borrows_stored_input_through(earlier)
-                        || earlier.borrows_stored_input_through(loan)
-                    {
-                        continue;
-                    }
                     if self.descends(loan, earlier, &formed, post_loans.by_obligation)?
                         || self.descends(earlier, loan, &formed, post_loans.by_obligation)?
                     {
@@ -3388,6 +3406,11 @@ impl<'a> Storage<'a> {
                         earlier.access,
                         &earlier.lineage,
                     ) {
+                        if self.borrows_stored_input_through(references, loan, earlier)
+                            || self.borrows_stored_input_through(references, earlier, loan)
+                        {
+                            continue;
+                        }
                         found = Some((Some(earlier.position), conflict));
                         break;
                     }
