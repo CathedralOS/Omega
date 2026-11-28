@@ -22,6 +22,7 @@ pub struct StructuralTypeCatalog(
     Option<Arc<RetainedQuotients>>,
     Option<Arc<RetainedAccessLifecycles>>,
     Arc<Vec<(StructuralTypeId, u64)>>,
+    Arc<Vec<runtime_abi::ExecutionOwnerHome>>,
 );
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -49,6 +50,7 @@ impl StructuralTypeCatalog {
             && Arc::ptr_eq(&self.2, &other.2)
             && Arc::ptr_eq(&self.3, &other.3)
             && Arc::ptr_eq(&self.6, &other.6)
+            && Arc::ptr_eq(&self.7, &other.7)
             && match (&self.4, &other.4) {
                 (None, None) => true,
                 (Some(left), Some(right)) => Arc::ptr_eq(left, right),
@@ -116,6 +118,7 @@ impl StructuralTypeCatalog {
             None,
             None,
             Arc::default(),
+            Arc::default(),
         )
     }
 
@@ -131,6 +134,15 @@ impl StructuralTypeCatalog {
 
     pub fn owned_sequence_bounds(&self) -> &[(StructuralTypeId, u64)] {
         &self.6
+    }
+
+    pub fn with_execution_owners(mut self, owners: Vec<runtime_abi::ExecutionOwnerHome>) -> Self {
+        self.7 = Arc::new(owners);
+        self
+    }
+
+    pub fn value_storage(&self) -> runtime_abi::NativeValueStorage<'_> {
+        runtime_abi::NativeValueStorage { sequences: &self.6, execution_owners: &self.7 }
     }
 
     pub fn with_access_views(mut self, plans: Vec<TerminalAccessViewPlan>) -> Self {
@@ -241,6 +253,7 @@ impl PartialEq<Vec<StructuralTypeDeclaration>> for StructuralTypeCatalog {
         self.4.is_none()
             && self.5.is_none()
             && self.6.is_empty()
+            && self.7.is_empty()
             && self.referents().is_empty()
             && self.access_views().is_empty()
             && self.access_view_inputs().is_empty()
@@ -253,6 +266,7 @@ impl PartialEq<StructuralTypeCatalog> for Vec<StructuralTypeDeclaration> {
         other.4.is_none()
             && other.5.is_none()
             && other.6.is_empty()
+            && other.7.is_empty()
             && other.referents().is_empty()
             && other.access_views().is_empty()
             && other.access_view_inputs().is_empty()

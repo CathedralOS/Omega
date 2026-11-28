@@ -2011,7 +2011,8 @@ pub(crate) fn lower_selected_module(
         .map_err(LoweringError::SemanticIdentity)?
         .with_quotients(module.types.quotients.clone())
         .map_err(LoweringError::SemanticIdentity)?
-        .with_owned_sequence_bounds(owned_sequence_bounds),
+        .with_owned_sequence_bounds(owned_sequence_bounds)
+        .with_execution_owners(scope.map_or_else(Vec::new, |s| s.value_storage().execution_owners.to_vec())),
         boundary_machines: module
             .interfaces.boundary_machines
             .iter()

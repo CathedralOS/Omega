@@ -3141,6 +3141,7 @@ name = "structural-storage"
 version = "0.1.0"
 dependencies = [
  "psi-declaration-encoding",
+ "runtime-abi",
  "semantic-vocabulary",
  "terminal-psi",
 ]
@@ -3327,6 +3328,7 @@ dependencies = [
  "psi-provider-selections",
  "psi-publication-records",
  "psi-target-layouts",
+ "runtime-abi",
  "semantic-vocabulary",
  "target",
  "target-provider-admission",

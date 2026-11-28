@@ -233,6 +233,7 @@ impl<'a> NativeScopeBinding<'a> {
             self.entry,
             emitted,
             selected_candidate_positions,
+            &prepared_workers,
             self.parent.map(NativeExecutionScope::reach),
         )?;
         Ok(NativeExecutionScope {

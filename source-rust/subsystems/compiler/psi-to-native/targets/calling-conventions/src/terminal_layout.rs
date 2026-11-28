@@ -50,9 +50,16 @@ impl<'a> NativeGeometry<'a> {
         declarations: &'a [StructuralTypeDeclaration],
         bounds: &'a [(StructuralTypeId, u64)],
     ) -> Result<Self, NonDenseIdentities> {
+        Self::with_value_storage(declarations, runtime_abi::NativeValueStorage { sequences: bounds, ..Default::default() })
+    }
+
+    pub fn with_value_storage(
+        declarations: &'a [StructuralTypeDeclaration],
+        storage: runtime_abi::NativeValueStorage<'a>,
+    ) -> Result<Self, NonDenseIdentities> {
         Ok(Self {
             declarations,
-            resolver: StructuralLayoutResolver::with_owned_sequence_bounds(declarations, bounds)?,
+            resolver: StructuralLayoutResolver::with_value_storage(declarations, storage)?,
         })
     }
 
@@ -70,7 +77,7 @@ impl<'a> NativeGeometry<'a> {
         owned_sequence_layout(
             root,
             self.shape(element)?,
-            sequence_capacity(self.resolver.owned_sequences, root)?,
+            sequence_capacity(self.resolver.storage.sequences, root)?,
         )
     }
 
@@ -89,7 +96,11 @@ impl<'a> NativeGeometry<'a> {
     }
 
     pub fn owned_sequence_bounds(&self) -> &'a [(StructuralTypeId, u64)] {
-        self.resolver.owned_sequences
+        self.resolver.storage.sequences
+    }
+
+    pub fn value_storage(&self) -> runtime_abi::NativeValueStorage<'a> {
+        self.resolver.storage
     }
 
     pub fn declaration(
@@ -149,7 +160,7 @@ type KnownShapes = IdTable<StructuralTypeId, Option<ValueShape>>;
 /// claimed layout result as evidence.
 pub struct StructuralLayoutResolver<'a> {
     declarations: Declarations<'a>,
-    owned_sequences: &'a [(StructuralTypeId, u64)],
+    storage: runtime_abi::NativeValueStorage<'a>,
     scratch: RefCell<LayoutScratch>,
 }
 
@@ -169,12 +180,29 @@ impl<'a> StructuralLayoutResolver<'a> {
         rows: impl IntoIterator<Item = &'a StructuralTypeDeclaration>,
         owned_sequences: &'a [(StructuralTypeId, u64)],
     ) -> Result<Self, NonDenseIdentities> {
+        Self::with_value_storage(rows, runtime_abi::NativeValueStorage { sequences: owned_sequences, ..Default::default() })
+    }
+
+    pub fn with_value_storage(
+        rows: impl IntoIterator<Item = &'a StructuralTypeDeclaration>,
+        storage: runtime_abi::NativeValueStorage<'a>,
+    ) -> Result<Self, NonDenseIdentities> {
         let declarations = IdTable::from_rows(rows.into_iter().map(|row| (row.id, row)))?;
-        let known = declarations.map(|_, _| None);
+        let mut known = declarations.map(|_, _| None);
+        for home in storage.execution_owners {
+            if let Some(declaration) = declarations.get(home.ty())
+                && matches!(declaration.shape, StructuralTypeShape::Opaque)
+                && declaration.owns_linear_claim
+                && declaration.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+                && let Some(slot) = known.get_mut(home.ty())
+            {
+                *slot = Some(ValueShape::integer(home.bytes(), home.alignment()));
+            }
+        }
         let active = declarations.map(|_, _| false);
         Ok(Self {
             declarations,
-            owned_sequences,
+            storage,
             scratch: RefCell::new(LayoutScratch { known, active }),
         })
     }
@@ -201,7 +229,7 @@ impl<'a> StructuralLayoutResolver<'a> {
         resolve_structural_shape(
             structural_type,
             &self.declarations,
-            self.owned_sequences,
+            self.storage.sequences,
             known,
             active,
             &mut reject_unclosed_extent,
@@ -338,9 +366,10 @@ impl<'a> StructuralLayoutResolver<'a> {
     fn materialize(self) -> StructuralLayouts<'a> {
         let Self {
             declarations,
-            owned_sequences,
+            storage,
             scratch,
         } = self;
+        let owned_sequences = storage.sequences;
         let LayoutScratch {
             mut known,
             mut active,
@@ -390,6 +419,13 @@ impl<'a> StructuralLayouts<'a> {
         bounds: &'a [(StructuralTypeId, u64)],
     ) -> Result<Self, NonDenseIdentities> {
         Ok(StructuralLayoutResolver::with_owned_sequence_bounds(rows, bounds)?.materialize())
+    }
+
+    pub fn with_value_storage(
+        rows: impl IntoIterator<Item = &'a StructuralTypeDeclaration>,
+        storage: runtime_abi::NativeValueStorage<'a>,
+    ) -> Result<Self, NonDenseIdentities> {
+        Ok(StructuralLayoutResolver::with_value_storage(rows, storage)?.materialize())
     }
 
     pub fn owned_sequence(
@@ -1164,6 +1200,26 @@ mod owned_sequence_tests {
             nominal_cleanup: None,
             scalar_restriction: None,
         }
+    }
+
+    #[test]
+    fn execution_custody_moves_one_pointer_without_exposing_other_opaque_values() {
+        let mut owner = declaration(1, StructuralTypeShape::Opaque);
+        owner.owns_linear_claim = true;
+        owner.multiplicity = terminal_psi::StructuralMultiplicity::Linear;
+        let mut foreign = owner.clone();
+        foreign.id = StructuralTypeId::new(2).unwrap();
+        let rows = [owner, foreign];
+        let homes = [runtime_abi::ExecutionOwnerHome::for_target(rows[0].id, target::NativeTarget::windows_x64()).unwrap()];
+        let storage = runtime_abi::NativeValueStorage { sequences: &[], execution_owners: &homes };
+        let geometry = NativeGeometry::with_value_storage(&rows, storage).unwrap();
+        assert_eq!(geometry.shape(rows[0].id), Ok(ValueShape::integer(8, 8)));
+        assert_eq!(geometry.shape(rows[1].id), Err(TerminalLayoutError::UnclosedOpaqueRepresentation(rows[1].id)));
+        assert_eq!(NativeGeometry::new(&rows).unwrap().shape(rows[0].id),
+            Err(TerminalLayoutError::UnclosedOpaqueRepresentation(rows[0].id)));
+        let layouts = StructuralLayouts::with_value_storage(rows.iter(), storage).unwrap();
+        assert!(layouts.required_scalar_extents([rows[0].id]).unwrap().is_empty());
+        assert!(layouts.required_scalar_extents([rows[1].id]).is_err());
     }
 
     fn declarations() -> Vec<StructuralTypeDeclaration> {
