@@ -27,6 +27,8 @@ dependencies = [
  "function-identity",
  "language-core",
  "legalized-operations",
+ "native-body-plan",
+ "native-body-plan-issuer",
  "operation-evidence",
  "optimization-core",
  "optimization-unit",
@@ -1401,6 +1403,21 @@ dependencies = [
  "terminal-semantics",
  "wire",
 ]
+
+[[package]]
+name = "native-body-plan"
+version = "0.1.0"
+dependencies = [
+ "function-identity",
+ "legalized-operations",
+ "native-body-plan-issuer",
+ "optimization-core",
+ "verified-optimization-input",
+]
+
+[[package]]
+name = "native-body-plan-issuer"
+version = "0.1.0"
 
 [[package]]
 name = "native-compiler"
@@ -3338,6 +3355,7 @@ dependencies = [
  "language-core",
  "layout-plans",
  "legalized-operations",
+ "native-body-plan",
  "operation-evidence",
  "operation-operands",
  "optimization-core",
