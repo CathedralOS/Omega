@@ -4,6 +4,7 @@ use control/pursuit/pursuit.omg;
 use control/state/state.omg as control_state;
 use simulation/clock/clock.omg;
 use {omega}/language/core/iteration.omg;
+use {omega}/language/core/nat.omg;
 
 public machine clear_intents<const Actors: u64>(intents: @mutable |control_state|::IntentSet<Actors>)
 terminates
@@ -24,7 +25,7 @@ terminates {
 
 machine route_autonomous_bindings(controls: @|control_state|::ControllerSet<|configuration|::CONTROLLER_CAPACITY, |configuration|::ACTOR_CAPACITY>, actors: @|state_state|::ActorSet<|configuration|::ACTOR_CAPACITY, |configuration|::ROOM_COUNT>, intents: @mutable |control_state|::IntentSet<|configuration|::ACTOR_CAPACITY>, clock: |clock|::FrameClock, index: u64, remaining: u64)
 terminates
-terminates by remaining -> Nat::Descending {
+terminates by remaining -> |nat|::Nat::Descending {
     transition remaining > 0 && index < |configuration|::CONTROLLER_CAPACITY { true -> head(controls, actors, intents, clock, index, remaining), _ -> done() }
     machine head(controls: @|control_state|::ControllerSet<|configuration|::CONTROLLER_CAPACITY, |configuration|::ACTOR_CAPACITY>, actors: @|state_state|::ActorSet<|configuration|::ACTOR_CAPACITY, |configuration|::ROOM_COUNT>, intents: @mutable |control_state|::IntentSet<|configuration|::ACTOR_CAPACITY>, clock: |clock|::FrameClock, index: u64, remaining: u64)
     requires remaining > 0 && index < |configuration|::CONTROLLER_CAPACITY {
