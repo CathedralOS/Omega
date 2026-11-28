@@ -7,7 +7,8 @@ package-review comparison rows; that belongs to `encode`. `policy/` restores
 receipt-free typed policy without compiler replay.
 */
 
+use super::PackagePolicyRecoveryLimits;
+
 mod policy;
 
-pub use policy::PackagePolicyRecoveryLimits;
 pub(crate) use policy::{PackagePolicyRecoveryError, PackagePolicyRecoveryUsage};

@@ -198,8 +198,12 @@ fn assign_program_symbols(
         diagnostics.push(error);
         return diagnostics;
     }
+    let callable_openings = match runtime_callable_types::CallableOpenings::of(program, runtime_callable_contracts) {
+        Ok(openings) => openings,
+        Err(errors) => { diagnostics.extend(errors); return diagnostics; }
+    };
     if let Err(errors) =
-        runtime_callable_types::assign_signatures(program, symbols, runtime_callable_contracts)
+        runtime_callable_types::assign_signatures(program, symbols, runtime_callable_contracts, &callable_openings)
     {
         diagnostics.extend(errors);
         return diagnostics;
@@ -211,7 +215,7 @@ fn assign_program_symbols(
     mathematical::assign_mathematical_expression_symbols(program, symbols);
     measures::assign_measure_expression_symbols(program, symbols);
     if let Err(errors) =
-        assign_contract_reference_symbols(program, symbols, runtime_callable_contracts)
+        assign_contract_reference_symbols(program, symbols, runtime_callable_contracts, &callable_openings)
     {
         diagnostics.extend(errors);
     }
@@ -547,10 +551,12 @@ pub(crate) fn assign_body_symbols(
         .bind_program(&mut lowerer.symbol_resolved_trees)
         .map_err(|error| vec![error])?;
     let symbols = lowerer.symbol_resolved_trees.symbols.clone();
+    let callable_openings = runtime_callable_types::CallableOpenings::of(&lowerer.symbol_resolved_trees, &runtime_callable_contracts)?;
     runtime_callable_types::assign_signatures(
         &mut lowerer.symbol_resolved_trees,
         &symbols,
         &runtime_callable_contracts,
+        &callable_openings,
     )?;
     assign_generic_application_origin_symbols(
         &mut lowerer.symbol_resolved_trees,
@@ -572,6 +578,7 @@ pub(crate) fn assign_body_symbols(
         &mut lowerer.symbol_resolved_trees,
         &symbols,
         &runtime_callable_contracts,
+        &callable_openings,
     )?;
     contracts::finalize_outcome_specific_contract_symbols(
         &mut lowerer.symbol_resolved_trees,

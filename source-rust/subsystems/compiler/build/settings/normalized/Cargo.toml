@@ -8,6 +8,5 @@ version.workspace = true
 path = "settings.rs"
 
 [dependencies]
-build-model = { path = "../../model" }
 optimization-selections = { path = "../../../foundation/optimization-selections" }
 target = { path = "../../../psi-to-native/targets/target" }

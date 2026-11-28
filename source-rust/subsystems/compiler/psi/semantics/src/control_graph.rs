@@ -6,7 +6,7 @@ over `TerminalMachine` blocks.
 mod dominance;
 mod required_invocation;
 
-pub use dominance::{DominanceInterval, dominance_forest};
+pub use dominance::{DominanceInterval, dominance_forest, immediate_dominators};
 pub use required_invocation::{InvocationOnReturn, invocation_on_return};
 
 use std::collections::{BTreeMap, BTreeSet};
