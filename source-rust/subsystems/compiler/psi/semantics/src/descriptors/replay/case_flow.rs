@@ -143,6 +143,24 @@ pub(crate) struct CurrentCases {
     copies: values::Copies,
 }
 
+impl CurrentCases {
+    pub(super) fn excludes_payload(&self, location: &DescriptorLocation) -> bool {
+        let mut prefix = DescriptorLocation::whole(location.root);
+        for segment in &location.path {
+            if let DescriptorPathSegment::Case(case) = segment
+                && self
+                    .facts
+                    .get(&prefix)
+                    .is_some_and(|active| !active.is_empty() && !active.contains(case))
+            {
+                return true;
+            }
+            prefix.path.push(*segment);
+        }
+        false
+    }
+}
+
 pub(crate) fn validate_graph(
     replay: &Replay<'_>,
     machine: &DescriptorMachine,

@@ -607,3 +607,47 @@ fn forwarding_an_applied_sum_preserves_its_occurrence_lifetime() {
         .expect("different occurrence lifetime");
     assert!(refusal.message.contains("another lifetime"), "{refusal:?}");
 }
+
+#[test]
+fn reference_in_alternative_payloads_retains_its_input_after_a_call() {
+    let source = r#"data Ticket<'input> { anchor: @'input u8; }
+data Outcome<'input> {
+    case Held(ticket: Ticket<'input>);
+    case Released(ticket: Ticket<'input>);
+}
+machine partition<'input>(ready: bool, ticket: Ticket<'input>) -> Outcome<'input> {
+    match ready {
+        false -> Outcome::Held { ticket: move ticket },
+        true -> Outcome::Released { ticket: move ticket }
+    }
+}
+machine take<'input>(ready: bool, incoming: Ticket<'input>, other: Ticket<'input>) -> Ticket<'input> {
+    match partition(ready, move incoming) {
+        Outcome::Held { ticket } -> move ticket,
+        Outcome::Released { ticket } -> move ticket
+    }
+}"#;
+    let program = Program::of(source);
+    program.judged(|_| {}).accepted();
+    let take = program.machine("take");
+    let (input, path, access) = returned_origin(&program, take);
+    assert_eq!(input, formal(take, 0));
+    assert_eq!(path, ["anchor", "*"]);
+    assert_eq!(access, StructuralAccess::SharedBorrow);
+
+    let other = formal(take, 1);
+    let refused = program
+        .judged_in("take", |machine| {
+            let TerminalMachineResult::Structural(result) = &mut machine.contract.result else {
+                unreachable!()
+            };
+            let StructuralReferenceOrigin::Parameter(origin) =
+                &mut result.reference_sources[0].sources[0]
+            else {
+                unreachable!()
+            };
+            origin.place = other;
+        })
+        .refused();
+    assert!(refused.detail.contains(REFERENCE_ORIGIN), "{refused:?}");
+}
