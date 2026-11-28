@@ -6,12 +6,12 @@ use crate::exactly_one::exactly_one;
 use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum Origin {
-    Provider(DescriptorProviderOrigin<Origin>),
+pub(crate) enum Origin {    Provider(DescriptorProviderOrigin<Origin>),
     Backing(DescriptorCallOrigin),
     Incoming(DescriptorLocation),
     IncomingContents(DescriptorContentsQuery, Projection),
     ProducedContents(ProducedContents<Origin>),
+    OwnerBacking(OwnerBacking<Origin>),
     Storage(DescriptorLocation),
     /// A borrowed header captures an address account, not a fresh lookup
     /// through a descriptor that may subsequently be replaced.
@@ -2377,7 +2377,7 @@ impl<'a> Replay<'a> {
             .as_ref()?
             .iter()
             .map(|origin| match origin {
-                Origin::ProducedContents(_) => None,
+                Origin::ProducedContents(_) | Origin::OwnerBacking(_) => None,
                 Origin::CapturedStorage(account) => {
                     let values = self.project(
                         machine,
@@ -2495,6 +2495,10 @@ impl<'a> Replay<'a> {
         value?
             .into_iter()
             .map(|origin| match origin {
+                Origin::OwnerBacking(mut held) => {
+                    held.projection = held.projection.then(projection);
+                    Some(Origin::OwnerBacking(held))
+                }
                 Origin::ProducedContents(_) => None,
                 Origin::CapturedStorage(account) => {
                     let reason = account.unavailable().or_else(|| {
@@ -3351,8 +3355,23 @@ impl<'a> Replay<'a> {
                                 reads,
                             )
                             .ok_or("returned contents do not retain their input loans")?;
+                        let activation_backing = match &produced.activation_backing {
+                            Some(backing) => {
+                                let mut sources = BTreeSet::new();
+                                for source in &backing.sources {
+                                    sources.extend(self.substitute_with_depth(
+                                        machine, before, call, source, reads,
+                                    ).ok_or("activation lost its private backing")?);
+                                }
+                                Some(ActivationBacking {
+                                    preparation: backing.preparation,
+                                    sources: sources.into_iter().collect(),
+                                })
+                            }
+                            None => None,
+                        };
                         origins.insert(Origin::ProducedContents(
-                            produced.with_dependencies(dependencies),
+                            produced.with_mapped_sources(dependencies, activation_backing),
                         ));
                         continue;
                     }
@@ -4091,6 +4110,31 @@ impl<'a> Replay<'a> {
         reads: &DescriptorReadDepth<'_>,
     ) -> Value {
         match origin {
+            DescriptorStoredOrigin::OwnerBacking(query) => {
+                let _read = reads.enter()?;
+                let owners = self.substitute_actuals_with_depth(machine, state, actuals,
+                    &query.owner, reads)?;
+                let mut backing = BTreeSet::new();
+                for owner in owners {
+                    match owner {
+                        Origin::ProducedContents(packet) => {
+                            let retained = packet.activation_backing?;
+                            if retained.preparation != query.preparation { return None; }
+                            backing.extend(self.project(machine, Some(retained.sources.into_iter().collect()),
+                                Some(&query.projection))?);
+                        }
+                        Origin::Incoming(_) | Origin::IncomingContents(_, _) => {
+                            backing.insert(Origin::OwnerBacking(OwnerBacking {
+                                preparation: query.preparation,
+                                owner: Box::new(owner),
+                                projection: query.projection.clone(),
+                            }));
+                        }
+                        _ => return None,
+                    }
+                }
+                Some(backing)
+            }
             DescriptorStoredOrigin::Invocation {
                 carrier_type,
                 projection,
@@ -4470,6 +4514,11 @@ impl<'a> Replay<'a> {
         origin: &Origin,
     ) -> Option<DescriptorStoredOrigin> {
         match origin {
+            Origin::OwnerBacking(query) => Some(DescriptorStoredOrigin::OwnerBacking(OwnerBacking {
+                preparation: query.preparation,
+                owner: Box::new(self.exported(machine, &query.owner)?),
+                projection: query.projection.clone().without_runtime_coordinates(),
+            })),
             Origin::ProducedContents(produced) => {
                 let dependencies = produced
                     .lifetime_dependencies
@@ -4481,8 +4530,17 @@ impl<'a> Replay<'a> {
                         })
                     })
                     .collect::<Option<_>>()?;
+                let backing = match &produced.activation_backing {
+                    Some(backing) => Some(ActivationBacking {
+                        preparation: backing.preparation,
+                        sources: backing.sources.iter()
+                            .map(|origin| self.exported(machine, origin))
+                            .collect::<Option<_>>()?,
+                    }),
+                    None => None,
+                };
                 Some(DescriptorStoredOrigin::ProducedContents(
-                    produced.with_dependencies(dependencies),
+                    produced.with_mapped_sources(dependencies, backing),
                 ))
             }
             Origin::CapturedStorage(account) => {
@@ -5051,6 +5109,14 @@ impl<'a> Replay<'a> {
                 }
                 Origin::IncomingContents(query, projection) => {
                     Some(DescriptorSourceOrigin::IncomingContents { query, projection })
+                }
+                Origin::OwnerBacking(held) => {
+                    let query = match *held.owner {
+                        Origin::Incoming(slot) => DescriptorContentsQuery::from_location(&slot),
+                        Origin::IncomingContents(query, projection) if projection == Projection::new(&[]) => query,
+                        _ => return None,
+                    };
+                    Some(DescriptorSourceOrigin::IncomingContents { query, projection: held.projection })
                 }
                 Origin::ProducedContents(_) => None,
             })

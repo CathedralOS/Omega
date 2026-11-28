@@ -13,8 +13,15 @@ pub(crate) fn retained_input_debts(
     types: &[StructuralTypeDeclaration],
     parameters: &[StructuralParameterDeclaration],
 ) -> Option<Vec<DescriptorLifetimeDebt<DescriptorStoredOrigin>>> {
+    retained_parameter_debts(types, parameters.iter().enumerate())
+}
+
+pub(crate) fn retained_parameter_debts<'a>(
+    types: &[StructuralTypeDeclaration],
+    parameters: impl IntoIterator<Item = (usize, &'a StructuralParameterDeclaration)>,
+) -> Option<Vec<DescriptorLifetimeDebt<DescriptorStoredOrigin>>> {
     let mut debts = Vec::new();
-    for (position, formal) in parameters.iter().enumerate() {
+    for (position, formal) in parameters {
         let ty = find_structural_type(types, formal.structural_type)?;
         if formal.access != StructuralAccess::Owned && !ty.shape.is_view_descriptor() {
             debts.push(DescriptorLifetimeDebt {
