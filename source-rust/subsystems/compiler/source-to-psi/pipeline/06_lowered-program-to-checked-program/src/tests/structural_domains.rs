@@ -27,28 +27,13 @@ data Ticket { number: u32; }
 domain Ticket::Stamped established by stamp;
 machine stamp(ticket: Ticket) -> Ticket in Stamped { ticket as +Stamped }
 machine read(ticket: Ticket) -> u32 requires ticket in Stamped { ticket.number }
-machine forward(ticket: Ticket) -> u32 requires ticket in Stamped { read(ticket) }
+trait Reader {
+    machine read(ticket: Ticket) -> u32 requires ticket in Stamped;
+}
+machine forward(ticket: Ticket) -> u32 satisfies Reader::read { read(ticket) }
 machine entry() -> u32 { forward(stamp(Ticket { number: 7u32 }) as -Stamped) }
 "#;
-    let accepted = judge(invocation(source)).unwrap();
-    let RouteVerdict::Accepted(checked) = accepted else {
-        panic!("{accepted:?}")
-    };
-    let publication = checked.publish_invocation().unwrap();
-    let program = TerminalProgram::borrow(publication.artifact.view()).unwrap();
-    let mut instance = program.instantiate(Default::default()).unwrap();
-    let status = instance
-        .invoke(&mut terminal_work::WorkMeter::with_budget(1000))
-        .unwrap();
-    assert!(matches!(
-        status,
-        TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
-            TerminalScalarValue::Integer {
-                value: semantic_vocabulary::IntegerValue::Unsigned(7),
-                ..
-            }
-        ))
-    ));
+    assert_unsigned_invocation(source, 7);
     let unissued = source.replace(
         "stamp(Ticket { number: 7u32 }) as -Stamped",
         "Ticket { number: 7u32 }",
@@ -61,7 +46,18 @@ machine entry() -> u32 { forward(stamp(Ticket { number: 7u32 }) as -Stamped) }
         ("unissued", unissued),
         ("changed after entry", changed_after_entry),
     ] {
-        let refused = judge(invocation(&source)).expect_err(name);
+        let elaboration = invocation(&source).unwrap();
+        let received = refused_only_for_execution(&elaboration.module);
+        assert!(
+            matches!(
+                received,
+                terminal_codec::CodecError::MalformedStructuralFoundation(
+                    "call does not establish the routed membership of its actual input"
+                )
+            ),
+            "{name}: {received:?}"
+        );
+        let refused = judge(Ok(elaboration)).expect_err(name);
         assert!(
             refused
                 .detail
@@ -496,7 +492,7 @@ fn assert_unsigned_invocation(source: &str, expected: u128) {
 
     let verdict = judge(invocation(source)).unwrap();
     let RouteVerdict::Accepted(accepted) = verdict else {
-        panic!("the qualified array must check: {verdict:?}");
+        panic!("expected an accepted invocation: {verdict:?}");
     };
     let publication = accepted.publish_invocation().unwrap();
     let program = TerminalProgram::borrow(publication.artifact.view()).unwrap();
@@ -917,7 +913,7 @@ fn normal_result_membership_rejects_missing_facts_and_wrong_subjects() {
                     "routed membership does not match its declared subject and carrier"
                 }
                 "missing independent predicate" => {
-                    "membership guarantee lost its independent result predicate"
+                    "routed membership lost its independent domain predicate"
                 }
                 _ => unreachable!(),
             };

@@ -2799,6 +2799,9 @@ impl<'t> Program<'t> {
         if requires {
             // Implicit formal-domain obligations remain alongside inherited
             // inputs. Canonicalization may merge an obligation both declare.
+            signature
+                .membership_requires
+                .extend(inherited.membership_requires);
             let mut clauses = std::mem::take(&mut signature.requires);
             clauses.extend(inherited.requires);
             let mut texts = std::mem::take(&mut names.requires);

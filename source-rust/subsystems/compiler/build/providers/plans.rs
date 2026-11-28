@@ -795,18 +795,12 @@ impl ProviderPlan {
                     context()
                 ));
             }
-            if method.domain_memberships.iter().any(|row| {
-                !row.has_exact_identity()
-                    || !row.has_subject(method.parameter_count, method.has_result)
-            }) || method
-                .domain_memberships
-                .windows(2)
-                .any(|pair| pair[0] >= pair[1])
-            {
-                errors.push(format!(
-                    "{} domain membership roster has no exact canonical meaning",
-                    context()
-                ));
+            if let Err(reason) = service_surface::ServiceDomainMembership::validate_entries(
+                &method.domain_memberships,
+                method.parameter_count,
+                method.has_result,
+            ) {
+                errors.push(format!("{} {reason}", context()));
             }
             for claim in &method.result_claims {
                 if !method.has_result || !method.result_type_identity.is_valid() {

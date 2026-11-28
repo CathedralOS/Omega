@@ -2635,11 +2635,11 @@ pub(crate) fn boundary_declaration(
         } else {
             source_admission::source_identity::toolchain_source_identities(
                 typed
-                    .ok_or("normal-result membership lost its source context")?
+                    .ok_or("routed membership lost its source context")?
                     .symbols
                     .source_files(),
             )
-            .map_err(|_| "normal-result membership lost its toolchain source identity")?
+            .map_err(|_| "routed membership lost its toolchain source identity")?
         };
     commit_structural_guarantees(typed, &sources, signature, identities, &mut commitment)?;
     proof.crash_routes.hash(&mut commitment);

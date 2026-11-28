@@ -13,7 +13,11 @@ use language_core::DomainPredicatePresence;
 use service_surface::{
     ServiceDomainMembership, ServiceMembershipProjection, ServiceSynchronousInvocation,
 };
-use service_surface::{ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind, ServiceProgressPremise, ServiceProgressSubject, ServiceResultClaim};
+use service_surface::{
+    ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceProgressEstablishmentRoute,
+    ServiceProgressEstablishmentRouteKind, ServiceProgressPremise, ServiceProgressSubject,
+    ServiceResultClaim,
+};
 
 pub(in crate::encoding::recovery) fn method(
     reader: &mut Reader<'_>,

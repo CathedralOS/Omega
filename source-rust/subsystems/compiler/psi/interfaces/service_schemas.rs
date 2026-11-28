@@ -182,6 +182,11 @@ impl crate::TerminalModule {
         }
         row.surface.validate_receiver_applications()?;
         for method in &row.surface.methods {
+            service_surface::ServiceDomainMembership::validate_entries(
+                &method.domain_memberships,
+                method.parameter_count,
+                method.has_result,
+            )?;
             ServiceSynchronousInvocation::validate_entries(
                 &method.synchronous_invocations,
                 method.parameter_count,

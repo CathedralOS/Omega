@@ -1242,14 +1242,13 @@ fn validate_boundary_headers(module: &TerminalModule) -> Judged<()> {
     Ok(())
 }
 
-/// A nominal promise does not replace its numeric or structural predicates.
-/// They remain ordinary guarantees, checked against actual result values.
+/// A routed domain retains each predicate as an ordinary clause on the same subject.
 fn validate_predicates<'a>(
     module: &TerminalModule,
     machine: Option<MachineId>,
     binding: &SubjectBinding,
     memberships: &[RuntimeDomainMembership],
-    ensures: impl Clone + Iterator<Item = &'a semantic_vocabulary::Proposition>,
+    clauses: impl Clone + Iterator<Item = &'a semantic_vocabulary::Proposition>,
 ) -> Judged<()> {
     use semantic_vocabulary::Proposition;
     for row in memberships {
@@ -1260,7 +1259,7 @@ fn validate_predicates<'a>(
         let required = required_domains(module, promised).ok_or_else(|| {
             unavailable(
                 machine,
-                "membership guarantee lost its complete domain requirements",
+                "membership contract lost its complete domain requirements",
             )
         })?;
         for domain in required {
@@ -1268,7 +1267,7 @@ fn validate_predicates<'a>(
                 (RuntimeDomainMembership::Scalar { subject, .. }, Domain::Scalar(domain)) => {
                     let domain = crate::scalar_qualifications::scalar_domain(module, domain)
                         .ok_or_else(|| {
-                            unavailable(machine, "membership guarantee lost its scalar domain")
+                            unavailable(machine, "membership contract lost its scalar domain")
                         })?;
                     domain.predicate.as_ref().map(|predicate| {
                         crate::substitution::substitute_proposition_values_with(
@@ -1286,13 +1285,13 @@ fn validate_predicates<'a>(
                         .iter()
                         .find(|row| row.id == domain)
                         .ok_or_else(|| {
-                            unavailable(machine, "membership guarantee lost its structural domain")
+                            unavailable(machine, "membership contract lost its structural domain")
                         })?;
                     let replacement = (*root, path.clone());
                     let SubjectBinding::Structural { carrier, .. } = binding else {
                         return Err(unavailable(
                             machine,
-                            "structural predicate has no result carrier",
+                            "structural predicate has no subject carrier",
                         ));
                     };
                     domain
@@ -1313,19 +1312,19 @@ fn validate_predicates<'a>(
                 _ => {
                     return Err(unavailable(
                         machine,
-                        "membership guarantee changes its domain carrier role",
+                        "membership contract changes its domain carrier role",
                     ));
                 }
             };
             if let Some(predicate) = predicate
                 && predicate != Proposition::Truth
-                && !ensures.clone().any(|clause| {
+                && !clauses.clone().any(|clause| {
                     crate::scalar_qualifications::retains_conjunct(clause, &predicate)
                 })
             {
                 return Err(unavailable(
                     machine,
-                    "membership guarantee lost its independent result predicate",
+                    "routed membership lost its independent domain predicate",
                 ));
             }
         }
@@ -2886,7 +2885,7 @@ mod tests {
             )
             .unwrap_err()
             .detail,
-            "membership guarantee lost its independent result predicate"
+            "routed membership lost its independent domain predicate"
         );
         validate_predicates(
             &module,

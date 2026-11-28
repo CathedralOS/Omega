@@ -146,14 +146,12 @@ pub fn validate_boundary_memberships(
     method: &service_surface::ServiceMethod,
 ) -> Result<(), String> {
     let actual = service_memberships(module, boundary)?;
-    if method.domain_memberships.iter().any(|row| {
-        !row.has_exact_identity() || !row.has_subject(method.parameter_count, method.has_result)
-    }) || method
-        .domain_memberships
-        .windows(2)
-        .any(|pair| pair[0] >= pair[1])
-        || actual != method.domain_memberships
-    {
+    service_surface::ServiceDomainMembership::validate_entries(
+        &method.domain_memberships,
+        method.parameter_count,
+        method.has_result,
+    )?;
+    if actual != method.domain_memberships {
         return Err("native requirement changes its authored domain membership contract".into());
     }
     Ok(())

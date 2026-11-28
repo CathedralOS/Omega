@@ -553,6 +553,26 @@ impl std::hash::Hash for ServiceDomainMembership {
 }
 
 impl ServiceDomainMembership {
+    /// Every service consumer checks the same public argument numbers and result presence.
+    pub fn validate_entries(
+        entries: &[Self],
+        parameter_count: usize,
+        has_result: bool,
+    ) -> Result<(), &'static str> {
+        if entries
+            .iter()
+            .any(|row| !row.has_subject(parameter_count, has_result))
+        {
+            return Err("domain membership names a subject outside the signature");
+        }
+        if entries.iter().any(|row| !row.has_exact_identity())
+            || entries.windows(2).any(|pair| pair[0] >= pair[1])
+        {
+            return Err("domain memberships must name distinct, ordered projections and domains");
+        }
+        Ok(())
+    }
+
     pub fn has_subject(&self, parameters: usize, has_result: bool) -> bool {
         match self.subject {
             ServiceMembershipSubject::Input(index) => (index as usize) < parameters,
@@ -560,7 +580,7 @@ impl ServiceDomainMembership {
         }
     }
 
-    pub fn has_exact_identity(&self) -> bool {
+    fn has_exact_identity(&self) -> bool {
         !self.domain.is_empty()
             && self.path.iter().all(|step| match step {
                 ServiceMembershipProjection::Field(identity)

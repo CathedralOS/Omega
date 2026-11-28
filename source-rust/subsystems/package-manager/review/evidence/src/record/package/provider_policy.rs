@@ -277,6 +277,11 @@ impl PackagePolicyServiceMethod {
     ) -> Result<(), &'static str> {
         self.validate_signature()?;
         self.validate_authority()?;
+        service_surface::ServiceDomainMembership::validate_entries(
+            &self.domain_memberships,
+            self.parameter_count,
+            self.has_result,
+        )?;
         owned_pair(&self.requirement_owner, &self.requirement)?;
         if self.name.is_empty()
             || self.parameter_count != self.parameter_type_identities.len()
@@ -287,13 +292,6 @@ impl PackagePolicyServiceMethod {
                 .as_ref()
                 .is_some_and(String::is_empty)
             || (!self.has_result && !self.result_claims.is_empty())
-            || self.domain_memberships.iter().any(|row| {
-                !row.has_exact_identity() || !row.has_subject(self.parameter_count, self.has_result)
-            })
-            || self
-                .domain_memberships
-                .windows(2)
-                .any(|pair| pair[0] >= pair[1])
             || self.entry_claims.iter().any(|claim| {
                 claim.parameter_index >= self.parameter_count
                     || !claim.carrier_identity.is_valid()
