@@ -37,16 +37,15 @@ mbx xtask sample-gate --filter samples/cli/facts/alias_fact_transfer
 
 All 10 samples report `native exit 0` and `interp exit: 0`.
 
-Each place carries a fact-sensitive reject twin at `<place>/invalid/` (mirrored in `<place>/controls/invalid_alias/`)
-that omits the `main.player in Player::Alive` entry contract, so the unproved alias cannot satisfy
-`Main::inspect`'s `requires player in Player::Alive`. All 9 reject twins fail closed at proof checking
-before native execution:
+Each negative sample lives in `invalid_<place>/main.omg`. The checker refuses
+the call that needs a healthy player, or the cast that adds the health domain
+before passing a player to another state. The parameter case calls `carry` with
+a healthy player and then with zero health. The second call cannot establish
+the condition required by `inspect`.
 
 ```sh
-omega --check samples/cli/facts/alias_fact_transfer/<place>/invalid/main.omg
+omega --check samples/cli/facts/alias_fact_transfer/invalid_local/main.omg
 ```
-
-Every twin rejects with `cannot prove requires contract for call inspect` (or `call arrived` / `call consume`).
 
 ## Requirements and Evidence
 
@@ -59,7 +58,7 @@ Full 8-layer specification and lowering evidence:
 - **Establishment:** The entry contract `requires main.player in Player::Alive` (where `domain Player::Alive(player) requires player.health > 0`) establishes domain membership directly on the exact subject without any post-hoc caller equality guard (`transition x == 100`). Both interior cases (`health: 42`) and boundary cases (`health: 1`) satisfy the entry precondition on valid callers.
 - **Identity and lifetime:** The domain fact `Player::Alive` remains attached to the exact value version across alias creation and storage transport: local copy (`local`), record field projection (`field`), explicit parameter passing (`parameter`), completed call result (`call_result`), match convergence join (`match_join`), named const bound equality (`const_name`), state parameter transition (`other_state`), forwarding machine call (`other_machine`), and target-scoped body candidates (`target_body`). No mutation, alias clobbering, or invalidating write intervenes between fact establishment and consumption.
 - **Composition:** The aliased `Player` copy preserves `player in Player::Alive` and satisfies `Main::inspect(copy)`'s precondition across all nine places. Calls substitute exact actuals, match joins retain the domain fact justified on all predecessor paths, and state transitions prove arrival obligations on incoming edges. Each `<place>/main.omg` vs. `<place>/invalid/main.omg` differs only in omitting the entry contract `requires main.player in Player::Alive`, so the alias receives an unproved player and fails closed.
-- **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins fail closed with `cannot prove requires contract for call inspect` (or `call arrived` / `call consume`) naming that place's unproved alias operand. The checker strictly refuses to transfer unproved domain facts to aliases, preventing invalid programs from reaching Terminal Psi or native code emission.
+- **Soundness boundaries:** The nine controls in `invalid_<place>/main.omg` exercise calls or state arguments that require the missing health condition. The checker strictly refuses to transfer unproved domain facts to aliases, preventing invalid programs from reaching Terminal Psi or native code emission.
 - **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Checked domain predicates (`Player::Alive`) and contracts erase cleanly after verification while the underlying `Player` data structures, alias copies, and machine calls lower without loss into canonical target-neutral Terminal Psi (`PSITERM\0`). The resulting programs execute identically in the Terminal Psi interpreter, observing exact health values 42 and 1.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Companion build rows bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Concrete layout geometry for `Player` (4 bytes, 4-byte alignment) and `Main` (8 bytes, 4-byte alignment) records resolves offset and size plans. `CallPlan` and `StatePlan` place scalar `health: i32` and `Player` copy arguments in target ABI registers (`rcx`/`rdx` on Windows, `rdi`/`rsi` on Linux, `x0`/`x1` on ARM64) and manage indirect mutator references (`@mutable Main`).
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA instructions for 32-bit integer moves and comparisons, assigns register homes and disjoint stack-frame activation storage, and inserts entry prologues and multi-return epilogues.

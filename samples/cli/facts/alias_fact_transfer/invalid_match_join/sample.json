@@ -2,6 +2,6 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "cannot prove requires contract for call inspect from Main::choose: copy in Player::Alive in state `choose`"
+    "cannot prove requires contract for call inspect from choose: copy in Player::Alive"
   ]
 }
