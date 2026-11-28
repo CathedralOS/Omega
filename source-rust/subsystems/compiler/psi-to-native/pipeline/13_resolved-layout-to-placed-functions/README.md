@@ -20,7 +20,7 @@ without retaining allocation or earlier layout graphs.
 inputs, retained only when requested. Missing originals refuse that audit;
 they never suppress the mandatory final-artifact checks. The same retained
 replay can carry stage 06's completed rewrite run as an opaque
-`RetainedSelectedOptimizationRun`; `SelectedInstructionRewriteReplay` asks it
+`SelectedOptimizationReplay`; `SelectedInstructionRewriteReplay` asks it
 to rebuild itself against the record the allocated program carries. Emission
 never reads it. Rebuilding uses the producer itself, so the replay checks
 repeatability and record custody, not independent rewrite correctness.

@@ -1,0 +1,14 @@
+[package]
+name = "selected-analysis-facts"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+selected-body-issuer = { path = "../issuer" }
+selected-instructions = { path = "../.." }
+register-homes = { path = "../../../register-homes" }
+register-environment = { path = "../../../../targets/register-environment" }
+register-model = { path = "../../../../targets/register-model" }
+optimization-core = { path = "../../../optimization-records" }
+semantic-vocabulary = { path = "../../../../../foundation/semantic-records" }
