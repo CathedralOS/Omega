@@ -3824,14 +3824,17 @@ impl<'t> Program<'t> {
             }
             _ => StaticMachineApplicationHandle::invalid(),
         };
-        let free = self.machine_lifetimes(target);
-        let bound = self
+        let mut free = self.machine_lifetimes(target);
+        let bound: super::regions::Substitution = self
             .typed
             .specialization_type_argument_regions(target, application)
             .map_err(|reason| refuse_at(id, Unserved::Call(reason)))?
             .into_iter()
             .map(|(formal, actual)| (formal, super::regions::Region::Parameter(actual)))
             .collect();
+        // A static type argument has already fixed these formals. Runtime
+        // operands must have that region, just as for a named parameter.
+        free.retain(|parameter| !bound.iter().any(|(fixed, _)| fixed == parameter));
         Ok((free, bound))
     }
 
