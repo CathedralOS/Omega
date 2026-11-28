@@ -173,7 +173,9 @@ fn project(
                 indirect: projection.indirect,
             }
         }
-        DescriptorCallOrigin::Invocation { .. } | DescriptorCallOrigin::AccessFormation { .. } => {
+        DescriptorCallOrigin::NativeAddress { .. }
+        | DescriptorCallOrigin::Invocation { .. }
+        | DescriptorCallOrigin::AccessFormation { .. } => {
             return Err(LoweringError::DescriptorCallOrigins {
                 machine,
                 result,

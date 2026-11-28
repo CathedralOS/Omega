@@ -46,18 +46,22 @@ impl<'a> Storage<'a> {
                 let mut inventory = PayloadInventory::default();
                 if let OperationKind::ByteSequenceWrite { destination, .. } = operation.kind {
                     let destination = self.stored_at(destination, &[], concerns)?;
-                    inventory = self.byte_payload_descriptors(&destination, concerns)?;
+                    inventory = self.byte_payload_descriptors(&destination, false, concerns)?;
                 } else if crate::call_contracts::operation_inputs(operation).is_some() {
-                    // Most calls have no mutable byte descriptor. Inventory
-                    // actual operands once before requesting their frame.
-                    for argument in operation
-                        .kind
-                        .structural_arguments()
-                        .iter()
-                        .filter(|argument| argument.access != StructuralAccess::SharedBorrow)
+                    let (may_upgrade, _) = self.native_write_ceiling(operation, concerns)?;
+                    // A checked upgrade can turn a shared byte window into a writable one.
+                    for argument in
+                        operation
+                            .kind
+                            .structural_arguments()
+                            .iter()
+                            .filter(|argument| {
+                                may_upgrade || argument.access != StructuralAccess::SharedBorrow
+                            })
                     {
                         let actual = self.argument(argument, concerns)?;
-                        let actual = self.byte_payload_descriptors(&actual, concerns)?;
+                        let actual =
+                            self.byte_payload_descriptors(&actual, may_upgrade, concerns)?;
                         inventory.descriptors.extend(actual.descriptors);
                         inventory.unknown_contents.extend(actual.unknown_contents);
                     }
@@ -71,6 +75,9 @@ impl<'a> Storage<'a> {
                     )
                     .map_err(|detail| self.foreign(concerns, &detail))?
                     {
+                        if regions.is_empty() {
+                            continue;
+                        }
                         let affected = regions
                             .into_iter()
                             .map(|region| {
@@ -80,14 +87,65 @@ impl<'a> Storage<'a> {
                                         "payload write frame lost its actual root",
                                     )
                                 })?;
-                                self.stored_at(root, &region.projection.path, concerns)
+                                let target =
+                                    self.stored_at(root, &region.written_storage_path(), concerns)?;
+                                let (owner, ordinal) = region.projection.captured_at.unwrap_or((
+                                    block.id,
+                                    u32::try_from(position).map_err(|_| {
+                                        self.foreign(
+                                            concerns,
+                                            "payload call position exceeds its block",
+                                        )
+                                    })?,
+                                ));
+                                self.backing(references, &target, owner, ordinal as usize, concerns)
                             })
                             .collect::<Checked<Vec<_>>>()?;
-                        inventory.unknown_contents.retain(|pending| {
-                            affected
+                        let mut descriptors = Vec::new();
+                        let at = (
+                            block.id,
+                            u32::try_from(position).map_err(|_| {
+                                self.foreign(concerns, "payload call exceeds its block")
+                            })?,
+                        );
+                        for descriptor in inventory.descriptors {
+                            let home = self.backing(
+                                references,
+                                &descriptor,
+                                block.id,
+                                position,
+                                concerns,
+                            )?;
+                            if affected.iter().any(|region| super::overlap(region, &home)) {
+                                descriptors.push(descriptor);
+                                continue;
+                            }
+                            let backing =
+                                self.byte_payload_backings(references, &descriptor, at, concerns)?;
+                            if affected.iter().any(|region| {
+                                backing.iter().any(|source| super::overlap(region, source))
+                            }) {
+                                descriptors.push(descriptor);
+                            }
+                        }
+                        inventory.descriptors = descriptors;
+                        let mut written = Vec::new();
+                        for pending in inventory.unknown_contents {
+                            let carrier = self.backing(
+                                references,
+                                &pending.carrier,
+                                block.id,
+                                position,
+                                concerns,
+                            )?;
+                            if affected
                                 .iter()
-                                .any(|region| super::overlap(region, &pending.carrier))
-                        });
+                                .any(|region| super::overlap(region, &carrier))
+                            {
+                                written.push(pending);
+                            }
+                        }
+                        inventory.unknown_contents = written;
                         inventory.descriptors.retain(|descriptor| {
                             affected
                                 .iter()
@@ -424,6 +482,7 @@ impl<'a> Storage<'a> {
     fn byte_payload_descriptors(
         &self,
         region: &Lineage,
+        may_upgrade: bool,
         concerns: Construct,
     ) -> Checked<PayloadInventory> {
         let inventory = match self.shape(region, concerns)? {
@@ -482,12 +541,12 @@ impl<'a> Storage<'a> {
                 self.byte_shape(region.root, &path, concerns)?,
                 StructuralTypeShape::ByteSequence(
                     ByteSequenceCarrier::BorrowedView {
-                        access: None | Some(StructuralAccess::MutableBorrow)
+                        access
                     } | ByteSequenceCarrier::BoundedView {
-                        access: None | Some(StructuralAccess::MutableBorrow),
+                        access,
                         ..
                     }
-                )
+                ) if may_upgrade || access.is_none_or(|access| access == StructuralAccess::MutableBorrow)
             ) {
                 found.descriptors.push(descriptor);
             }

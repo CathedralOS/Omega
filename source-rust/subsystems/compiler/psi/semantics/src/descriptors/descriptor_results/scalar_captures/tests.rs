@@ -2080,6 +2080,7 @@ fn cleanup_calls_keep_exact_edges_action_order_and_unique_owners() {
             action_ordinal,
         };
         let call = || DescriptorInvocation {
+            native_address_arguments: Vec::new(),
             scalar_arguments: Vec::new(),
             owner,
             target: DescriptorInvocationTarget::Machine(MachineId::new(2).unwrap()),

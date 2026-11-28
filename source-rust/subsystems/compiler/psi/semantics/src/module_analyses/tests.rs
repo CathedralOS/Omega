@@ -314,6 +314,7 @@ fn rows_before_the_bundle(
     let zeroed_cases = ZeroedCases::new(&module.types.structural_types);
     let adapt = |body: &TerminalMachine, closure: Option<&[DescriptorMachine]>| {
         terminal_flow::adapt(
+            crate::storage::native_borrows::tracks_native_addresses(module),
             module,
             &machines,
             body,

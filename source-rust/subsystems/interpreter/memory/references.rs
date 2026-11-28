@@ -3124,6 +3124,93 @@ impl TerminalExecution<'_> {
         storage: Option<terminal_psi::ReferenceStorageView>,
     ) -> Result<(), TerminalInterpretError> {
         let result = operation.result.structural().ok_or(malformed())?;
+        let mut identity_cursor = self.local_structural_identities.cursor();
+        let prepared = self
+            .capture_reference(
+                source,
+                result.structural_type,
+                &result.projected_qualifications,
+                storage,
+                &mut identity_cursor,
+            )
+            .map_err(|error| TerminalInterpretError::ReferenceFormation {
+                stage: "establish reference",
+                detail: format!(
+                    "source={source:?} result={result:?} storage={storage:?}: {error:?}"
+                ),
+            })?;
+        self.install_formed_reference(operation, prepared, identity_cursor)
+    }
+
+    pub(crate) fn upgrade_mutability(
+        &mut self,
+        operation: &Operation,
+        source: &StructuralArgument,
+    ) -> Result<(), TerminalInterpretError> {
+        let result = operation.result.structural().ok_or(malformed())?;
+        let descriptor = self.resolve_live_projection(source.place, &source.path, source.access)?;
+        let (input_type, input_access) = self.reference_contract(descriptor.structural_type)?;
+        let (result_type, result_access) = self.reference_contract(result.structural_type)?;
+        if source.access != StructuralAccess::SharedBorrow
+            || input_type != result_type
+            || input_access != StructuralAccess::SharedBorrow
+            || result_access != StructuralAccess::MutableBorrow
+            || !result
+                .projected_qualifications
+                .iter()
+                .all(|row| descriptor.projected_qualifications.contains(row))
+        {
+            return Err(malformed());
+        }
+        let mut referent = self
+            .reference_referents
+            .get(&StructuralRuntimePlace::from(&descriptor))
+            .ok_or(malformed())?
+            .clone();
+
+        // A new descriptor lends the same storage occurrence. A byte window
+        // read through a snapshot must write its original array element.
+        if let Some(loan) = &mut referent.primitive_loan {
+            loan.storage.endpoint =
+                crate::storage::primitive_storage::original_scalar_storage_endpoint(
+                    self,
+                    &loan.storage.endpoint,
+                )?;
+            loan.access = result_access;
+            loan.shared_view = false;
+        }
+        if let Some(view) = &mut referent.collection_loan {
+            *view = view.exclusive_reborrow()?;
+        }
+        if let Some(binding) = &mut referent.byte_owner {
+            *binding = binding.exclusive_reborrow(self, &referent.view)?;
+        }
+        if let Some(placed) = &referent.placed {
+            self.validate_access_backing(placed)?;
+            if !access_covers(placed.access, result_access) {
+                return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "upgrade_mutability requires writable placed storage",
+                ));
+            }
+        }
+        let prepared = PreparedReference {
+            referent,
+            projected_qualifications: result.projected_qualifications.clone(),
+        };
+        self.install_formed_reference(
+            operation,
+            prepared,
+            self.local_structural_identities.cursor(),
+        )
+    }
+
+    fn install_formed_reference(
+        &mut self,
+        operation: &Operation,
+        prepared: PreparedReference,
+        identity_cursor: Option<u64>,
+    ) -> Result<(), TerminalInterpretError> {
+        let result = operation.result.structural().ok_or(malformed())?;
         // Formation owns the new permission's lifecycle. Shared type copy
         // permission governs later copies; use the same creation contract
         // as the producer and receiving semantics for this actual operation.
@@ -3141,21 +3228,6 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let mut identity_cursor = self.local_structural_identities.cursor();
-        let prepared = self
-            .capture_reference(
-                source,
-                result.structural_type,
-                &result.projected_qualifications,
-                storage,
-                &mut identity_cursor,
-            )
-            .map_err(|error| TerminalInterpretError::ReferenceFormation {
-                stage: "establish reference",
-                detail: format!(
-                    "source={source:?} result={result:?} storage={storage:?}: {error:?}"
-                ),
-            })?;
         self.local_structural_identities
             .commit_cursor(identity_cursor);
         let mut carrier = TerminalStructuralValue::minted(
@@ -4066,7 +4138,8 @@ impl TerminalExecution<'_> {
                 let (referent_type, access) = self.reference_contract(leaf_type)?;
                 let mut backings = Vec::with_capacity(origin.sources.len());
                 for source in &origin.sources {
-                    let terminal_psi::StructuralReferenceOrigin::Parameter(source) = source else {
+                    let result_access = source.access();
+                    let Some(source) = source.parameter() else {
                         continue;
                     };
                     let parameter = parameters
@@ -4074,7 +4147,7 @@ impl TerminalExecution<'_> {
                         .find(|parameter| parameter.place == source.place)
                         .ok_or(malformed())?;
                     if !access_covers(parameter.access, source.access)
-                        || !access_covers(source.access, access)
+                        || !access_covers(result_access, access)
                     {
                         return Err(malformed());
                     }

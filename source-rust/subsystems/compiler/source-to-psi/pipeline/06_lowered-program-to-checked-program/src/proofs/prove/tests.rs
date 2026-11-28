@@ -3,6 +3,27 @@ use arena::IdTable;
 use semantic_vocabulary::{IntegerSign, OperationId};
 use terminal_check_tables::values::{ValueOrigin, ValueRow};
 
+// A later machine must keep the reduced proof limit after an earlier goal
+// exhausted the shared allowance, including across another result batch.
+#[test]
+fn result_searches_carry_the_spent_proof_allowance_forward_once() {
+    let mut activity = ProofSearchActivity::default();
+    let mut exhausted = activity.continuation();
+    exhausted.exhausted_steps = EXHAUSTED_SCOPE_ALLOWANCE;
+    activity.record_continuation_work(&mut exhausted);
+    assert!(activity.finish_continuation(exhausted));
+
+    let context = PropositionContext::default();
+    let values = IdTable::<ValueId, ValueRow>::default();
+    let mut next = activity.continuation();
+    let mut prover = Prover::new(&context, &[], &[], &values, &mut next);
+    prover.prove(&Proposition::Truth).unwrap();
+    assert_eq!(prover.step_limit() as usize, EXHAUSTED_SCOPE_STEP_BUDGET);
+    activity.record_continuation_work(&mut next);
+    assert!(!activity.finish_continuation(next));
+    assert_eq!(activity.exhausted_steps, EXHAUSTED_SCOPE_ALLOWANCE);
+}
+
 mod exact_fact_index {
     use super::*;
 

@@ -2440,6 +2440,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 // Each evaluation forms its own loan and temporary home.
                 | ExpressionKind::OwnedTemporary { .. }
                 | ExpressionKind::Borrow { .. }
+                | ExpressionKind::NativeBorrow { .. }
                 | ExpressionKind::Referent(_),
                 _,
             ) => false,
