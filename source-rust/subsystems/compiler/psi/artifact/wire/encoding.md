@@ -55,6 +55,14 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
+Marker 307 starts each section 54 row with its execution owner. Tag 1 carries
+the TaskRuntime start operation, requirement identity, owner path, optional
+package, scope flag and authored requirement identity. Tag 2 carries the
+module-local prepare boundary ID, selected machine ID and storage plan
+(1 Fixed, 2 Split). The report fingerprint and common frame, signature and
+suspension information follow. A machine ID must identify the body selected
+by the closed prepare application; it is not a new source of call authority.
+
 Marker 303 encodes section 54 as a counted list of task activation demands.
 Structural arguments, outcomes and frame residents refer to the module's
 structural storage declarations by ID. The module's target layout applications

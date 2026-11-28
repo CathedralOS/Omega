@@ -7,6 +7,50 @@ pub enum TerminalTaskStartOperation {
     TryStart,
 }
 
+/// Who owns execution is separate from the frames that must survive a park.
+/// Only scheduled tasks select a TaskRuntime provider.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TerminalActivationOrigin {
+    TaskRuntime(TerminalTaskRuntimeSelection),
+    Caller(TerminalPreparedActivationEntry),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalTaskRuntimeSelection {
+    pub operation: TerminalTaskStartOperation,
+    pub requirement_callable_identity: TerminalIdentityIndex,
+    pub requirement_owner_path: TerminalIdentityIndex,
+    pub requirement_owner_package: Option<semantic_vocabulary::PackageKeyIdentity>,
+    pub requirement_in_scope: bool,
+    pub authored_requirement_identity: TerminalIdentityIndex,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalPreparedActivationEntry {
+    pub preparation: semantic_vocabulary::BoundaryMachineId,
+    pub entry_machine: semantic_vocabulary::MachineId,
+    pub storage: TerminalActivationStorage,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalActivationStorage {
+    Fixed,
+    Split,
+}
+
+impl TerminalPreparedActivationEntry {
+    /// The checked prepare application, not a service name or the program's
+    /// root entry, determines which child this code ID is allowed to start.
+    /// This checks the link only; it neither admits a plan nor grants backing.
+    pub fn selected_body(self, module: &crate::TerminalModule) -> Option<&crate::TerminalMachine> {
+        let binding = module.boundary_machine(self.preparation)?.declaration.as_ref()?;
+        let [crate::ClosedReachArgument::Type(_), crate::ClosedReachArgument::Type(_),
+            entry @ crate::ClosedReachArgument::Machine { .. }, crate::ClosedReachArgument::Const(_)] =
+            binding.method_arguments.as_slice() else { return None };
+        entry.checked_body(module, self.entry_machine)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TerminalTaskValueType {
     Unit,
@@ -87,13 +131,8 @@ pub struct TerminalTaskFrame {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalTaskActivationDemand {
-    pub operation: TerminalTaskStartOperation,
+    pub origin: TerminalActivationOrigin,
     pub report_fingerprint: u64,
-    pub requirement_callable_identity: TerminalIdentityIndex,
-    pub requirement_owner_path: TerminalIdentityIndex,
-    pub requirement_owner_package: Option<semantic_vocabulary::PackageKeyIdentity>,
-    pub requirement_in_scope: bool,
-    pub authored_requirement_identity: TerminalIdentityIndex,
     pub machine_callable_identity: TerminalIdentityIndex,
     pub entry: TerminalIdentityIndex,
     pub entry_report_fingerprint: u64,

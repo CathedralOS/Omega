@@ -310,7 +310,7 @@ fn a_boundary_call_checks_the_requested_machine_at_its_closed_contract() {
         let declaration = boundary.declaration.as_ref().unwrap();
         let [
             terminal_psi::ClosedReachArgument::Type(_),
-            terminal_psi::ClosedReachArgument::Machine {
+            worker @ terminal_psi::ClosedReachArgument::Machine {
                 identity,
                 contract_commitment,
             },
@@ -322,14 +322,18 @@ fn a_boundary_call_checks_the_requested_machine_at_its_closed_contract() {
             )
         };
         assert_eq!(module.identities.text(*identity), Some(expected.as_str()));
-        assert!(
-            module
-                .machines
-                .iter()
-                .filter_map(|machine| machine.declaration.as_ref())
-                .any(|body| body.semantic_declaration == *identity
-                    && body.contract == *contract_commitment)
-        );
+        let selected = module.machines.iter().find(|body|
+            body.declaration.as_ref().is_some_and(|d| d.semantic_declaration == *identity)
+        ).unwrap();
+        assert_eq!(worker.checked_body(module, selected.id).map(|body| body.id), Some(selected.id));
+        let wrong = module.machines.iter().find(|body| body.id != selected.id).unwrap();
+        assert!(worker.checked_body(module, wrong.id).is_none());
+        let mut changed_contract = *contract_commitment;
+        changed_contract[0] ^= 1;
+        let changed = terminal_psi::ClosedReachArgument::Machine {
+            identity: *identity, contract_commitment: changed_contract,
+        };
+        assert!(changed.checked_body(module, selected.id).is_none());
         declaration
             .source
             .specialization
