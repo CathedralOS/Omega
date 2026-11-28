@@ -24,11 +24,7 @@ pub(super) struct Timeline<'a> {
     pub spans: Vec<Phase<'a>>,
 }
 
-fn escaped(text: &str) -> String {
-    text.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-}
+use crate::html_text as escaped;
 
 fn bar(start: f64, end: f64, scale: f64) -> String {
     let percent = |ms: f64| {
