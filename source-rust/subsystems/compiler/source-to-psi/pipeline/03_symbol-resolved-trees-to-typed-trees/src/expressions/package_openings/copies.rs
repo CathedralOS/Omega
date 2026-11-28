@@ -37,15 +37,15 @@ impl LiveOpenings {
 pub(super) struct CopyGroups(Vec<Vec<PackageSubject>>);
 
 impl CopyGroups {
-    pub(super) fn record(&mut self, source: PackageSubject, new_local: PackageSubject) {
-        if source == new_local {
+    pub(super) fn record(&mut self, source: PackageSubject, destination: PackageSubject) {
+        if source == destination {
             return;
         }
-        self.retain_subjects(|subject| subject != &new_local);
+        self.retain_subjects(|subject| subject != &destination);
         if let Some(group) = self.0.iter_mut().find(|group| group.contains(&source)) {
-            group.push(new_local);
+            group.push(destination);
         } else {
-            self.0.push(vec![source, new_local]);
+            self.0.push(vec![source, destination]);
         }
     }
 
@@ -76,12 +76,26 @@ pub(super) fn stable_subject(
         .then_some(backed)
 }
 
-pub(super) fn value_copy_source(
+/// Assignments and local declarations transfer the same witness relation.
+pub(super) fn value_copy(
     program: &TypedTrees,
     state: &State,
-    ty: typed::types::TypeReferenceHandle,
-    initializer: Option<ExpressionHandle>,
-) -> Option<PackageSubject> {
+    statement: &StatementNode,
+) -> Option<(PackageSubject, PackageSubject)> {
+    let (ty, value, destination) = match statement {
+        StatementNode::LocalData(local) => (
+            local.type_reference,
+            local.ordinary_value_initializer()?,
+            bound_subject(local.symbol),
+        ),
+        StatementNode::Assignment(assignment) => (
+            crate::types::typing_queries::declared_place_type(program, state, assignment.target)
+                .ok()?,
+            assignment.value,
+            stable_subject(program, state, &package_place(program, assignment.target)?)?,
+        ),
+        _ => return None,
+    };
     let types = &program.type_reference_table;
     if !types.contains_type_reference(ty) {
         return None;
@@ -93,5 +107,6 @@ pub(super) fn value_copy_source(
     {
         return None;
     }
-    stable_subject(program, state, &package_place(program, initializer?)?)
+    let source = stable_subject(program, state, &package_place(program, value)?)?;
+    Some((source, destination))
 }

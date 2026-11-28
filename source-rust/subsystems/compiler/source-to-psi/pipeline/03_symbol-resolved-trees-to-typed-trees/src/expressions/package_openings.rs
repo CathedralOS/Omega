@@ -267,17 +267,12 @@ impl OpeningScope<'_> {
             if let Some(target) = write {
                 self.invalidate(program, target)?;
             }
-            if let StatementNode::LocalData(local) = program.statement_table.statement(handle)
-                && let Some(source) = copies::value_copy_source(
-                    program,
-                    self.state,
-                    local.type_reference,
-                    local.ordinary_value_initializer(),
-                )
-            {
-                self.facts
-                    .copies
-                    .record(source, bound_subject(local.symbol));
+            if let Some((source, destination)) = copies::value_copy(
+                program,
+                self.state,
+                program.statement_table.statement(handle),
+            ) {
+                self.facts.copies.record(source, destination);
             }
         }
         Ok(())
@@ -754,6 +749,24 @@ mod tests {
         let right = trees.package_opening(right.opening);
         assert_ne!(left.subject, right.subject);
         assert_eq!(left.witnesses, right.witnesses);
+        let reassigned = source.replace(
+            "let copied: Pair = p;",
+            "let mutable copied: Pair = q; copied = p;",
+        );
+        let trees = checked(&reassigned).expect("assignment transfers the replacing witness");
+        let [left, right] = trees.package_projections.as_slice() else {
+            panic!("two assigned callbacks")
+        };
+        assert_eq!(
+            trees.package_opening(left.opening).witnesses,
+            trees.package_opening(right.opening).witnesses
+        );
+        let stale = reassigned.replace("left: p.left", "left: q.left");
+        assert!(
+            checked(&stale)
+                .unwrap_err()
+                .contains("conflicting generic arguments")
+        );
         let survivors = source.replace(
             "let copied: Pair = p;",
             "let mutable slot: Pair = p; let original: Pair = slot; let copied: Pair = slot; slot = q;",

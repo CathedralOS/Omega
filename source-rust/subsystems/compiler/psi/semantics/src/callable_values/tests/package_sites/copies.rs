@@ -93,6 +93,27 @@ fn distinct_openings_share_a_witness_only_through_a_live_whole_value_copy() {
 }
 
 #[test]
+fn assigning_a_copy_replaces_the_destination_witness() {
+    let mut program = original_and_copy();
+    let machine = &mut program.machines[0];
+    // The destination starts as a copy of the other input.
+    select_copy_source(&mut machine.blocks[0].operations[0], 2);
+    insert_copy(machine, 1, 5, 7);
+    replace_pair(machine, 2, 6, 6);
+    let O::StoreStructuralField { value, .. } = &mut machine.blocks[0].operations[2].kind else {
+        panic!("the replacement must be a structural store");
+    };
+    value.place = place(7);
+    check_package_sites(&program).expect("the slot now carries the first input's witness");
+
+    select_copy_source(&mut program.machines[0].blocks[0].operations[1], 2);
+    assert_eq!(
+        check_package_sites(&program).unwrap_err(),
+        "package openings reuse a witness without a live copy of the original"
+    );
+}
+
+#[test]
 fn copies_compare_the_value_at_each_read_even_after_replacing_the_original() {
     let mut program = original_and_copy();
     let machine = &mut program.machines[0];
