@@ -18,7 +18,7 @@ use super::{TerminalAuthorityPolicy, TerminalAuthorityPolicyRow};
 use crate::{
     AdmittedBoundarySettlement, AdmittedTerminalMechanism, digest_encoder::DomainDigestEncoder,
 };
-use target_operations::{BoundarySettlementRealization, NormalizedForeignCallMechanism};
+use target_operations::BoundarySettlementRealization;
 
 pub(super) fn is_poll(import: NormalizedForeignTerminalMechanismIdentity) -> bool {
     if import.target() != target::TargetProfile::MacosArm64 {
@@ -190,9 +190,7 @@ fn checked_wait(
     else {
         return None;
     };
-    let NormalizedForeignCallMechanism::Import { locator, .. } = &binding.mechanism else {
-        return None;
-    };
+    let locator = binding.foreign_import_locator()?;
     if plan.psi != artifact.closed_module().identity()
         || plan.boundary_machine(boundary) != Some(declaration)
         || locator.identity_digest() != raw.locator_identity()
