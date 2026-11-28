@@ -97,7 +97,8 @@ pub use values::{
 };
 pub mod operations;
 pub use operation_operands::structural_stores::{
-    StructuralCopyPath, StructuralScalarStoreDestination, StructuralWindowRoot,
+    InstantiatedFieldTypes, StructuralCopyPath, StructuralScalarStoreDestination,
+    StructuralWindowRoot,
 };
 pub use operations::{
     AbstractOperation, ModuleInvocation, StructuralResultMetadata, StructuralResultRole,
