@@ -182,12 +182,11 @@ pub use references::reference_views::{
     descriptor_reborrow_shapes_match, descriptor_source_projection_accessible,
     descriptor_value_transfer_matches, is_copyable_carrier, mutability_upgrade_shapes_match,
     mutability_upgrade_source, reference_byte_field_compatible, reference_referent_compatible,
-    reference_source_compatible,
-    reference_source_projection_accessible, reference_source_projection_compatible,
-    reference_source_storage_path, reference_storage_export_byte_width,
-    reference_storage_source_compatible, scalar_reference_view_admits,
-    shared_byte_descriptor_storage_matches, shared_descriptor_copy_matches,
-    shared_direct_byte_descriptor_source, stored_reference_access,
+    reference_source_compatible, reference_source_projection_accessible,
+    reference_source_projection_compatible, reference_source_storage_path,
+    reference_storage_export_byte_width, reference_storage_source_compatible,
+    scalar_reference_view_admits, shared_byte_descriptor_storage_matches,
+    shared_descriptor_copy_matches, shared_direct_byte_descriptor_source, stored_reference_access,
     successor_argument_carrier_matches,
 };
 pub use references::representation_geometry::{
