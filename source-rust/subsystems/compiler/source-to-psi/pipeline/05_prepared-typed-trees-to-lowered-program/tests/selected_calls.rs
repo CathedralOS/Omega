@@ -526,7 +526,7 @@ machine main() -> bool {
     first == 17u8 && second == 42u8
 }";
     let program = Program::of(source);
-    assert_eq!(program.judged(|_| ()), program::Verdict::Accepted);
+    program.judged(|_| ()).accepted();
 }
 
 #[test]
