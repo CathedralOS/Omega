@@ -99,6 +99,47 @@ pub fn machine_invocation_for_signature(
 }
 
 impl DescriptorMachine {
+    /// Record the backing of scalar actuals when the callee can publish a
+    /// reference through its result or a writable structural parameter.
+    pub fn bind_native_address_arguments<S: std::borrow::Borrow<StructuralArgument>>(
+        &self,
+        call: &mut DescriptorInvocation,
+        types: &[StructuralTypeDeclaration],
+        position: DescriptorPosition,
+        structural_parameters: &[terminal_psi::StructuralParameterDeclaration],
+        result: Option<&terminal_psi::StructuralOperationResult>,
+        scalar_bindings: impl IntoIterator<Item = (ValueId, ValueId)>,
+        mut address_origin: impl FnMut(
+            ValueId,
+        )
+            -> crate::storage::native_borrows::NativeAddressOrigin<S>,
+    ) -> Option<()> {
+        let returns_reference = result.is_some_and(|result| {
+            terminal_psi::structural_type_contains_reference(types, result.structural_type)
+        });
+        let writes_reference = structural_parameters.iter().any(|formal| {
+            matches!(
+                formal.access,
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            ) && terminal_psi::structural_type_contains_reference(types, formal.structural_type)
+        });
+        if returns_reference || writes_reference {
+            for (formal, actual) in scalar_bindings {
+                let origin = address_origin(actual);
+                call.native_address_arguments
+                    .push(self.native_address_actual(
+                        types,
+                        position,
+                        formal,
+                        origin.sources.iter().map(std::borrow::Borrow::borrow),
+                        origin.exact,
+                        origin.parameters,
+                    )?);
+            }
+        }
+        Some(())
+    }
+
     // A call that never returns can still read or write its arguments.
     // Both call forms use the shared signature checks and retain the
     // complete parameter list and supplied arguments at the pre-call cut.
@@ -157,26 +198,19 @@ impl DescriptorMachine {
                     .map(|actual| self.place_types.get(&actual.place).copied()),
             )?
         };
-        let returns_reference = result.is_some_and(|result| {
-            terminal_psi::structural_type_contains_reference(
-                &module.types.structural_types, result.structural_type,
-            )
-        });
-        let writes_reference = callee.structural_parameters.iter().any(|formal| {
-            matches!(formal.access, StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow)
-                && terminal_psi::structural_type_contains_reference(
-                    &module.types.structural_types, formal.structural_type,
-                )
-        });
-        if returns_reference || writes_reference {
-            for (formal, actual) in callee.parameters.iter().zip(inputs.arguments) {
-                let origin = crate::storage::native_borrows::address_origin(caller, *actual);
-                call.native_address_arguments.push(self.native_address_actual(
-                    &module.types.structural_types, position, formal.id,
-                    origin.sources, origin.exact, origin.parameters,
-                )?);
-            }
-        }
+        self.bind_native_address_arguments(
+            &mut call,
+            &module.types.structural_types,
+            position,
+            &callee.structural_parameters,
+            result,
+            callee
+                .parameters
+                .iter()
+                .map(|formal| formal.id)
+                .zip(inputs.arguments.iter().copied()),
+            |actual| crate::storage::native_borrows::address_origin(caller, actual),
+        )?;
         call.scalar_arguments = descriptor_scalar_arguments(
             callee
                 .parameters

@@ -936,6 +936,67 @@ pub(crate) mod scalar_expressions {
             reader
         }
 
+        pub(super) fn native_address(
+            &self,
+            value: ValueId,
+            scalar_formals: &[ValueId],
+        ) -> terminal_semantics::storage::native_borrows::NativeAddressOrigin<
+            terminal_psi::StructuralArgument,
+        > {
+            use terminal_semantics::storage::native_borrows::{AddressDefinition, trace_address};
+            trace_address(value, |value| {
+                if let Some(definition) = self.definitions.get(&value) {
+                    return match &definition.node.operation {
+                        O::ObserveStorageLocation {
+                            query: terminal_psi::StorageLocationQuery::Address,
+                            source,
+                            path,
+                            ..
+                        } => AddressDefinition::Storage(terminal_psi::StructuralArgument {
+                            place: *source,
+                            path: path.clone(),
+                            access: terminal_psi::StructuralAccess::SharedBorrow,
+                        }),
+                        O::ScalarRepresentationView { operand, .. }
+                        | O::IntegerWiden { operand, .. }
+                        | O::IntegerExactCast { operand, .. } => {
+                            AddressDefinition::Forward(*operand)
+                        }
+                        O::IntegerArithmetic {
+                            arithmetic,
+                            left,
+                            right,
+                            ..
+                        } if matches!(
+                            arithmetic.operator(),
+                            abstract_operations::IntegerArithmeticOperator::Add
+                                | abstract_operations::IntegerArithmeticOperator::Subtract
+                        ) =>
+                        {
+                            AddressDefinition::Adjust(*left, *right)
+                        }
+                        _ => AddressDefinition::Opaque,
+                    };
+                }
+                if scalar_formals.binary_search(&value).is_ok() {
+                    return AddressDefinition::Parameter;
+                }
+                let Some(owner) = self.owners.get(&value) else {
+                    return AddressDefinition::Opaque;
+                };
+                AddressDefinition::Incoming(
+                    self.incoming
+                        .get(owner)
+                        .into_iter()
+                        .flatten()
+                        .map(|incoming| {
+                            incoming.edge.binding(value).map(|binding| binding.argument)
+                        })
+                        .collect(),
+                )
+            })
+        }
+
         pub(crate) fn literal(&self, value: ValueId) -> Option<T> {
             if let Some(&literal) = self.booleans.get(&value) {
                 return Some(T::Boolean(literal));
@@ -1815,18 +1876,19 @@ fn adapt(
                 O::BorrowAt {
                     psi_operation,
                     result,
-                    sources,
-                    exact_origin,
+                    address,
                     ..
                 } if slot_kind.tracks_references() => {
+                    let origin = scalar_expressions.native_address(*address, &scalar_formals);
                     graph.native_address_borrow(
                         types,
                         position,
                         &mut step,
                         *psi_operation,
                         result,
-                        sources,
-                        *exact_origin,
+                        &origin.sources,
+                        origin.exact,
+                        origin.parameters,
                     )?;
                 }
                 O::UpgradeMutability { result, source, .. } if slot_kind.tracks_references() => {
@@ -2409,6 +2471,19 @@ fn adapt(
                             structural_arguments
                                 .iter()
                                 .map(|actual| graph.place_types.get(&actual.place).copied()),
+                        )?;
+                        graph.bind_native_address_arguments(
+                            &mut call,
+                            types,
+                            position,
+                            &callee.structural_parameters,
+                            result,
+                            callee
+                                .parameters
+                                .iter()
+                                .map(|formal| formal.value)
+                                .zip(scalar_actuals.iter().copied()),
+                            |actual| scalar_expressions.native_address(actual, &scalar_formals),
                         )?;
                         call.scalar_arguments = kernel::descriptor_scalar_arguments(
                             callee
