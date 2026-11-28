@@ -605,7 +605,9 @@ impl<'t> Program<'t> {
                 return self.held(id, slots, handle, value, expected, source);
             }
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::Dereference => {
-                return self.dereference(id, slots, unary.operand, source);
+                return self
+                    .referenced_place(id, slots, unary.operand, source)?
+                    .ok_or_else(|| reject(id, source, "`$` requires a reference operand"));
             }
             ExpressionNode::Unary(unary) => {
                 let operand = self.expression(id, slots, unary.operand, expected)?;
@@ -987,13 +989,13 @@ impl<'t> Program<'t> {
         })
     }
 
-    fn dereference(
+    pub(super) fn referenced_place(
         &mut self,
         id: MachineId,
         slots: &[Slot],
         operand: ExpressionHandle,
         source: SourceOrigin,
-    ) -> Checked<Expression> {
+    ) -> Checked<Option<Expression>> {
         let descriptor = if let ExpressionNode::Name(path) = self.node(id, operand)?
             && let Ok(slot) = self.slot_of(id, slots, path)
             && !slots[slot].erased
@@ -1006,7 +1008,7 @@ impl<'t> Program<'t> {
             };
             // Incoming borrowed formals already address their referent.
             if slots[slot].borrowed.is_some() {
-                return Ok(value);
+                return Ok(Some(value));
             }
             value
         } else {
@@ -1015,14 +1017,14 @@ impl<'t> Program<'t> {
         if let Some(held) = descriptor.result
             && let Some((referent, _)) = self.reference_referent(id, held)?
         {
-            return Ok(Expression {
+            return Ok(Some(Expression {
                 source,
                 call_context: None,
                 kind: ExpressionKind::Referent(Box::new(descriptor)),
                 result: Some(referent),
-            });
+            }));
         }
-        Err(reject(id, source, "`$` requires a reference operand"))
+        Ok(None)
     }
 
     /// A named place where a value is expected. A place that holds a
