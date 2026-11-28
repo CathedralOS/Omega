@@ -148,7 +148,7 @@ pub(super) fn check_construction<'a>(
 }
 
 impl super::Program<'_> {
-    fn witness_index(&self, symbol: SymbolHandle) -> Result<usize, usize> {
+    pub(super) fn witness_index(&self, symbol: SymbolHandle) -> Result<usize, usize> {
         self.package_witnesses
             .binary_search_by_key(&symbol_key(symbol), |(binder, _)| symbol_key(*binder))
     }

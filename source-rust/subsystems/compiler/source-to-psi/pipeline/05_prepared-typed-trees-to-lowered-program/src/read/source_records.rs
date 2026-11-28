@@ -1132,7 +1132,10 @@ impl Program<'_> {
                 machine,
                 Construct::Machine,
             )?;
-            if self.package_witnesses.get(&source.declaration) == Some(&record) {
+            if self
+                .witness_index(source.declaration)
+                .is_ok_and(|index| self.package_witnesses[index].1 == record)
+            {
                 let reference = source
                     .application
                     .as_ref()
