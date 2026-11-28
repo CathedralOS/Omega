@@ -358,6 +358,7 @@ mod tests {
             .arg(format!("-DREPLY={REPLY_DESTINATION}"))
             .arg(&source)
             .arg(driver)
+            .arg("-lm")
             .arg("-o")
             .arg(&binary)
             .output()

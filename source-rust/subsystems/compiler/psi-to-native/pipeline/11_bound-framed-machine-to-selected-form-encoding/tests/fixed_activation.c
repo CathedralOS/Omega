@@ -1,5 +1,6 @@
 // The foreign worker models the compiler's private SysV entry including its
 // reserved owner register. Its normal locals and return path use the fixed stack.
+#include <fenv.h>
 #include <stdalign.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -33,8 +34,12 @@ void run_worker(Backing *backing) {
     uint32_t local = 3 * work->seed + 7;
     uint32_t item = local + 1;
     uint32_t answer = 0;
+    int caller_rounding = fegetround();
+    int worker_rounding = work->seed == 7 ? FE_DOWNWARD : FE_UPWARD;
+    if (fesetround(worker_rounding)) return;
     work->starts++;
     park_with_owner(backing, &item, &answer);
+    if (fegetround() != worker_rounding || fesetround(caller_rounding)) return;
     if (answer == CONTINUE) {
         work->result = local + 100;
     } else if (answer == STOP) {
@@ -66,7 +71,9 @@ int main(void) {
     if (left.work.seed != first || right.work.seed != second || left.work.starts || right.work.starts) return 11;
     memset(left.guard, 0xa5, sizeof left.guard);
     memset(right.guard, 0xa5, sizeof right.guard);
-    if (step(&left) != 1 || step(&right) != 1) return 1;
+    if (fesetround(FE_TOWARDZERO)) return 20;
+    if (step(&left) != 1 || fegetround() != FE_TOWARDZERO ||
+        step(&right) != 1 || fegetround() != FE_TOWARDZERO) return 1;
     uintptr_t left_slot = (uintptr_t)published_address(&left, PENDING);
     uintptr_t right_slot = (uintptr_t)published_address(&right, PENDING);
     if (left_slot < (uintptr_t)left.stack || left_slot >= (uintptr_t)left.guard ||
