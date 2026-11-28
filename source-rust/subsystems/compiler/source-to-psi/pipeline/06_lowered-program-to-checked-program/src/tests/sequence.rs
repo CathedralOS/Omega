@@ -179,3 +179,28 @@ ensures |proof|::Identity::<N>(N::Z, N::Z)
         "{verdicts:?}"
     );
 }
+
+#[test]
+fn a_conditional_sampler_needs_evidence_even_to_form_its_sequence() {
+    let verdicts = judged(&sequences(
+        "machine only_zero(state: N, n: N) -> N
+requires |proof|::Identity::<N>(n, N::Z)
+{ state }",
+        "machine holds_state(s: Sequence<N, only_zero>)
+ensures |proof|::Identity::<N>(s.state, s.state)
+{}",
+    ));
+    assert!(
+        verdicts.iter().any(|verdict| matches!(
+            verdict,
+            RouteVerdict::FallBack(refusal)
+                if refusal.detail.contains("record machine argument with an unproved premise")
+        )),
+        "{verdicts:?}"
+    );
+    assert!(
+        !verdicts
+            .iter()
+            .any(|verdict| matches!(verdict, RouteVerdict::Laws(_)))
+    );
+}
