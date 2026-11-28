@@ -43,7 +43,10 @@ mod boundary_values;
 mod call_observations;
 #[path = "embedding/layout_target.rs"]
 mod layout_target;
+#[path = "embedding/suspension.rs"]
+mod suspension;
 pub use call_observations::{ObservedTerminalCall, TerminalCallObservation};
+pub use suspension::TerminalSuspension;
 #[path = "embedding/program.rs"]
 mod embedding;
 #[path = "instructions/calls.rs"]
@@ -161,7 +164,7 @@ pub use embedding::program::{
 };
 pub use engine::capabilities::{
     TerminalCallableAnalysis, TerminalExecutionRequirements, TerminalExternalCompletionDemand,
-    TerminalUnsupportedCapability,
+    TerminalImportPaths, TerminalUnsupportedCapability,
 };
 pub use engine::execution::TerminalExecution;
 pub use engine::scalar_operations::float_result_policy;

@@ -13,8 +13,9 @@ use crate::resolution::tables::syntax_type_references;
 use crate::source_resolved::types::{
     ConstrainedTypeReference, ConstrainedTypeReferenceStorage, DomainConstraint, FixedArrayLength,
     FixedArrayTypeReference, FixedArrayTypeReferenceStorage, GenericTypeReference,
-    GenericTypeReferenceStorage, ReferenceTypeReference, ReferenceTypeReferenceStorage,
-    SliceTypeReference, SliceTypeReferenceStorage, TypeConstraint, TypeReference,
+    GenericTypeReferenceStorage, PackageOpening, ReferenceTypeReference,
+    ReferenceTypeReferenceStorage, SliceTypeReference, SliceTypeReferenceStorage, TypeConstraint,
+    TypeReference,
 };
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
@@ -286,6 +287,7 @@ fn lower_alias_application(
     Ok(TypeReference::Generic(GenericTypeReference {
         storage: GenericTypeReferenceStorage {
             supplied_operand_owner,
+            openings: HandleSpan::empty(),
             receiving_application,
             base_symbol: SymbolHandle::invalid(),
             base_name: crate::resolution::lowering::name::lower_name(syntax, base_name),
@@ -315,6 +317,63 @@ pub(crate) fn lower_generic_application_origin(
         ));
     }
     lower_type_reference_node(lowerer, syntax_trees, origin)
+}
+
+/// An annotation can open hidden slots without changing the package's public arguments.
+fn lower_package_arguments<'a>(
+    lowerer: &mut Lowerer,
+    syntax: &'a SyntaxTrees,
+    base_name: &syntax::identifier::Identifier,
+    arguments: HandleSpan<syntax::types::TypeReferenceHandle>,
+) -> Result<
+    (
+        std::borrow::Cow<'a, [syntax::types::TypeReferenceHandle]>,
+        HandleSpan<PackageOpening>,
+    ),
+    Diagnostic,
+> {
+    use crate::resolution::declarations::declaration_selection::package_opening_positions;
+    use std::borrow::Cow;
+
+    let supplied = syntax.type_references.type_reference_handles(arguments);
+    let is_opening = |argument: &syntax::types::TypeReferenceHandle| {
+        matches!(
+            syntax.type_references.type_reference(*argument),
+            TypeReferenceNode::SomeOpening(_)
+        )
+    };
+    if !supplied.iter().any(is_opening) {
+        return Ok((Cow::Borrowed(supplied), HandleSpan::empty()));
+    }
+    let formals = lowerer
+        .constant_selection
+        .as_ref()
+        .and_then(|selection| {
+            selection.generic_parameter_roles(syntax, base_name, &[symbols::SymbolKind::Data])
+        })
+        .ok_or_else(|| {
+            Diagnostic::error("a named opening requires a selected package declaration")
+                .with_source_span(base_name.source_span())
+        })?;
+    let positions = package_opening_positions(syntax, base_name, &formals, supplied)?;
+    let openings = lowerer
+        .declaration_child_type_references()
+        .package_openings
+        .insert_many(
+            positions
+                .into_iter()
+                .map(|(position, name)| PackageOpening {
+                    position: position as u32,
+                    name: lower_name(syntax, name),
+                    symbol: SymbolHandle::invalid(),
+                }),
+        );
+    let public = supplied
+        .iter()
+        .copied()
+        .filter(|argument| !is_opening(argument))
+        .collect();
+    Ok((Cow::Owned(public), openings))
 }
 
 fn lower_type_reference_node(
@@ -366,17 +425,12 @@ fn lower_type_reference_node(
             lifetime_arguments,
             arguments,
         } => {
+            let (ordinary, openings) = lower_package_arguments(lowerer, syntax_trees, base_name, *arguments)?;
             crate::resolution::declarations::generic_data::validate_direct_const_arguments(
-                syntax_trees,
-                base_name,
-                *arguments,
-                lowerer.constant_selection.as_ref(),
+                syntax_trees, base_name, &ordinary, lowerer.constant_selection.as_ref(),
             )?;
-            let (lowered_arguments, receiving_application) = lower_indexed_application_arguments(
-                lowerer,
-                syntax_trees,
-                lower_name(syntax_trees, base_name),
-                *arguments,
+            let (lowered_arguments, receiving_application) = lower_indexed_argument_slice(
+                lowerer, syntax_trees, lower_name(syntax_trees, base_name), &ordinary,
             )?;
             Ok(TypeReference::Generic(GenericTypeReference {
                 storage: GenericTypeReferenceStorage {
@@ -386,6 +440,7 @@ fn lower_type_reference_node(
                     base_name: lower_name(syntax_trees, base_name),
                     lifetime_arguments: lower_names(syntax_trees, lifetime_arguments),
                     arguments: lowered_arguments,
+                    openings,
                 },
             }))
         }
@@ -518,9 +573,23 @@ pub(crate) fn lower_child_type_references(
     syntax_trees: &SyntaxTrees,
     arguments: HandleSpan<syntax::types::TypeReferenceHandle>,
 ) -> Result<HandleSpan<TypeReference>, Diagnostic> {
+    lower_child_type_slice(
+        lowerer,
+        syntax_trees,
+        syntax_trees
+            .type_references
+            .type_reference_handles(arguments),
+    )
+}
+
+fn lower_child_type_slice(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    arguments: &[syntax::types::TypeReferenceHandle],
+) -> Result<HandleSpan<TypeReference>, Diagnostic> {
     let mut lowered = Vec::with_capacity(arguments.len());
 
-    for argument in syntax_type_references(syntax_trees).type_reference_handles(arguments) {
+    for argument in arguments {
         lowered.push(lower_type_reference_handle(
             lowerer,
             syntax_trees,
@@ -604,8 +673,30 @@ pub(crate) fn lower_indexed_application_arguments(
     ),
     Diagnostic,
 > {
+    lower_indexed_argument_slice(
+        lowerer,
+        syntax_trees,
+        base_name,
+        syntax_trees
+            .type_references
+            .type_reference_handles(arguments),
+    )
+}
+
+fn lower_indexed_argument_slice(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    base_name: crate::source_resolved::name::DiagnosticName,
+    arguments: &[syntax::types::TypeReferenceHandle],
+) -> Result<
+    (
+        HandleSpan<TypeReference>,
+        crate::source_resolved::types::ReceivingApplicationHandle,
+    ),
+    Diagnostic,
+> {
     let selection_start = lowerer.pending_const_argument_selections.len();
-    let lowered = lower_child_type_references(lowerer, syntax_trees, arguments)?;
+    let lowered = lower_child_type_slice(lowerer, syntax_trees, arguments)?;
     let slot_start = lowerer.pending_const_argument_slots.len();
     retain_const_argument_slots(lowerer, syntax_trees, arguments, lowered, selection_start);
     let application = if lowerer.pending_const_argument_slots.len() != slot_start {
@@ -635,15 +726,11 @@ pub(crate) fn lower_indexed_application_arguments(
 pub(super) fn retain_const_argument_slots(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    arguments: HandleSpan<syntax::types::TypeReferenceHandle>,
+    arguments: &[syntax::types::TypeReferenceHandle],
     lowered_arguments: HandleSpan<TypeReference>,
     selection_start: usize,
 ) {
-    for (ordinal, argument) in syntax_type_references(syntax_trees)
-        .type_reference_handles(arguments)
-        .iter()
-        .enumerate()
-    {
+    for (ordinal, argument) in arguments.iter().enumerate() {
         let Some(normalization) =
             syntax_type_references(syntax_trees).const_argument_normalization(*argument)
         else {

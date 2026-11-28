@@ -115,7 +115,7 @@ pub(crate) mod entry {
     };
     use crate::instruction_selection::SelectedInstructionError;
     use crate::instruction_selection::selection::aggregate_result_input::{
-        inline_argument_fragments, parameter_home_required,
+        inline_argument_fragments, parameter_homes,
     };
     use crate::instruction_selection::selection::construction::scalar_graph::structural::invalid;
     use crate::instruction_selection::selection::construction::scalar_graph::structural::transport_register;
@@ -136,6 +136,7 @@ pub(crate) mod entry {
         if !accepts_graph(&source.call_plan, &parameters, source.geometry()) {
             return Err(SelectedInstructionError::unsupported_shape(function));
         }
+        builder.transport.parameter_homes = parameter_homes(source, signature);
         for (parameter_index, parameter) in signature.parameters.iter().enumerate() {
             let place = parameter.semantic.place;
             let owned_pointer =
@@ -325,7 +326,7 @@ pub(crate) mod entry {
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
         let place = parameter.semantic.place;
-        if !parameter_home_required(source, place) {
+        if !builder.transport.parameter_homes[parameter.semantic.position as usize] {
             return Ok(());
         }
         let shape = parameter.target.shape;
@@ -6093,6 +6094,7 @@ pub(crate) use element_views::element_observation;
 
 #[derive(Default)]
 pub(crate) struct Transport {
+    pub(crate) parameter_homes: Vec<bool>,
     pub(crate) result_pointer: Option<VirtualRegisterId>,
     pub pointers: Vec<(PlaceId, VirtualRegisterId)>,
     pub(crate) views: Vec<ByteViewHomes>,

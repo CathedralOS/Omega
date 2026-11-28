@@ -62,7 +62,6 @@ pub(super) struct RetainedOccurrenceCompile {
     pub(super) inputs: PackageCompilationInputs, // Complete inputs after resolved semantic bindings and dependency handoffs joined.
     pub(super) build_snapshot: BuildSnapshotRequest, // Source inventory and output roster captured by build evaluation.
     pub(super) policy_canonical_bytes: usize, // Canonical-policy bytes added to the running retained-policy total.
-    pub(super) review: usize, // Index of this occurrence's review inside the pass's review vector.
     pub(super) compilation: Arc<OccurrenceFacts>,
 }
 
@@ -74,7 +73,6 @@ pub(super) struct PackageReviewPass<'pass> {
     semantic_bindings_by_consumer:
         &'pass BTreeMap<(PackageKey, DependencyPurpose), Vec<AcceptedSemanticBinding>>,
     root_build_snapshot: Option<&'pass BuildSnapshotRequest>,
-    prior: Option<&'pass RetainedPackageReviews>,
 }
 
 struct ReviewPackage<'pass> {
@@ -85,7 +83,6 @@ struct ReviewPackage<'pass> {
 }
 
 impl<'pass> PackageReviewPass<'pass> {
-    #[allow(clippy::too_many_arguments)]
     pub(super) fn admit(
         target_closure: &'pass ExactTargetPackageSourceClosure<'_>,
         execution_profile: Option<target::TargetProfile>,
@@ -95,7 +92,6 @@ impl<'pass> PackageReviewPass<'pass> {
             Vec<AcceptedSemanticBinding>,
         >,
         root_build_snapshot: Option<&'pass BuildSnapshotRequest>,
-        prior: Option<&'pass RetainedPackageReviews>,
     ) -> Result<Self, CompileResolvedPackageReviewsError> {
         let closure = target_closure.source_closure();
         if execution_profile.is_none()
@@ -149,7 +145,6 @@ impl<'pass> PackageReviewPass<'pass> {
             roster,
             semantic_bindings_by_consumer,
             root_build_snapshot,
-            prior,
         })
     }
 
@@ -181,10 +176,18 @@ impl<'pass> PackageReviewPass<'pass> {
         self,
         source_bindings: &mut PackageSourceBindings,
         builds: &crate::project::PackageReviewBuilds,
+        prior: Option<RetainedPackageReviews>,
     ) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError> {
+        // Both passes walk the same roster. Each prior review and its occurrence
+        // were appended together and can be consumed only once.
+        let mut previous = prior.into_iter().flat_map(|pass| {
+            pass.occurrences
+                .into_iter()
+                .zip(pass.reviews.into_reviews())
+        });
         let mut round = self.begin_round(source_bindings);
         for occurrence in self.occurrences() {
-            if let Err(error) = round.review_occurrence(occurrence, builds) {
+            if let Err(error) = round.review_occurrence(occurrence, builds, previous.next()) {
                 return Err(error.with_source_completion_accounting(round.accounting));
             }
         }
@@ -203,7 +206,6 @@ impl<'pass> PackageReviewPass<'pass> {
             execution_profile: self.execution_profile,
             semantic_bindings_by_consumer: self.semantic_bindings_by_consumer,
             root_build_snapshot: self.root_build_snapshot,
-            prior: self.prior,
             source_bindings,
             reviews: Vec::with_capacity(self.roster.occurrence_count()),
             review_positions: vec![[None; 2]; self.closure.graph().packages().len()],
@@ -221,7 +223,6 @@ struct PackageReviewRound<'pass> {
     semantic_bindings_by_consumer:
         &'pass BTreeMap<(PackageKey, DependencyPurpose), Vec<AcceptedSemanticBinding>>,
     root_build_snapshot: Option<&'pass BuildSnapshotRequest>,
-    prior: Option<&'pass RetainedPackageReviews>,
     source_bindings: &'pass mut PackageSourceBindings,
     reviews: Vec<CompilerIssuedPackageReview>,
     review_positions: Vec<[Option<usize>; 2]>, // Index into `reviews` of each package position's review, by purpose slot.
@@ -271,12 +272,22 @@ impl<'pass> PackageReviewRound<'pass> {
         &mut self,
         occurrence: PackageReviewOccurrence<'_>,
         builds: &crate::project::PackageReviewBuilds,
+        prior: Option<(RetainedOccurrenceCompile, CompilerIssuedPackageReview)>,
     ) -> Result<(), CompileResolvedPackageReviewsError> {
         let (inputs, build_snapshot) = self.assemble_occurrence_inputs(&occurrence)?;
         let product = builds
             .product(&inputs)
             .map_err(|failure| occurrence.compilation_error(self.execution_profile, failure))?;
-        if self.carry_prior_compile(&occurrence, &inputs, &build_snapshot, &product)? {
+        if let Some((previous, review)) = prior
+            && self.carry_prior_compile(
+                &occurrence,
+                &inputs,
+                &build_snapshot,
+                &product,
+                previous,
+                review,
+            )?
+        {
             return Ok(());
         }
         self.retain_product(occurrence, inputs, build_snapshot, product)
@@ -394,6 +405,8 @@ impl<'pass> PackageReviewRound<'pass> {
         unanswered_inputs: &PackageCompilationInputs,
         build_snapshot: &BuildSnapshotRequest,
         product: &project_build::PlannedProduct,
+        previous: RetainedOccurrenceCompile,
+        review: CompilerIssuedPackageReview,
     ) -> Result<bool, CompileResolvedPackageReviewsError> {
         let PackageReviewOccurrence {
             position,
@@ -401,19 +414,13 @@ impl<'pass> PackageReviewRound<'pass> {
             checked_target,
             ..
         } = *occurrence;
-        let carried = self.prior.and_then(|prior| {
-            let occurrence = prior.occurrences.iter().find(|occurrence| {
-                occurrence.position == position
-                    && occurrence.purpose == purpose
-                    && occurrence.inputs == *unanswered_inputs
-                    && occurrence.build_snapshot == *build_snapshot
-            })?;
-            let review = prior.reviews.reviews().get(occurrence.review)?;
-            Some((occurrence, review))
-        });
-        let Some((previous, review)) = carried else {
+        if previous.position != position
+            || previous.purpose != purpose
+            || previous.inputs != *unanswered_inputs
+            || previous.build_snapshot != *build_snapshot
+        {
             return Ok(false);
-        };
+        }
         let evaluated = product.evaluated();
         // Source and snapshot identity can match even if this Build's restricted
         // grants, observations, generated source or provider decisions changed.
@@ -442,8 +449,8 @@ impl<'pass> PackageReviewRound<'pass> {
             unanswered_inputs,
             build_snapshot,
             CompletedOccurrence {
-                review: review.clone(),
-                facts: Arc::clone(&previous.compilation),
+                review,
+                facts: previous.compilation,
                 policy_bytes: previous.policy_canonical_bytes,
             },
         )?;
@@ -504,7 +511,6 @@ impl<'pass> PackageReviewRound<'pass> {
             inputs: unanswered_inputs.clone(),
             build_snapshot: build_snapshot.clone(),
             policy_canonical_bytes,
-            review: review_position,
             compilation: compile,
         });
         Ok(())
@@ -529,8 +535,7 @@ impl<'pass> PackageReviewRound<'pass> {
             .service_audits()
             .to_vec();
         let mut total = 0;
-        for occurrence in &mut self.occurrences {
-            let review = &mut self.reviews[occurrence.review];
+        for (occurrence, review) in self.occurrences.iter_mut().zip(&mut self.reviews) {
             let length = if review.policy.service_audits() != services {
                 review.policy.apply_service_audit_policy(&services);
                 let encoded =

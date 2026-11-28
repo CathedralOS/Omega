@@ -10,6 +10,7 @@ pub(super) fn same_storage_version(
     opened: &TerminalPackageOpening,
     projection: OperationId,
     call: OperationId,
+    materialized: Option<semantic_vocabulary::PlaceId>,
 ) -> bool {
     use crate::descriptors::descriptor_lifetimes::descriptor_location;
     use crate::descriptors::descriptor_results::{
@@ -81,29 +82,28 @@ pub(super) fn same_storage_version(
             return true;
         }
     }
-    let subject = &opened.subject;
-    let Some(root) = machine.structural_place_type(subject.place) else {
-        return false;
-    };
-    let Some(location) = descriptor_location(
-        &module.types.structural_types,
-        subject.place,
-        root,
-        &subject.path,
-        None,
-    ) else {
-        return false;
-    };
     let Ok(graph) = terminal_borrowed_storage_graph_from(module, [machine.id], &[]) else {
         return false;
     };
-    require_unchanged_observed_storage(
-        &module.types.structural_types,
-        &graph,
-        machine.id,
-        read,
-        use_site,
-        &DescriptorPayloadTarget::current(location),
-    )
-    .is_ok()
+    let unchanged = |place, path: &[StructuralPathSegment]| {
+        let Some(root) = machine.structural_place_type(place) else {
+            return false;
+        };
+        let Some(location) =
+            descriptor_location(&module.types.structural_types, place, root, path, None)
+        else {
+            return false;
+        };
+        require_unchanged_observed_storage(
+            &module.types.structural_types,
+            &graph,
+            machine.id,
+            read,
+            use_site,
+            &DescriptorPayloadTarget::current(location),
+        )
+        .is_ok()
+    };
+    unchanged(opened.subject.place, &opened.subject.path)
+        && materialized.is_none_or(|place| unchanged(place, &[]))
 }

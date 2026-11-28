@@ -134,7 +134,7 @@ pub(super) fn invocation(
         return Err("package invocation has no projected descriptor");
     };
     if origin != index
-        || !versions::same_storage_version(module, machine, opened, producer, operation.id)
+        || !versions::same_storage_version(module, machine, opened, producer, operation.id, None)
     {
         return Err("package invocation has a different opening or stale descriptor");
     }

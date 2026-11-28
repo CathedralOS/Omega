@@ -457,6 +457,27 @@ impl OwedKey {
     }
 }
 
+type ReturnClause = (EdgeId, u32, ObligationId);
+
+#[derive(Default)]
+pub(crate) struct NormalGuarantees {
+    rows: Vec<(ReturnClause, ObligationId)>,
+}
+
+impl NormalGuarantees {
+    pub(crate) fn get(
+        &self,
+        exit: EdgeId,
+        clause: u32,
+        published: ObligationId,
+    ) -> Option<ObligationId> {
+        self.rows
+            .binary_search_by_key(&(exit, clause, published), |(key, _)| *key)
+            .ok()
+            .map(|position| self.rows[position].1)
+    }
+}
+
 struct Minted<'a> {
     machine: MachineId,
     module: &'a terminal_psi::TerminalModule,
@@ -471,6 +492,7 @@ struct Minted<'a> {
     invocations: Vec<(InvocationSite, InvocationId, bool)>,
     /// Owed obligation kinds sorted by key, keeping the first row for duplicates.
     owed_index: Vec<(OwedKey, ObligationId)>,
+    normal_guarantees: NormalGuarantees,
 }
 
 impl Minted<'_> {
@@ -874,7 +896,7 @@ pub(crate) fn follow_the_lowered_form(
     types: &IdTable<ValueId, ScalarType>,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
     rows: ClaimRows<'_, '_, '_>,
-) -> Checked<()> {
+) -> Checked<NormalGuarantees> {
     let replays = rows.replays();
     values_are_declared(id, lowered, tables)?;
     let returned =
@@ -900,11 +922,26 @@ pub(crate) fn follow_the_lowered_form(
             "a call does not have exactly one invocation row",
         ));
     }
-    let mut owed_index = tables
-        .obligations
-        .iter()
-        .filter_map(|(obligation, row)| OwedKey::from_kind(row.kind).map(|key| (key, obligation)))
-        .collect::<Vec<_>>();
+    let mut normal_guarantees = NormalGuarantees::default();
+    let mut owed_index = Vec::new();
+    for (obligation, row) in tables.obligations.iter() {
+        if let ObligationKind::NormalGuarantee {
+            exit,
+            clause,
+            published,
+        } = row.kind
+        {
+            normal_guarantees
+                .rows
+                .push(((exit, clause, published), obligation));
+        } else if let Some(key) = OwedKey::from_kind(row.kind) {
+            owed_index.push((key, obligation));
+        }
+    }
+    // Sorting by obligation ID last retains the first matching row. Its
+    // creation point is checked by claim; a duplicate stays unclaimed.
+    normal_guarantees.rows.sort_unstable();
+    normal_guarantees.rows.dedup_by_key(|(key, _)| *key);
     owed_index.sort_by_key(|(key, _)| *key);
     owed_index.dedup_by_key(|(key, _)| *key);
     // The module's machine check shares one catalog and the claim rows its
@@ -953,6 +990,7 @@ pub(crate) fn follow_the_lowered_form(
         obligations: vec![false; tables.obligations.len()],
         invocations,
         owed_index,
+        normal_guarantees,
     };
 
     // Each logical use owns every premise exactly once, before its successor.
@@ -1307,7 +1345,7 @@ pub(crate) fn follow_the_lowered_form(
             "an invocation row restates no call of this machine",
         ));
     }
-    Ok(())
+    Ok(minted.normal_guarantees)
 }
 
 /// Refuses a value table that is not the values the lowered form declares:
@@ -1403,16 +1441,27 @@ fn values_are_declared(
             detail,
         )
     };
-    let mut declared: Vec<Option<(ScalarType, ValueOrigin)>> = vec![None; tables.values.len()];
+    let mut seen = vec![0u64; tables.values.len().div_ceil(64)];
+    let mut first_mismatch = usize::MAX;
     let mut declare = |value: ValueDeclaration, origin: ValueOrigin| -> Checked<()> {
-        let slot = declared
-            .get_mut(index(value.id.get()))
+        let position = index(value.id.get());
+        let row = tables
+            .values
+            .get(value.id)
             .ok_or_else(|| foreign(value.id, "the lowered form declares a value with no row"))?;
-        if slot.replace((value.scalar_type, origin)).is_some() {
+        let mask = 1u64 << (position % 64);
+        let word = &mut seen[position / 64];
+        if *word & mask != 0 {
             return Err(foreign(
                 value.id,
                 "the lowered form declares one value twice",
             ));
+        }
+        *word |= mask;
+        // Declaration faults take precedence. Report row faults afterwards in
+        // table order, including undeclared rows before the first mismatch.
+        if row.scalar_type != value.scalar_type || row.origin != origin {
+            first_mismatch = first_mismatch.min(position);
         }
         Ok(())
     };
@@ -1438,24 +1487,20 @@ fn values_are_declared(
             }
         }
     }
-    for ((value, row), declared) in tables.values.iter().zip(&declared) {
-        match declared {
-            Some((scalar_type, origin)) => {
-                if row.scalar_type != *scalar_type || row.origin != *origin {
-                    return Err(foreign(
-                        value,
-                        "a value row is not the value the lowered form declares under its identity",
-                    ));
-                }
-            }
-            None => {
-                if !row.origin.is_storage_observation() {
-                    return Err(foreign(
-                        value,
-                        "a value row that nothing in the lowered form declares",
-                    ));
-                }
-            }
+    for (position, (value, row)) in tables.values.iter().enumerate() {
+        if position == first_mismatch {
+            return Err(foreign(
+                value,
+                "a value row is not the value the lowered form declares under its identity",
+            ));
+        }
+        if seen[position / 64] & (1u64 << (position % 64)) == 0
+            && !row.origin.is_storage_observation()
+        {
+            return Err(foreign(
+                value,
+                "a value row that nothing in the lowered form declares",
+            ));
         }
     }
     Ok(())
@@ -1468,16 +1513,15 @@ impl Minted<'_> {
     /// refused with the rows nothing owes.
     fn returns(&mut self, lowered: &TerminalMachine, block: BlockId, exit: EdgeId) -> Checked<()> {
         for (clause, ensures) in lowered.contract.ensures.iter().enumerate() {
+            let clause = crate::position(clause, self.machine)?;
             let kind = ObligationKind::NormalGuarantee {
                 exit,
-                clause: crate::position(clause, self.machine)?,
+                clause,
                 published: ensures.obligation,
             };
-            let (obligation, _) = self
-                .tables
-                .obligations
-                .iter()
-                .find(|(_, row)| row.kind == kind)
+            let obligation = self
+                .normal_guarantees
+                .get(exit, clause, ensures.obligation)
                 .ok_or_else(|| {
                     self.foreign(
                         Construct::Block(block),

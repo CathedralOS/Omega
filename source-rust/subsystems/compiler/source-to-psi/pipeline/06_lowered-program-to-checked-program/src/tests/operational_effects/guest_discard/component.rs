@@ -124,10 +124,16 @@ fn park<'artifact>(
         panic!("the caller must park inside its component: {status:?}")
     };
     assert_eq!(
-        wait.program,
+        wait.site.program,
         terminal_codec::TerminalExecutionIdentity::portable(producer.view().identity())
     );
-    assert_eq!(wait.boundary, gate_id);
+    assert_eq!(wait.site.boundary, gate_id);
+    assert_eq!(
+        caller
+            .recheck_suspension(&wait, &mut terminal_work::WorkMeter::unbounded())
+            .unwrap(),
+        Some(TerminalExecutionStatus::AwaitingEffect(wait))
+    );
     caller
 }
 

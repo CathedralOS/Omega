@@ -377,11 +377,14 @@ pub(crate) mod build_requests {
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum TerminalBuildRequestOperation {
+        /// Send the borrowed bytes to the fixed peer supplied by this invocation.
+        SendDatagram,
         /// Exact authored nominal declaration in the checked Build source.
         LaunchProgram {
             program: source_text::SourceSpan,
         },
         ArtifactOnly,
+        InheritNetwork,
         ForwardProgram {
             program: source_text::SourceSpan,
         },

@@ -78,6 +78,7 @@ mod declarations {
     pub(crate) mod constructor_applications;
     pub(crate) mod contracts_and_signatures;
     pub(crate) mod items;
+    pub(crate) mod package_fields;
 }
 
 mod patterns {
@@ -145,6 +146,8 @@ pub(crate) mod expressions {
     pub(crate) mod expression_meanings;
     pub(crate) mod operand_owners;
     pub(crate) mod operator_calls;
+    pub(crate) mod package_escapes;
+    pub(crate) mod package_openings;
     pub(crate) mod runtime_callables;
 
     pub(crate) use crate::expressions::call_and_product_selections::{

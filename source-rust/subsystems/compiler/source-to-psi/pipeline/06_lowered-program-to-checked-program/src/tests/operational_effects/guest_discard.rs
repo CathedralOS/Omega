@@ -120,7 +120,7 @@ fn account() -> EvaluationInvocationAccount {
         .unwrap()
 }
 
-fn host_request(
+pub(super) fn host_request(
     imports: &[semantic_vocabulary::BoundaryMachineId],
 ) -> TerminalRuntimeSupplyRequest<'_> {
     TerminalRuntimeSupplyRequest {

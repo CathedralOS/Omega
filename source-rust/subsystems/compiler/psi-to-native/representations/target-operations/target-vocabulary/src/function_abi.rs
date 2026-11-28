@@ -13,6 +13,9 @@ use semantic_vocabulary::MachineId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedFunctionAbi {
+    /// The register named by a checked assembly return. Its physical callee boundary must survive lowering.
+    pub assembly_return: Option<terminal_psi::AsmRegisterView>,
+    pub assembly_register_versions: Vec<operation_operands::values::AssemblyRegisterVersion>,
     pub machine: MachineId,
     /// The function's own calling plan, whatever its result shape.
     pub call_plan: CallPlan,

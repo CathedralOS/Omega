@@ -51,6 +51,7 @@ impl PackagePolicyBaseline {
                 | crate::encoding::BASELINE_WITH_TYPE_ALIASES
                 | crate::encoding::BASELINE_WITH_CARRIED_TYPES
                 | crate::encoding::BASELINE_WITH_APPLIED_SERVICES
+                | crate::encoding::BASELINE_WITH_UNUSED_GENERIC_IMPORTS
                 | PACKAGE_POLICY_BASELINE_VERSION
         ) {
             return Err(Error::UnsupportedVersion);
@@ -286,6 +287,12 @@ pub(in crate::encoding::recovery) fn request(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyRestrictedBuildRequest, Error> {
     let operation = super::tag!(reader => {
+        3 => {
+            let address = reader.string()?.parse().map_err(|_| Error::InvalidValue)?;
+            let maximum = u16::try_from(reader.u32()?).map_err(|_| Error::InvalidValue)?;
+            let peer = build_consent::BuildNetworkPeer::new(address, maximum).map_err(|_| Error::InvalidValue)?;
+            PackagePolicyRestrictedBuildOperation::SendDatagram { peer }
+        },
         0 => PackagePolicyRestrictedBuildOperation::ScopedFilesystemExecution,
         1 => PackagePolicyRestrictedBuildOperation::UnscopedFilesystemExecution,
         2 => PackagePolicyRestrictedBuildOperation::ProgramLaunch(Box::new(build_consent::RestrictedProgramLaunch {

@@ -707,7 +707,14 @@ fn expression_type_payloads(owner: &mut impl TypePayloadTransform, expression: E
             *reference = owner.reference(*reference)
         }
         ExpressionNode::StructLiteral(literal) => {
-            literal.application_type = owner.reference(literal.application_type)
+            literal.application_type = owner.reference(literal.application_type);
+            for reference in literal
+                .package
+                .iter_mut()
+                .flat_map(|package| package.type_references_mut())
+            {
+                *reference = owner.reference(*reference);
+            }
         }
         ExpressionNode::Match(matched) => {
             let mut arms = owner

@@ -4929,7 +4929,7 @@ impl<'p> Converter<'p, '_> {
             match statement {
                 Statement::Dispatch { arms, .. } => {
                     for (_, target, _) in arms {
-                        if let Target::Value(value) = target {
+                        if let Target::Value(value) | Target::AssemblyReturn(_, value) = target {
                             walk(value, &mut found);
                         }
                     }
@@ -5546,7 +5546,7 @@ impl<'p> Converter<'p, '_> {
                 self.citations(id, id, before, &scope, &mut script)?;
                 match target {
                     Target::Unit => {}
-                    Target::Value(value) => {
+                    Target::Value(value) | Target::AssemblyReturn(_, value) => {
                         self.cite_within(id, id, value, &scope, &mut script, false)?
                     }
                     Target::Crash(_) => return Err(unserved(id, "law case that crashes")),
@@ -8369,7 +8369,7 @@ impl<'p> Converter<'p, '_> {
             self.citations(id, id, before, &scope, &mut script)?;
             match target {
                 Target::Unit => {}
-                Target::Value(value) => {
+                Target::Value(value) | Target::AssemblyReturn(_, value) => {
                     self.cite_within(id, id, value, &scope, &mut script, false)?
                 }
                 Target::Crash(_) => return Err(unserved(id, "law case that crashes")),
@@ -8513,7 +8513,7 @@ impl<'p> Converter<'p, '_> {
                 converter.citations(law, machine, before, scope, &mut nested)?;
                 match target {
                     Target::Unit => {}
-                    Target::Value(value) => {
+                    Target::Value(value) | Target::AssemblyReturn(_, value) => {
                         converter.cite_within(law, machine, value, scope, &mut nested, false)?
                     }
                     Target::Crash(_) => return Err(unserved(machine, "law case that crashes")),

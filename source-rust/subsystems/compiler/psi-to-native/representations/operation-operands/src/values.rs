@@ -51,6 +51,23 @@ pub struct ValueBinding {
     pub scalar_type: ScalarType,
 }
 
+/// The scalar definition which must occupy a physical view on one assembly edge.
+/// Adjacent labels retain their individual register versions after native block fusion.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AssemblyRegisterVersion {
+    pub edge: semantic_vocabulary::EdgeId,
+    pub view: terminal_psi::AsmRegisterView,
+    pub operation: semantic_vocabulary::OperationId,
+    pub value: ValueId,
+    pub materialization: AssemblyRegisterMaterialization,
+}
+
+/// The selected instruction contract whose result establishes the edge value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AssemblyRegisterMaterialization {
+    IntegerImmediate(semantic_vocabulary::IntegerValue),
+}
+
 pub fn binding_arguments(bindings: &[ValueBinding]) -> impl Iterator<Item = ValueId> + '_ {
     bindings.iter().map(|binding| binding.argument)
 }

@@ -139,7 +139,7 @@ pub(crate) fn prepare_in_cohort(
     program: &mut TypedTrees,
     frontier: usize,
     conformance_frontier: usize,
-    owners: &crate::expressions::operand_owners::CohortOperandOwners,
+    collect_owners: impl FnOnce(&TypedTrees) -> crate::expressions::operand_owners::CohortOperandOwners,
 ) -> Result<(), Diagnostic> {
     let sites = program
         .expression_table
@@ -185,9 +185,6 @@ pub(crate) fn prepare_in_cohort(
             )
         })
         .collect::<Vec<_>>();
-    if synthesized.is_empty() && sites.is_empty() {
-        return Ok(());
-    }
     let mut types = crate::types::typing_queries::DeclaredExpressionTypes::default();
     let mut preparation = Preparation {
         program,
@@ -204,6 +201,10 @@ pub(crate) fn prepare_in_cohort(
             .with_source_span(site));
         }
     }
+    if sites.is_empty() {
+        return Ok(());
+    }
+    let owners = collect_owners(preparation.program);
     for (handle, binary) in sites {
         let mut site = preparation.program.expression_table.source_span(handle);
         let mut operands = None;
@@ -956,6 +957,35 @@ mod tests {
             call.target_symbol == selected.rows[0].requirement
                 && matches!(program.expression_table.expression(call.receiver), ExpressionNode::Name(path) if path.symbol == selected.symbol)
         }), "the intrinsic receipt must retain the chosen user's method call");
+    }
+
+    #[test]
+    fn a_new_synthesized_conformance_is_checked_without_new_comparisons() {
+        let source = "use {omega}/language/core/equality.omg;
+            data Inner [copy] { x: i32; }
+            data Outer [copy] { inner: Inner; }
+            Equality satisfies |equality|::Equatable<Outer> {
+                machine equals(left: @Outer, right: @Outer) -> bool { false }
+            }";
+        let mut program =
+            crate::qualified_operator_home_tests::checked_with_equality(&[("main.omg", source)])
+                .unwrap();
+        let frontier = program.expression_table.expression_count();
+        // The authored body needs no field comparison. A new synthesized row
+        // for the same record must establish equality for Inner.
+        let conformance = program.roots.conformances.start();
+        program.tables.conformances.get_mut(conformance).rows[0].source =
+            super::ConformanceRowSource::Synthesized;
+        let error = super::prepare_in_cohort(&mut program, frontier, 0, |_| {
+            panic!("a conformance without comparison sites needs no operand owners")
+        })
+        .unwrap_err();
+        assert!(
+            error
+                .message
+                .contains("field `inner` of `Outer` is not Equatable"),
+            "{error:?}"
+        );
     }
 
     #[test]

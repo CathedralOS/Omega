@@ -486,193 +486,256 @@ pub(crate) mod aggregate_result_input {
     use semantic_vocabulary::PlaceId;
     use terminal_psi::{StructuralAccess, StructuralTypeShape, structural_case_position};
 
+    /// Entry has validated unique places and dense parameter positions. Uses name
+    /// places, which can be sparse, so index only the eligible parameters here.
+    pub(crate) fn parameter_homes(
+        source: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
+        signature: &legalized_operations::LegalizedStructuralContract,
+    ) -> Vec<bool> {
+        use legalized_operations::{LegalizedScalarTerminator, LegalizedStructuralCaseSource};
+        let mut eligible: Vec<_> = signature
+            .parameters
+            .iter()
+            .enumerate()
+            .filter(|(_, parameter)| {
+                parameter.semantic.access == StructuralAccess::Owned
+                    && source
+                        .geometry()
+                        .declaration(parameter.semantic.structural_type)
+                        .is_ok_and(|declaration| {
+                            matches!(
+                                declaration.shape,
+                                StructuralTypeShape::Reference { .. }
+                                    | StructuralTypeShape::Record { .. }
+                                    | terminal_psi::sum_or_mixed_shape_pattern!()
+                                    | StructuralTypeShape::FixedArray { .. }
+                                    | StructuralTypeShape::ByteSequence(
+                                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                                    )
+                                    | StructuralTypeShape::ElementView { access: None, .. }
+                            )
+                        })
+            })
+            .map(|(position, parameter)| (parameter.semantic.place, position))
+            .collect();
+        let mut required = vec![false; signature.parameters.len()];
+        if eligible.is_empty() {
+            return required;
+        }
+        eligible.sort_unstable_by_key(|&(place, _)| place);
+        let mut record =
+            |place, transport: Option<&target_vocabulary::TargetStructuralArgument>| {
+                if let Ok(index) = eligible.binary_search_by_key(&place, |&(place, _)| place) {
+                    let slot = &mut required[eligible[index].1];
+                    if !*slot && transport.is_none_or(argument_transport_requires_home) {
+                        *slot = true;
+                    }
+                }
+            };
+        for block in &source.blocks {
+            let mut mark = |place| record(place, None);
+            match &block.terminator {
+                LegalizedScalarTerminator::StructuralCase {
+                    source: LegalizedStructuralCaseSource::Parameter { declaration },
+                    ..
+                } => mark(declaration.place),
+                LegalizedScalarTerminator::InvokeNoNormal { call, .. } => {
+                    borrowed_call_arguments(call, &mut mark)
+                }
+                _ => {}
+            }
+            for place in super::established_view_input::transferred_places(&block.terminator) {
+                mark(place);
+            }
+            for (_, call) in block.terminator.cleanup_calls() {
+                for argument in &call.arguments {
+                    if let legalized_operations::LegalizedScalarArgument::Structural {
+                        semantic,
+                        target,
+                        ..
+                    } = argument
+                    {
+                        record(semantic.place, Some(target));
+                    }
+                }
+            }
+            for row in &block.instructions {
+                let mut mark = |place| record(place, None);
+                match &row.kind {
+                    LegalizedScalarInstructionKind::StructuralScalarFieldRead {
+                        source, ..
+                    }
+                    | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength {
+                        source,
+                        ..
+                    }
+                    | LegalizedScalarInstructionKind::StructuralByteSequenceFieldRead {
+                        source,
+                        ..
+                    }
+                    | LegalizedScalarInstructionKind::ElementViewLength { source, .. }
+                    | LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
+                    | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. }
+                    | LegalizedScalarInstructionKind::ElementViewSubslice { source, .. } => {
+                        mark(source.place)
+                    }
+                    LegalizedScalarInstructionKind::StructuralCaseMembership {
+                        source,
+                        path,
+                        ..
+                    } if !path.is_empty() => mark(*source),
+                    LegalizedScalarInstructionKind::ActivateTaskRegister {
+                        gdt,
+                        task_state,
+                        scratch,
+                        ..
+                    } => {
+                        for argument in [gdt, task_state, scratch] {
+                            mark(argument.place);
+                        }
+                    }
+                    LegalizedScalarInstructionKind::ReloadSegmentDescriptors {
+                        gdt,
+                        scratch,
+                        ..
+                    } => {
+                        mark(gdt.place);
+                        mark(scratch.place);
+                    }
+                    LegalizedScalarInstructionKind::ObserveStorageLocation { source, .. }
+                    | LegalizedScalarInstructionKind::GlobalDescriptorTable { source, .. }
+                    | LegalizedScalarInstructionKind::PrimitiveScalarRead { source, .. }
+                    | LegalizedScalarInstructionKind::StructuralLeafCopy { source, .. }
+                    | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. } => {
+                        mark(*source)
+                    }
+                    LegalizedScalarInstructionKind::PackedIntegerUnary { source, .. } => {
+                        mark(source.place)
+                    }
+                    LegalizedScalarInstructionKind::PackedIntegerBinary { left, right, .. } => {
+                        mark(left.place);
+                        mark(right.place);
+                    }
+                    LegalizedScalarInstructionKind::EstablishStructuralArray {
+                        elements, ..
+                    } => {
+                        for argument in elements {
+                            if !argument.path.is_empty() {
+                                mark(argument.place);
+                            }
+                        }
+                    }
+                    LegalizedScalarInstructionKind::EstablishRecord { fields, .. }
+                    | LegalizedScalarInstructionKind::EstablishCase { fields, .. } => {
+                        for field in fields {
+                            if let terminal_psi::RecordFieldValue::Structural(argument) =
+                                &field.value
+                                && !argument.path.is_empty()
+                            {
+                                mark(argument.place);
+                            }
+                        }
+                    }
+                    LegalizedScalarInstructionKind::EstablishReference { source, .. }
+                    | LegalizedScalarInstructionKind::EstablishAccessReference { source, .. }
+                    | LegalizedScalarInstructionKind::EstablishElementView { source, .. } => {
+                        mark(source.place)
+                    }
+                    LegalizedScalarInstructionKind::AtomicAccess { location, .. }
+                    | LegalizedScalarInstructionKind::AccessorScalarAccess { location, .. } => {
+                        mark(location.place)
+                    }
+                    LegalizedScalarInstructionKind::StaticInterrupt { token, .. } => {
+                        mark(token.place)
+                    }
+                    LegalizedScalarInstructionKind::InstallStaticInterrupt {
+                        arguments, ..
+                    } => {
+                        for argument in arguments {
+                            mark(argument.place);
+                        }
+                    }
+                    LegalizedScalarInstructionKind::ByteSequenceStore {
+                        destination,
+                        source,
+                        ..
+                    } => {
+                        mark(*destination);
+                        mark(*source);
+                    }
+                    LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore {
+                        destination,
+                        source,
+                        ..
+                    } => {
+                        mark(destination.place);
+                        mark(*source);
+                    }
+                    LegalizedScalarInstructionKind::StoreStructuralField {
+                        destination, ..
+                    } => mark(destination.place()),
+                    LegalizedScalarInstructionKind::StructuralScalarFieldStore {
+                        destination,
+                        ..
+                    }
+                    | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
+                        destination, ..
+                    } => mark(destination.place()),
+                    LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
+                        left,
+                        right,
+                        ..
+                    } => {
+                        mark(left.source());
+                        mark(right.source());
+                    }
+                    LegalizedScalarInstructionKind::ByteSequenceEqual { left, right } => {
+                        mark(left.source());
+                        mark(right.source());
+                    }
+                    LegalizedScalarInstructionKind::ByteSequencePredicate { operand, .. } => {
+                        mark(operand.source())
+                    }
+                    LegalizedScalarInstructionKind::Call(call) => {
+                        borrowed_call_arguments(call, &mut mark)
+                    }
+                    LegalizedScalarInstructionKind::NormalizedForeignCall(call) => {
+                        for argument in &call.structural_arguments {
+                            record(argument.place, Some(argument));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        required
+    }
+
+    fn borrowed_call_arguments(
+        call: &legalized_operations::LegalizedScalarCall,
+        mark: &mut impl FnMut(PlaceId),
+    ) {
+        for argument in &call.arguments {
+            if let legalized_operations::LegalizedScalarArgument::Structural { semantic, .. } =
+                argument
+                && semantic.access != StructuralAccess::Owned
+            {
+                mark(semantic.place);
+            }
+        }
+    }
+
     pub(crate) fn owned_parameter_uses_local_home(
         source: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
         declaration: &terminal_psi::StructuralParameterDeclaration,
+        required: &[bool],
     ) -> Option<bool> {
-        let mut parameters = source
-            .structural
-            .as_ref()?
-            .parameters
-            .iter()
-            .filter(|parameter| parameter.semantic.place == declaration.place);
-        let parameter = parameters.next()?;
-        if parameters.next().is_some()
-            || &parameter.semantic != declaration
-            || declaration.access != StructuralAccess::Owned
-        {
+        let position = declaration.position as usize;
+        let parameter = source.structural.as_ref()?.parameters.get(position)?;
+        if &parameter.semantic != declaration || declaration.access != StructuralAccess::Owned {
             return None;
         }
-        Some(
-            parameter.target.shape.byte_size != 0
-                && parameter_home_required(source, declaration.place),
-        )
-    }
-
-    pub(crate) fn parameter_home_required(
-        source: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
-        place: PlaceId,
-    ) -> bool {
-        let Some(signature) = &source.structural else {
-            return false;
-        };
-        if !signature.parameters.iter().any(|parameter| {
-            parameter.semantic.place == place
-                && parameter.semantic.access == StructuralAccess::Owned
-                && signature.structural_types.iter().any(|declaration| {
-                    declaration.id == parameter.semantic.structural_type
-                        && matches!(
-                            declaration.shape,
-                            StructuralTypeShape::Reference { .. }
-                                | StructuralTypeShape::Record { .. }
-                                | terminal_psi::sum_or_mixed_shape_pattern!()
-                                | StructuralTypeShape::FixedArray { .. }
-                                | StructuralTypeShape::ByteSequence(
-                                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                                )
-                                | StructuralTypeShape::ElementView { access: None, .. }
-                        )
-                })
-        }) {
-            return false;
-        }
-        let dispatched = source.blocks.iter().any(|block| {
-            matches!(
-                &block.terminator,
-                legalized_operations::LegalizedScalarTerminator::StructuralCase {
-                    source: legalized_operations::LegalizedStructuralCaseSource::Parameter { declaration },
-                    ..
-                } if declaration.place == place
-            )
-        });
-        let cleanup_borrow = source.blocks.iter().any(|block| block.terminator.cleanup_calls().any(|(_, call)|
-            call.arguments.iter().any(|argument|
-                matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, target, .. }
-                    if semantic.place == place && argument_transport_requires_home(target)))));
-        let borrows_parameter = |call: &legalized_operations::LegalizedScalarCall| {
-            call.arguments.iter().any(|argument| {
-                matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, .. }
-                    if semantic.place == place && semantic.access != StructuralAccess::Owned)
-            })
-        };
-        let terminal_borrow = source.blocks.iter().any(|block| {
-            matches!(&block.terminator,
-            legalized_operations::LegalizedScalarTerminator::InvokeNoNormal { call, .. }
-                if borrows_parameter(call))
-        });
-        super::established_view_input::transferred(source, place)
-            || dispatched
-            || cleanup_borrow
-            || terminal_borrow
-            || source.instructions().any(|row| match &row.kind {
-                LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, .. }
-                | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength {
-                    source,
-                    ..
-                }
-                | LegalizedScalarInstructionKind::StructuralByteSequenceFieldRead {
-                    source, ..
-                }
-                | LegalizedScalarInstructionKind::ElementViewLength { source, .. }
-                | LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
-                | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. }
-                | LegalizedScalarInstructionKind::ElementViewSubslice { source, .. } => {
-                    source.place == place
-                }
-                LegalizedScalarInstructionKind::StructuralCaseMembership {
-                    source, path, ..
-                } => *source == place && !path.is_empty(),
-                LegalizedScalarInstructionKind::ActivateTaskRegister {
-                    gdt,
-                    task_state,
-                    scratch,
-                    ..
-                } => [gdt, task_state, scratch]
-                    .into_iter()
-                    .any(|argument| argument.place == place),
-                LegalizedScalarInstructionKind::ReloadSegmentDescriptors {
-                    gdt, scratch, ..
-                } => [gdt, scratch]
-                    .into_iter()
-                    .any(|argument| argument.place == place),
-                LegalizedScalarInstructionKind::ObserveStorageLocation { source, .. }
-                | LegalizedScalarInstructionKind::GlobalDescriptorTable { source, .. }
-                | LegalizedScalarInstructionKind::PrimitiveScalarRead { source, .. }
-                | LegalizedScalarInstructionKind::StructuralLeafCopy { source, .. }
-                | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. } => {
-                    *source == place
-                }
-                LegalizedScalarInstructionKind::PackedIntegerUnary { source, .. } => {
-                    source.place == place
-                }
-                LegalizedScalarInstructionKind::PackedIntegerBinary { left, right, .. } => {
-                    left.place == place || right.place == place
-                }
-                LegalizedScalarInstructionKind::EstablishStructuralArray { elements, .. } => {
-                    elements
-                        .iter()
-                        .any(|argument| argument.place == place && !argument.path.is_empty())
-                }
-                LegalizedScalarInstructionKind::EstablishRecord { fields, .. }
-                | LegalizedScalarInstructionKind::EstablishCase { fields, .. } => {
-                    fields.iter().any(|field| {
-                        matches!(&field.value, terminal_psi::RecordFieldValue::Structural(argument)
-                        if argument.place == place && !argument.path.is_empty())
-                    })
-                }
-                LegalizedScalarInstructionKind::EstablishReference { source, .. }
-                | LegalizedScalarInstructionKind::EstablishAccessReference { source, .. }
-                | LegalizedScalarInstructionKind::EstablishElementView { source, .. } => {
-                    source.place == place
-                }
-                LegalizedScalarInstructionKind::AtomicAccess { location, .. }
-                | LegalizedScalarInstructionKind::AccessorScalarAccess { location, .. } => {
-                    location.place == place
-                }
-                LegalizedScalarInstructionKind::StaticInterrupt { token, .. } => {
-                    token.place == place
-                }
-                LegalizedScalarInstructionKind::InstallStaticInterrupt { arguments, .. } => {
-                    arguments.iter().any(|argument| argument.place == place)
-                }
-                LegalizedScalarInstructionKind::ByteSequenceStore {
-                    destination,
-                    source,
-                    ..
-                } => *destination == place || *source == place,
-                LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore {
-                    destination,
-                    source,
-                    ..
-                } => destination.place == place || *source == place,
-                LegalizedScalarInstructionKind::StoreStructuralField { destination, .. } => {
-                    destination.place() == place
-                }
-                LegalizedScalarInstructionKind::StructuralScalarFieldStore {
-                    destination, ..
-                }
-                | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { destination, .. } => {
-                    destination.place() == place
-                }
-                LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
-                    left,
-                    right,
-                    ..
-                } => left.source() == place || right.source() == place,
-                LegalizedScalarInstructionKind::ByteSequenceEqual { left, right } => {
-                    left.source() == place || right.source() == place
-                }
-                LegalizedScalarInstructionKind::ByteSequencePredicate { operand, .. } => {
-                    operand.source() == place
-                }
-                LegalizedScalarInstructionKind::Call(call) => borrows_parameter(call),
-                LegalizedScalarInstructionKind::NormalizedForeignCall(call) => {
-                    call.structural_arguments.iter().any(|argument| {
-                        argument.place == place && argument_transport_requires_home(argument)
-                    })
-                }
-                _ => false,
-            })
+        Some(parameter.target.shape.byte_size != 0 && *required.get(position)?)
     }
 
     fn argument_transport_requires_home(
@@ -2535,32 +2598,39 @@ pub(crate) mod established_view_input {
         source: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
         place: PlaceId,
     ) -> bool {
-        source.blocks.iter().any(|block| {
-            let successors = match &block.terminator {
-                legalized_operations::LegalizedScalarTerminator::EliminateEmpty { .. }
-                | legalized_operations::LegalizedScalarTerminator::Crash { .. }
-                | legalized_operations::LegalizedScalarTerminator::InvokeNoNormal { .. }
-                | legalized_operations::LegalizedScalarTerminator::ExternalCompletion { .. }
-                | legalized_operations::LegalizedScalarTerminator::Return(_)
-                | legalized_operations::LegalizedScalarTerminator::ReturnCleanup { .. }
-                | legalized_operations::LegalizedScalarTerminator::StructuralCase { .. } => {
-                    [None, None]
-                }
-                legalized_operations::LegalizedScalarTerminator::Jump { successor, .. } => {
-                    [Some(successor), None]
-                }
-                legalized_operations::LegalizedScalarTerminator::Conditional {
-                    when_true,
-                    when_false,
-                    ..
-                } => [Some(when_true), Some(when_false)],
-            };
-            successors.into_iter().flatten().any(|successor| {
-                successor
-                    .structural_bindings
-                    .iter()
-                    .any(|binding| binding.semantic.argument.place == place)
-            })
+        source
+            .blocks
+            .iter()
+            .any(|block| transferred_places(&block.terminator).any(|used| used == place))
+    }
+
+    pub(super) fn transferred_places(
+        terminator: &legalized_operations::LegalizedScalarTerminator,
+    ) -> impl Iterator<Item = PlaceId> + '_ {
+        let successors = match terminator {
+            legalized_operations::LegalizedScalarTerminator::EliminateEmpty { .. }
+            | legalized_operations::LegalizedScalarTerminator::Crash { .. }
+            | legalized_operations::LegalizedScalarTerminator::InvokeNoNormal { .. }
+            | legalized_operations::LegalizedScalarTerminator::ExternalCompletion { .. }
+            | legalized_operations::LegalizedScalarTerminator::Return(_)
+            | legalized_operations::LegalizedScalarTerminator::ReturnCleanup { .. }
+            | legalized_operations::LegalizedScalarTerminator::StructuralCase { .. } => {
+                [None, None]
+            }
+            legalized_operations::LegalizedScalarTerminator::Jump { successor, .. } => {
+                [Some(successor), None]
+            }
+            legalized_operations::LegalizedScalarTerminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => [Some(when_true), Some(when_false)],
+        };
+        successors.into_iter().flatten().flat_map(|successor| {
+            successor
+                .structural_bindings
+                .iter()
+                .map(|binding| binding.semantic.argument.place)
         })
     }
 
@@ -7041,3 +7111,7 @@ pub(crate) mod zeroed_structural_input {
         Some((packed.byte_offset, u8::try_from(shape.byte_size).ok()?))
     }
 }
+
+#[cfg(test)]
+#[path = "parameter_home_tests.rs"]
+mod parameter_home_tests;
