@@ -570,63 +570,39 @@ impl NativePhysicalOccurrence {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NativePhysicalChild {
-    parent: PhysicalChildParent,
-    projection: NativeOptimizationProjectionIdentity,
-    occurrence: NativePhysicalOccurrence,
-    machine_spans: Vec<NativeByteSpan>,
-    object_spans: Vec<NativeByteSpan>,
-    final_image_spans: Vec<NativeByteSpan>,
-    machine_bytes_digest: [u8; 32],
-    object_bytes_digest: [u8; 32],
-    final_image_bytes_digest: [u8; 32],
-    relocation: PhysicalRelocationDisposition,
-    identity: [u8; 32],
-}
+pub struct NativePhysicalChild(NativePhysicalChildParts);
 
 impl NativePhysicalChild {
     pub const fn parent(&self) -> &PhysicalChildParent {
-        &self.parent
+        &self.0.parent
     }
 
     pub const fn projection(&self) -> NativeOptimizationProjectionIdentity {
-        self.projection
+        self.0.projection
     }
 
     pub const fn occurrence(&self) -> NativePhysicalOccurrence {
-        self.occurrence
+        self.0.occurrence
     }
 
     pub(crate) fn machine_spans(&self) -> &[NativeByteSpan] {
-        &self.machine_spans
+        &self.0.machine_spans
     }
 
     pub(crate) fn object_spans(&self) -> &[NativeByteSpan] {
-        &self.object_spans
+        &self.0.object_spans
     }
 
     pub(crate) fn final_image_spans(&self) -> &[NativeByteSpan] {
-        &self.final_image_spans
+        &self.0.final_image_spans
     }
 
     pub const fn identity(&self) -> &[u8; 32] {
-        &self.identity
+        &self.0.identity
     }
 
     pub fn into_parts(self) -> NativePhysicalChildParts {
-        NativePhysicalChildParts {
-            parent: self.parent,
-            projection: self.projection,
-            occurrence: self.occurrence,
-            machine_spans: self.machine_spans,
-            object_spans: self.object_spans,
-            final_image_spans: self.final_image_spans,
-            machine_bytes_digest: self.machine_bytes_digest,
-            object_bytes_digest: self.object_bytes_digest,
-            final_image_bytes_digest: self.final_image_bytes_digest,
-            relocation: self.relocation,
-            identity: self.identity,
-        }
+        self.0
     }
 
     pub fn from_replayed_parts(parts: NativePhysicalChildParts) -> Self {
@@ -681,7 +657,7 @@ impl NativePhysicalEvidence {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativePhysicalChildParts {
     pub parent: PhysicalChildParent,
     pub projection: NativeOptimizationProjectionIdentity,
@@ -845,19 +821,7 @@ impl std::fmt::Display for NativePhysicalEvidenceGap {
 
 impl From<NativePhysicalChildParts> for NativePhysicalChild {
     fn from(parts: NativePhysicalChildParts) -> Self {
-        Self {
-            parent: parts.parent,
-            projection: parts.projection,
-            occurrence: parts.occurrence,
-            machine_spans: parts.machine_spans,
-            object_spans: parts.object_spans,
-            final_image_spans: parts.final_image_spans,
-            machine_bytes_digest: parts.machine_bytes_digest,
-            object_bytes_digest: parts.object_bytes_digest,
-            final_image_bytes_digest: parts.final_image_bytes_digest,
-            relocation: parts.relocation,
-            identity: parts.identity,
-        }
+        Self(parts)
     }
 }
 

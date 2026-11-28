@@ -8,8 +8,6 @@ pub(crate) mod image_data;
 mod attribution {
     use super::{Error, host};
     use crate::order::strictly_increasing;
-    #[cfg(test)]
-    use abstract_operations::{AbstractFunction, AbstractOperation};
     use machine_code::{
         FunctionFragment, FunctionFragmentBranchEvidence,
         FunctionFragmentControlProvenance as Control, SemanticCodeAttribution, SemanticCodeSite,
@@ -43,93 +41,6 @@ mod attribution {
         }
     }
 
-    #[cfg(test)]
-    fn build_ordinal_index(
-        source: &AbstractFunction,
-    ) -> std::collections::BTreeMap<SemanticCodeSite, Option<usize>> {
-        let mut index = std::collections::BTreeMap::new();
-        let mut record = |site: SemanticCodeSite, ordinal: usize| {
-            index
-                .entry(site)
-                .and_modify(|existing| *existing = None)
-                .or_insert(Some(ordinal));
-        };
-        for (ordinal, operation) in source.operations().enumerate() {
-            if let Some(psi_operation) = operation.psi_operation() {
-                record(SemanticCodeSite::Operation(psi_operation), ordinal);
-            } else {
-                match operation {
-                    abstract_operations::return_or_return_unit_pattern!(psi_edge, ..)
-                    | AbstractOperation::InvokeNoNormal { psi_edge, .. }
-                    | AbstractOperation::ExternalCompletion { psi_edge, .. }
-                    | AbstractOperation::EliminateEmpty { psi_edge, .. }
-                    | AbstractOperation::Crash { psi_edge, .. }
-                    | AbstractOperation::ReturnStructural { psi_edge, .. }
-                    | AbstractOperation::Jump { psi_edge, .. } => {
-                        record(SemanticCodeSite::Edge(*psi_edge), ordinal);
-                    }
-                    AbstractOperation::Conditional {
-                        when_true,
-                        when_false,
-                        ..
-                    } => {
-                        record(SemanticCodeSite::Edge(when_true.psi_edge), ordinal);
-                        if when_false.psi_edge != when_true.psi_edge {
-                            record(SemanticCodeSite::Edge(when_false.psi_edge), ordinal);
-                        }
-                    }
-                    AbstractOperation::StructuralCase { cases, .. } => {
-                        let mut seen = Vec::new();
-                        for case in cases {
-                            if !seen.contains(&case.psi_edge) {
-                                seen.push(case.psi_edge);
-                                record(SemanticCodeSite::Edge(case.psi_edge), ordinal);
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-        index
-    }
-
-    #[cfg(test)]
-    fn test_publication(
-        source: &AbstractFunction,
-    ) -> Result<target_vocabulary::NativePublicationFacts, Error> {
-        let sites = build_ordinal_index(source)
-            .into_iter()
-            .map(|(site, ordinal)| {
-                let ordinal = ordinal.ok_or(Error::Mismatch(
-                    "fragment semantic site has no unique authored ordinal",
-                ))?;
-                Ok((site, u32::try_from(ordinal).map_err(|_| Error::Overflow)?))
-            })
-            .collect::<Result<Vec<_>, Error>>()?;
-        target_vocabulary::NativePublicationFacts::seal(
-            vec![target_vocabulary::NativeFunctionPublication {
-                call_targets: Vec::new(),
-                machine: source.machine,
-                operation_count: u32::try_from(source.operations().count())
-                    .map_err(|_| Error::Overflow)?,
-                sites,
-                byte_literals: Vec::new(),
-            }],
-            Default::default(),
-        )
-        .map_err(Error::Mismatch)
-    }
-
-    #[cfg(test)]
-    fn produce(
-        fragment: &FunctionFragment,
-        source: &AbstractFunction,
-    ) -> Result<Vec<SemanticCodeAttribution>, Error> {
-        let publication = test_publication(source)?;
-        produce_current(fragment, publication.function(source.machine).unwrap())
-    }
-
     pub(super) fn ordinal(
         source: &target_vocabulary::NativeFunctionPublication,
         site: SemanticCodeSite,
@@ -144,13 +55,6 @@ mod attribution {
         fragment: &FunctionFragment,
         source: &target_vocabulary::NativeFunctionPublication,
     ) -> Result<Vec<SemanticCodeAttribution>, Error> {
-        produce_with_ordinals(fragment, |site| ordinal(source, site))
-    }
-
-    fn produce_with_ordinals(
-        fragment: &FunctionFragment,
-        mut ordinal: impl FnMut(SemanticCodeSite) -> Result<usize, Error>,
-    ) -> Result<Vec<SemanticCodeAttribution>, Error> {
         let mut rows = Vec::new();
         for instruction in fragment.instructions() {
             let offset = host(instruction.offset)?;
@@ -158,7 +62,7 @@ mod attribution {
             let mut push = |site, code_offset, byte_count| -> Result<(), Error> {
                 rows.push(SemanticCodeAttribution {
                     site,
-                    operation_ordinal: ordinal(site)?,
+                    operation_ordinal: ordinal(source, site)?,
                     code_offset,
                     byte_count,
                 });
@@ -292,38 +196,16 @@ mod attribution {
         Ok(joined)
     }
 
-    #[cfg(test)]
-    fn validate(
-        fragment: &FunctionFragment,
-        source: &AbstractFunction,
-        rows: &[SemanticCodeAttribution],
-    ) -> Result<(), Error> {
-        let publication = test_publication(source)?;
-        validate_current(
-            fragment,
-            publication.function(source.machine).unwrap(),
-            rows,
-        )
-    }
-
     pub(super) fn validate_current(
         fragment: &FunctionFragment,
         source: &target_vocabulary::NativeFunctionPublication,
         rows: &[SemanticCodeAttribution],
     ) -> Result<(), Error> {
-        validate_with_ordinals(fragment, rows, |site| ordinal(source, site))
-    }
-
-    fn validate_with_ordinals(
-        fragment: &FunctionFragment,
-        rows: &[SemanticCodeAttribution],
-        mut ordinal: impl FnMut(SemanticCodeSite) -> Result<usize, Error>,
-    ) -> Result<(), Error> {
         let physical = PhysicalSpans::prepare(fragment);
         let attributed = AttributionRows::new(rows);
         let mut previous_ends = std::collections::BTreeMap::new();
         for row in rows {
-            if ordinal(row.site)? != row.operation_ordinal
+            if ordinal(source, row.site)? != row.operation_ordinal
                 || previous_ends
                     .get(&row.site)
                     .is_some_and(|end| *end >= row.code_offset)
@@ -508,7 +390,7 @@ mod attribution {
 
     struct PhysicalSpans<'inputs> {
         spans: Vec<PhysicalSpan<'inputs>>,
-        possible_sites: Vec<(SemanticCodeSite, usize)>,
+        zero_length_anchors: Vec<(u64, usize)>,
     }
 
     // Canonical physical spans let interval checks visit only overlapping bytes.
@@ -516,7 +398,7 @@ mod attribution {
     impl<'inputs> PhysicalSpans<'inputs> {
         fn prepare(fragment: &'inputs FunctionFragment) -> Option<Self> {
             let mut spans = Vec::new();
-            let mut possible_sites = Vec::new();
+            let mut zero_length_anchors = Vec::new();
             let mut previous_end = 0;
             for instruction in fragment.instructions() {
                 let start = host(instruction.offset).ok()?;
@@ -525,55 +407,15 @@ mod attribution {
                     return None;
                 }
                 previous_end = end;
-                let position = spans.len();
-                let mut record = |site| possible_sites.push((site, position));
-                for operation in &instruction.provenance.operations {
-                    record(SemanticCodeSite::Operation(*operation));
+                // Only empty instructions and conditional fallthroughs can own a
+                // zero-byte row. Check the semantic owner at lookup time.
+                if instruction.bytes.is_empty() {
+                    zero_length_anchors.push((instruction.offset, spans.len()));
                 }
-                for edge in &instruction.provenance.edges {
-                    record(SemanticCodeSite::Edge(*edge));
-                }
-                match &instruction.control {
-                    Control::EliminateEmpty { psi_edge } | Control::Crash { psi_edge, .. } => {
-                        record(SemanticCodeSite::Edge(*psi_edge))
-                    }
-                    Control::HostedExitProcess { completion_edge } => {
-                        record(SemanticCodeSite::Edge(*completion_edge));
-                    }
-                    Control::Return { psi_return_edge } => {
-                        record(SemanticCodeSite::Edge(*psi_return_edge));
-                    }
-                    Control::Jump { successor } => {
-                        if let Some(edge) = successor.psi_edge {
-                            record(SemanticCodeSite::Edge(edge));
-                        }
-                    }
-                    Control::ConditionalBranch {
-                        when_taken,
-                        when_fallthrough,
-                        ..
-                    } => {
-                        for successor in [when_taken, when_fallthrough] {
-                            if let Some(edge) = successor.psi_edge {
-                                record(SemanticCodeSite::Edge(edge));
-                            }
-                        }
-                    }
-                    Control::InternalCall { owner, .. } => {
-                        if let Some(edge) = owner.edge() {
-                            record(SemanticCodeSite::Edge(edge));
-                        }
-                    }
-                    Control::NormalizedForeignCall {
-                        invocation_site, ..
-                    } => {
-                        if let semantic_vocabulary::InvocationSite::ExternalCompletion(edge) =
-                            invocation_site
-                        {
-                            record(SemanticCodeSite::Edge(*edge));
-                        }
-                    }
-                    Control::OperationTrap { .. } | Control::None => {}
+                if let Some(FunctionFragmentBranchEvidence::Conditional(branch)) =
+                    instruction.branch.as_deref()
+                {
+                    zero_length_anchors.push((branch.when_fallthrough_offset, spans.len()));
                 }
                 spans.push(PhysicalSpan {
                     instruction,
@@ -581,21 +423,22 @@ mod attribution {
                     end,
                 });
             }
-            possible_sites.sort_by_key(|(site, _)| *site);
+            zero_length_anchors.sort_unstable();
             Some(Self {
                 spans,
-                possible_sites,
+                zero_length_anchors,
             })
         }
 
         fn interval_is_exact(&self, row: &SemanticCodeAttribution) -> Result<bool, Error> {
             if row.byte_count == 0 {
+                let offset = u64::try_from(row.code_offset).map_err(|_| Error::Overflow)?;
                 let first = self
-                    .possible_sites
-                    .partition_point(|(site, _)| *site < row.site);
-                return Ok(self.possible_sites[first..]
+                    .zero_length_anchors
+                    .partition_point(|&(anchor, _)| anchor < offset);
+                return Ok(self.zero_length_anchors[first..]
                     .iter()
-                    .take_while(|(site, _)| *site == row.site)
+                    .take_while(|&&(anchor, _)| anchor == offset)
                     .any(|(_, position)| {
                         supports(
                             self.spans[*position].instruction,
@@ -785,94 +628,20 @@ mod attribution {
     #[cfg(test)]
     mod tests {
         use super::{
-            AbstractFunction, Control, Error, FunctionFragment, SelectedSuccessorRole,
-            SemanticCodeAttribution, SemanticCodeSite, ordinal as current_ordinal, produce,
-            test_publication, validate,
-        };
-        use abstract_operations::{
-            AbstractFunctionResult, AbstractOperation, IntegerArithmetic,
-            IntegerArithmeticOperator, IntegerOverflowPolicy,
+            Control, FunctionFragment, SelectedSuccessorRole, SemanticCodeAttribution,
+            SemanticCodeSite, produce_current as produce, validate_current as validate,
         };
         use machine_code::{FunctionFragmentBlockSpan, FunctionFragmentInstructionSpan};
         use selected_instructions::{
             MachineAlternativeFamily, MachineAlternativeKey, SelectedBlockId, SelectedInstructionId,
         };
-        use semantic_vocabulary::{
-            BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
-            ScalarType, ValueId,
-        };
-
-        fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Result<usize, Error> {
-            let publication = test_publication(source)?;
-            current_ordinal(publication.function(source.machine).unwrap(), site)
-        }
-
-        fn assert_requires_unique_operation_ordinal(
-            source: &mut AbstractFunction,
-            operation: OperationId,
-        ) {
-            let publication = test_publication(source).unwrap();
-            let current = publication.function(source.machine).unwrap();
-            assert_eq!(
-                current_ordinal(current, SemanticCodeSite::Operation(operation)).unwrap(),
-                1
-            );
-            assert!(
-                current_ordinal(
-                    current,
-                    SemanticCodeSite::Operation(OperationId::new(99).unwrap())
-                )
-                .is_err()
-            );
-            let repeated = source.blocks[0].operations[1].clone();
-            source.blocks[0].operations.push(repeated);
-            assert!(test_publication(source).is_err());
-        }
+        use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId};
+        use target_vocabulary::NativeFunctionPublication;
 
         #[test]
-        fn boolean_equality_attribution_requires_a_unique_authored_operation_ordinal() {
-            let (_, mut source) = fixture();
-            let operation = OperationId::new(2).unwrap();
-            source.blocks[0].operations[1] = AbstractOperation::BooleanEqual {
-                psi_operation: operation,
-                result: ValueId::new(3).unwrap(),
-                left: ValueId::new(1).unwrap(),
-                right: ValueId::new(2).unwrap(),
-            };
-            assert_requires_unique_operation_ordinal(&mut source, operation);
-        }
-
-        #[test]
-        fn bitwise_and_attribution_requires_a_unique_authored_operation_ordinal() {
-            let (_, mut source) = fixture();
-            let operation = OperationId::new(2).unwrap();
-            source.blocks[0].operations[1] = AbstractOperation::IntegerBitwiseAnd {
-                psi_operation: operation,
-                result: ValueId::new(3).unwrap(),
-                scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
-                left: ValueId::new(1).unwrap(),
-                right: ValueId::new(2).unwrap(),
-            };
-            assert_requires_unique_operation_ordinal(&mut source, operation);
-        }
-
-        #[test]
-        fn wrapping_add_attribution_requires_its_exact_complete_interval_and_ordinal() {
+        fn attribution_requires_the_published_ordinal_and_complete_interval() {
             let (fragment, mut source) = fixture();
             let operation = OperationId::new(2).unwrap();
-            source.blocks[0].operations[1] = AbstractOperation::IntegerArithmetic {
-                psi_operation: operation,
-                result: ValueId::new(3).unwrap(),
-                scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
-                arithmetic: IntegerArithmetic::new(
-                    IntegerOverflowPolicy::Wrapping,
-                    IntegerArithmeticOperator::Add,
-                    None,
-                )
-                .expect("admitted integer arithmetic"),
-                left: ValueId::new(1).unwrap(),
-                right: ValueId::new(1).unwrap(),
-            };
             let rows = produce(&fragment, &source).unwrap();
             validate(&fragment, &source, &rows).unwrap();
             let position = rows
@@ -903,191 +672,30 @@ mod attribution {
                 }
                 assert!(
                     validate(&fragment, &source, &changed).is_err(),
-                    "wrapping add attribution corruption {corruption}"
+                    "attribution corruption {corruption}"
                 );
             }
-            let repeated = source.blocks[0].operations[1].clone();
-            source.blocks[0].operations.push(repeated);
-            assert!(ordinal(&source, SemanticCodeSite::Operation(operation)).is_err());
+            source
+                .sites
+                .retain(|(site, _)| *site != SemanticCodeSite::Operation(operation));
+            assert!(produce(&fragment, &source).is_err());
+            assert!(validate(&fragment, &source, &rows).is_err());
         }
 
-        #[test]
-        fn wrapping_remainder_attribution_requires_a_unique_authored_operation_ordinal() {
-            let (_, mut source) = fixture();
-            let operation = OperationId::new(2).unwrap();
-            source.blocks[0].operations[1] = AbstractOperation::IntegerArithmetic {
-                psi_operation: operation,
-                result: ValueId::new(3).unwrap(),
-                scalar_type: IntegerType::new(IntegerSign::Signed, 64).unwrap(),
-                arithmetic: IntegerArithmetic::new(
-                    IntegerOverflowPolicy::Wrapping,
-                    IntegerArithmeticOperator::Remainder,
-                    Some(semantic_vocabulary::ObligationId::new(1).unwrap()),
-                )
-                .expect("admitted integer arithmetic"),
-                left: ValueId::new(1).unwrap(),
-                right: ValueId::new(2).unwrap(),
-            };
-            assert_requires_unique_operation_ordinal(&mut source, operation);
-        }
-
-        #[test]
-        fn legalized_scalar_family_attribution_requires_unique_authored_ordinals() {
-            let operation = OperationId::new(2).unwrap();
-            let result = ValueId::new(3).unwrap();
-            let left = ValueId::new(1).unwrap();
-            let right = ValueId::new(2).unwrap();
-            let obligation = semantic_vocabulary::ObligationId::new(1).unwrap();
-            let signed64 = IntegerType::new(IntegerSign::Signed, 64).unwrap();
-            let unsigned64 = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
-            let integer_arithmetic =
-                |scalar_type, policy, operator, obligation| AbstractOperation::IntegerArithmetic {
-                    psi_operation: operation,
-                    result,
-                    scalar_type,
-                    arithmetic: IntegerArithmetic::new(policy, operator, obligation)
-                        .expect("admitted integer arithmetic"),
-                    left,
-                    right,
-                };
-            for (name, candidate) in [
-                (
-                    "bitwise or",
-                    AbstractOperation::IntegerBitwiseOr {
-                        psi_operation: operation,
-                        result,
-                        scalar_type: unsigned64,
-                        left,
-                        right,
-                    },
-                ),
-                (
-                    "bitwise not",
-                    AbstractOperation::IntegerBitwiseNot {
-                        psi_operation: operation,
-                        result,
-                        scalar_type: unsigned64,
-                        operand: left,
-                    },
-                ),
-                (
-                    "wrapping subtract",
-                    integer_arithmetic(
-                        signed64,
-                        IntegerOverflowPolicy::Wrapping,
-                        IntegerArithmeticOperator::Subtract,
-                        None,
-                    ),
-                ),
-                (
-                    "wrapping multiply",
-                    integer_arithmetic(
-                        unsigned64,
-                        IntegerOverflowPolicy::Wrapping,
-                        IntegerArithmeticOperator::Multiply,
-                        None,
-                    ),
-                ),
-                (
-                    "wrapping divide",
-                    integer_arithmetic(
-                        signed64,
-                        IntegerOverflowPolicy::Wrapping,
-                        IntegerArithmeticOperator::Divide,
-                        Some(obligation),
-                    ),
-                ),
-                (
-                    "saturating remainder",
-                    integer_arithmetic(
-                        signed64,
-                        IntegerOverflowPolicy::Saturating,
-                        IntegerArithmeticOperator::Remainder,
-                        Some(obligation),
-                    ),
-                ),
-                (
-                    "exact multiply",
-                    integer_arithmetic(
-                        unsigned64,
-                        IntegerOverflowPolicy::Exact,
-                        IntegerArithmeticOperator::Multiply,
-                        Some(obligation),
-                    ),
-                ),
-                (
-                    "exact remainder",
-                    integer_arithmetic(
-                        unsigned64,
-                        IntegerOverflowPolicy::Exact,
-                        IntegerArithmeticOperator::Remainder,
-                        Some(obligation),
-                    ),
-                ),
-            ] {
-                let (_, mut source) = fixture();
-                source.blocks[0].operations[1] = candidate;
-                assert_eq!(
-                    ordinal(&source, SemanticCodeSite::Operation(operation)).unwrap(),
-                    1,
-                    "{name}"
-                );
-                assert!(
-                    ordinal(
-                        &source,
-                        SemanticCodeSite::Operation(OperationId::new(99).unwrap())
-                    )
-                    .is_err(),
-                    "{name}"
-                );
-                let repeated = source.blocks[0].operations[1].clone();
-                source.blocks[0].operations.push(repeated);
-                assert!(
-                    ordinal(&source, SemanticCodeSite::Operation(operation)).is_err(),
-                    "{name}"
-                );
-            }
-        }
-
-        fn fixture() -> (FunctionFragment, AbstractFunction) {
+        fn fixture() -> (FunctionFragment, NativeFunctionPublication) {
             let first = OperationId::new(1).unwrap();
             let second = OperationId::new(2).unwrap();
             let edge = EdgeId::new(3).unwrap();
-            let scalar_type =
-                ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
-            let source = AbstractFunction {
+            let source = NativeFunctionPublication {
                 machine: MachineId::new(1).unwrap(),
-                attachment: None,
-                entry: BlockId::new(1).unwrap(),
-                parameters: Vec::new(),
-                structural_parameters: Vec::new(),
-                result: AbstractFunctionResult::Unit,
-                entry_claims: Vec::new(),
-                block_entry_claims: Vec::new(),
-                published_service_ceiling: Vec::new(),
-                blocks: vec![abstract_operations::AbstractBlock {
-                    block: BlockId::new(1).unwrap(),
-                    structural_parameters: Vec::new(),
-                    parameters: Vec::new(),
-                    operations: vec![
-                        AbstractOperation::IntegerConstant {
-                            psi_operation: first,
-                            result: ValueId::new(1).unwrap(),
-                            scalar_type,
-                            value: IntegerValue::Unsigned(1),
-                        },
-                        AbstractOperation::IntegerConstant {
-                            psi_operation: second,
-                            result: ValueId::new(2).unwrap(),
-                            scalar_type,
-                            value: IntegerValue::Unsigned(2),
-                        },
-                        AbstractOperation::ReturnUnit {
-                            psi_edge: edge,
-                            cleanup_actions: Vec::new(),
-                        },
-                    ],
-                }],
+                operation_count: 3,
+                sites: vec![
+                    (first.into(), 0),
+                    (second.into(), 1),
+                    (SemanticCodeSite::Edge(edge), 2),
+                ],
+                byte_literals: Vec::new(),
+                call_targets: Vec::new(),
             };
             let mut instructions = Vec::new();
             for (index, (offset, length, operation)) in [
@@ -1141,44 +749,6 @@ mod attribution {
         }
 
         #[test]
-        fn case_edges_share_the_authored_case_ordinal_without_fabricated_operations() {
-            let (_, mut source) = fixture();
-            source.blocks[0].operations[2] = AbstractOperation::StructuralCase {
-                psi_block: source.blocks[0].block,
-                source: semantic_vocabulary::PlaceId::new(1).unwrap(),
-                path: Vec::new(),
-                cases: [10, 11]
-                    .into_iter()
-                    .map(
-                        |identity| abstract_operations::AbstractStructuralCaseSuccessor {
-                            psi_edge: EdgeId::new(identity).unwrap(),
-                            target: BlockId::new(identity).unwrap(),
-                            case: semantic_vocabulary::StructuralCaseId::new(identity).unwrap(),
-                            payloads: Vec::new(),
-                            structural_bindings: Vec::new(),
-                            cleanup_actions: Vec::new(),
-                        },
-                    )
-                    .collect(),
-            };
-            for identity in [10, 11] {
-                let edge = EdgeId::new(identity).unwrap();
-                assert_eq!(ordinal(&source, SemanticCodeSite::Edge(edge)).unwrap(), 2);
-                assert!(
-                    ordinal(
-                        &source,
-                        SemanticCodeSite::Operation(OperationId::new(identity).unwrap())
-                    )
-                    .is_err()
-                );
-            }
-            assert!(ordinal(&source, SemanticCodeSite::Edge(EdgeId::new(99).unwrap())).is_err());
-            let repeated = source.blocks[0].operations[2].clone();
-            source.blocks[0].operations.push(repeated);
-            assert!(ordinal(&source, SemanticCodeSite::Edge(EdgeId::new(10).unwrap())).is_err());
-        }
-
-        #[test]
         fn process_exit_completion_edge_owns_its_terminal_span() {
             let (mut fragment, source) = fixture();
             let terminal = fragment.blocks[0].instructions.last_mut().unwrap();
@@ -1208,24 +778,6 @@ mod attribution {
         }
 
         #[test]
-        fn boolean_constant_attribution_requires_its_exact_operation_ordinal() {
-            let (fragment, mut source) = fixture();
-            source.blocks[0].operations[0] = AbstractOperation::BooleanConstant {
-                psi_operation: OperationId::new(1).unwrap(),
-                result: ValueId::new(1).unwrap(),
-                value: true,
-            };
-            let rows = produce(&fragment, &source).unwrap();
-            assert_eq!(rows[0].operation_ordinal, 0);
-            validate(&fragment, &source, &rows).unwrap();
-            let mut substituted = rows.clone();
-            substituted[0].operation_ordinal = 1;
-            assert!(validate(&fragment, &source, &substituted).is_err());
-            source.blocks[0].operations.swap(0, 1);
-            assert!(validate(&fragment, &source, &rows).is_err());
-        }
-
-        #[test]
         fn contiguous_spans_coalesce_without_absorbing_neighboring_operations() {
             let (fragment, source) = fixture();
             let rows = produce(&fragment, &source).unwrap();
@@ -1243,62 +795,6 @@ mod attribution {
         }
 
         #[test]
-        fn ieee_literal_attribution_requires_complete_exact_operation_membership() {
-            for value in [
-                semantic_vocabulary::IeeeFloatValue::Binary32(0x7fc0_0041),
-                semantic_vocabulary::IeeeFloatValue::Binary64(0x8000_0000_0000_0000),
-            ] {
-                let (fragment, mut source) = fixture();
-                source.blocks[0].operations[0] = AbstractOperation::IeeeFloatConstant {
-                    psi_operation: OperationId::new(1).unwrap(),
-                    result: ValueId::new(1).unwrap(),
-                    value,
-                };
-                let rows = produce(&fragment, &source).unwrap();
-                validate(&fragment, &source, &rows).unwrap();
-                assert_eq!(
-                    (
-                        rows[0].operation_ordinal,
-                        rows[0].code_offset,
-                        rows[0].byte_count
-                    ),
-                    (0, 0, 5)
-                );
-                let mut omitted = rows.clone();
-                omitted.remove(0);
-                assert!(validate(&fragment, &source, &omitted).is_err());
-                source.blocks[0].operations.swap(0, 1);
-                assert!(validate(&fragment, &source, &rows).is_err());
-            }
-        }
-
-        #[test]
-        fn ieee_comparison_attribution_retains_every_span_at_its_exact_ordinal() {
-            for format in [
-                semantic_vocabulary::IeeeFloatFormat::Binary32,
-                semantic_vocabulary::IeeeFloatFormat::Binary64,
-            ] {
-                let (fragment, mut source) = fixture();
-                source.blocks[0].operations[0] = AbstractOperation::IeeeFloatCompare {
-                    psi_operation: OperationId::new(1).unwrap(),
-                    result: ValueId::new(3).unwrap(),
-                    comparison: semantic_vocabulary::IeeeFloatComparisonOperation::Equal,
-                    format,
-                    left: ValueId::new(1).unwrap(),
-                    right: ValueId::new(2).unwrap(),
-                };
-                let rows = produce(&fragment, &source).unwrap();
-                validate(&fragment, &source, &rows).unwrap();
-                assert_eq!((rows[0].operation_ordinal, rows[0].byte_count), (0, 5));
-                let mut truncated = rows.clone();
-                truncated[0].byte_count -= 1;
-                assert!(validate(&fragment, &source, &truncated).is_err());
-                source.blocks[0].operations.swap(0, 1);
-                assert!(validate(&fragment, &source, &rows).is_err());
-            }
-        }
-
-        #[test]
         fn omitted_operation_and_return_attribution_reject() {
             let (fragment, source) = fixture();
             let rows = produce(&fragment, &source).unwrap();
@@ -1310,16 +806,77 @@ mod attribution {
         }
 
         #[test]
+        fn branch_edges_share_an_ordinal_and_keep_their_own_byte_ranges() {
+            use machine_code::{
+                FunctionFragmentBranchEvidence, FunctionFragmentConditionalBranchEvidence,
+                FunctionFragmentConditionalBranchPredicate, FunctionFragmentSuccessorProvenance,
+            };
+
+            let (mut fragment, mut source) = fixture();
+            let taken = EdgeId::new(3).unwrap();
+            let fallthrough = EdgeId::new(4).unwrap();
+            source.sites.push((SemanticCodeSite::Edge(fallthrough), 2));
+            let successor = |edge, block| {
+                Box::new(FunctionFragmentSuccessorProvenance {
+                    role: SelectedSuccessorRole::Semantic,
+                    psi_edge: Some(edge),
+                    block: SelectedBlockId(block),
+                    source_target: BlockId::new(block as u64).unwrap(),
+                    bindings: Vec::new(),
+                    work: Vec::new(),
+                })
+            };
+            let branch = fragment.blocks[0].instructions.last_mut().unwrap();
+            let predicate = FunctionFragmentConditionalBranchPredicate::NonZeroV1;
+            branch.control = Control::ConditionalBranch {
+                predicate,
+                when_taken: successor(taken, 1),
+                when_fallthrough: successor(fallthrough, 2),
+            };
+            branch.branch = Some(Box::new(FunctionFragmentBranchEvidence::Conditional(
+                FunctionFragmentConditionalBranchEvidence {
+                    predicate,
+                    source_block: SelectedBlockId(0),
+                    when_taken_edge: Some(taken),
+                    when_taken_block: SelectedBlockId(1),
+                    when_taken_offset: 0,
+                    when_fallthrough_edge: Some(fallthrough),
+                    when_fallthrough_block: SelectedBlockId(2),
+                    when_fallthrough_offset: 8,
+                    byte_displacement: -8,
+                    decoded_register_reads: Vec::new(),
+                    decoded_effects: selected_instructions::MachineEncodedEffects::fallthrough_v1(
+                        Vec::new(),
+                        Vec::new(),
+                    ),
+                },
+            )));
+            let mut rows = produce(&fragment, &source).unwrap();
+            validate(&fragment, &source, &rows).unwrap();
+            let expected = [(taken, 7, 1), (fallthrough, 8, 0)];
+            for (row, (edge, offset, count)) in rows[2..].iter().zip(expected) {
+                assert_eq!(
+                    *row,
+                    SemanticCodeAttribution {
+                        site: SemanticCodeSite::Edge(edge),
+                        operation_ordinal: 2,
+                        code_offset: offset,
+                        byte_count: count,
+                    }
+                );
+            }
+            rows.last_mut().unwrap().code_offset = 9;
+            assert!(validate(&fragment, &source, &rows).is_err());
+        }
+
+        #[test]
         fn bridge_continuation_does_not_attribute_the_semantic_edge_twice() {
             let (mut fragment, mut source) = fixture();
             let edge = EdgeId::new(4).unwrap();
-            source.blocks[0].operations.push(AbstractOperation::Jump {
-                structural_bindings: Vec::new(),
-                psi_edge: edge,
-                target: BlockId::new(2).unwrap(),
-                bindings: Vec::new(),
-                cleanup_actions: Vec::new(),
-            });
+            source
+                .sites
+                .push((SemanticCodeSite::Edge(edge), source.operation_count));
+            source.operation_count += 1;
             let successor = machine_code::FunctionFragmentSuccessorProvenance {
                 role: SelectedSuccessorRole::Semantic,
                 psi_edge: Some(edge),
