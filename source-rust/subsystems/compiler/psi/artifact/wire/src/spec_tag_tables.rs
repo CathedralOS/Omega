@@ -213,6 +213,11 @@ fn tag_tables() -> Vec<TagTable> {
             &["StructuralEstablishmentRoute"],
             read::<_, declaration_wire::Route>,
         ),
+        table(
+            "package-event-tags",
+            &["TerminalPackageEvent"],
+            read::<_, crate::package_wire::Event>,
+        ),
         table("scalar-type-tags", &["ScalarType"], |reader| {
             refusal(scalar_wire::decode_scalar_type(reader))
         }),

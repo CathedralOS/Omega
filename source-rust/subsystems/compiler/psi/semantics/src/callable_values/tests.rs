@@ -1263,3 +1263,5 @@ fn call_analyses_refuse_a_repeated_machine_as_the_call_graph_does() {
         Some(refusal)
     );
 }
+
+mod package_sites;

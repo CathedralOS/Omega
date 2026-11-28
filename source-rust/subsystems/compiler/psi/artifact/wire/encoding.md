@@ -55,13 +55,16 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
-Marker 309 records routed memberships on exact formal arguments in machine and
+Marker 310 records routed memberships on exact formal arguments in machine and
 boundary preconditions. A service method identifies each roster entry as
 normal result or input (with its ordered runtime formal ordinal), followed by the
 projection and canonical domain identity. The phases are committed separately.
 For each explicitly exported provider member, the receiver compares these
 rows with the checked boundary of the same requirement. Moving a premise to a
 different input changes the public contract even when both inputs have the same type.
+
+Marker 309 appends section 55 for per-value package evidence. Earlier saved
+programs must be rebuilt.
 
 Marker 308 records which callable field of a parameter may run. The callable
 envelope and service schema invocation lists use tag 1 for a whole parameter
@@ -1519,6 +1522,23 @@ Older markers are rejected before their payload is read.
 | 52 | installed interrupt registrations | counted exact installation, registrar and callback rows, below |
 | 53 | boundary application candidates | counted checked bodies for closed applications |
 | 54 | task activation demands | counted task activation demand rows |
+| 55 | per-value packages | counted schemas, counted openings, counted operation sites |
+
+A schema holds its public record storage ID and a counted list of abstract
+storage type IDs in hidden-parameter order. Schemas are sorted by record ID.
+An opening holds a machine ID, public record ID, structural argument for the
+subject, and counted fresh witness type IDs in the same parameter order.
+Opening indices are zero-based. A site holds a machine ID, operation ID and
+event. Sites are sorted by the machine and operation pair. The catalog forms
+part of the program fingerprint.
+
+<!-- package-event-tags -->
+| Tag | Package event | Fields after the tag |
+| --- | --- | --- |
+| 1 | Construct | Counted concrete witness type IDs in parameter order |
+| 2 | Project | Opening index (`u32`), structural field ID |
+| 3 | Invoke | Opening index (`u32`) |
+| 4 | Store | Opening index (`u32`), destination structural field ID |
 
 Marker 298 encodes each service method’s declared caller-stack bound as a
 little-endian `u64` after its blocking flag and before its termination flag.
@@ -3406,7 +3426,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 309 | yes |
+| semantic module | `PSITERM\0` | 310 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | published artifact | `PSIART\0\0` | 4 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |

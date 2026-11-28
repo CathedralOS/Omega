@@ -260,6 +260,7 @@ pub(crate) mod call_foundations {
         module: &TerminalModule,
         machine: &TerminalMachine,
         operation: &Operation,
+        packages: &terminal_semantics::packages::CheckedPackageSites,
     ) -> Result<(), CodecError> {
         let OperationKind::CallMachine {
             callee,
@@ -329,11 +330,22 @@ pub(crate) mod call_foundations {
             validate_structural_call_result_declaration(module, machine, operation, result)?;
             validate_result_claim_shape(module, result, std::iter::empty())?;
         }
+        let mut parameters = std::borrow::Cow::Borrowed(contract.structural_parameters.as_slice());
+        if packages
+            .invocation_contract(machine.id, operation.id)
+            .is_some()
+        {
+            for (i, formal) in parameters.to_mut().iter_mut().enumerate() {
+                if let Some(published) = packages.borrowed_argument(machine.id, operation.id, i) {
+                    formal.structural_type = published;
+                }
+            }
+        }
         validate_call_tail(
             module,
             machine,
             structural_arguments,
-            &contract.structural_parameters,
+            &parameters,
             claim_transfers,
         )
     }
@@ -7464,6 +7476,7 @@ pub(crate) mod storage_foundations {
             module: &TerminalModule,
             machine: &TerminalMachine,
             operation: &Operation,
+            package_sites: &terminal_semantics::packages::CheckedPackageSites,
         ) -> Result<(), CodecError> {
             let OperationKind::StoreStructuralField {
                 disposition,
@@ -7523,7 +7536,10 @@ pub(crate) mod storage_foundations {
                     "structural field store requires an owned root or an accessible borrowed window",
                 );
             };
-            let field_type = window_field_type(module, root_type, path, *field)?;
+            let declared = window_field_type(module, root_type, path, *field)?;
+            let field_type = package_sites
+                .stored_type(machine.id, operation.id)
+                .unwrap_or(declared);
             if structural_place_type(machine, value.place) != Some(field_type) {
                 return malformed("structural field store value type does not match field");
             }
@@ -10840,6 +10856,7 @@ pub(crate) mod value_foundations {
         module: &TerminalModule,
         machine: &TerminalMachine,
         operation: &Operation,
+        packages: &terminal_semantics::packages::CheckedPackageSites,
     ) -> Result<(), CodecError> {
         let OperationKind::EstablishRecord { fields } = &operation.kind else {
             unreachable!("dispatched validate_establish_record")
@@ -10872,7 +10889,10 @@ pub(crate) mod value_foundations {
             {
                 return malformed("record field identity differs");
             }
-            validate_constructor_field(module, machine, field, &declaration.field_type)?;
+            let expected = packages
+                .field_type(machine.id, operation.id, field.field)
+                .unwrap_or(&declaration.field_type);
+            validate_constructor_field(module, machine, field, expected)?;
         }
         Ok(())
     }
@@ -12923,7 +12943,14 @@ fn validate_operation_foundation(
             storage_foundations::validate_move_structural_field(module, machine, operation)?
         }
         OperationKind::StoreStructuralField { .. } => {
-            storage_foundations::validate_store_structural_field(module, machine, operation)?
+            storage_foundations::validate_store_structural_field(
+                module,
+                machine,
+                operation,
+                analyses
+                    .package_sites()
+                    .map_err(CodecError::MalformedStructuralFoundation)?,
+            )?
         }
         OperationKind::ScalarStructuralField { .. }
         | OperationKind::BooleanStructuralField { .. } => {
@@ -12953,7 +12980,14 @@ fn validate_operation_foundation(
         }
         OperationKind::CallUnit { .. } => validate_call_unit(module, operation)?,
         OperationKind::CallDynamic { .. } => validate_call_dynamic(module, machine, operation)?,
-        OperationKind::CallMachine { .. } => validate_call_machine(module, machine, operation)?,
+        OperationKind::CallMachine { .. } => validate_call_machine(
+            module,
+            machine,
+            operation,
+            analyses
+                .package_sites()
+                .map_err(CodecError::MalformedStructuralFoundation)?,
+        )?,
         OperationKind::CallStructuralScalar { .. } => {
             validate_call_structural_scalar(module, operation)?
         }
@@ -12989,9 +13023,14 @@ fn validate_operation_foundation(
         OperationKind::EstablishNativeCodeLayout { .. } => {
             value_foundations::validate_native_code_layout(module, machine, operation)?;
         }
-        OperationKind::EstablishRecord { .. } => {
-            value_foundations::validate_establish_record(module, machine, operation)?
-        }
+        OperationKind::EstablishRecord { .. } => value_foundations::validate_establish_record(
+            module,
+            machine,
+            operation,
+            analyses
+                .package_sites()
+                .map_err(CodecError::MalformedStructuralFoundation)?,
+        )?,
         OperationKind::EstablishStructuralCase { .. } => {
             value_foundations::validate_establish_structural_case(module, machine, operation)?
         }
