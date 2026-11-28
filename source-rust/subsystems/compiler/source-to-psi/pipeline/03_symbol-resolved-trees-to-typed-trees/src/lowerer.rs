@@ -2143,6 +2143,10 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_type_references,
     )?;
+    crate::declarations::package_fields::validate_in_cohort(
+        &lowerer.typed_trees,
+        cohort.data_definitions,
+    )?;
     crate::types::type_reference::domain_aliases::retain_member_applications(
         &mut lowerer.typed_trees,
         cohort.domain_definitions,
