@@ -620,3 +620,74 @@ machine main() {}
         }
     }
 }
+
+#[test]
+fn a_callers_value_facts_follow_an_address_passed_to_a_native_writer() {
+    let write_field = "store(address_of(@pair.changed));";
+    for (action, postcondition, provable) in [
+        (write_field, "pair.changed == 0u8", false),
+        (
+            "let temporary: @u8 = @pair.changed;\n    let location: address = address_of(temporary);\n    store(location);",
+            "pair.changed == 0u8",
+            false,
+        ),
+        (
+            "store_next(address_of(@pair.cells[0u64]));",
+            "pair.cells[1u64] == 23u8",
+            false,
+        ),
+        (write_field, "$independent == 7u8", true),
+        (
+            "_ = load(address_of(@pair.changed));",
+            "pair.changed == 0u8 && $independent == 7u8",
+            true,
+        ),
+    ] {
+        let source = format!(
+            r#"
+data Pair {{ changed: u8; cells: [u8; 2]; }}
+machine store(location: address) {{
+    let view: @mutable u8 = |native|::borrow_mutable_at::<u8>(location);
+    $view = 1u8;
+}}
+machine load(location: address) -> u8 {{
+    let view: @u8 = |native|::borrow_at::<u8>(location);
+    $view
+}}
+machine store_next(base: address) {{
+    transition base <= 9223372036854775807 {{ true -> inside(base), false -> done() }}
+    machine inside(base: address)
+    requires base <= 9223372036854775807
+    {{
+        store(base + 1u64);
+    }}
+    machine done() {{}}
+}}
+machine observe(pair: @mutable Pair, independent: @u8)
+requires pair.changed == 0u8 && pair.cells[1u64] == 23u8 && $independent == 7u8
+ensures {postcondition}
+{{
+    {action}
+}}
+machine main() {{
+    let mutable pair: Pair = Pair {{ changed: 0u8, cells: [11u8, 23u8] }};
+    let independent: u8 = 7u8;
+    observe(@mutable pair, @independent);
+}}
+"#
+        );
+        let checked = Program::new(&source, &[READ, WRITE]).check();
+        let message = report(&checked);
+        assert_eq!(
+            checked.status.success(),
+            provable,
+            "{action} {postcondition}: {message}"
+        );
+        if !provable {
+            assert!(
+                message.contains("cannot prove ensures") && message.contains("observe"),
+                "{message}"
+            );
+        }
+    }
+}
