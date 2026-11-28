@@ -48,6 +48,13 @@ pub fn encode_function_result(
                     writer.u8(1);
                     writer.id(source.place);
                 }
+                terminal_psi::StructuralReferenceOrigin::UpgradedParameter(source) => {
+                    if source.access != terminal_psi::StructuralAccess::SharedBorrow {
+                        return Err(CodecError::NonCanonicalEncoding);
+                    }
+                    writer.u8(3);
+                    writer.id(source.place);
+                }
                 terminal_psi::StructuralReferenceOrigin::Invocation { carrier_type, .. } => {
                     writer.u8(2);
                     writer.id(*carrier_type);
@@ -55,7 +62,7 @@ pub fn encode_function_result(
             }
             psi_declaration_encoding::access::mode::encode_structural_access(
                 writer,
-                source.access(),
+                source.parameter().map_or_else(|| source.access(), |parameter| parameter.access),
             );
             writer.u8(match source.extent() {
                 semantic_vocabulary::ReferenceOriginExtent::Projected => 1,
@@ -82,7 +89,7 @@ pub fn decode_function_result(
                 sources: decode_counted(reader, |reader| {
                     let kind = reader.u8()?;
                     let (parameter, carrier) = match kind {
-                        1 => (Some(reader.id("PlaceId")?), None),
+                        1 | 3 => (Some(reader.id("PlaceId")?), None),
                         2 => (None, Some(reader.id("StructuralTypeId")?)),
                         tag => {
                             return Err(CodecError::InvalidTag("StructuralReferenceOrigin", tag));
@@ -99,14 +106,21 @@ pub fn decode_function_result(
                     };
                     let path = decode_reference_origin_path(reader)?;
                     match kind {
-                        1 => Ok(terminal_psi::StructuralReferenceOrigin::Parameter(
-                            terminal_psi::ReferenceOriginSource {
+                        1 | 3 => {
+                            let source = terminal_psi::ReferenceOriginSource {
                                 place: parameter.ok_or(CodecError::NonCanonicalEncoding)?,
                                 access,
                                 extent,
                                 path,
-                            },
-                        )),
+                            };
+                            if kind == 1 {
+                                Ok(terminal_psi::StructuralReferenceOrigin::Parameter(source))
+                            } else if access == terminal_psi::StructuralAccess::SharedBorrow {
+                                Ok(terminal_psi::StructuralReferenceOrigin::UpgradedParameter(source))
+                            } else {
+                                Err(CodecError::NonCanonicalEncoding)
+                            }
+                        }
                         2 => Ok(terminal_psi::StructuralReferenceOrigin::Invocation {
                             carrier_type: carrier.ok_or(CodecError::NonCanonicalEncoding)?,
                             access,

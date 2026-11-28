@@ -1228,6 +1228,8 @@ operation_wire! {
         142 => PackedIntegerBinary { operation: PackedIntegerBinary, left: Argument, right: Argument },
         143 => PackedIntegerUnary { operation: PackedIntegerUnary, source: Argument },
         144 => ElementViewFixedArray { source: Argument, length: Id, extent: U64, obligation: Id },
+        145 => BorrowAt { address: Id },
+        146 => UpgradeMutability { source: Argument },
     }
     paired {
         100 | 106 => StructuralByteViewFieldStore {
