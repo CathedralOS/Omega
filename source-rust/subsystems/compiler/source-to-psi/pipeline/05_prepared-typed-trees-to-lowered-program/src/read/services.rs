@@ -560,6 +560,7 @@ impl Program<'_> {
                     .ok_or_else(|| unavailable(id, "progress subject has no invocation row"))?;
                 if local_termination.get(id) != Some(&true)
                     || !uses
+                        .sites
                         .iter()
                         .all(|invocation| call_terminates(self, invocation, &local_termination))
                 {
@@ -601,6 +602,7 @@ impl Program<'_> {
             ) && calls
                 .get(id)
                 .ok_or_else(|| unavailable(id, "termination subject has no invocations"))?
+                .sites
                 .iter()
                 .any(|invocation| !call_terminates(self, invocation, &local_termination))
             {
