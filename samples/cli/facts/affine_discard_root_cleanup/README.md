@@ -1,13 +1,8 @@
 # Affine Discard Root Cleanup
 
-Fact: an unconsumed nominal resource whose drop contract requires valid == 1u64 executes deterministic affine scope-exit cleanup while preserving result <= 50u64 so 50u64 - result succeeds.
+When a `Resource` goes out of scope, its cleanup machine takes ownership, unpacks the resource and writes the validity tag into the caller's counter. The compiler must prove the tag is 1 before that call. The caller checks the counter and subtracts the returned value from 50 using exact arithmetic.
 
-Owning Task: `RESOURCE-CLEANUP-MODEL`
-Specification Reference: [Ownership](wiki/spec/terminal-psi/ownership.md), [Loans](wiki/spec/terminal-psi/loans.md), and [Control flow](wiki/spec/terminal-psi/control_flow.md)
-
-This fact row demonstrates that an unconsumed nominal resource with an affine drop contract (`machine drop_resource(resource: @mutable Resource) requires resource.valid == 1u64`) triggers deterministic scope-exit cleanup (`DiscardRoot` / `InvokeNominal`) across all nine standard places. The resource state satisfies the cleanup precondition (`resource.valid == 1u64`), allowing the cleanup action to be verified and statically discharged at compile time while writing `resource.valid` into caller-visible `Counter` state (`dropped.value == 1u64`) and preserving the computed value bound `result <= 50u64` so that exact subtraction `50u64 - result` succeeds and exits with code 0.
-
-Every positive place and the root witness bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declare `Expected exit: 0`, and carry an authored `expected_native_exit.txt` containing `0`. Both engines agree on exit code 0.
+The root program and nine cases exercise this behavior with the resource stored or passed in different places. In the match case both branches receive the same named counter reference, and each constructs its own resource. The negative programs set the tag to 0. [Owned cleanup](../../../../wiki/spec/language/ownership.md)
 
 ## Places
 
@@ -21,37 +16,22 @@ Every positive place and the root witness bind `ProgramEntry` across all four ho
 | match join | `match_join/` | both branches of a boolean match expression yield the resource before scope exit cleanup | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) |
 | const name | `const_name/` | a named constant VALID_TAG initializes the resource tag before scope exit cleanup | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) |
 | a nested machine | `other_state/` | an terminal machine transfer transfers the resource to a successor machine before cleanup | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) |
-| another machine | `other_machine/` | an associated Relay machine receives the resource and performs deterministic drop | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) |
+| another machine | `other_machine/` | the separate machine `forward` receives the resource and runs its cleanup on return | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) |
 | another target body | `target_body/` | each of the four hosted target bodies receives the resource and cleans it up | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) |
 
 ## Execution
 
-Run each positive place with `mbx xtask sample-gate --filter samples/cli/facts/affine_discard_root_cleanup`:
+Run the positive programs and their negative twins from the repository root.
 
 ```sh
 mbx xtask sample-gate --filter samples/cli/facts/affine_discard_root_cleanup
 ```
 
-All 10 samples report `native exit 0` and `interp exit: 0`.
+All ten positive programs returned normally on `omega-mac` with status 0 and empty standard streams. Psi targeting `macos_arm64` also returned normally. Each of the nine negative programs must report `cannot prove requires contract for call drop_resource` and identify the unproved condition `resource.valid == 1`.
 
-Each place carries a fact-sensitive reject twin at `<place>/invalid/main.omg` where the resource valid tag is weakened to `0u64`, violating the drop contract precondition `resource.valid == 1u64`. Check each twin with:
+## Historical requirements and evidence
 
-```sh
-omega --check samples/cli/facts/affine_discard_root_cleanup/invalid_local/main.omg
-omega --check samples/cli/facts/affine_discard_root_cleanup/invalid_field/main.omg
-omega --check samples/cli/facts/affine_discard_root_cleanup/invalid_parameter/main.omg
-omega --check samples/cli/facts/affine_discard_root_cleanup/invalid_call_result/main.omg
-omega --check samples/cli/facts/affine_discard_root_cleanup/invalid_match_join/main.omg
-omega --check samples/cli/facts/affine_discard_root_cleanup/invalid_const_name/main.omg
-omega --check samples/cli/facts/affine_discard_root_cleanup/invalid_other_state/main.omg
-omega --check samples/cli/facts/affine_discard_root_cleanup/invalid_other_machine/main.omg
-omega --check samples/cli/facts/affine_discard_root_cleanup/invalid_target_body/main.omg
-```
-
-Every reject twin fails closed with:
-`error: cannot prove automatic cleanup requires at selected edge ... does not establish drop_resource clause \`resource.valid == 1\``
-
-## Requirements and Evidence
+The following notes record the earlier borrowed-cleanup implementation and its diagnostics. The execution section above describes the owned cleanup exercised by the current programs.
 
 - **Parent outcome:** `RESOURCE-CLEANUP-MODEL` (`TASKS.md`).
 - **Requirement established:** End-to-end nine-place fact preservation for deterministic affine scope-exit cleanup (`DiscardRoot`, `DiscardResidual`, and `InvokeNominal`) with automatic contract precondition checking and exact subtraction preservation across all nine language transport places with differential agreement between Terminal Psi and native execution across hosted targets.
