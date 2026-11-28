@@ -1,0 +1,41 @@
+data ReadInto<S> = machine(state: @mutable S, output: @mutable [u8]) -> u64
+    ensures result <= output.length
+    reaches none
+    crashes none;
+
+data Reader<'a, some S> {
+    state: @'a mutable S;
+    read: ReadInto<S>;
+}
+
+machine read_one(reader: @mutable Reader, output: @mutable [u8]) -> u64
+ensures result <= output.length
+{
+    (reader.read)(reader.state, output)
+}
+data File { byte: u8; }
+data Socket { status: u8; }
+
+machine read_file(state: @mutable File, output: @mutable [u8]) -> u64
+    ensures result <= output.length reaches none crashes none {
+    transition state.byte == 17u8 {true -> output.length, false -> 0u64}
+}
+
+machine read_socket(state: @mutable Socket, output: @mutable [u8]) -> u64
+    ensures result <= output.length reaches none crashes none {
+    transition state.status == 41u8 {true -> 0u64, false -> output.length}
+}
+
+machine main() crashes Trap {
+    let mutable file: File = File { byte: 17u8 };
+    let mutable readers: [Reader; 1] = [
+        Reader { state: @mutable file, read: read_file }
+    ];
+    let mutable bytes: [u8; 2] = [0u8, 0u8];
+    let first: u64 = read_one(@mutable readers[0], @mutable bytes[..]);
+    transition first == 2u64 {
+        true -> done(), false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}
