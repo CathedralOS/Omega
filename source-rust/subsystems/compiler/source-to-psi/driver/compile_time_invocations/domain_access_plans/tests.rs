@@ -149,6 +149,56 @@ fn typed_source(source: &str) -> crate::source_state::TypedTrees {
 }
 
 #[test]
+fn a_shared_specialization_keeps_each_callers_type_argument_regions() {
+    let typed = typed_source(
+        r"
+        data Packet<'s> { byte: @'s u8; }
+        machine pick_second<A, B>(left: A, right: B) -> B reaches none crashes none { move right }
+        machine first<'same>(left: Packet<'same>, right: Packet<'same>) -> Packet<'same>
+            reaches none crashes none {
+            pick_second::<Packet<'same>, Packet<'same>>(move left, move right)
+        }
+        machine second<'a, 'b>(left: Packet<'a>, right: Packet<'b>) -> Packet<'b>
+            reaches none crashes none {
+            pick_second::<Packet<'a>, Packet<'b>>(move left, move right)
+        }
+    ",
+    );
+    let prepared = preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
+    let typed = prepared.trees();
+    let generated = typed
+        .machines()
+        .iter()
+        .filter(|machine| {
+            typed
+                .machine_specialization(machine.symbol)
+                .is_some_and(|row| typed.symbols.name(row.template) == "pick_second")
+        })
+        .collect::<Vec<_>>();
+    let [machine] = generated.as_slice() else {
+        panic!("both callers must use the same executable")
+    };
+    let (inputs, result) = typed.machine_definition_types(machine).unwrap();
+    assert!(inputs[0].contains("region(owner(schema),ordinal(0))"));
+    assert!(inputs[1].contains("region(owner(schema),ordinal(1))"));
+    assert_eq!(inputs[1], result);
+    for (name, expected_slots) in [("first", [0, 0]), ("second", [0, 1])] {
+        let (caller, handle) = query_call(typed, name);
+        let call = typed.expression_table.call_node(handle).unwrap();
+        let bindings = typed
+            .specialization_type_argument_regions(machine.symbol, call.authored_machine_application)
+            .unwrap();
+        assert_eq!(bindings.len(), 2);
+        for (slot, (formal, supplied)) in bindings.into_iter().enumerate() {
+            assert_eq!(formal.declaration, machine.symbol);
+            assert_eq!(formal.ordinal, slot);
+            assert_eq!(supplied.declaration, caller);
+            assert_eq!(supplied.ordinal, expected_slots[slot]);
+        }
+    }
+}
+
+#[test]
 fn preparing_two_workers_keeps_the_selected_machine_in_each_return_type() {
     let typed = typed_source(
         r"

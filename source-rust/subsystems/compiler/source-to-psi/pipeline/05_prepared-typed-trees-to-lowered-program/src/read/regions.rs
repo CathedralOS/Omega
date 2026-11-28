@@ -263,16 +263,7 @@ impl Program<'_> {
         &self,
         owner: SymbolHandle,
     ) -> impl ExactSizeIterator<Item = LifetimeParameterIdentity> {
-        let declaration = self.typed.lifetime_declaration_owner(owner);
-        let count = crate::source_state::type_identity::declaration_lifetime_parameters(
-            self.typed,
-            declaration,
-        )
-        .map_or(0, <[_]>::len);
-        (0..count).map(move |ordinal| LifetimeParameterIdentity {
-            declaration,
-            ordinal,
-        })
+        self.typed.executable_lifetime_parameters(owner).into_iter()
     }
 
     /// The lifetime parameters `owner` declares, as regions in order.
