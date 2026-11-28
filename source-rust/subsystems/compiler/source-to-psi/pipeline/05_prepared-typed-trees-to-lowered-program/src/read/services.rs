@@ -307,7 +307,8 @@ impl Program<'_> {
             policies.push(policy);
             calls.push(uses);
         }
-        let forwarding = parameter_paths::Forwarding::of(&calls, &policies, &self.signatures, components);
+        let forwarding =
+            parameter_paths::Forwarding::of(&calls, &policies, &self.signatures, components);
         loop {
             let mut changed = false;
             for (id, uses) in calls.iter() {
@@ -1118,10 +1119,16 @@ impl<'a, 'r> CallCollector<'a, 'r> {
                         .ok_or_else(|| unavailable(id, "binding names no body slot"))? = parameter;
                 }
                 Statement::CaptureReference { slot, original } => {
-                    let value = collector.parameters.get(*original)
-                        .ok_or_else(|| unavailable(id, "captured reference names no original slot"))?.clone();
-                    *collector.parameters.get_mut(*slot)
-                        .ok_or_else(|| unavailable(id, "captured reference names no destination slot"))? = value;
+                    let value = collector
+                        .parameters
+                        .get(*original)
+                        .ok_or_else(|| {
+                            unavailable(id, "captured reference names no original slot")
+                        })?
+                        .clone();
+                    *collector.parameters.get_mut(*slot).ok_or_else(|| {
+                        unavailable(id, "captured reference names no destination slot")
+                    })? = value;
                 }
                 _ => {}
             }

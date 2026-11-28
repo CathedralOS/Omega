@@ -88,8 +88,16 @@ impl ExternalProviderNamespace {
             };
             let supplied = header(&source.signature)?;
             let required_header = header(&required.signature)?;
-            let required_envelope = services.envelope(context, &required.envelope, qualifications.identities.as_table())?;
-            let supplied_envelope = services.envelope(context, &source.envelope, qualifications.identities.as_table())?;
+            let required_envelope = services.envelope(
+                context,
+                &required.envelope,
+                qualifications.identities.as_table(),
+            )?;
+            let supplied_envelope = services.envelope(
+                context,
+                &source.envelope,
+                qualifications.identities.as_table(),
+            )?;
             let realization = crate::declare::provider_declaration(
                 typed_source,
                 &source.declaration,

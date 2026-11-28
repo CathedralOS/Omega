@@ -742,9 +742,9 @@ pub(super) fn reviewed_invocations(
             TerminalCallableInvocation::Parameter(position) => {
                 Ok(PackageReviewSynchronousInvocation::Parameter(*position))
             }
-            TerminalCallableInvocation::ParameterPath { .. } => {
-                Err(unavailable("the parameter field that a callback invocation enters"))
-            }
+            TerminalCallableInvocation::ParameterPath { .. } => Err(unavailable(
+                "the parameter field that a callback invocation enters",
+            )),
             TerminalCallableInvocation::Service(service) => reviewed_service(identities, *service)
                 .map(PackageReviewSynchronousInvocation::Service),
         })
@@ -816,10 +816,15 @@ fn check_reviewed_invocation_paths(
 ) -> Result<(), Vec<Diagnostic>> {
     if envelope.is_some_and(|envelope| {
         envelope.invocations.iter().any(|entry| {
-            matches!(entry, terminal_psi::TerminalCallableInvocation::ParameterPath { .. })
+            matches!(
+                entry,
+                terminal_psi::TerminalCallableInvocation::ParameterPath { .. }
+            )
         })
     }) {
-        return Err(unavailable("the parameter field that a callback invocation enters"));
+        return Err(unavailable(
+            "the parameter field that a callback invocation enters",
+        ));
     }
     Ok(())
 }
@@ -902,7 +907,9 @@ fn contribution(
             if required.is_some() {
                 return Err(unavailable("a selected boundary call's public association"));
             }
-            check_reviewed_invocation_paths(module.execution.callables.boundary_envelope(boundary))?;
+            check_reviewed_invocation_paths(
+                module.execution.callables.boundary_envelope(boundary),
+            )?;
             let header = module
                 .boundary_machine(boundary)
                 .ok_or_else(|| unavailable("a call's boundary contract"))?;

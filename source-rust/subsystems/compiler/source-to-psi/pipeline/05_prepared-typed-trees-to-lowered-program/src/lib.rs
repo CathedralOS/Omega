@@ -2069,7 +2069,11 @@ fn lower_program_with_parallel<'source>(
             })?;
             declaration_envelopes.push(terminal_psi::TerminalDeclarationEnvelope {
                 contract: id,
-                envelope: services.envelope(diagnostic, envelope, qualifications.identities.as_table())?,
+                envelope: services.envelope(
+                    diagnostic,
+                    envelope,
+                    qualifications.identities.as_table(),
+                )?,
             });
             let signature = source
                 .declaration_signatures

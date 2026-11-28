@@ -383,7 +383,11 @@ impl StaticContracts {
                 application: source.application.clone(),
                 implementation,
                 required,
-                envelope: source.envelope.publish(context, services, qualifications.identities.as_table())?,
+                envelope: source.envelope.publish(
+                    context,
+                    services,
+                    qualifications.identities.as_table(),
+                )?,
                 provider: source
                     .provider
                     .as_ref()
