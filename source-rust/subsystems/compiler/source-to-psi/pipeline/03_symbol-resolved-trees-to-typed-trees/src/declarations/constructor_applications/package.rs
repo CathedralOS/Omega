@@ -237,12 +237,15 @@ mod tests {
         "#;
         checked(&[("main.omg", helper)]).unwrap();
 
-        let recursive = "data Node { next: Node; }
+        let recursive = "data Node<'a> { next: Node<'a>; }
             data Package<'a, some S> { state: @'a S; }
-            machine pack(input: @Node) { let value: Package = Package { state: input }; }";
+            machine pack<'a>(input: @'a Node<'a>) { let value: Package = Package { state: input }; }";
         let error = checked(&[("main.omg", recursive)]).unwrap_err();
-        assert!(error.contains("package witness for hidden type `S` must be sized"), "{error}");
-        let linked = recursive.replace("next: Node", "next: @Node");
+        assert!(
+            error.contains("package witness for hidden type `S` must be sized"),
+            "{error}"
+        );
+        let linked = recursive.replace("next: Node", "next: @'a Node");
         checked(&[("main.omg", &linked)]).unwrap();
     }
 
