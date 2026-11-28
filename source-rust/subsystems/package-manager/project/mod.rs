@@ -346,6 +346,7 @@ impl SourceHost<'_, '_> {
                     "source resolution lost the requesting Build declaration".to_owned()
                 })?;
             let purpose = pending.purpose();
+            let alias = pending.explicit_alias().map(str::to_owned);
             let backing = pending.backing(requester).cloned().unwrap_or_default();
             let frozen = backing
                 .frozen
@@ -366,7 +367,7 @@ impl SourceHost<'_, '_> {
                         {
                             require_programs(used, &backing.programs)?;
                         } else {
-                            self.settle_dependency(&source, purpose, &backing)?;
+                            self.settle_dependency(&source, purpose, &backing, alias.as_deref())?;
                         }
                         break next;
                     }
@@ -382,14 +383,20 @@ impl SourceHost<'_, '_> {
                                 .iter()
                                 .any(|settled| settled.source.same_source(acquired))
                         {
-                            let i = self.settle_dependency(acquired, purpose, &backing)?;
+                            let i = self.settle_dependency(
+                                acquired,
+                                purpose,
+                                &backing,
+                                alias.as_deref(),
+                            )?;
                             let (_, next) =
                                 dependency.complete_declared(&self.settled[i].declaration)?;
                             reused.push(i);
                             break next;
                         }
                         let acquired = acquired.clone();
-                        let executed = self.member_or_execute(&acquired, purpose, &backing)?;
+                        let executed =
+                            self.member_or_execute(&acquired, purpose, &backing, alias.as_deref())?;
                         let acquired = executed.receiving;
                         let stage = executed.stage;
                         let required_programs = stage.used_programs();
@@ -408,6 +415,7 @@ impl SourceHost<'_, '_> {
         acquired: &AcquiredBuildSource,
         purpose: DependencyPurpose,
         backing: &build_execution::DependencyBacking,
+        alias: Option<&str>,
     ) -> Result<ExecutedBuild, PackageCommandError> {
         if backing.programs.is_empty()
             && backing.network.is_none()
@@ -427,6 +435,7 @@ impl SourceHost<'_, '_> {
                 Some((purpose, backing)),
                 &[],
             )
+            .map_err(|error| error.in_dependency_registration(alias))
         }
     }
 
@@ -448,8 +457,12 @@ impl SourceHost<'_, '_> {
             .workspace_members(workspace, declaration, inputs)?;
         let mut observations = Vec::new();
         for source in members.sources() {
-            let mut member =
-                self.member_or_execute(source, DependencyPurpose::Build, &Default::default())?;
+            let mut member = self.member_or_execute(
+                source,
+                DependencyPurpose::Build,
+                &Default::default(),
+                None,
+            )?;
             observations.push(member.observe(&self.settled)?);
             self.observed.push((source.clone(), member));
         }

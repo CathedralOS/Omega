@@ -68,11 +68,21 @@ impl SourceServices<'_, '_, '_> {
         if let Some(request) = self.requests.get(&(purpose, ordinal)) {
             return Ok(request.settled);
         }
-        let backing = issued.iter()
-            .filter(|issued| matches!(issued.request(), BuildRequest::Dependency { purpose: registered, .. } if *registered == purpose))
+        let (backing, alias) = issued
+            .iter()
+            .filter_map(|issued| match issued.request() {
+                BuildRequest::Dependency {
+                    purpose: registered,
+                    alias,
+                    ..
+                } if *registered == purpose => Some((
+                    issued.dependency_backing(),
+                    alias.as_ref().map(|name| name.as_str()),
+                )),
+                _ => None,
+            })
             .nth(ordinal)
-            .ok_or_else(|| refused("Build dependency has no issued registration"))?
-            .dependency_backing();
+            .ok_or_else(|| refused("Build dependency has no issued registration"))?;
         let frozen = backing
             .frozen
             .as_ref()
@@ -99,7 +109,9 @@ impl SourceServices<'_, '_, '_> {
                 self.host.select_workspace(workspace).map_err(failure)?
             }
         };
-        let index = self.host.settle_dependency(&child, purpose, backing)?;
+        let index = self
+            .host
+            .settle_dependency(&child, purpose, backing, alias)?;
         self.requests.insert(
             (purpose, ordinal),
             PreparedRequest {
@@ -198,8 +210,12 @@ impl SourceHost<'_, '_> {
                     self.select_workspace(workspace)?
                 }
             };
-            let index =
-                self.settle_dependency(&child, DependencyPurpose::Build, &Default::default())?;
+            let index = self.settle_dependency(
+                &child,
+                DependencyPurpose::Build,
+                &Default::default(),
+                Some(library.alias.as_str()),
+            )?;
             let input = self.library_input(
                 &self.settled[index],
                 DependencyPurpose::Build,
@@ -216,6 +232,7 @@ impl SourceHost<'_, '_> {
         child: &AcquiredBuildSource,
         purpose: DependencyPurpose,
         backing: &build_execution::DependencyBacking,
+        alias: Option<&str>,
     ) -> Result<usize, CompileFailure> {
         self.acquisitions
             .admit_build_descent(&self.active, child)
@@ -249,7 +266,7 @@ impl SourceHost<'_, '_> {
             }
         }
         let executed = self
-            .member_or_execute(child, purpose, backing)
+            .member_or_execute(child, purpose, backing, alias)
             .map_err(failure)?;
         let child = &executed.receiving;
         let stage = executed.stage;
