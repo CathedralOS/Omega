@@ -7996,7 +7996,9 @@ pub(crate) mod storage_foundations {
                 return malformed("owned value transfer result is not a fresh occurrence");
             }
             let declared = terminal_payload_contract(machine, source.place).ok_or(
-                CodecError::MalformedStructuralFoundation("owned value transfer has no source declaration"),
+                CodecError::MalformedStructuralFoundation(
+                    "owned value transfer has no source declaration",
+                ),
             )?;
             if !declared.move_preserves_qualifications(&source.path, result) {
                 let (whole, projected) = terminal_psi::StructuralPathQualification::select(
@@ -8004,10 +8006,8 @@ pub(crate) mod storage_foundations {
                     &declared.projected_qualifications,
                     &source.path,
                 );
-                let memberships = terminal_semantics::structural_qualifications::Memberships {
-                    whole,
-                    projected,
-                };
+                let memberships =
+                    terminal_semantics::structural_qualifications::Memberships { whole, projected };
                 if !analyses
                     .package_sites()
                     .map_err(CodecError::MalformedStructuralFoundation)?
