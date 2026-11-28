@@ -1253,6 +1253,13 @@ impl<'a> Replay<'a> {
         location: &DescriptorLocation,
         resolution: Option<StorageResolution>,
     ) -> Result<DescriptorLocation, &'static str> {
+        // Loan packets have the address of their generic carrier. Resolve
+        // the real storage and verify its binder before naming the packet.
+        if location.path.last() == Some(&DescriptorPathSegment::UnknownContents) {
+            return self
+                .canonical_contents_packet(machine, state, location)
+                .ok_or(INEXACT_REFERENCE_BACKING);
+        }
         match resolution.ok_or(INEXACT_REFERENCE_BACKING)? {
             StorageResolution::Unique(location)
             | StorageResolution::CapturedEntry { location, .. }
@@ -2287,14 +2294,13 @@ impl<'a> Replay<'a> {
     ) -> Value {
         let _read = depth.enter()?;
         if location.path.last() == Some(&DescriptorPathSegment::UnknownContents) {
-            let ty = self.unknown_contents_type(machine, location)?;
-            if !matches!(
-                self.type_index.find(ty)?.shape,
-                StructuralTypeShape::TypeParameter
-            ) {
-                return None;
-            }
-            return state.slots.get(location)?.clone();
+            self.unknown_contents_type(machine, location)?;
+            let value = state.slots.get(location)?.clone();
+            return if include_selected {
+                state.selected_inline_contents(location, value)
+            } else {
+                value
+            };
         }
         if location.path.is_empty()
             && matches!(machine.place_definition(location.root)?, DescriptorDefinition::Arrival { access } if *access != StructuralAccess::Owned)
@@ -3239,14 +3245,21 @@ impl<'a> Replay<'a> {
                 } = target
                 {
                     if destinations.iter().any(
-                        |(previous, definite): &(DescriptorLocation, bool)| {
-                            (strong || *definite)
+                        |(previous, definite, parameter): &(DescriptorLocation, bool, usize)| {
+                            // One formal can hold an unconditional value and a
+                            // later selected replacement. Replay joins both
+                            // possible origins at their common storage slot.
+                            let selected_alternative = strong != *definite
+                                && *parameter == effect.parameter
+                                && *previous == location;
+                            !selected_alternative
+                                && (strong || *definite)
                                 && (location.contains(previous) || previous.contains(&location))
                         },
                     ) {
                         return Err("two call writes overlap in the caller");
                     }
-                    destinations.push((location, strong));
+                    destinations.push((location, strong, effect.parameter));
                 }
             }
             let mut origins = BTreeSet::new();
@@ -4901,17 +4914,46 @@ impl<'a> Replay<'a> {
                         return None;
                     }
                     let incoming = BTreeSet::from([Origin::Incoming(opaque.location.clone())]);
+                    let expected = self.unknown_contents_type(machine, &opaque.location)?;
                     let mut lost = false;
+                    let mut origins = BTreeSet::new();
                     for exit in completed.values() {
-                        match self.read(machine, exit, &opaque.location) {
+                        // The selected writes are published separately below.
+                        let packet = self.read_slot(
+                            machine,
+                            exit,
+                            &opaque.location,
+                            &DescriptorReadDepth::at(machine, exit, None),
+                            false,
+                        );
+                        match packet {
                             Some(packet) if packet == incoming => {
                                 lost |= exit.contents_invalidated;
+                                origins.extend(packet);
                             }
+                            Some(packet) if !packet.is_empty() && packet.iter().all(|origin| {
+                                matches!(origin, Origin::Incoming(source)
+                                    if self.unknown_contents_type(machine, source) == Some(expected))
+                            }) => origins.extend(packet),
                             None if exit.contents_invalidated => lost = true,
-                            // A known replacement needs its own lifetime account,
-                            // even if another write invalidated some observations.
                             _ => return None,
                         }
+                    }
+                    if origins != incoming && !origins.is_empty() {
+                        if lost {
+                            return None;
+                        }
+                        written.push((
+                            parameter,
+                            opaque
+                                .location
+                                .path
+                                .iter()
+                                .copied()
+                                .map(DescriptorContentsStep::Address)
+                                .collect(),
+                            origins,
+                        ));
                     }
                     if lost {
                         unobserved.push(UnobservedWrite {
@@ -5267,18 +5309,7 @@ impl State {
         location: &'a DescriptorLocation,
     ) -> impl Iterator<Item = &'a Value> {
         self.contents_for(location.root)
-            .filter_map(|(written, value)| {
-                (written.is_symbolic_location()
-                    && written.steps.len() == location.path.len()
-                    && written
-                        .steps
-                        .iter()
-                        .zip(&location.path)
-                        .all(|(step, segment)| {
-                            step.may_match(&DescriptorContentsStep::Address(*segment))
-                        }))
-                .then_some(value)
-            })
+            .filter_map(|(written, value)| written.selects_inline_slot(location).then_some(value))
     }
 
     pub(crate) fn has_selected_inline_contents(&self, location: &DescriptorLocation) -> bool {

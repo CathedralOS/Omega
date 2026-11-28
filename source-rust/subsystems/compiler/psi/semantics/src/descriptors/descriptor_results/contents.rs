@@ -72,44 +72,58 @@ pub fn descriptor_contents_transfers(
     destination: DescriptorContentsOperand<'_>,
     value_type: StructuralTypeId,
     removes_source: bool,
+    select: impl Fn(ValueId) -> Option<semantic_vocabulary::ScalarTerm>,
 ) -> Option<Vec<DescriptorContentsTransfer>> {
-    let inventory = slot_kind.owned_inventory(types, source.root, value_type)?;
+    let mut inventory = slot_kind.owned_inventory(types, source.root, value_type)?;
     if inventory.slots.is_empty() && inventory.unknown_contents.is_empty() {
         return Some(Vec::new());
     }
     let source_type = source.root_type;
     let destination_type = destination.root_type;
-    let source = descriptor_contents_query(
+    let source = descriptor_contents_query_with(
         types,
         source.root,
         source.root_type,
         source.path,
         source.field,
+        &select,
     )?;
-    let destination = descriptor_contents_query(
+    let destination = descriptor_contents_query_with(
         types,
         destination.root,
         destination.root_type,
         destination.path,
         destination.field,
+        select,
     )?;
     if !inventory.unknown_contents.is_empty() {
-        // The ordinary value derivation carries every descendant
-        // packet. Require the same exact carrier at both locations;
-        // an unknown payload cannot supply a descriptor-slot query
-        // or justify a transfer through an unresolved address.
-        let source_location = source.exact_location()?;
-        let destination_location = destination.exact_location()?;
-        if inventory.unknown_contents.iter().any(|packet| {
-            packet.kind != super::UnknownContentsKind::Value
-                || packet.location.path.last()
-                    != Some(&DescriptorPathSegment::UnknownContents)
-        }) || descriptor_location_type(types, source_type, &source_location.path)
-            != Some(value_type)
-            || descriptor_location_type(types, destination_type, &destination_location.path)
-                != Some(value_type)
+        // An opaque value can carry loans. Its source and destination must
+        // agree on the binder that owns those loans before we transfer them.
+        if source.selected_type(types, source_type)? != Some(value_type)
+            || destination.selected_type(types, destination_type)? != Some(value_type)
+            || inventory.unknown_contents.iter().any(|packet| {
+                packet.kind != super::UnknownContentsKind::Value
+                    || packet.location.path.last() != Some(&DescriptorPathSegment::UnknownContents)
+            })
         {
             return None;
+        }
+        // An ordinary whole-value copy already carries its descendants.
+        // For an indexed copy, transfer each packet through its actual
+        // selector. Moving a value still needs an exact source to vacate.
+        if source.exact_location().is_none() || destination.exact_location().is_none() {
+            if removes_source
+                || !source.can_identify_packet_storage(types, source_type)
+                || !destination.can_identify_packet_storage(types, destination_type)
+            {
+                return None;
+            }
+            inventory.slots.extend(
+                inventory
+                    .unknown_contents
+                    .into_iter()
+                    .map(|packet| packet.location),
+            );
         }
     }
     let mut transfers = Vec::new();
@@ -147,7 +161,18 @@ fn unknown_payload_transfers_require_the_same_exact_carrier() {
         shape: StructuralTypeShape::TypeParameter,
         scalar_restriction: None,
     };
-    let types = [declaration(first), declaration(second)];
+    let array = StructuralTypeId::new(3).unwrap();
+    let types = [
+        declaration(first),
+        declaration(second),
+        StructuralTypeDeclaration {
+            shape: StructuralTypeShape::FixedArray {
+                element: first,
+                length: terminal_psi::ArrayExtent::Literal(2),
+            },
+            ..declaration(array)
+        },
+    ];
     let operand = |root, root_type| DescriptorContentsOperand {
         root: PlaceId::new(root).unwrap(),
         root_type,
@@ -161,7 +186,8 @@ fn unknown_payload_transfers_require_the_same_exact_carrier() {
             operand(1, first),
             operand(2, first),
             first,
-            false
+            false,
+            |_| None,
         )
         .is_some()
     );
@@ -172,13 +198,77 @@ fn unknown_payload_transfers_require_the_same_exact_carrier() {
             operand(1, first),
             operand(2, second),
             first,
-            false
+            false,
+            |_| None,
         )
         .is_none()
     );
+    let index = ValueId::new(7).unwrap();
+    let path = [StructuralPathSegment::RuntimeIndex {
+        index,
+        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+    }];
+    let integer =
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+            .unwrap();
+    let term = semantic_vocabulary::ScalarTerm::value(index, ScalarType::Integer(integer));
+    let indexed = |binder, moving, selector: Option<semantic_vocabulary::ScalarTerm>| {
+        descriptor_contents_transfers(
+            &types,
+            DescriptorSlotKind::BorrowedStorage,
+            operand(1, binder),
+            DescriptorContentsOperand {
+                path: &path,
+                ..operand(2, array)
+            },
+            binder,
+            moving,
+            |_| selector.clone(),
+        )
+    };
+    let transfers = indexed(first, false, Some(term.clone())).unwrap();
+    let [copy] = transfers.as_slice() else {
+        panic!("one opaque value packet expected")
+    };
+    let packet = DescriptorContentsStep::Address(DescriptorPathSegment::UnknownContents);
+    assert_eq!(copy.source.steps.as_slice(), std::slice::from_ref(&packet));
+    assert_eq!(
+        copy.destination.steps,
+        [
+            DescriptorContentsStep::Element {
+                element: first,
+                selector: Some(Box::new(term.clone()))
+            },
+            packet,
+        ]
+    );
+    let broad = indexed(first, false, None).unwrap();
+    assert_eq!(
+        broad[0].destination.steps,
+        [
+            DescriptorContentsStep::Element {
+                element: first,
+                selector: None
+            },
+            DescriptorContentsStep::Address(DescriptorPathSegment::UnknownContents),
+        ]
+    );
+    assert!(indexed(second, false, Some(term.clone())).is_none());
+    assert!(indexed(first, true, Some(term)).is_none());
 }
 
 impl DescriptorContentsQuery {
+    pub(crate) fn selects_inline_slot(&self, location: &DescriptorLocation) -> bool {
+        self.root == location.root
+            && self.is_symbolic_location()
+            && self.steps.len() == location.path.len()
+            && self
+                .steps
+                .iter()
+                .zip(&location.path)
+                .all(|(step, segment)| step.may_match(&DescriptorContentsStep::Address(*segment)))
+    }
+
     pub(crate) fn retains_selector(&self) -> bool {
         self.steps.iter().any(|step| {
             matches!(
@@ -205,6 +295,42 @@ impl DescriptorContentsQuery {
                 })
                 .collect(),
         }
+    }
+
+    // When a local selector cannot travel into a caller, replay enumerates
+    // a fixed array and combines the old and new loans for each possible
+    // destination. That requires a finite set of inline storage locations.
+    fn can_identify_packet_storage(
+        &self,
+        types: &[StructuralTypeDeclaration],
+        root_type: StructuralTypeId,
+    ) -> bool {
+        if self.exact_location().is_some() || self.is_symbolic_location() {
+            return true;
+        }
+        if !self
+            .inline_steps(types, root_type)
+            .is_some_and(|steps| steps.into_iter().all(|inline| inline))
+        {
+            return false;
+        }
+        let mut prefix = Self {
+            root: self.root,
+            steps: Vec::new(),
+        };
+        for step in &self.steps {
+            if matches!(step, DescriptorContentsStep::Element { selector: None, .. }) {
+                let container = prefix
+                    .selected_type(types, root_type)
+                    .flatten()
+                    .and_then(|id| terminal_psi::find_structural_type(types, id));
+                if !container.is_some_and(|decl| matches!(&decl.shape, StructuralTypeShape::FixedArray { length, .. } if length.literal().is_some_and(|n| n > 0))) {
+                    return false;
+                }
+            }
+            prefix.steps.push(step.clone());
+        }
+        true
     }
 
     pub(crate) fn is_symbolic_location(&self) -> bool {
@@ -769,6 +895,7 @@ pub fn descriptor_leaf_store(
                 destination.root_type,
                 destination.path,
                 destination.field,
+                &[],
             )?);
         }
     }

@@ -1409,7 +1409,7 @@ mod stored_calls {
 
     type Location = (PlaceId, Vec<StructuralPathSegment>);
     struct Effect {
-        destination: StructuralArgument,
+        destinations: Vec<StructuralArgument>,
         sources: Vec<Source>,
     }
     #[derive(PartialEq, Eq, PartialOrd, Ord)]
@@ -1837,15 +1837,18 @@ mod stored_calls {
                     }
                     let parameter = function.structural_parameters.get(row.parameter)
                         .ok_or("stored-reference destination parameter is unavailable")?;
-                    let destination = StructuralArgument {
-                        place: parameter.place,
-                        path: descriptor_path(
-                            types.catalog(),
-                            parameter.structural_type,
-                            &row.exact_path().ok_or("stored-reference destination is not an exact path")?,
-                        ).ok_or("stored-reference destination path has no typed storage")?,
-                        access: parameter.access,
-                    };
+                    let destinations = row.writable_paths(
+                        types.catalog(), parameter.place, parameter.structural_type, parameter.access,
+                    ).ok_or("stored-reference destination has no finite set of writable slots")?
+                        .into_iter().map(|path| {
+                            Ok(StructuralArgument {
+                                place: parameter.place,
+                                path: descriptor_path(types.catalog(), parameter.structural_type, &path)
+                                    .ok_or("stored-reference destination path has no typed storage")?,
+                                access: parameter.access,
+                            })
+                        }).collect::<Result<Vec<_>, &'static str>>()?;
+                    let representative = destinations.first().ok_or("stored-reference write has no destination")?;
                     let mut sources = Vec::new();
                     for origin in row.origins {
                         trace_origin(function.machine, &origin);
@@ -1878,7 +1881,7 @@ mod stored_calls {
                                 let source = function.structural_parameters.get(position)
                                     .ok_or("stored-reference backing parameter is unavailable")?;
                                 let carrier =
-                                    leaf_type(types, parameter.structural_type, &destination.path)
+                                    leaf_type(types, parameter.structural_type, &representative.path)
                                         .ok_or("stored-reference destination carrier type is unavailable")?;
                                 let StructuralTypeShape::Reference { access, .. } =
                                     types.get(carrier).ok_or("stored-reference destination carrier declaration is unavailable")?.shape
@@ -1917,7 +1920,7 @@ mod stored_calls {
                     sources.sort();
                     sources.dedup();
                     Ok(Effect {
-                        destination,
+                        destinations,
                         sources,
                     })
                 })
@@ -1983,8 +1986,13 @@ mod stored_calls {
             window_storage(function, types, live, argument.place, &argument.path)
         };
         let mut destinations = BTreeSet::new();
-        for effect in effects {
-            let destination = actual(&effect.destination)?;
+        for (effect, formal) in effects.iter().flat_map(|effect| {
+            effect
+                .destinations
+                .iter()
+                .map(move |formal| (effect, formal))
+        }) {
+            let destination = actual(formal)?;
             if !destinations.insert(destination.clone()) {
                 return Err(invalid(
                     "stored-reference effects overlap at one destination",
@@ -2153,6 +2161,20 @@ mod stored_calls {
                 }
                 leaf.carrier_type = carrier_type;
                 candidates.push(leaf);
+            }
+            if effect.destinations.len() > 1 {
+                if candidates.is_empty() {
+                    return Err(invalid("a selected write has no replacement reference"));
+                }
+                let previous = live.references.get(&destination).ok_or_else(|| {
+                    invalid("a selected write has no previous reference at a possible destination")
+                })?;
+                if previous.carrier_type != carrier_type || previous.referent != referent {
+                    return Err(invalid(
+                        "a selected write changes the destination reference type",
+                    ));
+                }
+                candidates.push(previous.clone());
             }
             let replacement = if candidates.is_empty() {
                 None

@@ -2236,6 +2236,7 @@ fn adapt(
                             },
                             result.structural_type,
                             true,
+                            selector,
                         )?,
                     );
                     if let Some(source) = location(&graph, source.place(), path, *field) {
@@ -2279,6 +2280,7 @@ fn adapt(
                             },
                             value_type,
                             false,
+                            selector,
                         )?,
                     );
                     if let (Some(destination), Some(source)) = (
@@ -2309,6 +2311,7 @@ fn adapt(
                             *graph.place_types.get(&destination.place())?,
                             path,
                             *field,
+                            graph.contents_transfers.get(&position)?,
                         )?);
                         step.may_escape = true;
                     }

@@ -19,14 +19,16 @@ data Heap<T> { items: [T; 16]; length: u64; }
 
 data Popped<T [copy]> [copy] { value: T; }
 
+data HeapOrder<T> = machine(left: @T, right: @T) -> bool;
+
 machine ent_less(left: @u64, right: @u64) -> bool {
     $left < $right
 }
 
-machine push_heap<T [copy], machine Less>(h: @mutable Heap<T>, value: @T)
-requires machine Less(left: @T, right: @T) -> bool;
+machine push_heap<T [copy], const Less: HeapOrder<T>>(h: @mutable Heap<T>, value: @T)
 {
-    transition h.length < 16 { true -> place(h, value, h.length), _ -> full(h) }
+    let at: u64 = h.length;
+    transition at < 16 { true -> place(h, value, at), _ -> full(h) }
     machine place(h: @mutable Heap<T>, value: @T, at: u64)
         requires at < 16
     {
@@ -57,8 +59,7 @@ requires machine Less(left: @T, right: @T) -> bool;
     machine full(h: @mutable Heap<T>) {}
 }
 
-machine pop_heap<T [copy], machine Less>(h: @mutable Heap<T>, root: @mutable Popped<T>)
-requires machine Less(left: @T, right: @T) -> bool;
+machine pop_heap<T [copy], const Less: HeapOrder<T>>(h: @mutable Heap<T>, root: @mutable Popped<T>)
     requires h.length >= 1
     requires h.length <= 16
 {
@@ -174,7 +175,7 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit crashes Tr
     machine boot(main: @mutable Main) {
         main.dist[0] = 0;
         let e: u64 = 0;
-        push_heap::<ent_less>(@mutable main.heap, @e);
+        push_heap::<u64, ent_less>(@mutable main.heap, @e);
         transition { _ -> step(main) }
     }
     machine step(main: @mutable Main) {
@@ -188,7 +189,7 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit crashes Tr
         requires main.heap.length <= 16
     {
         let mutable popped: Popped<u64> = Popped { value: 0 };
-        pop_heap::<ent_less>(@mutable main.heap, @mutable popped);
+        pop_heap::<u64, ent_less>(@mutable main.heap, @mutable popped);
         let node: u64 = popped.value % 256;
         let nd: u64 = popped.value / 256;
         transition node < 12 && nd <= 1000000 && nd <= main.dist[node] {
@@ -255,7 +256,7 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit crashes Tr
         main.dist[to] = nd;
         main.prev[to] = v;
         let e: u64 = nd * 256 + to;
-        push_heap::<ent_less>(@mutable main.heap, @e);
+        push_heap::<u64, ent_less>(@mutable main.heap, @e);
         transition { _ -> relax(main, v, vd, edge + 1, after) }
     }
     machine score(main: @mutable Main, i: u64, sum: u64)
