@@ -4,7 +4,7 @@
 //! It gets the host's reviewed bindings, standard streams and the standalone
 //! Product grant: the working directory read/write at `/`, replaced by any
 //! explicit run directory mappings. It gets no native code, no network and no
-//! native compilation.
+//! native compilation. A source run gets the same default directory grant.
 
 #![cfg(target_os = "linux")]
 
@@ -285,15 +285,22 @@ fn a_contained_run_gets_its_working_directory_or_the_explicit_mappings() {
 
     // By default the working directory is mounted read/write at `/`. A
     // symbolic link out of it is refused, so its byte stays zero.
-    let default = saved.run(&[]);
-    assert!(default.status.success(), "{}", report(&default));
-    assert_eq!(default.stdout, b"R\0", "{}", report(&default));
-    assert_eq!(std::fs::read(saved.path("out")).unwrap(), b"R");
-    assert_eq!(std::fs::read(&outside).unwrap(), b"X");
+    let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(
+        &std::fs::read(saved.path("app.psi")).unwrap(),
+    )
+    .unwrap();
+    let manifest = artifact.manifest().identity().to_string();
+    for options in [&[][..], &["--trusted-artifact", manifest.as_str()][..]] {
+        let default = saved.run(options);
+        assert!(default.status.success(), "{}", report(&default));
+        assert_eq!(default.stdout, b"R\0", "{}", report(&default));
+        assert_eq!(std::fs::read(saved.path("out")).unwrap(), b"R");
+        assert_eq!(std::fs::read(&outside).unwrap(), b"X");
+        std::fs::remove_file(saved.path("out")).unwrap();
+    }
 
     // Explicit mappings replace that mount: the guest's `/` is now a
     // read-only directory of its own, and the working directory is gone.
-    std::fs::remove_file(saved.path("out")).unwrap();
     let data = saved.path("data");
     std::fs::create_dir(&data).unwrap();
     std::fs::write(data.join("in"), b"S").unwrap();
@@ -302,6 +309,44 @@ fn a_contained_run_gets_its_working_directory_or_the_explicit_mappings() {
     assert_eq!(mapped.stdout, b"S\0", "{}", report(&mapped));
     assert!(!data.join("out").exists());
     assert!(!saved.path("out").exists());
+}
+
+// This fixture binds Linux x86-64 syscalls, so its source run needs a matching host.
+#[cfg(target_arch = "x86_64")]
+#[test]
+fn a_source_run_gets_its_working_directory_at_the_root() {
+    let project = stage(
+        "source-run-working-directory",
+        &[("tool/main.omg", FILES), ("tool/build.omg", FILES_BUILD)],
+    );
+    let root = project.path().join("caller");
+    std::fs::create_dir(&root).unwrap();
+    let outside = project.path().join("outside");
+    std::fs::write(&outside, b"X").unwrap();
+    std::fs::write(root.join("in"), b"R").unwrap();
+    std::os::unix::fs::symlink(&outside, root.join("link")).unwrap();
+    let build = project.path().join("tool/build.omg");
+    let run = |options: &[&str]| {
+        omega(
+            &root,
+            &[&["run"][..], &TARGET, options, &[build.to_str().unwrap()]].concat(),
+        )
+    };
+
+    let default = run(&[]);
+    assert!(default.status.success(), "{}", report(&default));
+    assert_eq!(default.stdout, b"R\0", "{}", report(&default));
+    assert_eq!(std::fs::read(root.join("out")).unwrap(), b"R");
+    assert_eq!(std::fs::read(&outside).unwrap(), b"X");
+
+    let data = root.join("data");
+    std::fs::create_dir(&data).unwrap();
+    std::fs::write(data.join("in"), b"S").unwrap();
+    let mapped = run(&["--run-directories-readonly", "data::/"]);
+    assert!(mapped.status.success(), "{}", report(&mapped));
+    assert_eq!(mapped.stdout, b"S\0", "{}", report(&mapped));
+    assert!(!data.join("out").exists());
+    assert_eq!(std::fs::read(root.join("out")).unwrap(), b"R");
 }
 
 #[test]

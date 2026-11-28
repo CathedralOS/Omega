@@ -133,10 +133,12 @@ the Rust CLI interprets saved Psi contained. It gets the host's reviewed
 package bindings, standard streams and the working directory read/write at
 `/`; explicit run directory mappings replace that mount. It gets no native
 provider, network, program launch or native compilation.
-`--trusted-artifact <manifest-id>` runs saved Psi on the trusted route. For a
-trusted run with no explicit run directory mappings, the CLI supplies the host
-filesystem namespace and enables matching-host adapters for admitted
-providers. Giving source runs the working-directory default is tracked in [PSI-UNTRUSTED-INTERPRETATION](../../TASKS.md#psi-untrusted-interpretation).
+`--trusted-artifact <manifest-id>` runs saved Psi on the trusted route. A
+source or trusted run of a Linux program on its matching Linux host, with no
+native provider, gets the same working-directory default. Source and trusted
+runs that require a native provider or target a different environment still use
+the host namespace and matching-host adapters when no mapping was requested.
+The remaining cases are tracked in [PSI-UNTRUSTED-INTERPRETATION](../../TASKS.md#psi-untrusted-interpretation).
 
 ```bash
 mbx run -p omega -- packages update --project samples/cli/basics/cli_mvp --target macos_arm64
