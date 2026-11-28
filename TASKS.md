@@ -22,6 +22,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
   - Require [type annotations on named locals](wiki/spec/language/ownership.md#local-type-annotations) in both source compilers. Migrate authored sources, positive examples and fixtures alongside enforcement. Reject a missing annotation on both an ordinary and a mutable local even with a typed initializer. Accept a typed copy retaining its domain and reject the same destination given a plain value. Preserve constant typing and generic argument inference.
 
+  - Preserve the const element argument across two machines in a ranked slice walk. A nested head that passes `@items[1..]` back to `walk::<Capacity>` still fails for `@[Binding<Capacity>]`; the same walk with a concrete element argument passes. The one-machine controller traversal in [Hollow](samples/gui/dungeon_crawler/engine/control/routing/routing.omg) exercises the self-transfer case.
   - Verify actual keyboard input on a Windows x86-64 desktop changes the [Hollow](samples/gui/dungeon_crawler/README.md) framebuffer. The [Windows run](https://github.com/CathedralOS/Omega/pull/6499) confirmed the native window, representative pixels, close event, and native/Psi campaign output. Capture the player's position or pixels before and after a movement key while the window has focus.
 
 - **NESTED-MACHINE-UNIFICATION.** Finish checking calls and returns in nested machines ([machines.md](wiki/spec/language/machines.md#nested-machines-and-identity), [state_contracts.md](wiki/spec/language/state_contracts.md)).

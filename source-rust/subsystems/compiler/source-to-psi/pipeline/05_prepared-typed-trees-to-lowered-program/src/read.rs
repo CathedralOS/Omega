@@ -1203,6 +1203,7 @@ mod tests {
             &bodies,
             &mut program.signatures,
             &program.theorem_parameters,
+            &program.const_scopes,
         )
         .unwrap();
         program.prepare_domain_predicates(machine()).unwrap();
