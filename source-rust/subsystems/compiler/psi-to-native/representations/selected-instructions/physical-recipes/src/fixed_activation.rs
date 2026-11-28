@@ -27,7 +27,8 @@ pub const REPLY_DESTINATION: u32 = PENDING_PUBLICATION + WORD;
 pub const REPLY_TYPE: u32 = REPLY_DESTINATION + WORD;
 pub const REPLY_SIZE: u32 = REPLY_TYPE + WORD;
 pub const PHASE: u32 = REPLY_SIZE + WORD;
-pub const CONTROL_BYTES: u32 = PHASE + WORD;
+pub const BACKING_BASE: u32 = PHASE + WORD;
+pub const CONTROL_BYTES: u32 = BACKING_BASE + WORD;
 
 #[repr(u8)]
 #[derive(Clone, Copy)]

@@ -3,7 +3,7 @@
 use super::plan_transfer;
 use crate::bridge_values::{Encoding, ValueStorage, WordLocation, value_storage};
 use calling_conventions::{MachineRegister as R, ValueClass};
-use physical_recipes::fixed_activation::{BACKING_LENGTH, FixedCall, FixedCallPlan};
+use physical_recipes::fixed_activation::{BACKING_BASE, BACKING_LENGTH, FixedCall, FixedCallPlan};
 use post_allocation_machine::adapters::{AdapterInstructions as Ops, AdapterOperation as Op};
 use target_vocabulary::{FixedActivationAction as Action, FixedCallFrame as Frame, FixedCase, FixedField, NormalizedForeignCallBinding};
 
@@ -68,7 +68,8 @@ pub fn plan_call(body:&crate::PhysicalFrameProgram, installations:installation_a
             wrap.address(&mut before,R::X86Rdx,argument.0)?;
             let accepted=nonzero.insert(blank());
             wrap.tag(accepted,tag,ready)?;
-            wrap.field(accepted,ready.fields[0],(Frame::BACKING,8))?;
+            let owner=sub(frame.result,ready.fields[0],8)?;
+            enc.memory(accepted,R::X86Rdx,owner,8,false).map_err(|_|TRANSPORT)?;
             wrap.tag(&mut zero,tag,rejected)?;
             wrap.field(&mut zero,rejected.fields[0],*argument)?;
             wrap.field(&mut zero,rejected.fields[1],(Frame::BACKING,16))?;
@@ -86,7 +87,7 @@ pub fn plan_call(body:&crate::PhysicalFrameProgram, installations:installation_a
             enc.copy_indirect_at(&mut zero,result.0,owner.0,data.result_offset,result.1,true).map_err(|_|TRANSPORT)?;
             let backing=wrap.destination(returned.fields[1])?;
             if backing.1!=16{return Err("returned backing is not a complete mutable slice");}
-            enc.copy_word(&mut zero,owner.0,backing.0,8).map_err(|_|TRANSPORT)?;
+            enc.copy_indirect_at(&mut zero,backing.0,owner.0,BACKING_BASE,8,true).map_err(|_|TRANSPORT)?;
             enc.copy_indirect_at(&mut zero,backing.0+8,owner.0,BACKING_LENGTH,8,true).map_err(|_|TRANSPORT)?;
         }
         Action::Park{anchor,reply_type,reply_bytes}=>{

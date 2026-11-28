@@ -145,7 +145,7 @@ fn encode_prepare(
     argument_bytes: u32,
 ) -> Result<Vec<u8>, AdapterEncodingError> {
     use MachineRegister as R;
-    use physical_recipes::fixed_activation::BACKING_LENGTH;
+    use physical_recipes::fixed_activation::{BACKING_BASE, BACKING_LENGTH};
     let mut bytes = Vec::new();
     let mut rejected = Vec::new();
     let mut refuse = |bytes: &mut Vec<u8>, condition: u8| {
@@ -155,14 +155,23 @@ fn encode_prepare(
     };
     bytes.extend_from_slice(&[0x48, 0x85, 0xff]); // test %rdi,%rdi
     refuse(&mut bytes, 0x84);
-    bytes.extend_from_slice(&[0x48, 0xf7, 0xc7]); // test alignment-1,%rdi
-    bytes.extend_from_slice(&(alignment - 1).to_le_bytes());
-    refuse(&mut bytes, 0x85);
-    bytes.extend_from_slice(&[0x48, 0x81, 0xfe]); // cmp stack_top,%rsi
+    // The public input is a byte view and may begin at any address. Save its
+    // full bounds, then align the private header inside that same view.
+    bytes.extend_from_slice(&[0x49,0x89,0xf9]); // mov %rdi,%r9 (original base)
+    bytes.extend_from_slice(&[0x48,0x89,0xf8,0x48,0x01,0xf0]); // end = base + length
+    refuse(&mut bytes, 0x82);
+    bytes.extend_from_slice(&[0x48,0x81,0xc7]); // add alignment-1,%rdi
+    bytes.extend_from_slice(&(alignment-1).to_le_bytes());
+    refuse(&mut bytes, 0x82);
+    bytes.extend_from_slice(&[0x48,0x81,0xe7]); // and -alignment,%rdi
+    bytes.extend_from_slice(&alignment.wrapping_neg().to_le_bytes());
+    bytes.extend_from_slice(&[0x48,0x29,0xf8]); // remaining = end - aligned base
+    refuse(&mut bytes, 0x82);
+    bytes.extend_from_slice(&[0x48,0x3d]); // cmp stack_top,%rax
     bytes.extend_from_slice(&stack_top.to_le_bytes());
     refuse(&mut bytes, 0x82);
-    bytes.extend_from_slice(&[0x48, 0x89, 0xf8, 0x48, 0x01, 0xf0]); // check base + complete length
-    refuse(&mut bytes, 0x82);
+    bytes.extend_from_slice(&[0x49,0x89,0xf8]); // mov %rdi,%r8 (owner)
+    pointer_word(&mut bytes, R::X86R9, R::X86Rdi, BACKING_BASE, false)?;
     pointer_word(&mut bytes, R::X86Rsi, R::X86Rdi, BACKING_LENGTH, false)?;
     set_phase(&mut bytes, Phase::Ready);
     bytes.extend_from_slice(&[0x31, 0xc0]); // xor %eax,%eax
@@ -182,7 +191,7 @@ fn encode_prepare(
         bytes.extend_from_slice(&argument_bytes.to_le_bytes());
         bytes.extend_from_slice(&[0xf3, 0xa4]); // rep movsb
     }
-    bytes.extend_from_slice(&[0xb8, 1, 0, 0, 0, 0xc3]); // Ready
+    bytes.extend_from_slice(&[0x4c,0x89,0xc2, 0xb8, 1, 0, 0, 0, 0xc3]); // Ready, private owner in RDX
     let failure = bytes.len();
     for offset in rejected {
         patch_forward(&mut bytes, offset, failure)?;
@@ -336,6 +345,8 @@ mod tests {
             .arg("-O1")
             .arg(format!("-DTOP={TOP}"))
             .arg(format!("-DPENDING={PENDING_PUBLICATION}"))
+            .arg(format!("-DBASE={}",physical_recipes::fixed_activation::BACKING_BASE))
+            .arg(format!("-DLENGTH={}",physical_recipes::fixed_activation::BACKING_LENGTH))
             .arg(format!("-DREPLY={REPLY_DESTINATION}"))
             .arg(&source)
             .arg(driver)

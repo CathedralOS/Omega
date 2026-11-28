@@ -51,6 +51,14 @@ int main(void) {
     memcpy(&left, &unchanged, sizeof left);
     if (prepare(&left, TOP - 1, &first) || prepare(left.control + 1, TOP, &first) ||
         prepare(&left, UINTPTR_MAX, &first) || memcmp(&left, &unchanged, sizeof left)) return 9;
+    static alignas(16) unsigned char unaligned[TOP + 32];
+    memset(unaligned, 0x6b, sizeof unaligned);
+    if (!prepare(unaligned + 1, TOP + 15, &first)) return 18;
+    uintptr_t original, original_length;
+    memcpy(&original, unaligned + 16 + BASE, sizeof original);
+    memcpy(&original_length, unaligned + 16 + LENGTH, sizeof original_length);
+    if (original != (uintptr_t)(unaligned + 1) || original_length != TOP + 15 ||
+        unaligned[0] != 0x6b || unaligned[15] != 0x6b || unaligned[TOP + 16] != 0x6b) return 19;
     memcpy(&right, &unchanged, sizeof right);
     memset(&left.work, 0, sizeof(Job));
     memset(&right.work, 0, sizeof(Job));

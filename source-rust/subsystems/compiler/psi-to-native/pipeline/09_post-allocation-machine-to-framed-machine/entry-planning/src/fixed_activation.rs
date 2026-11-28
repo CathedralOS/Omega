@@ -224,9 +224,8 @@ impl FixedActivationLayout {
     /// The retained loan, not a successful numeric check, provides custody.
     pub fn fits(&self, base: u64, available: u64) -> bool {
         base != 0
-            && base.is_multiple_of(self.alignment)
-            && available >= self.stack_top
-            && base.checked_add(available).is_some()
+            && base.checked_next_multiple_of(self.alignment).and_then(|aligned| aligned.checked_add(self.stack_top))
+                .zip(base.checked_add(available)).is_some_and(|(required, end)| required <= end)
     }
 }
 
@@ -266,12 +265,13 @@ mod tests {
                 layout.stack_bottom,
                 layout.stack_top
             ),
-            (176, 200, 208, 336)
+            (192, 216, 224, 352)
         );
-        assert!(layout.fits(0x1000, 336));
-        assert!(!layout.fits(0x1000, 335));
-        assert!(!layout.fits(0x1008, 336));
-        assert!(!layout.fits(u64::MAX - 15, 336));
+        assert!(layout.fits(0x1000, 352));
+        assert!(!layout.fits(0x1000, 351));
+        assert!(!layout.fits(0x1008, 352));
+        assert!(!layout.fits(u64::MAX - 15, 352));
+        assert!(layout.fits(0x1008, 360));
         assert!(!layout.fits(0x1000, u64::MAX));
         assert!(
             FixedActivationLayout::pack(Some(ValueShape::integer(1, 1)), None, u64::MAX, 16)
