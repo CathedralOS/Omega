@@ -6,6 +6,8 @@ mod driver;
 mod funding;
 #[path = "activation/results.rs"]
 mod results;
+#[path = "activation/spills.rs"]
+mod spills;
 
 use crate::engine::execution::CompletedReturn;
 use crate::storage::storage_addresses::ScalarStorageAddress;
