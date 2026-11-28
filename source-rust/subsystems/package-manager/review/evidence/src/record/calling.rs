@@ -47,6 +47,13 @@ pub(crate) struct PackagePolicyCallbackBinder {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(
+    not(any(test, feature = "full-policy-recovery")),
+    expect(
+        dead_code,
+        reason = "only full policy recovery constructs these wire variants"
+    )
+)]
 pub(crate) enum PackagePolicyCallbackDestination {
     Parameter {
         native_ordinal: u32,
@@ -206,6 +213,7 @@ impl PackagePolicyMachineStateSet {
         &self.0
     }
 
+    #[cfg(any(test, feature = "full-policy-recovery"))]
     pub(crate) fn from_canonical(states: Vec<PackagePolicyMachineState>) -> Option<Self> {
         states
             .windows(2)

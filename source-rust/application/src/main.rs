@@ -2,9 +2,9 @@
 
 Entry point for the `omega` binary.
 
-We read the command line, run the selected command on a dedicated compiler
-worker thread, and map any usage or thread-start failure to its process exit
-code. The source subsystem handles authored-file operations. The other command
+Help and version print directly after argument parsing. Other commands run on
+a compiler worker. Usage and thread-start failures set the process exit code.
+The source subsystem handles authored-file operations. The other command
 adapters live in `commands::{compile, run, inspect, packages}`.
 
 Before we touch `std::env::args_os()`, we check whether this process was
@@ -56,7 +56,17 @@ fn main() -> ExitCode {
             return ExitCode::from(error.exit);
         }
     };
-    run_with_large_stack(invocation, output)
+    match invocation {
+        Invocation::Help(usage) => println!("{usage}"),
+        Invocation::Version => println!(
+            "omega {} ({}; {})",
+            env!("OMEGA_VERSION"),
+            env!("OMEGA_COMMIT"),
+            env!("OMEGA_HOST")
+        ),
+        command => return run_with_large_stack(command, output),
+    }
+    ExitCode::SUCCESS
 }
 
 fn run_with_large_stack(
@@ -91,13 +101,7 @@ fn run_with_large_stack(
         } => commands::packages::run(command, options, accept_all, output),
         Invocation::AuditSource(request) => commands::packages::run_source_audit(request),
         Invocation::AuditPackages(request) => commands::packages::run_audit(request),
-        Invocation::Help(usage) => println!("{usage}"),
-        Invocation::Version => println!(
-            "omega {} ({}; {})",
-            env!("OMEGA_VERSION"),
-            env!("OMEGA_COMMIT"),
-            env!("OMEGA_HOST")
-        ),
+        Invocation::Help(_) | Invocation::Version => unreachable!("handled before worker startup"),
     });
     ExitCode::SUCCESS
 }
