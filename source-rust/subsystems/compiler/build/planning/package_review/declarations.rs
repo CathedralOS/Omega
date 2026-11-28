@@ -563,6 +563,7 @@ impl<'a> PolicySource<'a> {
         expression: ExpressionHandle,
         scope: ContractScope<'_>,
         depth: usize,
+        reviewed_operands: [&PackageReviewContractExpression; 2],
     ) -> Result<(), Vec<Diagnostic>> {
         let typed = self.typed();
         let ExpressionNode::Binary(binary) = typed.expression_table.expression(expression) else {
@@ -579,10 +580,20 @@ impl<'a> PolicySource<'a> {
                 binary.operator,
             )
             .ok_or_else(|| unavailable("an unserved contract operator family"))?;
-        let operands = [
-            self.operand_type(binary.left, scope, depth + 1)?,
-            self.operand_type(binary.right, scope, depth + 1)?,
-        ];
+        let operands = if reviewed_operands.into_iter().any(mathematical_integer) {
+            // Both operands of a checked mathematical operation live in Int.
+            // An anonymous literal takes that meaning from its other operand.
+            let reference = typed
+                .symbols
+                .builtin_atom_symbol(symbols::BuiltinTypeAtom::Int)
+                .and_then(|symbol| typed.type_reference_table.find_named_type_reference(symbol));
+            [reference; 2]
+        } else {
+            [
+                self.operand_type(binary.left, scope, depth + 1)?,
+                self.operand_type(binary.right, scope, depth + 1)?,
+            ]
+        };
         if source_compiler::representations::source_state::operator::has_builtin_spelled_expression_meaning(
             typed,
             scope.owner,
@@ -1099,7 +1110,9 @@ impl<'a> PolicySource<'a> {
                 }
             }
             ExpressionNode::Binary(binary) => {
-                self.builtin_operator(expression, scope, depth)?;
+                let left = Box::new(self.scoped_expression(binary.left, scope, depth + 1)?);
+                let right = Box::new(self.scoped_expression(binary.right, scope, depth + 1)?);
+                self.builtin_operator(expression, scope, depth, [&left, &right])?;
                 let operator = match binary.operator {
                     BinaryOperator::Add => Output::Add,
                     BinaryOperator::And => Output::And,
@@ -1129,8 +1142,8 @@ impl<'a> PolicySource<'a> {
                 Expression::Binary {
                     meaning: PackageReviewContractOperatorMeaning::Builtin,
                     operator,
-                    left: Box::new(self.scoped_expression(binary.left, scope, depth + 1)?),
-                    right: Box::new(self.scoped_expression(binary.right, scope, depth + 1)?),
+                    left,
+                    right,
                 }
             }
             _ => return Err(unavailable("this contract expression form")),
@@ -1146,5 +1159,27 @@ fn reference_access(
         language_core::ReferenceAccess::Shared => Access::Shared,
         language_core::ReferenceAccess::Mutable => Access::Mutable,
         language_core::ReferenceAccess::WriteOnly => Access::WriteOnly,
+    }
+}
+
+/// Only mathematical arithmetic carries an embedded integer out to its parent.
+/// A call, index or comparison can consume one and still return a runtime value.
+fn mathematical_integer(expression: &PackageReviewContractExpression) -> bool {
+    use PackageReviewContractBinaryOperator::{Add, Multiply, Subtract};
+    use PackageReviewContractExpression as Expression;
+    match expression {
+        Expression::Call {
+            target:
+                PackageReviewContractCallTarget::BuiltinFunction(symbols::BuiltinFunction::IntegerEmbed),
+            ..
+        }
+        | Expression::BuiltinTypeMember(symbols::BuiltinTypeMember::AddressBound) => true,
+        Expression::Binary {
+            operator: Add | Subtract | Multiply,
+            left,
+            right,
+            ..
+        } => mathematical_integer(left) || mathematical_integer(right),
+        _ => false,
     }
 }
