@@ -32,6 +32,9 @@ mod error {
         PropositionCodec(CodecError),
         FactIndex(optimization_unit::AcceptedObligationFactIndexError),
         MissingStructuralCatalogMachine(MachineId),
+        /// The input came from Psi the host admitted only for contained
+        /// interpretation. Optimization and target lowering need producer trust.
+        ProducerTrustRequired,
         /// An evidence seal does not match the obligation it names at this
         /// site: its parts changed after sealing, the operation or terminator
         /// is not in the module, or the module's own goal there differs from
@@ -92,6 +95,11 @@ pub fn admit_abstract_body(
     selections: &optimization_core::OptimizationSelections,
     budget_per_pass: optimization_core::OptimizationWorkBudget,
 ) -> Result<verified_optimization_input::OptimizedAbstractBody, AbstractInputError> {
+    input
+        .context()
+        .authorization()
+        .authorized()
+        .map_err(|_| AbstractInputError::ProducerTrustRequired)?;
     let unit = build_unit(&input, terminal_work::WorkSchedule::CURRENT.identity())?;
     input.into_optimized_body(|plan| {
         optimization_unit::OptimizedAbstractProgram::unoptimized(

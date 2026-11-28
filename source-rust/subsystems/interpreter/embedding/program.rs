@@ -2544,6 +2544,32 @@ pub(crate) mod program {
             )))
         }
 
+        /// [`Self::borrow`] that also accepts code the host admitted for
+        /// contained interpretation (`psi_authorization::admit_contained_interpretation`).
+        /// Only that admission marks a module contained, and such a program
+        /// runs contained (see [`Self::is_contained`]): its instances need an
+        /// invocation account and bind only adapters that serve contained
+        /// execution. Compile-time evaluation during runtime admission uses this,
+        /// so a contained program's own policies and scalar conditions run
+        /// under the same containment as the program.
+        pub fn borrow_admitted(
+            artifact: impl Into<terminal_codec::TerminalExecutionView<'artifact>>,
+        ) -> Result<Self, psi_authorization::ArtifactTrustError> {
+            let artifact = artifact.into();
+            if !artifact
+                .closed_module()
+                .admitted_for_contained_interpretation()
+            {
+                require_produced(artifact)?;
+            }
+            Ok(Self::from_admitted(AdmittedTerminalProgram::new(
+                artifact.custody_identity(),
+                std::sync::Arc::new(ProgramStorage::Borrowed(artifact)),
+                None,
+                None,
+            )))
+        }
+
         /// [`Self::borrow`] for retained code that outlives its producer's view.
         pub fn retain(
             code: terminal_codec::RetainedTerminalCode,

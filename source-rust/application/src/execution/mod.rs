@@ -1,6 +1,7 @@
 //! Prepare and interpret a source or saved Psi program.
 mod cases;
 mod compilation;
+mod contained;
 mod psi;
 mod retained_artifacts;
 mod termination;
@@ -68,7 +69,7 @@ impl std::error::Error for RunError {}
 /// Admit the selected product, present its registered plan and run its tests
 /// before interpreting the program.
 fn prepare_program(
-    artifact: Option<psi_authorization::AuthorizedTerminalArtifact>,
+    artifact: Option<psi_authorization::AdmittedTerminalArtifact>,
     input: compilation::ProjectInput,
     mut present_test: impl FnMut(&str),
 ) -> Result<compilation::RunProduct, RunError> {
@@ -85,7 +86,7 @@ fn prepare_program(
 }
 
 pub fn run_project(
-    artifact: Option<psi_authorization::AuthorizedTerminalArtifact>,
+    artifact: Option<psi_authorization::AdmittedTerminalArtifact>,
     request: RunRequest,
     present_test: impl FnMut(&str),
 ) -> Result<RunOutcome, RunError> {

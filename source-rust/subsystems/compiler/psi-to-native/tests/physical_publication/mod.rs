@@ -936,9 +936,11 @@ fn check_canonical_publication(
         behavior_exclusions: &exclusions,
         isolated_execution_grant: None,
     };
-    let admitted =
-        artifact_lowering::test_support::admit_native_realization(&authorize_fixture(&artifact), &admission)
-            .expect("canonical constant admits without provider authority");
+    let admitted = artifact_lowering::test_support::admit_native_realization(
+        &authorize_fixture(&artifact).into(),
+        &admission,
+    )
+    .expect("canonical constant admits without provider authority");
     let runtime_input = admitted.input.optimization_input().runtime_input();
     assert!(std::ptr::eq(
         runtime_input.module(),

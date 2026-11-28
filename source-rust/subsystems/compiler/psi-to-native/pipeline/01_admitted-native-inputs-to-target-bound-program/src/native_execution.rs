@@ -51,7 +51,7 @@ impl PreparedNativeExecution {
         &self.checked
     }
 
-    pub const fn authorization(&self) -> &psi_authorization::AuthorizedTerminalArtifact {
+    pub const fn authorization(&self) -> &psi_authorization::AdmittedTerminalArtifact {
         self.checked.authorization()
     }
 
@@ -92,7 +92,7 @@ impl PreparedNativeExecution {
 
 pub fn prepare_program(
     proposal: &TerminalNativeRealizationProposal,
-    authorization: &psi_authorization::AuthorizedTerminalArtifact,
+    authorization: &psi_authorization::AdmittedTerminalArtifact,
 ) -> Result<PreparedNativeExecution, Vec<Diagnostic>> {
     let binding = proposal.scope_source().program(authorization)?;
     let scope = derive_native_scope(binding)?;

@@ -366,9 +366,13 @@ impl TerminalImportAdapter for DescriptorIoImport<'_> {
     }
 
     // Finite replay input and capped private output are contained. Delegated
-    // filesystem descriptors reach the host's kernel and are not.
+    // filesystem descriptors reach the host's kernel and are not; a namespace
+    // of standard streams alone answers every other descriptor with EBADF.
     fn serves_contained_execution(&self) -> bool {
-        self.linux_filesystem.is_none() && self.output.limits.is_some()
+        self.linux_filesystem
+            .as_ref()
+            .is_none_or(super::filesystem::LinuxFilesystemWrite::standard_streams_only)
+            && self.output.limits.is_some()
     }
 }
 

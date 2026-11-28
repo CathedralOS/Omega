@@ -51,7 +51,7 @@ pub fn prepare_source_program(
     )?;
     let supplied = super::components::verify(packages, target.profile, publish)?;
     let program = prepare_issued_program(
-        authorization,
+        authorization.into(),
         issued,
         supplied,
         target.settings,
@@ -88,7 +88,7 @@ pub fn review_source_providers(
         target.package_permissions,
         target.semantic_bindings,
     )?;
-    let admitted = native_inputs::admit(authorization, issued)
+    let admitted = native_inputs::admit(authorization.into(), issued)
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
     let selected = provider_realization::select_published_providers(admitted, components)?;
     let artifact = selected.published_authorization().shared_artifact();
@@ -133,6 +133,23 @@ pub fn prepare_saved_program(
     authorization: psi_authorization::AuthorizedTerminalArtifact,
     target: SavedProgramTarget<'_>,
 ) -> Result<crate::NativeProgram, Vec<Diagnostic>> {
+    prepare_admitted_saved_program(authorization.into(), target)
+}
+
+/// Prepare saved Psi the host admitted only for contained interpretation.
+/// The result supports runtime admission alone: optimization, image emission,
+/// component emission and foreign-adapter compilation refuse it.
+pub fn prepare_contained_saved_program(
+    contained: psi_authorization::ContainedTerminalArtifact,
+    target: SavedProgramTarget<'_>,
+) -> Result<crate::NativeProgram, Vec<Diagnostic>> {
+    prepare_admitted_saved_program(contained.into(), target)
+}
+
+fn prepare_admitted_saved_program(
+    authorization: psi_authorization::AdmittedTerminalArtifact,
+    target: SavedProgramTarget<'_>,
+) -> Result<crate::NativeProgram, Vec<Diagnostic>> {
     let issued = provider_demand::IssuedProviderDemand::from_saved_program(
         authorization.shared_artifact(),
         target.profile,
@@ -157,7 +174,7 @@ pub fn prepare_saved_program(
 /// Admit an issued target demand against its authorized Psi, then use its selected
 /// providers and application settings to prepare one native invocation.
 fn prepare_issued_program<Publisher>(
-    authorization: psi_authorization::AuthorizedTerminalArtifact,
+    authorization: psi_authorization::AdmittedTerminalArtifact,
     issued: provider_demand::IssuedProviderDemand<Publisher>,
     components: super::components::VerifiedSuppliers,
     settings: NativeApplicationSettings<'_>,

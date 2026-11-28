@@ -3,14 +3,14 @@
 //! its private fields preserve the association admission established.
 
 use crate::VerifiedPsiOptimizationInput;
-use psi_authorization::AuthorizedTerminalArtifact;
+use psi_authorization::AdmittedTerminalArtifact;
 use psi_scalar_applications::AdmittedScalarApplications;
 use psi_target_layouts::TerminalTargetContext;
 use semantic_vocabulary::MachineId;
 
 #[derive(Clone, Copy)]
 pub struct AdmittedRuntimeInput<'input> {
-    artifact: &'input AuthorizedTerminalArtifact,
+    artifact: &'input AdmittedTerminalArtifact,
     entry: MachineId,
     boundaries: &'input [terminal_psi::BoundaryMachineDeclaration],
     borrowed_storage: &'input runtime_abi::NativeBorrowedStorageLayouts,
