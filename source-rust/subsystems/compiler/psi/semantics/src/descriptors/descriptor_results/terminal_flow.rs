@@ -1340,14 +1340,15 @@ fn adapt_flow(
                     )?;
                 }
                 OperationKind::EstablishPrimitiveLocal { value, .. } => {
+                    let destination = location(&graph, result?.place, &[], None)?;
                     step.scalar_value_stores
-                        .push((location(&graph, result?.place, &[], None)?, *value));
+                        .push((destination.clone(), *value));
                     if let Some(value) = scalar_expressions.expression(*value) {
                         graph
                             .scalar_payload_writes
                             .entry(position)
                             .or_default()
-                            .push((location(&graph, result?.place, &[], None)?, value));
+                            .push((destination, value));
                     }
                 }
                 OperationKind::EstablishScalarArray { elements } => {
@@ -1364,14 +1365,15 @@ fn adapt_flow(
                                 result.structural_type,
                                 u64::try_from(ordinal).ok()?,
                             )?;
+                            let destination = location(&graph, result.place, &path, None)?;
                             step.scalar_value_stores
-                                .push((location(&graph, result.place, &path, None)?, *value));
+                                .push((destination.clone(), *value));
                             if let Some(value) = scalar_expressions.expression(*value) {
                                 graph
                                     .scalar_payload_writes
                                     .entry(position)
                                     .or_default()
-                                    .push((location(&graph, result.place, &path, None)?, value));
+                                    .push((destination, value));
                             }
                         }
                     }
@@ -1864,8 +1866,9 @@ fn adapt_flow(
                             0,
                             ready.fields.first()?.id,
                         )?;
+                        let destination = location(&graph, result.place, &path, None)?;
                         graph.originations.entry(position).or_default().push((
-                            location(&graph, result.place, &path, None)?,
+                            destination,
                             DescriptorCallOrigin::AccessFormation {
                                 machine: machine.id,
                                 operation: operation.id,
