@@ -449,3 +449,48 @@ _ = |dependency|::add(plan, request, @allowed[..]);
     }
     format!("{imports}machine build(plan: @mutable BuildPlan) {{\n{body}}}\n")
 }
+
+#[test]
+fn a_derived_address_writes_only_the_middle_byte_of_an_owned_array() {
+    let source = r#"
+machine change(base: address) crashes Trap {
+    transition base <= 9223372036854775807 { true -> store(base), false -> wrong() }
+    machine store(base: address)
+    requires base <= 9223372036854775807
+    {
+        let middle: address = base + 1u64;
+        let byte: @mutable u8 = |native|::borrow_mutable_at::<u8>(middle);
+        $byte = 83u8;
+    }
+    machine wrong() crashes Trap { crash Trap; }
+}
+machine main() crashes Trap {
+    let mutable bytes: [u8; 3] = [11u8, 23u8, 47u8];
+    change(address_of(@bytes[0u64]));
+    transition bytes[0u64] == 11u8 && bytes[1u64] == 83u8 && bytes[2u64] == 47u8 {
+        true -> done(), false -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}
+"#;
+    Program::new(source, &[READ, WRITE]).assert_native_returns();
+}
+
+#[test]
+fn equal_opaque_address_operands_cannot_form_overlapping_incompatible_loans() {
+    let source = r#"
+machine overlap(location: address) {
+    let shared: @u8 = |native|::borrow_at::<u8>(location);
+    let exclusive: @mutable u8 = |native|::borrow_mutable_at::<u8>(location);
+    let read: u8 = $shared;
+    $exclusive = read;
+}
+machine main() {
+    let mutable byte: u8 = 47u8;
+    overlap(address_of(@byte));
+}
+"#;
+    let refused = Program::new(source, &[READ, WRITE]).check();
+    assert_loan_refusal(&refused);
+}
