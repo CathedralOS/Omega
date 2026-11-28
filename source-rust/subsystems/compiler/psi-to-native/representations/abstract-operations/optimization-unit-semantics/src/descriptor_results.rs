@@ -325,6 +325,7 @@ pub(crate) mod scalar_expressions {
                     destination: parameter(destination, 0, StructuralAccess::MutableBorrow).into(),
                     path: Vec::new(),
                     field: None,
+                    opened_value_type: None,
                     value: StructuralArgument {
                         place: PlaceId::new(source).unwrap(),
                         path: Vec::new(),

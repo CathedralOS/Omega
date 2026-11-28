@@ -1305,7 +1305,7 @@ mod machine {
                         )
                     }
                     terminal_psi::move_or_store_structural_field_pattern!() => {
-                        borrowed_windows::lower(operation, machine, structural_types)
+                        borrowed_windows::lower(operation, machine, structural_types, packages)
                     }
                     OperationKind::TransformContent {
                         source,
@@ -1401,6 +1401,7 @@ mod machine {
                             machine,
                             module,
                             structural_types,
+                            packages,
                             *source,
                             abstract_operations::StructuralCopyPath::Ordinary(path.clone()),
                         )
@@ -1411,6 +1412,7 @@ mod machine {
                             machine,
                             module,
                             structural_types,
+                            packages,
                             *source,
                             abstract_operations::StructuralCopyPath::Case(path.clone()),
                         )
