@@ -200,6 +200,10 @@ fn root_network_needs_a_peer_and_exact_project_acceptance_before_sending() {
     let draft = fs::read_to_string(&phase).unwrap();
     assert!(
         draft.contains("build-request send-datagram")
+            && draft
+                .lines()
+                .any(|line| line.trim() == "physical-authority HostNetworkStack")
+            && !draft.contains("OffMachineNetworkTransmit")
             && draft.contains(&format!("network-peer {peer} max-datagram-bytes 64")),
         "{draft}"
     );
@@ -215,6 +219,10 @@ fn root_network_needs_a_peer_and_exact_project_acceptance_before_sending() {
     for altered in [
         draft.replace("max-datagram-bytes 64", "max-datagram-bytes 65"),
         draft.replace("send_marker", "different_helper"),
+        draft.replace(
+            "physical-authority HostNetworkStack",
+            "physical-authority OffMachineNetworkTransmit",
+        ),
     ] {
         decide(&phase, &altered, "accept");
         let tampered = fixture.cli(&["packages", "update", "--resume"], true, Some(peer));
@@ -256,6 +264,26 @@ fn root_network_needs_a_peer_and_exact_project_acceptance_before_sending() {
         changed.recv(&mut [0u8; 64]).unwrap_err().kind(),
         ErrorKind::WouldBlock
     );
+}
+
+#[test]
+fn remote_udp_requires_review_of_off_machine_transmission_before_sending() {
+    let fixture = Fixture::new();
+    fixture.package("root", &sender("remote_review"));
+    let endpoint = "192.0.2.1:9".parse().unwrap();
+    let request = fixture.cli(&["packages", "update"], true, Some(endpoint));
+    assert_eq!(request.status.code(), Some(3), "{}", report(&request));
+    let review = fs::read_to_string(fixture.build_review()).unwrap();
+    let classes: Vec<_> = review
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix("physical-authority "))
+        .collect();
+    assert_eq!(
+        classes,
+        ["HostNetworkStack", "OffMachineNetworkTransmit"],
+        "{review}"
+    );
+    assert!(!fixture.root().join("omega.lock").exists());
 }
 
 #[test]

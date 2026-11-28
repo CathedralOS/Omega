@@ -83,6 +83,8 @@ machine build(builder: @mutable BuildPlan) {
     Build::bind(builder, HOST::ProgramEntry, |app|::main);
     let authority: PhysicalAuthorityClass = PhysicalAuthorityClass::ProcessOutput;
     Build::exclude_physical_authority(builder, authority);
+    Build::exclude_physical_authority(builder, PhysicalAuthorityClass::HostNetworkStack);
+    Build::exclude_physical_authority(builder, PhysicalAuthorityClass::OffMachineNetworkTransmit);
 }
 "#
     .replace("HOST", host.target_name());
@@ -94,6 +96,43 @@ machine build(builder: @mutable BuildPlan) {
             &[command, "build.omg"],
         );
         assert!(passed, "{report}");
+    }
+}
+
+/// The caller-facing contract cannot prove either physical exclusion for an
+/// unclassified socket import.
+#[test]
+fn an_unclassified_socket_cannot_certify_a_network_exclusion() {
+    let build = r#"use {omega}/language/core/external_binding.omg as native;
+use main.omg as app;
+machine build(b: @mutable BuildPlan) {
+    b.product = BuildProduct::Application { name: "socket_review" };
+    Build::bind(b, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind_native::<|app|::Transport::open>(b, macos_arm64, |native|::ForeignBinding::DllImport {
+        import: |native|::DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_socket"
+        }
+    });
+    Build::exclude_physical_authority(b, PhysicalAuthorityClass::EXCLUSION);
+}"#;
+    let program = r#"
+boundary trait Transport {
+    machine open(family: i32, kind: i32, protocol: i32) -> i32 reaches none crashes none;
+}
+machine main() reaches none invokes Transport {
+    _ = Transport::open(2i32, 2i32, 0i32);
+}"#;
+    for class in ["HostNetworkStack", "OffMachineNetworkTransmit"] {
+        let (passed, report) = execute(
+            "unclassified-socket",
+            &build.replace("EXCLUSION", class),
+            program,
+            &["--target", "macos_arm64", "build.omg"],
+        );
+        assert!(
+            !passed && report.contains("no physical authority classification"),
+            "{class}: {report}"
+        );
     }
 }
 

@@ -49,7 +49,7 @@ pub(crate) use external_mechanisms::{
 pub(crate) use host_cohorts::darwin_clock_mechanism_row;
 pub use host_cohorts::{filesystem_host_permission_rows, time_host_permission_rows};
 
-pub(crate) const TERMINAL_AUTHORITY_POLICY_VERSION: u32 = 12;
+pub(crate) const TERMINAL_AUTHORITY_POLICY_VERSION: u32 = 13;
 const POLICY_COMMITMENT_DOMAIN: &[u8] = b"omega.terminal-authority.policy.v3\0";
 const PARAMETERIZED_POLICY_FAMILY_COUNT: u32 = 3;
 const ACCESS_CALLER_RAM_SCALAR_POLICY_V1: &[u8] =
@@ -618,7 +618,7 @@ mod interrupt_control_tests {
     fn mask_policy_epoch_and_commitment_bind_reviewed_identity() {
         let policy = current_terminal_authority_policy();
         let identity = policy.identity();
-        assert_eq!(identity.version(), 12);
+        assert_eq!(identity.version(), 13);
         assert_eq!(
             identity,
             terminal_authority_policy_with_rows(vec![])
@@ -638,11 +638,15 @@ mod interrupt_control_tests {
             .unwrap()
         };
         let current = review(identity);
-        let old_epoch = TerminalAuthorityPolicyIdentity::from_parts(11, identity.commitment());
+        let old_epoch = TerminalAuthorityPolicyIdentity::from_parts(
+            TERMINAL_AUTHORITY_POLICY_VERSION - 1,
+            identity.commitment(),
+        );
         assert_ne!(current.identity(), review(old_epoch).identity());
         let mut changed = identity.commitment();
         changed[0] ^= 1;
-        let wrong_commitment = TerminalAuthorityPolicyIdentity::from_parts(12, changed);
+        let wrong_commitment =
+            TerminalAuthorityPolicyIdentity::from_parts(TERMINAL_AUTHORITY_POLICY_VERSION, changed);
         assert_ne!(current.identity(), review(wrong_commitment).identity());
     }
 }

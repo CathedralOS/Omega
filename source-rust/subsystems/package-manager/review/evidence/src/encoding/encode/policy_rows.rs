@@ -88,7 +88,7 @@ pub(crate) fn runtime_permission_rows(
 fn restricted_request_schema(request: &crate::record::PackagePolicyRestrictedBuildRequest) -> u16 {
     match request.operation {
         build_consent::RestrictedBuildOperation::SendDatagram { .. } => {
-            crate::encoding::BASELINE_WITH_NETWORK_REQUESTS
+            crate::encoding::BASELINE_WITH_NETWORK_AUTHORITY
         }
         _ => crate::encoding::BASELINE_WITHOUT_STRUCTURAL_PARAMETERS,
     }
@@ -111,7 +111,7 @@ pub fn restricted_build_request_acceptance_text(
             ),
             true,
             true,
-            &|encoder| baseline::request(encoder, &request),
+            &|encoder| baseline::request(encoder, &request, restricted_request_schema(&request)),
         )
     })
 }
@@ -122,7 +122,9 @@ pub fn restricted_build_request_payload(
     request: &build_consent::RestrictedBuildRequest,
 ) -> Result<String, PackageReviewEncodingError> {
     let request = crate::record::PackagePolicyRestrictedBuildRequest::from(request);
-    canonical_request_text(|encoder| baseline::request(encoder, &request))
+    canonical_request_text(|encoder| {
+        baseline::request(encoder, &request, restricted_request_schema(&request))
+    })
 }
 
 fn canonical_request_text(
