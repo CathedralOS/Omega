@@ -988,12 +988,14 @@ impl<'a> DescriptorAnalysis<'a> {
                 projection: projection.clone(),
             },
             DescriptorSourceOrigin::Backing(DescriptorCallOrigin::NativeAddress {
+                parameters,
                 machine,
                 operation,
                 place,
                 carrier,
                 projection,
             }) => DescriptorStoredOrigin::NativeAddress {
+                parameters: parameters.clone(),
                 machine: *machine,
                 operation: *operation,
                 place: *place,

@@ -88,6 +88,7 @@ pub fn machine_invocation_for_signature(
         }
     }
     Some(DescriptorInvocation {
+        native_address_arguments: Vec::new(),
         scalar_arguments: Vec::new(),
         owner,
         target: DescriptorInvocationTarget::Machine(callee.machine),
@@ -103,6 +104,8 @@ impl DescriptorMachine {
     // complete parameter list and supplied arguments at the pre-call cut.
     pub(crate) fn direct_invocation(
         &self,
+        caller: &TerminalMachine,
+        position: DescriptorPosition,
         module: &TerminalModule,
         callee: &TerminalMachine,
         slot_kind: DescriptorSlotKind,
@@ -154,6 +157,26 @@ impl DescriptorMachine {
                     .map(|actual| self.place_types.get(&actual.place).copied()),
             )?
         };
+        let returns_reference = result.is_some_and(|result| {
+            terminal_psi::structural_type_contains_reference(
+                &module.types.structural_types, result.structural_type,
+            )
+        });
+        let writes_reference = callee.structural_parameters.iter().any(|formal| {
+            matches!(formal.access, StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow)
+                && terminal_psi::structural_type_contains_reference(
+                    &module.types.structural_types, formal.structural_type,
+                )
+        });
+        if returns_reference || writes_reference {
+            for (formal, actual) in callee.parameters.iter().zip(inputs.arguments) {
+                let origin = crate::storage::native_borrows::address_origin(caller, *actual);
+                call.native_address_arguments.push(self.native_address_actual(
+                    &module.types.structural_types, position, formal.id,
+                    origin.sources, origin.exact, origin.parameters,
+                )?);
+            }
+        }
         call.scalar_arguments = descriptor_scalar_arguments(
             callee
                 .parameters
@@ -246,6 +269,7 @@ fn public_invocation_at(
         return None;
     }
     Some(DescriptorInvocation {
+        native_address_arguments: Vec::new(),
         scalar_arguments: Vec::new(),
         owner,
         target: DescriptorInvocationTarget::Public {

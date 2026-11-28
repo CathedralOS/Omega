@@ -78,6 +78,7 @@ pub enum DescriptorStoredOrigin {
         projection: Projection,
     },
     NativeAddress {
+        parameters: Vec<semantic_vocabulary::ValueId>,
         machine: MachineId,
         operation: semantic_vocabulary::OperationId,
         place: PlaceId,

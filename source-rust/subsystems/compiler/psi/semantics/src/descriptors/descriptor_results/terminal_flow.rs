@@ -148,26 +148,30 @@ pub(crate) fn residence_rules(
     for block in &machine.blocks {
         for (ordinal, operation) in block.operations.iter().enumerate() {
             let position = (block.id, u32::try_from(ordinal).ok()?);
-            match &operation.kind {
+            let sources = match &operation.kind {
                 element_view_establish_pair_pattern!(source, ..)
                 | OperationKind::EstablishAccessReference { source, .. }
-                | OperationKind::EstablishReference { source, .. } => {
-                    let (source, _, capture) = captured_storage_source(
-                        &module.types.structural_types,
-                        source.place,
-                        &source.path,
-                        machine.structural_place_type(source.place)?,
-                        position,
-                    )?;
-                    if capture == CapturedBacking::StorageAddress {
-                        rules.captures.insert((
-                            position,
-                            source,
-                            DescriptorLocation::whole(operation.result.structural()?.place),
-                        ));
-                    }
+                | OperationKind::EstablishReference { source, .. } => vec![source],
+                OperationKind::BorrowAt { address } => {
+                    crate::storage::native_borrows::address_origin(machine, *address).sources
                 }
-                _ => {}
+                _ => continue,
+            };
+            for source in sources {
+                let (source, _, capture) = captured_storage_source(
+                    &module.types.structural_types,
+                    source.place,
+                    &source.path,
+                    machine.structural_place_type(source.place)?,
+                    position,
+                )?;
+                if capture == CapturedBacking::StorageAddress {
+                    rules.captures.insert((
+                        position,
+                        source,
+                        DescriptorLocation::whole(operation.result.structural()?.place),
+                    ));
+                }
             }
         }
     }
@@ -953,6 +957,7 @@ fn adapt_flow(
                         result?,
                         origin.sources,
                         origin.exact,
+                        origin.parameters,
                     )?;
                 }
                 OperationKind::UpgradeMutability { source } => {
@@ -1832,6 +1837,8 @@ fn adapt_flow(
                             return None;
                         }
                         let call = graph.direct_invocation(
+                            machine,
+                            position,
                             module,
                             terminal_graph_machine(machines, callee)?,
                             slot_kind,
@@ -2242,6 +2249,8 @@ fn adapt_flow(
                     *failure_detail =
                         Some("descriptor terminal invocation does not match its callee header");
                     Some(graph.direct_invocation(
+                        machine,
+                        position,
                         module,
                         callee,
                         slot_kind,
@@ -2562,6 +2571,29 @@ pub(crate) fn captured_storage_source(
     ))
 }
 impl DescriptorMachine {
+    /// Capture a scalar actual at the ordinary pre-call cut. Remaining scalar
+    /// formals are carried to the enclosing caller until backing becomes known.
+    pub fn native_address_actual<'a>(
+        &self,
+        types: &[StructuralTypeDeclaration],
+        position: DescriptorPosition,
+        parameter: ValueId,
+        sources: impl IntoIterator<Item = &'a StructuralArgument>,
+        exact: bool,
+        parameters: Vec<ValueId>,
+    ) -> Option<NativeAddressActual> {
+        let sources = sources.into_iter().map(|source| {
+            let (location, mut projection, _) = captured_storage_source(
+                types, source.place, &source.path, *self.place_types.get(&source.place)?, position,
+            )?;
+            if !exact {
+                projection.get_or_insert_with(|| Projection::new(&[])).forget_address();
+            }
+            Some((location, projection))
+        }).collect::<Option<Vec<_>>>()?;
+        Some(NativeAddressActual { parameter, sources, parameters })
+    }
+
     /// A known address follows the storage that produced it. A native address
     /// whose backing the caller asserts has its own formation identity.
     #[allow(clippy::too_many_arguments)]
@@ -2574,6 +2606,7 @@ impl DescriptorMachine {
         result: &terminal_psi::StructuralOperationResult,
         sources: impl IntoIterator<Item = &'a StructuralArgument>,
         exact: bool,
+        parameters: Vec<ValueId>,
     ) -> Option<()> {
         let destination = DescriptorLocation::whole(result.place);
         let mut known = false;
@@ -2598,8 +2631,9 @@ impl DescriptorMachine {
         }
         let origins = self.originations.entry(position).or_default();
         origins.retain(|(location, _)| location != &destination);
-        if !known {
+        if !known || !parameters.is_empty() {
             origins.push((destination, DescriptorCallOrigin::NativeAddress {
+                parameters,
                 machine: self.id,
                 operation,
                 place: result.place,

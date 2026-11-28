@@ -2071,7 +2071,7 @@ impl<'a> Replay<'a> {
                     origin,
                     Origin::Incoming(_)
                         | Origin::IncomingContents(_, _)
-                        | Origin::Backing(DescriptorCallOrigin::AccessFormation { .. } | DescriptorCallOrigin::NativeAddress { .. })
+                        | Origin::Backing(DescriptorCallOrigin::AccessFormation { .. })
                 )
             }) {
                 return Some(origins.clone());
@@ -2299,12 +2299,14 @@ impl<'a> Replay<'a> {
                     projection: prefix.then(projection),
                 })),
                 Origin::Backing(DescriptorCallOrigin::NativeAddress {
+                    parameters,
                     machine,
                     operation,
                     place,
                     carrier,
                     projection: prefix,
                 }) => Some(Origin::Backing(DescriptorCallOrigin::NativeAddress {
+                    parameters,
                     machine,
                     operation,
                     place,
@@ -3785,21 +3787,33 @@ impl<'a> Replay<'a> {
                     projection: projection.clone(),
                 },
             )])),
-            DescriptorStoredOrigin::NativeAddress {
-                machine,
-                operation,
-                place,
-                carrier,
-                projection,
-            } => Some(BTreeSet::from([Origin::Backing(
-                DescriptorCallOrigin::NativeAddress {
-                    machine: *machine,
-                    operation: *operation,
-                    place: *place,
-                    carrier: *carrier,
-                    projection: projection.clone(),
-                },
-            )])),
+            DescriptorStoredOrigin::NativeAddress { machine: formed_in, operation, place, carrier, projection, parameters } => {
+                let mut origins = BTreeSet::new();
+                let mut forwarded = BTreeSet::new();
+                for parameter in parameters {
+                    let actual = actuals.native_address_arguments.iter().find(|row| row.parameter == *parameter)?;
+                    for (location, offset) in &actual.sources {
+                        let value = if let Some(offset) = offset {
+                            self.captured_source_value(machine, state, location, Some(offset), reads)
+                        } else {
+                            self.capture_storage(machine, state, location, reads)
+                        };
+                        origins.extend(self.project(machine, value, Some(projection))?);
+                    }
+                    forwarded.extend(actual.parameters.iter().copied());
+                }
+                if origins.is_empty() || !forwarded.is_empty() {
+                    origins.insert(Origin::Backing(DescriptorCallOrigin::NativeAddress {
+                        machine: *formed_in,
+                        operation: *operation,
+                        place: *place,
+                        carrier: *carrier,
+                        parameters: forwarded.into_iter().collect(),
+                        projection: projection.clone(),
+                    }));
+                }
+                Some(origins)
+            }
             DescriptorStoredOrigin::Empty => Some(BTreeSet::from([Origin::Backing(
                 DescriptorCallOrigin::Empty,
             )])),
@@ -4139,12 +4153,14 @@ impl<'a> Replay<'a> {
                 projection: projection.clone().without_runtime_coordinates(),
             }),
             Origin::Backing(DescriptorCallOrigin::NativeAddress {
+                parameters,
                 machine,
                 operation,
                 place,
                 carrier,
                 projection,
             }) => Some(DescriptorStoredOrigin::NativeAddress {
+                parameters: parameters.clone(),
                 machine: *machine,
                 operation: *operation,
                 place: *place,
