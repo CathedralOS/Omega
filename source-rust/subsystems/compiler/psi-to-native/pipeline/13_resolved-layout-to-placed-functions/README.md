@@ -1,22 +1,18 @@
 # Machine emission
 
-This stage takes resolved instruction layout and the carried frame bytes,
-forms function fragments, applies the frame and places the resulting text.
-Start at [src/lib.rs](src/lib.rs) for that sequence. The public contracts are
+Placement writes the prologue, instruction rows and return epilogues into each
+function, then patches branches and joins the functions into one text section.
+The driver passes the resolved layout to [placement](src/lib.rs). The public contracts are
 [optimization validation](../../../../../../wiki/spec/build/optimizations.md),
 [machine-state evidence](../../../../../../wiki/spec/build/machine_state_evidence.md),
 and [stack provisioning](../../../../../../wiki/spec/resources/storage.md).
 
 ## Function realization
 
-[Fixed-frame realization](src/function_realization.rs) consumes the current
-physical program. Allocation carries its settled preservation requirements and
-publication facts forward; frame planning adds storage, geometry and protocol
-rows. Stages 07–09 retain those rows with the current encoding and layout.
-Assembly reads stage 12's output alone to publish the whole-function exit
-contract and manifest. It checks once that the publication roots agree; the
-manifest keeps only the roots that fragment emission, text placement and
-the published-object audit read.
+[Exit checking](src/function_realization.rs) joins the selected program,
+allocation, current layout and frame protocol. An audit retains that layout
+and its checked exits beside the placed body. It reads the optimization
+selections from the allocation that produced the body.
 
 Current-artifact validation checks bytes, frame geometry and exit effects
 without retaining allocation or earlier layout graphs.
@@ -88,31 +84,20 @@ loads and stores, unwind, probing, faults or execution authority.
 [Frame planning](../09_post-allocation-machine-to-framed-machine/src/frame_protocol.rs)
 selects the protocol. [Frame encoding](../11_bound-framed-machine-to-selected-form-encoding/src/frame_protocol.rs)
 uses target encoders and produces protocol bytes over one packed byte buffer with a span per function. It leaves out
-the selected return instruction. [Frame application](src/frame_application.rs)
-admits the emitted fragments, adds one entry prologue and the required
-epilogue at each kept return, recomputes block, row and fixup offsets, and
-re-encodes affected branches. Its independent checker validates sites and
-branch bytes for retained-artifact readers and tests, not on bytes the stage
-just inserted. Inserting bytes is not publication.
+the selected return instruction.
 
-## Fragments, placement, and reports
+[Fragment emission](src/fragment_emission.rs) writes each block, instruction
+and fixup at its framed offset. A return gets an epilogue immediately before
+its instruction bytes. Once every block has an offset, [branch patching](src/frame_application.rs)
+widens branches that exceed their encoding's reach and writes the final
+displacements. [Text placement](src/text_placement.rs) resolves internal calls
+and records external relocations in section coordinates.
 
-[Fragment emission](src/fragment_emission.rs) takes validated function
-realization and turns resolved machine bytes into unplaced function
-fragments. Beside the realization it keeps only the bound installation
-receipt and [`EmissionFacts`](../../representations/post-allocation-machine/body-facts/src/lib.rs).
-Stage 04 publishes a compact projection of source operations, not the earlier
-program. Later stages add the physical facts that object and image construction
-need. Construction refuses cohorts the receipt did not admit, facts naming
-another Terminal program or entry, and execution roots whose pre-physical
-manifest differs from the allocation's. [Text placement](src/text_placement.rs) keeps the source and
-applied-frame identities while resolving internal calls and section offsets.
-Each stage has an independent checker in its module. The checkers serve
-retained-artifact readers and tests; no stage replays output the same
-compile just produced
-([verification placement](../../../README.md#verification-placement)).
-Child manifests are rebound, so changing a rule does not mean copying its
-fields into parallel object, artifact and callable schemas.
+On an explicit audit request, placement also projects the unframed instruction
+rows. Replay compares them with the resolved input, checks the least branch
+widths and frame insertions, and verifies the bytes and relocations in the
+placed section. Ordinary placement releases the pre-layout encoding before
+object construction.
 
 [Private callback materialization](../../driver/image/callback_thunks.rs)
 uses this stage to place the callable body. The driver then asks object and

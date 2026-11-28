@@ -1,20 +1,11 @@
-/*
-We insert target frame prologue and epilogue bytes into unplaced function
-fragments and reflow and widen displaced conditional branches.
+//! Write the frame as instruction rows are emitted. Widen displaced branches to a
+//! fixed point before patching their bytes. Replay independently checks widths,
+//! fallthroughs, fixups and the prologue and epilogue spans against the original rows.
 
-`stage_function_fragment_frame_application` inserts each function's prologue at
-offset 0 and its epilogue before every retained return instruction, shifts
-block, instruction, and fixup coordinates, widens any short conditional branch
-whose taken edge moved out of reach (`widen_out_of_range_branches`), and
-patches the supplied branch encodings (`patch_branches`).
-`validate_function_fragment_frame_application` replays the source fragments,
-verifies the least widening closure (`validate_widths`), and decodes every branch
-row against its moved block offsets (`validate_branch_row`).
-*/
-
-use crate::fragment_emission::{
-    FragmentFrameInput, FunctionFragmentEmissionError, StagedOptimizedFunctionFragmentEmission,
-    validate_optimized_function_fragment_emission,
+use crate::FunctionFragmentEmissionError;
+use crate::fragment_emission::validate_resolved_function_fragments;
+use crate::function_realization::{
+    FunctionRelativeOptimizationRealizationError, verify_frame_requirements,
 };
 pub use crate::relative_branches::CheckedFunctionBranches;
 use crate::relative_branches::{
@@ -36,63 +27,29 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use target::Architecture;
 
-pub(super) fn stage_function_fragment_frame_application(
-    source: StagedOptimizedFunctionFragmentEmission,
-    check_installed_branches: bool,
-    retain_original: bool,
-) -> Result<StagedFunctionFragmentFrameApplication, FunctionFragmentFrameApplicationError> {
-    let application = apply_frame_protocol_to_fragments(
-        source.fragments(),
-        &source.frame_input.protocol,
-        &source.frame_input.controls,
-    )?;
-    let branches = if check_installed_branches || retain_original {
-        prepare_branch_origins(source.fragments(), &source.frame_input.controls)?
-    } else {
-        Vec::new()
-    };
-    let application = Arc::new(application);
-    let placed_body = Arc::new(PlacedBodyEvidence::capture(
-        &source.frame_input,
-        &application,
-        &branches,
-        check_installed_branches,
-    ));
-    Ok(StagedFunctionFragmentFrameApplication {
-        branches,
-        placed_body,
-        source,
-        application,
-    })
-}
-
 pub(crate) fn validate_function_fragment_frame_application(
     staged: &StagedFunctionFragmentFrameApplication,
 ) -> Result<(), FunctionFragmentFrameApplicationError> {
-    validate_optimized_function_fragment_emission(&staged.source)
-        .map_err(FunctionFragmentFrameApplicationError::Source)?;
-    let branches = prepare_branch_origins(
-        staged.source.fragments(),
-        &staged.source.frame_input.controls,
-    )?;
-    if branches != staged.branches {
-        return Err(FunctionFragmentFrameApplicationError::ArtifactMismatch);
-    }
+    use FunctionFragmentFrameApplicationError::{ArtifactMismatch, Realization, Source};
+    let program = staged.program();
+    verify_frame_requirements(&staged.layout, &staged.exits, &program.context.preservation)
+        .map_err(Realization)?;
+    validate_resolved_function_fragments(program, &staged.unframed).map_err(Source)?;
+    let branches = prepare_branch_origins(&staged.unframed, &program.control_alternatives)?;
     let expected = PlacedBodyEvidence::capture(
-        &staged.source.frame_input,
-        &staged.application,
+        program,
+        &staged.placed_body.code.frame_application,
         &branches,
         staged.placed_body.has_installed_branch_checks(),
     );
     if *staged.placed_body != expected {
-        return Err(FunctionFragmentFrameApplicationError::ArtifactMismatch);
+        return Err(ArtifactMismatch);
     }
-    let protocol = &staged.source.frame_input.protocol;
     validate_frame_protocol_application(
-        staged.source.fragments(),
-        protocol,
-        &staged.source.frame_input.controls,
-        &staged.application,
+        &staged.unframed,
+        &program.protocol,
+        &program.control_alternatives,
+        staged.application(),
     )
 }
 
@@ -135,8 +92,8 @@ impl PlacedBodyEvidence {
         Ok(checked)
     }
 
-    fn capture(
-        input: &FragmentFrameInput,
+    pub(super) fn capture(
+        program: &machine_code::ResolvedMachineProgram,
         application: &Arc<FunctionFragmentFrameApplication>,
         branches: &[FunctionFrameBranchOrigins],
         check_installed_branches: bool,
@@ -164,15 +121,15 @@ impl PlacedBodyEvidence {
         });
         Self {
             installed_branches,
-            bindings: input.bindings.clone(),
+            bindings: program.bindings.clone(),
             code: Arc::new(machine_code::placed_body::NativeBodyReadback {
-                environment: input.environment.clone(),
-                instruction_effects: Arc::clone(&input.instruction_effects),
-                layout: Arc::clone(&input.layout),
-                frame: Arc::clone(&input.frame),
-                protocol: Arc::clone(&input.protocol),
+                environment: program.context.environment.clone(),
+                instruction_effects: program.exit_requirements.placed_instruction_effects(),
+                layout: Arc::clone(&program.layout),
+                frame: Arc::clone(&program.frame),
+                protocol: Arc::clone(&program.protocol),
                 frame_application: Arc::clone(application),
-                allocation: Arc::clone(&input.allocation),
+                allocation: Arc::clone(&program.context.publication),
             }),
         }
     }
@@ -187,27 +144,44 @@ struct InstalledFunctionBranches {
 #[derive(Debug)]
 #[must_use = "frame-applied fragments retain both selected-fragment and target-protocol custody"]
 pub struct StagedFunctionFragmentFrameApplication {
-    branches: Vec<FunctionFrameBranchOrigins>,
-    pub(crate) placed_body: Arc<PlacedBodyEvidence>,
-    source: StagedOptimizedFunctionFragmentEmission, // Admitted unplaced function-fragment stage.
-    application: Arc<FunctionFragmentFrameApplication>, // Frame-applied function fragments and epilogue spans.
+    pub(super) layout: machine_code::OptimizedMachineLayout,
+    pub(super) exits: machine_code::WholeFunctionExitContract,
+    pub(super) unframed: FunctionFragmentEmissionPlan,
+    pub(super) placed_body: Arc<PlacedBodyEvidence>,
 }
 
 impl StagedFunctionFragmentFrameApplication {
-    pub const fn source(&self) -> &StagedOptimizedFunctionFragmentEmission {
-        &self.source
+    pub fn relaxed_layout(&self) -> &machine_code::OptimizedMachineLayout {
+        &self.layout
+    }
+
+    pub fn program(&self) -> &machine_code::ResolvedMachineProgram {
+        &self.layout.program
+    }
+
+    /// Replay both the issued preservation requirements and the auditor's reconstruction.
+    pub fn verify_frame_requirements(
+        &self,
+        requirements: &register_homes::AllocatedCalleeSavedRequirements,
+    ) -> Result<(), FunctionRelativeOptimizationRealizationError> {
+        verify_frame_requirements(
+            &self.layout,
+            &self.exits,
+            &self.program().context.preservation,
+        )?;
+        verify_frame_requirements(&self.layout, &self.exits, requirements)
     }
 
     pub fn application(&self) -> &FunctionFragmentFrameApplication {
-        &self.application
+        &self.placed_body.code.frame_application
     }
 
     pub fn fragments(&self) -> &FunctionFragmentEmissionPlan {
-        &self.application.fragments
+        &self.application().fragments
     }
 }
 
-fn prepare_branch_origins(
+pub(super) fn prepare_branch_origins(
     fragments: &FunctionFragmentEmissionPlan,
     controls: &[EncodedControlIndex],
 ) -> Result<Vec<FunctionFrameBranchOrigins>, FunctionFragmentFrameApplicationError> {
@@ -218,26 +192,33 @@ fn prepare_branch_origins(
         .functions
         .iter()
         .zip(controls)
-        .map(|(function, controls)| FunctionFrameBranchOrigins {
-            machine: function.machine,
-            controls: controls.clone(),
-            branches: function
-                .instructions()
-                .filter_map(|row| {
-                    row.branch.as_deref().map(|branch| FrameBranchOrigin {
-                        instruction: row.instruction,
-                        branch: branch.clone(),
-                    })
-                })
-                .collect(),
-        })
+        .map(|(function, controls)| branch_origins(function, controls))
         .collect())
+}
+
+pub(super) fn branch_origins(
+    function: &FunctionFragment,
+    controls: &EncodedControlIndex,
+) -> FunctionFrameBranchOrigins {
+    FunctionFrameBranchOrigins {
+        machine: function.machine,
+        controls: controls.clone(),
+        branches: function
+            .instructions()
+            .filter_map(|row| {
+                row.branch.as_deref().map(|branch| FrameBranchOrigin {
+                    instruction: row.instruction,
+                    branch: branch.clone(),
+                })
+            })
+            .collect(),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunctionFragmentFrameApplicationError {
     Source(FunctionFragmentEmissionError),
-    SourceKindMismatch,
+    Realization(FunctionRelativeOptimizationRealizationError),
     RootMismatch,
     FunctionRosterMismatch,
     MissingFunction(MachineId),
@@ -279,300 +260,98 @@ impl From<RelativeBranchError> for FunctionFragmentFrameApplicationError {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-struct ReturnSite {
-    block: SelectedBlockId,
-    instruction: SelectedInstructionId,
-    psi_edge: semantic_vocabulary::EdgeId,
-    offset: u64,
+/// Write each instruction at its framed offset. Source offsets advance only over
+/// instruction bytes, so empty rows retain their order beside returns.
+pub(super) struct FrameWriter<'a> {
+    pub bytes: Vec<u8>,
+    pub source_offset: u64,
+    pub frame: FunctionAppliedFrameProtocol,
+    epilogue: &'a [u8],
 }
 
-pub(crate) fn apply_frame_protocol_to_fragments(
-    source: &FunctionFragmentEmissionPlan,
-    protocol: &TargetFrameProtocolEncodingPlan,
-    controls: &[EncodedControlIndex],
-) -> Result<FunctionFragmentFrameApplication, FunctionFragmentFrameApplicationError> {
-    if source.target != protocol.target {
-        return Err(FunctionFragmentFrameApplicationError::RootMismatch);
-    }
-    if source.functions.len() != protocol.functions.len()
-        || source.functions.len() != controls.len()
-    {
-        return Err(FunctionFragmentFrameApplicationError::FunctionRosterMismatch);
-    }
-
-    let mut fragments = source.clone();
-    let mut applications = Vec::with_capacity(fragments.functions.len());
-    for (function, controls) in fragments.functions.iter_mut().zip(controls) {
-        let mut rows = protocol
-            .functions
-            .iter()
-            .filter(|row| row.machine == function.machine);
-        let Some(row) = rows.next() else {
-            return Err(FunctionFragmentFrameApplicationError::MissingFunction(
-                function.machine,
-            ));
-        };
-        if rows.next().is_some() {
-            return Err(FunctionFragmentFrameApplicationError::FunctionRosterMismatch);
+impl<'a> FrameWriter<'a> {
+    pub(super) fn new(
+        machine: MachineId,
+        size: u64,
+        prologue: &[u8],
+        epilogue: &'a [u8],
+    ) -> Result<Self, FunctionFragmentFrameApplicationError> {
+        if prologue.is_empty() != epilogue.is_empty() {
+            return Err(FunctionFragmentFrameApplicationError::UnsupportedFramedControl(machine));
         }
-        let prologue = row.prologue.bytes(&protocol.bytes).ok_or(
-            FunctionFragmentFrameApplicationError::InvalidProtocolSpan(function.machine),
-        )?;
-        let epilogue = row.epilogue.bytes(&protocol.bytes).ok_or(
-            FunctionFragmentFrameApplicationError::InvalidProtocolSpan(function.machine),
-        )?;
-        applications.push(apply_function(
-            function,
-            prologue,
-            epilogue,
-            source.target.architecture,
-            controls,
-        )?);
-    }
-
-    if protocol.functions.iter().any(|row| {
-        !source
-            .functions
-            .iter()
-            .any(|function| function.machine == row.machine)
-    }) {
-        return Err(FunctionFragmentFrameApplicationError::FunctionRosterMismatch);
-    }
-
-    Ok(FunctionFragmentFrameApplication {
-        functions: applications,
-        fragments,
-    })
-}
-
-fn apply_function(
-    function: &mut FunctionFragment,
-    prologue: &[u8],
-    epilogue: &[u8],
-    architecture: Architecture,
-    controls: &EncodedControlIndex,
-) -> Result<FunctionAppliedFrameProtocol, FunctionFragmentFrameApplicationError> {
-    if prologue.is_empty() != epilogue.is_empty() {
-        return Err(
-            FunctionFragmentFrameApplicationError::UnsupportedFramedControl(function.machine),
-        );
-    }
-
-    let source_len = u64::try_from(function.bytes.len())
-        .map_err(|_| FunctionFragmentFrameApplicationError::OffsetOverflow)?;
-    if function.byte_count != source_len {
-        return Err(FunctionFragmentFrameApplicationError::SourceShapeMismatch(
-            function.machine,
-        ));
-    }
-    let prologue_len = u64::try_from(prologue.len())
-        .map_err(|_| FunctionFragmentFrameApplicationError::OffsetOverflow)?;
-    let epilogue_len = u64::try_from(epilogue.len())
-        .map_err(|_| FunctionFragmentFrameApplicationError::OffsetOverflow)?;
-    let return_sites = validate_and_collect_returns(function)?;
-
-    let mut bytes = Vec::with_capacity(
-        prologue
-            .len()
-            .checked_add(function.bytes.len())
-            .and_then(|length| {
-                epilogue
-                    .len()
-                    .checked_mul(return_sites.len())
-                    .and_then(|epilogues| length.checked_add(epilogues))
-            })
-            .ok_or(FunctionFragmentFrameApplicationError::OffsetOverflow)?,
-    );
-    bytes.extend_from_slice(prologue);
-    let mut source_cursor = 0_usize;
-    let mut applications = Vec::with_capacity(return_sites.len());
-    for (ordinal, site) in return_sites.iter().copied().enumerate() {
-        let return_start = usize::try_from(site.offset)
+        let capacity = usize::try_from(size)
+            .ok()
+            .and_then(|size| size.checked_add(prologue.len()))
+            .ok_or(FunctionFragmentFrameApplicationError::OffsetOverflow)?;
+        let mut bytes = Vec::new();
+        bytes
+            .try_reserve_exact(capacity)
             .map_err(|_| FunctionFragmentFrameApplicationError::OffsetOverflow)?;
-        bytes.extend_from_slice(&function.bytes[source_cursor..return_start]);
-        let prior_epilogues = u64::try_from(ordinal)
-            .map_err(|_| FunctionFragmentFrameApplicationError::OffsetOverflow)?
-            .checked_mul(epilogue_len)
-            .ok_or(FunctionFragmentFrameApplicationError::OffsetOverflow)?;
-        let function_offset = prologue_len
-            .checked_add(site.offset)
-            .and_then(|offset| offset.checked_add(prior_epilogues))
-            .ok_or(FunctionFragmentFrameApplicationError::OffsetOverflow)?;
-        bytes.extend_from_slice(epilogue);
-        applications.push(FunctionAppliedFrameEpilogue {
-            block: site.block,
-            return_instruction: site.instruction,
-            psi_return_edge: site.psi_edge,
-            function_offset,
-            byte_count: epilogue_len,
-        });
-        source_cursor = return_start;
-    }
-    bytes.extend_from_slice(&function.bytes[source_cursor..]);
-
-    for block in &mut function.blocks {
-        let source_block_offset = block.offset;
-        let prior_block_epilogues = insertion_count_before(&return_sites, source_block_offset)?;
-        block.offset = shifted_offset(
-            source_block_offset,
-            prologue_len,
-            prior_block_epilogues,
-            epilogue_len,
-        )?;
-        let mut block_epilogue_count = 0_u64;
-        for row in &mut block.instructions {
-            let source_row_offset = row.offset;
-            let prior_row_epilogues = insertion_count_before(&return_sites, source_row_offset)?;
-            let is_return = matches!(
-                row.control,
-                FunctionFragmentControlProvenance::Return { .. }
-            );
-            if is_return {
-                block_epilogue_count = block_epilogue_count
-                    .checked_add(1)
-                    .ok_or(FunctionFragmentFrameApplicationError::OffsetOverflow)?;
-            }
-            let applied_before_row = prior_row_epilogues
-                .checked_add(u64::from(is_return))
-                .ok_or(FunctionFragmentFrameApplicationError::OffsetOverflow)?;
-            row.offset = shifted_offset(
-                source_row_offset,
-                prologue_len,
-                applied_before_row,
-                epilogue_len,
-            )?;
-            shift_row_fixups(row, row.offset - source_row_offset)?;
-        }
-        block.byte_count = block
-            .byte_count
-            .checked_add(
-                block_epilogue_count
-                    .checked_mul(epilogue_len)
-                    .ok_or(FunctionFragmentFrameApplicationError::OffsetOverflow)?,
-            )
-            .ok_or(FunctionFragmentFrameApplicationError::OffsetOverflow)?;
-    }
-    function.byte_count = function
-        .byte_count
-        .checked_add(prologue_len)
-        .and_then(|count| {
-            epilogue_len
-                .checked_mul(u64::try_from(return_sites.len()).ok()?)
-                .and_then(|epilogues| count.checked_add(epilogues))
+        bytes.extend_from_slice(prologue);
+        Ok(Self {
+            bytes,
+            source_offset: 0,
+            epilogue,
+            frame: FunctionAppliedFrameProtocol {
+                machine,
+                prologue_function_offset: 0,
+                prologue_byte_count: prologue.len() as u64,
+                epilogues: Vec::new(),
+            },
         })
-        .ok_or(FunctionFragmentFrameApplicationError::OffsetOverflow)?;
-    function.bytes = bytes;
-    patch_branches(function, &mut applications, architecture, controls)?;
+    }
 
-    Ok(FunctionAppliedFrameProtocol {
-        machine: function.machine,
-        prologue_function_offset: 0,
-        prologue_byte_count: prologue_len,
-        epilogues: applications,
-    })
-}
-
-fn validate_and_collect_returns(
-    function: &FunctionFragment,
-) -> Result<Vec<ReturnSite>, FunctionFragmentFrameApplicationError> {
-    let mut expected_block_offset = 0_u64;
-    let mut returns = Vec::new();
-    for block in &function.blocks {
-        if block.offset != expected_block_offset {
-            return Err(FunctionFragmentFrameApplicationError::SourceShapeMismatch(
-                function.machine,
-            ));
-        }
-        let mut expected_row_offset = block.offset;
-        for (index, row) in block.instructions.iter().enumerate() {
-            if row.offset != expected_row_offset {
-                return Err(FunctionFragmentFrameApplicationError::SourceShapeMismatch(
-                    function.machine,
-                ));
-            }
-            let row_len = u64::try_from(row.bytes.len())
-                .map_err(|_| FunctionFragmentFrameApplicationError::OffsetOverflow)?;
-            expected_row_offset = expected_row_offset
-                .checked_add(row_len)
-                .ok_or(FunctionFragmentFrameApplicationError::OffsetOverflow)?;
-            if matches!(
-                row.control,
-                FunctionFragmentControlProvenance::HostedExitProcess { .. }
-                    | FunctionFragmentControlProvenance::OperationTrap { .. }
-                    | FunctionFragmentControlProvenance::EliminateEmpty { .. }
-                    | FunctionFragmentControlProvenance::Crash { .. }
-                    | FunctionFragmentControlProvenance::InternalCall {
-                        owner: target_vocabulary::CallSiteOwner::InvokeNoNormal(_),
-                        ..
-                    }
-            ) && (index + 1 != block.instructions.len() || row.bytes.is_empty())
-            {
-                return Err(FunctionFragmentFrameApplicationError::MissingFinalReturn(
-                    function.machine,
-                ));
-            }
-            if let FunctionFragmentControlProvenance::Return { psi_return_edge } = row.control {
-                if index + 1 != block.instructions.len() {
+    pub(super) fn write(
+        &mut self,
+        block: SelectedBlockId,
+        instruction: SelectedInstructionId,
+        control: &FunctionFragmentControlProvenance,
+        bytes: &[u8],
+        last: bool,
+    ) -> Result<u64, FunctionFragmentFrameApplicationError> {
+        use FunctionFragmentControlProvenance as Control;
+        match control {
+            Control::Return { psi_return_edge } => {
+                if !last {
                     return Err(FunctionFragmentFrameApplicationError::MissingFinalReturn(
-                        function.machine,
+                        self.frame.machine,
                     ));
                 }
-                returns.push(ReturnSite {
-                    block: block.block,
-                    instruction: row.instruction,
-                    psi_edge: psi_return_edge,
-                    offset: row.offset,
+                self.frame.epilogues.push(FunctionAppliedFrameEpilogue {
+                    block,
+                    return_instruction: instruction,
+                    psi_return_edge: *psi_return_edge,
+                    function_offset: self.bytes.len() as u64,
+                    byte_count: self.epilogue.len() as u64,
                 });
+                self.append(self.epilogue)?;
             }
+            Control::HostedExitProcess { .. }
+            | Control::OperationTrap { .. }
+            | Control::EliminateEmpty { .. }
+            | Control::Crash { .. }
+            | Control::InternalCall {
+                owner: target_vocabulary::CallSiteOwner::InvokeNoNormal(_),
+                ..
+            } if !last || bytes.is_empty() => {
+                return Err(FunctionFragmentFrameApplicationError::MissingFinalReturn(
+                    self.frame.machine,
+                ));
+            }
+            _ => {}
         }
-        if expected_row_offset
-            != block
-                .offset
-                .checked_add(block.byte_count)
-                .ok_or(FunctionFragmentFrameApplicationError::OffsetOverflow)?
-        {
-            return Err(FunctionFragmentFrameApplicationError::SourceShapeMismatch(
-                function.machine,
-            ));
-        }
-        expected_block_offset = expected_row_offset;
+        self.source_offset = advance(self.source_offset, bytes.len())?;
+        self.append(bytes)
     }
-    if expected_block_offset != function.byte_count {
-        return Err(FunctionFragmentFrameApplicationError::SourceShapeMismatch(
-            function.machine,
-        ));
+
+    fn append(&mut self, bytes: &[u8]) -> Result<u64, FunctionFragmentFrameApplicationError> {
+        let offset = self.bytes.len() as u64;
+        self.bytes
+            .try_reserve(bytes.len())
+            .map_err(|_| FunctionFragmentFrameApplicationError::OffsetOverflow)?;
+        self.bytes.extend_from_slice(bytes);
+        Ok(offset)
     }
-    Ok(returns)
-}
-
-fn insertion_count_before(
-    return_sites: &[ReturnSite],
-    source_offset: u64,
-) -> Result<u64, FunctionFragmentFrameApplicationError> {
-    u64::try_from(
-        return_sites
-            .iter()
-            .take_while(|site| site.offset < source_offset)
-            .count(),
-    )
-    .map_err(|_| FunctionFragmentFrameApplicationError::OffsetOverflow)
-}
-
-fn shifted_offset(
-    source_offset: u64,
-    prologue_len: u64,
-    prior_epilogues: u64,
-    epilogue_len: u64,
-) -> Result<u64, FunctionFragmentFrameApplicationError> {
-    source_offset
-        .checked_add(prologue_len)
-        .and_then(|offset| {
-            prior_epilogues
-                .checked_mul(epilogue_len)
-                .and_then(|shift| offset.checked_add(shift))
-        })
-        .ok_or(FunctionFragmentFrameApplicationError::OffsetOverflow)
 }
 
 fn shift_row_fixups(
@@ -636,7 +415,7 @@ fn shift_foreign_fixup(
     Ok(())
 }
 
-fn patch_branches(
+pub(super) fn patch_branches(
     function: &mut FunctionFragment,
     epilogues: &mut [FunctionAppliedFrameEpilogue],
     architecture: Architecture,
@@ -991,7 +770,7 @@ fn same_plan_roots(
         && source.functions.len() == candidate.functions.len()
 }
 
-fn unique_protocol(
+pub(super) fn unique_protocol(
     protocol: &TargetFrameProtocolEncodingPlan,
     machine: MachineId,
 ) -> Result<&FunctionTargetFrameProtocolEncoding, FunctionFragmentFrameApplicationError> {
@@ -1320,16 +1099,99 @@ mod tests {
     use target_vocabulary::TerminalPsiProvenance;
     use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
+    // These fixtures describe the original, unframed code for independent replay.
+    // Feed the same instruction bytes and row-relative fixups to the production emitter.
     fn apply_frame_protocol_to_fragments(
         source: &FunctionFragmentEmissionPlan,
         protocol: &TargetFrameProtocolEncodingPlan,
         physical: &register_model::ValidatedPhysicalRegisterModel,
-    ) -> Result<FunctionFragmentFrameApplication, FunctionFragmentFrameApplicationError> {
-        super::apply_frame_protocol_to_fragments(
-            source,
-            protocol,
-            &fixture_controls(source, physical),
-        )
+    ) -> Result<FunctionFragmentFrameApplication, crate::FunctionTextLayoutError> {
+        use machine_code::fragment_origins::{
+            FragmentBlockOrigin, FragmentFunctionOrigin, FragmentInstructionOrigin,
+        };
+        use machine_code::{
+            ResolvedSelectedBlockLayout, ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout,
+        };
+        let mut fragments = source.clone();
+        let mut frames = Vec::new();
+        for (function, controls) in fragments
+            .functions
+            .iter_mut()
+            .zip(fixture_controls(source, physical))
+        {
+            let mut origin = FragmentFunctionOrigin {
+                machine: function.machine,
+                entry_block: function.blocks[0].block,
+                attachment: function.attachment,
+                provenance: function.provenance.clone(),
+                blocks: Vec::new(),
+            };
+            let mut layout = ResolvedSelectedFunctionLayout {
+                machine: function.machine,
+                byte_count: function.byte_count,
+                blocks: Vec::new(),
+            };
+            for block in &function.blocks {
+                let mut origins = FragmentBlockOrigin {
+                    id: block.block,
+                    instructions: Vec::new(),
+                };
+                let mut rows = ResolvedSelectedBlockLayout {
+                    block: block.block,
+                    offset: block.offset,
+                    byte_count: block.byte_count,
+                    instructions: Vec::new(),
+                };
+                for row in &block.instructions {
+                    assert!(
+                        row.image_address_fixup.is_none()
+                            && row.normalized_foreign_call_fixup.is_none()
+                    );
+                    let fixup = row.internal_machine_fixup.as_ref();
+                    origins.instructions.push(FragmentInstructionOrigin {
+                        id: row.instruction,
+                        provenance: row.provenance.clone(),
+                        control: Ok(row.control.clone()),
+                        callee: fixup.map(|f| f.callee),
+                        foreign: None,
+                        image_reference: None,
+                        import_free: Ok(false),
+                    });
+                    rows.instructions.push(ResolvedSelectedFormRow { instruction: row.instruction, alternative: row.alternative, offset: row.offset,
+                        bytes: row.bytes.clone(), branch: row.branch.clone(), image_address_fixup: None, normalized_foreign_call_fixup: None,
+                        internal_machine_fixup: fixup.map(|f| Box::new(machine_code::SelectedFormInternalMachineFixup {
+                            kind: f.kind, state: machine_code::SelectedFormInternalMachineFixupState::UnresolvedZeroFieldV1,
+                            callee: f.callee, opcode_row_offset: (f.opcode_function_offset - row.offset).try_into().unwrap(),
+                            patch_row_offset: (f.patch_function_offset - row.offset).try_into().unwrap(),
+                            reference_row_offset: (f.reference_function_offset - row.offset).try_into().unwrap(),
+                            patch_byte_width: f.patch_byte_width, addend: f.addend,
+                        })) });
+                }
+                origin.blocks.push(origins);
+                layout.blocks.push(rows);
+            }
+            let row = super::unique_protocol(protocol, function.machine)?;
+            let writer = super::FrameWriter::new(
+                function.machine,
+                function.byte_count,
+                row.prologue.bytes(&protocol.bytes).unwrap(),
+                row.epilogue.bytes(&protocol.bytes).unwrap(),
+            )?;
+            let (mut framed, mut frame) =
+                crate::fragment_emission::emit_function(&origin, &layout, writer)?;
+            super::patch_branches(
+                &mut framed,
+                &mut frame.epilogues,
+                source.target.architecture,
+                &controls,
+            )?;
+            *function = framed;
+            frames.push(frame);
+        }
+        Ok(FunctionFragmentFrameApplication {
+            functions: frames,
+            fragments,
+        })
     }
 
     fn validate_frame_protocol_application(
@@ -1663,12 +1525,12 @@ mod tests {
         let machine = source.entry;
         let repeated = source.functions[0].blocks[0].clone();
         source.functions[0].blocks.push(repeated);
-        assert_eq!(
-            apply_frame_protocol_to_fragments(&source, &protocol(machine), physical(),),
-            Err(FunctionFragmentFrameApplicationError::SourceShapeMismatch(
-                machine
+        assert!(matches!(
+            apply_frame_protocol_to_fragments(&source, &protocol(machine), physical()),
+            Err(crate::FunctionTextLayoutError::Fragment(
+                crate::FunctionFragmentEmissionError::RootMismatch
             ))
-        );
+        ));
 
         let mut source = source_plan();
         let controls = &mut source.functions[0].blocks[0].instructions;
@@ -1681,11 +1543,9 @@ mod tests {
                 semantic_vocabulary::OperationId::new(1).unwrap(),
             ),
         };
-        assert_eq!(
-            apply_frame_protocol_to_fragments(&source, &protocol(machine), physical(),),
-            Err(FunctionFragmentFrameApplicationError::MissingFinalReturn(
-                machine
-            ))
+        assert!(
+            matches!(apply_frame_protocol_to_fragments(&source, &protocol(machine), physical()),
+            Err(crate::FunctionTextLayoutError::Frame(FunctionFragmentFrameApplicationError::MissingFinalReturn(id))) if id == machine)
         );
     }
 
@@ -2300,12 +2160,9 @@ mod tests {
         let offset = row.offset as usize;
         function.bytes[offset..offset + 4].copy_from_slice(cbnz.bytes());
         let controls = fixture_controls(&source, physical);
-        let application = super::apply_frame_protocol_to_fragments(
-            &source,
-            &aarch64_protocol(source.entry),
-            &controls,
-        )
-        .unwrap();
+        let application =
+            apply_frame_protocol_to_fragments(&source, &aarch64_protocol(source.entry), physical)
+                .unwrap();
         let origins = super::prepare_branch_origins(&source, &controls).unwrap();
         let function = application.fragments.function(source.entry).unwrap();
         let placed = &function.blocks[1].instructions[0];

@@ -857,9 +857,9 @@ const SINGLE_FORM_ENTRIES: &[(&str, &str, usize)] = &[
         1,
     ),
     (
-        "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/function_realization.rs",
-        "assemble_fixed_frame_realization",
-        1,
+        "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
+        "place_function_text",
+        2,
     ),
 ];
 

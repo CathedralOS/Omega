@@ -16,15 +16,10 @@ mod ordinary;
 #[path = "validation_tests.rs"]
 mod validation;
 
-pub mod relaxation;
 mod settled;
 mod x86_branch_relaxation;
 
-pub use settled::{
-    FunctionExitLayout, ResolvedFunctionLayout, ResolvedLayoutOptimizationError,
-    SettledFunctionLayout,
-};
-pub use x86_branch_relaxation::StagedOptimizedX86BranchRelaxation;
+pub use settled::{ResolvedFunctionLayout, ResolvedLayoutOptimizationError};
 
 #[derive(Debug)]
 pub enum LayoutError {
