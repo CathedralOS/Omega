@@ -84,9 +84,13 @@ fn encode_park() -> Result<Vec<u8>,AdapterEncodingError> {
     // A park takes the actual publication and the typed result destination.
     // The latter remains live on this worker's stack until a matching reply.
     let mut park = Vec::new();
+    // RDI carries the issued publication; use volatile R9 to keep it while
+    // authenticating the running owner before touching the pending record.
+    park.extend_from_slice(&[0x49,0x89,0xf9,0x4c,0x89,0xe7]); // mov rdi,r9; mov r12,rdi
+    expect_phase(&mut park, Phase::Running);
     pointer_word(
         &mut park,
-        MachineRegister::X86Rdi,
+        MachineRegister::X86R9,
         MachineRegister::X86R12,
         PENDING_PUBLICATION,
         false,
@@ -112,8 +116,6 @@ fn encode_park() -> Result<Vec<u8>,AdapterEncodingError> {
         REPLY_SIZE,
         false,
     )?;
-    park.extend_from_slice(&[0x4c, 0x89, 0xe7]); // mov %r12,%rdi
-    expect_phase(&mut park, Phase::Running);
     set_phase(&mut park, Phase::Parked);
     context(&mut park, WORKER_CONTEXT, false)?;
     park.extend_from_slice(&[0xb8, 1, 0, 0, 0]); // mov $1,%eax (Parked)

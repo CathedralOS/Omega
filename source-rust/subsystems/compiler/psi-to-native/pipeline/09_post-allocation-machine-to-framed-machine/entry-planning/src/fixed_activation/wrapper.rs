@@ -15,6 +15,9 @@ pub fn plan_call(body:&crate::PhysicalFrameProgram, installations:installation_a
     -> Result<bound_framed_machine::entries::BoundFixedActivationCall<crate::PhysicalRecipeOrigin>> {
     if body.instructions.target != target::NativeTarget::linux_x64() { return Err("unsupported fixed activation target"); }
     let fixed=binding.fixed_activation().ok_or("expected a compiler-issued fixed activation")?;
+    if matches!(fixed.action, Action::Park{..}) {
+        require_stepped_park(body, fixed.boundary)?;
+    }
     let frame=Frame::for_binding(binding).ok_or("invalid fixed activation ABI frame")?;
     let worker=match fixed.action {Action::Prepare {worker,..}|Action::Step {worker,..}=>Some(worker),_=>None};
     let mut transfer=None;
@@ -131,6 +134,27 @@ pub fn plan_call(body:&crate::PhysicalFrameProgram, installations:installation_a
         binding:binding.clone(),before,zero,nonzero,finish,transfer,entry_bridge,caller_stack_bytes:frame.caller_stack_bytes(),
     });
     Ok(bound_framed_machine::entries::BoundEntry::from_binding(installation_binding_issuer::BINDER, plan))
+}
+
+/// An ordinary process or callback entry has no activation owner in R12.
+/// Follow its solved machine calls. A Step helper transfers to the selected
+/// worker on a separate stack, so it deliberately introduces no edge here.
+fn require_stepped_park(body:&crate::PhysicalFrameProgram, boundary:semantic_vocabulary::BoundaryMachineId) -> Result<()> {
+    let root=body.instructions.entry;
+    let graph=frame_planning::stack_demand::plan_physical_stack_program_for_entry(body,root)?;
+    let mut pending=vec![root];
+    let mut visited=std::collections::BTreeSet::new();
+    let calls=graph.functions.iter().map(|f|(f.machine,f)).collect::<std::collections::BTreeMap<_,_>>();
+    while let Some(machine)=pending.pop(){
+        if !visited.insert(machine){continue;}
+        let function=body.instructions.function(machine).ok_or("entry call has no compiled function")?;
+        if function.normalized_foreign_calls.iter().any(|r| r.call.boundary==boundary){
+            return Err("native park is reachable without stepping an owned activation");
+        }
+        let row=calls.get(&machine).ok_or("entry call lacks a solved call graph")?;
+        pending.extend(row.calls.iter().map(|call|call.target));
+    }
+    Ok(())
 }
 
 struct Wrapper<'a> {frame:&'a Frame,encoding:Encoding}
