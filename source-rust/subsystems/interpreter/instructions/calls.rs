@@ -3226,6 +3226,14 @@ impl<'artifact> TerminalExecution<'artifact> {
         });
         let program = std::sync::Arc::clone(&self.program);
         let boundary_declaration = program.verified_boundary_machine(&boundary)?;
+        if let Some(terminal_psi::CheckedBoundaryExecution::OwnedActivation(control)) =
+            boundary_declaration
+                .declaration
+                .as_ref()
+                .map(|row| row.execution)
+        {
+            return self.execute_activation_call(operation, control, boundary_declaration);
+        }
         if boundary_declaration
             .declaration
             .as_ref()

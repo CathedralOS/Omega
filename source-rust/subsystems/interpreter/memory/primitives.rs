@@ -6272,22 +6272,11 @@ pub(crate) mod storage_addresses {
             let ScalarType::Integer(integer) = result.scalar_type else {
                 return Err(malformed());
             };
-            if !integer.is_address()
-                || source.access != terminal_psi::StructuralAccess::SharedBorrow
-            {
+            if !integer.is_address() {
                 return Err(malformed());
             }
-            let scalar_type = terminal_semantics::primitive_read_projection_type(
-                self.structural_types().values(),
-                self.live_structural_type(source.place)?,
-                &source.path,
-            );
-            let endpoint = self.storage_address_endpoint(source, scalar_type)?;
-            let (namespace, root, path) = self.endpoint_identity(endpoint)?;
-            let namespace = namespace
-                .or(self.local_structural_identities.exposure_namespace)
-                .ok_or_else(exhausted)?;
-            let encoded = encode(namespace, root, &path)?;
+            let address = self.borrowed_storage_identity(source)?;
+            let encoded = encode(address.namespace, address.root, &address.path)?;
             let value = IntegerValue::Unsigned(u128::from(encoded));
             if !integer.admits(value) {
                 return Err(exhausted());
@@ -6300,6 +6289,32 @@ pub(crate) mod storage_addresses {
                 },
             )?;
             Ok(())
+        }
+
+        /// Compare loans by the storage they refer to. Only the Omega
+        /// operation exposing an integer address needs to encode this path
+        /// into a machine word.
+        pub(crate) fn borrowed_storage_identity(
+            &mut self,
+            source: &StructuralArgument,
+        ) -> Result<ScalarStorageAddress, TerminalInterpretError> {
+            if source.access != terminal_psi::StructuralAccess::SharedBorrow {
+                return Err(malformed());
+            }
+            let scalar_type = terminal_semantics::primitive_read_projection_type(
+                self.structural_types().values(),
+                self.live_structural_type(source.place)?,
+                &source.path,
+            );
+            let endpoint = self.storage_address_endpoint(source, scalar_type)?;
+            let (namespace, root, path) = self.endpoint_identity(endpoint)?;
+            Ok(ScalarStorageAddress {
+                namespace: namespace
+                    .or(self.local_structural_identities.exposure_namespace)
+                    .ok_or_else(exhausted)?,
+                root,
+                path,
+            })
         }
     }
 
@@ -6368,6 +6383,30 @@ pub(crate) mod storage_addresses {
                         StructuralTypeShape::FixedArray {
                             element: StructuralTypeId::new(2).unwrap(),
                             length: ArrayExtent::Literal(2),
+                        },
+                    ),
+                    declaration(
+                        5,
+                        StructuralTypeShape::Reference {
+                            referent: StructuralTypeId::new(2).unwrap(),
+                            access: StructuralAccess::SharedBorrow,
+                        },
+                    ),
+                    declaration(
+                        6,
+                        StructuralTypeShape::Record {
+                            fields: vec![terminal_psi::StructuralFieldDeclaration {
+                                declaration_identity: TerminalIdentityIndex(19),
+                                inline_carrier: None,
+                                id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+                                identity: TerminalIdentityIndex(19),
+                                relevance: language_core::BindingRelevance::Relevant,
+                                field_type: terminal_psi::StructuralFieldType::Structural(
+                                    StructuralTypeId::new(5).unwrap(),
+                                ),
+                                storage: None,
+                            }],
+                            storage: terminal_psi::StructuralRecordStorage::Packed,
                         },
                     ),
                 ]);
@@ -6686,6 +6725,246 @@ pub(crate) mod storage_addresses {
                     structural_type,
                 },
             }
+        }
+
+        #[test]
+        fn publication_identity_follows_the_loan_not_its_handle() {
+            use crate::storage::reference::ReferenceReferent;
+            use semantic_vocabulary::PlaceId;
+            let mut execution = execution();
+            let slot_ty = StructuralTypeId::new(2).unwrap();
+            let handle_ty = StructuralTypeId::new(6).unwrap();
+            let anchor = TerminalIdentityIndex(19);
+            let module = Arc::get_mut(&mut execution.program)
+                .unwrap()
+                .fixture_module_mut();
+            let handle_type = module
+                .types
+                .structural_types
+                .iter_mut()
+                .find(|ty| ty.id == handle_ty)
+                .unwrap();
+            handle_type.multiplicity = terminal_psi::StructuralMultiplicity::Linear;
+            handle_type.owns_linear_claim = true;
+            for id in 1..=3 {
+                module.machines[0].structural_parameters.push(
+                    terminal_psi::StructuralParameterDeclaration {
+                        place: PlaceId::new(id).unwrap(),
+                        position: (id - 1) as u32,
+                        structural_type: handle_ty,
+                        multiplicity: terminal_psi::StructuralMultiplicity::Linear,
+                        access: StructuralAccess::Owned,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        additional_input_qualifications: Vec::new(),
+                    },
+                );
+            }
+            // Two different reference values borrow the same slot. A third
+            // borrows another slot containing exactly the same bytes.
+            for (id, slot) in [(1, 11), (2, 11), (3, 12)] {
+                let handle = TerminalStructuralValue::minted(id, handle_ty, Vec::new());
+                let referent = TerminalStructuralValue::minted(slot, slot_ty, Vec::new());
+                let mut stored = StructuralRuntimePlace::from(&handle);
+                stored.path.push(StructuralPathSegment::Field(anchor));
+                execution
+                    .reference_referents
+                    .insert(stored, ReferenceReferent::from_view(referent))
+                    .unwrap();
+                let place = PlaceId::new(id).unwrap();
+                execution.structural_values.insert(place, handle).unwrap();
+                execution.live_claims.insert(
+                    semantic_vocabulary::ClaimId::new(id).unwrap(),
+                    crate::engine::execution::LiveClaim::at(
+                        place,
+                        Vec::new(),
+                        terminal_psi::StructuralMultiplicity::Linear,
+                    ),
+                );
+            }
+            let source = |id| StructuralArgument {
+                place: PlaceId::new(id).unwrap(),
+                path: Vec::new(),
+                access: StructuralAccess::Owned,
+            };
+            let request =
+                crate::activation::publication_slot(&mut execution, &source(1), anchor).unwrap();
+            let permit =
+                crate::activation::publication_slot(&mut execution, &source(2), anchor).unwrap();
+            let other =
+                crate::activation::publication_slot(&mut execution, &source(3), anchor).unwrap();
+            assert_eq!(request, permit);
+            assert_ne!(request, other);
+
+            use crate::activation::{StepControl, TransferredReply};
+            use crate::engine::execution::CompletedReturn;
+            use crate::suspension::ParkOccurrence;
+            use semantic_vocabulary::{BoundaryMachineId, OperationId, ValueId};
+            let site = crate::TerminalEffectWait {
+                program: execution.program.identity.clone(),
+                machine: execution.current_machine,
+                block: execution.current,
+                operation: OperationId::new(1).unwrap(),
+                boundary: BoundaryMachineId::new(1).unwrap(),
+            };
+            let mut serial = 0;
+            let mut visit = || crate::TerminalSuspension {
+                site: site.clone(),
+                occurrence: ParkOccurrence::fresh(Some(7), &mut serial).unwrap(),
+            };
+            let stale = visit();
+            let current = visit();
+            let mut control = StepControl::default();
+            control
+                .park(current.clone(), request, "bool".into())
+                .unwrap();
+            let destination = ValueId::new(1).unwrap();
+            let take_stop = |sender: &mut TerminalExecution<'_>| {
+                let input = source(2);
+                let receipt = terminal_psi::CompletionReceipt {
+                    claim: semantic_vocabulary::ClaimId::new(2).unwrap(),
+                    argument_index: 0,
+                    path: Vec::new(),
+                };
+                let remaining = crate::engine::custody::complete_claims(
+                    &sender.live_claims,
+                    std::slice::from_ref(&input),
+                    &[receipt],
+                )?;
+                let mut frontier = sender.live_affine_frontier.clone();
+                let mut consumed = Vec::new();
+                assert!(sender.stage_constructor_operand(&input, &mut frontier, &mut consumed)?);
+                sender.commit_constructor_operands(frontier, &consumed, remaining)?;
+                Ok(TransferredReply {
+                    source_claims: None,
+                    completed: CompletedReturn::plain(crate::TerminalExecutionResult::Scalar(
+                        TerminalScalarValue::Boolean(false),
+                    )),
+                })
+            };
+            assert!(
+                !control
+                    .answer_from(&stale, &permit, "bool", &mut execution, take_stop)
+                    .unwrap()
+            );
+            assert!(
+                !control
+                    .answer_from(&current, &other, "bool", &mut execution, take_stop)
+                    .unwrap()
+            );
+            assert!(
+                !control
+                    .answer_from(&current, &permit, "u8", &mut execution, take_stop)
+                    .unwrap()
+            );
+            assert!(execution.structural_values.contains_key(&source(2).place));
+            assert!(
+                control
+                    .answer_from(&current, &permit, "bool", &mut execution, take_stop)
+                    .unwrap()
+            );
+            assert!(
+                !control
+                    .answer_from(&current, &permit, "bool", &mut execution, take_stop)
+                    .unwrap()
+            );
+            assert!(!execution.structural_values.contains_key(&source(2).place));
+            assert!(
+                !execution
+                    .live_claims
+                    .contains_key(&semantic_vocabulary::ClaimId::new(2).unwrap())
+            );
+            let StepControl::Answered(ready) = control else {
+                panic!("answer did not make the parked call ready")
+            };
+            assert_eq!(
+                ready.1.completed.value,
+                crate::TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(false))
+            );
+            let input = source(1);
+            let receipt = terminal_psi::CompletionReceipt {
+                claim: semantic_vocabulary::ClaimId::new(1).unwrap(),
+                argument_index: 0,
+                path: Vec::new(),
+            };
+            let op = terminal_psi::Operation::unsuspended(
+                site.operation,
+                terminal_psi::OperationResult::Scalar(terminal_psi::ValueDeclaration {
+                    id: destination,
+                    scalar_type: ScalarType::Boolean,
+                    qualifications: Default::default(),
+                }),
+                terminal_psi::OperationKind::BoundaryCall {
+                    boundary: site.boundary,
+                    arguments: Vec::new(),
+                    structural_arguments: vec![input.clone()],
+                    completion_receipts: vec![receipt.clone()],
+                    requirement_obligations: Vec::new(),
+                },
+            );
+            execution
+                .finish_owned_park(&op, &input, &[receipt], ready.1)
+                .unwrap();
+            assert_eq!(
+                execution.values.get(&destination),
+                Some(&TerminalScalarValue::Boolean(false))
+            );
+            assert!(!execution.structural_values.contains_key(&input.place));
+            assert!(
+                !execution
+                    .live_claims
+                    .contains_key(&semantic_vocabulary::ClaimId::new(1).unwrap())
+            );
+            assert!(
+                execution
+                    .live_claims
+                    .contains_key(&semantic_vocabulary::ClaimId::new(3).unwrap())
+            );
+        }
+
+        #[test]
+        fn two_identical_publication_slots_do_not_identify_the_same_borrow() {
+            use semantic_vocabulary::PlaceId;
+            let slot = PlaceId::new(1).unwrap();
+            let ty = StructuralTypeId::new(2).unwrap();
+            let borrowed = |index| StructuralArgument {
+                place: slot,
+                path: vec![StructuralPathSegment::FixedIndex(index)],
+                access: StructuralAccess::SharedBorrow,
+            };
+            let mut first = execution();
+            let mut second = execution();
+            for owner in [&mut first, &mut second] {
+                Arc::get_mut(&mut owner.program)
+                    .unwrap()
+                    .fixture_module_mut()
+                    .machines[0]
+                    .structural_parameters
+                    .push(terminal_psi::StructuralParameterDeclaration {
+                        place: slot,
+                        position: 0,
+                        structural_type: ty,
+                        multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                        access: StructuralAccess::SharedBorrow,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        additional_input_qualifications: Vec::new(),
+                    });
+                publish_packed(owner, slot, ty, &[0; 4]);
+            }
+            let identity = first.borrowed_storage_identity(&borrowed(0)).unwrap();
+            assert_eq!(
+                identity,
+                first.borrowed_storage_identity(&borrowed(0)).unwrap()
+            );
+            assert_ne!(
+                identity,
+                first.borrowed_storage_identity(&borrowed(1)).unwrap()
+            );
+            assert_ne!(
+                identity,
+                second.borrowed_storage_identity(&borrowed(0)).unwrap()
+            );
         }
 
         #[test]
