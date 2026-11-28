@@ -2454,7 +2454,7 @@ pub(crate) mod structural_return {
                                 self.active_structural_claims(*source, &result.claims)?;
                             rebind_structural_result_claims(
                                 live_claims,
-                                &self.live_claims,
+                                |id| self.live_claims.get(&id),
                                 *source,
                                 &active_result,
                                 &active_returned_claims,

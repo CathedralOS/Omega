@@ -94,5 +94,5 @@
 2 source-rust/subsystems/interpreter/instructions/calls.rs
 5 source-rust/subsystems/interpreter/instructions/execution.rs
 3 source-rust/subsystems/interpreter/instructions/terminators.rs
-20 source-rust/subsystems/interpreter/memory/custody.rs
-5 source-rust/subsystems/interpreter/memory/records_and_arrays.rs
+16 source-rust/subsystems/interpreter/memory/custody.rs
+4 source-rust/subsystems/interpreter/memory/records_and_arrays.rs
