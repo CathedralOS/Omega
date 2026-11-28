@@ -242,3 +242,43 @@ fn the_first_opened_slot_can_be_replaced_while_its_two_copies_survive() {
     program.machines[0].blocks[0].operations.swap(2, 3);
     assert!(check_package_sites(&program).is_err());
 }
+
+#[test]
+fn copying_the_enclosing_record_preserves_the_contained_package_witness() {
+    let mut program = original_and_copy();
+    let mut wrapper = byte_view_descriptor(10, None);
+    wrapper.shape = StructuralTypeShape::Record {
+        fields: vec![declaration(9, StructuralFieldType::Structural(ty(7)))],
+        storage: StructuralRecordStorage::Packed,
+    };
+    program.types.structural_types.push(wrapper);
+    let machine = &mut program.machines[0];
+    for parameter in &mut machine.structural_parameters {
+        parameter.structural_type = ty(10);
+    }
+    machine.blocks[0].operations[0].result = result(6, ty(10));
+    let copy = machine
+        .structural_places
+        .iter_mut()
+        .find(|p| p.id == place(6))
+        .unwrap();
+    copy.kind = StructuralPlaceKind::OperationResult {
+        producer: operation_id(4),
+        structural_type: ty(10),
+    };
+    let member = StructuralPathSegment::Field(TerminalIdentityIndex(9));
+    for op in &mut machine.blocks[0].operations[1..3] {
+        let O::StructuralLeafCopy { path, .. } = &mut op.kind else {
+            panic!("field projection")
+        };
+        path.insert(0, member.clone());
+    }
+    for opened in &mut program.execution.packages.openings {
+        opened.subject.path.push(member.clone());
+    }
+    check_package_sites(&program)
+        .expect("the same field of an aggregate copy carries the original witness");
+
+    select_copy_source(&mut program.machines[0].blocks[0].operations[0], 2);
+    assert!(check_package_sites(&program).is_err());
+}

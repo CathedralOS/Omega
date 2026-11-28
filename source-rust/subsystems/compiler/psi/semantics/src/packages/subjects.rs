@@ -1,14 +1,15 @@
 //! Compare borrowed package addresses and the historical values read by actual copies.
 use super::*;
 use crate::descriptor_results::{
-    DescriptorAnalysis, DescriptorMachine, DescriptorPayloadTarget,
-    require_unchanged_between_inputs, require_unchanged_observed_storage,
-    terminal_borrowed_storage_graph_from,
+    DescriptorAnalysis, DescriptorMachine, DescriptorPayloadTarget, ResidentValueCapture,
+    ResidentValueCaptures, projected_stored_sources_in, require_unchanged_between_inputs,
+    terminal_borrowed_storage_graph_from, terminal_resident_value_transfers,
 };
 use crate::descriptors::descriptor_lifetimes::{
-    DescriptorLocation, DescriptorPosition, descriptor_location,
+    DescriptorLocation, DescriptorPosition, descriptor_location, descriptor_location_type,
 };
-use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
+use semantic_vocabulary::PlaceId;
+use std::cell::OnceCell;
 use terminal_psi::StructuralMultiplicity;
 
 pub(super) fn same_storage_at(
@@ -108,6 +109,7 @@ fn with_history(
         types,
         graph: &graph,
         replay,
+        transfers: OnceCell::new(),
         now,
         record,
     })
@@ -125,6 +127,7 @@ struct StorageHistory<'a> {
     types: &'a [terminal_psi::StructuralTypeDeclaration],
     graph: &'a [DescriptorMachine],
     replay: DescriptorAnalysis<'a>,
+    transfers: OnceCell<Option<ResidentValueCaptures>>,
     now: DescriptorPosition,
     record: StructuralTypeId,
 }
@@ -136,16 +139,6 @@ impl StorageHistory<'_> {
         path: &[StructuralPathSegment],
         at: DescriptorPosition,
     ) -> Option<Observation> {
-        self.observe_field(place, path, None, at)
-    }
-
-    fn observe_field(
-        &mut self,
-        place: PlaceId,
-        path: &[StructuralPathSegment],
-        field: Option<StructuralFieldId>,
-        at: DescriptorPosition,
-    ) -> Option<Observation> {
         // The spelling of a runtime selector does not prove what an earlier
         // reference captured. Only one resolved static address can match.
         if path
@@ -155,42 +148,25 @@ impl StorageHistory<'_> {
             return None;
         }
         let root = self.machine.structural_place_type(place)?;
-        let tip = crate::runtime_structural_path_tip(self.types.iter(), root, path)?;
-        let selected = match field {
-            None => tip.id,
-            Some(field) => {
-                let mut matching = tip.shape.fields().filter(|row| row.id == field);
-                let ty = matching.next()?.field_type.as_structural()?;
-                if matching.next().is_some() {
-                    return None;
-                }
-                ty
-            }
-        };
-        if selected != self.record {
+        if crate::runtime_structural_path_tip(self.types.iter(), root, path)?.id != self.record {
             return None;
         }
-        let slot = descriptor_location(self.types, place, root, path, field)?;
-        let location = self.replay.location(self.machine.id, at, &slot)?;
-        let home = DescriptorLocation::captured(location.root, &location.path)?;
-        Some(Observation { home, at })
+        let slot = descriptor_location(self.types, place, root, path, None)?;
+        self.observe_slot(&slot, at)
     }
 
-    fn unchanged(
-        &self,
-        home: &DescriptorLocation,
-        from: DescriptorPosition,
-        to: DescriptorPosition,
-    ) -> bool {
-        require_unchanged_observed_storage(
-            self.types,
-            self.graph,
-            self.machine.id,
-            from,
-            to,
-            &DescriptorPayloadTarget::current(home.clone()),
-        )
-        .is_ok()
+    fn observe_slot(
+        &mut self,
+        slot: &DescriptorLocation,
+        at: DescriptorPosition,
+    ) -> Option<Observation> {
+        let root = self.machine.structural_place_type(slot.root)?;
+        if descriptor_location_type(self.types, root, &slot.path)? != self.record {
+            return None;
+        }
+        let location = self.replay.location(self.machine.id, at, slot)?;
+        let home = DescriptorLocation::captured(location.root, &location.path)?;
+        Some(Observation { home, at })
     }
 
     fn related(
@@ -248,70 +224,37 @@ impl StorageHistory<'_> {
     }
 
     fn copied_from(&mut self, destination: &Observation) -> Option<Observation> {
-        if let Some(source) = self.initial_copy(destination) {
-            return Some(source);
-        }
-        // A whole-value store transfers the value observed at its input. It
-        // must reach this read unchanged along every incoming control path.
-        let machine = self.machine;
-        for block in &machine.blocks {
-            for (offset, op) in block.operations.iter().enumerate() {
-                let OperationKind::StoreStructuralField {
-                    destination: root,
-                    path,
-                    field,
-                    value,
-                    ..
-                } = &op.kind
-                else {
-                    continue;
-                };
-                let at = (block.id, u32::try_from(offset).ok()?);
-                if value.access == StructuralAccess::Owned
-                    && at != destination.at
-                    && self
-                        .observe_field(*root, path, *field, at)
-                        .is_some_and(|target| target.home == destination.home)
-                    && self.unchanged(&destination.home, at, destination.at)
-                {
-                    return self.observe(value.place, &value.path, at);
-                }
-            }
-        }
-        None
-    }
-
-    fn initial_copy(&mut self, destination: &Observation) -> Option<Observation> {
-        if !destination.home.path.is_empty() {
-            return None;
-        }
-        let place = self
-            .machine
-            .structural_places
-            .iter()
-            .find(|place| place.id == destination.home.root)?;
-        let StructuralPlaceKind::OperationResult {
-            producer,
-            structural_type,
-        } = place.kind
-        else {
+        let transfers = self
+            .transfers
+            .get_or_init(|| {
+                let row = self.graph.iter().find(|row| row.id == self.machine.id)?;
+                terminal_resident_value_transfers(self.machine, row).ok()
+            })
+            .as_ref()?;
+        // The same storage query used by scalar observations follows a whole
+        // copy, aggregate field or replacement only if it reaches this read.
+        let sources = projected_stored_sources_in(
+            self.types,
+            self.graph,
+            &mut self.replay,
+            self.machine.id,
+            destination.at,
+            &destination.home,
+            |at| match transfers.get(&at) {
+                Some(ResidentValueCapture::Complete(values)) => values
+                    .iter()
+                    .map(|value| (value.destination.clone(), (at, value.source.clone())))
+                    .collect(),
+                _ => Vec::new(),
+            },
+            |(at, mut source), suffix| {
+                source.path.extend_from_slice(suffix);
+                Some((at, source))
+            },
+        )?;
+        let [(at, source)] = sources.as_slice() else {
             return None;
         };
-        let op = self.machine.operation(producer)?;
-        let result = op.result.structural()?;
-        if structural_type != self.record
-            || result.structural_type != self.record
-            || result.place != place.id
-        {
-            return None;
-        }
-        let OperationKind::StructuralLeafCopy { source, path } = &op.kind else {
-            return None;
-        };
-        let at = position(self.machine, producer)?;
-        if !self.unchanged(&destination.home, at, destination.at) {
-            return None;
-        }
-        self.observe(*source, path, at)
+        self.observe_slot(source, *at)
     }
 }
