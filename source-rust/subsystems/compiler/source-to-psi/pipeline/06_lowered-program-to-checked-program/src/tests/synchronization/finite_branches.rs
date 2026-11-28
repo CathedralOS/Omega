@@ -1,7 +1,7 @@
 //! Finite branch fan-out with independent atomic cells. Timings below start
 //! after publication and cover the same synchronization check used at admission.
 use super::super::build_purpose::{judge_build, judge_build_published};
-use super::{expect_unproved_progress, reject_deadlock};
+use super::{expect_unproved_progress_at, reject_deadlock};
 use crate::RouteVerdict;
 use std::fmt::Write as _;
 use std::hint::black_box;
@@ -114,7 +114,7 @@ fn inline_branches_preserve_earlier_borrows_and_separate_later_choices() {
              true -> Choice { cell:@left }, false -> Choice { cell:@right }
          }; second.cell.word.store(0,Publish); await_clear(first.cell);",
     );
-    expect_unproved_progress(&overlap);
+    expect_unproved_progress_at(&overlap, "await_clear");
 }
 
 #[test]
