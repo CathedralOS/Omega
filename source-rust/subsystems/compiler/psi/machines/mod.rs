@@ -38,6 +38,7 @@ impl From<semantic_vocabulary::OperationId> for ExecutionSite {
 }
 
 pub use atomic::{AtomicAccessEvent, AtomicReadModifyWrite, FenceOrdering, MemoryOrdering};
+pub use block::AssemblyExitConstraint;
 pub use float_result_policy::FloatResultPolicy;
 pub use invocations::{
     BoundaryInvocation, BoundaryInvocationCompletion, CallableInvocation, CallableInvocationInputs,

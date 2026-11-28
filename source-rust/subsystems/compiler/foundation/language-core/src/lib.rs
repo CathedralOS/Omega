@@ -314,3 +314,5 @@ pub mod static_interrupts {
         }
     }
 }
+
+pub mod native_call;

@@ -13,7 +13,7 @@ operation-operands = { path = "../../representations/operation-operands" }
 compiler-check-site = { path = "../../../foundation/check-site" }
 provider-admission = { path = "../../verification/provider-admission" }
 installation-admission = { path = "../../verification/installation-admission" }
-target-lowering = { package = "abstract-operations-to-target-operations", path = "../04_abstract-operations-to-target-operations" }
+native-body-plan = { path = "../../representations/target-operations/body-plan" }
 physical-program = { path = "../../representations/post-allocation-machine/body-facts" }
 terminal-semantics = { path = "../../../psi/semantics" }
 access-admission = { path = "../../../psi/access/validated-placements" }

@@ -202,7 +202,7 @@ fn borrowed_argument<'a>(
             if !execution
                 .awaiting_effect
                 .as_ref()
-                .is_some_and(|call| !call.awaiting_provider_readiness) =>
+                .is_some_and(|call| call.park.is_none()) =>
         {
             return Err(TerminalStorageObservationError::PendingHostComputationRequired);
         }
