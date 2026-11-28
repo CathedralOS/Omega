@@ -744,7 +744,11 @@ machine main() crashes Trap {
 }
 machine old(state: @File) -> u8 reaches none crashes none { 11u8 }
 machine read_file(state: @File) -> u8 reaches none crashes none { state.byte }
-machine update(reader: @mutable Reader) { reader.read = reader.fallback; }
+machine update(reader: @mutable Reader<some S>) {
+    let replacement: Read<S> = reader.fallback;
+    reader.fallback = reader.read;
+    reader.read = replacement;
+}
 machine observe(reader: Reader) -> u8 { (reader.read)(reader.state) }";
     for (source, callable_field) in [(pair, false), (reader, true)] {
         verify_saved_update(source, callable_field, SAVED_INPUT);
@@ -769,16 +773,23 @@ fn verify_saved_update(source: &str, callable_field: bool, saved_input: &str) {
     use source_compiler::test_support::checking::{RouteVerdict, judge};
     use terminal_psi::TerminalPackageEvent;
     let program = Program::of(source);
-    let lowered = &program.elaboration().module;
-    let (index, site) = lowered
+    let RouteVerdict::Accepted(accepted) = judge(Ok(program.elaboration().clone())).unwrap() else {
+        panic!(
+            "same-opening source update must reach publication: {:?}",
+            program.judged(|_| ())
+        );
+    };
+    let artifact = accepted.publish().unwrap().artifact;
+    let module = artifact.view().module().clone();
+    let (index, site) = module
         .execution
         .packages
         .sites
         .iter()
         .enumerate()
-        .find(|(_, s)| matches!(s.event, TerminalPackageEvent::Store { .. }))
+        .rfind(|(_, s)| matches!(s.event, TerminalPackageEvent::Store { .. }))
         .expect("the dependent assignment emits an opening at its ordinary store");
-    let store = &lowered
+    let store = &module
         .machine(site.machine)
         .unwrap()
         .operation(site.operation)
@@ -790,14 +801,6 @@ fn verify_saved_update(source: &str, callable_field: bool, saved_input: &str) {
             | (false, OperationKind::StoreStructuralField { .. })
     ));
 
-    let RouteVerdict::Accepted(accepted) = judge(Ok(program.elaboration().clone())).unwrap() else {
-        panic!(
-            "same-opening source update must reach publication: {:?}",
-            program.judged(|_| ())
-        );
-    };
-    let artifact = accepted.publish().unwrap().artifact;
-    let module = artifact.view().module().clone();
     let bytes = artifact.to_bytes();
     let nonce = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -825,10 +828,11 @@ fn verify_saved_update(source: &str, callable_field: bool, saved_input: &str) {
     let receiver = receiver.unwrap();
     assert!(
         receiver.status.success(),
-        "{}",
-        String::from_utf8_lossy(&receiver.stdout)
+        "{}\n{}",
+        String::from_utf8_lossy(&receiver.stdout),
+        String::from_utf8_lossy(&receiver.stderr)
     );
-    let source_field = lowered
+    let source_field = module
         .execution
         .packages
         .sites
