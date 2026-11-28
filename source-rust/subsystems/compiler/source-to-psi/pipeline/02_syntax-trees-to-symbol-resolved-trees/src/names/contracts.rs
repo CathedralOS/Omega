@@ -1,4 +1,5 @@
 use crate::source_resolved::SymbolResolvedTrees;
+use crate::source_resolved::callable_values::RuntimeCallableContractHandle;
 use crate::source_resolved::name::DiagnosticName;
 use crate::source_resolved::signature::SignatureContractKind;
 use crate::source_symbols::{JoinedPath, SymbolTable};
@@ -38,14 +39,19 @@ macro_rules! assign_calls {
 pub(super) fn assign_contract_reference_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
+    new_runtime_contracts: &[RuntimeCallableContractHandle],
 ) -> Result<(), Vec<Diagnostic>> {
     let conformance_scopes = super::scopes::DeclarationTypeScopes::of(program)?;
-    let runtime_scopes = program
-        .tables
-        .declarations
-        .runtime_callable_contracts
+    // A retained contract already has its names bound. Its original owner
+    // can be outside the declarations selected for this extension.
+    let runtime_scopes = new_runtime_contracts
         .iter()
-        .map(|(handle, declaration)| {
+        .map(|&handle| {
+            let declaration = program
+                .tables
+                .declarations
+                .runtime_callable_contracts
+                .get(handle);
             super::runtime_callable_types::lexical_parameters(
                 program,
                 &conformance_scopes,

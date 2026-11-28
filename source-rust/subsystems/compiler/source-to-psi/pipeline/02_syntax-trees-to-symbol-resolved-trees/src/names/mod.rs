@@ -192,7 +192,9 @@ fn assign_program_symbols(
     propositions::assign_proposition_expression_symbols(program, symbols);
     mathematical::assign_mathematical_expression_symbols(program, symbols);
     measures::assign_measure_expression_symbols(program, symbols);
-    if let Err(errors) = assign_contract_reference_symbols(program, symbols) {
+    if let Err(errors) =
+        assign_contract_reference_symbols(program, symbols, runtime_callable_contracts)
+    {
         diagnostics.extend(errors);
     }
     assign_domain_fact_symbols(program, symbols);
@@ -546,7 +548,11 @@ pub(crate) fn assign_body_symbols(
         &symbols,
         selected_machines,
     )?;
-    assign_contract_reference_symbols(&mut lowerer.symbol_resolved_trees, &symbols)?;
+    assign_contract_reference_symbols(
+        &mut lowerer.symbol_resolved_trees,
+        &symbols,
+        &runtime_callable_contracts,
+    )?;
     contracts::finalize_outcome_specific_contract_symbols(
         &mut lowerer.symbol_resolved_trees,
         &lowerer.pending_outcome_specific_contracts,
