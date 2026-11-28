@@ -154,6 +154,26 @@ fn native_references_read_and_write_an_owned_byte_at_its_exposed_address() {
 }
 
 #[test]
+fn a_foreign_address_lends_the_c_runtimes_thread_local_error_slot() {
+    let build = include_str!("fixtures/borrows/run/foreign_error_slot/build.omg");
+    let source = include_str!("fixtures/borrows/run/foreign_error_slot/main.omg");
+    let program = Program(project::stage(
+        "foreign-error-slot",
+        &[("build.omg", build), ("main.omg", source)],
+    ));
+    program.assert_native_returns();
+
+    let denied = build.replace("Build::enable_unsafe::<|trust|::RawMemoryWrite>(plan);", "");
+    project::write(program.0.path(), &[("build.omg", &denied)]);
+    let checked = program.check();
+    let diagnostic = report(&checked);
+    assert!(!checked.status.success(), "{diagnostic}");
+    for expected in ["RawMemoryWrite", "borrow_mutable_at", "set_error"] {
+        assert!(diagnostic.contains(expected), "{diagnostic}");
+    }
+}
+
+#[test]
 fn an_upgrade_reborrows_the_same_owned_byte_natively_and_in_psi() {
     let program = Program::new(UPGRADED_BYTE, &[UPGRADE]);
     program.assert_native_returns();
