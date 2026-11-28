@@ -531,11 +531,13 @@ fn validate_applied_members(
     let has_borrow = substitutions
         .iter()
         .any(|(_, argument)| scope.region_free_type_identity(typed, *argument).is_none());
-    let applied_scope = has_borrow.then(|| std::sync::Arc::new(crate::source_state::SourceTypeScope {
-        substitutions: substitutions.to_vec(),
-        parent: Some(scope.clone()),
-        rigid_parameters: Vec::new(),
-    }));
+    let applied_scope = has_borrow.then(|| {
+        std::sync::Arc::new(crate::source_state::SourceTypeScope {
+            substitutions: substitutions.to_vec(),
+            parent: Some(scope.clone()),
+            rigid_parameters: Vec::new(),
+        })
+    });
     let same_regions = |expected, actual| {
         let Some(applied_scope) = &applied_scope else {
             return true;
@@ -546,10 +548,13 @@ fn validate_applied_members(
         let Some(actual) = retained_regions(typed, scope, actual) else {
             return false;
         };
-        expected.len() == actual.len() && expected.iter().zip(actual).all(|(before, after)| {
-            *before == after || (before.declaration == template.symbol
-                && after.declaration == selected.symbol && before.ordinal == after.ordinal)
-        })
+        expected.len() == actual.len()
+            && expected.iter().zip(actual).all(|(before, after)| {
+                *before == after
+                    || (before.declaration == template.symbol
+                        && after.declaration == selected.symbol
+                        && before.ordinal == after.ordinal)
+            })
     };
     let same_field = |expected: &DataField, actual: &DataField, owner| {
         typed.data_constructor_field(reference, template.symbol, expected.symbol) == Some(actual)
@@ -1943,34 +1948,62 @@ mod tests {
         let mut fixture = AppliedFixture::new(Default::default());
         let typed = &mut fixture.typed;
         let root = typed.symbols.get(fixture.template.symbol).parent;
-        let mut owners = SymbolTableBuilder::child_handles(typed.symbols.append_children(root, [
-            (SymbolKind::Data, SymbolNameRef::Static("Left")),
-            (SymbolKind::Data, SymbolNameRef::Static("Right")),
-        ]));
+        let mut owners = SymbolTableBuilder::child_handles(typed.symbols.append_children(
+            root,
+            [
+                (SymbolKind::Data, SymbolNameRef::Static("Left")),
+                (SymbolKind::Data, SymbolNameRef::Static("Right")),
+            ],
+        ));
         let left = owners.next().unwrap();
         let right = owners.next().unwrap();
         let mut borrow = |owner| {
             typed.push_data_definition(DataDefinition {
-                symbol: owner, name: typed.symbols.name(owner).into(),
-                lifetime_parameters: vec!["value".into()], ..Default::default()
+                symbol: owner,
+                name: typed.symbols.name(owner).into(),
+                lifetime_parameters: vec!["value".into()],
+                ..Default::default()
             });
-            let reference = typed.type_reference_table.insert(TypeReferenceNode::Reference {
-                referee: fixture.u32_type, access: language_core::ReferenceAccess::Shared,
-                lifetime: Some("value".into()),
-            });
-            typed.type_reference_table.retain_operand_lifetime_owner(reference, owner).unwrap();
+            let reference = typed
+                .type_reference_table
+                .insert(TypeReferenceNode::Reference {
+                    referee: fixture.u32_type,
+                    access: language_core::ReferenceAccess::Shared,
+                    lifetime: Some("value".into()),
+                });
+            typed
+                .type_reference_table
+                .retain_operand_lifetime_owner(reference, owner)
+                .unwrap();
             reference
         };
         let first = borrow(left);
         let second = borrow(right);
         let nested = fixture.apply(first, first);
         let pair = fixture.apply(nested, nested);
-        let expected = vec![LifetimeParameterIdentity { declaration: left, ordinal: 0 }];
-        assert_eq!(retained_regions(&fixture.typed, &Default::default(), pair), Some(expected));
+        let expected = vec![LifetimeParameterIdentity {
+            declaration: left,
+            ordinal: 0,
+        }];
+        assert_eq!(
+            retained_regions(&fixture.typed, &Default::default(), pair),
+            Some(expected)
+        );
         let wrong = fixture.apply(first, second);
         let data = fixture.typed.data_application_definition(wrong).unwrap();
-        let refusal = checked_source_application(&fixture.typed, data, wrong, machine(), Default::default(), true).unwrap_err();
-        assert!(refusal.detail.contains("substituted member roster"), "{refusal:?}");
+        let refusal = checked_source_application(
+            &fixture.typed,
+            data,
+            wrong,
+            machine(),
+            Default::default(),
+            true,
+        )
+        .unwrap_err();
+        assert!(
+            refusal.detail.contains("substituted member roster"),
+            "{refusal:?}"
+        );
     }
 
     #[test]

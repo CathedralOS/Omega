@@ -271,12 +271,27 @@ impl Program<'_> {
                     Unserved::Type("record occurrence changed its template binder"),
                 ));
             }
-            let regions = super::source_records::retained_regions(typed, &application.scope, *supplied)
-                .ok_or_else(|| refuse_at(id, Unserved::Type("record occurrence lost its borrow regions")))?;
-            let original = super::source_records::retained_regions(typed, &application.scope, *original)
-                .ok_or_else(|| refuse_at(id, Unserved::Type("record template lost its borrow regions")))?;
+            let regions =
+                super::source_records::retained_regions(typed, &application.scope, *supplied)
+                    .ok_or_else(|| {
+                        refuse_at(
+                            id,
+                            Unserved::Type("record occurrence lost its borrow regions"),
+                        )
+                    })?;
+            let original =
+                super::source_records::retained_regions(typed, &application.scope, *original)
+                    .ok_or_else(|| {
+                        refuse_at(
+                            id,
+                            Unserved::Type("record template lost its borrow regions"),
+                        )
+                    })?;
             if regions.len() != original.len() {
-                return Err(refuse_at(id, Unserved::Type("record occurrence changed its borrowed argument tuple")));
+                return Err(refuse_at(
+                    id,
+                    Unserved::Type("record occurrence changed its borrowed argument tuple"),
+                ));
             }
             tuple.extend(regions.into_iter().map(super::regions::Region::Parameter));
         }

@@ -106,13 +106,18 @@ pub(crate) type Substitution = Vec<(LifetimeParameterIdentity, Region)>;
 
 /// Two source arguments can have the same lifetime at the first formation of
 /// a shared layout. That parameter can be rebound only if both uses agree.
-fn record_lifetime_bindings(own: &[Region], applied: &[Region]) -> Result<Substitution, &'static str> {
+fn record_lifetime_bindings(
+    own: &[Region],
+    applied: &[Region],
+) -> Result<Substitution, &'static str> {
     if own.len() != applied.len() {
         return Err("record applied at another number of regions than it declares");
     }
     let mut bindings = Vec::new();
     for (&parameter, &actual) in own.iter().zip(applied) {
-        let Region::Parameter(parameter) = parameter else { continue };
+        let Region::Parameter(parameter) = parameter else {
+            continue;
+        };
         if let Some((_, prior)) = bindings.iter().find(|(key, _)| *key == parameter) {
             if *prior != actual {
                 return Err("one retained record region has distinct occurrence arguments");
@@ -371,8 +376,17 @@ impl Program<'_> {
         let mut own = self.own_regions(source.declaration);
         if let Some(application) = &source.application {
             for (_, argument) in &application.substitutions {
-                let parameters = super::source_records::retained_regions(self.typed, &application.scope, *argument)
-                    .ok_or_else(|| refuse_at(id, Unserved::Typing("record application lost its argument regions")))?;
+                let parameters = super::source_records::retained_regions(
+                    self.typed,
+                    &application.scope,
+                    *argument,
+                )
+                .ok_or_else(|| {
+                    refuse_at(
+                        id,
+                        Unserved::Typing("record application lost its argument regions"),
+                    )
+                })?;
                 own.extend(parameters.into_iter().map(Region::Parameter));
             }
         }
@@ -401,7 +415,9 @@ impl Program<'_> {
                 .as_ref()
                 .is_some_and(|app| {
                     app.substitutions.iter().any(|(_, arg)| {
-                        app.scope.region_free_type_identity(self.typed, *arg).is_none()
+                        app.scope
+                            .region_free_type_identity(self.typed, *arg)
+                            .is_none()
                     })
                 })
             {
