@@ -81,6 +81,7 @@ pub(crate) struct PreparedApplication {
     template: SymbolHandle,
     enclosing_capture: bool,
     fixed: Option<Vec<semantic_vocabulary::ServiceId>>,
+    operational: Option<[terminal_psi::ContractDependency<bool, Vec<u32>>; 2]>,
     parameter_kinds: Vec<u8>,
     telescope: Vec<PreparedParameter>,
 }
@@ -373,6 +374,13 @@ pub(crate) fn declare(
                     if let Some(application) = &mut application
                         && machine.module_invocations().any(|call| call.static_reach_binding.is_some())
                     {
+                        application.operational = Some(terminal_semantics::calls::operational_dependencies::direct(
+                            &elaboration.module, machine, |binder| match application.telescope.get(binder as usize)? {
+                                PreparedParameter::Machine { upper_bound_may_suspend, upper_bound_may_block, .. } =>
+                                    Some([*upper_bound_may_suspend, *upper_bound_may_block]),
+                                _ => None,
+                            },
+                        )?);
                         application.fixed = Some(terminal_semantics::static_reach::fixed_specialization_reach(
                             &elaboration.module, machine,
                         )?);
@@ -1059,6 +1067,7 @@ fn application(
         template,
         enclosing_capture,
         fixed: None,
+        operational: None,
         parameter_kinds: Vec::with_capacity(bindings.len()),
         telescope: Vec::with_capacity(bindings.len()),
     });
@@ -1549,8 +1558,9 @@ pub(crate) fn close_specializations_with_bases(
                 // prevents the compilation from reaching publication.
                 return Ok(());
             };
-            let suspension_dependency = machine.published_may_suspend.into();
-            let blocking_dependency = machine.published_may_block.into();
+            let [suspension_dependency, blocking_dependency] = application.operational.unwrap_or_else(|| [
+                machine.published_may_suspend.into(), machine.published_may_block.into(),
+            ]);
             let has_static_calls = application.fixed.is_some();
             let fixed = application
                 .fixed

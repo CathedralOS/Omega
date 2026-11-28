@@ -197,7 +197,7 @@ impl Program<'_> {
                 .get(id)
                 .ok_or_else(|| unavailable(id, "callable has no retained signature"))?;
             let operational = signature.operational;
-            let policy = if let Some(policy) = self
+            let mut policy = if let Some(policy) = self
                 .declared_envelope_policies
                 .get(id)
                 .and_then(Option::as_ref)
@@ -272,6 +272,29 @@ impl Program<'_> {
             if original.is_none() {
                 *original = Some(policy.clone());
             }
+            let body = terminal_check_tables::row(bodies, id, id, Construct::Machine)?;
+            let uses = CallCollector::for_body(id, signature, body, &self.records)?;
+            if uses.iter().any(|call| call.static_binding.is_some())
+                && let Some(instance) = self.typed.machine_instantiation(*symbol)
+                    .map_err(|reason| unavailable(id, reason))?
+            {
+                let bindings = self.typed.expression_table
+                    .static_machine_application_bindings(instance.binding_application());
+                for position in uses.iter().filter_map(|call| call.static_binding) {
+                    let Some(bound) = bindings.get(position as usize)
+                        .and_then(|binding| self.typed.retained_static_machine_contract(binding.parameter))
+                    else { continue };
+                    // A closed call pays the selected worker's public bounds. Keep
+                    // the authored ceilings above for the generic and its checker.
+                    let bound = bound.signature();
+                    if bound.suspends && policy.suspends == Some(true) {
+                        policy.suspends = None;
+                    }
+                    if bound.blocks && policy.blocks == Some(true) {
+                        policy.blocks = None;
+                    }
+                }
+            }
             known.push(if abstract_requirements.binary_search(&id).is_ok() {
                 KnownAxes::of_policy(&policy)
             } else {
@@ -279,8 +302,7 @@ impl Program<'_> {
             });
             published.push(policy.initial());
             policies.push(policy);
-            let body = terminal_check_tables::row(bodies, id, id, Construct::Machine)?;
-            calls.push(CallCollector::for_body(id, signature, body, &self.records)?);
+            calls.push(uses);
         }
         loop {
             let mut changed = false;
@@ -1022,6 +1044,7 @@ fn union<T: Clone + Ord>(to: &mut Vec<T>, from: &[T]) {
     to.dedup();
 }
 struct Use<'a> {
+    static_binding: Option<u32>,
     /// The caller's callable formals the invoked value may be.
     selected_parameters: Vec<u32>,
     parameter_arguments: Vec<(usize, u32)>,
@@ -1209,6 +1232,7 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<
         }
         E::Call {
             callee,
+            static_reach_binding,
             required_contract,
             arguments,
             ..
@@ -1228,6 +1252,7 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<
                 collect_expression(argument, calls);
             }
             calls.sites.push(Use {
+                static_binding: *static_reach_binding,
                 selected_parameters,
                 parameter_arguments,
                 target: callee,
