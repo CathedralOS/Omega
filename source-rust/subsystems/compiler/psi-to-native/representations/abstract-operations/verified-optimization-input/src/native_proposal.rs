@@ -290,12 +290,6 @@ mod proposal {
             terminal_module,
         )
         .map_err(|message| vec![Diagnostic::error(message)])?;
-        provider_admission::validate_task_activations(
-            &terminal_module.execution.task_activation_demands,
-            &terminal_module.identities,
-            &selected,
-            target_profile,
-        )?;
         let checked_adapters = crate::component_inputs::local_adapters(
             artifact.view(),
             target_profile,

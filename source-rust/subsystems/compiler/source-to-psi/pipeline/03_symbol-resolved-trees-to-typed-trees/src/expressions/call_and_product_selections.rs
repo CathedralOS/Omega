@@ -1397,6 +1397,7 @@ pub(crate) mod capture_product_operands {
 }
 
 pub(crate) mod construction_destinations {
+    use crate::expressions::operand_owners::CohortOperandOwners;
     use crate::source_state::TypedTrees;
     use crate::source_state::deferred_refusals::DeferredRequest;
     use crate::source_state::expression::{
@@ -1430,14 +1431,13 @@ pub(crate) mod construction_destinations {
             .map(|symbol| crate::lowerer::symbol_key(*symbol))
             .collect::<Vec<_>>();
         completed.sort_unstable();
-        let owners = crate::expressions::operand_owners::CohortOperandOwners::full(program);
         prepare_inner(
             source,
             program,
             expression_frontier,
             machine_frontier,
             &completed,
-            &owners,
+            &CohortOperandOwners::full,
         )
     }
 
@@ -1445,7 +1445,6 @@ pub(crate) mod construction_destinations {
         source: &crate::source_resolved::SymbolResolvedTrees,
         program: &mut TypedTrees,
         cohort: &crate::lowerer::TypingCohort<'_>,
-        owners: &crate::expressions::operand_owners::CohortOperandOwners,
     ) -> Result<Vec<TypeReferenceHandle>, Diagnostic> {
         let mut completed = cohort
             .completed_machines
@@ -1459,17 +1458,20 @@ pub(crate) mod construction_destinations {
             cohort.typed_expressions,
             cohort.typed_machines,
             &completed,
-            owners,
+            &|program| CohortOperandOwners::collect(program, cohort),
         )
     }
 
+    /// `collect_owners` builds an owner table for the program as it is when
+    /// called. This pass writes the program before it lands values and again
+    /// before it defers, so each of those steps builds its own table.
     fn prepare_inner(
         source: &crate::source_resolved::SymbolResolvedTrees,
         program: &mut TypedTrees,
         expression_frontier: usize,
         machine_frontier: usize,
         completed: &[(u32, u32)],
-        owners: &crate::expressions::operand_owners::CohortOperandOwners,
+        collect_owners: &dyn Fn(&TypedTrees) -> CohortOperandOwners,
     ) -> Result<Vec<TypeReferenceHandle>, Diagnostic> {
         let mut destinations = Vec::<(ExpressionHandle, TypeReferenceHandle, SymbolHandle)>::new();
         let mut calls = Vec::new();
@@ -1734,7 +1736,8 @@ pub(crate) mod construction_destinations {
                 destinations.push((argument, reference, call.target));
             }
         }
-        let mut receiving = DestinationPreparation::new(source, owners);
+        let owners = collect_owners(program);
+        let mut receiving = DestinationPreparation::new(source, &owners);
         receiving.mark_pending(program, &pending_destinations);
         for (value, destination, lifetime_owner) in destinations {
             receiving.land_one(program, value, destination, lifetime_owner)?;
@@ -1799,7 +1802,7 @@ pub(crate) mod construction_destinations {
                 .into_iter()
                 .map(|constructor| (constructor, DeferredRequest::ConstructorFieldSelection)),
         );
-        defer_to_holders(program, owners, deferred)?;
+        defer_to_holders(program, collect_owners, deferred)?;
         Ok(receiving.cast_destinations)
     }
 
@@ -1826,12 +1829,15 @@ pub(crate) mod construction_destinations {
     /// refuses here.
     fn defer_to_holders(
         program: &mut TypedTrees,
-        owners: &crate::expressions::operand_owners::CohortOperandOwners,
+        collect_owners: &dyn Fn(&TypedTrees) -> CohortOperandOwners,
         deferred: Vec<(ExpressionHandle, DeferredRequest)>,
     ) -> Result<(), Diagnostic> {
         if deferred.is_empty() {
             return Ok(());
         }
+        // Landing created expressions and linked types since the pass's
+        // first table, and a deferred value can be one of them.
+        let owners = collect_owners(program);
         let mut rows = Vec::new();
         for (value, request) in deferred {
             let source_span = program.expression_table.source_span(value);
@@ -4127,6 +4133,7 @@ pub(crate) mod qualification_casts {
     use crate::declaration_selection::AuthoredDeclarationSelectionKind;
     use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding;
     use crate::declaration_selection::AuthoredDeclarationSelectionTarget;
+    use crate::expressions::operand_owners::CohortOperandOwners;
     use crate::source_state::TypedTrees;
     use crate::source_state::expression::ExpressionNode;
     use crate::source_state::types::{
@@ -4141,7 +4148,6 @@ pub(crate) mod qualification_casts {
         source: &crate::source_resolved::SymbolResolvedTrees,
         program: &mut TypedTrees,
         cohort: &crate::lowerer::TypingCohort<'_>,
-        owners: &crate::expressions::operand_owners::CohortOperandOwners,
         cast_destinations: &[TypeReferenceHandle],
     ) -> Result<(), Diagnostic> {
         let expression_frontier = cohort.typed_expressions;
@@ -4180,11 +4186,13 @@ pub(crate) mod qualification_casts {
                 target.result_type = result.unwrap_or_default();
             }
         }
+        // The owner walk follows the result types written above.
+        let owners = CohortOperandOwners::collect(program, cohort);
         crate::expressions::expression_meanings::prepare_in_cohort(
             source,
             program,
             cohort,
-            owners,
+            &owners,
             cast_destinations,
         )?;
         let mut updates = Vec::with_capacity(sites.len());

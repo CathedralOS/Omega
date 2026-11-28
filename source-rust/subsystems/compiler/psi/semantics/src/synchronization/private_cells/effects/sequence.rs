@@ -1,10 +1,13 @@
-//! Interpret one verified unit-returning path symbolically. An owned guard
+//! Interpret one verified returning path symbolically. An owned guard
 //! contributes its cleanup writes only when that exact value is consumed.
 use super::super::activation::{Bindings, Destination, Frame};
 use super::super::storage::{Location, Storage, Stored};
 use super::super::successor;
 use super::guards::{OwnedGuardLocks, guard_locks};
-use super::{AtomicWrite, Decision, Effect, NormalEffects, Operand, ScalarFact, Selector, Subject};
+use super::{
+    AtomicWrite, Decision, Effect, NormalEffects, Operand, ReturnedScalar, ScalarFact, Selector,
+    Subject,
+};
 use crate::synchronization::facts::Facts;
 use crate::synchronization::progress::entry_scalars;
 use crate::synchronization::selected::SelectedCall;
@@ -86,6 +89,7 @@ fn effects_on_path(
     }
     let mut frame = Frame::enter(machine, bindings, Destination::Unit)?;
     let mut effects = NormalEffects::default();
+    let mut observations = Some(0usize);
     let mut guards = Vec::new();
     let mut constructors = Facts::<MachineId, Option<OwnedGuardLocks>>::default();
     loop {
@@ -106,7 +110,7 @@ fn effects_on_path(
                         &roots,
                     )
                 };
-                if matches!(op.result, terminal_psi::OperationResult::Unit) {
+                if !matches!(op.result, terminal_psi::OperationResult::Structural(_)) {
                     let mut nested = completed.get(&id)?.as_ref()?.clone();
                     nested.map_subjects(|subject| {
                         *subject = project(subject)?;
@@ -124,6 +128,27 @@ fn effects_on_path(
                         let operand = operand(machine, *frame.bindings.values.get(actual)?)?;
                         (operand.scalar_type() == scalar_type).then_some(operand)
                     })?;
+                    if let Some(result) = op.result.as_scalar() {
+                        let returned = match nested.returned_scalar(decide)? {
+                            ReturnedScalar::Operand(operand) => operand.binding(&|index| {
+                                let formal = machine.parameters.get(index)?;
+                                frame.bindings.values.get(&formal.id).copied()
+                            })?,
+                            ReturnedScalar::Observation {
+                                ordinal,
+                                scalar_type,
+                            } => ScalarFact::Observation {
+                                occurrence: observations?.checked_add(ordinal)?,
+                                scalar_type,
+                                pending_provider: false,
+                            },
+                        };
+                        (result.scalar_type == returned.ty()).then_some(())?;
+                        frame.bindings.values.insert(result.id, returned);
+                    }
+                    observations = observations
+                        .zip(nested.observation_count())
+                        .and_then(|(before, count)| before.checked_add(count));
                     effects.append_call(nested, program_size)?;
                     continue;
                 }
@@ -160,6 +185,7 @@ fn effects_on_path(
                     memory.allocate(Stored::Guard(guard)),
                 );
             } else {
+                let mut sampled = None;
                 match &op.kind {
                     OperationKind::AtomicAccess {
                         place,
@@ -171,6 +197,27 @@ fn effects_on_path(
                         let subject = subject_of(&roots, &target)?;
                         let value = operand(machine, *frame.bindings.values.get(value)?)?;
                         effects.push(Effect::Write(AtomicWrite { subject, value }));
+                    }
+                    OperationKind::AtomicAccess {
+                        place,
+                        path,
+                        event,
+                        resident_obligation: None,
+                    } => {
+                        let result = op.result.as_scalar()?;
+                        let target = memory.locate(&frame.bindings, *place, path)?;
+                        let subject = subject_of(&roots, &target)?;
+                        let update = super::AtomicWordUpdate::from_observation(event, |input| {
+                            operand(machine, *frame.bindings.values.get(&input)?)
+                        })?;
+                        let ordinal = observations?;
+                        observations = ordinal.checked_add(1);
+                        effects.push(Effect::Observe {
+                            subject,
+                            update,
+                            scalar_type: result.scalar_type,
+                        });
+                        sampled = Some((result, ordinal));
                     }
                     OperationKind::AtomicAccess { .. } => return None,
                     OperationKind::MoveStructuralValue { source }
@@ -204,6 +251,16 @@ fn effects_on_path(
                     _ => {}
                 }
                 frame.step(module, op, &mut memory)?;
+                if let Some((value, ordinal)) = sampled {
+                    frame.bindings.values.insert(
+                        value.id,
+                        ScalarFact::Observation {
+                            occurrence: ordinal,
+                            scalar_type: value.scalar_type,
+                            pending_provider: false,
+                        },
+                    );
+                }
             }
         }
         let mut next = successor::prepare(module, &mut frame, &mut memory)?;
@@ -240,8 +297,25 @@ fn effects_on_path(
             }
         }
         if frame.arrival.is_none() {
-            if !matches!(frame.block.terminator, Terminator::ReturnUnit { .. }) {
-                return None;
+            match frame.block.terminator {
+                Terminator::ReturnUnit { .. } => {}
+                Terminator::Return { value, .. } => {
+                    let result = match *frame.bindings.values.get(&value)? {
+                        ScalarFact::Observation {
+                            occurrence,
+                            scalar_type,
+                            pending_provider: false,
+                        } => ReturnedScalar::Observation {
+                            ordinal: occurrence,
+                            scalar_type,
+                        },
+                        other => ReturnedScalar::Operand(operand(machine, other)?),
+                    };
+                    for path in &mut effects.paths {
+                        path.scalar_result = Some(result);
+                    }
+                }
+                _ => return None,
             }
             effects.compact_stores();
             return Some(effects);

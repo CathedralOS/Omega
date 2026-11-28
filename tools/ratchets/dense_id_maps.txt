@@ -22,8 +22,8 @@
 7 source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions/src/instruction_selection/selection.rs
 1 source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions/src/instruction_selection/selection/inputs.rs
 1 source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions/src/instruction_selection/selection/scalar_graph.rs
-8 source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit-semantics/src/current_ownership.rs
-9 source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit-semantics/src/descriptor_results.rs
+6 source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit-semantics/src/current_ownership.rs
+8 source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit-semantics/src/descriptor_results.rs
 1 source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit-semantics/src/unit_validation.rs
 1 source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit/src/construction.rs
 2 source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit/src/graph.rs

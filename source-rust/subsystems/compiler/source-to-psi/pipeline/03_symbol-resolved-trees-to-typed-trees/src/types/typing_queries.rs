@@ -868,6 +868,9 @@ pub(crate) fn scoped_expression_type_reference(
                     return Err(crate::unavailable_judgment("saved value source type"));
                 }
             },
+            // The exchange's checked result is a structural outcome. Its receiver
+            // is storage, so it cannot supply the result type of this call.
+            ExpressionNode::Atomic(atomic) if atomic.exchange_operands.is_some() => None,
             ExpressionNode::Atomic(atomic) => visit(
                 program,
                 parameters,
@@ -1187,14 +1190,14 @@ pub(crate) fn defer_unbound_calls(
     completed: &[SymbolHandle],
 ) -> Result<(), Diagnostic> {
     let cohort = crate::lowerer::TypingCohort::for_machines(frontier, completed);
-    let mut owners = crate::expressions::operand_owners::CohortOperandOwners::full(program);
-    defer_unbound_calls_in_cohort(program, &cohort, &mut owners)
+    let owners = crate::expressions::operand_owners::CohortOperandOwners::full(program);
+    defer_unbound_calls_in_cohort(program, &cohort, &owners)
 }
 
 pub(crate) fn defer_unbound_calls_in_cohort(
     program: &mut TypedTrees,
     cohort: &crate::lowerer::TypingCohort<'_>,
-    owners: &mut crate::expressions::operand_owners::CohortOperandOwners,
+    owners: &crate::expressions::operand_owners::CohortOperandOwners,
 ) -> Result<(), Diagnostic> {
     use crate::source_state::statement::TransitionTargetNode;
     let mut in_expressions = Vec::new();
@@ -1438,12 +1441,6 @@ pub(crate) fn defer_unbound_calls_in_cohort(
             }
         }
         if !in_expressions.is_empty() {
-            if in_expressions
-                .iter()
-                .any(|(handle, ..)| handle.arena_index() as usize > owners.covered_expressions())
-            {
-                owners.refresh(program, cohort);
-            }
             for (handle, request, bare, path) in in_expressions {
                 let source_span = program.expression_table.source_span(handle);
                 let mut owned = false;

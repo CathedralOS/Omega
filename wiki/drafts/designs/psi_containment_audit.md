@@ -96,9 +96,12 @@ The runtime host's bindings, reviewed one by one:
 
 ## Contained runtime admission
 
-[Owner question 2](../../../OWNER_QUESTIONS.md#contained-runtime-admission)
-lets runtime admission run over a contained artifact, so the interpreter gets
-the host's reviewed realizations for saved Psi it does not trust.
+Runtime admission runs over a contained artifact, so the interpreter gets the
+host's reviewed realizations for saved Psi it does not trust. Jarod chose this
+over a separate contained settlement planner, which would duplicate provider
+selection and target binding. The stages that runtime admission shares with
+native compilation take either admission. Everything after it requires
+producer trust.
 
 | Rule | How it holds | Evidence |
 | --- | --- | --- |

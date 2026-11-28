@@ -872,7 +872,12 @@ pub mod expression {
                     }
                     Self::Atomic(atomic) => {
                         let _ = write!(out, "atomic[{:?}](", atomic.ordering);
-                        table.write_display_name(atomic.value, out);
+                        for (index, input) in atomic.inputs().enumerate() {
+                            if index != 0 {
+                                out.push_str(", ");
+                            }
+                            table.write_display_name(input, out);
+                        }
                         out.push(')');
                     }
                     Self::Binary(binary) => binary.write_display_name_with(table, out),
@@ -1929,7 +1934,9 @@ pub mod expression {
                         }
                     }
                     ExpressionNode::Atomic(atomic) => {
-                        self.remap_symbols_in_inner(atomic.value, symbols, visited);
+                        for input in atomic.inputs() {
+                            self.remap_symbols_in_inner(input, symbols, visited);
+                        }
                         self.remap_symbols_in_inner(atomic.result, symbols, visited);
                     }
                     ExpressionNode::Binary(binary) => {
@@ -2259,8 +2266,14 @@ pub mod expression {
                         );
                         let result =
                             self.copy_optional_subtree(source, atomic.result, retain, copies);
+                        let exchange_operands = atomic.exchange_operands.map(|operands| {
+                            operands.map(|operand| {
+                                self.copy_subtree_with_occurrences(source, operand, retain, copies)
+                            })
+                        });
                         self.insert(ExpressionNode::Atomic(TableAtomicExpression {
                             value,
+                            exchange_operands,
                             result,
                             ordering: atomic.ordering,
                             result_custody: atomic.result_custody,
@@ -4863,9 +4876,18 @@ pub mod expression {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
     pub struct TableAtomicExpression {
         pub value: ExpressionHandle,
+        /// Comparing exchanges store their receiver in `value` and retain
+        /// the authored expected and replacement expressions here, in order.
+        pub exchange_operands: Option<[ExpressionHandle; 2]>,
         pub result: ExpressionHandle,
         pub ordering: language_core::atomic::AtomicOrderingPlan,
         pub result_custody: language_core::atomic::AtomicExpressionResultCustody,
+    }
+
+    impl TableAtomicExpression {
+        pub fn inputs(self) -> impl Iterator<Item = ExpressionHandle> {
+            std::iter::once(self.value).chain(self.exchange_operands.into_iter().flatten())
+        }
     }
 
     impl Default for ExpressionNode {
@@ -5844,15 +5866,6 @@ mod pattern_components {
 pub mod subtrees {
     use crate::source_state::expression::{ExpressionHandle, ExpressionNode};
 
-    /// The source operands retained by an atomic single-attempt observation.
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct AtomicCarrierAccess {
-        pub operation: access_vocabulary::AtomicAccessOperation,
-        pub place: ExpressionHandle,
-        pub operands: Vec<ExpressionHandle>,
-        pub result: ExpressionHandle,
-    }
-
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     pub struct SubtreeEdges {
         pub saved_sources: bool,
@@ -5884,51 +5897,27 @@ pub mod subtrees {
     }
 
     impl crate::source_state::TypedTrees {
-        pub fn atomic_once_operands(
+        /// The two source operands belong to the same checked exchange. The
+        /// receiver is `atomic.value`; an exchange has no second result binding.
+        pub fn atomic_exchange_operands(
             &self,
             atomic: &crate::source_state::expression::TableAtomicExpression,
-        ) -> Option<AtomicCarrierAccess> {
-            use access_vocabulary::AtomicAccessOperation;
+        ) -> Option<[ExpressionHandle; 2]> {
             use language_core::atomic::AtomicOrderingPlan;
-            let AtomicOrderingPlan::CompareExchangeOnce { success, failure } = atomic.ordering
-            else {
-                return None;
+            let (success, failure) = match atomic.ordering {
+                AtomicOrderingPlan::CompareExchange { success, failure }
+                | AtomicOrderingPlan::CompareExchangeOnce { success, failure } => (success, failure),
+                _ => return None,
             };
-            if !atomic.result_custody.is_valid_for(atomic.ordering)
-                || atomic.result.is_valid()
+            if atomic.result.is_valid()
+                || !atomic.result_custody.has_structural_result()
+                || !atomic.result_custody.is_valid_for(atomic.ordering)
                 || !failure.valid_compare_exchange_failure(success)
+                || !atomic.inputs().all(|input| self.expression_table.expression_is_valid(input))
             {
                 return None;
             }
-            let language_core::atomic::AtomicExpressionResultCustody::CompareExchangeOnce(custody) =
-                atomic.result_custody
-            else {
-                return None;
-            };
-            let ExpressionNode::Call(call) = self.expression_table.expression(atomic.value) else {
-                return None;
-            };
-            let [expected, replacement] = self.expression_table.expression_handles(call.arguments)
-            else {
-                return None;
-            };
-            if !call.receiver.is_valid()
-                || call.target.as_str() != custody.observation.single_attempt_member_name()
-                || !call.machine_arguments.is_empty()
-                || !call.evidence_arguments.is_empty()
-            {
-                return None;
-            }
-            Some(AtomicCarrierAccess {
-                operation: AtomicAccessOperation::single_attempt(
-                    custody.observation,
-                    success,
-                    failure,
-                ),
-                place: call.receiver,
-                operands: vec![*expected, *replacement],
-                result: ExpressionHandle::invalid(),
-            })
+            atomic.exchange_operands
         }
 
         /// Direct source children in operand order. Atomic observation
@@ -5938,15 +5927,6 @@ pub mod subtrees {
             node: &ExpressionNode,
             mut child: impl FnMut(ExpressionHandle),
         ) {
-            if let ExpressionNode::Atomic(atomic) = node
-                && let Some(once) = self.atomic_once_operands(atomic)
-            {
-                child(once.place);
-                for operand in once.operands {
-                    child(operand);
-                }
-                return;
-            }
             self.subtree_children(node, SubtreeEdges::STRUCTURAL, |expression| {
                 child(expression);
                 false
@@ -6062,7 +6042,10 @@ pub mod subtrees {
                     }
                 }
                 ExpressionNode::Atomic(atomic) => {
-                    let _ = child(atomic.value) || (edges.atomic_results && child(atomic.result));
+                    let _ = atomic.inputs().any(&mut child)
+                        || (edges.atomic_results
+                            && atomic.result.is_valid()
+                            && child(atomic.result));
                 }
                 ExpressionNode::ArrayLiteral(values) => {
                     let _ = table

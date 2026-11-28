@@ -440,11 +440,9 @@ impl Lowering<'_> {
                 Ok(Reached::Value(Value::Unit))
             }
             ExpressionKind::Atomic(operation) => match operation {
-                crate::body::AtomicOperation::Access {
-                    place,
-                    event,
-                    operands,
-                } => self.atomic_access(place, *event, operands, result, source),
+                crate::body::AtomicOperation::Access(access) => {
+                    self.atomic_access(access, expression.result, source)
+                }
                 crate::body::AtomicOperation::Fence(ordering) => {
                     let operation = self.operation_identity(source);
                     self.emit(

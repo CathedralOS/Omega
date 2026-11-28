@@ -1,6 +1,6 @@
 //! `omega run app.psi` without `--trusted-artifact` interprets saved Psi the
-//! host does not trust, contained (OWNER_QUESTIONS.md, "May runtime admission
-//! run over saved Psi that the host does not trust?"). It gets the host's
+//! host does not trust, contained
+//! (wiki/drafts/designs/psi_containment_audit.md, "Contained runtime admission"). It gets the host's
 //! reviewed bindings and standard streams, but no native code, no live
 //! filesystem yet and no native compilation.
 

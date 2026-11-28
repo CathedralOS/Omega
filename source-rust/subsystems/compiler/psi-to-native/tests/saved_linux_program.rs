@@ -310,9 +310,9 @@ fn assert_native_exit(bytes: &[u8]) {
     );
 }
 
-/// OWNER_QUESTIONS.md, "May runtime admission run over saved Psi that the host
-/// does not trust?": a contained admission selects host realizations for the
-/// interpreter, but never reaches the optimizer or native code.
+/// Contained runtime admission (wiki/drafts/designs/psi_containment_audit.md):
+/// a contained admission selects host realizations for the interpreter, but
+/// never reaches the optimizer or native code.
 #[test]
 fn contained_saved_psi_is_admitted_for_the_interpreter_and_refused_native_code() {
     let contained_target = |artifact: CanonicalTerminalArtifact| {

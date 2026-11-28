@@ -123,11 +123,6 @@ impl PsiOptimizationUnit {
             .map(|index| &self.functions[index])
     }
 
-    pub fn function_mut(&mut self, machine: MachineId) -> Option<&mut PsiOptimizationFunction> {
-        self.function_index(machine)
-            .map(|index| &mut self.functions[index])
-    }
-
     pub fn function_index(&self, machine: MachineId) -> Option<usize> {
         self.functions
             .binary_search_by_key(&machine, |function| function.machine)
