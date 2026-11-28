@@ -608,6 +608,11 @@ operational checks; providers are judged separately as supplies. Other
 selected declarations, including ordinary traits and operator families, are
 refused.
 
+A closed caller-controlled park names its sealed core declaration, the
+selected reply type and the call's suspension crossing. Lowering obtains
+that declaration through the generated machine's source template. A
+similarly named package declaration does not acquire its execution meaning.
+
 A supply (`Supply { slot, provider }`) names a boundary trait or one of its
 requirements and the provider chosen for it, by a Build selection or by
 supply settlement for a requirement the compilation reaches. The provider

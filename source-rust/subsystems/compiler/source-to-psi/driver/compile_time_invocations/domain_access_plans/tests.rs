@@ -148,6 +148,42 @@ fn typed_source(source: &str) -> crate::source_state::TypedTrees {
     .expect("type actual candidate core and allocation with matching compiler catalog")
 }
 
+#[test]
+fn only_the_checked_issuer_can_make_a_pair_of_funded_reply_handles() {
+    let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("pipeline/06_lowered-program-to-checked-program/tests/fixtures/owned_activation");
+    for (fixture, permitted) in [("positive/issue_pair", true), ("negative/forge_pair", false)] {
+        let source = std::fs::read_to_string(directory.join(fixture).join("main.omg")).unwrap();
+        let mut typed = schema_customer_source::source_with_core(
+            &fixture_repository::root().join("source/library"), &source,
+            semantic_vocabulary::PackageKeyIdentity::from_digest([0xA1; 32]).unwrap(), &[],
+        ).unwrap();
+        let entries = [typed.realized_machine_named("main").unwrap().symbol];
+        let request = production::TerminalSourceCompilation {
+            calling: None, providers: None, declaration_metadata: &[], entries: &entries,
+            subjects: &[], purpose: source_provenance::DependencyScope::Product,
+            selected: &[], bindings: &[], supplies: &[],
+        };
+        evaluate(&mut typed, request, &mut SourceCompletionAccounting::default())
+            .expect("evaluate the actual reply issuance policy");
+        let policy = typed.domain_definitions.iter().map(|(_, d)| d)
+            .find(|d| d.name.as_str() == "Publication::Issued").and_then(|d| d.access_policy.as_ref()).unwrap();
+        assert!(matches!(policy.plan, crate::source_state::domain::AccessPlanJudgment::Checked(_)),
+            "the selected issuer and writer restriction must have been checked: {:?}", policy.plan);
+        let prepared = preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
+        let judged = judge_lowered_source::judge_terminal_source(prepared, request,
+            terminal_codec::TerminalPublication::Portable);
+        if permitted {
+            let accepted = judged.expect("the checked issuer transfers both borrows of the funded slot");
+            let bytes = terminal_codec::encode_module(accepted.module()).unwrap();
+            terminal_codec::decode_module(&bytes).unwrap();
+        } else {
+            let diagnostics = judged.err().expect("an equally shaped pair from another issuer must reject");
+            assert!(diagnostics.iter().any(|d| d.message.contains("not one of the domain's establishment routes")), "{diagnostics:?}");
+        }
+    }
+}
+
 fn reflected_schema(
     typed: &crate::source_state::TypedTrees,
     prepared: &PreparedBuildMachineProgram,

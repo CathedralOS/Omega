@@ -110,6 +110,16 @@ impl TypedTrees {
         self.symbols.core_vocabulary(original)
     }
 
+    /// Closing a generic callable changes its application, not the issuer
+    /// of the primitive. Authenticate the actual template's source bytes.
+    pub fn sealed_callable(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<language_core::sealed_intrinsics::SealedIntrinsic> {
+        let template = self.machine_specialization(symbol).map_or(symbol, |row| row.template);
+        self.symbols.sealed_intrinsic(template)
+    }
+
     pub fn checks_authored_selection(
         &self,
         selection: &crate::source_selections::AuthoredDeclarationSelection,

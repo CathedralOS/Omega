@@ -588,6 +588,7 @@ pub(crate) fn is_direct_compiler_primitive(
             terminal_psi::CheckedBoundaryExecution::HostedPrimitive { .. }
                 | terminal_psi::CheckedBoundaryExecution::NumericPrimitive
                 | terminal_psi::CheckedBoundaryExecution::LayoutTargetFacts
+                | terminal_psi::CheckedBoundaryExecution::OwnedActivation(_)
         )
     })
 }

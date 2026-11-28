@@ -7,6 +7,35 @@
 // cannot be reconstructed from addresses, lengths, or ordinary record fields.
 public data Activation {}
 
+// The publication owns its request. Only its matching one-shot reply can
+// resume this visit; another request for the same reply type does not match.
+public boundary data ParkRequest<Reply> [linear];
+
+public boundary data AnswerPermit<Reply> [linear];
+
+public data ReplyPair<Reply> {
+    request: ParkRequest<Reply>;
+    permit: AnswerPermit<Reply>;
+}
+
+public data ParkReply<Reply> {
+    permit: AnswerPermit<Reply>;
+    value: Reply;
+}
+
+// The sender keeps the request and publishes the permit with the item.
+// Pair construction neither runs an activation nor makes it ready.
+public boundary machine new_reply_pair<Reply>() -> ReplyPair<Reply>
+    reaches none crashes none;
+
+public machine answer<Reply>(permit: AnswerPermit<Reply>, value: Reply) -> ParkReply<Reply>
+    reaches none crashes none {
+    ParkReply { permit: permit, value: value }
+}
+
+public boundary machine park<Reply>(request: ParkRequest<Reply>) -> Reply
+    reaches none crashes none suspends;
+
 public boundary data ActivationClaim [linear];
 
 public data ActivationClaimAttempt {

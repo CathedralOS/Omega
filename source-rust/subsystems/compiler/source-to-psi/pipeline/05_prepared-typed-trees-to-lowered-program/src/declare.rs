@@ -1297,6 +1297,10 @@ pub(crate) fn access_caller_route(
             Some(&application.commitment),
         );
         (application.template, identity)
+    } else if selected.is_bare_declaration() && !typed.machine_type_parameters(machine).is_empty() {
+        // The exact template's issuer is already checked against each
+        // specialization. This is not a closed callable commitment.
+        (NominalDeclarationIdentity::new(nominal(typed, sources, machine.symbol, identities)?), callable)
     } else {
         use crate::source_state::data::TypeParameterKind;
         use crate::source_state::static_applications::{
@@ -1835,13 +1839,14 @@ pub(crate) fn boundary(
 
     let intrinsic = match execution {
         CheckedBoundaryExecution::LayoutTargetFacts => Some(SealedIntrinsic::LayoutTargetFacts),
+        CheckedBoundaryExecution::OwnedActivation(operation) => Some(SealedIntrinsic::OwnedActivation(operation)),
         CheckedBoundaryExecution::NumericPrimitive => {
             Some(SealedIntrinsic::FloatOperationRequirement)
         }
         _ => None,
     };
     if let Some(intrinsic) = intrinsic {
-        if typed.symbols.sealed_intrinsic(symbol) != Some(intrinsic) {
+        if typed.sealed_callable(symbol) != Some(intrinsic) {
             return Err(Diagnostic::error(
                 "primitive publisher lost its exact catalog declaration",
             ));
@@ -2057,6 +2062,18 @@ fn top_level_boundary(
         published,
     )
     .map_err(Diagnostic::error)?;
+    let (specialization, method_arguments) = if let Some(row) = typed.machine_specialization(symbol) {
+        let (application, prepared) = application(typed, &sources, symbol, row.template, &[], identities)
+            .map_err(Diagnostic::error)?;
+        let prepared = prepared.ok_or_else(|| Diagnostic::error("primitive has no closed argument record"))?;
+        let arguments = prepared.telescope.iter().map(|parameter| match parameter {
+            PreparedParameter::Ready(ClosedReachParameter::Type { argument }) => Ok(terminal_psi::ClosedReachArgument::Type(identities.intern(argument))),
+            _ => Err(Diagnostic::error("primitive has an unsupported generic argument kind")),
+        }).collect::<Result<Vec<_>, _>>()?;
+        (Some(application), arguments)
+    } else {
+        (None, Vec::new())
+    };
     let source = CheckedMachineDeclaration {
         machine: owner.clone(),
         state: NominalDeclarationIdentity::new(
@@ -2073,7 +2090,7 @@ fn top_level_boundary(
         contract,
         published_may_suspend: operational[0],
         published_may_block: operational[1],
-        specialization: None,
+        specialization,
     };
     Ok((
         owner,
@@ -2081,7 +2098,7 @@ fn top_level_boundary(
             service_declaration: service_declaration.unwrap_or(contract),
             source,
             execution,
-            method_arguments: Vec::new(),
+            method_arguments,
         },
     ))
 }
@@ -2461,7 +2478,6 @@ pub(super) fn invocation_local(
 #[derive(Debug, Clone)]
 pub(crate) struct BoundaryDeclarationSource {
     pub callable: String,
-    pub owner: String,
     machine: String,
     state: String,
     semantic: String,
@@ -2555,7 +2571,6 @@ pub(crate) fn boundary_source(
     };
     Ok(BoundaryDeclarationSource {
         callable,
-        owner: nominal_text(owner)?,
         machine: nominal_text(machine)?,
         state: nominal_text(entry)?,
         semantic: typed
@@ -2764,7 +2779,6 @@ pub(crate) fn intrinsic_boundary_source(
     };
     Ok(BoundaryDeclarationSource {
         callable: intrinsic.requirement_identity,
-        owner: nominal.clone(),
         machine: nominal.clone(),
         state: nominal,
         semantic: typed

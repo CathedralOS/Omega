@@ -675,6 +675,9 @@ pub mod reflection {
                 if selected.symbol != machine.symbol && selected.symbol != entry.symbol {
                     return Err("a callable description cannot select a continuation state".into());
                 }
+                // A bare generic name describes the family. All other
+                // selections must have the exact prepared application.
+                if !(selected.is_bare_declaration() && !typed.machine_type_parameters(machine).is_empty()) {
                 if !selected.type_reference.is_valid()
                     || !typed
                         .type_reference_table
@@ -694,6 +697,7 @@ pub mod reflection {
                     return Err(
                         "a callable description has another declaration's application".into(),
                     );
+                }
                 }
                 let identity = crate::source_state::type_identity::portable_applied_index_identity(
                     typed,
