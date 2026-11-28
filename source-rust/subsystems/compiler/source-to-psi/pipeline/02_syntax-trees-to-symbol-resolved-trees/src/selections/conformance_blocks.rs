@@ -11,6 +11,7 @@
 */
 
 use crate::declaration_selection::ResolvedAuthoredCallBinding;
+use crate::resolution::SelectedMachines;
 use crate::resolution::selections::body_calls::retarget_machine_calls;
 use crate::source_resolved::SymbolResolvedTrees;
 use crate::source_resolved::expression::StaticMachineArgument;
@@ -220,9 +221,9 @@ impl DefaultBodyScope {
     Constant initializers bind that same public requirement during constant
     finalization, before their authored selection is recorded.
 */
-pub(crate) fn route_named_implementation_calls(
+pub(in crate::resolution) fn route_named_implementation_calls(
     program: &mut SymbolResolvedTrees,
-    work: &[SymbolHandle],
+    work: &SelectedMachines,
 ) {
     let implementation_rows = program
         .conformances
@@ -254,7 +255,7 @@ pub(crate) fn route_named_implementation_calls(
         super::body_calls::retarget_machine_calls(
             program,
             machine,
-            work.contains(&machine),
+            work.contains(machine),
             &mut select_requirement,
         );
     }
@@ -462,9 +463,9 @@ fn named_requirement<'name>(
     A machine named by a selection row remains that ordinary machine: it has no
     enclosing conformance context and may be shared by several blocks.
 */
-pub(crate) fn route_conformance_requirement_calls(
+pub(in crate::resolution) fn route_conformance_requirement_calls(
     program: &mut SymbolResolvedTrees,
-    work: &[SymbolHandle],
+    work: &SelectedMachines,
 ) -> Result<(), Vec<Diagnostic>> {
     let trait_catalog = build_trait_catalog(program);
     let plans = program
@@ -486,31 +487,26 @@ pub(crate) fn route_conformance_requirement_calls(
 
     let mut hidden_calls = Vec::new();
     for (machine, plan) in bodies {
-        retarget_machine_calls(
-            program,
-            machine,
-            work.contains(&machine),
-            &mut |site| {
-                let routed = plan.binding(site).map(|binding| binding.selected);
-                if routed.is_none()
-                    && !site.requirement_application.is_valid()
-                    && !site.target_symbol.is_valid()
-                    && site.local_receiver
-                    && let Some(scope) = &plan.default_body
-                    && scope
-                        .hidden_names
-                        .iter()
-                        .any(|hidden| hidden.as_str() == site.member.as_str())
-                {
-                    hidden_calls.push((
-                        scope.declaring_trait,
-                        scope.implementation.clone(),
-                        site.member.clone(),
-                    ));
-                }
-                routed
-            },
-        );
+        retarget_machine_calls(program, machine, work.contains(machine), &mut |site| {
+            let routed = plan.binding(site).map(|binding| binding.selected);
+            if routed.is_none()
+                && !site.requirement_application.is_valid()
+                && !site.target_symbol.is_valid()
+                && site.local_receiver
+                && let Some(scope) = &plan.default_body
+                && scope
+                    .hidden_names
+                    .iter()
+                    .any(|hidden| hidden.as_str() == site.member.as_str())
+            {
+                hidden_calls.push((
+                    scope.declaring_trait,
+                    scope.implementation.clone(),
+                    site.member.clone(),
+                ));
+            }
+            routed
+        });
     }
     let diagnostics = hidden_calls
     .into_iter()

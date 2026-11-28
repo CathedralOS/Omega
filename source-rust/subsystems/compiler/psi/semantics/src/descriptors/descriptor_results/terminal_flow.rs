@@ -298,24 +298,7 @@ fn adapt_flow(
         calls: BTreeMap::new(),
         normal_exits: Vec::new(),
     };
-    for place in &machine.structural_places {
-        graph.places.push(DescriptorPlace {
-            producer: None,
-            place: place.id,
-            definition: terminal_definition(module, machine, place.id, place.kind)?,
-        });
-        if let Some(ty) = machine.structural_place_type(place.id) {
-            graph.place_types.insert(place.id, ty);
-        }
-    }
-    graph.places.sort_unstable_by_key(|row| row.place);
-    if graph
-        .places
-        .windows(2)
-        .any(|pair| pair[0].place == pair[1].place)
-    {
-        return None;
-    }
+    let declarations = definitions::adapt_places(machine, &mut graph)?;
     let location = |place_types: &BTreeMap<PlaceId, StructuralTypeId>, root, path: &[StructuralPathSegment], field| {
         descriptor_location(
             &module.types.structural_types,
@@ -539,23 +522,17 @@ fn adapt_flow(
             let result = operation.result.structural();
             if let Some(result) = result {
                 graph.payload_producers.insert(position, result.place);
-                let mut rows = machine
-                    .structural_places
-                    .iter()
-                    .filter(|row| row.id == result.place);
-                if rows.next()?.kind
+                let index = declarations
+                    .binary_search_by_key(&result.place, |row| row.id)
+                    .ok()?;
+                if declarations[index].kind
                     != (StructuralPlaceKind::OperationResult {
                         producer: operation.id,
                         structural_type: result.structural_type,
                     })
-                    || rows.next().is_some()
                 {
                     return None;
                 }
-                let index = graph
-                    .places
-                    .binary_search_by_key(&result.place, |row| row.place)
-                    .ok()?;
                 if graph.places[index].producer.replace(position).is_some() {
                     return None;
                 }

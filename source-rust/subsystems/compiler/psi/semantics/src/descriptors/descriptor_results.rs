@@ -83,6 +83,7 @@ pub use private_parameters::PrivateObservationInputs;
 pub(crate) mod provider_invocation;
 pub use provider_invocation::provider_invocation;
 pub(crate) use provider_invocation::provider_outputs_cover_writable_slots;
+mod definitions;
 pub(crate) mod terminal_flow;
 pub use invocation::{
     DescriptorMachineSignature, machine_invocation_for_signature, public_invocation,
@@ -1500,66 +1501,4 @@ pub(crate) fn terminal_graph_for(
     crate::module_analyses::ModuleAnalyses::new(module)
         .ok()?
         .module_rows(kind, selected_calls)
-}
-
-pub(crate) fn terminal_definition(
-    _module: &TerminalModule,
-    machine: &TerminalMachine,
-    place: PlaceId,
-    kind: StructuralPlaceKind,
-) -> Option<DescriptorDefinition> {
-    match kind {
-        StructuralPlaceKind::Parameter { position } => {
-            let (position, parameter) = exactly_one(
-                machine.structural_parameters.iter().enumerate(),
-                |(_, parameter)| parameter.place == place && parameter.position == position,
-            )?;
-            Some(DescriptorDefinition::Parameter {
-                position,
-                access: parameter.access,
-                structural_type: parameter.structural_type,
-            })
-        }
-        StructuralPlaceKind::ByteSequenceLiteral { .. } => {
-            let mut establishments = machine.operations().filter(|operation| matches!(operation.kind, OperationKind::EstablishByteSequenceLiteral { destination, .. } if destination == place));
-            establishments.next()?;
-            establishments
-                .next()
-                .is_none()
-                .then_some(DescriptorDefinition::Literal)
-        }
-        StructuralPlaceKind::BlockParameter { block, position } => {
-            let mut matching = machine
-                .blocks
-                .iter()
-                .filter(|candidate| candidate.id == block);
-            let block = matching.next()?;
-            if matching.next().is_some()
-                || block.structural_parameters.get(position as usize)?.place != place
-            {
-                return None;
-            }
-            Some(DescriptorDefinition::Arrival {
-                access: block.structural_parameters.get(position as usize)?.access,
-            })
-        }
-        StructuralPlaceKind::OperationResult {
-            producer,
-            structural_type,
-        } => {
-            let mut matching = machine
-                .operations()
-                .filter(|operation| operation.id == producer);
-            let operation = matching.next()?;
-            let result = operation.result.structural()?;
-            if matching.next().is_some()
-                || result.place != place
-                || result.structural_type != structural_type
-            {
-                return None;
-            }
-            Some(DescriptorDefinition::Local)
-        }
-        _ => Some(DescriptorDefinition::Local),
-    }
 }
