@@ -585,6 +585,7 @@ dependencies = [
  "symbols",
  "target",
  "terminal-codec",
+ "terminal-psi",
 ]
 
 [[package]]

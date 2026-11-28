@@ -24,6 +24,7 @@ product-publication = { path = "build/publication" }
 semantic-vocabulary = { path = "foundation/semantic-records" }
 source-compiler = { path = "source-to-psi" }
 target = { path = "psi-to-native/targets/target" }
+terminal-psi = { path = "psi" }
 psi-authorization = { path = "psi/artifact/authorization" }
 
 [dev-dependencies]
