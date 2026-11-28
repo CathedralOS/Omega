@@ -5563,36 +5563,36 @@ impl<'a> Lowering<'a> {
                 let stored = continuing!(self.scalar(value));
                 let operation = self.operation_identity(source);
 
-                let kind = if let Some(Step::Field { .. }) = steps.last() {
-                    let field = self
-                        .declared(
-                            *steps
-                                .last()
-                                .ok_or_else(|| self.internal("a field store lost its step"))?,
-                        )?
-                        .id;
-                    let storage = self.storage_path(
-                        &steps[..steps.len() - 1],
-                        ExecutionSite::Operation(operation),
-                        source,
-                    )?;
-                    OperationKind::StructuralScalarFieldStore {
-                        destination: root,
-                        path: storage,
-                        field,
-                        value: stored,
-                        range_obligation: None,
-                    }
-                } else {
-                    let storage =
-                        self.storage_path(&steps, ExecutionSite::Operation(operation), source)?;
-                    OperationKind::WriteOnlyPrimitiveStore {
-                        destination: root,
-                        path: storage,
-                        value: stored,
-                        range_obligation: None,
-                    }
-                };
+                let kind =
+                    if let Some((step @ Step::Field { owner, .. }, parent)) = steps.split_last() {
+                        let field = self.declared(*step)?.id;
+                        let storage =
+                            self.storage_path(parent, ExecutionSite::Operation(operation), source)?;
+                        if let Some(projection) = projected {
+                            let subject = StructuralArgument {
+                                place: root,
+                                path: storage.clone(),
+                                access: StructuralAccess::SharedBorrow,
+                            };
+                            self.package_store_site(projection, subject, *owner, field, operation)?;
+                        }
+                        OperationKind::StructuralScalarFieldStore {
+                            destination: root,
+                            path: storage,
+                            field,
+                            value: stored,
+                            range_obligation: None,
+                        }
+                    } else {
+                        let storage =
+                            self.storage_path(&steps, ExecutionSite::Operation(operation), source)?;
+                        OperationKind::WriteOnlyPrimitiveStore {
+                            destination: root,
+                            path: storage,
+                            value: stored,
+                            range_obligation: None,
+                        }
+                    };
                 self.emit(operation, None, kind)?;
                 self.write(
                     place,
