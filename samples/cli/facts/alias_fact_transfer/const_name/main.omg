@@ -10,30 +10,30 @@ domain Player::Alive
 requires
     self.health > 0;
 
-const HERO: Player in Player::Alive = Player { health: 3 };
+const HERO: Player in Player::Alive = Player { health: 3 } as +Player::Alive;
 
 data Main {
     player: Player;
     observed: i32;
 }
 
-machine Main::inspect(player: Player) -> i32
+machine inspect(player: Player) -> i32
 requires
     player in Player::Alive
 {
     player.health
 }
 
-machine Main::main(main: @mutable Main) {
-    let mutable copy: Player = HERO;
-    main.observed = Main::inspect(copy);
+machine observe_player(main: @mutable Main) {
+    let mutable copy: Player = HERO as -Player::Alive;
+    main.observed = inspect(copy);
 }
 
 machine entry() crashes Trap {
     let mutable a: Main = Main { player: Player { health: 42 }, observed: 0 };
-    Main::main(@mutable a);
+    observe_player(@mutable a);
     let mutable b: Main = Main { player: Player { health: 1 }, observed: 0 };
-    Main::main(@mutable b);
+    observe_player(@mutable b);
     transition a.observed == 3 && b.observed == 3 {
         true -> done(),
         _ -> bad()

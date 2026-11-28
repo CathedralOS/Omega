@@ -82,13 +82,6 @@ framework or a list of unimplemented features.
 - Cost: the representation directory still does not define this earlier boundary. Publish the admitted stage 05 result in the selected-instructions representation and keep its issuing authority with instruction selection. Stage 06 should consume that product and remain the owner of liveness and range preparation; do not make its completed `SelectedBody` accept missing analyses just to reuse the type at an earlier stage.
 - Reported: 2026-11-27, Codex, while following the same ownership defect upstream after separating the stage 06-to-07 and 07-to-08 products; inspected on `b2e3b070ad832`, no performance measurement.
 
-### Typed-tree storage also orchestrates preparation of whole-program applications
-- Category: 2. Knowledge crossing a boundary
-- Where: [stage 04 entry](source-rust/subsystems/compiler/source-to-psi/pipeline/04_typed-trees-to-prepared-typed-trees/src/lib.rs#L49), [conformance header preparation](source-rust/subsystems/compiler/source-to-psi/representations/typed-trees/callables/callable_applications.rs#L7714), and [constant settlement](source-rust/subsystems/compiler/source-to-psi/representations/typed-trees/type_records/data_applications.rs#L171)
-- Saw: the representation crate contains passes, not just records and local substitution operations. `prepare_conformance_requirement_headers` walks conformances and machines, selects requirements, materializes arguments and creates applications. `settle_const_argument` scans the type table, discovers dependent domains, extents and applications, mutates nodes, discards old views and prepares replacements. Stages 03 and 04 and the compile-time invocation driver invoke preparation through this shared crate. The callable file hides namespace, domain, signature, selection and requirement subsystems as inline modules among its `TypedTrees` implementations; the folder and root entry do not expose that sequence.
-- Cost: callers must know which representation methods constitute a pass and which tables they invalidate. This ownership problem is separate from the existing operand-owner-table timing concern. Give preparation an explicit stage-owned request and result, keep reusable substitution primitives below it, and publish completed application records in the representation. Expose those responsibilities in the directory and entry point; merely splitting the large file leaves the hidden preparation path intact.
-- Reported: 2026-11-27, Codex, while tracing stage and driver callers on `0c2c612084c53`; shared substitution itself is not the defect.
-
 <a id="resuming-a-typing-from-retained-source-costs-more-than-typing-afresh"></a>
 ### Completing demanded bodies repeats whole-program name resolution
 - Category: 4. Re-deriving

@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 mod snapshot_limits;
+mod stage_chart;
 
 struct OwnedWpr {
     instance: String,
@@ -260,11 +261,20 @@ pub fn run(plan_path: &Path, role: &str, backend: &str, directory: &Path) -> Res
         return Ok(false);
     }
     let extracted = (|| -> Result<(), String> {
+        let mut chart = None;
         match backend {
             "stages" => {
                 let diagnostics = std::fs::read_to_string(directory.join("subject.stderr"))
                     .map_err(|error| error.to_string())?;
-                result["timeline"] = compiler_timeline(&diagnostics)?;
+                let timeline = compiler_timeline(&diagnostics)?;
+                chart = Some(stage_chart::render(
+                    &plan.name,
+                    role,
+                    &timeline,
+                    &sample.compiler_stage_ms,
+                ));
+                result["timeline"] =
+                    serde_json::to_value(timeline).map_err(|error| error.to_string())?;
             }
             "selected-bodies" => {
                 let path = directory.join("typed/profile.log");
@@ -310,6 +320,11 @@ pub fn run(plan_path: &Path, role: &str, backend: &str, directory: &Path) -> Res
         if identities != experiment::snapshot(&original, &path)? {
             return Err("profile inputs or subject executable changed".into());
         }
+        if let Some(html) = chart {
+            std::fs::write(directory.join("stages.html"), html)
+                .map_err(|error| error.to_string())?;
+            result["chart"] = json!("stages.html");
+        }
         Ok(())
     })();
     if let Err(reason) = extracted {
@@ -323,7 +338,7 @@ pub fn run(plan_path: &Path, role: &str, backend: &str, directory: &Path) -> Res
 }
 
 /// Union the command spans. Their sum can count nested or concurrent work twice.
-fn compiler_timeline(text: &str) -> Result<Value, String> {
+fn compiler_timeline(text: &str) -> Result<stage_chart::Timeline<'_>, String> {
     let milliseconds = |s: &str| {
         s.trim()
             .parse::<f64>()
@@ -364,18 +379,34 @@ fn compiler_timeline(text: &str) -> Result<Value, String> {
             return Err(format!("timeline span exceeds total: {name}"));
         }
         if start > previous_end {
-            gaps.push(json!({"start_ms":previous_end,"end_ms":start}));
+            gaps.push(stage_chart::Interval {
+                start_ms: previous_end,
+                end_ms: start,
+            });
         }
         covered += (end - previous_end.max(start)).max(0.0);
         previous_end = previous_end.max(end);
-        rows.push(json!({"phase":name,"start_ms":start,"end_ms":end}));
+        rows.push(stage_chart::Phase {
+            phase: name,
+            interval: stage_chart::Interval {
+                start_ms: start,
+                end_ms: end,
+            },
+        });
     }
     if previous_end < total {
-        gaps.push(json!({"start_ms":previous_end,"end_ms":total}));
+        gaps.push(stage_chart::Interval {
+            start_ms: previous_end,
+            end_ms: total,
+        });
     }
-    Ok(
-        json!({"compiler_elapsed_ms":total,"covered_ms":covered,"unattributed_ms":(total-covered).max(0.0),"gaps":gaps,"spans":rows}),
-    )
+    Ok(stage_chart::Timeline {
+        compiler_elapsed_ms: total,
+        covered_ms: covered,
+        unattributed_ms: (total - covered).max(0.0),
+        gaps,
+        spans: rows,
+    })
 }
 
 #[cfg(test)]
@@ -384,9 +415,9 @@ mod timeline_tests {
     fn nested_spans_count_once_and_preserve_gaps() {
         let output = "5.000..8.000 ms (3.000 ms)  timeline / inner\n2.000..10.000 ms (8.000 ms)  timeline / outer\n11.000 ms  total elapsed";
         let result = super::compiler_timeline(output).unwrap();
-        assert_eq!(result["covered_ms"], 8.0);
-        assert_eq!(result["unattributed_ms"], 3.0);
-        assert_eq!(result["gaps"].as_array().unwrap().len(), 2);
+        assert_eq!(result.covered_ms, 8.0);
+        assert_eq!(result.unattributed_ms, 3.0);
+        assert_eq!(result.gaps.len(), 2);
         assert!(
             super::compiler_timeline(
                 &output.replace("8.000 ms)  timeline / outer", "4.000 ms)  timeline / outer")

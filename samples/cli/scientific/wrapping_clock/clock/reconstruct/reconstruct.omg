@@ -24,7 +24,7 @@ public machine reconstruct(acquisition: @mutable |model|::Acquisition) {
     }
     machine length(acquisition: @mutable |model|::Acquisition) {
         transition acquisition.used == 5 + 3 * acquisition.count {
-            true -> rows(acquisition, 0),
+            true -> rows(acquisition, 0 as i64 +Wrapping),
             false -> fail(acquisition, 1)
         }
     }
@@ -34,13 +34,15 @@ public machine reconstruct(acquisition: @mutable |model|::Acquisition) {
             false -> anchor(acquisition)
         }
     }
-    machine load(acquisition: @mutable |model|::Acquisition, index: i64 in Wrapping) {
+    machine load(acquisition: @mutable |model|::Acquisition, index: i64 in Wrapping)
+    requires index >= 0 && index < 16
+    {
         let position: i64 in Wrapping = 5 + 3 * index;
-        acquisition.sequence[index] = acquisition.tokens[position];
-        acquisition.raw[index] = acquisition.tokens[position + 1];
-        acquisition.host[index] = acquisition.tokens[position + 2];
-        transition acquisition.raw[index] < acquisition.modulus &&
-            acquisition.sequence[index] <= 100000 && acquisition.host[index] <= 100000 {
+        acquisition.sequence[index as -Wrapping] = acquisition.tokens[position as -Wrapping];
+        acquisition.raw[index as -Wrapping] = acquisition.tokens[(position + 1) as -Wrapping];
+        acquisition.host[index as -Wrapping] = acquisition.tokens[(position + 2) as -Wrapping];
+        transition acquisition.raw[index as -Wrapping] < acquisition.modulus &&
+            acquisition.sequence[index as -Wrapping] <= 100000 && acquisition.host[index as -Wrapping] <= 100000 {
             true -> rows(acquisition, index + 1),
             false -> fail(acquisition, 3)
         }
@@ -60,11 +62,11 @@ public machine reconstruct(acquisition: @mutable |model|::Acquisition) {
         }
     }
     machine initialize(acquisition: @mutable |model|::Acquisition) {
-        acquisition.elapsed[0] = 0;
+        acquisition.elapsed[0] = 0 as i64 +Wrapping;
         acquisition.timestamps[0] = acquisition.anchor;
-        acquisition.wraps = 0;
-        acquisition.dropped = 0;
-        transition { _ -> edge(acquisition, 1) }
+        acquisition.wraps = 0 as i64 +Wrapping;
+        acquisition.dropped = 0 as i64 +Wrapping;
+        transition { _ -> edge(acquisition, 1 as i64 +Wrapping) }
     }
     machine edge(acquisition: @mutable |model|::Acquisition, index: i64 in Wrapping) {
         transition index >= 1 && index < 16 && index < acquisition.count {
@@ -75,7 +77,7 @@ public machine reconstruct(acquisition: @mutable |model|::Acquisition) {
     machine order(acquisition: @mutable |model|::Acquisition, index: i64 in Wrapping)
     requires index >= 1 && index < 16
     {
-        transition acquisition.sequence[index] > acquisition.sequence[index - 1] {
+        transition acquisition.sequence[index as -Wrapping] > acquisition.sequence[(index - 1) as -Wrapping] {
             true -> host_order(acquisition, index),
             false -> fail(acquisition, 5)
         }
@@ -83,7 +85,7 @@ public machine reconstruct(acquisition: @mutable |model|::Acquisition) {
     machine host_order(acquisition: @mutable |model|::Acquisition, index: i64 in Wrapping)
     requires index >= 1 && index < 16
     {
-        transition acquisition.host[index] > acquisition.host[index - 1] {
+        transition acquisition.host[index as -Wrapping] > acquisition.host[(index - 1) as -Wrapping] {
             true -> residue(acquisition, index),
             false -> fail(acquisition, 6)
         }
@@ -100,7 +102,7 @@ public machine reconstruct(acquisition: @mutable |model|::Acquisition) {
     requires index >= 1 && index < 16
     requires acquisition.modulus >= 2
     {
-        let delta: i64 in Wrapping = (acquisition.raw[index] - acquisition.raw[index - 1] + acquisition.modulus) % acquisition.modulus;
+        let delta: i64 in Wrapping = (acquisition.raw[index as -Wrapping] - acquisition.raw[(index - 1) as -Wrapping] + acquisition.modulus) % acquisition.modulus;
         transition delta < acquisition.lower {
             true -> raise(acquisition, index, delta),
             false -> candidate(acquisition, index, delta)
@@ -133,7 +135,7 @@ public machine reconstruct(acquisition: @mutable |model|::Acquisition) {
     machine span(acquisition: @mutable |model|::Acquisition, index: i64 in Wrapping, delta: i64 in Wrapping)
     requires index >= 1 && index < 16
     {
-        let elapsed: i64 in Wrapping = acquisition.elapsed[index - 1] + delta;
+        let elapsed: i64 in Wrapping = acquisition.elapsed[(index - 1) as -Wrapping] + delta;
         transition elapsed <= 100000 {
             true -> overflow(acquisition, index, delta, elapsed),
             false -> fail(acquisition, 9)
@@ -160,13 +162,13 @@ public machine reconstruct(acquisition: @mutable |model|::Acquisition) {
     requires acquisition.modulus >= 2
     {
         // Preserve the divisor fact before mutating other storage projections.
-        let crossings: i64 in Wrapping = (acquisition.raw[index - 1] + delta) / acquisition.modulus;
-        acquisition.elapsed[index] = elapsed;
-        acquisition.timestamps[index] = acquisition.anchor + elapsed;
+        let crossings: i64 in Wrapping = (acquisition.raw[(index - 1) as -Wrapping] + delta) / acquisition.modulus;
+        acquisition.elapsed[index as -Wrapping] = elapsed;
+        acquisition.timestamps[index as -Wrapping] = acquisition.anchor + elapsed;
         acquisition.wraps = acquisition.wraps + crossings;
-        acquisition.dropped = acquisition.dropped + acquisition.sequence[index] - acquisition.sequence[index - 1] - 1;
+        acquisition.dropped = acquisition.dropped + acquisition.sequence[index as -Wrapping] - acquisition.sequence[(index - 1) as -Wrapping] - 1;
         transition { _ -> edge(acquisition, index + 1) }
     }
-    machine fail(acquisition: @mutable |model|::Acquisition, code: i64 in Wrapping) { acquisition.error = code; }
+    machine fail(acquisition: @mutable |model|::Acquisition, code: i64) { acquisition.error = code as +Wrapping; }
     machine done() { }
 }

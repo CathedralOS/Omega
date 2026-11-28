@@ -28,6 +28,7 @@ pub use type_records::{boundary_values, data_applications, opaque_representation
 
 pub use access_views_and_commitments::constant_recipes;
 pub(crate) use access_views_and_commitments::{access_views, commitments};
+pub use callable_applications::trait_scopes::CallableSignatureRequests;
 pub use callable_applications::{
     AppliedMachineCallable, AppliedMachineCallableId, AppliedStaticCallbackRequirement,
     CallableApplication, CallableContractScope, CallableSubstitution, ClosedRequirementApplication,

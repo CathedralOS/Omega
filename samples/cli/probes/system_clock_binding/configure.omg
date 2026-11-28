@@ -1,0 +1,18 @@
+use main.omg as app;
+use {omega}/build/dependency.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/clock.omg;
+
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "system_clock_binding" };
+    let system: DependencyDescription = |dependency|::from_source(Source::Bundled { name: "system" });
+    let allowed: [BoundaryServiceReference; 2] = [
+        Build::service::<|clock|::Clock>(builder),
+        Build::service::<|process_exit|::ProcessExit>(builder)
+    ];
+    _ = |dependency|::add(builder, system, @allowed[..]);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::entry_start);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::entry_start);
+}

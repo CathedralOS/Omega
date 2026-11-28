@@ -2303,10 +2303,10 @@ pub(crate) mod operation_encoding {
     field!(abstract_operations::OpenedPackageCall, |bytes, value| {
         let abstract_operations::OpenedPackageCall {
             admitted_contracts,
-            stored_referents,
+            stored_arguments,
         } = value;
         admitted_contracts.encode(bytes);
-        stored_referents.encode(bytes);
+        stored_arguments.encode(bytes);
     });
     ids!(
         CallableContractId,

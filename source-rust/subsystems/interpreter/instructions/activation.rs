@@ -321,14 +321,22 @@ impl crate::engine::execution::TerminalExecution<'_> {
                         )?);
                 }
                 reply.completed.destination = Some(dest.clone());
-                ReturnDestination::Structural(dest, None)
+                ReturnDestination::Structural {
+                    result: dest,
+                    profile_completion: None,
+                    opened_owner: None,
+                }
             }
             (OperationResult::Structural(dest), TerminalExecutionResult::ScalarArray(value))
                 if value.value.structural_type == dest.structural_type
                     && dest.claims.is_empty() =>
             {
                 reply.completed.destination = Some(dest.clone());
-                ReturnDestination::Structural(dest, None)
+                ReturnDestination::Structural {
+                    result: dest,
+                    profile_completion: None,
+                    opened_owner: None,
+                }
             }
             _ => return Err(malformed()),
         };

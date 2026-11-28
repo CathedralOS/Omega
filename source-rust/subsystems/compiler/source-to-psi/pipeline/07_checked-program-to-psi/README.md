@@ -45,6 +45,8 @@ and issues the checked source site together with its executable. Receipt account
 execution, admission and arguments using this [published invocation](../../representations/published-source-invocation/invocation.rs).
 
 Selection checking and publication use the same source occurrences from the accepted judgment.
+For a numeric cast, publication matches the sealed Core operation against both
+carriers on the typed cast before recording the invocation.
 The factory groups folded calls by emitted machine while preserving their order within each machine.
 It also orders machine selections by operation so publication can look up the exact source expression.
 

@@ -1242,10 +1242,13 @@ impl Program<'_> {
                     if domain.subject == DomainConstraintSubject::Declared =>
                 {
                     self.named_domain(id, domain)?;
-                    let instance = crate::body::DomainInstance {
-                        declaration: domain.symbol,
-                        identity: domain.semantic_id,
-                    };
+                    let instance = self.supplied_domain_instance(
+                        id,
+                        crate::body::DomainInstance {
+                            declaration: domain.symbol,
+                            identity: domain.semantic_id,
+                        },
+                    )?;
                     written = written.with(instance).ok_or_else(|| {
                         refuse_at(id, Unserved::Type("constrained by one domain twice or by more than four declared domains"),
                         )
@@ -1266,6 +1269,78 @@ impl Program<'_> {
             }
         }
         Ok(qualification)
+    }
+
+    /// Resolve a forwarded domain telescope to its prepared application in the
+    /// supplying scope. An out-of-scope argument still owes the ordinary check.
+    pub(super) fn supplied_domain_instance(
+        &self,
+        id: MachineId,
+        domain: crate::body::DomainInstance,
+    ) -> Checked<crate::body::DomainInstance> {
+        let typed = self.typed;
+        let Some(application) = typed
+            .domain_application(domain.declaration, domain.identity)
+            .filter(|application| !application.is_closed)
+        else {
+            return Ok(domain);
+        };
+        let scope = &self.source_scope;
+        let mut arguments = Vec::with_capacity(application.arguments.len());
+        for &argument in &application.arguments {
+            let held = scope
+                .supplied_type_reference(typed, argument)
+                .map_err(|detail| refuse_at(id, Unserved::Type(detail)))?;
+            // Reading a composite type in the outer frame can still leave
+            // another substitution unresolved. Its raw handle is not evidence.
+            let identity = scope.type_identity(typed, argument);
+            if !identity.is_valid()
+                || !scope.admits_argument(typed, argument)
+                || identity != typed.normalized_type_identity(held.reference)
+            {
+                return Ok(domain);
+            }
+            arguments.push(held.reference);
+        }
+        if arguments == application.arguments {
+            return Ok(domain);
+        }
+        let definition = typed.domain_definition(domain.declaration).ok_or_else(|| {
+            refuse_at(
+                id,
+                Unserved::Type("forwarded domain without its declaration"),
+            )
+        })?;
+        let label = crate::source_state::domain::indexed_domain_instance_name(
+            typed,
+            definition,
+            typed.domain_type_parameters(definition),
+            &arguments,
+        )
+        .map_err(|_| {
+            refuse_at(
+                id,
+                Unserved::Type("forwarded domain without its complete coordinate"),
+            )
+        })?;
+        let identity = typed
+            .semantic_domains
+            .lookup(&label)
+            .filter(|&identity| {
+                typed
+                    .domain_application(domain.declaration, identity)
+                    .is_some()
+            })
+            .ok_or_else(|| {
+                refuse_at(
+                    id,
+                    Unserved::Type("forwarded domain without its prepared application"),
+                )
+            })?;
+        Ok(crate::body::DomainInstance {
+            declaration: domain.declaration,
+            identity,
+        })
     }
 
     pub(super) fn with_refinement(

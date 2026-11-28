@@ -183,6 +183,55 @@ fn a_local_records_invoked_field_contributes_its_own_permissions() {
     );
 }
 
+#[test]
+fn a_local_borrow_of_an_array_element_retains_the_invoked_field() {
+    const SOURCE: &str = r#"
+        boundary trait Output {}
+        data Quiet = machine() -> u32 reaches none crashes none;
+        data Loud = machine() -> u32 reaches Output crashes none;
+        data Pair { left: Loud; right: Quiet; }
+        machine loud() -> u32 reaches Output crashes none { 3u32 }
+        machine quiet() -> u32 reaches none crashes none { 7u32 }
+        machine forward(pairs: @[Pair; 2]) -> u32 {
+            let selected: @Pair = @pairs[1u64];
+            (selected.right)()
+        }
+        machine entry() -> u32 reaches none crashes none {
+            let pairs: [Pair; 2] = [Pair { left: loud, right: quiet }, Pair { left: loud, right: quiet }];
+            forward(@pairs)
+        }
+    "#;
+    let accepted = accepted(SOURCE);
+    let module = &accepted.elaboration.module;
+    let mut forwarded = module
+        .execution
+        .callables
+        .machine_envelopes
+        .iter()
+        .flatten()
+        .filter(|row| !row.envelope.invocations.is_empty());
+    let envelope = forwarded
+        .next()
+        .expect("forward publishes its only invocation");
+    assert!(forwarded.next().is_none());
+    use semantic_vocabulary::CanonicalStructuralPathSegment::{Field, FixedIndex};
+    assert_eq!(
+        envelope.envelope.invocations,
+        vec![
+            terminal_psi::TerminalCallableInvocation::ProjectedParameter {
+                parameter: 0,
+                path: vec![FixedIndex(1), Field("right".into())],
+            }
+        ]
+    );
+    let violations = exceeded(&SOURCE.replace("selected.right", "selected.left"));
+    assert_eq!(violations.len(), 1, "{violations:?}");
+    assert!(
+        violations[0].starts_with("machine `entry` reaches `none` but its call of `forward`"),
+        "{violations:?}"
+    );
+}
+
 /// effects.md: "A boundary call contributes what its requirement declares
 /// and not the called trait's name, so a ceiling that names the slot does
 /// not cover its operations".

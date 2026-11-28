@@ -308,6 +308,11 @@ fn compiler_samples_check_native_output_and_retain_every_stage_table() {
         serde_json::from_slice(&std::fs::read(profile_dir.join("profile.json")).unwrap()).unwrap();
     assert_eq!(recorded["timeline"]["covered_ms"], 1.25);
     assert_eq!(recorded["timeline"]["unattributed_ms"], 0.75);
+    assert_eq!(recorded["chart"], "stages.html");
+    let chart = std::fs::read_to_string(profile_dir.join("stages.html")).unwrap();
+    assert!(chart.contains("compile_native"));
+    assert!(chart.contains("Unassigned"));
+    assert!(chart.contains("0.750 ms unassigned"));
     std::fs::write(directory.path().join("candidate.txt"), "different source").unwrap();
     let original = events(copies.path());
     for event in original.iter().filter(|event| event["event"] == "sample") {

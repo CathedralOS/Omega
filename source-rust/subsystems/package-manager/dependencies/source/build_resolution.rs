@@ -101,6 +101,13 @@ impl PendingBuildSource {
         self.request.purpose()
     }
 
+    pub(crate) fn explicit_alias(&self) -> Option<&str> {
+        self.request
+            .source()
+            .explicit_alias()
+            .map(|alias| alias.as_str())
+    }
+
     pub(crate) fn backing<'a>(
         &self,
         from: &'a DeclaredBuildSource,

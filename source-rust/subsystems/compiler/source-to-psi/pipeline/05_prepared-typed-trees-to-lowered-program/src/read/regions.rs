@@ -406,9 +406,8 @@ impl Program<'_> {
                 .as_ref()
                 .is_some_and(|app| {
                     app.substitutions.iter().any(|(_, arg)| {
-                        app.scope
-                            .region_free_type_identity(self.typed, *arg)
-                            .is_none()
+                        super::source_records::retained_regions(self.typed, &app.scope, *arg)
+                            .is_none_or(|parameters| !parameters.is_empty())
                     })
                 })
             {

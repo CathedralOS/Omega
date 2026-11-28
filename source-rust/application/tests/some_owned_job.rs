@@ -142,3 +142,29 @@ fn the_copying_operation_refuses_an_owning_package() {
         "{report}"
     );
 }
+
+#[test]
+fn an_opened_call_returns_the_owner_and_its_original_field_values() {
+    const SOURCE: &str = include_str!("fixtures/callables/run/some_owned_job/linear_payload.omg");
+    let wrong_provider = SOURCE.replace("complete(17, 173)", "complete(17, 172)");
+    assert_ne!(wrong_provider, SOURCE);
+    for (source, expected) in [
+        (SOURCE, "psi\treturn\n"),
+        (&wrong_provider, "psi\tcrash\tTrap\n"),
+    ] {
+        let scratch = platform_custody::temporary_directory::TemporaryDirectory::create(
+            "received-linear-owner",
+            false,
+        )
+        .unwrap();
+        let observed = scratch.path().join("observed");
+        let (output, report) =
+            program::invoke(source, &["run", "--outputs", observed.to_str().unwrap()]);
+        assert!(output.status.success(), "{report}");
+        assert_eq!(
+            std::fs::read_to_string(observed.join("termination.tsv")).unwrap(),
+            expected,
+            "{report}"
+        );
+    }
+}

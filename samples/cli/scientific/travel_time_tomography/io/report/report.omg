@@ -20,7 +20,7 @@ invokes |console|::Console
     }
     machine digits(output: @mutable Output, units: i64, divisor: i64, started: bool)
     requires units >= 0 requires units < 2000000000000000 requires divisor >= 1 requires divisor <= 1000000000000000 {
-        let digit: i64 = (units / divisor) % 10;
+        let digit: i64 = (((units as u64) / (divisor as u64)) % 10u64) as i64;
         transition digit != 0 || started || divisor == 1 {
             true -> emit(output, units, divisor, digit),
             false -> advance(output, units, divisor, false)

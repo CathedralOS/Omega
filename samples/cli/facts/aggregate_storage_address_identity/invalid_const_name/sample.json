@@ -2,6 +2,6 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "storage address_of requires exactly one ordinary storage reference and no static arguments"
+    "address_of needs an ordinary reference to addressable storage"
   ]
 }

@@ -698,60 +698,146 @@ fn repacking_shared_fields_uses_the_opening_of_their_source() {
 
 #[test]
 fn a_dependent_field_update_survives_publication_and_independent_replay() {
-    use source_compiler::test_support::checking::{RouteVerdict, judge};
     use terminal_psi::TerminalPackageEvent;
     const SAVED_INPUT: &str = "OMEGA_TEST_SAVED_DEPENDENT_FIELD_UPDATE";
     if let Some(path) = std::env::var_os(SAVED_INPUT) {
+        use build_model::accounting::BuildEvaluationSponsor;
+        use build_model::contracts::{
+            BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
+            TerminalStorageScheduleIdentity,
+        };
+        use terminal_interpreter::{
+            TerminalExecutionResult, TerminalExecutionStatus, TerminalInstantiation,
+            TerminalProgram,
+        };
+
         let bytes = std::fs::read(path).unwrap();
-        let decoded = terminal_codec::decode_module(&bytes).unwrap();
-        terminal_codec::sealing::prepare_received_execution(&decoded).unwrap();
+        let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+        let contained =
+            psi_authorization::admit_contained_interpretation(std::sync::Arc::new(artifact))
+                .unwrap();
+        let program = TerminalProgram::admit_contained(&contained);
         assert!(
-            decoded
+            program
+                .module()
                 .execution
                 .packages
                 .sites
                 .iter()
                 .any(|s| matches!(s.event, TerminalPackageEvent::Store { .. }))
         );
+        let sponsor = BuildEvaluationSponsor::new_with_measurement(
+            BuildEvaluationSponsorLimits::new(
+                1_000_000, 1, 1, 1, 100_000, 1_000_000, 100_000, 1_000_000,
+            )
+            .unwrap(),
+            EvaluationMeasurementIdentity::TerminalPsi {
+                work_schedule: terminal_work::WorkSchedule::CURRENT.identity(),
+                storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
+            },
+        )
+        .unwrap();
+        let account = sponsor
+            .begin_invocation(sponsor.measurement(), 1_000_000)
+            .unwrap();
+        let mut instance = program
+            .instantiate(TerminalInstantiation {
+                account: Some(&account),
+                ..Default::default()
+            })
+            .unwrap();
+        let status = instance
+            .invoke(&mut terminal_work::WorkMeter::with_budget(1_000_000))
+            .unwrap();
+        assert!(matches!(
+            status,
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+        ));
         return;
     }
-    let source = "
+    let pair = "
 data File { value: u8; }
 data Pair<'a, some S> { first: @'a S; second: @'a S; }
-machine update(p: @mutable Pair) { p.first = p.second; }
 machine main() {
     let a: File = File { value: 11u8 };
     let b: File = File { value: 42u8 };
     let mutable pair: Pair = Pair { first: @a, second: @b };
     update(@mutable pair);
-}";
+}
+machine update(p: @mutable Pair) { p.first = p.second; }";
+    let reader = "
+data File { byte: u8; }
+data Read<S> = machine(state: @S) -> u8 reaches none crashes none;
+data Reader<'a, some S> { state: @'a S; read: Read<S>; fallback: Read<S>; }
+
+machine main() crashes Trap {
+    let file: File = File { byte: 42u8 };
+    let mutable reader: Reader = Reader { state: @file, read: old, fallback: read_file };
+    update(@mutable reader);
+    transition observe(reader) == 42u8 { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}
+machine old(state: @File) -> u8 reaches none crashes none { 11u8 }
+machine read_file(state: @File) -> u8 reaches none crashes none { state.byte }
+machine update(reader: @mutable Reader<some S>) {
+    let replacement: Read<S> = reader.fallback;
+    reader.fallback = reader.read;
+    reader.read = replacement;
+}
+machine observe(reader: Reader) -> u8 { (reader.read)(reader.state) }";
+    for (source, callable_field) in [(pair, false), (reader, true)] {
+        verify_saved_update(source, callable_field, SAVED_INPUT);
+    }
+    let mixed = format!(
+        "{reader}
+machine mixed(reader: @mutable Reader, other: @Reader) {{ reader.read = other.fallback; }}"
+    );
+    let Err(refusal) = Program::try_of(&[("product/main.omg", &mixed)]) else {
+        panic!("a callback from another reader was accepted");
+    };
+    assert_eq!(refusal.stage, "typing");
+    assert!(
+        refusal
+            .message
+            .contains("a dependent field update must preserve the package's current witness"),
+        "{refusal:?}"
+    );
+}
+
+fn verify_saved_update(source: &str, callable_field: bool, saved_input: &str) {
+    use source_compiler::test_support::checking::{RouteVerdict, judge};
+    use terminal_psi::TerminalPackageEvent;
     let program = Program::of(source);
-    let lowered = &program.elaboration().module;
-    let (index, site) = lowered
-        .execution
-        .packages
-        .sites
-        .iter()
-        .enumerate()
-        .find(|(_, s)| matches!(s.event, TerminalPackageEvent::Store { .. }))
-        .expect("the dependent assignment emits an opening at its ordinary store");
-    assert!(matches!(
-        lowered
-            .machine(site.machine)
-            .unwrap()
-            .operation(site.operation)
-            .unwrap()
-            .kind,
-        OperationKind::StoreStructuralField { .. }
-    ));
     let RouteVerdict::Accepted(accepted) = judge(Ok(program.elaboration().clone())).unwrap() else {
         panic!(
             "same-opening source update must reach publication: {:?}",
             program.judged(|_| ())
         );
     };
-    let module = accepted.prepare_publication().unwrap().module().clone();
-    let bytes = terminal_codec::encode_module(&module).unwrap();
+    let artifact = accepted.publish().unwrap().artifact;
+    let module = artifact.view().module().clone();
+    let (index, site) = module
+        .execution
+        .packages
+        .sites
+        .iter()
+        .enumerate()
+        .rfind(|(_, s)| matches!(s.event, TerminalPackageEvent::Store { .. }))
+        .expect("the dependent assignment emits an opening at its ordinary store");
+    let store = &module
+        .machine(site.machine)
+        .unwrap()
+        .operation(site.operation)
+        .unwrap()
+        .kind;
+    assert!(matches!(
+        (callable_field, store),
+        (true, OperationKind::StructuralScalarFieldStore { .. })
+            | (false, OperationKind::StoreStructuralField { .. })
+    ));
+
+    let bytes = artifact.to_bytes();
     let nonce = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
@@ -772,20 +858,22 @@ machine main() {
             "--exact",
             "a_dependent_field_update_survives_publication_and_independent_replay",
         ])
-        .env(SAVED_INPUT, &path)
+        .env(saved_input, &path)
         .output();
     std::fs::remove_file(&path).unwrap();
     let receiver = receiver.unwrap();
     assert!(
         receiver.status.success(),
-        "{}",
-        String::from_utf8_lossy(&receiver.stdout)
+        "{}\n{}",
+        String::from_utf8_lossy(&receiver.stdout),
+        String::from_utf8_lossy(&receiver.stderr)
     );
-    let source_field = lowered
+    let source_field = module
         .execution
         .packages
         .sites
         .iter()
+        .filter(|candidate| candidate.machine == site.machine)
         .find_map(|site| match site.event {
             TerminalPackageEvent::Project { field, .. } => Some(field),
             _ => None,

@@ -204,3 +204,44 @@ fn a_materialized_float_keeps_its_exact_carrier_and_representation() {
         assert!(!program.canonical_const_materialization_matches(carrier, expression, &changed));
     }
 }
+
+#[test]
+fn a_settled_integer_argument_has_its_landed_carrier() {
+    use crate::source_state::{canonical_const_argument_value, expression::ExpressionNode};
+    use application_identity::const_value::DecodedCanonicalConstValue;
+    use numeric_literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
+    use numerics::arithmetic::ArithmeticDomain;
+
+    let mut program = TypedTrees::default();
+    let four = IntegerLiteral::from_value(4);
+    for carrier in [
+        None,
+        Some(LandedIntegerType::U8),
+        Some(LandedIntegerType::U64),
+    ] {
+        let literal = carrier.map_or_else(
+            || four.clone(),
+            |landed_type| {
+                four.with_landing(IntegerLanding {
+                    landed_type,
+                    domain: ArithmeticDomain::Exact,
+                })
+            },
+        );
+        let expression = program
+            .expression_table
+            .insert(ExpressionNode::Integer(literal));
+        let argument = program
+            .type_reference_table
+            .insert(TypeReferenceNode::ConstExpression(expression));
+        let decoded =
+            canonical_const_argument_value(&program, argument).and_then(|v| v.decode_encoding());
+        assert_eq!(
+            decoded,
+            carrier.map(|integer_type| DecodedCanonicalConstValue::Integer {
+                integer_type,
+                value: 4.into(),
+            })
+        );
+    }
+}

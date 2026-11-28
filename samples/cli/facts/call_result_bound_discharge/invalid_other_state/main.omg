@@ -18,14 +18,14 @@ machine carry() -> u64 {
 }
 data Main { hits: i32 in Wrapping; }
 
-machine Main::main(main: @mutable Main) {
-    main.hits = 0;
+machine check_result(main: @mutable Main) {
+    main.hits = 0i32 as +Wrapping;
 
     let r: u64 = carry();
     transition r == 4 {
         true -> pass(main),
         _ -> fail(main)
     }
-    machine pass(main: @mutable Main) { main.hits = 1; }
-    machine fail(main: @mutable Main) { main.hits = -1; }
+    machine pass(main: @mutable Main) { main.hits = 1i32 as +Wrapping; }
+    machine fail(main: @mutable Main) { main.hits = (-1i32) as +Wrapping; }
 }

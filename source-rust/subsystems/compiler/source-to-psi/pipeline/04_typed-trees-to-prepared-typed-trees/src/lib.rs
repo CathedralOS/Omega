@@ -11,6 +11,7 @@ use source_symbol_table::source_inputs;
 use source_symbol_table::source_symbols;
 use typed_trees::source_state;
 
+pub mod constant_arguments;
 mod passes;
 pub use prepared_source::{
     EntryApplication, PreparedTypedTrees, PreparedValue, TargetInputs, ValueInputs,
@@ -53,8 +54,7 @@ pub fn prepare_typed_trees(
 ) -> Result<PreparedTypedTrees, Vec<Diagnostic>> {
     let entries = passes::specialization::prepare_selected(&mut program, selected)?;
     let first_requirement_type = program.type_reference_table.type_reference_count();
-    program
-        .prepare_conformance_requirement_headers()
+    passes::conformance_headers::prepare(&mut program)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     // Substituting a provider's receiver creates fresh type occurrences in its
     // parameters and result. Lowering needs the data declaration at each one.

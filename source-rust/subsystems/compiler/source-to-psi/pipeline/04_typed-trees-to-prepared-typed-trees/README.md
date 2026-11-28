@@ -24,6 +24,7 @@ the selected core operation; they do not look for a provider for it.
 | Pass | What it writes | Who reads it |
 | --- | --- | --- |
 | [specialization](src/passes/specialization.rs) | For a call that applies static arguments (`relay::<u8>(..)`, `advance::<Hold>(..)`): which parameter each argument is for, on the call's application; and, when the arguments are closed, the machine the application selects, generated from the generic machine with each parameter replaced, which the call then enters | Structural elaboration: an open application in a generic machine is read from its bindings (`read/calls.rs`, `type_arguments`), a generated machine as any closed machine, and its declaration states the generic machine and the application (`declare.rs`, `application`) |
+| [conformance headers](src/passes/conformance_headers.rs) | Closed signatures for concrete provider requirements, including those without a source call | Lowering reads the required inputs and result from each closed signature |
 | [domain applications](src/passes/domain_applications.rs) | The declaration’s carrier, proof facts and cleanup selection with its retained type and value arguments substituted, or a refusal on that application | Structural elaboration reads the theory for the exact declaration and semantic domain identity |
 
 Record patterns already carry their record and field identities from typing.
@@ -135,6 +136,13 @@ retains the constants it names and the deployments that admitted its evaluation.
 A pending deployment stays explicit. Build reads its constant dependencies from
 this result after lowering. Source admission refuses unsupported wire demands
 before evaluation.
+
+When a computation supplies a type argument such as `Buffer<capacity()>`,
+[constant argument preparation](src/constant_arguments.rs) stores its typed
+literal at the original type occurrence and updates dependent array lengths,
+domain facts and data members. The evaluator runs this operation before it
+plans the next argument. Specialization also runs it for expressions copied
+into a concrete machine.
 
 An array type such as `[u8; WIDTH]` names the constant that supplies its length.
 Preparation reads the evaluated value from that declaration for both a literal

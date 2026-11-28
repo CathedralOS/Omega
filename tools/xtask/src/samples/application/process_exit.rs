@@ -1,10 +1,16 @@
-//! Obtain the full exit argument before Linux truncates it for wait(2).
+//! Obtain the full native exit status before wait(2) truncates it.
 
 use crate::execution;
 use std::ops::Range;
 use std::path::Path;
 use std::process::{Command, Output, Stdio};
 use std::sync::OnceLock;
+
+pub(in crate::samples) enum ExitEvidence {
+    Explicit(i32),
+    #[cfg(target_os = "macos")]
+    SignedZero,
+}
 
 const SITE: &str = "linux-x64-exit-site ";
 
@@ -14,7 +20,11 @@ pub(super) fn run(
     stdin: Stdio,
     evidence: &Path,
     report: &str,
-) -> Result<(Output, Option<i32>), String> {
+) -> Result<(Output, Option<ExitEvidence>), String> {
+    #[cfg(target_os = "macos")]
+    if report.lines().any(|line| line == "process-exit-possible") {
+        return super::super::darwin_exit::run(artifact, scratch, stdin, evidence);
+    }
     let mut sites = Vec::new();
     for line in report.lines().filter_map(|line| line.strip_prefix(SITE)) {
         let address = |s: &str| u64::from_str_radix(s.strip_prefix("0x")?, 16).ok();
@@ -61,7 +71,7 @@ pub(super) fn run(
     let bytes = execution::read_bounded(&trace)?;
     let trace = std::str::from_utf8(&bytes).map_err(|err| err.to_string())?;
     let code = observed_exit(trace, &sites, output.status.code())?;
-    Ok((output, code))
+    Ok((output, code.map(ExitEvidence::Explicit)))
 }
 
 fn can_trace(evidence: &Path) -> bool {

@@ -1,5 +1,7 @@
 {
   "role": "intended-invalid",
   "entry": "main.omg",
-  "rejection_contains": ["may overflow `u32`"]
+  "rejection_contains": [
+    "local `remaining` may overflow `u32`"
+  ]
 }

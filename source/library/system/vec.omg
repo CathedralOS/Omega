@@ -1,0 +1,15 @@
+// Use the stride of an array at the vector's selected native placement.
+machine cell_bytes<T>() -> u64 { size_of::<[T; 1]>() }
+
+// How many whole cells fit in an allocation of this size. A zero-byte cell is
+// limited by the logical count, independently of the available payload bytes.
+public machine capacity_for<T>(bytes: u64) -> u64 {
+    let stride: u64 = cell_bytes::<T>();
+    transition stride == 0 {
+        true -> 18446744073709551615,
+        false -> count_cells(bytes, stride)
+    }
+    machine count_cells(bytes: u64, stride: u64) -> u64
+    requires stride != 0
+    { bytes / stride }
+}
