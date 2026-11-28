@@ -583,7 +583,10 @@ mod owned_value_tests {
             let bytes = writer.finish();
             assert_eq!(bytes[0], tag);
             let mut reader = Reader::new(&bytes);
-            assert_eq!(super::decode_operation_kind(&mut reader).unwrap(), operation);
+            assert_eq!(
+                super::decode_operation_kind(&mut reader).unwrap(),
+                operation
+            );
             assert_eq!(reader.remaining(), 0);
         }
     }

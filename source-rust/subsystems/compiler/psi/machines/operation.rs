@@ -125,10 +125,14 @@ pub enum OperationKind {    ActivateTaskRegister {
     },
     /// Establish a typed native reference from an address. The structural
     /// result determines the referent and shared or mutable access.
-    BorrowAt { address: ValueId },
+    BorrowAt {
+        address: ValueId,
+    },
     /// Reborrow the selected shared reference with exclusive access while
     /// preserving its referent, bounds and remaining lifetime.
-    UpgradeMutability { source: StructuralArgument },
+    UpgradeMutability {
+        source: StructuralArgument,
+    },
     StorageAddress {
         source: StructuralArgument,
     },

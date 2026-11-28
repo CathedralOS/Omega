@@ -155,6 +155,7 @@ pub enum StructuralEffectGoalShape {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralEffectFrontierPolicy {
+    AssertsNativeBackingAndAddsReferenceCarrier,
     CapturesLoanAndAddsReferenceCarrier,
     ReleasesReferenceCarrier,
     TransfersOwnedChildrenAndAddsOwnedPlace,
@@ -215,7 +216,8 @@ impl StructuralEffectLeafSchema {
         self,
     ) -> Option<terminal_psi::StructuralMultiplicity> {
         match self.frontier {
-            StructuralEffectFrontierPolicy::CapturesLoanAndAddsReferenceCarrier => {
+            StructuralEffectFrontierPolicy::AssertsNativeBackingAndAddsReferenceCarrier
+            | StructuralEffectFrontierPolicy::CapturesLoanAndAddsReferenceCarrier => {
                 Some(terminal_psi::StructuralMultiplicity::Affine)
             }
             _ => None,
@@ -341,7 +343,7 @@ structural_effect_rows! {
     StorageAddress => (Scalar, ExactAddressableReferent, ExposeStorageAddress, None, RequiresAndKeepsStructuralPlace),
     StorageAlignment => (Scalar, ExactAddressableReferent, ObserveStorageAlignment, None, RequiresAndKeepsStructuralPlace),
     EstablishAccessReference => (Structural, ExactReferenceSource, EstablishAccessReference, None, CapturesLoanAndAddsReferenceCarrier),
-    BorrowAt => (Structural, NativeAddress, BorrowAt, None, CapturesLoanAndAddsReferenceCarrier),
+    BorrowAt => (Structural, NativeAddress, BorrowAt, None, AssertsNativeBackingAndAddsReferenceCarrier),
     UpgradeMutability => (Structural, ExactReferenceSource, UpgradeMutability, None, CapturesLoanAndAddsReferenceCarrier),
     EstablishReference => (Structural, ExactReferenceSource, EstablishReference, None, CapturesLoanAndAddsReferenceCarrier),
     ReleaseReference => (Unit, ExactReferenceCarrier, ReleaseReference, None, ReleasesReferenceCarrier),
@@ -555,7 +557,7 @@ fn validate_structural_effect_schema(
                 schema.result == StructuralEffectResultShape::Structural
                     && schema.custody == StructuralEffectCustody::NativeAddress
                     && schema.external_effect == StructuralEffectExternalEffect::None
-                    && schema.frontier == StructuralEffectFrontierPolicy::CapturesLoanAndAddsReferenceCarrier
+                    && schema.frontier == StructuralEffectFrontierPolicy::AssertsNativeBackingAndAddsReferenceCarrier
             }
             StructuralEffectAction::ReleaseReference => {
                 schema.result == StructuralEffectResultShape::Unit

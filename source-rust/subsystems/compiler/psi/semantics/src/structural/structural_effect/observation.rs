@@ -241,14 +241,25 @@ pub(crate) fn structural_effect_leaf_observation_in(
     let observation = match (schema.action, &operation.kind) {
         (StructuralEffectAction::BorrowAt, OperationKind::BorrowAt { address }) => {
             let result = native_borrow_result(operation, tag, schema)?;
-            StructuralEffectObservation::NativeReferenceEstablished { address: *address, destination: result }
+            StructuralEffectObservation::NativeReferenceEstablished {
+                address: *address,
+                destination: result,
+            }
         }
-        (StructuralEffectAction::UpgradeMutability, OperationKind::UpgradeMutability { source }) => {
+        (
+            StructuralEffectAction::UpgradeMutability,
+            OperationKind::UpgradeMutability { source },
+        ) => {
             let destination = native_borrow_result(operation, tag, schema)?;
             if source.access != terminal_psi::StructuralAccess::SharedBorrow {
-                return Err(OperationSemanticError::StructuralEffectActionShapeMismatch(tag));
+                return Err(OperationSemanticError::StructuralEffectActionShapeMismatch(
+                    tag,
+                ));
             }
-            StructuralEffectObservation::ReferenceMutabilityUpgraded { source: source.clone(), destination }
+            StructuralEffectObservation::ReferenceMutabilityUpgraded {
+                source: source.clone(),
+                destination,
+            }
         }
         (
             StructuralEffectAction::EstablishReference,
@@ -885,15 +896,18 @@ fn native_borrow_result(
     tag: OperationSemanticTag,
     schema: StructuralEffectLeafSchema,
 ) -> Result<PlaceId, OperationSemanticError> {
-    let result = operation.result.structural()
-        .ok_or(OperationSemanticError::StructuralEffectResultShapeMismatch(tag))?;
+    let result = operation.result.structural().ok_or(
+        OperationSemanticError::StructuralEffectResultShapeMismatch(tag),
+    )?;
     if Some(result.multiplicity) != schema.required_result_multiplicity()
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.additional_input_qualifications.is_empty()
         || !result.claims.is_empty()
     {
-        return Err(OperationSemanticError::StructuralEffectActionShapeMismatch(tag));
+        return Err(OperationSemanticError::StructuralEffectActionShapeMismatch(
+            tag,
+        ));
     }
     Ok(result.place)
 }
