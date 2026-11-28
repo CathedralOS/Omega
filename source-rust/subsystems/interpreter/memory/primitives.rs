@@ -11,7 +11,7 @@
 macro_rules! frame_fields {
     ($exec:expr, $depth:expr => $field:ident $(,)?) => {{
         let depth = $depth;
-        if depth == $exec.call_stack.len() {
+        if depth == $exec.call_stack.current() {
             &$exec.$field
         } else {
             &$exec
@@ -23,7 +23,7 @@ macro_rules! frame_fields {
     }};
     ($exec:expr, $depth:expr => $($field:ident),+ $(,)?) => {{
         let depth = $depth;
-        if depth == $exec.call_stack.len() {
+        if depth == $exec.call_stack.current() {
             ($(&$exec.$field),+)
         } else {
             let frame = $exec
@@ -321,7 +321,7 @@ pub(crate) mod activation_storage {
             };
             let result = operation.result.structural().ok_or(malformed())?;
             let committed = self.unsigned_u64_scalar(committed)?;
-            let frame = (self.call_stack.len(), self.current_machine);
+            let frame = (self.call_stack.current(), self.current_machine);
             if self
                 .activation_storage
                 .grants
@@ -438,7 +438,7 @@ pub(crate) mod activation_storage {
             descriptor == selected
                 && self.activation_storage.grants.get(home).is_some_and(
                     |(frame, _, _, claim_type)| {
-                        *frame == (self.call_stack.len(), self.current_machine)
+                        *frame == (self.call_stack.current(), self.current_machine)
                             && *claim_type == selected.structural_type
                     },
                 )
@@ -454,7 +454,7 @@ pub(crate) mod activation_storage {
             let (selected, home, _, _) =
                 self.resolve_activation_owner(source, "activation release descriptor")?;
             let (frame, identity, _, _) = *self.activation_storage.grants.require(&home)?;
-            if frame != (self.call_stack.len(), self.current_machine)
+            if frame != (self.call_stack.current(), self.current_machine)
                 || crate::engine::custody::has_live_loan(
                     self.reference_referents.as_map(),
                     &selected,
@@ -505,9 +505,9 @@ pub(crate) mod activation_storage {
                     }
                     Ok(false)
                 };
-            let mut retained_loan =
-                frame_has_loan(&self.byte_sequence_values, &self.structural_values, true)?;
-            for frame in &self.call_stack {
+            let mut retained_loan = self.owned_activations.holds_byte_loan(targets_backing)
+                || frame_has_loan(&self.byte_sequence_values, &self.structural_values, true)?;
+            for frame in self.call_stack.values() {
                 retained_loan |=
                     frame_has_loan(&frame.byte_sequence_values, &frame.structural_values, false)?;
             }
@@ -562,7 +562,7 @@ pub(crate) mod activation_storage {
         }
 
         pub(crate) fn complete_activation_storage(&mut self) -> Result<(), TerminalInterpretError> {
-            let frame = (self.call_stack.len(), self.current_machine);
+            let frame = (self.call_stack.current(), self.current_machine);
             if let Some(ledger) = self.activation_storage.ledgers.get(&frame)
                 && !ledger.is_empty()
             {
@@ -590,7 +590,7 @@ pub(crate) mod activation_storage {
             let committed_at = self.unsigned_u64_scalar(committed_at)?;
             let (_, home, capacity, referent) =
                 self.resolve_activation_owner(source, "activation split descriptor")?;
-            let frame = (self.call_stack.len(), self.current_machine);
+            let frame = (self.call_stack.current(), self.current_machine);
             let (grant_frame, identity, _, claim_type) =
                 *self.activation_storage.grants.require(&home)?;
             if grant_frame != frame || !self.structural_byte_storage.contains_key(&home) {
@@ -672,7 +672,7 @@ pub(crate) mod activation_storage {
             if lower_home != upper_home {
                 return self.publish_activation_division(operation, rejected_case, publication);
             }
-            let frame = (self.call_stack.len(), self.current_machine);
+            let frame = (self.call_stack.current(), self.current_machine);
             let merged = self
                 .activation_storage
                 .split_children
@@ -1569,7 +1569,7 @@ pub(crate) mod primitive_storage {
                     stage: "position reference storage",
                     detail: format!(
                         "{phase}; endpoint={endpoint}, byte_offset={byte_offset}, width={width}, scalar={scalar:?}, codec={codec:?}, referent_identity_type_path_length={referent:?}, span_start={span_start:?}, span_end={span_end:?}, available={available:?}, requested_depth_place_type={requested_frame:?}, requested_actual_machine={actual_machine:?}, actual_type={actual_type:?}, current_depth={}, projection_logical_stored={projection_types:?}, fragment_count={fragment_count:?}, fragment_index={fragment_index:?}, first_fragment_logical_stored_offsets_length_addressable_codec={first_fragment:?}, first_mismatched_scalar={first_mismatched_scalar:?}: {error:?}",
-                        self.call_stack.len()
+                        self.call_stack.current()
                     ),
                 })
             }
@@ -3165,7 +3165,7 @@ pub(crate) mod primitive_storage {
                 ));
             }
             Ok(PrimitiveStorageHome {
-                depth: self.call_stack.len(),
+                depth: self.call_stack.current(),
                 machine: self.current_machine,
                 place,
                 structural_type: self.live_structural_type(place)?,
@@ -3437,7 +3437,7 @@ pub(crate) mod primitive_storage {
             if machine_id != home.machine {
                 return Err(malformed());
             }
-            if home.depth == self.call_stack.len()
+            if home.depth == self.call_stack.current()
                 && let Some(element) = self.byte_element_storage(&StructuralArgument {
                     place,
                     path: path.to_vec(),

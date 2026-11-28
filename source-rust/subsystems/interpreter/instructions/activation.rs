@@ -1,5 +1,13 @@
 //! Hand control back to the owner of a producer when its checked park call runs.
 
+#[path = "activation/driver.rs"]
+mod driver;
+#[path = "activation/funding.rs"]
+mod funding;
+#[path = "activation/results.rs"]
+mod results;
+
+pub(crate) use driver::OwnedActivations;
 use crate::engine::execution::CompletedReturn;
 use crate::storage::storage_addresses::ScalarStorageAddress;
 use crate::{TerminalEffectWait, TerminalInterpretError, TerminalSuspension};
@@ -92,16 +100,16 @@ impl StepControl {
         suspension: TerminalSuspension,
         slot: ScalarStorageAddress,
         reply_type: std::sync::Arc<str>,
-    ) -> Result<crate::TerminalExecutionStatus, TerminalInterpretError> {
+    ) -> Result<(), TerminalInterpretError> {
         if !matches!(self, Self::Running) {
             return Err(crate::boundary::errors::malformed());
         }
         *self = Self::Waiting(Box::new(ParkedActivation {
-            suspension: suspension.clone(),
+            suspension,
             slot,
             reply_type,
         }));
-        Ok(crate::TerminalExecutionStatus::AwaitingEffect(suspension))
+        Ok(())
     }
 
     /// Check the occurrence before transferring anything out of the sender.
@@ -157,9 +165,7 @@ impl crate::engine::execution::TerminalExecution<'_> {
         control: language_core::sealed_intrinsics::ActivationOperation,
         boundary_declaration: &terminal_psi::BoundaryMachineDeclaration,
     ) -> Result<crate::engine::execution::OperationFlow, TerminalInterpretError> {
-        use crate::TerminalExecutionStatus;
         use crate::boundary::errors::malformed;
-        use crate::engine::execution::OperationFlow;
         use language_core::sealed_intrinsics::ActivationOperation;
         use terminal_psi::StructuralAccess;
         let terminal_psi::OperationKind::BoundaryCall {
@@ -172,10 +178,11 @@ impl crate::engine::execution::TerminalExecution<'_> {
         else {
             return Err(malformed());
         };
-        if control != ActivationOperation::Park {
-            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                "a prepared activation needs its admitted backing",
-            ));
+        match control {
+            ActivationOperation::Prepare => return self.prepare_activation(operation, boundary_declaration),
+            ActivationOperation::StepFixed => return self.step_activation(operation, boundary_declaration),
+            ActivationOperation::Resume => return self.answer_activation(operation, boundary_declaration),
+            ActivationOperation::Park => {}
         }
         let owner =
             self.owned_step
@@ -191,11 +198,7 @@ impl crate::engine::execution::TerminalExecution<'_> {
         }
         match owner {
             StepControl::Running => {}
-            StepControl::Waiting(parked) => {
-                return Ok(OperationFlow::Yield(
-                    TerminalExecutionStatus::AwaitingEffect(parked.suspension.clone()),
-                ));
-            }
+            StepControl::Waiting(_) => return Err(malformed()),
             StepControl::Answered(_) => {
                 let StepControl::Answered(answer) = std::mem::take(owner) else {
                     unreachable!()
@@ -229,8 +232,8 @@ impl crate::engine::execution::TerminalExecution<'_> {
                 crate::TerminalSuspension { site, occurrence },
                 slot,
                 reply.into(),
-            )
-            .map(OperationFlow::Yield)
+            )?;
+        self.publish_parked_activation()
     }
 
     pub(crate) fn finish_owned_park(

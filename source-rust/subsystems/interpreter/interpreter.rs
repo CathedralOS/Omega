@@ -51,6 +51,8 @@ pub use suspension::TerminalSuspension;
 mod component_byte_loans;
 #[path = "embedding/program.rs"]
 mod embedding;
+#[path = "instructions/frame_store.rs"]
+mod frame_store;
 #[path = "instructions/activation.rs"]
 mod activation;
 #[path = "instructions/calls.rs"]

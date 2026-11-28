@@ -1557,6 +1557,19 @@ pub(crate) mod record {
                 Ok(())
             }
 
+            /// Guest data can carry this identity only by moving an issued owner.
+            pub(crate) fn stage_activation_owner(
+                &mut self,
+                home: StructuralRuntimePlace,
+                token: u64,
+            ) -> Result<(), TerminalInterpretError> {
+                insert_unique(
+                    &mut self.host_atoms,
+                    home,
+                    crate::storage::structural_storage::HostStructuralPayload::Activation(token),
+                )
+            }
+
             pub(crate) fn stage_byte_descriptor(
                 &mut self,
                 destination: StructuralRuntimePlace,
@@ -2114,6 +2127,9 @@ pub(crate) mod record {
                     destination,
                 )?;
                 relocate_cells!(execution.structural_host_atoms, |_h, atom, target| {
+                    if matches!(atom, crate::storage::structural_storage::HostStructuralPayload::Activation(_)) && !transfers_custody {
+                        return Err(TerminalInterpretError::ClaimTransferMismatch);
+                    }
                     self.host_atoms.insert(target, *atom)?;
                 });
                 relocate_cells!(execution.structural_cases, |_h, case, target| {
@@ -6097,7 +6113,7 @@ pub(crate) mod structural_storage {
                 let has_retired_arrays = self.scalar_array_values.has_retired()
                     || self
                         .call_stack
-                        .iter()
+                        .values()
                         .any(|frame| frame.scalar_array_values.has_retired());
                 if self.retired_descriptor_homes.is_empty() && !has_retired_arrays {
                     return;
@@ -6110,11 +6126,15 @@ pub(crate) mod structural_storage {
                     return;
                 }
                 let mut retained = RetainedStorage::default();
+                self.owned_activations.retain_storage(&mut retained);
+                if let Some(control) = &self.owned_step {
+                    control.retain_storage(&mut retained);
+                }
                 retain_frame!(retained, self);
                 for original in &self.private_entry_ram {
                     retained.value(&original.allocation);
                 }
-                for frame in &self.call_stack {
+                for frame in self.call_stack.values() {
                     retain_frame!(retained, frame);
                     match &frame.result {
                         SuspendedCallResult::Structural {
@@ -6177,11 +6197,11 @@ pub(crate) mod structural_storage {
                         }
                     }
                 }
-                let current_depth = self.call_stack.len();
+                let current_depth = self.call_stack.current();
                 self.scalar_array_values.collect_retired(|place| {
                     retained.frame_arrays.contains(&(current_depth, place))
                 });
-                for (depth, frame) in self.call_stack.iter_mut().enumerate() {
+                for (depth, frame) in self.call_stack.stored_mut() {
                     frame
                         .scalar_array_values
                         .collect_retired(|place| retained.frame_arrays.contains(&(depth, place)));
@@ -6286,11 +6306,10 @@ pub(crate) mod structural_storage {
             ) -> Result<Option<OriginalAllocation>, TerminalInterpretError> {
                 let homes = self
                     .call_stack
-                    .iter()
-                    .enumerate()
+                    .stored()
                     .map(|(depth, frame)| (depth, frame.current_machine, &frame.structural_values))
                     .chain(std::iter::once((
-                        self.call_stack.len(),
+                        self.call_stack.current(),
                         self.current_machine,
                         &self.structural_values,
                     )));
@@ -6497,6 +6516,7 @@ pub(crate) mod structural_storage {
 
     #[derive(Clone, Copy)]
     pub(crate) enum HostStructuralPayload {
+        Activation(u64),
         Opaque(u64),
         Materialized(u64),
         Modified,
@@ -6598,7 +6618,8 @@ pub(crate) mod structural_storage {
             if collect_scalars {
                 self.next_scalar_collection_identity = cursor.saturating_add(1024);
             }
-            let hidden_backings = !self.primitive_loan_values.is_empty()
+            let hidden_backings = self.owned_activations.has_retained_backing()
+                || !self.primitive_loan_values.is_empty()
                 || !self.byte_sequence_values.is_empty()
                 || !self.element_view_values.is_empty()
                 || !self.structural_element_view_fields.is_empty()
@@ -6610,7 +6631,7 @@ pub(crate) mod structural_storage {
                 || self.reference_referents.values().any(|referent| {
                     referent.primitive_loan.is_some() || referent.byte_region.is_some()
                 })
-                || self.call_stack.iter().any(|frame| {
+                || self.call_stack.values().any(|frame| {
                     !frame.primitive_loan_values.is_empty()
                         || frame
                             .aggregate_argument_backings
@@ -6666,7 +6687,7 @@ pub(crate) mod structural_storage {
                 &self.structural_values,
                 &self.aggregate_argument_backings,
             );
-            for frame in &self.call_stack {
+            for frame in self.call_stack.values() {
                 collect_frame_roots(
                     &mut roots,
                     frame.access_view_occurrences.values(),

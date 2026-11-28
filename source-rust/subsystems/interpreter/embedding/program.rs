@@ -880,7 +880,7 @@ pub(crate) mod instance {
             if !execution.access_view_occurrences.is_empty()
                 || execution
                     .call_stack
-                    .iter()
+                    .values()
                     .any(|frame| !frame.access_view_occurrences.is_empty())
             {
                 return Err(
@@ -1225,7 +1225,7 @@ pub(crate) mod instance {
             use terminal_psi::CallSite;
 
             self.execution.iter().flat_map(|frame| {
-                frame.call_stack.iter().rev().filter_map(|caller| {
+                frame.call_stack.callers().filter_map(|caller| {
                     let site = match caller.result {
                         SuspendedCallResult::NoNormal { edge, .. }
                         | SuspendedCallResult::ExternalCompletion { edge, .. } => {
