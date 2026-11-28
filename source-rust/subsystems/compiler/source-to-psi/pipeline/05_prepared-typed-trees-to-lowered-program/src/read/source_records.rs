@@ -120,6 +120,21 @@ fn selected_sampler(
             "a static machine argument must have its parameter's formals and result",
         ));
     }
+    // A record selection is itself a use of the machine contract, even if
+    // this program only projects the state and never calls the sampler.
+    // As for a concrete machine passed to a mathematical template, a
+    // conditional definition needs evidence at the required input domain.
+    let clauses = typed.machine_contracts(machine);
+    let entry_clauses = typed.state_contracts(entry);
+    if clauses.len() != machine.contracts.len() || entry_clauses.len() != entry.contracts.len() {
+        return Err(Unserved("record machine argument lost its contracts"));
+    }
+    if clauses.iter().chain(entry_clauses).any(|clause| {
+        clause.kind == crate::source_state::signature::SignatureContractKind::Requires
+            && (!clause.facts.is_empty() || clause.binding.is_some())
+    }) {
+        return Err(Unserved("record machine argument with an unproved premise"));
+    }
     Ok(machine.symbol)
 }
 
