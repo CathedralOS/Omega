@@ -1,7 +1,7 @@
 {
   "role": "intended-invalid",
   "rejection_contains": [
-    "`interval_height` violates required fact `upper > lower`",
-    "the instantiated fact is structurally false"
+    "requires contract for call interval_height from main: 1000 > 2000",
+    "needs fact `upper > lower`"
   ]
 }
