@@ -20,7 +20,8 @@ mod terminal_permissions;
 mod traits;
 mod unsafe_authority;
 pub use unsafe_authority::{
-    ReviewedUnsafeAuthority, ReviewedUnsafeDependency, ReviewedUnsafeOrigin, ReviewedUnsafeUse,
+    ReviewedUnsafeAdmission, ReviewedUnsafeAuthority, ReviewedUnsafeDependency,
+    ReviewedUnsafeOrigin, ReviewedUnsafePath, ReviewedUnsafeUse,
 };
 
 pub use preparations::ReviewedPreparation;
@@ -125,7 +126,7 @@ impl crate::ProductStage<'_> {
             input.sources().exact_toolchain_sources(),
             source_provenance::DependencyScope::Product,
         )?;
-        let unsafe_authority = input.unsafe_authority(inputs)?;
+        let unsafe_authority = input.unsafe_authority(inputs, &selected)?;
         let policy = policy::project(
             &services,
             &input,
