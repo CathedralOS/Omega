@@ -116,8 +116,7 @@ fn build_unit(
     input: &VerifiedPsiOptimizationInput,
     work_schedule: semantic_vocabulary::WorkScheduleIdentity,
 ) -> Result<PsiOptimizationUnit, AbstractInputError> {
-    let mut seed =
-        optimization_unit::reconstruct_psi_optimization_unit_seed(input.plan(), work_schedule)?;
+    let mut seed = input.reconstruct_unit(work_schedule)?;
     let context = input.context();
     optimization_unit::attach_verified_module_context(&mut seed, context.module())
         .map_err(AbstractInputError::MissingStructuralCatalogMachine)?;

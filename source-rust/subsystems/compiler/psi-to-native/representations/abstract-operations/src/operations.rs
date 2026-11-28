@@ -65,8 +65,31 @@ pub struct ModuleInvocation<'a> {
     pub crash_continuations: &'a [CrashRouteBucket],
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AbstractOperation {
+// Operation identities distinguish the variant and visit its operands in declaration
+// order. Generate the traversal beside the enum so a new operand always participates.
+macro_rules! define_abstract_operations {
+    ($($(#[$variant_attr:meta])* $variant:ident { $($(#[$field_attr:meta])* $field:ident: $ty:ty),* $(,)? }),+ $(,)?) => {
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub enum AbstractOperation {
+            $($(#[$variant_attr])* $variant { $($(#[$field_attr])* $field: $ty),* }),+
+        }
+
+        /// Pass the variant tag and every borrowed field to the caller's macro.
+        #[macro_export]
+        macro_rules! visit_abstract_operation_fields {
+            ($operation:expr, $visit:ident) => {{
+                #[repr(u8)]
+                enum OperationTag { $($variant),+ }
+                match $operation {
+                    $($crate::AbstractOperation::$variant { $($field),* } =>
+                        $visit!(OperationTag::$variant as u8 $(, $field)*)),+
+                }
+            }};
+        }
+    };
+}
+
+define_abstract_operations! {
     EstablishActivationClaim {
         psi_operation: OperationId,
         result: OperationResult,

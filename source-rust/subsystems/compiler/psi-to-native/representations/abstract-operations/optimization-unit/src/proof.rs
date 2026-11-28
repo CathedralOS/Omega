@@ -397,7 +397,7 @@ pub fn attach_verified_module_context(
     unit.structural_domains = module.types.structural_domains.clone().into();
     unit.services = module.interfaces.services.clone().into();
     unit.root_service_reach = module.interfaces.root_service_reach.clone();
-    for function in &mut unit.functions {
+    for function in &mut unit.functions.rows {
         let source = module.machine(function.machine).ok_or(function.machine)?;
         function.structural_places = source.structural_places.clone();
         function.content_entry_claims = source.content_entry_claims.clone();
