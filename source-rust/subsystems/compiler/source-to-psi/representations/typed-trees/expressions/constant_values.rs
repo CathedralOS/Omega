@@ -46,7 +46,12 @@ pub fn canonical_const_argument_value(
             if !program.symbols.symbols().nodes().is_valid(*symbol) {
                 return None;
             }
-            canonical_const_declaration_value(program, *symbol)?
+            if let Some((owner, _)) = program.variant_owner(*symbol) {
+                let carrier = program.type_reference_table.find_named_type_reference(owner.symbol)?;
+                program.canonical_case_argument(carrier, *symbol).ok()?
+            } else {
+                canonical_const_declaration_value(program, *symbol)?
+            }
         }
         types::TypeReferenceNode::Named { name, .. } => {
             CanonicalConstValue::from_atom(name.as_str()).or_else(|| {
@@ -65,6 +70,37 @@ pub fn canonical_const_argument_value(
     };
     value.decode_encoding()?;
     Some(value)
+}
+
+impl TypedTrees {
+    /// A nullary, unconstrained case has the same value in a record's index
+    /// and in a machine's static arguments. Look it up in its own enum;
+    /// fields, open type parameters and predicates still need a constructor.
+    pub(crate) fn canonical_case_argument(
+        &self,
+        carrier: types::TypeReferenceHandle,
+        symbol: symbols::SymbolHandle,
+    ) -> Result<application_identity::const_value::CanonicalConstValue, &'static str> {
+        use application_identity::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+        let (owner, case) = self.variant_owner(symbol).ok_or("no selected static case")?;
+        if self.type_reference_node(carrier).as_named_symbol() != Some(owner.symbol)
+            || !canonical_const_carrier_is_supported(self, carrier)
+            || !owner.type_parameters.is_empty() {
+            return Err("a static case has another or uninstantiated carrier");
+        }
+        if !case.payload.is_empty() || !case.requires_facts.is_empty() || !owner.requires_facts.is_empty() {
+            return Err("a static case with fields or requirements needs a checked constructor value");
+        }
+        let name = owner.name.as_str();
+        let case_name = case.name.as_str();
+        CanonicalConstValue::from_decoded_in_type(
+            self.normalized_type_identity_text(carrier),
+            &DecodedCanonicalConstValue::Variant {
+                type_name: name.into(), case_name: case_name.into(), fields: Vec::new(),
+            },
+            format!("{name}::{case_name}"),
+        ).ok_or("a static case has no canonical value")
+    }
 }
 
 /// Whether this closed carrier has the copyable, address-free structural

@@ -309,36 +309,8 @@ impl crate::source_state::TypedTrees {
         {
             return Err("a static aggregate needs its exact closed value operand");
         }
-        if let Some((owner, case)) = self.variant_owner(argument.symbol) {
-            use application_identity::const_value::{
-                CanonicalConstValue, DecodedCanonicalConstValue,
-            };
-            if self.type_reference_node(declared_type).as_named_symbol() != Some(owner.symbol)
-                || !crate::source_state::canonical_const_carrier_is_supported(self, declared_type)
-                || !owner.type_parameters.is_empty()
-            {
-                return Err("a static case has another or uninstantiated carrier");
-            }
-            if !case.payload.is_empty()
-                || !case.requires_facts.is_empty()
-                || !owner.requires_facts.is_empty()
-            {
-                return Err(
-                    "a static case with fields or requirements needs a checked constructor value",
-                );
-            }
-            let name = owner.name.as_str();
-            let case_name = case.name.as_str();
-            return CanonicalConstValue::from_decoded_in_type(
-                self.normalized_type_identity_text(declared_type),
-                &DecodedCanonicalConstValue::Variant {
-                    type_name: name.to_owned(),
-                    case_name: case_name.to_owned(),
-                    fields: Vec::new(),
-                },
-                format!("{name}::{case_name}"),
-            )
-            .ok_or("a static case has no canonical value");
+        if self.variant_owner(argument.symbol).is_some() {
+            return self.canonical_case_argument(declared_type, argument.symbol);
         }
         let declaration = self
             .const_declaration_by_symbol(argument.symbol)

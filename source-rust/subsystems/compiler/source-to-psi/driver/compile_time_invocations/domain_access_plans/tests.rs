@@ -160,7 +160,20 @@ fn preparing_a_child_names_its_worker_and_returns_the_rejected_backing() {
             |activation|::prepare::<u8, u8, worker, |task|::ActivationStorage::Fixed>(input, backing)
         }
     ");
-    let entries = [typed.realized_machine_named("make").unwrap().symbol];
+    let (caller, call) = query_call(&typed, "make");
+    let call = typed.expression_table.call_node(call).unwrap();
+    let declaration = typed.machine_by_symbol(call.target_symbol)
+        .or_else(|| typed.machine_holding_state(call.target_symbol)).unwrap();
+    let plan = typed.machine_callable_parameters(declaration).last().unwrap();
+    let crate::source_state::data::TypeParameterKind::Const { type_reference } = plan.kind else {
+        panic!("the plan is a structural constant, not an extra runtime argument");
+    };
+    let supplied = typed.expression_table.static_machine_application_arguments(call.authored_machine_application);
+    let key = typed.canonical_aggregate_argument(type_reference, supplied.last().unwrap())
+        .unwrap().application_identity().unwrap();
+    assert_eq!(terminal_psi::TerminalActivationStorage::from_core_argument(&key),
+        Some(terminal_psi::TerminalActivationStorage::Fixed), "{key}");
+    let entries = [caller];
     let request = production::TerminalSourceCompilation {
         calling: None, providers: None, declaration_metadata: &[], entries: &entries,
         subjects: &[], purpose: source_provenance::DependencyScope::Product,
@@ -181,6 +194,9 @@ fn preparing_a_child_names_its_worker_and_returns_the_rejected_backing() {
     };
     assert_eq!(entry.storage, terminal_psi::TerminalActivationStorage::Fixed);
     assert!(entry.selected_body(&reopened).is_some());
+    let mut forged = *entry;
+    forged.storage = terminal_psi::TerminalActivationStorage::Split;
+    assert!(forged.selected_body(&reopened).is_none());
 }
 
 #[test]

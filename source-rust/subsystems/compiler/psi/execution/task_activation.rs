@@ -38,6 +38,30 @@ pub enum TerminalActivationStorage {
     Split,
 }
 
+impl TerminalActivationStorage {
+    /// Close the same core enum value the source supplies to the plan binder.
+    /// Neither a display spelling nor a case of another enum selects storage.
+    pub fn from_core_argument(argument: &str) -> Option<Self> {
+        use application_identity::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+        use application_identity::type_identity::{
+            encoding::{atom, bare, compound},
+            vocabulary::{Label, NameForm, OwnerForm, TypeForm},
+        };
+        let name = compound(NameForm::Nominal, [
+            bare(OwnerForm::Toolchain), atom(Label::Path, "ActivationStorage"),
+        ]);
+        let carrier = compound(TypeForm::Named, [atom(Label::Name, &name)]);
+        [(Self::Fixed, "Fixed"), (Self::Split, "Split")].into_iter().find_map(|(mode, case)| {
+            let value = DecodedCanonicalConstValue::Variant {
+                type_name: "ActivationStorage".into(), case_name: case.into(), fields: Vec::new(),
+            };
+            let key = CanonicalConstValue::from_decoded_in_type(&carrier, &value, "")?
+                .application_identity()?;
+            (key == argument).then_some(mode)
+        })
+    }
+}
+
 impl TerminalPreparedActivationEntry {
     /// The checked prepare application, not a service name or the program's
     /// root entry, determines which child this code ID is allowed to start.
@@ -50,8 +74,11 @@ impl TerminalPreparedActivationEntry {
             return None;
         }
         let [crate::ClosedReachArgument::Type(_), crate::ClosedReachArgument::Type(_),
-            entry @ crate::ClosedReachArgument::Machine { .. }, crate::ClosedReachArgument::Const(_)] =
+            entry @ crate::ClosedReachArgument::Machine { .. }, crate::ClosedReachArgument::Const(plan)] =
             binding.method_arguments.as_slice() else { return None };
+        if TerminalActivationStorage::from_core_argument(module.identities.text(*plan)?)? != self.storage {
+            return None;
+        }
         entry.checked_body(module, self.entry_machine)
     }
 }
