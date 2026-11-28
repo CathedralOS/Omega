@@ -34,10 +34,10 @@ machine exercise(application: @Application, end: bool) -> bool {
 }
 machine main() crashes Trap {
     let mutable application: Application;
-    application.ledger.count = 99;
+    application.ledger.count = 99u64 as +Wrapping;
     let complete: bool = exercise(@application, false);
     let completed_count: u64 in Wrapping = application.ledger.count;
-    application.ledger.count = 99;
+    application.ledger.count = 99u64 as +Wrapping;
     let ended: bool = exercise(@application, true);
     transition complete && completed_count == 5 && ended && application.ledger.count == 5 {
         true -> done(),
