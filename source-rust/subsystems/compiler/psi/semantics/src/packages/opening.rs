@@ -86,7 +86,7 @@ pub(super) fn projection(
     Ok(projected)
 }
 
-fn subject_field<'a>(
+pub(super) fn subject_field<'a>(
     module: &'a TerminalModule,
     opening: &TerminalPackageOpening,
     arg: &StructuralArgument,
@@ -134,7 +134,7 @@ pub(super) fn invocation(
         return Err("package invocation has no projected descriptor");
     };
     if origin != index
-        || !versions::same_storage_version(module, machine, &opened.subject, producer, operation.id)
+        || !versions::same_storage_version(module, machine, opened, producer, operation.id)
     {
         return Err("package invocation has a different opening or stale descriptor");
     }

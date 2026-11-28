@@ -441,3 +441,26 @@ fn package_sites_repack_only_references_from_the_same_live_opening() {
     };
     assert!(check_package_sites(&program).is_err());
 }
+
+#[test]
+fn package_sites_reborrow_the_same_state_through_a_saved_callback() {
+    let mut program = readers();
+    let m = &mut program.machines[0];
+    for (i, position) in [(1, 0), (2, 1)] {
+        m.parameter_order.push(BoundaryParameterKind::Structural);
+        m.structural_places.push(StructuralPlaceDeclaration {
+            id: place(i),
+            kind: StructuralPlaceKind::Parameter { position },
+        });
+    }
+    let mut again = m.blocks[0].operations[1].clone();
+    again.id = operation_id(3);
+    m.blocks[0].operations.push(again);
+    program.execution.packages.sites.push(TerminalPackageSite {
+        machine: m.id,
+        operation: operation_id(3),
+        event: TerminalPackageEvent::Invoke { opening: 0 },
+    });
+    check_package_sites(&program)
+        .expect("fresh reborrows preserve the stored callback and reference");
+}

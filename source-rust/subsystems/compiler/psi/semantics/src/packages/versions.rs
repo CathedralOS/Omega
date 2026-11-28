@@ -7,7 +7,7 @@ use super::*;
 pub(super) fn same_storage_version(
     module: &TerminalModule,
     machine: &TerminalMachine,
-    subject: &StructuralArgument,
+    opened: &TerminalPackageOpening,
     projection: OperationId,
     call: OperationId,
 ) -> bool {
@@ -25,9 +25,63 @@ pub(super) fn same_storage_version(
     let (Some(read), Some(use_site)) = (position(projection), position(call)) else {
         return false;
     };
-    if read.0 == use_site.0 && read.1.checked_add(1) == Some(use_site.1) {
-        return true;
+    if read.0 == use_site.0 && read.1 < use_site.1 {
+        let Some(block) = machine.block(&read.0) else {
+            return false;
+        };
+        let between = &block.operations[read.1 as usize + 1..use_site.1 as usize];
+        if between.iter().all(|operation| match &operation.kind {
+            OperationKind::PrimitiveScalarRead { .. }
+            | OperationKind::BooleanConstant { .. }
+            | OperationKind::IntegerConstant { .. } => true,
+            // Calling the stored machine on a fresh reborrow can mutate its
+            // pointee, while neither stored field was given to the callee
+            // for replacement. Other effects still require ordinary replay.
+            OperationKind::CallMachine {
+                contract,
+                structural_arguments,
+                ..
+            } => module
+                .execution
+                .callables
+                .contract(*contract)
+                .is_some_and(|contract| {
+                    let sites = &module.execution.packages.sites;
+                    let same_opening = sites
+                        .binary_search_by_key(&(machine.id, operation.id), |s| {
+                            (s.machine, s.operation)
+                        })
+                        .ok()
+                        .and_then(|index| match sites[index].event {
+                            TerminalPackageEvent::Invoke { opening: index } => {
+                                opening(module, machine.id, index).ok()
+                            }
+                            _ => None,
+                        })
+                        == Some(opened);
+                    same_opening
+                        && !structural_arguments.is_empty()
+                        && contract.envelope.service_reach.is_empty()
+                        && contract.envelope.invocations.is_empty()
+                        && !contract.envelope.suspends
+                        && !contract.envelope.blocks
+                        && structural_arguments.len() == contract.structural_parameters.len()
+                        && structural_arguments
+                            .iter()
+                            .zip(&contract.structural_parameters)
+                            .all(|(arg, formal)| {
+                                arg.access != StructuralAccess::Owned
+                                    && formal.access == arg.access
+                                    && opened.witnesses.contains(&formal.structural_type)
+                                    && opening::subject_field(module, opened, arg).is_some()
+                            })
+                }),
+            _ => false,
+        }) {
+            return true;
+        }
     }
+    let subject = &opened.subject;
     let Some(root) = machine.structural_place_type(subject.place) else {
         return false;
     };

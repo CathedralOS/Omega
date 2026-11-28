@@ -92,13 +92,7 @@ pub(super) fn construction(
                 .get(&(machine.id, input))
                 .ok_or("repacked field has no opening origin")?;
             if *origin != index
-                || !versions::same_storage_version(
-                    module,
-                    machine,
-                    &row.subject,
-                    *producer,
-                    operation.id,
-                )
+                || !versions::same_storage_version(module, machine, row, *producer, operation.id)
             {
                 return Err("repacked field comes from a different or stale opening");
             }
