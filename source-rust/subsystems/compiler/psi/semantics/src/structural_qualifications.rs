@@ -2300,12 +2300,18 @@ fn validate_machine(
                                actual: &Memberships| {
         public == actual
             || !module.execution.packages.sites.is_empty()
-                && rows.analyses().ok().and_then(|analyses| analyses.package_sites().ok())
+                && rows
+                    .analyses()
+                    .ok()
+                    .and_then(|analyses| analyses.package_sites().ok())
                     .is_some_and(|sites| {
-                        field.or_else(|| sites.projected_field(machine.id, operation.id))
-                            .is_some_and(|field| sites.field_memberships(
-                                module, machine.id, operation, field, public, actual,
-                            ))
+                        field
+                            .or_else(|| sites.projected_field(machine.id, operation.id))
+                            .is_some_and(|field| {
+                                sites.field_memberships(
+                                    module, machine.id, operation, field, public, actual,
+                                )
+                            })
                     })
     };
     let places = Declared::new(machine)?;
@@ -2432,19 +2438,30 @@ fn validate_machine(
             }
             if let Some(call) = operation.kind.callable_invocation()
                 && !module.execution.packages.sites.is_empty()
-                && let Some(expected) = rows.analyses().ok()
+                && let Some(expected) = rows
+                    .analyses()
+                    .ok()
                     .and_then(|analyses| analyses.package_sites().ok())
                     .and_then(|sites| sites.invocation_contract(machine.id, operation.id))
             {
-                let Some(contract) = module.execution.callables.contract(call.contract)
+                let Some(contract) = module
+                    .execution
+                    .callables
+                    .contract(call.contract)
                     .filter(|contract| contract.id == expected)
                 else {
                     return malformed(id, "a package call lost its opened contract");
                 };
-                let result = contract.proof_result.structural().map(|result|
-                    Memberships::of(&result.qualifications, &result.projected_qualifications));
-                validate_call_memberships(&places, call.structural_arguments,
-                    &contract.structural_parameters, result, produced.as_ref())?;
+                let result = contract.proof_result.structural().map(|result| {
+                    Memberships::of(&result.qualifications, &result.projected_qualifications)
+                });
+                validate_call_memberships(
+                    &places,
+                    call.structural_arguments,
+                    &contract.structural_parameters,
+                    result,
+                    produced.as_ref(),
+                )?;
                 continue;
             }
             let Some(produced) = produced else {
@@ -2502,7 +2519,10 @@ fn validate_machine(
                 )?,
                 OperationKind::MoveStructuralValue { source } => {
                     if !field_keeps_domains(operation, None, &places.argument(source), &produced) {
-                        return malformed(id, "a structural move does not keep its source's exact domains");
+                        return malformed(
+                            id,
+                            "a structural move does not keep its source's exact domains",
+                        );
                     }
                 }
                 OperationKind::EstablishRecord { fields }
@@ -2528,7 +2548,12 @@ fn validate_machine(
                             Some(argument) => places.argument(argument),
                             None => Memberships::default(),
                         };
-                        if !field_keeps_domains(operation, Some(initializer.field), &expected, &actual) {
+                        if !field_keeps_domains(
+                            operation,
+                            Some(initializer.field),
+                            &expected,
+                            &actual,
+                        ) {
                             return malformed(
                                 id,
                                 "a structural literal's field does not deliver its declared domains",
@@ -2796,7 +2821,13 @@ fn validate_arguments(
             )
         }
     };
-    validate_call_memberships(places, inputs.structural_arguments, formals, result, produced)
+    validate_call_memberships(
+        places,
+        inputs.structural_arguments,
+        formals,
+        result,
+        produced,
+    )
 }
 
 fn validate_call_memberships(

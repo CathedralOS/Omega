@@ -81,7 +81,10 @@ impl Substitution<'_> {
                     || storage != representation
                     || fields.len() != supplied.len()
                     || !crate::packages::requirements::same(
-                        &public.requires, &actual.requires, fields, supplied,
+                        &public.requires,
+                        &actual.requires,
+                        fields,
+                        supplied,
                     )
                 {
                     return false;

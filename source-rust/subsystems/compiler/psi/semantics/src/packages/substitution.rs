@@ -222,7 +222,10 @@ impl Substitution<'_> {
         if !self.memberships(module, &memberships(public), &memberships(supplied)) {
             return false;
         }
-        nested.push(Comparison::Storage(public.structural_type, supplied.structural_type));
+        nested.push(Comparison::Storage(
+            public.structural_type,
+            supplied.structural_type,
+        ));
         expected.result.clone_from(&actual.result);
         expected.proof_result.clone_from(&actual.proof_result);
         expected.proof.result.clone_from(&actual.proof.result);

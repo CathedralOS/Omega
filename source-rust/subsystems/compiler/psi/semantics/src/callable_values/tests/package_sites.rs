@@ -1361,24 +1361,22 @@ fn a_consuming_descriptor_replays_its_nominal_owner_and_custody() {
     for index in [1, 3] {
         let contract = &mut returning.execution.callables.contracts[index];
         let carrier = &contract.structural_parameters[0];
-        contract.result = BoundaryMachineResult::Structural(
-            terminal_psi::BoundaryStructuralResultDeclaration {
+        contract.result =
+            BoundaryMachineResult::Structural(terminal_psi::BoundaryStructuralResultDeclaration {
                 structural_type: carrier.structural_type,
                 multiplicity: carrier.multiplicity,
                 qualifications: carrier.qualifications.clone(),
                 projected_qualifications: carrier.projected_qualifications.clone(),
-            },
-        );
-        contract.proof_result = TerminalMachineResult::Structural(
-            terminal_psi::StructuralResultDeclaration {
+            });
+        contract.proof_result =
+            TerminalMachineResult::Structural(terminal_psi::StructuralResultDeclaration {
                 place: place(2),
                 structural_type: carrier.structural_type,
                 multiplicity: carrier.multiplicity,
                 qualifications: carrier.qualifications.clone(),
                 projected_qualifications: carrier.projected_qualifications.clone(),
                 reference_sources: Vec::new(),
-            },
-        );
+            });
         contract.proof.result = contract.proof_result.clone();
     }
     assert!(admitted(&returning));
@@ -1414,8 +1412,10 @@ fn a_consuming_descriptor_replays_its_nominal_owner_and_custody() {
         );
     assert!(!admitted(&wrong_field));
     let mut stale_field = program.clone();
-    stale_field.types.structural_types[concrete].requires =
-        program.types.structural_types[concrete - 1].requires.clone();
+    stale_field.types.structural_types[concrete].requires = program.types.structural_types
+        [concrete - 1]
+        .requires
+        .clone();
     assert!(!admitted(&stale_field));
     let mut primitive = program.clone();
     primitive.types.structural_types[3].identity = byte;
