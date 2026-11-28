@@ -14,20 +14,31 @@ use terminal_psi::{
     TerminalPackageEvent, TerminalPackageOpening, TerminalPackageSchema,
 };
 
+mod construction;
 mod fields;
 mod opening;
 mod substitution;
+mod versions;
 
+use construction::construction;
 use fields::{check_field_accesses, enters_package};
 use opening::{invocation, projection};
 use substitution::Substitution;
 
 type Site = (MachineId, OperationId);
 
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Projected {
+    Descriptor(ValueId),
+    Reference(semantic_vocabulary::PlaceId),
+}
+type ProjectedOrigins = BTreeMap<(MachineId, Projected), (u32, OperationId)>;
+
 #[derive(Default, Debug)]
 pub struct CheckedPackageSites {
     fields: BTreeMap<(MachineId, OperationId, StructuralFieldId), StructuralFieldType>,
     calls: BTreeMap<Site, CallableContractId>,
+    repacked_fields: BTreeMap<(MachineId, OperationId, StructuralFieldId), OperationId>,
     projected_fields: BTreeMap<Site, StructuralFieldId>,
     descriptors: BTreeMap<Site, (u32, CallableContractId)>,
     borrowed_arguments: BTreeMap<(MachineId, OperationId, usize), StructuralTypeId>,
@@ -41,6 +52,19 @@ impl CheckedPackageSites {
         field: StructuralFieldId,
     ) -> Option<&StructuralFieldType> {
         self.fields.get(&(machine, operation, field))
+    }
+
+    /// The projection that supplied a dependent operand for this repacking.
+    /// Both operations belong to the same machine and checked storage version.
+    pub fn repacked_field(
+        &self,
+        machine: MachineId,
+        operation: OperationId,
+        field: StructuralFieldId,
+    ) -> Option<OperationId> {
+        self.repacked_fields
+            .get(&(machine, operation, field))
+            .copied()
     }
 
     pub fn projected_field(
@@ -67,35 +91,13 @@ impl CheckedPackageSites {
         let Ok(opened) = opening(module, machine, index) else {
             return false;
         };
-        let catalog = &module.execution.callables;
-        let (Some(required), Some(supplied)) = (
-            catalog.contract(abstract_contract),
-            catalog.contract(actual),
-        ) else {
-            return false;
-        };
-        let mut bindings = BTreeMap::new();
-        for (from, to) in required
-            .structural_parameters
-            .iter()
-            .zip(&supplied.structural_parameters)
-        {
-            if opened.witnesses.contains(&from.structural_type) {
-                if module.structural_type(to.structural_type).is_none()
-                    || bindings
-                        .insert(from.structural_type, to.structural_type)
-                        .is_some_and(|previous| previous != to.structural_type)
-                {
-                    return false;
-                }
-            }
-        }
-        let (public, actual_types): (Vec<_>, Vec<_>) = bindings.into_iter().unzip();
-        Substitution {
-            public: &public,
-            actual: &actual_types,
-        }
-        .callable(module, abstract_contract, actual)
+        opened_callable_admits(
+            &module.execution.callables,
+            &module.types.structural_types,
+            &opened.witnesses,
+            abstract_contract,
+            actual,
+        )
     }
 
     /// At a checked call, the declared type of the field borrowed from the
@@ -118,6 +120,45 @@ impl CheckedPackageSites {
     ) -> Option<CallableContractId> {
         self.calls.get(&(machine, operation)).copied()
     }
+}
+
+/// Determine whether the descriptor at an already checked opening preserves
+/// its entire callable contract under the inferred witness substitution.
+pub fn opened_callable_admits(
+    catalog: &terminal_psi::TerminalCallableCatalog,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    opened_witnesses: &[StructuralTypeId],
+    abstract_contract: CallableContractId,
+    actual: CallableContractId,
+) -> bool {
+    let (Some(required), Some(supplied)) = (
+        catalog.contract(abstract_contract),
+        catalog.contract(actual),
+    ) else {
+        return false;
+    };
+    let mut bindings = BTreeMap::new();
+    for (from, to) in required
+        .structural_parameters
+        .iter()
+        .zip(&supplied.structural_parameters)
+    {
+        if opened_witnesses.contains(&from.structural_type) {
+            if terminal_psi::find_structural_type(types, to.structural_type).is_none()
+                || bindings
+                    .insert(from.structural_type, to.structural_type)
+                    .is_some_and(|previous| previous != to.structural_type)
+            {
+                return false;
+            }
+        }
+    }
+    let (public, actual_types): (Vec<_>, Vec<_>) = bindings.into_iter().unzip();
+    Substitution {
+        public: &public,
+        actual: &actual_types,
+    }
+    .callable(catalog, abstract_contract, actual)
 }
 
 fn scalar_type(machine: &TerminalMachine, id: ValueId) -> Option<ScalarType> {
@@ -185,73 +226,6 @@ fn opening(
         .ok_or("package operation names another machine's opening")
 }
 
-fn construction(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-    operation: &Operation,
-    witnesses: &[StructuralTypeId],
-    abstract_types: &BTreeSet<StructuralTypeId>,
-    result: &mut CheckedPackageSites,
-) -> Result<(), &'static str> {
-    let OperationKind::EstablishRecord { fields: supplied } = &operation.kind else {
-        return Err("package construction is not record establishment");
-    };
-    let record = operation
-        .result
-        .structural()
-        .ok_or("package construction lacks a record result")?
-        .structural_type;
-    let schema = schema(module, record)?;
-    if witnesses.len() != schema.witnesses.len()
-        || witnesses
-            .iter()
-            .any(|id| abstract_types.contains(id) || module.structural_type(*id).is_none())
-    {
-        return Err("package construction requires the complete concrete witness tuple");
-    }
-    let substitutions = Substitution {
-        public: &schema.witnesses,
-        actual: witnesses,
-    };
-    let mut declarations = fields(module, record)?
-        .iter()
-        .filter(|field| !field.relevance.is_erased());
-    for field in supplied {
-        let declaration = declarations
-            .next()
-            .filter(|decl| decl.id == field.field)
-            .ok_or("package construction fields differ from its declaration")?;
-        let actual = match &field.value {
-            RecordFieldValue::Scalar { value, .. } => {
-                let ty = scalar_type(machine, *value)
-                    .ok_or("package field lacks a unique scalar producer")?;
-                if declaration.field_type.scalar_type() == Some(ty) {
-                    declaration.field_type.clone()
-                } else {
-                    StructuralFieldType::Scalar(ty)
-                }
-            }
-            RecordFieldValue::Structural(arg) if arg.access == StructuralAccess::Owned => {
-                StructuralFieldType::Structural(
-                    argument_type(module, machine, arg)
-                        .ok_or("package field operand has no structural type")?,
-                )
-            }
-            _ => return Err("package construction does not own its initializer"),
-        };
-        if !substitutions.admits(module, &declaration.field_type, &actual) {
-            return Err("package field differs from the shared witness substitution");
-        }
-        result
-            .fields
-            .insert((machine.id, operation.id, field.field), actual);
-    }
-    if declarations.next().is_some() {
-        return Err("package construction omits a field");
-    }
-    Ok(())
-}
-
 pub fn check_package_sites(module: &TerminalModule) -> Result<CheckedPackageSites, &'static str> {
     let catalog = &module.execution.packages;
     let mut checked = CheckedPackageSites::default();
@@ -315,14 +289,7 @@ pub fn check_package_sites(module: &TerminalModule) -> Result<CheckedPackageSite
             .ok_or("package site names an absent operation")?;
         events.insert((machine.id, operation.id), &site.event);
         match &site.event {
-            TerminalPackageEvent::Construct { witnesses } => construction(
-                module,
-                machine,
-                operation,
-                witnesses,
-                &abstract_types,
-                &mut checked,
-            )?,
+            TerminalPackageEvent::Construct { .. } => (),
             TerminalPackageEvent::Project { opening, field } => {
                 let value = projection(module, machine, operation, *opening, *field, &mut checked)?;
                 if projected
@@ -348,6 +315,17 @@ pub fn check_package_sites(module: &TerminalModule) -> Result<CheckedPackageSite
         }
         for operation in machine.operations() {
             let event = events.get(&(machine.id, operation.id)).copied();
+            if let Some(TerminalPackageEvent::Construct { witnesses }) = event {
+                construction(
+                    module,
+                    machine,
+                    operation,
+                    witnesses,
+                    &abstract_types,
+                    &projected,
+                    &mut checked,
+                )?;
+            }
             if let Some(TerminalPackageEvent::Invoke { opening }) = event {
                 let contract = invocation(
                     module,
@@ -373,7 +351,7 @@ pub fn check_package_sites(module: &TerminalModule) -> Result<CheckedPackageSite
                 return Err("package construction lacks its witness substitution");
             }
             if let OperationKind::CallMachine { callee, .. } = operation.kind
-                && (projected.contains_key(&(machine.id, callee))
+                && (projected.contains_key(&(machine.id, Projected::Descriptor(callee)))
                     || scalar_type(machine, callee)
                         .and_then(|ty| match ty {
                             ScalarType::Callable(contract) => {
