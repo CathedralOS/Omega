@@ -11625,7 +11625,8 @@ fn validate_callable_scalar_types(module: &TerminalModule) -> Result<(), CodecEr
             .iter()
             .filter_map(|entry| match entry {
                 terminal_psi::TerminalCallableInvocation::Service(service) => Some(*service),
-                terminal_psi::TerminalCallableInvocation::Parameter(_) => None,
+                terminal_psi::TerminalCallableInvocation::Parameter(_)
+                | terminal_psi::TerminalCallableInvocation::ProjectedParameter { .. } => None,
             })
             .collect();
         let unconditional_termination = matches!(

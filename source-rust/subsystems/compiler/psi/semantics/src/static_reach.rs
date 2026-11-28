@@ -476,11 +476,16 @@ pub fn template_commitment<'identity>(
     let mut entries = invocations
         .iter()
         .map(|entry| match entry {
-            terminal_psi::TerminalCallableInvocation::Parameter(position) => Ok((0, *position, "")),
+            terminal_psi::TerminalCallableInvocation::Parameter(position) => {
+                Ok((0, *position, "", &[][..]))
+            }
+            terminal_psi::TerminalCallableInvocation::ProjectedParameter { parameter, path } => {
+                Ok((2, *parameter, "", path.as_slice()))
+            }
             terminal_psi::TerminalCallableInvocation::Service(service) => {
                 service_identity(*service)
                     .filter(|identity| !identity.is_empty())
-                    .map(|identity| (1, 0, identity))
+                    .map(|identity| (1, 0, identity, &[][..]))
                     .ok_or("generic invocation has no exact service identity")
             }
         })
@@ -488,10 +493,27 @@ pub fn template_commitment<'identity>(
     entries.sort_unstable();
     entries.dedup();
     digest.len(entries.len());
-    for (kind, position, identity) in entries {
+    for (kind, position, identity, path) in entries {
         digest.raw(&[kind]);
         digest.raw(&position.to_le_bytes());
         digest.bytes(identity.as_bytes());
+        if kind == 2 {
+            use semantic_vocabulary::CanonicalStructuralPathSegment as Step;
+            digest.len(path.len());
+            for step in path {
+                match step {
+                    Step::Field(name) | Step::Case(name) => {
+                        digest.raw(&[if matches!(step, Step::Field(_)) { 1 } else { 3 }]);
+                        digest.bytes(name.as_bytes());
+                    }
+                    Step::FixedIndex(index) => {
+                        digest.raw(&[2]);
+                        digest.raw(&index.to_le_bytes());
+                    }
+                    Step::Referent => digest.raw(&[4]),
+                }
+            }
+        }
     }
     digest.len(projections.len());
     for (parameter, identity) in projections {

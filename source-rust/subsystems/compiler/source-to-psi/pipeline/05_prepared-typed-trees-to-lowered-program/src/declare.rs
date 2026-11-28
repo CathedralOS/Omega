@@ -2684,6 +2684,11 @@ pub(crate) fn provider_declaration(
     0xffu8.hash(&mut commitment);
     for invocation in &envelope.invocations {
         match invocation {
+            terminal_psi::TerminalCallableInvocation::ProjectedParameter { parameter, path } => {
+                2u8.hash(&mut commitment);
+                parameter.hash(&mut commitment);
+                path.hash(&mut commitment);
+            }
             terminal_psi::TerminalCallableInvocation::Parameter(position) => {
                 0u8.hash(&mut commitment);
                 position.hash(&mut commitment);

@@ -703,6 +703,16 @@ fn exceeded_reach(
                     format!("parameter {}", u64::from(*position) + 1)
                 }
                 crate::ceilings::Permission::Entry(
+                    terminal_psi::TerminalCallableInvocation::ProjectedParameter {
+                        parameter,
+                        path,
+                    },
+                ) => format!(
+                    "parameter {}{}",
+                    u64::from(*parameter) + 1,
+                    semantic_vocabulary::display_invocation_path(path)
+                ),
+                crate::ceilings::Permission::Entry(
                     terminal_psi::TerminalCallableInvocation::Service(service),
                 ) => module
                     .interfaces

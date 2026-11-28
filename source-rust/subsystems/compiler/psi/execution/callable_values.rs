@@ -101,11 +101,7 @@ pub struct TerminalCallableEnvelope {
     pub termination: TerminalCallableTermination,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum TerminalCallableInvocation {
-    Parameter(u32),
-    Service(ServiceId),
-}
+pub type TerminalCallableInvocation = semantic_vocabulary::SynchronousInvocation<ServiceId>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalCallableTermination {
