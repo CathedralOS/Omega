@@ -806,7 +806,6 @@ dependencies = [
  "target",
  "target-aarch64",
  "target-x86_64",
- "wire",
 ]
 
 [[package]]
@@ -1297,7 +1296,6 @@ dependencies = [
  "register-model",
  "selected-instructions",
  "semantic-vocabulary",
- "sha2",
  "structural-storage",
  "target",
  "target-vocabulary",
@@ -2418,7 +2416,6 @@ dependencies = [
  "register-homes",
  "register-homes-to-post-allocation-machine",
  "register-model",
- "selected-form-encoding-to-resolved-layout",
  "selected-instruction-analyses",
  "selected-instructions-to-register-homes",
  "selected-instructions-to-selected-instructions",
@@ -2524,7 +2521,6 @@ dependencies = [
  "runtime-abi",
  "selected-instructions",
  "semantic-vocabulary",
- "sha2",
  "structural-storage",
  "target",
  "target-vocabulary",

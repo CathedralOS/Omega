@@ -380,6 +380,69 @@ fn successor_diagnostics_keep_actual_operands_and_target_parameters() {
 }
 
 #[test]
+fn nonreturning_call_to_a_header_retains_its_borrow_and_unknown_writes() {
+    use crate::descriptor_results::{DescriptorAnalysis, terminal_borrowed_storage_graph_from};
+
+    let mut module = reference_flow_module(false);
+    let caller = &mut module.machines[0];
+    caller.structural_places.truncate(1);
+    let parameter = &mut caller.structural_parameters[0];
+    parameter.structural_type = StructuralTypeId::new(1).unwrap();
+    parameter.access = StructuralAccess::MutableBorrow;
+    let actual = parameter.place;
+    let caller_id = caller.id;
+    let mut header = machine(2);
+    header.contract.id = ContractId::new(2).unwrap();
+    header.parameter_order = caller.parameter_order.clone();
+    header.structural_parameters = caller.structural_parameters.clone();
+    header.structural_places = caller.structural_places.clone();
+    header.blocks.clear();
+    let edge = EdgeId::new(1).unwrap();
+    let position = (caller.entry, 0);
+    caller.blocks[0].terminator = Terminator::InvokeNoNormal {
+        edge,
+        static_reach_binding: None,
+        required_contract: None,
+        callee: header.id,
+        arguments: vec![],
+        erased_arguments: vec![],
+        erased_proof_arguments: vec![],
+        structural_arguments: vec![terminal_psi::StructuralArgument::whole(
+            actual,
+            StructuralAccess::MutableBorrow,
+        )],
+        claim_transfers: vec![],
+        requirement_obligations: vec![],
+        crash_continuations: vec![],
+    };
+    module.machines.push(header);
+
+    let graph = terminal_borrowed_storage_graph_from(&module, [caller_id], &[]).unwrap();
+    let caller = graph.iter().find(|row| row.id == caller_id).unwrap();
+    let call = caller
+        .invocation(position, DescriptorInvocationOwner::InvokeNoNormal(edge))
+        .unwrap();
+    assert_eq!(call.arguments, [Some(DescriptorLocation::whole(actual))]);
+    let mut analysis =
+        DescriptorAnalysis::with_borrowed_storage_slots(&module.types.structural_types, &graph);
+    assert!(
+        analysis.flow_arc(caller_id).unwrap()[&position]
+            .successors
+            .is_empty()
+    );
+    assert_eq!(analysis.storage_writes(caller_id, position).unwrap(), None);
+
+    module.machines[1].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+    let error = terminal_borrowed_storage_graph_from(&module, [caller_id], &[])
+        .err()
+        .expect("the callee header must agree with the terminal edge's borrow");
+    assert_eq!(
+        error.detail(),
+        Some("descriptor terminal invocation does not match its callee header")
+    );
+}
+
+#[test]
 fn nonreturning_local_calls_retain_write_effects_and_actual_backing() {
     use crate::descriptor_results::{DescriptorAnalysis, DescriptorSourceOrigin};
     use semantic_vocabulary::{InvocationSite, ScalarType, ValueId};

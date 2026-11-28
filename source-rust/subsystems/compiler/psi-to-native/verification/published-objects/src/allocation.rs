@@ -4,7 +4,7 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 use register_homes::{
     AllocatedCalleeSavedRequirementPlan, AllocatedCalleeSavedRequirementPolicy,
     AllocatedCalleeSavedRequirements, AllocationPublicationFacts,
-    FunctionAllocatedCalleeSavedRequirements, RegisterHomeIdentity, RegisterHomePlan,
+    FunctionAllocatedCalleeSavedRequirements, RegisterHomePlan,
 };
 pub use selected_instruction_analyses::register_writes::AllocatedCalleeSavedRequirementError;
 use selected_instruction_analyses::{OwnedSelectedProgram, SelectedProgramView};
@@ -17,7 +17,6 @@ pub use validation::validate_allocated_callee_saved_requirements;
 pub(crate) struct AllocationOriginals {
     pub selected: OwnedSelectedProgram,
     pub homes: Arc<RegisterHomePlan>,
-    pub homes_identity: RegisterHomeIdentity,
     pub environment: ValidatedTargetRegisterEnvironment,
     pub preservation: AllocatedCalleeSavedRequirements,
     pub publication: Arc<AllocationPublicationFacts>,
@@ -29,7 +28,6 @@ impl AllocationOriginals {
         Self {
             selected: OwnedSelectedProgram::retain(current.selected()),
             homes: current.homes().shared_plan(),
-            homes_identity: current.homes().receipt().identity(),
             environment: current.register_environment().clone(),
             preservation: source.preservation().retained().clone(),
             publication: Arc::clone(source.publication()),
@@ -38,16 +36,10 @@ impl AllocationOriginals {
 
     pub(crate) fn validate_roots(&self) -> Result<(), AllocatedCalleeSavedRequirementError> {
         let manifest = self.publication.record();
-        if register_homes::register_home_identity(&self.homes) != self.homes_identity
-            || manifest.recomputed_identity() != manifest.identity
-            || *manifest.selected != *self.selected.selected_plan()
-            || manifest.homes != self.homes_identity
+        if *manifest.selected != *self.selected.selected_plan()
+            || manifest.homes != self.homes
             || manifest.register_environment != self.environment.identity()
             || manifest.target != self.environment.target()
-            || self.preservation.identity
-                != register_homes::allocated_callee_saved_requirement_identity(
-                    self.preservation.plan(),
-                )
         {
             return Err(AllocatedCalleeSavedRequirementError::RootMismatch);
         }
@@ -167,8 +159,8 @@ pub(crate) mod validation {
         let environment = &current.environment;
         let manifest = current.publication.record();
         if *candidate.selected != *current.selected.selected_plan()
-            || candidate.homes != current.homes_identity
-            || candidate.post_allocation_manifest != manifest.identity
+            || candidate.homes != current.homes
+            || candidate.post_allocation_manifest != *manifest
             || candidate.register_environment != environment.identity()
             || candidate.physical_register_model != environment.physical().identity()
             || candidate.target != environment.target()
@@ -185,9 +177,6 @@ pub(crate) mod validation {
         {
             return Err(AllocatedCalleeSavedRequirementError::NonCanonicalRequirements);
         }
-        Ok(AllocatedCalleeSavedRequirements {
-            identity: register_homes::allocated_callee_saved_requirement_identity(&candidate),
-            plan: std::sync::Arc::new(candidate),
-        })
+        Ok(std::sync::Arc::new(candidate))
     }
 }

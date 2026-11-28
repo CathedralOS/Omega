@@ -3,6 +3,8 @@
 pub mod code_layout;
 mod companion_code;
 pub mod import_code;
+#[cfg(feature = "test-support")]
+pub mod test_support;
 pub use companion_code::{EncodedAuxiliaryExport, WindowsInternetProviderCode};
 
 /*
@@ -24,18 +26,17 @@ machine code progresses through three distinct resolution levels owned by this c
 
 /*
 Why this crate separates representation data from stage admission:
-Every struct and canonical SHA-256 identity digest (`SelectedFormEncodingIdentity`,
-`WholeFunctionExitContractIdentity`) describes
-the current machine-code artifact and its retained roots so downstream stages and independent
-object/artifact verifiers can audit exact byte, fixup, and provenance correspondence without
-importing producer transformation passes. Constructing or decoding a record checks wire and
-digest consistency only; it never grants lowering, optimization, or publication authority.
+Every struct describes the current machine-code artifact and its retained roots so downstream
+stages and independent object/artifact verifiers can audit exact byte, fixup, and provenance
+correspondence without importing producer transformation passes. Records share the plans they were built from and
+checks compare those plans; constructing a record never grants lowering, optimization, or
+publication authority.
 */
 
 pub(crate) use ::wire::digest_encoder;
 
 use register_model::RegisterViewId;
-use selected_instructions::{MachineIdentityBytes, SelectedBlockId, SelectedInstructionId};
+use selected_instructions::{SelectedBlockId, SelectedInstructionId};
 use semantic_vocabulary::{InvocationSite, MachineId, OperationId, PlaceId};
 
 pub(crate) mod codec_bytes {
@@ -44,15 +45,6 @@ pub(crate) mod codec_bytes {
 
 pub(crate) mod identity_encoding {
     use super::*;
-
-    pub(crate) fn encode_nested_identity(
-        hasher: &mut digest_encoder::DomainDigestEncoder,
-        value: impl FnOnce(&mut Vec<u8>),
-    ) {
-        let mut identity = Vec::new();
-        value(&mut identity);
-        hasher.raw(&identity);
-    }
 
     pub(crate) fn encode_views(
         hasher: &mut digest_encoder::DomainDigestEncoder,
@@ -100,34 +92,6 @@ pub(crate) mod identity_encoding {
         hasher.raw(&jump.target_block.0.to_le_bytes());
         hasher.raw(&jump.target_offset.to_le_bytes());
         hasher.raw(&jump.byte_displacement.to_le_bytes());
-    }
-
-    pub(crate) fn encode_invocation_site(
-        bytes: &mut impl MachineIdentityBytes,
-        site: InvocationSite,
-    ) {
-        match site {
-            InvocationSite::Cleanup {
-                edge,
-                action_ordinal,
-            } => {
-                bytes.identity_bytes(&[3]);
-                bytes.identity_bytes(&edge.get().to_le_bytes());
-                bytes.identity_bytes(&action_ordinal.to_le_bytes());
-            }
-            InvocationSite::Operation(operation) => {
-                bytes.identity_bytes(&[0]);
-                bytes.identity_bytes(&operation.get().to_le_bytes());
-            }
-            InvocationSite::InvokeNoNormal(edge) => {
-                bytes.identity_bytes(&[2]);
-                bytes.identity_bytes(&edge.get().to_le_bytes());
-            }
-            InvocationSite::ExternalCompletion(edge) => {
-                bytes.identity_bytes(&[1]);
-                bytes.identity_bytes(&edge.get().to_le_bytes());
-            }
-        }
     }
 }
 
@@ -322,7 +286,7 @@ pub use calls::*;
 pub use encoding::{
     DeferredControlEncodingReason, ResolvedPhysicalAddress, SelectedFormDecodedFootprint,
     SelectedFormDecodedFootprintHandle, SelectedFormEncodedByteSpan, SelectedFormEncodedRowStore,
-    SelectedFormEncoding, SelectedFormEncodingCounts, SelectedFormEncodingIdentity,
+    SelectedFormEncoding, SelectedFormEncodingCounts, SelectedFormEncodingHandle,
     SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormMachineDisposition,
 };
 pub use fragments::{
@@ -337,11 +301,10 @@ pub use fragments::{
 };
 pub use functions::{
     WholeFunctionCrashEvidence, WholeFunctionEntryAssumption, WholeFunctionExitContract,
-    WholeFunctionExitContractIdentity, WholeFunctionExitEvidence, WholeFunctionExitLayoutCustody,
-    WholeFunctionExitPolicy, WholeFunctionFrameDisposition, WholeFunctionHardeningPolicy,
-    WholeFunctionProcessExitEvidence, WholeFunctionReturnEvidence,
-    WholeFunctionReturnFragmentEvidence, WholeFunctionReturnMechanism,
-    WholeFunctionReturnValueEvidence, exit_contract, whole_function_exit_contract_identity,
+    WholeFunctionExitEvidence, WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy,
+    WholeFunctionFrameDisposition, WholeFunctionHardeningPolicy, WholeFunctionProcessExitEvidence,
+    WholeFunctionReturnEvidence, WholeFunctionReturnFragmentEvidence, WholeFunctionReturnMechanism,
+    WholeFunctionReturnValueEvidence, exit_contract,
 };
 pub use image_addresses::{
     ByteLiteralReference, FunctionFragmentImageAddressFixup, ImageAddressFields,

@@ -75,9 +75,7 @@ impl Program<'_> {
         let target = self.entered_machine(argument.symbol).ok_or_else(|| {
             unavailable("logical argument is not a named theorem or proof formal")
         })?;
-        let machine = typed
-            .machine_by_symbol(target)
-            .ok_or_else(|| unavailable("named theorem has no complete source declaration"))?;
+        let machine = self.required_machine(id, target, "named theorem")?;
         let handle = argument.authored_machine_application;
         if !typed
             .expression_table
@@ -236,9 +234,7 @@ impl Program<'_> {
         let target = self.entered_machine(argument.symbol).ok_or_else(|| {
             unavailable("logical argument is not a named theorem or proof formal")
         })?;
-        let machine = typed
-            .machine_by_symbol(target)
-            .ok_or_else(|| unavailable("named theorem has no complete source declaration"))?;
+        let machine = self.required_machine(id, target, "named theorem")?;
         // A theorem with proof parameters of its own may be cited without
         // them when the expected contract declares the same ones in its own
         // header; stage 06 checks that correspondence and refuses any other.
@@ -376,9 +372,7 @@ impl Program<'_> {
         let target = self
             .entered_machine(value.selected.symbol)
             .ok_or_else(|| unavailable("stored theorem citation selects no named theorem"))?;
-        let machine = typed
-            .machine_by_symbol(target)
-            .ok_or_else(|| unavailable("named theorem has no complete source declaration"))?;
+        let machine = self.required_machine(id, target, "named theorem")?;
         if !typed.machine_type_parameters(machine).is_empty()
             || !machine.conformance_bounds.is_empty()
         {

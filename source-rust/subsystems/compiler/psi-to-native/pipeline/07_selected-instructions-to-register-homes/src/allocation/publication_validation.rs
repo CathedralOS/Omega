@@ -31,8 +31,8 @@ pub(crate) fn validate(
 }
 
 /// The manifest must carry the program's Omega 04 record unchanged, then
-/// exactly the recovery rewrites this allocation applied; the record's
-/// completions must agree with which Omega 04 phases the build selected.
+/// exactly the recovery rewrites this allocation applied; the record's phase
+/// outputs must agree with which Omega 04 phases the build selected.
 fn validate_history(
     post: &register_homes::PostAllocationOptimizationManifest,
     history: &selected_instruction_analyses::SelectedOptimizationRecord,
@@ -44,17 +44,15 @@ fn validate_history(
 
     let expected_transformations = match evidence {
         AllocationEvidence::RegisterHomes(_) => history.transformations.clone(),
-        AllocationEvidence::FixedViewCopies(receipt) => {
-            history.followed_by(&[PostAllocationSelectedTransformation::FixedViewCopy(
-                receipt.source().source().transformation(),
-            )])
+        AllocationEvidence::FixedViewCopies(_) => {
+            history.followed_by(&[PostAllocationSelectedTransformation::FixedViewCopy])
         }
-        AllocationEvidence::ActiveResidentRematerialization(receipt) => history.followed_by(&[
-            PostAllocationSelectedTransformation::PressureRematerialization(
-                receipt.rematerialization(),
-            ),
-        ]),
-        AllocationEvidence::RuntimeSpill(identity) if *identity == post.identity => {
+        AllocationEvidence::ActiveResidentRematerialization(_) => {
+            history.followed_by(&[PostAllocationSelectedTransformation::PressureRematerialization])
+        }
+        AllocationEvidence::RuntimeSpill(manifest)
+            if std::ptr::eq(manifest.as_ref(), post) || **manifest == *post =>
+        {
             if !post
                 .selected_transformations
                 .starts_with(&history.transformations)
@@ -69,11 +67,11 @@ fn validate_history(
     };
     let selected = |phase| !selections.for_phase(phase).is_empty();
     if post.selected_transformations != expected_transformations
-        || post.selected_lowering_completion != history.selected_lowering_completion
-        || post.pre_allocation_completion != history.pre_allocation_completion
-        || history.selected_lowering_completion.is_some()
+        || post.selected_lowering_output != history.selected_lowering_output
+        || post.pre_allocation_output != history.pre_allocation_output
+        || history.selected_lowering_output.is_some()
             != selected(OptimizationExecutionPhase::SelectedLowering)
-        || history.pre_allocation_completion.is_some()
+        || history.pre_allocation_output.is_some()
             != selected(OptimizationExecutionPhase::PreAllocation)
     {
         return Err(AllocationPublicationValidationError::PublicationMismatch);
@@ -102,42 +100,44 @@ mod tests {
     use super::*;
     use optimization_core::{
         OptimizationExecutionPhase, OptimizationSelectionIdentity, OptimizationUnitIdentity,
-        OptimizationWorkBudget, PostAllocationOptimizationManifestIdentity,
-        PreAllocationOptimizationCompletionIdentity,
-        SelectedLoweringOptimizationCompletionIdentity,
+        OptimizationWorkBudget,
     };
     use register_homes::{
         AllocatorAvailabilityIdentity, PostAllocationManifestStage,
         PostAllocationOptimizationManifest, PostAllocationSelectedTransformation,
         PostAllocationSpillStatus, PostAllocationStatistics, PostAllocationUnavailableData,
-        RegisterHomeIdentity,
+        RegisterHomePlan,
     };
     use register_model::TargetRegisterEnvironmentIdentity;
     use selected_instruction_analyses::SelectedOptimizationRecord;
+    use std::sync::Arc;
 
     fn record() -> PostAllocationOptimizationManifest {
-        let mut post = PostAllocationOptimizationManifest {
-            identity: PostAllocationOptimizationManifestIdentity::from_canonical_bytes(b"pending"),
+        let selected = selected_instructions::test_support::placeholder_plan(1);
+        PostAllocationOptimizationManifest {
             stage: PostAllocationManifestStage::RegisterHomes,
             optimization_unit: OptimizationUnitIdentity::from_canonical_bytes(b"unit"),
             selection: OptimizationSelectionIdentity::from_bytes([3; 32]),
             budget_per_pass: OptimizationWorkBudget::new(1, 1, 1, 1, 1).unwrap(),
             target: target::NativeTarget::linux_x64(),
-            selected: selected_instructions::test_support::placeholder_plan(1),
-            selected_lowering_completion: None,
-            pre_allocation_completion: None,
+            selected: Arc::clone(&selected),
+            selected_lowering_output: None,
+            pre_allocation_output: None,
             selected_transformations: Vec::new(),
             register_environment: TargetRegisterEnvironmentIdentity::from_bytes([4; 32]),
             allocator_availability: AllocatorAvailabilityIdentity::from_bytes([5; 32]),
-            homes: RegisterHomeIdentity::from_bytes([6; 32]),
+            homes: Arc::new(RegisterHomePlan {
+                selected,
+                register_environment: TargetRegisterEnvironmentIdentity::from_bytes([4; 32]),
+                allocator_availability: AllocatorAvailabilityIdentity::from_bytes([5; 32]),
+                functions: Vec::new(),
+            }),
             spills: PostAllocationSpillStatus::NotRequiredForValidatedHomePlan,
             frame: PostAllocationUnavailableData::Unavailable,
             emission: PostAllocationUnavailableData::Unavailable,
             publication: PostAllocationUnavailableData::Unavailable,
             statistics: PostAllocationStatistics::default(),
-        };
-        post.identity = post.recomputed_identity();
-        post
+        }
     }
 
     fn replay(
@@ -148,7 +148,7 @@ mod tests {
         validate_history(
             post,
             history,
-            &AllocationEvidence::RuntimeSpill(post.identity),
+            &AllocationEvidence::RuntimeSpill(Arc::new(post.clone())),
             selections,
         )
     }
@@ -176,23 +176,20 @@ mod tests {
     #[test]
     fn publication_audit_preserves_history_before_runtime_recovery() {
         let mut post = record();
-        let first = PostAllocationSelectedTransformation::LiteralFold(
-            selected_instructions::LiteralFoldIdentity::from_canonical_bytes(b"fold"),
-        );
+        let first = PostAllocationSelectedTransformation::LiteralFold;
         let later = PostAllocationSelectedTransformation::RuntimeSpill;
         let history = SelectedOptimizationRecord {
             transformations: vec![first],
             ..Default::default()
         };
         post.selected_transformations = vec![first, later];
-        post.identity = post.recomputed_identity();
         let none = OptimizationSelections::default();
         assert_eq!(replay(&post, &history, &none), Ok(()));
         assert_eq!(
             validate_history(
                 &post,
                 &history,
-                &AllocationEvidence::RuntimeSpill(record().identity),
+                &AllocationEvidence::RuntimeSpill(Arc::new(record())),
                 &none
             ),
             Err(AllocationPublicationValidationError::PublicationMismatch)
@@ -205,25 +202,21 @@ mod tests {
     }
 
     #[test]
-    fn publication_audit_requires_matching_completions_and_phase_selections() {
+    fn publication_audit_requires_matching_phase_outputs_and_phase_selections() {
         for phase in [
             OptimizationExecutionPhase::SelectedLowering,
             OptimizationExecutionPhase::PreAllocation,
         ] {
             let mut post = record();
             let mut history = SelectedOptimizationRecord::default();
+            let output = Some(selected_instructions::test_support::placeholder_plan(2));
             if phase == OptimizationExecutionPhase::SelectedLowering {
-                history.selected_lowering_completion = Some(
-                    SelectedLoweringOptimizationCompletionIdentity::from_canonical_bytes(
-                        b"lowered",
-                    ),
-                );
+                history.selected_lowering_output = output;
             } else {
-                history.pre_allocation_completion =
-                    Some(PreAllocationOptimizationCompletionIdentity::from_canonical_bytes(b"pre"));
+                history.pre_allocation_output = output;
             }
-            post.selected_lowering_completion = history.selected_lowering_completion;
-            post.pre_allocation_completion = history.pre_allocation_completion;
+            post.selected_lowering_output = history.selected_lowering_output.clone();
+            post.pre_allocation_output = history.pre_allocation_output.clone();
             let rule = Optimization::ALL
                 .into_iter()
                 .find(|rule| rule.execution_phase() == phase)
@@ -238,8 +231,8 @@ mod tests {
                 replay(&post, &SelectedOptimizationRecord::default(), &selected),
                 Err(AllocationPublicationValidationError::PublicationMismatch)
             );
-            post.selected_lowering_completion = None;
-            post.pre_allocation_completion = None;
+            post.selected_lowering_output = None;
+            post.pre_allocation_output = None;
             assert_eq!(
                 replay(&post, &history, &selected),
                 Err(AllocationPublicationValidationError::PublicationMismatch)

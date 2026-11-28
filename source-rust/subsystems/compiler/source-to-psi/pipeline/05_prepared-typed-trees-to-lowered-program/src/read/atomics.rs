@@ -67,7 +67,7 @@ impl Program<'_> {
                     Unserved::Type("atomic storage without its builtin identity"),
                 )
             })?;
-        let id = self.records.push(RecordType {
+        let record_type = RecordType {
             multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             cleanup: None,
             identity,
@@ -75,9 +75,8 @@ impl Program<'_> {
             requires: Vec::new(),
             authored_layout: false,
             erased: Vec::new(),
-        });
-        self.record_sources
-            .push(super::arrays::physical_source(reference));
+        };
+        let id = self.push_record_row(record_type, super::arrays::physical_source(reference));
         Ok(Some(ValueType::record(id)))
     }
 

@@ -1145,7 +1145,7 @@ impl Program<'_> {
         }
         let constant_input_owner = self.storage_constant_input_owner(machine, &shape)?;
         let identity = super::places::storage_identity_for_inputs(identity, constant_input_owner);
-        let id = self.records.push(RecordType {
+        let record_type = RecordType {
             multiplicity: crate::body::source_multiplicity(
                 self.typed.stored_value_multiplicity(reference),
             ),
@@ -1155,11 +1155,11 @@ impl Program<'_> {
             requires: Vec::new(),
             authored_layout: false,
             erased: Vec::new(),
-        });
+        };
         let mut source = physical_source_application(application);
         source.constant_input_owner = constant_input_owner;
         source.region_owner = self.lifetime_owner;
-        self.record_sources.push(source);
+        let id = self.push_record_row(record_type, source);
         Ok(ValueType::Record(id, Qualification::NONE, regions))
     }
 
@@ -1279,7 +1279,7 @@ impl Program<'_> {
         let identity = self.storage_identity(machine, &application)?;
         let constant_input_owner = self.storage_constant_input_owner(machine, &shape)?;
         let identity = super::places::storage_identity_for_inputs(identity, constant_input_owner);
-        let id = self.records.push(RecordType {
+        let record_type = RecordType {
             multiplicity,
             cleanup: None,
             identity,
@@ -1287,10 +1287,10 @@ impl Program<'_> {
             requires: Vec::new(),
             authored_layout: false,
             erased: Vec::new(),
-        });
+        };
         let mut source = physical_source_application(application);
         source.constant_input_owner = constant_input_owner;
-        self.record_sources.push(source);
+        let id = self.push_record_row(record_type, source);
         // The row is the element's carrier; the regions its elements hold
         // belong to the array value's type, as a record's do (`regions`).
         Ok(ValueType::Record(id, Qualification::NONE, value.regions()))
@@ -1361,7 +1361,7 @@ impl Program<'_> {
         // identity. Keep the same substitutions for the row and its source.
         let application = self.storage_source_application(reference);
         let identity = self.storage_identity(machine, &application)?;
-        let id = self.records.push(RecordType {
+        let record_type = RecordType {
             multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             cleanup: None,
             identity,
@@ -1372,10 +1372,8 @@ impl Program<'_> {
             requires: Vec::new(),
             authored_layout: false,
             erased: Vec::new(),
-        });
-        self.record_sources
-            .push(physical_source_application(application));
-        Ok(id)
+        };
+        Ok(self.push_record_row(record_type, physical_source_application(application)))
     }
 
     fn storage_identity(

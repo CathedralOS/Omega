@@ -5,7 +5,6 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-placement = { package = "selected-form-encoding-to-resolved-layout", path = "../../pipeline/12_selected-form-encoding-to-resolved-layout" }
 function-identity = { path = "../../representations/function-identity" }
 selected-rewrites = { package = "selected-instructions-to-selected-instructions", path = "../../pipeline/06_selected-instructions-to-selected-instructions" }
 machine = { package = "register-homes-to-post-allocation-machine", path = "../../pipeline/08_register-homes-to-post-allocation-machine" }

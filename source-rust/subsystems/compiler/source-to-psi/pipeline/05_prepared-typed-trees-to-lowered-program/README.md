@@ -1399,9 +1399,12 @@ retains its target observation.
   `machine_signature` and `machine_names` refuse an identity that holds no
   row, such as a diagnostic identity from `next_identity` or a row
   `abandon_row` removed. Readers call those accessors rather than refusing a
-  missing row with a message of their own. The same holds for record rows
-  (`read/places.rs` `record_type`, `record_source`) and for the signature
-  reader's bodies (`read/signature.rs` `Converter::body`).
+  missing row with a message of their own. When a selection requires a typed
+  machine declaration, `required_machine` looks up its exact symbol.
+  In `read/places.rs`, `push_record_row` gives each storage type and its
+  source the same record ID. The reader retrieves them with `record_type`
+  and `record_source`. The signature reader retrieves bodies through
+  `read/signature.rs` `Converter::body`.
 - No table here is keyed by text; text appears only in `Refusal::detail`.
 
 ## Evaluation order and control

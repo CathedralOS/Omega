@@ -1573,9 +1573,8 @@ impl Program<'_> {
                     // the value arguments, as the generic machine's
                     // definition takes them.
                     if !call.machine_arguments.is_empty() {
-                        let callee = typed
-                            .machine_by_symbol(target)
-                            .ok_or_else(|| unavailable("clause application lost its machine"))?;
+                        let callee =
+                            self.required_machine(id, target, "clause application target")?;
                         let required = self.required_callables(id, callee)?;
                         if required.len() != call.machine_arguments.len() {
                             return Err(unavailable(

@@ -166,13 +166,17 @@ pub(crate) mod construction {
                     .ok_or_else(invalid)?;
                 let shape =
                     scalar_shape(payload.semantic.parameter.scalar_type).ok_or_else(invalid)?;
-                let (load_key, byte_count) = match shape.byte_size {
-                    1 => (constraints.keys.load8, 1),
-                    2 => (constraints.keys.load16, 2),
-                    4 => (constraints.keys.load32, 4),
-                    8 => (constraints.keys.load64, 8),
-                    _ => return Err(invalid()),
-                };
+                let byte_count = shape.byte_size;
+                let field_offset = payload.semantic.field_byte_offset;
+                let displacement =
+                    if environment.admits_pointer_displacement(field_offset, byte_count) {
+                        field_offset
+                    } else {
+                        0
+                    };
+                let (load_kind, load_key) =
+                    load_transfer(&constraints.keys, byte_count, displacement)
+                        .ok_or_else(invalid)?;
                 if destination.scalar_type != payload.semantic.parameter.scalar_type.as_checking()
                     || destination.definition_site
                         != Some(payload.semantic.parameter.definition_site)
@@ -191,10 +195,6 @@ pub(crate) mod construction {
                 };
                 let pointer = match source {
                     selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
-                        let slot = slots
-                            .iter()
-                            .find(|row| row.id == slot)
-                            .ok_or_else(invalid)?;
                         let address_instruction = SelectedInstructionId(
                             (*next_instruction).try_into().map_err(|_| invalid())?,
                         );
@@ -220,7 +220,7 @@ pub(crate) mod construction {
                             crate::instruction_selection::selection::constraints::instruction(
                                 address_instruction,
                                 SelectedInstructionKind::FrameAddress {
-                                    slot: FrameStorageSlotId::Local(slot.id),
+                                    slot: FrameStorageSlotId::Local(slot),
                                     byte_offset: 0,
                                 },
                                 constraints.keys.frame_address.ok_or_else(invalid)?,
@@ -234,8 +234,8 @@ pub(crate) mod construction {
                             origin: SelectedMemoryAccessOrigin::Edge(psi_edge),
                             place,
                             byte_offset: 0,
-                            byte_count: slot.byte_size,
-                            role: SelectedMemoryAccessRole::AddressLocal { slot: slot.id },
+                            byte_count: byte_bound,
+                            role: SelectedMemoryAccessRole::AddressLocal { slot },
                         });
                         pointer
                     }
@@ -254,10 +254,8 @@ pub(crate) mod construction {
                         pointer
                     }
                 };
-                let (pointer, displacement) = if environment
-                    .admits_pointer_displacement(payload.semantic.field_byte_offset, byte_count)
-                {
-                    (pointer, payload.semantic.field_byte_offset)
+                let pointer = if displacement == field_offset {
+                    pointer
                 } else {
                     let input = registers
                         .get(pointer.0 as usize)
@@ -293,10 +291,8 @@ pub(crate) mod construction {
                             catalog,
                         )?,
                     );
-                    (address, 0)
+                    address
                 };
-                let (load_kind, _) = load_transfer(&constraints.keys, byte_count, displacement)
-                    .ok_or_else(invalid)?;
                 let load_instruction =
                     SelectedInstructionId((*next_instruction).try_into().map_err(|_| invalid())?);
                 *next_instruction += 1;

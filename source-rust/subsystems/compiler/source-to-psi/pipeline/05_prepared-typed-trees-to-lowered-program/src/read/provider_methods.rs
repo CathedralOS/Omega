@@ -53,9 +53,8 @@ impl<'program> Program<'program> {
                     "the selected method belongs to another trait application",
                 ));
             }
-            let body = typed
-                .machine_by_symbol(receipt.instance)
-                .ok_or_else(|| unavailable("the selected method instance lost its body"))?;
+            let body =
+                self.required_machine(context, receipt.instance, "selected method instance")?;
             members.push((closed, body));
         }
         members.sort_unstable_by_key(|(header, _)| {

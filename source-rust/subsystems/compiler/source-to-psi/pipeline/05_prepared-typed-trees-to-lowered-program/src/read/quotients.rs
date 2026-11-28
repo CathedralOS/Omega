@@ -428,7 +428,7 @@ impl Program<'_> {
                 )
             })
             .collect();
-        let record = self.records.push(RecordType {
+        let record_type = RecordType {
             multiplicity: crate::body::source_multiplicity(data.properties.multiplicity),
             cleanup: None,
             identity: identity.clone(),
@@ -436,8 +436,8 @@ impl Program<'_> {
             requires: Vec::new(),
             authored_layout: false,
             erased: Vec::new(),
-        });
-        self.record_sources.push(RecordSource {
+        };
+        let source = RecordSource {
             constant_input_owner: None,
             declaration: symbol,
             cleanup: None,
@@ -446,7 +446,8 @@ impl Program<'_> {
             fields: Vec::new(),
             cases: Vec::new(),
             erased: Vec::new(),
-        });
+        };
+        let record = self.push_record_row(record_type, source);
         if let Err(position) = self.value_records.binary_search(&record) {
             self.value_records.insert(position, record);
         }
@@ -753,7 +754,7 @@ impl Program<'_> {
         self.fields_minted += 1;
         let field_id = StructuralFieldId::new(self.fields_minted)
             .ok_or_else(|| unserved("field identity overflow"))?;
-        let record = self.records.push(RecordType {
+        let record_type = RecordType {
             multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             cleanup: None,
             identity: identity.clone(),
@@ -766,11 +767,11 @@ impl Program<'_> {
             requires: Vec::new(),
             authored_layout: false,
             erased: Vec::new(),
-        });
+        };
         // Use the quotient's own declaration symbol so record/source rosters
         // and reflection identities match while no authored field symbol can
         // ever match it for direct member projection or struct literals.
-        self.record_sources.push(RecordSource {
+        let source = RecordSource {
             constant_input_owner: None,
             declaration: symbol,
             cleanup: None,
@@ -779,7 +780,8 @@ impl Program<'_> {
             fields: vec![symbol],
             cases: Vec::new(),
             erased: Vec::new(),
-        });
+        };
+        let record = self.push_record_row(record_type, source);
         if let Err(position) = self.value_records.binary_search(&record) {
             self.value_records.insert(position, record);
         }

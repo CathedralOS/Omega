@@ -826,90 +826,9 @@ pub(crate) mod instance {
     pub use storage_observation::{
         TerminalObservationRoot, TerminalStorageObservationError, TerminalStorageObservationValue,
     };
-    pub(crate) mod returned_loans {
-        use crate::boundary::values::TerminalStructuralValue;
-        use crate::engine::execution::TerminalExecution;
-        use semantic_vocabulary::{
-            CanonicalStructuralPathSegment as Path, PlaceId, StructuralTypeId,
-        };
-        use terminal_psi::StructuralAccess;
-
-        #[derive(Debug, Clone, PartialEq, Eq)]
-        pub enum TerminalReturnedLoanError {
-            Closed,
-            AdmissionAfterStart,
-            AdmissionAlreadyProvided,
-            NoReferenceResult,
-            AdmissionRequired,
-            NormalReturnRequired,
-            UnknownPath,
-            UnreadableAccess,
-            Execution(crate::TerminalInterpretError),
-        }
-
-        impl From<crate::TerminalInterpretError> for TerminalReturnedLoanError {
-            fn from(error: crate::TerminalInterpretError) -> Self {
-                Self::Execution(error)
-            }
-        }
-
-        pub struct TerminalReturnedLoan<'instance, 'artifact> {
-            execution: &'instance TerminalExecution<'artifact>,
-            carrier: &'instance TerminalStructuralValue,
-            source: PlaceId,
-            path: Vec<Path>,
-            referent: StructuralTypeId,
-            access: StructuralAccess,
-        }
-
-        impl TerminalReturnedLoan<'_, '_> {
-            pub fn access(&self) -> StructuralAccess {
-                self.access
-            }
-            pub fn structural_type(&self) -> StructuralTypeId {
-                self.referent
-            }
-
-            pub fn read_scalar(
-                &self,
-                path: &[Path],
-            ) -> Result<crate::TerminalScalarValue, TerminalReturnedLoanError> {
-                if !matches!(
-                    self.access,
-                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                ) {
-                    return Err(TerminalReturnedLoanError::UnreadableAccess);
-                }
-                let mut complete = self.path.clone();
-                complete.push(Path::Referent);
-                complete.extend_from_slice(path);
-                let types = self.execution.structural_types();
-                let storage_path = terminal_semantics::canonical_structural_storage_path(
-                    types.values(),
-                    self.carrier.structural_type,
-                    &complete,
-                )
-                .ok_or(TerminalReturnedLoanError::UnknownPath)?;
-                let expected = terminal_semantics::primitive_read_projection_type(
-                    types.values(),
-                    self.carrier.structural_type,
-                    &storage_path,
-                )
-                .ok_or(TerminalReturnedLoanError::UnknownPath)?;
-                Ok(self.execution.read_retained_reference_scalar(
-                    self.source,
-                    self.carrier,
-                    &storage_path,
-                    expected,
-                )?)
-            }
-        }
-    }
-    pub use returned_loans::{TerminalReturnedLoan, TerminalReturnedLoanError};
-
-    use std::collections::BTreeMap;
 
     use semantic_vocabulary::BoundaryMachineId;
+    use std::collections::BTreeMap;
     use terminal_work::ExecutionMeter;
 
     use crate::boundary::effects::byte_buffers::TerminalBoundaryByteBuffer;

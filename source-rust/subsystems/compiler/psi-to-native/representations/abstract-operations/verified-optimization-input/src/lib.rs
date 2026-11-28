@@ -59,6 +59,16 @@ pub use settlement::boundary_application_settlement::BoundaryApplicationSettleme
 
 pub use target_bound_program::SelectedProgramEntryCall;
 
+/// The selections used to construct the plan. They enter together so later
+/// provider admission cannot relabel the scalar values or reach used to lower it.
+pub struct NativeLoweringSelection {
+    pub target: TerminalTargetContext,
+    pub scalar_applications: Option<AdmittedScalarApplications>,
+    pub entry_call: Option<SelectedProgramEntryCall>,
+    pub scope: Option<std::sync::Arc<NativeExecutionScope>>,
+    pub provider_closure: [u8; 32],
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedPsiOptimizationInput {
     borrowed_storage: borrowed_storage::AdmittedBorrowedStorage,
@@ -153,20 +163,17 @@ fn validate_cleanup_source(
 
 impl VerifiedPsiOptimizationInput {
     /// Retains a lowered plan beside the exact host-authorized artifact.
-    /// No selections, callbacks, interrupts or optional seals are admitted yet.
-    /// Omega 00 fills the rest through the
-    /// `retain_*` and `attach_*` methods as each admission step succeeds.
     pub fn lowered(
         plan: AbstractOperationPlan,
         artifact: psi_authorization::AdmittedTerminalArtifact,
-        target_context: Option<TerminalTargetContext>,
+        selection: Option<NativeLoweringSelection>,
     ) -> Result<Self, &'static str> {
         if plan.psi != artifact.artifact().view().identity() {
             return Err("lowered plan belongs to another host-authorized artifact");
         }
         validate_cleanup_source(&plan, artifact.artifact().semantic_module())?;
         let borrowed_storage = borrowed_storage::AdmittedBorrowedStorage::from_plan(&plan)?;
-        Ok(Self {
+        let mut input = Self {
             borrowed_storage,
             native_execution_scope: None,
             selected_provider_closure: None,
@@ -179,12 +186,61 @@ impl VerifiedPsiOptimizationInput {
                 provider_admission::AdmittedInstalledInterruptCohort::empty(plan.psi),
             plan,
             context: VerifiedPsiOptimizationContext { artifact },
-            target_context,
+            target_context: None,
             external_requirement_applications: Vec::new(),
             selected_provider_requirement_identities: terminal_psi::TerminalIdentityTable::default(
             ),
             evidence: ObligationEvidence::NoSeals,
-        })
+        };
+        if let Some(selection) = selection {
+            if selection.target.terminal_psi() != input.plan.psi {
+                return Err("lowering target belongs to another Psi program");
+            }
+            if selection
+                .scalar_applications
+                .as_ref()
+                .is_some_and(|scalars| {
+                    scalars.terminal() != input.plan.psi
+                        || scalars.primary().targets() != Some(&selection.target)
+                })
+            {
+                return Err("lowered scalar values belong to another Psi program or target");
+            }
+            input.target_context = Some(selection.target);
+            if let Some(scope) = &selection.scope {
+                input.require_native_scope(scope, selection.provider_closure)?;
+                if scope.entry_call() != selection.entry_call.as_ref() {
+                    return Err("native input changes its checked semantic entry call");
+                }
+            }
+            input.selected_program_entry_call = selection.entry_call;
+            input.scalar_applications = selection.scalar_applications;
+            input.native_execution_scope = selection.scope;
+            input.selected_provider_closure = Some(selection.provider_closure);
+        }
+        Ok(input)
+    }
+
+    pub fn reconstruct_unit(
+        &self,
+        work_schedule: semantic_vocabulary::WorkScheduleIdentity,
+    ) -> Result<optimization_unit::PsiOptimizationUnit, optimization_unit::OptimizationUnitBuildError>
+    {
+        let scalar_values = self
+            .scalar_applications
+            .as_ref()
+            .map(AdmittedScalarApplications::native_value_identity_bytes);
+        optimization_unit::reconstruct_psi_optimization_unit_with_inputs(
+            &self.plan,
+            work_schedule,
+            self.target_context
+                .as_ref()
+                .map(TerminalTargetContext::target),
+            scalar_values.as_deref(),
+            self.native_execution_scope
+                .as_deref()
+                .map(NativeExecutionScope::selected_provider_closure),
+        )
     }
 
     fn require_native_scope(
@@ -203,31 +259,6 @@ impl VerifiedPsiOptimizationInput {
                 "native execution scope belongs to another artifact, entry, target or provider selection",
             );
         }
-        Ok(())
-    }
-
-    /// Records the selected entry call, scope and scalar applications that
-    /// native admission settled for this exact module.
-    pub fn retain_native_selections(
-        &mut self,
-        entry_call: Option<SelectedProgramEntryCall>,
-        scalar_applications: Option<AdmittedScalarApplications>,
-        scope: Option<std::sync::Arc<NativeExecutionScope>>,
-        selected_provider_closure: [u8; 32],
-    ) -> Result<(), &'static str> {
-        if let Some(scope) = scope.as_ref() {
-            self.require_native_scope(scope, selected_provider_closure)?;
-            if scope.entry_call() != entry_call.as_ref() {
-                return Err("native input changes its checked semantic entry call");
-            }
-        }
-        if self.native_execution_scope.is_some() && self.native_execution_scope != scope {
-            return Err("native input already retains a different checked execution scope");
-        }
-        self.selected_program_entry_call = entry_call;
-        self.scalar_applications = scalar_applications;
-        self.native_execution_scope = scope;
-        self.selected_provider_closure = Some(selected_provider_closure);
         Ok(())
     }
 

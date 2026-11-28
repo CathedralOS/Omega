@@ -101,7 +101,9 @@ fn an_implementation_of_another_service_application_is_refused() {
     let text = printed(&output);
     assert!(!output.status.success(), "{text}");
     assert!(
-        text.contains("provider `First` does not satisfy the selected application of `Service`"),
+        text.contains(
+            "provider `First` does not satisfy the selected application of `|app|::Service`"
+        ),
         "{text}"
     );
 }

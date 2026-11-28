@@ -15,7 +15,6 @@ use frame_layout::{stage_non_authoritative_callee_save_storage, stage_target_fra
 use frame_protocol::plan_target_frame_protocols;
 use machine_code::TargetFrameProtocolEncodingPolicy;
 use post_allocation_machine::PostAllocationMachineProgram;
-use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PhysicalFrameError {
@@ -83,7 +82,7 @@ fn frame_instructions(
 ) -> Result<PhysicalFrameProgram, PhysicalFrameError> {
     let environment = &program.environment;
     let requirements = &program.preservation;
-    let budget = requirements.plan().budget;
+    let budget = requirements.budget;
     let storage = stage_non_authoritative_callee_save_storage(
         requirements,
         environment,
@@ -109,7 +108,7 @@ fn frame_instructions(
     .map_err(PhysicalFrameError::FrameProtocol)?;
     Ok(PhysicalFrameProgram {
         instructions: program,
-        storage: Arc::new(storage.into_plan()),
+        storage: storage.into_plan(),
         frame: layout,
         protocols,
     })

@@ -10,9 +10,7 @@ pub(crate) use crate::instruction_selection::selection::constraints::{
     fixed_input_constraint, row,
 };
 pub(crate) use crate::instruction_selection::selection::construction::scalar_graph::structural::operation_provenance;
-pub(crate) use crate::instruction_selection::selection::literal_compare_input::{
-    folded_immediate, folded_zero,
-};
+use crate::instruction_selection::selection::literal_compare_input::folded_literal;
 pub(crate) use crate::instruction_selection::selection::model::SelectedInstructionError;
 pub(crate) use crate::instruction_selection::selection::scalar_call_abi::{
     incoming_float_transfer, integer_carrier_normalization, scalar_stack_placement,
@@ -1258,11 +1256,8 @@ pub(crate) mod boolean_value {
         SelectedInstructionKind, SelectedInstructionProvenance, VirtualRegisterId,
     };
     use crate::instruction_selection::SelectedInstructionError;
-    use crate::instruction_selection::selection::construction::scalar_graph::control;
     use crate::instruction_selection::selection::construction::scalar_graph::structural::operation_provenance;
-    use crate::instruction_selection::selection::literal_compare_input::{
-        folded_immediate, folded_zero,
-    };
+    use crate::instruction_selection::selection::literal_compare_input::FoldedLiteral;
     use legalized_operations::LegalizedScalarComparison;
 
     pub(crate) fn emit(
@@ -1371,13 +1366,11 @@ pub(crate) mod boolean_value {
 
     pub(crate) fn emit_branch_comparison(
         function: usize,
-        source: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
-        block: &legalized_operations::LegalizedScalarBlock,
-        operation_index: usize,
+        operation: &legalized_operations::LegalizedScalarInstruction,
+        literal: Option<&FoldedLiteral<'_>>,
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
         let invalid = || SelectedInstructionError::unsupported_shape(function);
-        let operation = &block.instructions[operation_index];
         let result = operation.result.ok_or_else(invalid)?;
         let scalar_type = result.scalar_type;
         let LegalizedScalarInstructionKind::Compare {
@@ -1400,64 +1393,36 @@ pub(crate) mod boolean_value {
         {
             return Err(invalid());
         }
-        if !control::branch_suffix(source, block, operation_index) {
-            return Err(invalid());
-        }
-        if let Some(zero) = folded_zero(source, block, operation_index) {
-            let input = if *left == zero.result.ok_or_else(invalid)?.value {
-                *right
-            } else {
-                *left
-            };
-            let (_, register, _, actual_type) = builder.resolve(input).ok_or_else(invalid)?;
+        if let Some(literal) = literal {
+            let (_, register, _, actual_type) =
+                builder.resolve(literal.operand).ok_or_else(invalid)?;
             if actual_type != *operand_type
                 || scalar_type != semantic_vocabulary::ClosedScalarType::Boolean
             {
                 return Err(invalid());
             }
-            builder.emit(
-                SelectedInstructionKind::CompareI64Zero,
-                builder.constraints.keys.compare_i64_zero,
-                &[register],
-                SelectedInstructionProvenance {
-                    operations: vec![zero.operation, operation.operation],
-                    values: vec![input, zero.result.ok_or_else(invalid)?.value, result.value],
-                    work: zero.work.iter().chain(&operation.work).copied().collect(),
-                    ..Default::default()
-                },
-            )?;
-            return Ok(());
-        }
-        if let Some(immediate) = folded_immediate(source, block, operation_index) {
-            let immediate_value = match immediate.kind {
-                LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(value)) => value,
-                _ => return Err(invalid()),
-            };
-            let input = if *left == immediate.result.ok_or_else(invalid)?.value {
-                *right
+            let (kind, key) = if literal.immediate == 0 {
+                (
+                    SelectedInstructionKind::CompareI64Zero,
+                    builder.constraints.keys.compare_i64_zero,
+                )
             } else {
-                *left
+                (
+                    SelectedInstructionKind::CompareI64Immediate {
+                        immediate: IntegerValue::Unsigned(u128::from(literal.immediate)),
+                    },
+                    builder.constraints.keys.compare_i64_immediate,
+                )
             };
-            let (_, register, _, actual_type) = builder.resolve(input).ok_or_else(invalid)?;
-            if actual_type != *operand_type
-                || scalar_type != semantic_vocabulary::ClosedScalarType::Boolean
-            {
-                return Err(invalid());
-            }
-            builder.emit(
-                SelectedInstructionKind::CompareI64Immediate {
-                    immediate: IntegerValue::Unsigned(immediate_value),
-                },
-                builder.constraints.keys.compare_i64_immediate,
+            return builder.emit(
+                kind,
+                key,
                 &[register],
                 SelectedInstructionProvenance {
-                    operations: vec![immediate.operation, operation.operation],
-                    values: vec![
-                        input,
-                        immediate.result.ok_or_else(invalid)?.value,
-                        result.value,
-                    ],
-                    work: immediate
+                    operations: vec![literal.row.operation, operation.operation],
+                    values: vec![literal.operand, literal.literal_value, result.value],
+                    work: literal
+                        .row
                         .work
                         .iter()
                         .chain(&operation.work)
@@ -1465,8 +1430,7 @@ pub(crate) mod boolean_value {
                         .collect(),
                     ..Default::default()
                 },
-            )?;
-            return Ok(());
+            );
         }
         let (_, left_register, _, left_type) = builder.resolve(*left).ok_or_else(invalid)?;
         let (_, right_register, _, right_type) = builder.resolve(*right).ok_or_else(invalid)?;
@@ -2606,7 +2570,7 @@ pub(crate) mod control {
         function: usize,
         source: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
         block: &LegalizedScalarBlock,
-        order: &[usize],
+        selected_positions: &[usize],
         builder: &mut Builder<'_>,
         environment: &register_environment::ValidatedTargetRegisterEnvironment,
     ) -> Result<SelectedTerminator, SelectedInstructionError> {
@@ -2618,45 +2582,6 @@ pub(crate) mod control {
                 super::no_normal::build(function, source, block, builder, environment)
             }
             LegalizedScalarTerminator::ExternalCompletion { .. } => Err(invalid()),
-            LegalizedScalarTerminator::ReturnCleanup { returned, calls } => {
-                if calls.is_empty()
-                    || calls
-                        .iter()
-                        .any(|(owner, _)| owner.edge() != Some(returned.edge))
-                {
-                    return Err(invalid());
-                }
-                if matches!(
-                    returned.value,
-                    LegalizedScalarReturnValue::Structural { .. }
-                        | LegalizedScalarReturnValue::StructuralParameter { .. }
-                        | LegalizedScalarReturnValue::SharedDescriptor { .. }
-                ) {
-                    return super::aggregate_return::build(
-                        function,
-                        source,
-                        block,
-                        returned,
-                        builder,
-                        calls,
-                        environment,
-                    );
-                }
-                for (owner, call) in calls {
-                    super::cleanup_call::emit(
-                        function,
-                        source,
-                        *owner,
-                        call,
-                        returned.effect,
-                        builder,
-                        environment,
-                    )?;
-                }
-                let mut normal = block.clone();
-                normal.terminator = LegalizedScalarTerminator::Return(returned.clone());
-                build(function, source, &normal, order, builder, environment)
-            }
             LegalizedScalarTerminator::EliminateEmpty { psi_edge, work, .. } => {
                 // Valid inputs cannot take this edge. Keep a physical trap as
                 // a defensive invariant check, without source crash authority.
@@ -2704,10 +2629,25 @@ pub(crate) mod control {
                 })
             }
             LegalizedScalarTerminator::StructuralCase { .. } => {
-                super::structural_case::build(source, block, order, builder)
+                super::structural_case::build(source, block, selected_positions, builder)
             }
-            LegalizedScalarTerminator::Return(returned) => {
-                let (kind, key, operands, values) = match returned.value {
+            LegalizedScalarTerminator::Return(returned)
+            | LegalizedScalarTerminator::ReturnCleanup { returned, .. } => {
+                let calls = if let LegalizedScalarTerminator::ReturnCleanup { calls, .. } =
+                    &block.terminator
+                {
+                    if calls.is_empty()
+                        || calls
+                            .iter()
+                            .any(|(owner, _)| owner.edge() != Some(returned.edge))
+                    {
+                        return Err(invalid());
+                    }
+                    calls.as_slice()
+                } else {
+                    &[]
+                };
+                let scalar = match returned.value {
                     LegalizedScalarReturnValue::Structural { .. }
                     | LegalizedScalarReturnValue::StructuralParameter { .. }
                     | LegalizedScalarReturnValue::SharedDescriptor { .. } => {
@@ -2717,17 +2657,27 @@ pub(crate) mod control {
                             block,
                             returned,
                             builder,
-                            &[],
+                            calls,
                             environment,
                         );
                     }
-                    LegalizedScalarReturnValue::Unit => (
-                        SelectedInstructionKind::ReturnUnit,
-                        keys.return_unit,
-                        Vec::new(),
-                        Vec::new(),
-                    ),
+                    LegalizedScalarReturnValue::Unit => None,
                     LegalizedScalarReturnValue::Value { value, scalar_type } => {
+                        Some((value, scalar_type))
+                    }
+                };
+                for (owner, call) in calls {
+                    super::cleanup_call::emit(
+                        function,
+                        source,
+                        *owner,
+                        call,
+                        returned.effect,
+                        builder,
+                        environment,
+                    )?;
+                }
+                let (kind, key, operands, values) = if let Some((value, scalar_type)) = scalar {
                         let (_, input, site, value_type) =
                             builder.resolve(value).ok_or_else(invalid)?;
                         if value_type != scalar_type {
@@ -2788,7 +2738,13 @@ pub(crate) mod control {
                             vec![output],
                             vec![value],
                         )
-                    }
+                } else {
+                    (
+                        SelectedInstructionKind::ReturnUnit,
+                        keys.return_unit,
+                        Vec::new(),
+                        Vec::new(),
+                    )
                 };
                 let instruction = terminal(
                     builder,
@@ -2810,7 +2766,7 @@ pub(crate) mod control {
             LegalizedScalarTerminator::Jump {
                 successor: next, ..
             } => {
-                let successor = successor(source, order, builder, next)?;
+                let successor = successor(source, selected_positions, builder, next)?;
                 let instruction = terminal(
                     builder,
                     SelectedInstructionKind::Jump,
@@ -2908,8 +2864,8 @@ pub(crate) mod control {
                             .collect(),
                         ..Default::default()
                     };
-                let when_true = successor(source, order, builder, when_true)?;
-                let when_false = successor(source, order, builder, when_false)?;
+                let when_true = successor(source, selected_positions, builder, when_true)?;
+                let when_false = successor(source, selected_positions, builder, when_false)?;
                 let (when_true, when_false) = if inverted {
                     (when_false, when_true)
                 } else {
@@ -2976,16 +2932,16 @@ pub(crate) mod control {
 
     pub(crate) fn successor(
         source: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
-        order: &[usize],
+        selected_positions: &[usize],
         builder: &mut Builder<'_>,
         next: &LegalizedScalarSuccessor,
     ) -> Result<SelectedSuccessor, SelectedInstructionError> {
         let preparation_start = builder.instructions.len();
         builder.block_body_end.get_or_insert(preparation_start);
         let pending_provenance = std::mem::take(&mut builder.pending_provenance);
-        let position = order
-            .iter()
-            .position(|index| source.blocks[*index].id == next.target)
+        let position = source
+            .block_index(next.target)
+            .and_then(|index| selected_positions.get(index).copied())
             .ok_or(SelectedInstructionError::custody())?;
         let successor = SelectedSuccessor {
             structural_case: None,
@@ -3168,79 +3124,65 @@ pub(crate) mod control {
         Ok((transport, source_indices.to_vec()))
     }
 
-    pub(crate) fn block_order(
-        source: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
-    ) -> Result<Vec<usize>, SelectedInstructionError> {
-        crate::instruction_selection::selection::block_order::derive(source)
-    }
-
-    pub(crate) fn branch_suffix(
+    /// Walk backward from the branch condition. An extra use stops folding at
+    /// that result, but later negations can still use the branch flags.
+    pub(crate) fn branch_suffix_start(
         source: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
         block: &LegalizedScalarBlock,
-        index: usize,
-    ) -> bool {
-        if matches!(block.instructions.get(index).map(|row| &row.kind),
-            Some(LegalizedScalarInstructionKind::Compare { operand_type, right_operand_type, .. })
-                if operand_type != right_operand_type)
-        {
-            return false;
-        }
-        let Some(result) = block.instructions.get(index).and_then(|row| row.result) else {
-            return false;
+    ) -> usize {
+        let mut start = block.instructions.len();
+        let LegalizedScalarTerminator::Conditional {
+            condition,
+            when_true,
+            when_false,
+            ..
+        } = &block.terminator
+        else {
+            return start;
         };
-        let mut value = result.value;
-        for row in &block.instructions[index + 1..] {
-            if !matches!(row.kind, LegalizedScalarInstructionKind::BooleanNot {operand} if operand == value)
-                || row.result.is_none_or(|result| {
-                    result.scalar_type != semantic_vocabulary::ClosedScalarType::Boolean
-                })
-            {
-                return false;
-            }
-            let Some(result) = row.result else {
-                return false;
-            };
-            value = result.value;
+        if [when_true, when_false]
+            .into_iter()
+            .flat_map(|edge| &edge.bindings)
+            .any(|binding| binding.argument == *condition)
+        {
+            return start;
         }
-
-        for (position, row) in block.instructions.iter().enumerate().skip(index) {
-            let Some(result) = row.result else {
-                return false;
-            };
-            for owner in &source.blocks {
-                for (consumer_index, consumer) in owner.instructions.iter().enumerate() {
-                    if owner.id == block.id && consumer_index == position + 1 {
-                        continue;
-                    }
-                    if consumer.references_value(result.value) {
-                        return false;
-                    }
-                }
-                if owner.id == block.id && position + 1 == block.instructions.len() {
-                    let legalized_operations::LegalizedScalarTerminator::Conditional {
-                        condition,
-                        when_true,
-                        when_false,
-                        ..
-                    } = &owner.terminator
-                    else {
-                        return false;
-                    };
-                    if *condition != result.value
-                        || [when_true, when_false]
-                            .into_iter()
-                            .flat_map(|edge| &edge.bindings)
-                            .any(|binding| binding.argument == result.value)
-                    {
-                        return false;
-                    }
-                } else if owner.terminator.references_value(result.value) {
-                    return false;
-                }
+        let mut required = *condition;
+        for (position, row) in block.instructions.iter().enumerate().rev() {
+            let Some(result) = row.result else { break };
+            if result.value != required {
+                break;
             }
+            let preceding = match row.kind {
+                LegalizedScalarInstructionKind::Compare {
+                    operand_type,
+                    right_operand_type,
+                    ..
+                } if operand_type == right_operand_type => None,
+                LegalizedScalarInstructionKind::BooleanNot { operand } => (result.scalar_type
+                    == semantic_vocabulary::ClosedScalarType::Boolean)
+                    .then_some(operand),
+                _ => break,
+            };
+            if source.blocks.iter().any(|owner| {
+                owner
+                    .instructions
+                    .iter()
+                    .enumerate()
+                    .any(|(index, consumer)| {
+                        (owner.id != block.id || index != position + 1)
+                            && consumer.references_value(required)
+                    })
+                    || ((owner.id != block.id || start != block.instructions.len())
+                        && owner.terminator.references_value(required))
+            }) {
+                break;
+            }
+            start = position;
+            let Some(operand) = preceding else { break };
+            required = operand;
         }
-        matches!(block.terminator, LegalizedScalarTerminator::Conditional {condition,..}
-            if condition == value)
+        start
     }
 }
 pub(crate) mod float_result_policy {
@@ -3788,7 +3730,7 @@ pub(crate) mod integer_arithmetic {
                     LegalizedScalarInstructionKind::SaturatingMultiply { .. } => (
                         SelectedInstructionKind::SaturatingMultiply { carrier: *carrier },
                         saturating_multiply_selection(*carrier, &constraints.keys),
-                        SaturatingScratch::Bound,
+                        BinaryScratch::Signed,
                     ),
                     _ => {
                         let adds = matches!(
@@ -3806,9 +3748,7 @@ pub(crate) mod integer_arithmetic {
                     (*right, right_register),
                 )?;
                 let mut operands = vec![left_register, right_register, output];
-                if scratch == SaturatingScratch::Bound {
-                    operands.push(instruction_scratch(builder, 3, IntegerSign::Signed)?);
-                }
+                scratch.append(builder, &mut operands)?;
                 builder.emit_integer(
                     kind,
                     constraint,
@@ -3914,15 +3854,7 @@ pub(crate) mod integer_arithmetic {
                     (*right, right_register),
                 )?;
                 let mut operands = vec![left_register, right_register, output];
-                match scratch {
-                    SaturatingScratch::None => {}
-                    SaturatingScratch::Bound => {
-                        operands.push(instruction_scratch(builder, 3, IntegerSign::Signed)?)
-                    }
-                    SaturatingScratch::DivisionHighHalf => {
-                        operands.push(division_scratch(builder)?)
-                    }
-                }
+                scratch.append(builder, &mut operands)?;
                 builder.emit_integer(
                     kind,
                     constraint,
@@ -3995,13 +3927,12 @@ pub(crate) mod integer_arithmetic {
                     (*right, right_register),
                 )?;
                 let mut operands = vec![left_register, right_register, raw];
-                if environment.target().architecture == target::Architecture::X86_64 {
-                    if selection == WrappingDivision::DivideU64 {
-                        operands.push(division_scratch(builder)?);
-                    } else {
-                        operands.push(instruction_scratch(builder, 3, IntegerSign::Signed)?);
-                    }
-                }
+                let scratch = if selection == WrappingDivision::DivideU64 {
+                    BinaryScratch::ZeroHighHalf
+                } else {
+                    BinaryScratch::Signed
+                };
+                scratch.on_x86(builder).append(builder, &mut operands)?;
                 builder.emit_integer(
                     kind,
                     key,
@@ -4104,12 +4035,20 @@ pub(crate) mod integer_arithmetic {
                 {
                     return Err(invalid());
                 }
-                let exact = matches!(
-                    operation.kind,
-                    LegalizedScalarInstructionKind::ExactShiftLeft { .. }
-                        | LegalizedScalarInstructionKind::ExactShiftRight { .. }
-                );
-                if !exact && value_integer.bits() < 64 {
+                let proof = match operation.kind {
+                    LegalizedScalarInstructionKind::ExactShiftLeft {
+                        obligation,
+                        accepted_fact,
+                        ..
+                    }
+                    | LegalizedScalarInstructionKind::ExactShiftRight {
+                        obligation,
+                        accepted_fact,
+                        ..
+                    } => Some((obligation, accepted_fact)),
+                    _ => None,
+                };
+                if proof.is_none() && value_integer.bits() < 64 {
                     let mask = builder.register(
                         *count,
                         count_site,
@@ -4132,51 +4071,36 @@ pub(crate) mod integer_arithmetic {
                     )?;
                     count_register = masked;
                 }
+                let left_shift = matches!(
+                    operation.kind,
+                    LegalizedScalarInstructionKind::WrappingShiftLeft { .. }
+                        | LegalizedScalarInstructionKind::ExactShiftLeft { .. }
+                );
                 let signed = value_integer.sign() == IntegerSign::Signed;
-                let (kind, key) = match &operation.kind {
-                    LegalizedScalarInstructionKind::WrappingShiftLeft { .. } => (
-                        SelectedInstructionKind::WrappingShiftLeftI64,
-                        constraints.keys.shift_i64,
-                    ),
-                    LegalizedScalarInstructionKind::WrappingShiftRight { .. } => (
-                        if signed {
-                            SelectedInstructionKind::WrappingShiftRightI64
-                        } else {
-                            SelectedInstructionKind::WrappingShiftRightU64
-                        },
-                        constraints.keys.shift_i64,
-                    ),
-                    LegalizedScalarInstructionKind::ExactShiftLeft {
-                        obligation,
-                        accepted_fact,
-                        ..
-                    } => (
+                let kind = match (proof, left_shift) {
+                    (None, true) => SelectedInstructionKind::WrappingShiftLeftI64,
+                    (None, false) if signed => SelectedInstructionKind::WrappingShiftRightI64,
+                    (None, false) => SelectedInstructionKind::WrappingShiftRightU64,
+                    (Some((obligation, accepted_fact)), true) => {
                         SelectedInstructionKind::ExactShiftLeftI64 {
-                            obligation: *obligation,
-                            accepted_fact: *accepted_fact,
-                        },
-                        constraints.keys.shift_i64,
-                    ),
-                    LegalizedScalarInstructionKind::ExactShiftRight {
-                        obligation,
-                        accepted_fact,
-                        ..
-                    } => (
-                        if signed {
-                            SelectedInstructionKind::ExactShiftRightI64 {
-                                obligation: *obligation,
-                                accepted_fact: *accepted_fact,
-                            }
-                        } else {
-                            SelectedInstructionKind::ExactShiftRightU64 {
-                                obligation: *obligation,
-                                accepted_fact: *accepted_fact,
-                            }
-                        },
-                        constraints.keys.shift_i64,
-                    ),
-                    _ => unreachable!("shift dispatch"),
+                            obligation,
+                            accepted_fact,
+                        }
+                    }
+                    (Some((obligation, accepted_fact)), false) if signed => {
+                        SelectedInstructionKind::ExactShiftRightI64 {
+                            obligation,
+                            accepted_fact,
+                        }
+                    }
+                    (Some((obligation, accepted_fact)), false) => {
+                        SelectedInstructionKind::ExactShiftRightU64 {
+                            obligation,
+                            accepted_fact,
+                        }
+                    }
                 };
+                let key = constraints.keys.shift_i64;
                 let raw = builder.register(result.value, result.definition_site, scalar_type)?;
                 let [value_register, count_register] = binary_operands(
                     builder,
@@ -4184,30 +4108,22 @@ pub(crate) mod integer_arithmetic {
                     (*value, value_register),
                     (*count, count_register),
                 )?;
-                let operands = vec![value_register, count_register, raw];
                 builder.emit_integer(
                     kind,
                     key,
-                    &operands,
+                    &[value_register, count_register, raw],
                     SelectedInstructionProvenance {
                         operations: vec![operation.operation],
                         values: vec![*value, *count, result.value],
-                        obligations: match &operation.kind {
-                            LegalizedScalarInstructionKind::ExactShiftLeft {
-                                obligation, ..
-                            }
-                            | LegalizedScalarInstructionKind::ExactShiftRight {
-                                obligation, ..
-                            } => {
-                                vec![*obligation]
-                            }
-                            _ => vec![],
-                        },
+                        obligations: proof
+                            .map(|(obligation, _)| obligation)
+                            .into_iter()
+                            .collect(),
                         work: operation.work.clone(),
                         ..Default::default()
                     },
                 )?;
-                let normalization = if exact {
+                let normalization = if proof.is_some() {
                     SelectedInstructionKind::CopyI64
                 } else {
                     crate::instruction_selection::selection::scalar_call_abi::integer_carrier_normalization(scalar_type)
@@ -4344,14 +4260,15 @@ pub(crate) mod integer_arithmetic {
                     (*right, right_register),
                 )?;
                 let mut operands = vec![left_register, right_register, output];
-                if environment.target().architecture == target::Architecture::X86_64 {
-                    if unsigned_divide
+                if divide_operator {
+                    let scratch = if unsigned_divide
                         && *operator == legalized_operations::LegalizedExactIntegerOperator::Divide
                     {
-                        operands.push(division_scratch(builder)?);
-                    } else if divide_operator {
-                        operands.push(instruction_scratch(builder, 3, IntegerSign::Signed)?);
-                    }
+                        BinaryScratch::ZeroHighHalf
+                    } else {
+                        BinaryScratch::Signed
+                    };
+                    scratch.on_x86(builder).append(builder, &mut operands)?;
                 }
                 builder.emit_integer(
                     kind,
@@ -4475,10 +4392,42 @@ pub(crate) mod integer_arithmetic {
     }
 
     #[derive(Clone, Copy, PartialEq, Eq)]
-    enum SaturatingScratch {
+    pub(crate) enum BinaryScratch {
         None,
-        Bound,
-        DivisionHighHalf,
+        Signed,
+        ZeroHighHalf,
+    }
+
+    impl BinaryScratch {
+        pub(crate) fn on_x86(self, builder: &Builder<'_>) -> Self {
+            if builder.environment.target().architecture == target::Architecture::X86_64 {
+                self
+            } else {
+                Self::None
+            }
+        }
+
+        pub(crate) fn append(
+            self,
+            builder: &mut Builder<'_>,
+            operands: &mut Vec<VirtualRegisterId>,
+        ) -> Result<(), SelectedInstructionError> {
+            let register = match self {
+                Self::None => return Ok(()),
+                Self::Signed => instruction_scratch(builder, 3, IntegerSign::Signed)?,
+                Self::ZeroHighHalf => {
+                    let high = instruction_scratch(builder, 0, IntegerSign::Unsigned)?;
+                    builder.emit_materialize_i64(
+                        IntegerValue::Unsigned(0),
+                        high,
+                        Default::default(),
+                    )?;
+                    high
+                }
+            };
+            operands.push(register);
+            Ok(())
+        }
     }
 
     fn saturating_add_or_subtract_selection(
@@ -4488,14 +4437,14 @@ pub(crate) mod integer_arithmetic {
     ) -> (
         SelectedInstructionKind,
         RegisterConstraintKey,
-        SaturatingScratch,
+        BinaryScratch,
     ) {
         if adds {
             let kind = SelectedInstructionKind::SaturatingAdd { carrier };
             if carrier == SaturatingCarrier::U64 {
-                (kind, keys.saturating_add_u64, SaturatingScratch::None)
+                (kind, keys.saturating_add_u64, BinaryScratch::None)
             } else {
-                (kind, keys.saturating_add_clamped, SaturatingScratch::Bound)
+                (kind, keys.saturating_add_clamped, BinaryScratch::Signed)
             }
         } else {
             let kind = SelectedInstructionKind::SaturatingSubtract { carrier };
@@ -4503,14 +4452,10 @@ pub(crate) mod integer_arithmetic {
                 (
                     kind,
                     keys.saturating_subtract_clamped,
-                    SaturatingScratch::Bound,
+                    BinaryScratch::Signed,
                 )
             } else {
-                (
-                    kind,
-                    keys.saturating_subtract_unsigned,
-                    SaturatingScratch::None,
-                )
+                (kind, keys.saturating_subtract_unsigned, BinaryScratch::None)
             }
         }
     }
@@ -4525,7 +4470,7 @@ pub(crate) mod integer_arithmetic {
     ) -> (
         SelectedInstructionKind,
         RegisterConstraintKey,
-        SaturatingScratch,
+        BinaryScratch,
     ) {
         let x86 = architecture == target::Architecture::X86_64;
         let signed = carrier.is_signed();
@@ -4536,9 +4481,9 @@ pub(crate) mod integer_arithmetic {
                 keys.divide_u64
             };
             let scratch = match (x86, signed) {
-                (true, _) => SaturatingScratch::DivisionHighHalf,
-                (false, true) => SaturatingScratch::Bound,
-                (false, false) => SaturatingScratch::None,
+                (true, _) => BinaryScratch::ZeroHighHalf,
+                (false, true) => BinaryScratch::Signed,
+                (false, false) => BinaryScratch::None,
             };
             let kind = SelectedInstructionKind::SaturatingDivide {
                 carrier,
@@ -4553,9 +4498,9 @@ pub(crate) mod integer_arithmetic {
                 keys.remainder_u64
             };
             let scratch = if x86 {
-                SaturatingScratch::Bound
+                BinaryScratch::Signed
             } else {
-                SaturatingScratch::None
+                BinaryScratch::None
             };
             let kind = SelectedInstructionKind::SaturatingRemainder {
                 carrier,
@@ -4676,14 +4621,6 @@ pub(crate) mod integer_arithmetic {
             operand,
         )
         .ok_or_else(SelectedInstructionError::custody)
-    }
-
-    pub(crate) fn division_scratch(
-        builder: &mut Builder<'_>,
-    ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-        let id = instruction_scratch(builder, 0, IntegerSign::Unsigned)?;
-        builder.emit_materialize_i64(IntegerValue::Unsigned(0), id, Default::default())?;
-        Ok(id)
     }
 }
 pub(crate) mod integer_conversion {
@@ -6479,7 +6416,7 @@ pub(crate) mod structural_case {
     pub(crate) fn build(
         source: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
         block: &LegalizedScalarBlock,
-        order: &[usize],
+        selected_positions: &[usize],
         builder: &mut Builder<'_>,
     ) -> Result<SelectedTerminator, SelectedInstructionError> {
         let LegalizedScalarTerminator::StructuralCase {
@@ -6638,7 +6575,7 @@ pub(crate) mod structural_case {
             };
         }
         if tested.is_empty() {
-            let successor = successor(source, order, builder, dispatch_source, last)?;
+            let successor = successor(source, selected_positions, builder, dispatch_source, last)?;
             builder.emit(
                 SelectedInstructionKind::Jump,
                 builder.constraints.keys.jump,
@@ -6727,9 +6664,15 @@ pub(crate) mod structural_case {
                     Default::default(),
                 )?;
             }
-            let when_zero = successor(source, order, builder, dispatch_source, &tested[ordinal])?;
+            let when_zero = successor(
+                source,
+                selected_positions,
+                builder,
+                dispatch_source,
+                &tested[ordinal],
+            )?;
             let when_nonzero = if ordinal + 1 == tested.len() {
-                successor(source, order, builder, dispatch_source, last)?
+                successor(source, selected_positions, builder, dispatch_source, last)?
             } else {
                 SelectedSuccessor {
                     role: selected_instructions::SelectedSuccessorRole::CaseDispatchContinuation,
@@ -6863,7 +6806,7 @@ pub(crate) mod structural_case {
 
     fn successor(
         source: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
-        order: &[usize],
+        selected_positions: &[usize],
         builder: &mut Builder<'_>,
         dispatch_source: selected_instructions::SelectedCaseDispatchSource,
         case: &LegalizedStructuralCaseSuccessor,
@@ -6890,7 +6833,7 @@ pub(crate) mod structural_case {
         }
         let mut successor = super::control::successor(
             source,
-            order,
+            selected_positions,
             builder,
             &legalized_operations::LegalizedScalarSuccessor {
                 edge: case.edge,
@@ -7239,7 +7182,11 @@ pub(crate) fn select_function(
     input: &crate::input::BoundExecutionPlan<'_>,
 ) -> Result<SelectedFunction, SelectedInstructionError> {
     let invalid = || SelectedInstructionError::unsupported_shape(function);
-    let order = control::block_order(source)?;
+    let order = crate::instruction_selection::selection::block_order::derive(source)?;
+    let mut selected_positions = vec![0; order.len()];
+    for (position, &source_index) in order.iter().enumerate() {
+        selected_positions[source_index] = position;
+    }
     let catalog = environment.constraints();
     let materialize = row(catalog, constraints.keys.materialize_i64)?;
     let [operand] = materialize.operands.as_slice() else {
@@ -7437,6 +7384,8 @@ pub(crate) fn select_function(
             start,
         });
         structural::block_entry(source, block, &mut builder)?;
+        let branch_suffix = control::branch_suffix_start(source, block);
+        let literal = folded_literal(source, block, branch_suffix);
         for (operation_index, operation) in block.instructions.iter().enumerate() {
             let open = builder.open_block.ok_or_else(invalid)?;
             *current_operation = Some(operation.operation);
@@ -7445,10 +7394,7 @@ pub(crate) fn select_function(
             {
                 continue;
             }
-            if (folded_zero(source, block, operation_index + 1).is_some()
-                || folded_immediate(source, block, operation_index + 1).is_some())
-                && control::branch_suffix(source, block, operation_index + 1)
-            {
+            if literal.is_some() && operation_index + 1 == branch_suffix {
                 continue;
             }
             if let LegalizedScalarInstructionKind::PortWrite {
@@ -7526,7 +7472,7 @@ pub(crate) fn select_function(
                 operation.kind,
                 LegalizedScalarInstructionKind::Compare { .. }
                     | LegalizedScalarInstructionKind::BooleanNot { .. }
-            ) && !control::branch_suffix(source, block, operation_index)
+            ) && operation_index < branch_suffix
             {
                 boolean_value::emit(operation, &mut builder)?
             } else {
@@ -7624,17 +7570,13 @@ pub(crate) fn select_function(
                     LegalizedScalarInstructionKind::Compare { .. } => {
                         boolean_value::emit_branch_comparison(
                             function,
-                            source,
-                            block,
-                            operation_index,
+                            operation,
+                            literal.as_ref(),
                             &mut builder,
                         )?;
                         continue;
                     }
                     LegalizedScalarInstructionKind::BooleanNot { .. } => {
-                        if !control::branch_suffix(source, block, operation_index) {
-                            return Err(invalid());
-                        }
                         continue;
                     }
                     LegalizedScalarInstructionKind::IntegerWiden { .. }
@@ -7742,7 +7684,14 @@ pub(crate) fn select_function(
         )? {
             exited
         } else {
-            control::build(function, source, block, &order, &mut builder, environment)?
+            control::build(
+                function,
+                source,
+                block,
+                &selected_positions,
+                &mut builder,
+                environment,
+            )?
         };
         if !builder.pending_provenance.operations.is_empty()
             || !builder.pending_result_origins.is_empty()
