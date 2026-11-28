@@ -15,7 +15,7 @@ negative twin's weaker published contract, is its own package.
 | `checked_dependency_reuse` | `checked_dependency_reuse` | three machine bodies supply a borrowed field, a counted value and an observation-free predicate across the package boundary |
 | `reading_provider` | the 9 places of `build_target_provider` | `Reading::total` publishes `ensures result >= 1000u64` |
 | `reading_provider_weak_contract` | its 9 `invalid_*` twins | the same package, except that the requirement publishes `>= 999u64`; the twin shows a caller cannot rely on the provider's stronger body |
-| `qualified_call_lib` | the 18 places of `dependency_type_qualified_call`, through the alias `lib` | a data type with a machine attached under its name |
+| `qualified_call_lib` | the 18 places of `dependency_type_qualified_call`, through the alias `lib` | an exported machine whose result contract adds the fields of two borrowed records |
 | `scalar_lending_producer` | the 18 places of `component_scalar_lending`, through the alias `producer` | providers the sample selects as `CompositionMode::Independent` |
 | `semantic_schema_foreign` | the 10 places of `owned_semantic_schema`, through the alias `foreign` | a generic machine that returns the schema of the type it is applied to, so the schema crosses a package boundary |
 

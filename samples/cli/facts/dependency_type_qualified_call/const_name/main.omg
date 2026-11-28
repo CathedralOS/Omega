@@ -1,4 +1,4 @@
-// A call spelled through a dependency's package alias selects the data type's machine,
+// A call spelled through a dependency's package alias selects the exported machine,
 // proves its `left.value > 0` premise on the exact operand, and records its `ensures` sum
 // for the caller.
 // Place: const_name.
@@ -17,7 +17,7 @@ const RIGHT: |ops|::Wrapped = |ops|::Wrapped { value: 10u16 };
 machine main() crashes Trap {
     let left: |ops|::Wrapped = LEFT;
     let right: |ops|::Wrapped = RIGHT;
-    let total: u64 = |ops|::Wrapped::describe(@left, @right);
+    let total: u64 = |ops|::describe(@left, @right);
     transition hold(total) && total == 260 {
         true -> done(),
         _ -> bad()
