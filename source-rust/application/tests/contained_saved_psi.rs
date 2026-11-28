@@ -219,6 +219,7 @@ impl Saved {
         let consumer = project.path().join("consumer");
         std::fs::create_dir(&consumer).unwrap();
         std::fs::rename(source.join("app.psi"), consumer.join("app.psi")).unwrap();
+        std::fs::remove_dir_all(source).unwrap();
         Self {
             _project: project,
             consumer,
