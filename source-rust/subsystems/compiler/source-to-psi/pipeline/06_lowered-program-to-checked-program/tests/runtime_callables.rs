@@ -130,7 +130,10 @@ machine main() crashes Trap {
         .replace("unused: u8", "raw: address")
         .replace("unused: 91u8", "raw: incoming")
         .replace("machine main()", "machine main(incoming: address)");
-    let refusal = Program::of(&with_address).judged(|_| ()).refused();
+    let verdict = Program::of(&with_address).judged(|_| ());
+    let program::Verdict::Unserved(refusal) = verdict else {
+        panic!("an address-bearing lender needs a separate write footprint: {verdict:?}");
+    };
     assert!(
         refusal.detail.contains("no retained entry origin"),
         "{refusal:?}"
