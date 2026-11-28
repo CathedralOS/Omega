@@ -2974,6 +2974,33 @@ pub mod numeric_intrinsics {
     }
 
     impl TypedTrees {
+        /// A value cast that changes a floating-point carrier selects the exact
+        /// Core conversion for its declared operand and destination.
+        pub fn cast_numeric_conversion(
+            &self,
+            cast: &crate::source_state::expression::TableCastExpression,
+        ) -> Option<NumericIntrinsic> {
+            if cast.form != language_core::CastForm::Value || !cast.semantic_domain.is_empty() {
+                return None;
+            }
+            let carrier = |reference| {
+                if !self.type_reference_table.contains_type_reference(reference) {
+                    return None;
+                }
+                self.primitive_type_reference(reference)
+                    .and_then(primitive_numeric_type)
+            };
+            let source = carrier(cast.operand_type)?;
+            let target = carrier(cast.target_type)?;
+            (source != target && (source.is_float() || target.is_float())).then_some(
+                NumericIntrinsic::Conversion {
+                    source,
+                    target,
+                    domain: numerics::arithmetic::ArithmeticDomain::Exact,
+                },
+            )
+        }
+
         pub fn numeric_intrinsic_execution(
             &self,
             symbol: symbols::SymbolHandle,

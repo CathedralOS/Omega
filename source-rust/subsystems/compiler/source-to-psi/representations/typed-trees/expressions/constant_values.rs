@@ -66,6 +66,13 @@ pub fn canonical_const_argument_value(
         {
             match program.expression_table.expression(*expression) {
                 expression::ExpressionNode::Boolean(value) => CanonicalConstValue::boolean(*value),
+                expression::ExpressionNode::Integer(literal) => CanonicalConstValue::from_decoded(
+                    &application_identity::const_value::DecodedCanonicalConstValue::Integer {
+                        integer_type: literal.landing()?.landed_type,
+                        value: literal.value_bignum()?,
+                    },
+                    literal.to_string(),
+                )?,
                 expression::ExpressionNode::Name(path) => named(path.symbol)?,
                 _ => return None,
             }

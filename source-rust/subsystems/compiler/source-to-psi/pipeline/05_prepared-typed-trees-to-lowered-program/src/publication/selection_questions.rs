@@ -1996,6 +1996,7 @@ mod tests {
             crate::source_state::expression::TableCastExpression {
                 value,
                 target_type: target,
+                operand_type: Default::default(),
                 recast_storage_type: Default::default(),
                 result_type: target,
                 target_label: Default::default(),
@@ -2107,6 +2108,7 @@ mod tests {
             crate::source_state::expression::TableCastExpression {
                 value,
                 target_type,
+                operand_type: Default::default(),
                 recast_storage_type: Default::default(),
                 result_type: target_type,
                 target_label: Default::default(),
@@ -2449,6 +2451,7 @@ mod tests {
                     .insert(ExpressionNode::Cast(TableCastExpression {
                         value,
                         target_type: Default::default(),
+                        operand_type: Default::default(),
                         recast_storage_type: Default::default(),
                         result_type: Default::default(),
                         target_label: Default::default(),

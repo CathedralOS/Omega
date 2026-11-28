@@ -137,6 +137,13 @@ A pending deployment stays explicit. Build reads its constant dependencies from
 this result after lowering. Source admission refuses unsupported wire demands
 before evaluation.
 
+When a computation supplies a type argument such as `Buffer<capacity()>`,
+[constant argument preparation](src/constant_arguments.rs) stores its typed
+literal at the original type occurrence and updates dependent array lengths,
+domain facts and data members. The evaluator runs this operation before it
+plans the next argument. Specialization also runs it for expressions copied
+into a concrete machine.
+
 An array type such as `[u8; WIDTH]` names the constant that supplies its length.
 Preparation reads the evaluated value from that declaration for both a literal
 initializer and one that calls a machine. A numeric extent such as `[u8; 4]`

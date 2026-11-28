@@ -330,6 +330,30 @@ fn judge_authored_ieee(
 }
 
 #[test]
+fn a_cast_of_an_integer_field_publishes_its_exact_core_conversion() {
+    let source = r"
+use {omega}/language/core/float_operations.omg;
+data Reading { samples: [i32; 2]; }
+machine main(reading: @Reading) -> f64 { reading.samples[1] as f64 }
+";
+    let judged = judge_authored_ieee(source, "main")
+        .unwrap_or_else(|rows| panic!("{}", diagnostics::join_messages(&rows)));
+    let published = judged
+        .produce(Default::default(), &mut CompileTimings::default())
+        .unwrap_or_else(|rows| panic!("{}", diagnostics::join_messages(&rows)));
+
+    assert!(published.source_selections().is_some());
+
+    let Err(refused) = judge_authored_ieee(&source.replace("i32", "i64"), "main") else {
+        panic!("an arbitrary 64-bit integer need not be exactly representable in f64");
+    };
+    assert!(
+        diagnostics::join_messages(&refused).contains("exactly representable"),
+        "{refused:?}"
+    );
+}
+
+#[test]
 fn a_float_meaning_wrapper_must_hold_before_call_arguments_are_supplied() {
     let judge = |body: &str, other: &str, entry: &str| {
         // Both implementations compute the same result at the sole call.

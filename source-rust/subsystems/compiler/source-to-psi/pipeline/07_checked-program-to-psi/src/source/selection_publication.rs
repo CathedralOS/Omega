@@ -406,6 +406,42 @@ impl<'source> Questions<'source> {
         }))
     }
 
+    fn cast_reference(
+        &mut self,
+        owner: SymbolHandle,
+        cast: &crate::source_state::expression::TableCastExpression,
+        target: semantic_vocabulary::source_selections::SelectionCallTarget,
+    ) -> Result<SelectionReference, Diagnostic> {
+        use language_core::sealed_intrinsics::SealedIntrinsic;
+        use semantic_vocabulary::source_selections::SelectionCallTarget;
+
+        let SelectionCallTarget::Declared(target @ TargetMachineCallable::Boundary(_)) = target
+        else {
+            return Err(refused(
+                "a carrier cast must select a Core conversion boundary",
+            ));
+        };
+        let typed = self.source.source();
+        let meaning = typed
+            .cast_numeric_conversion(cast)
+            .ok_or_else(|| refused("numeric conversion lost its typed cast carriers"))?;
+        let selected = self.source_target(target)?;
+        if typed.symbols.sealed_intrinsic(selected)
+            != Some(SealedIntrinsic::FloatOperationRequirement)
+            || typed.numeric_intrinsic_execution(selected) != Some(meaning)
+        {
+            return Err(refused(
+                "emitted conversion differs from the exact Core operation for this cast",
+            ));
+        }
+        self.declarations.symbol_reference(
+            &mut self.output,
+            owner,
+            selected,
+            StaticArgumentRole::ValueDependency,
+        )
+    }
+
     fn invocation_reference(
         &mut self,
         owner: SymbolHandle,
@@ -418,9 +454,12 @@ impl<'source> Questions<'source> {
                 if !typed.expression_table.expression_is_valid(expression) {
                     return Err(refused("invocation source expression is stale"));
                 }
-                let crate::source_state::expression::ExpressionNode::Call(call) =
-                    typed.expression_table.expression(expression)
-                else {
+                use crate::source_state::expression::ExpressionNode;
+                let occurrence = typed.expression_table.expression(expression);
+                if let ExpressionNode::Cast(cast) = occurrence {
+                    return self.cast_reference(owner, cast, target);
+                }
+                let ExpressionNode::Call(call) = occurrence else {
                     return Err(refused("emitted invocation source is no call expression"));
                 };
                 let source_target = call

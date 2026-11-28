@@ -815,7 +815,9 @@ operand value is representable in `T` (a wider carrier of the same sign, or
 unsigned to a wider signed one), and otherwise `IntegerExactCast` with an
 `OperationSafety` obligation ("exact widening, or narrowing with
 representability proved"). A cast to the operand's own carrier converts
-nothing and is its operand.
+nothing and is its operand. When a cast involves a floating-point carrier, the
+reader attaches the cast expression and its lexical owner to the call of the
+sealed Core conversion. The checker still requires exact representability.
 
 The reader decides from what the typed trees record, never from the cast's
 spelling: a recast (`CastForm::Recast`), a cast with a domain symbol, a cast
