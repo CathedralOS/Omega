@@ -644,7 +644,11 @@ fn publish_results(
                 .unwrap_or_else(|| {
                     unavailable(
                         id,
-                        "reference result has no complete actual return-source correspondence",
+                        if analysis.result_exposes_local_storage(id) {
+                            "returned loan would outlive its local backing storage"
+                        } else {
+                            "reference result has no complete actual return-source correspondence"
+                        },
                     )
                 })
         })?;

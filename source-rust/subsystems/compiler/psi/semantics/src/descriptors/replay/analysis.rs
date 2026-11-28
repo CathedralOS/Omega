@@ -1069,6 +1069,32 @@ impl<'a> DescriptorAnalysis<'a> {
         }
     }
 
+    /// Explain a failed return using the same completed exit states that
+    /// supplied its descriptor summary. A missing observation stays unknown.
+    pub fn result_exposes_local_storage(&self, identity: MachineId) -> bool {
+        let Some(machine) = self.replay.machine(identity) else { return false; };
+        let Some(returns) = &machine.returns else { return false; };
+        let Some(states) = self.replay.snapshots.get(&identity).and_then(|entry| entry.ready()) else {
+            return false;
+        };
+        returns.iter().any(|(position, result)| {
+            let Some(state) = states.normal_exits.get(position) else { return false; };
+            let Some(ty) = machine.place_types.get(&result.root) else { return false; };
+            let Some(slots) = self.replay.slot_kind.slots(self.replay.types, result.root, *ty) else { return false; };
+            slots.iter().any(|slot| self.replay.read(machine, state, slot).is_some_and(|origins| {
+                origins.iter().any(|origin| {
+                    let place = match origin {
+                        Origin::Storage(location) => location.root,
+                        Origin::Backing(DescriptorCallOrigin::Argument { source, projection })
+                            if projection.is_native_enclosing_storage() => *source,
+                        _ => return false,
+                    };
+                    machine.places.iter().any(|row| row.place == place && matches!(row.definition, DescriptorDefinition::Local))
+                })
+            }))
+        })
+    }
+
     pub fn result_contents(&mut self, identity: MachineId) -> Option<DescriptorResultContents> {
         let summary = self.replay.summary(identity, 0)?;
         let super::engine::ResultObservations::Observed {
