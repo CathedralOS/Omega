@@ -72,6 +72,11 @@ fn numeric_storage(module: &TerminalModule, id: StructuralTypeId) -> bool {
     }
 }
 
+fn read_only_numeric_storage(module: &TerminalModule, id: StructuralTypeId) -> bool {
+    numeric_storage(module, id)
+        && shared_mutation(module.types.structural_types.iter(), id, &[]) == SharedMutation::None
+}
+
 fn closed_callback(envelope: &terminal_psi::TerminalCallableEnvelope) -> bool {
     envelope.service_reach.is_empty()
         && envelope.invocations.is_empty()
@@ -120,7 +125,7 @@ fn local_shared_callback(
         let types = &module.types.structural_types;
         let path = descriptor_path(types, root, &home.path)?;
         let concrete = crate::runtime_structural_path_tip(types.iter(), root, &path)?;
-        if !numeric_storage(module, concrete.id) {
+        if !read_only_numeric_storage(module, concrete.id) {
             return None;
         }
     }
@@ -230,4 +235,52 @@ fn local_package_arguments(
             .map(|region| Some(DescriptorContentsQuery::from_location(region)))
             .collect(),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use terminal_psi::{
+        StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+        StructuralRecordStorage, StructuralTypeDeclaration, TerminalIdentityIndex,
+    };
+
+    #[test]
+    fn a_shared_callback_can_mutate_an_atomic_numeric_field() {
+        let mut module = TerminalModule::for_entry(semantic_vocabulary::MachineId::new(1).unwrap());
+        let id = StructuralTypeId::new(1).unwrap();
+        let record = |ty| StructuralTypeDeclaration {
+            id,
+            identity: TerminalIdentityIndex(1),
+            declaration_identity: Default::default(),
+            requires: vec![],
+            quotient_carrier: None,
+            owns_linear_claim: false,
+            no_code_affine_cleanup: true,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            descriptor_cleanup: false,
+            nominal_cleanup: None,
+            scalar_restriction: None,
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+                    identity: TerminalIdentityIndex(2),
+                    declaration_identity: Default::default(),
+                    inline_carrier: None,
+                    relevance: language_core::BindingRelevance::Relevant,
+                    storage: None,
+                    field_type: ty,
+                }],
+                storage: StructuralRecordStorage::Packed,
+            },
+        };
+        module
+            .types
+            .structural_types
+            .push(record(StructuralFieldType::Scalar(ScalarType::Boolean)));
+        assert!(read_only_numeric_storage(&module, id));
+        module.types.structural_types[0] = record(StructuralFieldType::Atomic(ScalarType::Boolean));
+        assert!(numeric_storage(&module, id));
+        assert!(!read_only_numeric_storage(&module, id));
+    }
 }
