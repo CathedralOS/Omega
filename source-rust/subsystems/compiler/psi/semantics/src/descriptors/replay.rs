@@ -21,7 +21,10 @@ pub(crate) mod module_summaries;
 pub(crate) mod provider;
 pub(crate) mod summary_interface;
 use crate::runtime_structural_path_tip;
-pub use analysis::{DescriptorAnalysis, DescriptorSourceObservation, DescriptorSourceObservations};
+pub use analysis::{
+    DescriptorAnalysis, DescriptorSourceObservation, DescriptorSourceObservations,
+    LocalReturnBacking,
+};
 use engine::Replay;
 
 /// A physical place, or the native storage reached by a scalar formal.

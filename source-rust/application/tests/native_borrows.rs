@@ -258,7 +258,13 @@ machine main() {
     .concat();
     for candidate in [source, &forwarded] {
         let refused = Program::new(candidate, &[READ]).check();
-        assert_loan_refusal(&refused);
+        let diagnostic = report(&refused);
+        assert!(!refused.status.success(), "{diagnostic}");
+        assert!(
+            diagnostic.contains("outlive its local backing storage"),
+            "{diagnostic}"
+        );
+        assert!(!diagnostic.contains("not supported yet"), "{diagnostic}");
     }
 }
 

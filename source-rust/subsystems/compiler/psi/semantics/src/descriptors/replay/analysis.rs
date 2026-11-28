@@ -80,6 +80,16 @@ impl StorageQueries {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LocalReturnBacking {
+    /// No completed result slot identifies an invocation-local home.
+    Unobserved,
+    /// A local is one possible backing in the observed results.
+    Alternative,
+    /// Every normal exit returns a slot whose possible backings are all local.
+    EveryReturn,
+}
+
 pub struct DescriptorAnalysis<'a> {
     pub(super) replay: Replay<'a>,
     storage_queries: StorageQueries,
@@ -1118,14 +1128,14 @@ impl<'a> DescriptorAnalysis<'a> {
         }
     }
 
-    /// Explain a failed return using the same completed exit states that
-    /// supplied its descriptor summary. A missing observation stays unknown.
-    pub fn result_exposes_local_storage(&self, identity: MachineId) -> bool {
+    /// Describe a failed result using only the completed normal exits of
+    /// this machine. Unknown descriptors cannot establish a lifetime violation.
+    pub fn local_return_backing(&self, identity: MachineId) -> LocalReturnBacking {
         let Some(machine) = self.replay.machine(identity) else {
-            return false;
+            return LocalReturnBacking::Unobserved;
         };
         let Some(returns) = &machine.returns else {
-            return false;
+            return LocalReturnBacking::Unobserved;
         };
         let Some(states) = self
             .replay
@@ -1133,43 +1143,49 @@ impl<'a> DescriptorAnalysis<'a> {
             .get(&identity)
             .and_then(|entry| entry.ready())
         else {
-            return false;
+            return LocalReturnBacking::Unobserved;
         };
-        returns.iter().any(|(position, result)| {
-            let Some(state) = states.normal_exits.get(position) else {
-                return false;
+        let local = |origin: &Origin| {
+            let root = match origin {
+                Origin::Storage(location) => location.root,
+                Origin::Backing(DescriptorCallOrigin::Argument { source, projection })
+                    if projection.is_native_enclosing_storage() =>
+                {
+                    *source
+                }
+                _ => return false,
             };
-            let Some(ty) = machine.place_types.get(&result.root) else {
-                return false;
-            };
-            let Some(slots) = self
-                .replay
-                .slot_kind
-                .slots(self.replay.types, result.root, *ty)
-            else {
-                return false;
-            };
-            slots.iter().any(|slot| {
-                self.replay
-                    .read(machine, state, slot)
-                    .is_some_and(|origins| {
-                        origins.iter().any(|origin| {
-                            let place = match origin {
-                                Origin::Storage(location) => location.root,
-                                Origin::Backing(DescriptorCallOrigin::Argument {
-                                    source,
-                                    projection,
-                                }) if projection.is_native_enclosing_storage() => *source,
-                                _ => return false,
-                            };
-                            machine.places.iter().any(|row| {
-                                row.place == place
-                                    && matches!(row.definition, DescriptorDefinition::Local)
-                            })
-                        })
-                    })
+            machine.places.iter().any(|row| {
+                row.place == root && matches!(row.definition, DescriptorDefinition::Local)
             })
-        })
+        };
+        let mut any_local = false;
+        let mut every_return = !returns.is_empty();
+        for (position, result) in returns {
+            let mut definite_slot = false;
+            if let Some(state) = states.normal_exits.get(position)
+                && let Some(ty) = machine.place_types.get(&result.root)
+                && let Some(slots) =
+                    self.replay
+                        .slot_kind
+                        .slots(self.replay.types, result.root, *ty)
+            {
+                for slot in slots.iter() {
+                    if let Some(origins) = self.replay.read(machine, state, slot) {
+                        any_local |= origins.iter().any(&local);
+                        definite_slot |= !origins.is_empty() && origins.iter().all(&local);
+                    }
+                }
+            }
+            every_return &= definite_slot;
+        }
+        if every_return {
+            LocalReturnBacking::EveryReturn
+        } else if any_local {
+            LocalReturnBacking::Alternative
+        } else {
+            LocalReturnBacking::Unobserved
+        }
     }
 
     pub fn result_contents(&mut self, identity: MachineId) -> Option<DescriptorResultContents> {
