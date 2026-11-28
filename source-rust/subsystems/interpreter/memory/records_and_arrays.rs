@@ -2127,7 +2127,11 @@ pub(crate) mod record {
                     destination,
                 )?;
                 relocate_cells!(execution.structural_host_atoms, |_h, atom, target| {
-                    if matches!(atom, crate::storage::structural_storage::HostStructuralPayload::Activation(_)) && !transfers_custody {
+                    if matches!(
+                        atom,
+                        crate::storage::structural_storage::HostStructuralPayload::Activation(_)
+                    ) && !transfers_custody
+                    {
                         return Err(TerminalInterpretError::ClaimTransferMismatch);
                     }
                     self.host_atoms.insert(target, *atom)?;

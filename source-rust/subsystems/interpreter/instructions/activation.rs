@@ -6,11 +6,13 @@ mod driver;
 mod funding;
 #[path = "activation/results.rs"]
 mod results;
+#[path = "activation/spills.rs"]
+mod spills;
 
-pub(crate) use driver::OwnedActivations;
 use crate::engine::execution::CompletedReturn;
 use crate::storage::storage_addresses::ScalarStorageAddress;
 use crate::{TerminalEffectWait, TerminalInterpretError, TerminalSuspension};
+pub(crate) use driver::OwnedActivations;
 
 /// Installed programs keep the checked field path and reply type for each
 /// park. Stepping does not revisit domain policies or search record fields.
@@ -179,9 +181,15 @@ impl crate::engine::execution::TerminalExecution<'_> {
             return Err(malformed());
         };
         match control {
-            ActivationOperation::Prepare => return self.prepare_activation(operation, boundary_declaration),
-            ActivationOperation::StepFixed => return self.step_activation(operation, boundary_declaration),
-            ActivationOperation::Resume => return self.answer_activation(operation, boundary_declaration),
+            ActivationOperation::Prepare => {
+                return self.prepare_activation(operation, boundary_declaration);
+            }
+            ActivationOperation::StepFixed => {
+                return self.step_activation(operation, boundary_declaration);
+            }
+            ActivationOperation::Resume => {
+                return self.answer_activation(operation, boundary_declaration);
+            }
             ActivationOperation::Park => {}
         }
         let owner =
@@ -225,14 +233,11 @@ impl crate::engine::execution::TerminalExecution<'_> {
             self.local_structural_identities.exposure_namespace,
             &mut self.last_park,
         )?;
-        self.owned_step
-            .as_mut()
-            .ok_or(malformed())?
-            .park(
-                crate::TerminalSuspension { site, occurrence },
-                slot,
-                reply.into(),
-            )?;
+        self.owned_step.as_mut().ok_or(malformed())?.park(
+            crate::TerminalSuspension { site, occurrence },
+            slot,
+            reply.into(),
+        )?;
         self.publish_parked_activation()
     }
 

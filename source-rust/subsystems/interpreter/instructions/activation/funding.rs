@@ -127,12 +127,27 @@ impl RetainedBacking {
         frame: usize,
         position: usize,
     ) -> Result<(), TerminalInterpretError> {
-        let encoded = u64::try_from(position)
+        let bytes = u64::try_from(position)
             .map_err(|_| malformed())?
             .to_le_bytes();
-        let offset = frame.checked_mul(encoded.len()).ok_or(malformed())?;
-        for (within, byte) in encoded.into_iter().enumerate() {
+        self.write_storage(
+            execution,
+            frame.checked_mul(bytes.len()).ok_or(malformed())?,
+            &bytes,
+        )
+    }
+
+    pub(super) fn write_storage(
+        &self,
+        execution: &mut TerminalExecution<'_>,
+        offset: usize,
+        bytes: &[u8],
+    ) -> Result<(), TerminalInterpretError> {
+        for (within, &byte) in bytes.iter().enumerate() {
             let index = offset.checked_add(within).ok_or(malformed())?;
+            if u64::try_from(index).map_err(|_| malformed())? >= self.len() {
+                return Err(malformed());
+            }
             match self.binding() {
                 RetainedDescriptor::Bytes(binding) => {
                     execution.write_retained_byte(binding, index, byte)?
@@ -158,9 +173,25 @@ impl RetainedBacking {
         frame: usize,
     ) -> Result<usize, TerminalInterpretError> {
         let mut encoded = [0u8; 8];
-        let offset = frame.checked_mul(encoded.len()).ok_or(malformed())?;
-        for (within, byte) in encoded.iter_mut().enumerate() {
+        self.read_storage(
+            execution,
+            frame.checked_mul(encoded.len()).ok_or(malformed())?,
+            &mut encoded,
+        )?;
+        usize::try_from(u64::from_le_bytes(encoded)).map_err(|_| malformed())
+    }
+
+    pub(super) fn read_storage(
+        &self,
+        execution: &TerminalExecution<'_>,
+        offset: usize,
+        bytes: &mut [u8],
+    ) -> Result<(), TerminalInterpretError> {
+        for (within, byte) in bytes.iter_mut().enumerate() {
             let index = offset.checked_add(within).ok_or(malformed())?;
+            if u64::try_from(index).map_err(|_| malformed())? >= self.len() {
+                return Err(malformed());
+            }
             *byte = match self.binding() {
                 RetainedDescriptor::Bytes(ByteSequenceBinding::MutableArray {
                     array,
@@ -196,7 +227,7 @@ impl RetainedBacking {
                 }
             };
         }
-        usize::try_from(u64::from_le_bytes(encoded)).map_err(|_| malformed())
+        Ok(())
     }
 }
 

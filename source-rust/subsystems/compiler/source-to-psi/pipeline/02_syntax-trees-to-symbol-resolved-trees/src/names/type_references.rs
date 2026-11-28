@@ -2214,19 +2214,18 @@ mod value_expressions {
                 .unwrap_or_else(SymbolHandle::invalid),
             );
         }
-        let constant = crate::resolution::names::lookup::top_level_symbol_for_source(
+        let selected = crate::resolution::names::targets::resolve_static_machine_argument_symbol(
             symbols,
-            SymbolKind::Const,
-            name,
+            machine.symbol,
+            &members,
+            crate::resolution::names::scopes::BinderRole::Value,
         );
-        if constant.is_valid() {
-            return Some(constant);
-        }
-        // A qualified, payload-free case names a value in an index just as it
-        // does in an expression. Keep the selected declaration, not its text.
-        crate::resolution::names::qualified_payload_free_case_type(
-            symbols, name.as_str(), name.source_span(),
-        ).ok().flatten().map(|(_, case, _)| case)
+        (selected.is_valid()
+            && matches!(
+                symbols.get(selected).kind,
+                SymbolKind::Const | SymbolKind::Variant
+            ))
+        .then_some(selected)
     }
 
     #[cfg(test)]

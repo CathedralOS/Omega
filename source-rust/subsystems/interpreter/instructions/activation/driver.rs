@@ -16,12 +16,16 @@ use terminal_psi::{
 };
 use terminal_semantics::calls::owned_activation::{self, StepShape};
 
+type ResultBackings = Vec<Vec<crate::storage::reference::ReferenceBacking>>;
+
 struct Parked {
     selected: TerminalPreparedActivationEntry,
     backing: RetainedBacking,
+    result_backings: ResultBackings,
     frames: ParkedFrames,
     // Bind each byte-backed return address to its original checked block site.
     resume_sites: Vec<Option<semantic_vocabulary::OperationId>>,
+    spills: super::spills::ScalarSpills,
     control: StepControl,
 }
 
@@ -30,6 +34,7 @@ struct Running {
     operation: Operation,
     root: usize,
     backing: RetainedBacking,
+    result_backings: ResultBackings,
     caller_control: Option<StepControl>,
 }
 
@@ -58,6 +63,14 @@ impl OwnedActivations {
         Ok(self.next_token)
     }
 
+    pub(crate) fn result_backings(
+        &self,
+        home: usize,
+    ) -> Option<&[Vec<crate::storage::reference::ReferenceBacking>]> {
+        let running = self.running.last()?;
+        (running.root == home).then_some(running.result_backings.as_slice())
+    }
+
     pub(crate) fn holds_byte_loan(
         &self,
         matches: impl Fn(&crate::storage::byte_sequences::binding::ByteSequenceBinding) -> bool,
@@ -78,10 +91,16 @@ impl OwnedActivations {
     pub(crate) fn retain_storage(&self, kept: &mut RetainedStorage) {
         for parked in self.parked.values() {
             parked.backing.retain_storage(kept);
+            for source in parked.result_backings.iter().flatten() {
+                source.retain_storage(kept);
+            }
             parked.control.retain_storage(kept);
         }
         for running in &self.running {
             running.backing.retain_storage(kept);
+            for source in running.result_backings.iter().flatten() {
+                source.retain_storage(kept);
+            }
             if let Some(control) = &running.caller_control {
                 control.retain_storage(kept);
             }
@@ -184,6 +203,23 @@ impl TerminalExecution<'_> {
         let callee = program.verified_machine(worker)?;
         let scalars = self.scalar_values_at(arguments)?;
         let prepared = self.prepare_structural_call_arguments(worker, inputs)?;
+        let result_backings = match callee.result.structural() {
+            Some(result) if !result.reference_sources.is_empty() => {
+                let views = self.bind_call_access_views(worker, inputs, &prepared.values)?;
+                self.bind_reference_return_backings(
+                    &callee.structural_parameters,
+                    result,
+                    &prepared.values,
+                    &prepared.aggregate_backings,
+                    &prepared.primitive_loans,
+                    &prepared.element_views,
+                    &prepared.byte_sequences,
+                    &views,
+                )?
+            }
+            _ => Vec::new(),
+        };
+
         // Both declarations use the same first source argument. Receipts for
         // the retained descriptor are settled in the caller, not given to Entry.
         let transfers: Vec<_> = completion_receipts
@@ -207,13 +243,16 @@ impl TerminalExecution<'_> {
         let root = self.call_stack.current();
         // enter_call advanced the caller's prepare site but did not execute Entry.
         let (frames, resume_sites) = self.save_activation_frames(root, &backing)?;
+        let spills = super::spills::ScalarSpills::save(self, &backing, &frames, true)?;
         self.consume_activation_input(operation, retained)?;
         let token = self.owned_activations.insert(Parked {
             control: StepControl::Running,
             selected: shape.selected,
+            result_backings,
             backing,
             frames,
             resume_sites,
+            spills,
         })?;
         self.issue_activation_owner(operation, shape.ready, shape.owner, token)?;
         Ok(OperationFlow::Redispatch)
@@ -256,6 +295,7 @@ impl TerminalExecution<'_> {
             .remove(&token)
             .ok_or(malformed())?;
         self.restore_activation_positions(&parked)?;
+        parked.spills.restore(self, &parked.backing)?;
         let caller = self.take_frame(SuspendedCallResult::Unit, Vec::new())?;
         let root = parked.frames.root();
         let worker = self
@@ -280,6 +320,7 @@ impl TerminalExecution<'_> {
             root,
             shape,
             backing: parked.backing,
+            result_backings: parked.result_backings,
             operation: operation.clone(),
             caller_control,
         });
@@ -293,11 +334,14 @@ impl TerminalExecution<'_> {
         let control =
             std::mem::replace(&mut self.owned_step, running.caller_control).ok_or(malformed())?;
         let (frames, resume_sites) = self.save_activation_frames(running.root, &running.backing)?;
+        let spills = super::spills::ScalarSpills::save(self, &running.backing, &frames, false)?;
         let token = self.owned_activations.insert(Parked {
             selected: running.shape.selected,
             backing: running.backing,
+            result_backings: running.result_backings,
             frames,
             resume_sites,
+            spills,
             control,
         })?;
         self.issue_activation_owner(

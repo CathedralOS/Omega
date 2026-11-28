@@ -4481,7 +4481,13 @@ impl TerminalExecution<'_> {
                 Ok(())
             };
         }
-        let expected_reference_backings = match self.call_stack.last() {
+        let expected_reference_backings = if let Some(backings) = self
+            .owned_activations
+            .result_backings(self.call_stack.current())
+        {
+            backings
+        } else {
+            match self.call_stack.last() {
             Some(SuspendedCall {
                 result:
                     SuspendedCallResult::Structural {
@@ -4500,6 +4506,7 @@ impl TerminalExecution<'_> {
                     ))?
                     .rows
             }
+        }
         };
         if expected_reference_backings.len() != signature.reference_sources.len() {
             return Err(TerminalInterpretError::ContentTransformationMismatch(
