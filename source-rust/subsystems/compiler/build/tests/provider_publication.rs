@@ -52,6 +52,42 @@ fn reviewed_policy(path: &Path, target: TargetProfile) -> project_build::Checked
         .unwrap()
 }
 
+/// A Build's declaration selectors, such as `|reflect|::parameter`, ask the
+/// coordinator for the Product dependencies visible to the query and for the
+/// root acquired under the executed Build declaration. The CLI coordinator
+/// answers with one graph per registered Product dependency; these fixtures
+/// register none, so that answer is empty. The planner still refuses the
+/// answer if the Build issued a registration it does not cover.
+struct ProductQueries<'a> {
+    root: &'a package_manager::resolution::source::AcquiredBuildSource,
+}
+
+impl project_build::PlanningServices for ProductQueries<'_> {
+    fn query_dependencies(
+        &mut self,
+        _activation: &build_execution::TerminalBuildActivation,
+        _query: &build_execution::host::bindings::BuildProductQuery,
+    ) -> Result<
+        Vec<package_compilation::source_imports::ProductQueryDependency>,
+        build_execution::CompileFailure,
+    > {
+        Ok(Vec::new())
+    }
+
+    fn declared_source(
+        &mut self,
+        activation: &build_execution::TerminalBuildActivation,
+    ) -> Result<
+        Option<package_compilation::PackageCompilationInputs>,
+        build_execution::CompileFailure,
+    > {
+        self.root
+            .declared_source_inputs(activation)
+            .map(Some)
+            .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)].into())
+    }
+}
+
 fn run_project_build_with_sources(
     path: &Path,
     targets: &[TargetProfile],
@@ -87,7 +123,8 @@ fn run_project_build_with_sources(
         Default::default(),
     )
     .unwrap();
-    let mut returned = project_build::interpret(prepared, &mut ()).unwrap();
+    let mut services = ProductQueries { root: &acquired };
+    let mut returned = project_build::interpret(prepared, &mut services).unwrap();
     let declaration = acquired.declare_build(returned.returned()).unwrap();
     let subject = declaration.identity();
     let ExecutedSourceResolution::Complete(graph) = declaration.resolve().unwrap() else {

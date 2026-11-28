@@ -55,9 +55,15 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
-Marker 304 adds the terminal alignment observation to scalar-read paths. Readers
+Marker 305 adds the terminal alignment observation to scalar-read paths. Readers
 check the marker before decoding the module. Rebuild earlier artifacts for this
 format.
+
+Marker 303 encodes section 54 as a counted list of task activation demands.
+Structural arguments, outcomes and frame residents refer to the module's
+structural storage declarations by ID. The module's target layout applications
+supply their representation on the selected target. Saved programs with an
+earlier marker must be rebuilt.
 
 Marker 302 adds each theorem application's counted sum arguments after its
 fixed scalar subjects: for each of the applied contract's sum subjects, in
@@ -3352,7 +3358,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 304 | yes |
+| semantic module | `PSITERM\0` | 305 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | published artifact | `PSIART\0\0` | 4 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |

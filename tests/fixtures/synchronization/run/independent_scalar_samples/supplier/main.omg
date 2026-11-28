@@ -1,0 +1,14 @@
+public data Signal { word: AtomicU32; }
+
+public boundary trait Samples {
+    machine read(source: @Signal) -> u32 reaches none crashes none terminates;
+}
+
+public machine read_value(source: @Signal) -> u32 terminates {
+    let previous: u32 = source.word.swap(1, ReceivePublish);
+    previous
+}
+
+public SourceSamples satisfies Samples {
+    machine read(source: @Signal) -> u32 terminates { read_value(source) }
+}

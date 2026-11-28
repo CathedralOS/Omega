@@ -6374,8 +6374,23 @@ pub(crate) mod signatures {
                 applied.symbol = self.symbol(declared.symbol);
                 let mut applied_parameters = Vec::with_capacity(type_parameters.len());
                 for mut parameter in type_parameters {
-                    parameter.symbol = self.symbol(parameter.symbol);
-                    parameter.kind = self.parameter_kind(program, parameter.kind)?;
+                    let original = parameter.symbol;
+                    parameter.symbol = self.symbol(original);
+                    // A fresh structural callback owns its complete applied signature,
+                    // including the authored distinction between omitted reach and none.
+                    let nested_owner = matches!(
+                        &parameter.kind,
+                        data::TypeParameterKind::Machine {
+                            contract: data::MachineParameterContract::Structural(header)
+                        } if header.symbol == original
+                    ) && self.symbols[previous_symbols..].contains(&(original, parameter.symbol));
+                    let previous_owner = self.owned_signature;
+                    if nested_owner {
+                        self.owned_signature = parameter.symbol;
+                    }
+                    let kind = self.parameter_kind(program, parameter.kind);
+                    self.owned_signature = previous_owner;
+                    parameter.kind = kind?;
                     applied_parameters.push(parameter);
                 }
                 applied.type_parameters =

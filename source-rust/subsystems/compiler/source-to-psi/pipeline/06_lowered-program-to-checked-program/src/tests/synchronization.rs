@@ -1,5 +1,6 @@
 //! Source-level synchronization judgments and the execution of their accepted twins.
 
+mod finite_branches;
 mod borrowed_cells;
 mod computed_predicates;
 mod indexed_cells;

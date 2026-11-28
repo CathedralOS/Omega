@@ -65,55 +65,28 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-<a id="function-valued-data-field"></a>
-### 1. How does a data declaration hold a mathematical function?
+### 1. May the selected work callback enable a maskable timer after interrupt-table publication?
 
-The `Real` quotient's representatives are regular Cauchy sequences of `Rat`,
-so its carrier is data holding a function `|nat|::Nat -> |rat|::Rat` and
-the evidence that the function is regular. The spec says `Real` is built
-"over ordinary mathematical data and equivalence/quotient machinery" and
-that "recursive mathematical data without a finite runtime representation
-remain proof-only; this follows from structure."
-[Mathematical values and quantification](wiki/spec/proofs/contracts.md#mathematical-values-and-quantification)
-Arrow types are dependent Π types, and the spec writes them in the
-parameters of a mathematical `let` and in the bounds of type parameters.
-[Universes and mathematical function types](wiki/spec/proofs/mathematical_bindings.md#universes-and-mathematical-function-types)
-The witness bundle shows data holding a value of a type parameter `A` under a
-`requires` clause, but no example puts an arrow in a data field or passes one
-as a type argument.
-[Witnesses, existence and proof construction](wiki/spec/proofs/mathematical_bindings.md#witnesses-existence-and-proof-construction)
-Today the parser accepts an arrow only in those two `let` and bound
-positions: `data Seq { at: N -> N; }` and `Holder<N -> N>` are both parse
-errors. No authored source holds a function in data. `core/cauchy.omg` takes
-sequences as static machine parameters instead, which a quotient cannot use,
-since its representatives are values.
+An x86 kernel needs to admit timer interrupts after its exception handlers and
+stacks are ready. The bundled installer checks that interrupts are masked,
+loads the new table with `lidt`, then calls `Work`. Loading the table preserves
+the mask. Both the installer and `StaticInterruptWork::run` publish
+`MachineControl + PortIo`. Enabling or restoring the interrupt mask requires
+the separate `InterruptControl` reach. The successful installation alone
+therefore establishes no point at which a maskable timer can interrupt `Work`.
+[Core declarations](source/library/core/static_interrupt.omg) ·
+[x86 install checks and publication](source-rust/subsystems/compiler/psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-x86_64/src/selected_form_encoding/register_access.rs)
 
-**Recommend that a data field may have a mathematical function type.** The
-carrier is then written
-
-```omega
-data Sequence
-requires regular(at)
-{
-    at: |nat|::Nat -> |rat|::Rat;
-}
-```
-
-with `regular` a `let` over `at`. A value with such a field has no runtime
-representation, so the data is proof-only by structure, as the spec already
-says of infinite recursive data. A field read `s.at(n)` is application, and a
-value is built with a `let` applied to fewer arguments than it takes, as the
-spec already allows (`Sequence { at: sum(x, y) }` with
-`let sum(x: Sequence, y: Sequence, n: |nat|::Nat): |rat|::Rat`). The other
-choice is to keep fields ordinary and allow arrow types as type arguments,
-so the existing witness bundle carries the sequence:
-`Witness<0, 0, |nat|::Nat -> |rat|::Rat, regular>`. That adds no field rule,
-but every ordinary type position then admits arrows. Which should it be?
-
-**Specification text, if adopted.** In mathematical_bindings.md,
-"Universes and mathematical function types", add: "A data field may have a
-mathematical function type. Data with such a field has no runtime
-representation and is proof-only by structure. Reading the field and applying
-it is dependent function application; a value is constructed from a
-mathematical term of that type, such as a `let` applied to fewer arguments
-than it takes."
+The target package already owns mask policy. Bootstrap keeps interrupts
+masked until the exception floor exists. The remaining decision is whether
+the bundled scope supports an explicit, authorized mask change by `Work`, or
+is deliberately a masked-only scope with interruptible work requiring a
+separate target-authored installation path. In the former case, let the
+selected work callback's checked reach propagate to the installer and require
+its controller authority at the operation. A work callback that leaves the
+mask alone should introduce no `InterruptControl` reach. A deadlock check can
+then use the actual enabled interval and its matching installed timer.
+[Interrupt obligations](wiki/spec/build/interrupt_obligations.md#mask-providers-and-initial-authority) ·
+[Bootstrap sequencing](wiki/spec/build/uefi_entry.md#hardware-preparation-and-reporting) ·
+[Privileged reach](wiki/spec/build/permissions.md#privileged-services) ·
+[Static callback reach](wiki/spec/language/effects.md#static-callback-reach-dependencies)

@@ -2540,8 +2540,22 @@ impl<'a> Lowering<'a> {
             ExpressionKind::TheoremApplication { .. } | ExpressionKind::Applied { .. } => {
                 Err(self.internal("a logical application is used as storage"))
             }
-            ExpressionKind::Atomic(_) => {
-                Err(self.internal("an atomic scalar event is used as structural storage"))
+            ExpressionKind::Atomic(crate::body::AtomicOperation::Access(access)) => {
+                let Value::Record(root) =
+                    continuing!(self.atomic_access(access, Some(value_type), expression.source))
+                else {
+                    return Err(self.internal("a structural atomic operation produced no outcome"));
+                };
+                Ok(Reached::Value(Located {
+                    root,
+                    place: self.exact_root(root)?,
+                    path: Vec::new(),
+                    record,
+                    fresh: true,
+                }))
+            }
+            ExpressionKind::Atomic(crate::body::AtomicOperation::Fence(_)) => {
+                Err(self.internal("an atomic fence has no result"))
             }
             // `record` forms a block's value before its scope ends.
             ExpressionKind::Block { .. } => {
@@ -3614,20 +3628,18 @@ impl<'a> Lowering<'a> {
 
     pub(super) fn atomic_access(
         &mut self,
-        place: &Expression,
-        event: terminal_psi::AtomicAccessEvent<usize>,
-        operands: &[Expression],
-        result: Option<ScalarType>,
+        access: &crate::body::AtomicAccess,
+        result: Option<ValueType>,
         source: SourceOrigin,
     ) -> Evaluation<Value> {
-        let (root, steps, exact, _) = continuing!(self.capture_place(place));
-        let (root, steps, exact) = if operands.is_empty() {
+        let (root, steps, exact, _) = continuing!(self.capture_place(&access.place));
+        let (root, steps, exact) = if access.operands.is_empty() {
             (root, steps, exact)
         } else {
             self.capture_view_element(root, steps, exact, StructuralAccess::SharedBorrow, source)?
         };
-        let mut values = Vec::with_capacity(operands.len());
-        for operand in operands {
+        let mut values = Vec::with_capacity(access.operands.len());
+        for operand in &access.operands {
             values.push(continuing!(self.scalar(operand)));
         }
         // A dynamic index is proved at the actual atomic access after the
@@ -3638,21 +3650,85 @@ impl<'a> Lowering<'a> {
             terminal_check_tables::obligations::ExecutionSite::Operation(operation),
             source,
         )?;
-        let event = event.try_map(|position| {
+        let event = access.event.try_map(|position| {
             values.get(position).copied().ok_or_else(|| {
                 self.internal("atomic event operand is outside its evaluation roster")
             })
         })?;
-        let value = self.emit(
-            operation,
-            result,
-            OperationKind::AtomicAccess {
-                place: root,
-                path,
-                event,
-                resident_obligation: None,
+        let kind = OperationKind::AtomicAccess {
+            place: root,
+            path,
+            event,
+            resident_obligation: None,
+        };
+        if let (
+            Some(ValueType::Record(record, _, _)),
+            terminal_psi::AtomicAccessEvent::CompareExchange {
+                expected,
+                replacement,
+                ..
             },
-        )?;
+            language_core::atomic::AtomicExpressionResultCustody::Exchange(identity),
+        ) = (result, event, access.result)
+        {
+            let scalar = self
+                .tables
+                .values
+                .get(expected)
+                .ok_or_else(|| self.internal("missing compared word"))?
+                .scalar_type;
+            let Value::Scalar(prior) = self.emit(operation, Some(scalar), kind)? else {
+                return Err(self.internal("a decisive exchange did not produce its observation"));
+            };
+            self.write(
+                exact,
+                ProgramPoint::AfterOperation(operation),
+                Content::Overwritten,
+            )?;
+            let Value::Scalar(exchanged) = self.strict(
+                crate::body::Strict::Equal,
+                scalar,
+                prior,
+                expected,
+                Some(ScalarType::Boolean),
+                source,
+            )?
+            else {
+                return Err(self.internal("a compared word did not produce a Boolean"));
+            };
+            // The decisive primitive returns its actual observation. Construct
+            // the two specified result cases without another load of the cell.
+            let [mismatch, success] = identity.cases() else {
+                return Err(self.internal("a decisive exchange must have two cases"));
+            };
+            let payload = |case: &language_core::atomic::AtomicCompareExchangeOutcomeCaseSchema| {
+                use language_core::atomic::AtomicCompareExchangeOutcomePayload::*;
+                case.payload.map(|field| match field {
+                    Proposed => replacement,
+                    Observed | Displaced => prior,
+                })
+            };
+            return self.select_cases(
+                exchanged,
+                record,
+                (1, payload(success).as_slice()),
+                (0, payload(mismatch).as_slice()),
+                source,
+            );
+        }
+        let value = match result {
+            Some(ty @ ValueType::Record(..)) => {
+                let (root, stored) = self.produce(operation, ty, kind)?;
+                self.unknown_contents(stored, operation)?;
+                self.name_contents(stored, ty)?;
+                Value::Record(root)
+            }
+            Some(ValueType::Scalar(scalar, _)) => self.emit(operation, Some(scalar), kind)?,
+            None => self.emit(operation, None, kind)?,
+            Some(ValueType::Rigid(_)) => {
+                return Err(self.internal("atomic event has a rigid result"));
+            }
+        };
         if event.modifies_resident() {
             self.write(
                 exact,
@@ -4166,6 +4242,38 @@ impl<'a> Lowering<'a> {
                 return Err(self.internal("a literal names a field twice"));
             }
         }
+        let established =
+            self.establish_evaluated_case(record, selected, operands, erased, source)?;
+        Ok(Reached::Value(established))
+    }
+
+    /// Build a closed case from already evaluated scalars. A machine primitive
+    /// can therefore return ordinary data without evaluating its inputs twice.
+    pub(super) fn scalar_case(
+        &mut self,
+        record: StructuralTypeId,
+        case: usize,
+        fields: &[ValueId],
+        source: SourceOrigin,
+    ) -> Checked<Value> {
+        let selected = self.case_of(record, case)?;
+        if fields.len() != selected.fields.len() {
+            return Err(self.internal("wrong field count for a computed case"));
+        }
+        let operands = fields.iter().map(|id| Some(Operand::Scalar(*id))).collect();
+        let (place, _) = self.establish_evaluated_case(record, selected, operands, &[], source)?;
+        Ok(Value::Record(place))
+    }
+
+    fn establish_evaluated_case(
+        &mut self,
+        record: StructuralTypeId,
+        selected: &'a crate::body::CaseType,
+        operands: Vec<Option<Operand>>,
+        erased: &[(semantic_vocabulary::StructuralFieldId, Expression)],
+        source: SourceOrigin,
+    ) -> Checked<(PlaceId, ExactPlaceId)> {
+        let declared = &selected.fields;
         let mut roster = Vec::with_capacity(declared.len());
         let mut initializers = Vec::with_capacity(declared.len());
         for (field, operand) in declared.iter().zip(operands) {
@@ -4220,7 +4328,7 @@ impl<'a> Lowering<'a> {
                 }
             }
         }
-        Ok(Reached::Value((root, exact)))
+        Ok((root, exact))
     }
 
     /// `subject in S::C`: one `StructuralCaseMembership` on the sum the

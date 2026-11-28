@@ -1,29 +1,33 @@
 //! A checked branch can constrain the value later observed in private storage.
 //! Provider declarations name formal positions. Receiver conditions name only
 //! actual scalars, including the original selected entry's typed inputs.
-use super::super::{
+use super::ScalarFact;
+use super::comparison::Evidence;
+use crate::entry_values::TerminalScalarValue as Scalar;
+use crate::synchronization::{
     facts::Facts,
-    progress::ScalarFact,
     spin::{CellUpdate, Comparison, Operand, SpinCondition},
 };
-use crate::entry_values::TerminalScalarValue as Scalar;
-use semantic_vocabulary::{Proposition, ScalarTerm, ScalarType, ValueId};
+use semantic_vocabulary::{Proposition, ScalarType, ValueId};
 use std::cmp::Ordering;
 use terminal_psi::OperationKind;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct ScalarTest<T> {
+pub(in crate::synchronization) struct ScalarTest<T> {
     left: T,
     right: T,
     order: Ordering,
     positive: bool,
 }
 
-pub(super) type Selector = ScalarTest<Operand>;
-pub(super) type Assumption = ScalarTest<ScalarFact>;
+pub(in crate::synchronization) type Selector = ScalarTest<Operand>;
+pub(in crate::synchronization) type Assumption = ScalarTest<ScalarFact>;
 
 impl<T: Copy> ScalarTest<T> {
-    pub(super) fn map<U>(self, mut bind: impl FnMut(T) -> Option<U>) -> Option<ScalarTest<U>> {
+    pub(in crate::synchronization) fn map<U>(
+        self,
+        mut bind: impl FnMut(T) -> Option<U>,
+    ) -> Option<ScalarTest<U>> {
         Some(ScalarTest {
             left: bind(self.left)?,
             right: bind(self.right)?,
@@ -32,7 +36,7 @@ impl<T: Copy> ScalarTest<T> {
         })
     }
 
-    pub(super) fn selected(mut self, answer: bool) -> Self {
+    pub(in crate::synchronization) fn selected(mut self, answer: bool) -> Self {
         self.positive = self.positive == answer;
         self
     }
@@ -48,7 +52,7 @@ impl<T: Copy> ScalarTest<T> {
 }
 
 impl Selector {
-    pub(super) fn canonical(mut self) -> (Self, bool) {
+    pub(in crate::synchronization) fn canonical(mut self) -> (Self, bool) {
         let inverted = !self.positive;
         self.positive = true;
         let reverse = match (self.left, self.right) {
@@ -68,7 +72,7 @@ impl Selector {
         (self, inverted)
     }
 
-    pub(super) fn map_operands(
+    pub(in crate::synchronization) fn map_operands(
         &mut self,
         apply: &mut impl FnMut(Operand) -> Option<Operand>,
     ) -> Option<()> {
@@ -76,17 +80,17 @@ impl Selector {
         Some(())
     }
 
-    pub(super) fn actual_inputs(
+    pub(in crate::synchronization) fn actual_inputs(
         self,
         scalar: &impl Fn(usize) -> Option<ScalarFact>,
     ) -> Option<Assumption> {
         self.map(|operand| operand.binding(scalar))
     }
 
-    pub(super) fn answer(
+    pub(in crate::synchronization) fn answer(
         self,
         scalar: &impl Fn(usize) -> Option<ScalarFact>,
-        requirements: &[Proposition],
+        requirements: &Evidence<'_>,
     ) -> Option<bool> {
         if self.left == self.right {
             return Some((self.order == Ordering::Equal) == self.positive);
@@ -96,14 +100,14 @@ impl Selector {
 }
 
 impl Assumption {
-    pub(super) fn boolean(value: ScalarFact) -> Option<Self> {
+    pub(in crate::synchronization) fn boolean(value: ScalarFact) -> Option<Self> {
         (value.ty() == ScalarType::Boolean).then_some(Self::equals(
             value,
             ScalarFact::Literal(Scalar::Boolean(true)),
         ))
     }
 
-    pub(super) fn of_operation(
+    pub(in crate::synchronization) fn of_operation(
         kind: &OperationKind,
         values: &Facts<ValueId, ScalarFact>,
         predicates: &Facts<ValueId, Self>,
@@ -124,25 +128,23 @@ impl Assumption {
         })
     }
 
-    pub(super) fn mentions(self, fact: ScalarFact) -> bool {
+    pub(super) fn permits(&self, left: ScalarFact, right: ScalarFact, candidate: Ordering) -> bool {
+        let actual = if self.left == left && self.right == right {
+            candidate
+        } else if self.left == right && self.right == left {
+            candidate.reverse()
+        } else {
+            return true;
+        };
+        (actual == self.order) == self.positive
+    }
+
+    pub(in crate::synchronization) fn mentions(self, fact: ScalarFact) -> bool {
         self.left == fact || self.right == fact
     }
 
-    pub(super) fn proposition(self) -> Option<Proposition> {
-        let term = |fact: ScalarFact| {
-            Some(match fact {
-                ScalarFact::EntryInput(input) => ScalarTerm::Value {
-                    id: input.id,
-                    scalar_type: input.scalar_type,
-                },
-                ScalarFact::Literal(Scalar::Boolean(bit)) => ScalarTerm::Boolean(bit),
-                ScalarFact::Literal(Scalar::Integer { scalar_type, value }) => {
-                    ScalarTerm::Integer { scalar_type, value }
-                }
-                _ => return None,
-            })
-        };
-        let (left, right) = (term(self.left)?, term(self.right)?);
+    pub(in crate::synchronization) fn proposition(self) -> Option<Proposition> {
+        let (left, right) = (self.left.term()?, self.right.term()?);
         Some(match (self.order, self.positive) {
             (Ordering::Equal, true) => Proposition::Equal(left, right),
             (Ordering::Equal, false) => Proposition::Implication {
@@ -156,7 +158,7 @@ impl Assumption {
         })
     }
 
-    fn answer(self, requirements: &[Proposition]) -> Option<bool> {
+    fn answer(self, requirements: &Evidence<'_>) -> Option<bool> {
         if self.left == self.right {
             return Some((self.order == Ordering::Equal) == self.positive);
         }
@@ -166,7 +168,7 @@ impl Assumption {
             (self.left, self.right, self.order)
         };
         let ScalarFact::Literal(pivot) = pivot else {
-            return None;
+            return super::comparison::decided(left, pivot, order, self.positive, requirements);
         };
         let mut test = SpinCondition {
             comparison: Comparison {

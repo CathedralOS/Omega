@@ -1046,7 +1046,7 @@ pub fn backend_execution_plan_read_violations(root: &Path) -> Vec<String> {
     call_violations_in(
         root,
         "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image",
-        &["execution_plan", "pre_physical_manifest("],
+        &["execution_plan"],
         &[
             "source-rust/subsystems/compiler/psi-to-native/verification/published-objects/src/lib.rs",
             "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
@@ -1859,8 +1859,7 @@ mod tests {
                 "use crate::retained_working_program as old;\n\
                  use super::source::{retained_source_validation as audit};\n\
                  let read = TargetStageOutput::working_program_for_validation;\n\
-                 let plan = TargetStageOutput::execution_plan;\n\
-                 let earlier = current.pre_physical_manifest();\n",
+                 let plan = TargetStageOutput::execution_plan;\n",
             ),
             (
                 format!("{image}/function_fragments/another_producer.rs"),
@@ -1869,8 +1868,7 @@ mod tests {
             (
                 format!("{image}/function_fragments/replay/validation.rs"),
                 "crate::retained_working_program::target_operations(input);\n\
-                 current.execution_plan();\n\
-                 current.pre_physical_manifest();\n",
+                 current.execution_plan();\n",
             ),
             (
                 format!("{image}/function_fragments/source/retained_source_validation.rs"),
@@ -1907,7 +1905,7 @@ mod tests {
         }));
         assert_eq!(
             execution_plan_violations.len(),
-            5,
+            3,
             "{execution_plan_violations:?}"
         );
         assert!(

@@ -2,6 +2,9 @@
 //! cell. Ordinary scalar arguments preserve the supplying entry's identity
 //! across calls; an unrelated machine's local value number is never evidence.
 
+pub(super) mod comparison;
+pub(super) mod condition;
+
 use super::facts::Facts;
 use super::spin::{CellUpdate, Operand, SpinCondition};
 use crate::entry_values::TerminalScalarValue as Scalar;
@@ -85,13 +88,37 @@ impl std::fmt::Display for PrivateWaitFailure {
 pub(super) enum ScalarFact {
     Literal(Scalar),
     EntryInput(ValueDeclaration),
+    /// One value returned to this activation. Distinct calls may return different bits.
+    Observation {
+        occurrence: usize,
+        scalar_type: ScalarType,
+        pending_provider: bool,
+    },
 }
 
 impl ScalarFact {
+    pub(super) fn awaits_provider(self) -> bool {
+        matches!(self, Self::Observation { pending_provider: true, .. })
+    }
+
+    pub(super) fn term(self) -> Option<ScalarTerm> {
+        Some(match self {
+            ScalarFact::EntryInput(input) => ScalarTerm::Value {
+                id: input.id,
+                scalar_type: input.scalar_type,
+            },
+            ScalarFact::Literal(Scalar::Boolean(bit)) => ScalarTerm::Boolean(bit),
+            ScalarFact::Literal(Scalar::Integer { scalar_type, value }) => {
+                ScalarTerm::Integer { scalar_type, value }
+            }
+            _ => return None,
+        })
+    }
+
     pub(super) fn literal(self) -> Option<Scalar> {
         match self {
             Self::Literal(value) => Some(value),
-            Self::EntryInput(_) => None,
+            Self::EntryInput(_) | Self::Observation { .. } => None,
         }
     }
 
@@ -99,6 +126,7 @@ impl ScalarFact {
         match self {
             Self::Literal(value) => value.scalar_type(),
             Self::EntryInput(input) => input.scalar_type,
+            Self::Observation { scalar_type, .. } => scalar_type,
         }
     }
 
@@ -219,7 +247,7 @@ impl SpinCondition {
     pub(super) fn with_actuals(
         mut self,
         resolve: impl Fn(Operand) -> Option<ScalarFact>,
-    ) -> (Self, Option<ValueDeclaration>) {
+    ) -> (Self, Option<ScalarFact>) {
         let mut input = None;
         if let Some(mask) = self.comparison.mask
             && let Some(ScalarFact::Literal(value)) = resolve(mask)
@@ -228,7 +256,7 @@ impl SpinCondition {
         }
         match resolve(self.comparison.pivot) {
             Some(ScalarFact::Literal(value)) => self.comparison.pivot = Operand::Literal(value),
-            Some(ScalarFact::EntryInput(formal)) => input = Some(formal),
+            Some(symbolic) => input = Some(symbolic),
             None => {}
         }
         (self, input)
@@ -257,24 +285,39 @@ impl SpinCondition {
     pub(super) fn failure(
         mut self,
         initial: Option<ScalarFact>,
-        pivot_input: Option<ValueDeclaration>,
+        pivot_input: Option<ScalarFact>,
         update: Option<CellUpdate<ScalarFact>>,
-        requires: &[Proposition],
+        evidence: &comparison::Evidence<'_>,
     ) -> Option<ProgressFailure> {
-        let pivot = pivot_input.map(|input| ScalarFact::EntryInput(input).under(requires));
+        let requires = &evidence.obligations;
+        let pivot = pivot_input.map(|input| input.under(requires));
         if let Some(ScalarFact::Literal(literal)) = pivot {
             self.comparison.pivot = Operand::Literal(literal);
         }
         let initial = initial.map(|value| value.under(requires));
-        // An entry argument is equal to itself even when its bits are unknown.
-        let blocks = |value| match value {
-            ScalarFact::Literal(value) => self.matches(value),
-            ScalarFact::EntryInput(input)
-                if Some(input) == pivot_input && self.comparison.mask.is_none() =>
+        // An observed scalar is equal to itself even when its bits are unknown.
+        let resolved_pivot = self
+            .comparison
+            .pivot
+            .literal()
+            .map(ScalarFact::Literal)
+            .or(pivot);
+        let blocks = |value: ScalarFact| {
+            if let ScalarFact::Literal(literal) = value
+                && let Some(answer) = self.matches(literal)
             {
-                Some(self.accepts(std::cmp::Ordering::Equal))
+                return Some(answer);
             }
-            _ => None,
+            if self.comparison.mask.is_some() {
+                return None;
+            }
+            comparison::decided(
+                value,
+                resolved_pivot?,
+                self.comparison.order,
+                self.positive,
+                evidence,
+            )
         };
         if let Some(initial) = initial
             && let Some(first) = blocks(initial)

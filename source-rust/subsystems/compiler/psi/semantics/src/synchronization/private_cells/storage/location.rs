@@ -14,6 +14,15 @@ pub(super) enum Allocation {
     SharedInput(PlaceId),
 }
 
+impl Allocation {
+    pub(super) fn local_id(self) -> Option<usize> {
+        match self {
+            Self::Private(id) | Self::ExclusiveInput(id) => Some(id),
+            Self::SharedInput(_) => None,
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct Home {
     pub allocation: Allocation,

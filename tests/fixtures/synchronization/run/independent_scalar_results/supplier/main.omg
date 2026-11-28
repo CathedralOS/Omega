@@ -1,0 +1,29 @@
+public data Signal { word: AtomicU32; }
+
+public boundary trait Samples {
+    machine read(input: u32) -> u32 reaches none crashes none terminates;
+}
+
+public machine literal() -> u32 terminates { 0u32 }
+
+public SourceSamples satisfies Samples {
+    machine read(input: u32) -> u32 terminates { literal() }
+}
+
+public machine choose(input: u32) -> u32 terminates {
+    transition input == 0 { true -> zero(), _ -> one() }
+    machine zero() -> u32 terminates { 0u32 }
+    machine one() -> u32 terminates { 1u32 }
+}
+
+public ChoiceSample satisfies Samples {
+    machine read(input: u32) -> u32 terminates { choose(input) }
+}
+
+public OneSample satisfies Samples {
+    machine read(input: u32) -> u32 terminates { 1u32 }
+}
+
+public ForwardSample satisfies Samples {
+    machine read(input: u32) -> u32 terminates { input }
+}

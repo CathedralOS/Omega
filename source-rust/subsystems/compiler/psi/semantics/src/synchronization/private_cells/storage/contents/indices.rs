@@ -80,7 +80,7 @@ mod tests {
         let mut array = Stored::ZERO;
         let held = Stored::Scalar(ScalarFact::Literal(Scalar::Boolean(true)));
         let element = Segment::FixedIndex(19);
-        array.write(&[element.clone()], &held, false);
+        array.write(std::slice::from_ref(&element), &held, false);
         let all = Segment::FixedRange {
             start: 0,
             end: u64::MAX,

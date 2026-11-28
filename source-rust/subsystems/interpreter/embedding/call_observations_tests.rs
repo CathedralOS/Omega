@@ -277,8 +277,9 @@ fn exact_calls_retain_executed_integer_arguments_and_discard_crashed_invocations
         let account = sponsor
             .begin_invocation(sponsor.measurement(), 1000)
             .unwrap();
+        let program = crate::engine::calls::frames::tests::publish_fixture(&program);
         let mut execution = TerminalExecution::start_with_program(
-            program.clone(),
+            program.program.clone(),
             &[],
             Default::default(),
             None,
@@ -295,8 +296,7 @@ fn exact_calls_retain_executed_integer_arguments_and_discard_crashed_invocations
         execution
             .select_call_observations(&[selector(6), selector(2)])
             .unwrap();
-        let mut instance =
-            TerminalInstance::new(crate::TerminalProgram { program }, execution, vec![]);
+        let mut instance = TerminalInstance::new(program, execution, vec![]);
         assert!(instance.take_call_observations().is_empty());
         let mut meter = build_model::work::sponsored_meter(account.clone(), Some(1000)).unwrap();
         let status = instance.invoke(&mut meter).unwrap();
