@@ -797,6 +797,29 @@ pub struct ProofSearchActivity {
 }
 
 impl ProofSearchActivity {
+    /// Each result search in an immutable inference batch starts with the
+    /// same spent allowance as the serial search it may replace.
+    pub(crate) fn continuation(&self) -> Self {
+        Self {
+            exhausted_steps: self.exhausted_steps,
+            ..Self::default()
+        }
+    }
+
+    /// Count every search that ran. Only a continuation used in serial
+    /// order may charge an exhausted goal to the next machine's budget.
+    pub(crate) fn record_continuation_work(&mut self, searched: &mut Self) {
+        let mut work = std::mem::take(searched);
+        searched.exhausted_steps = std::mem::take(&mut work.exhausted_steps);
+        self.merge(work);
+    }
+
+    pub(crate) fn finish_continuation(&mut self, searched: Self) -> bool {
+        let spent = self.exhausted_steps != searched.exhausted_steps;
+        self.exhausted_steps = searched.exhausted_steps;
+        spent
+    }
+
     #[cfg(any(test, feature = "test-support"))]
     pub fn started(&self) -> usize {
         self.started

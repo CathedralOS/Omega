@@ -626,25 +626,28 @@ impl AcceptedTerminalSource {
         &self,
     ) -> Result<semantic_vocabulary::dependency_reach::UnsafeServices, Vec<Diagnostic>> {
         let typed = self.source();
+        let module = self.module();
         let mut identities = std::collections::BTreeMap::new();
         for (id, row) in typed.service_reaches.all_definitions() {
             if let Some(language_core::core_vocabulary::CoreVocabulary::UnsafeAtom(atom)) =
                 typed.core_vocabulary(row.symbol)
             {
-                let identity = typed
-                    .service_reach_application_identity(id)
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "core Unsafe service lost its application identity",
-                        )]
+                if let Some(identity) = typed.service_reach_application_identity(id) {
+                    identities.insert(identity, atom);
+                } else if let Some(service) = module
+                    .retained_core_unsafe_service(atom)
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?
+                {
+                    let identity = module.identities.text(service.identity).ok_or_else(|| {
+                        vec![Diagnostic::error("missing retained Core service identity")]
                     })?;
-                identities.insert(identity, atom);
+                    identities.insert(identity.to_owned(), atom);
+                }
             }
         }
         if identities.is_empty() {
             return Ok(Default::default());
         }
-        let module = self.module();
         semantic_vocabulary::dependency_reach::UnsafeServices::from_rows(
             module.interfaces.services.iter().map(|row| {
                 let atom = module.identities.text(row.identity)

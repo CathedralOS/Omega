@@ -570,6 +570,31 @@ mod owned_value_tests {
     };
 
     #[test]
+    fn native_borrow_wire_preserves_address_or_projected_shared_descriptor() {
+        let address = semantic_vocabulary::ValueId::new(8).unwrap();
+        let descriptor = StructuralArgument {
+            place: PlaceId::new(3).unwrap(),
+            path: vec![StructuralPathSegment::Field(TerminalIdentityIndex(5))],
+            access: StructuralAccess::SharedBorrow,
+        };
+        for (tag, operation) in [
+            (145, OperationKind::BorrowAt { address }),
+            (146, OperationKind::UpgradeMutability { source: descriptor }),
+        ] {
+            let mut writer = Writer::default();
+            super::encode_operation_kind(&mut writer, operation.clone()).unwrap();
+            let bytes = writer.finish();
+            assert_eq!(bytes[0], tag);
+            let mut reader = Reader::new(&bytes);
+            assert_eq!(
+                super::decode_operation_kind(&mut reader).unwrap(),
+                operation
+            );
+            assert_eq!(reader.remaining(), 0);
+        }
+    }
+
+    #[test]
     fn packed_integer_wire_preserves_both_operand_paths_and_refuses_unknown_arithmetic() {
         let kind = OperationKind::PackedIntegerBinary {
             operation: semantic_vocabulary::PackedIntegerBinaryOperation::WrappingAddI16x8,
@@ -1232,6 +1257,8 @@ operation_wire! {
         142 => PackedIntegerBinary { operation: PackedIntegerBinary, left: Argument, right: Argument },
         143 => PackedIntegerUnary { operation: PackedIntegerUnary, source: Argument },
         144 => ElementViewFixedArray { source: Argument, length: Id, extent: U64, obligation: Id },
+        145 => BorrowAt { address: Id },
+        146 => UpgradeMutability { source: Argument },
     }
     paired {
         100 | 106 => StructuralByteViewFieldStore {

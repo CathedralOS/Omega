@@ -246,6 +246,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                     operation: call,
                     result: None,
                     kind: LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
+                        suspension_crossing: None,
                         descriptor_origins: Vec::new(),
                         access_bindings: Vec::new(),
                         structural_result: None,
@@ -433,6 +434,7 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
     };
     let call = |sources: [ValueId; 2]| {
         LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
+            suspension_crossing: None,
             descriptor_origins: Vec::new(),
             access_bindings: Vec::new(),
             structural_result: None,

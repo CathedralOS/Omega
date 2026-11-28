@@ -45,6 +45,8 @@ pub use language_core::core_vocabulary::UnsafeAtom;
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ExecutionReachPolicy {
     pub root: Option<crate::PackageKeyIdentity>,
+    /// Authored Product names used to display a witnessed call path.
+    pub package_names: std::collections::BTreeMap<crate::PackageKeyIdentity, String>,
     pub edges: Vec<DependencyServiceEdge>,
     pub enabled_unsafe: std::collections::BTreeMap<
         Option<crate::PackageKeyIdentity>,

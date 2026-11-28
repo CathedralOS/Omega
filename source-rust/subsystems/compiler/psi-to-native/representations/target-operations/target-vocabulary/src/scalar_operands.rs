@@ -26,6 +26,7 @@ pub struct LegalizedRuntimeIndexOperand {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedScalarCall {
+    pub suspension_crossing: Option<semantic_vocabulary::SuspensionCrossingId>,
     pub descriptor_origins: Vec<LegalizedDescriptorOrigin>, // Conservative backing union for returned descriptors.
     pub access_bindings: Vec<crate::TargetAccessCallBinding>,
     pub source: crate::NativeCallOrigin,
@@ -54,6 +55,7 @@ pub enum LegalizedScalarArgument {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedNormalizedForeignCall {
+    pub suspension_crossing: Option<semantic_vocabulary::SuspensionCrossingId>,
     pub boundary: BoundaryMachineId,
     pub provider_execution: crate::ExternalExecutionBinding,
     pub binding: crate::NormalizedForeignCallBinding,

@@ -251,8 +251,10 @@ pub fn reference_result_refines_regions<'types>(
     result.reference_sources.iter().all(|mapping| {
         !mapping.sources.is_empty()
             && mapping.sources.iter().all(|source| {
+                let result_access = source.access();
                 let source = match source {
-                    terminal_psi::StructuralReferenceOrigin::Parameter(source) => source,
+                    terminal_psi::StructuralReferenceOrigin::Parameter(source)
+                    | terminal_psi::StructuralReferenceOrigin::UpgradedParameter(source) => source,
                     terminal_psi::StructuralReferenceOrigin::Invocation { carrier_type, path, extent, access } => {
                         let Some(endpoint) = reference_origin_type(types.clone(), *carrier_type, path) else {
                             return false;
@@ -276,7 +278,7 @@ pub fn reference_result_refines_regions<'types>(
                     .iter()
                     .filter(|region| {
                         matches!(region.origin, terminal_psi::TerminalDynamicReferenceOrigin::Parameter { argument_index: index } if index as usize == argument_index)
-                            && region.path == mapping.path
+                            && region.path == mapping.path && region.access == result_access
                     })
                     .map(|region| terminal_psi::ReferenceOriginSource {
                         place: parameter.place,
@@ -287,7 +289,7 @@ pub fn reference_result_refines_regions<'types>(
                             .map(ReferenceOriginProjection::Exact)
                             .collect(),
                         extent: semantic_vocabulary::ReferenceOriginExtent::WithinRegion,
-                        access: region.access,
+                        access: source.access,
                     })
                     .collect::<Vec<_>>();
                 reference_origin_is_covered(

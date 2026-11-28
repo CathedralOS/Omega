@@ -35,6 +35,7 @@ pub(crate) mod accessor_scalar_access {
         }
         let AbstractOperation::BoundaryCall {
             psi_operation,
+            suspension_crossing,
             boundary,
             arguments,
             structural_arguments,
@@ -56,7 +57,8 @@ pub(crate) mod accessor_scalar_access {
         let [argument] = structural_arguments.as_slice() else {
             return Err(invalid!());
         };
-        if argument.access != demand.access
+        if suspension_crossing.is_some()
+            || argument.access != demand.access
             || super::references::reference_source_type(function, live, types, argument)
                 != Some(demand.accessor)
             || !completion_receipts.is_empty()
@@ -133,6 +135,7 @@ pub(crate) mod ieee_float_arithmetic {
         let (function, types, live, operations, provenance) = site.parts();
         let AbstractOperation::BoundaryCall {
             psi_operation,
+            suspension_crossing,
             result,
             boundary,
             arguments,
@@ -144,6 +147,9 @@ pub(crate) mod ieee_float_arithmetic {
             unreachable!("inline float arithmetic routes only boundary calls")
         };
         let mismatch = LoweringError::BoundaryRealizationMismatch(*boundary);
+        if suspension_crossing.is_some() {
+            return Err(mismatch);
+        }
         let binding = settlements
             .get(boundary)
             .ok_or(LoweringError::MissingBoundarySettlement(*boundary))?;
@@ -808,6 +814,9 @@ pub(crate) mod operations {
             }
             AbstractOperation::EstablishAccessReference { .. } => {
                 super::references::establish_access(operation, site)
+            }
+            AbstractOperation::BorrowAt { .. } | AbstractOperation::UpgradeMutability { .. } => {
+                super::references::establish_trusted(operation, site)
             }
             AbstractOperation::EstablishReference { .. } => {
                 super::references::establish(operation, site)

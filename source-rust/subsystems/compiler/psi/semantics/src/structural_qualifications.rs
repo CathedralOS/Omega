@@ -1190,6 +1190,12 @@ impl<'a> DefaultRequirements<'a> {
             .map_err(|detail| self.error(detail))?;
         let mut backings = Vec::new();
         for origin in captured {
+            if matches!(origin, DescriptorCallOrigin::NativeAddress { .. }) {
+                // The displayed native referent supplies its own type's
+                // restoration obligations. There is no known enclosing owner.
+                backings.push((root, path.to_vec()));
+                continue;
+            }
             let DescriptorCallOrigin::Argument { source, projection } = origin else {
                 return Err(self.error("default restoration has no exact captured lender"));
             };

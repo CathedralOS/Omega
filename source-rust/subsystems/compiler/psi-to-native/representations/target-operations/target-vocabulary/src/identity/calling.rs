@@ -184,7 +184,16 @@ pub fn encode_eightbyte_class(bytes: &mut Vec<u8>, class: SystemVEightbyteClass)
     });
 }
 
+pub(super) fn encode_suspension_site(
+    bytes: &mut Vec<u8>,
+    site: Option<semantic_vocabulary::SuspensionCrossingId>,
+) {
+    // Zero is not a suspension identity.
+    bytes.extend_from_slice(&site.map_or(0, |crossing| crossing.get()).to_le_bytes());
+}
+
 pub fn encode_call(bytes: &mut Vec<u8>, call: &LegalizedScalarCall) {
+    encode_suspension_site(bytes, call.suspension_crossing);
     encode_access_call_bindings(bytes, &call.access_bindings);
     encode_option(bytes, call.structural_result.as_ref(), |bytes, result| {
         super::structural::encode_operation_result(bytes, result)

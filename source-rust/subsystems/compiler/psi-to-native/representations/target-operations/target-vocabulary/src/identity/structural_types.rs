@@ -105,6 +105,10 @@ pub fn encode_reference_origin(
             bytes.push(1);
             crate::codec_bytes::push_encoded(bytes, source.place.get().to_le_bytes());
         }
+        terminal_psi::StructuralReferenceOrigin::UpgradedParameter(source) => {
+            bytes.push(3);
+            crate::codec_bytes::push_encoded(bytes, source.place.get().to_le_bytes());
+        }
         terminal_psi::StructuralReferenceOrigin::Invocation { carrier_type, .. } => {
             bytes.push(2);
             crate::codec_bytes::push_encoded(bytes, carrier_type.get().to_le_bytes());
