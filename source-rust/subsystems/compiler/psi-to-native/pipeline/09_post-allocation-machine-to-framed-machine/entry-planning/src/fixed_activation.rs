@@ -1,34 +1,22 @@
 //! Lay out one caller-owned fixed stack. Geometry is not a platform switch permit.
-use crate::callable_entry::PlannedCallableEntryTransport;
-use calling_conventions::{CallingPolicy, EntryControl, MachineRegister, ValueShape};
+use crate::{
+    callable_entry::PlannedCallableEntryTransport,
+    native_foreign_bridge::{self, InlineJob, NativeForeignBridgeRequest},
+};
+use calling_conventions::{
+    CallSignature, CallingPolicy, EntryControl, ValueShape, evaluate_ordinary_boundary_entry_plan,
+};
 use frame_planning::stack_demand::{
     derive_physical_stack_demand, plan_physical_stack_program_for_entry,
 };
 use target::NativeTarget;
 
-/// A SysV caller can keep these registers live across a call. Each side of
-/// the transfer needs its own saved values and floating-point controls.
-pub const SAVED_REGISTERS: [MachineRegister; 7] = [
-    MachineRegister::X86Rsp,
-    MachineRegister::X86Rbx,
-    MachineRegister::X86Rbp,
-    MachineRegister::X86R12,
-    MachineRegister::X86R13,
-    MachineRegister::X86R14,
-    MachineRegister::X86R15,
-];
+pub use physical_recipes::fixed_activation::{
+    BACKING_LENGTH, CALLER_CONTEXT, MXCSR, PENDING_PUBLICATION, REPLY_DESTINATION, SAVED_REGISTERS,
+    WORKER_CONTEXT, X87_CONTROL,
+};
+use physical_recipes::fixed_activation::{CONTROL_BYTES, FixedTransfer, FixedTransferPlan};
 const WORD: u32 = 8;
-pub const MXCSR: u32 = SAVED_REGISTERS.len() as u32 * WORD;
-pub const X87_CONTROL: u32 = MXCSR + 4;
-const CONTEXT_BYTES: u32 = MXCSR + WORD;
-
-// All offsets are from the start of the exclusive retained byte loan.
-pub const CALLER_CONTEXT: u32 = 0;
-pub const WORKER_CONTEXT: u32 = CALLER_CONTEXT + CONTEXT_BYTES;
-pub const BACKING_LENGTH: u32 = WORKER_CONTEXT + CONTEXT_BYTES;
-pub const PENDING_PUBLICATION: u32 = BACKING_LENGTH + WORD;
-pub const REPLY_DESTINATION: u32 = PENDING_PUBLICATION + WORD;
-const CONTROL_BYTES: u32 = REPLY_DESTINATION + WORD;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedActivationLayout {
@@ -59,6 +47,13 @@ impl FixedActivationLayout {
         frame: &crate::PhysicalFrameProgram,
         entry: PlannedCallableEntryTransport,
     ) -> Result<Self, &'static str> {
+        plan_transfer(frame, entry).map(|(layout, _)| layout)
+    }
+
+    fn measure(
+        frame: &crate::PhysicalFrameProgram,
+        entry: PlannedCallableEntryTransport,
+    ) -> Result<(Self, FixedTransfer), &'static str> {
         let entry = entry.into_parts();
         let call = &entry.context.inbound.call;
         if frame.instructions.psi != entry.context.psi
@@ -86,14 +81,46 @@ impl FixedActivationLayout {
             [argument] => Some(argument),
             _ => return Err("fixed activation requires its single checked job argument"),
         };
-        if argument.is_some_and(|a| !a.is_complete_scalar_result())
-            || call
-                .result
-                .as_ref()
-                .is_some_and(|r| !r.is_complete_scalar_result())
-        {
-            return Err("fixed activation entry requires unsupported stack argument placement");
+        let argument = argument.map(|value| value.shape);
+        let result = call.result.as_ref().map(|value| value.shape);
+        let signature = CallSignature {
+            parameters: argument.into_iter().collect(),
+            result,
+        };
+        let foreign = evaluate_ordinary_boundary_entry_plan(call.policy, &signature)
+            .map_err(|_| "fixed worker has no closed native calling plan")?;
+        if foreign.plan() != &entry.context.inbound {
+            return Err("the fixed worker has a different published calling convention");
         }
+        let abi = frame
+            .instructions
+            .contracts
+            .function_abi(entry.context.entry)
+            .ok_or("fixed worker lacks its published argument types")?;
+        if abi.scalar_parameters.len() > 1 {
+            return Err("fixed worker requires one job");
+        }
+        let scalar_parameters = argument
+            .into_iter()
+            .map(|_| abi.scalar_parameters.first().map(|value| value.scalar_type))
+            .collect();
+        let homes = Self::pack(argument, result, 0, u64::from(call.stack_alignment))?;
+        let argument_offset = u32::try_from(homes.argument_offset)
+            .map_err(|_| "fixed argument address exceeds target displacement")?;
+        let result_offset = u32::try_from(homes.result_offset)
+            .map_err(|_| "fixed result address exceeds target displacement")?;
+        let marshal = native_foreign_bridge::plan_call(
+            &NativeForeignBridgeRequest {
+                target: frame.instructions.target,
+                foreign,
+                scalar_parameters,
+            },
+            Some(InlineJob {
+                argument: argument_offset,
+                result: result_offset,
+            }),
+        )
+        .map_err(|_| "fixed worker cannot transport its job or result")?;
         let bridge_bytes = entry.bridge.as_ref().map_or(0, |bridge| {
             u64::from(bridge.frame_bytes()) + u64::from(bridge.call_stack_bias())
         });
@@ -106,14 +133,23 @@ impl FixedActivationLayout {
             .ceiling_bytes()
             .ok_or("fixed activation needs a bounded worker call graph")?
             .checked_add(bridge_bytes)
-            .and_then(|n| n.checked_add(u64::from(WORD)))
+            // The step calls the job adapter, which calls the selected entry.
+            .and_then(|n| n.checked_add(u64::from(marshal.frame_bytes) + 2 * u64::from(WORD)))
             .ok_or("fixed activation entry stack size overflows")?;
-        Self::pack(
-            argument.map(|a| a.shape),
-            call.result.as_ref().map(|r| r.shape),
-            stack,
-            u64::from(body.stack_alignment()),
-        )
+        let layout = Self::pack(argument, result, stack, u64::from(body.stack_alignment()))?;
+        let displacement = i32::try_from(layout.stack_top)
+            .map_err(|_| "fixed worker stack exceeds the target displacement range")?;
+        let transfer = FixedTransfer {
+            psi: frame.instructions.psi,
+            worker: entry.context.entry,
+            stack_top: displacement as u32,
+            alignment: u32::try_from(layout.alignment).map_err(|_| "invalid fixed alignment")?,
+            argument_offset,
+            argument_bytes: argument.map_or(0, native_foreign_bridge::extent),
+            result_offset,
+            job: marshal.instructions,
+        };
+        Ok((layout, transfer))
     }
 
     fn pack(
@@ -172,8 +208,24 @@ impl FixedActivationLayout {
         base != 0
             && base.is_multiple_of(self.alignment)
             && available >= self.stack_top
-            && base.checked_add(self.stack_top).is_some()
+            && base.checked_add(available).is_some()
     }
+}
+
+/// Bind the stack switch to the same machine whose frames and ABI were measured.
+pub fn plan_transfer(
+    frame: &crate::PhysicalFrameProgram,
+    entry: PlannedCallableEntryTransport,
+) -> Result<
+    (
+        FixedActivationLayout,
+        FixedTransferPlan<crate::PhysicalRecipeOrigin>,
+    ),
+    &'static str,
+> {
+    let (layout, transfer) = FixedActivationLayout::measure(frame, entry)?;
+    let plan = FixedTransferPlan::from_planner(crate::PhysicalRecipeOrigin(()), transfer);
+    Ok((layout, plan))
 }
 
 #[cfg(test)]
@@ -196,12 +248,13 @@ mod tests {
                 layout.stack_bottom,
                 layout.stack_top
             ),
-            (160, 184, 192, 320)
+            (176, 200, 208, 336)
         );
-        assert!(layout.fits(0x1000, 320));
-        assert!(!layout.fits(0x1000, 319));
-        assert!(!layout.fits(0x1008, 320));
-        assert!(!layout.fits(u64::MAX - 15, 320));
+        assert!(layout.fits(0x1000, 336));
+        assert!(!layout.fits(0x1000, 335));
+        assert!(!layout.fits(0x1008, 336));
+        assert!(!layout.fits(u64::MAX - 15, 336));
+        assert!(!layout.fits(0x1000, u64::MAX));
         assert!(
             FixedActivationLayout::pack(Some(ValueShape::integer(1, 1)), None, u64::MAX, 16)
                 .is_err()

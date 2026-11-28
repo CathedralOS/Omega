@@ -30,6 +30,7 @@ pub fn derive_native_scope(
             reach.emitted,
             reach.selected_candidate_positions,
             reach.assembly_returns,
+            reach.prepared_workers,
         )
         .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])
 }
@@ -45,6 +46,7 @@ struct ScopeInputs<'a> {
 }
 
 struct TargetReach {
+    prepared_workers: Vec<target_bound_program::PreparedWorker>,
     assembly_returns: Vec<target_bound_program::AssemblyCallingPlan>,
     emitted: ExecutionReach,
     selected_candidate_positions: Vec<usize>,
@@ -97,9 +99,11 @@ impl std::fmt::Display for NativeExecutionScopeError {
 impl std::error::Error for NativeExecutionScopeError {}
 
 struct ScopeBoundaryIndex<'a> {
+    artifact: terminal_codec::TerminalArtifactView<'a>,
+    prepared_workers: Vec<target_bound_program::PreparedWorker>,
     reached: std::collections::BTreeSet<BoundaryMachineId>,
     selected_candidate_positions: Vec<usize>,
-    boundary_set: std::collections::BTreeSet<BoundaryMachineId>,
+    boundaries: Vec<(BoundaryMachineId, bool)>,
     candidates_by_boundary: std::collections::BTreeMap<
         BoundaryMachineId,
         Vec<(usize, &'a terminal_psi::ProviderCandidateConformance)>,
@@ -126,11 +130,17 @@ impl TargetReach {
             .map(|(position, machine)| (machine.id, position))
             .collect::<Vec<_>>();
         function_positions.sort_unstable_by_key(|(machine, _)| *machine);
-        let boundary_set = module
+        let mut boundaries = module
             .interfaces.boundary_machines
             .iter()
-            .map(|row| row.id)
-            .collect::<std::collections::BTreeSet<_>>();
+            .map(|row| {
+                (
+                    row.id,
+                    target_bound_program::PreparedWorker::is_preparation(row),
+                )
+            })
+            .collect::<Vec<_>>();
+        boundaries.sort_unstable_by_key(|row| row.0);
         let mut candidates_by_boundary = std::collections::BTreeMap::<
             BoundaryMachineId,
             Vec<(usize, &terminal_psi::ProviderCandidateConformance)>,
@@ -150,9 +160,11 @@ impl TargetReach {
                 .push(row);
         }
         let mut index = ScopeBoundaryIndex {
+            artifact,
+            prepared_workers: Vec::new(),
             reached: Default::default(),
             selected_candidate_positions: Vec::new(),
-            boundary_set,
+            boundaries,
             candidates_by_boundary,
             selected_by_req,
         };
@@ -329,6 +341,7 @@ impl TargetReach {
         );
         Ok(Self {
             assembly_returns,
+            prepared_workers: index.prepared_workers,
             emitted,
             selected_candidate_positions: index.selected_candidate_positions,
         })
@@ -347,10 +360,21 @@ impl ScopeBoundaryIndex<'_> {
         if self.reached.contains(&boundary) {
             return Ok(());
         }
-        if !self.boundary_set.contains(&boundary) {
-            return Err(NativeExecutionScopeError::MissingBoundary(boundary));
-        }
+        let index = self
+            .boundaries
+            .binary_search_by_key(&boundary, |row| row.0)
+            .map_err(|_| NativeExecutionScopeError::MissingBoundary(boundary))?;
         self.reached.insert(boundary);
+        if self.boundaries[index].1 {
+            let worker =
+                target_bound_program::PreparedWorker::for_boundary(self.artifact, boundary)
+                    .map_err(|reason| NativeExecutionScopeError::TargetContext(reason.into()))?;
+            // Preparation executes nothing. Keep the separately entered worker
+            // and its callees in the image for a later step by this owner.
+            pending.push(worker.shape().selected.entry_machine);
+            self.prepared_workers.push(worker);
+            return Ok(());
+        }
         if let Some(entry) = entry_call.filter(|(required, _)| *required == boundary) {
             pending.push(entry.1);
             return Ok(());

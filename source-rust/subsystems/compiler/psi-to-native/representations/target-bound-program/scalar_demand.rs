@@ -5,7 +5,7 @@ use terminal_psi::{OperationKind, TerminalModule};
 
 pub(super) struct ScalarDemand<'scope> {
     pub(super) emitted: Option<&'scope ExecutionReach>,
-    pub(super) owned_sequence_bounds: &'scope [(semantic_vocabulary::StructuralTypeId, u64)],
+    pub(super) storage: runtime_abi::NativeValueStorage<'scope>,
 }
 
 impl ScalarDemand<'_> {
@@ -210,9 +210,9 @@ mod storage {
                     roots.insert(result.structural_type);
                 }
             }
-            calling_conventions::terminal_layout::StructuralLayouts::with_owned_sequence_bounds(
+            calling_conventions::terminal_layout::StructuralLayouts::with_value_storage(
                 declarations.into_values(),
-                self.owned_sequence_bounds,
+                self.storage,
             )
             .map_err(|error| format!("native storage declarations: {error:?}"))?
             .required_scalar_extents(roots)

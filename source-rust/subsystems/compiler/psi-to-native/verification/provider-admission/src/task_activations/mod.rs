@@ -37,7 +37,7 @@ pub fn validate_task_activations(
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
     let storage = TaskStorage::new(
         geometry.declarations(),
-        reach.owned_sequence_bounds(),
+        reach.value_storage(),
         profile,
     )?;
     check_plans(demands, &module.identities, providers, profile, &storage)

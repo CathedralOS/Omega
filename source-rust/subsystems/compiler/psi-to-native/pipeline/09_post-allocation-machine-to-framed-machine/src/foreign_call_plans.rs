@@ -1401,9 +1401,9 @@ pub fn capture(
             .structural
             .as_ref()
             .map(|contract| {
-                calling_conventions::terminal_layout::NativeGeometry::with_owned_sequence_bounds(
+                calling_conventions::terminal_layout::NativeGeometry::with_value_storage(
                     &contract.structural_types,
-                    contract.structural_types.owned_sequence_bounds(),
+                    contract.structural_types.value_storage(),
                 )
             })
             .transpose()

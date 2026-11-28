@@ -2,6 +2,7 @@
 #![forbid(unsafe_code)]
 
 pub mod callable_entry;
+pub mod fixed_activation;
 pub mod frame_protocol;
 pub mod hosted_entry;
 pub mod hosted_program;

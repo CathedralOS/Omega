@@ -15,11 +15,11 @@ pub(super) struct TaskStorage<'a> {
 impl<'a> TaskStorage<'a> {
     pub(super) fn new(
         declarations: impl Iterator<Item = &'a StructuralTypeDeclaration>,
-        owned_sequence_bounds: &'a [(semantic_vocabulary::StructuralTypeId, u64)],
+        storage: runtime_abi::NativeValueStorage<'a>,
         profile: target::TargetProfile,
     ) -> Result<Self, Vec<Diagnostic>> {
         let layouts =
-            StructuralLayoutResolver::with_owned_sequence_bounds(declarations, owned_sequence_bounds)
+            StructuralLayoutResolver::with_value_storage(declarations, storage)
                 .map_err(|error| {
                     vec![Diagnostic::error(format!(
                         "task storage declarations: {error:?}"

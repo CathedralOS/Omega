@@ -664,15 +664,15 @@ pub(crate) mod construction {
         }
         let catalog = environment.constraints();
         require_key_rows(&constraints.keys, catalog)?;
-        let native_geometry = crate::instruction_selection::native_geometry::NativeGeometries::new(
+        let native_geometry = crate::instruction_selection::native_geometry::NativeGeometries::with_value_storage(
             target.scalar_functions.iter().map(|source| {
                 source
                     .structural
                     .as_ref()
-                    .map_or((&[][..], &[][..]), |contract| {
+                    .map_or((&[][..], Default::default()), |contract| {
                         (
                             contract.structural_types.as_slice(),
-                            contract.structural_types.owned_sequence_bounds(),
+                            contract.structural_types.value_storage(),
                         )
                     })
             }),
@@ -693,13 +693,13 @@ pub(crate) mod construction {
                     index,
                     source,
                     native_geometry
-                        .get(
+                        .get_with_storage(
                             source
                                 .structural
                                 .as_ref()
                                 .map_or(&[][..], |contract| contract.structural_types.as_slice()),
-                            source.structural.as_ref().map_or(&[][..], |contract| {
-                                contract.structural_types.owned_sequence_bounds()
+                            source.structural.as_ref().map_or_else(Default::default, |contract| {
+                                contract.structural_types.value_storage()
                             }),
                         )
                         .ok_or_else(SelectedInstructionError::custody)?,
@@ -1169,10 +1169,10 @@ pub(crate) mod foreign_scalar_backings {
                     .map_or(&[][..], |signature| signature.structural_types.as_slice());
                 let geometry = self
                     .geometries
-                    .get(
+                    .get_with_storage(
                         declarations,
-                        function.structural.as_ref().map_or(&[][..], |signature| {
-                            signature.structural_types.owned_sequence_bounds()
+                        function.structural.as_ref().map_or_else(Default::default, |signature| {
+                            signature.structural_types.value_storage()
                         }),
                     )
                     .ok_or_else(|| {
