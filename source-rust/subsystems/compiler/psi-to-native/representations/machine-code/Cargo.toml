@@ -8,6 +8,9 @@ version.workspace = true
 name = "machine_code"
 path = "src/lib.rs"
 
+[features]
+test-support = ["post-allocation-machine/test-support"]
+
 [dependencies]
 native-stack-demand = { path = "stack-demand" }
 operation-evidence = { path = "../operation-evidence" }
@@ -27,7 +30,6 @@ register-model = { path = "../../targets/register-model" }
 selected-instructions = { path = "../selected-instructions" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../psi" }
-sha2 = "0.10.9"
 
 [dev-dependencies]
 post-allocation-machine = { path = "../post-allocation-machine", features = ["test-support"] }

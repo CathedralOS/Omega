@@ -16,15 +16,10 @@ mod ordinary;
 #[path = "validation_tests.rs"]
 mod validation;
 
-pub mod relaxation;
 mod settled;
 mod x86_branch_relaxation;
 
-pub use settled::{
-    FunctionExitLayout, ResolvedFunctionLayout, ResolvedLayoutOptimizationError,
-    SettledFunctionLayout,
-};
-pub use x86_branch_relaxation::StagedOptimizedX86BranchRelaxation;
+pub use settled::{ResolvedFunctionLayout, ResolvedLayoutOptimizationError};
 
 #[derive(Debug)]
 pub enum LayoutError {
@@ -98,7 +93,6 @@ fn baseline(
         layout_requirements: encoding.layout_requirements,
         frame_demands: encoding.frame_demands,
         storage: encoding.storage,
-        protocol_identity: encoding.protocol_identity,
         context: encoding.context,
         encoding: encoding.encoding,
         layout: Arc::new(layout),
@@ -109,7 +103,7 @@ fn baseline(
 fn compute(
     input: &machine_code::layout_requirements::EncodedLayoutRequirements,
     physical: &register_model::ValidatedPhysicalRegisterModel,
-    pre_layout: &SelectedFormEncoding,
+    pre_layout: &Arc<SelectedFormEncoding>,
 ) -> Result<ResolvedMachineLayout, OptimizedResolvedSelectedFormLayoutError> {
     if *pre_layout.machine() != input.machine
         || input.target.architecture != physical.model().architecture
@@ -144,7 +138,7 @@ fn compute(
     }
 
     let machine_root = Arc::clone(&input.machine);
-    let pre_layout_root = pre_layout.identity();
+    let pre_layout_root = machine_code::SelectedFormEncodingHandle::of(pre_layout);
     let target = input.target;
     Ok(ResolvedMachineLayout {
         machine: machine_root,

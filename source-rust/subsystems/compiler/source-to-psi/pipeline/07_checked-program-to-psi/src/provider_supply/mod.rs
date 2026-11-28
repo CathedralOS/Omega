@@ -355,10 +355,6 @@ impl PreparedTargetSupply {
         })
     }
 
-    pub fn target(&self) -> Option<&str> {
-        self.target.as_deref()
-    }
-
     pub fn requirements(&self) -> &[DemandedRequirement] {
         &self.requirements
     }
@@ -373,16 +369,22 @@ pub enum UnchosenSupply<'a> {
 
 /// The one supply at the highest authority that declared any.
 pub fn choose_supply(supplies: &[ProviderSupply]) -> Result<&ProviderSupply, UnchosenSupply<'_>> {
-    let Some(authority) = supplies.iter().map(|supply| supply.authority).max() else {
-        return Err(UnchosenSupply::Unsupplied);
-    };
-    let ranked = supplies
+    let authority = supplies
         .iter()
-        .filter(|supply| supply.authority == authority)
-        .collect::<Vec<_>>();
-    match ranked.as_slice() {
-        [supply] => Ok(supply),
-        _ => Err(UnchosenSupply::Competing(ranked)),
+        .map(|supply| supply.authority)
+        .max()
+        .ok_or(UnchosenSupply::Unsupplied)?;
+    let mut ranked = supplies
+        .iter()
+        .filter(|supply| supply.authority == authority);
+    let first = ranked
+        .next()
+        .expect("the maximum authority belongs to a supply");
+    match ranked.next() {
+        None => Ok(first),
+        Some(second) => Err(UnchosenSupply::Competing(
+            [first, second].into_iter().chain(ranked).collect(),
+        )),
     }
 }
 

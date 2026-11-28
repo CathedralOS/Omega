@@ -107,13 +107,7 @@ pub use effects::{
     validate_machine_effect_catalog,
 };
 pub use functions::SelectedFunctions;
-pub use identity::{
-    AddressFoldIdentity, ConstantBooleanIdentity, ConstantBranchIdentity,
-    CopiedCallOperandIdentity, CopyRemovalIdentity, DeadCompareIdentity, EquivalentCompareIdentity,
-    FixedViewCopyIdentity, LiteralFoldIdentity, PressureRematerializationIdentity,
-    RedundantCompareIdentity, RedundantExtensionIdentity, SelectedBlockId, SelectedInstructionId,
-    StoredLoadForwardingIdentity, VirtualRegisterId,
-};
+pub use identity::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
 pub use instructions::{
     AccessorScalarForm, FloatResultPolicyForm, FloatResultPolicyKind, IeeeFloatArithmeticForm,
     IeeeFloatArithmeticOperation, IeeeFloatBinaryOperation, IeeeFloatFormat,

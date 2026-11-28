@@ -133,9 +133,9 @@ fn close(
     operation: RecordQuery,
 ) -> Served<Vec<StatementNode>> {
     let query = declaration(program, call.target_symbol)
-        .cloned()
         .ok_or(unserved("a field inspection lost its declaration"))?;
-    let parameters = program.machine_callable_parameters(&query);
+    let parameters = program.machine_callable_parameters(query);
+    let query_symbol = query.symbol;
     let [subject_binder, visitor_binder, context_binder] = parameters.as_slice() else {
         return Err(unserved(
             "a field inspection has an unexpected binder roster",
@@ -149,7 +149,6 @@ fn close(
             "a field inspection needs its structural callback binder",
         ));
     };
-    let binder = binder.clone();
     if subject_binder.kind != TypeParameterKind::Type
         || context_binder.kind != TypeParameterKind::Type
     {
@@ -175,11 +174,8 @@ fn close(
         }
     };
     let record = record_fields(program, holder, subject)?;
-    let operands = program
-        .statement_table
-        .expression_handles(call.arguments)
-        .to_vec();
-    let (subject_operand, operand) = match (operation, operands.as_slice()) {
+    let operands = program.statement_table.expression_handles(call.arguments);
+    let (subject_operand, operand) = match (operation, operands) {
         (RecordQuery::Inspect, [context]) => (None, *context),
         (RecordQuery::Visit(access), [subject, context]) => (Some((*subject, access)), *context),
         _ => {
@@ -199,28 +195,19 @@ fn close(
         .filter(included)
         .map(|field| field.type_reference)
         .collect::<Vec<_>>();
-    if program
-        .authored_service_reach_rows_for(binder.symbol)
-        .next()
-        .is_some()
-    {
-        return Err(unserved(
-            "a callback binder needs a refinement proof for its full interface",
-        ));
-    }
     satisfies_binder(
         program,
-        &binder,
+        binder,
         &visitor.machine,
-        &format!("reflect::{}", program.symbols.name(query.symbol)),
+        &format!("reflect::{}", program.symbols.name(query_symbol)),
         &[
             (subject_binder.symbol, Bound::Type(record.type_reference)),
             (context_binder.symbol, Bound::Type(context)),
         ],
         Some(&applications),
     )?;
-    let field_info = description_type(program, &binder, ReflectionDeclaration::FieldInfo)?;
-    let field_query = field_query_entry(program, query.symbol)?;
+    let field_info = description_type(program, binder, ReflectionDeclaration::FieldInfo)?;
+    let field_query = field_query_entry(program, query_symbol)?;
     let lexical_owner = if call.authored_machine_application.is_valid() {
         program
             .expression_table
@@ -248,7 +235,7 @@ fn close(
             local(
                 program,
                 state.symbol,
-                query.symbol,
+                query_symbol,
                 "subject",
                 site,
                 reference,
@@ -269,7 +256,7 @@ fn close(
     let context_local = local(
         program,
         state.symbol,
-        query.symbol,
+        query_symbol,
         "context",
         site,
         context_reference,
@@ -279,7 +266,7 @@ fn close(
     let emission = CallbackSite {
         state: state.symbol,
         site,
-        origin: query.symbol,
+        origin: query_symbol,
         lexical_owner,
         call,
     };

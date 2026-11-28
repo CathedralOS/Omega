@@ -232,3 +232,54 @@ fn an_exclusive_view_is_a_structural_field() {
     assert_eq!(stored_fields(&accepted), [false]);
     accepted.publish_invocation().unwrap();
 }
+
+#[test]
+fn a_record_copied_from_a_slice_keeps_each_fields_original_loan() {
+    let program = r#"
+data Kept<'left, 'right> [copy] {
+    first: @'left [u8];
+    second: @'right [u8];
+}
+machine read(bytes: @[u8]) -> u8 {
+    transition bytes.length > 0u64 { true -> first(bytes), _ -> (0u8) }
+    machine first(bytes: @[u8]) -> u8 requires bytes.length > 0u64 { bytes[0] }
+}
+machine entry() crashes Trap {
+    let mutable left: [u8; 2] = [1u8, 2u8];
+    let mutable right: [u8; 2] = [3u8, 4u8];
+    let rows: [Kept; 1] = [Kept { first: @left[..], second: @right[..] }];
+    let cursor: @[Kept] = @rows[..];
+    let kept: Kept = cursor[0];
+    BEFORE
+    let seen: u8 = read(kept.second);
+    AFTER
+    transition seen == 3u8 && CHANGED[0] == 7u8 {
+        true -> done(),
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}"#;
+    let run = |before: &str, after: &str, changed: &str| {
+        let source = program
+            .replace("BEFORE", before)
+            .replace("AFTER", after)
+            .replace("CHANGED", changed);
+        super::stored_references::run(&source)
+    };
+    for (before, after, changed) in [
+        ("", "right[0] = 7u8;", "right"),
+        ("left[0] = 7u8;", "", "left"),
+    ] {
+        assert_eq!(
+            run(before, after, changed),
+            Ok(terminal_interpreter::TerminalExecutionStatus::Complete(
+                terminal_interpreter::TerminalExecutionResult::Unit
+            )),
+            "{before} / {after}"
+        );
+    }
+    let refusal = run("right[0] = 7u8;", "", "right")
+        .expect_err("the copied second field still borrows right");
+    assert!(refusal.contains("ChangeWhileBorrowed"), "{refusal}");
+}

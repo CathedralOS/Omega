@@ -35,7 +35,6 @@ impl RetainedPhysicalInputs {
             && self.machine.machine().shared_plan() == program.context.plan
             && program.bindings == self.encoding.bindings
             && program.bindings == self.baseline_layout.bindings
-            && program.protocol_identity == self.encoding.protocol_identity
             && program.protocol == self.encoding.protocol
             && program.frame == self.encoding.frame
             && program.context == self.encoding.context
@@ -204,21 +203,12 @@ pub fn verify_body_fixed_frame(
         )
     })?;
     verify_physical_origins(artifact, replay)?;
-    let current = replay
-        .fragment_source()
-        .frame_application_for_audit()
-        .source()
-        .source();
+    let current = replay.fragment_source().frame_application_for_audit();
     let layout = current.relaxed_layout();
-    let requirements = physical::verify_originals(
-        originals,
-        &encoded.physical,
-        layout.current(),
-        layout.trace(),
-    )
-    .map_err(|error| {
-        diagnostics::Diagnostic::error(format!("fixed-frame original replay failed: {error:?}"))
-    })?;
+    let requirements =
+        physical::verify_originals(originals, &encoded.physical, layout).map_err(|error| {
+            diagnostics::Diagnostic::error(format!("fixed-frame original replay failed: {error:?}"))
+        })?;
     current
         .verify_frame_requirements(&requirements)
         .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))?;
@@ -230,9 +220,12 @@ pub fn verify_body_fixed_frame(
         .for_phase(optimization_core::OptimizationExecutionPhase::AllocationRecovery)
         .identity();
     if current
-        .function_relative_manifest()
-        .record()
-        .allocation_recovery_selections
+        .program()
+        .context
+        .publication
+        .selections()
+        .for_phase(optimization_core::OptimizationExecutionPhase::AllocationRecovery)
+        .identity()
         != expected
     {
         return Err(diagnostics::Diagnostic::error(
@@ -248,7 +241,7 @@ fn verify_physical_origins(
     replay: &FragmentReplay,
 ) -> Result<(), diagnostics::Diagnostic> {
     let source = replay.fragment_source();
-    let current = source.frame_application_for_audit().source().source();
+    let current = source.frame_application_for_audit();
     let program = &replay
         .original_encoding()
         .ok_or_else(|| {
@@ -266,7 +259,7 @@ fn verify_physical_origins(
             "object call origins differ from retained physical instructions",
         ));
     }
-    let foreign = frame_planning::foreign_call_plans::capture(program, current.frame_layout());
+    let foreign = frame_planning::foreign_call_plans::capture(program, &current.program().frame);
     if foreign.as_ref() != physical.foreign_calls.as_ref().map(std::sync::Arc::as_ref)
         || foreign.as_ref().ok() != Some(artifact.foreign_call_plans().as_ref())
     {
@@ -296,7 +289,7 @@ fn verify_physical_origins(
     }
     if frame_planning::internal_call_plans::capture(
         program,
-        current.frame_layout(),
+        &current.program().frame,
         &facts.semantic.program,
     ) != physical.internal_calls
     {
@@ -353,8 +346,14 @@ pub fn verify_retained_target_operations(
     let original = retained_target(replay, "target-operation")?;
     let current = original.target_for_correspondence();
     let optimized = current.optimized();
-    target_lowering::replay::require_lowering_context(optimized, current.lowering_facts(), current.target())
-        .map_err(|error| diagnostics::Diagnostic::error(format!("target-operation source audit failed: {error:?}")))?;
+    target_lowering::replay::require_lowering_context(
+        optimized,
+        current.lowering_facts(),
+        current.target(),
+    )
+    .map_err(|error| {
+        diagnostics::Diagnostic::error(format!("target-operation source audit failed: {error:?}"))
+    })?;
     // Every access reference native program planning established must land on backing
     // the selected program actually allocates. Ordinary emission builds
     // from the current program, so this check runs only on this audit.
@@ -373,7 +372,9 @@ pub fn verify_retained_target_operations(
         .lowering_facts()
         .replay_borrowed_storage_layouts(current.target())
         .map_err(|error| {
-            diagnostics::Diagnostic::error(format!("borrowed storage geometry audit failed: {error}"))
+            diagnostics::Diagnostic::error(format!(
+                "borrowed storage geometry audit failed: {error}"
+            ))
         })?;
     if expected != current.execution_plan().plan().borrowed_storage_layouts {
         return Err(diagnostics::Diagnostic::error(
@@ -497,13 +498,9 @@ fn retained_target<'replay>(
     let original = replay.target_source().ok_or_else(|| {
         diagnostics::Diagnostic::error(format!("{audit} audit requires retained target operations"))
     })?;
-    let current = replay
-        .fragment_source()
-        .frame_application_for_audit()
-        .source()
-        .source();
+    let current = replay.fragment_source().frame_application_for_audit();
     let optimized = original.target_for_correspondence().optimized();
-    let allocation = current.post_allocation_manifest().record();
+    let allocation = current.program().context.publication.record();
     if !original.belongs_to(&replay.fragment_source().emission_facts().semantic)
         || allocation.optimization_unit != optimized.unit().identity
         || allocation.selection != optimized.selections().identity()
@@ -520,6 +517,9 @@ fn retained_target<'replay>(
 pub mod physical {
     use super::RetainedPhysicalInputs;
     use crate::allocation::{AllocationOriginals, validate_allocated_callee_saved_requirements};
+    use encoding_admission::layout::relaxation::{
+        validate_current_layout_optimization, validate_resolved_layout_optimization,
+    };
     use encoding_admission::layout::{
         ResolvedLayoutValidation, validate_optimized_resolved_selected_form_layout,
     };
@@ -528,9 +528,6 @@ pub mod physical {
         validate_optimized_layout_independent_selected_form_encoding,
     };
     use optimization_core::OptimizationExecutionPhase;
-    use placement::relaxation::{
-        validate_current_layout_optimization, validate_resolved_layout_optimization,
-    };
     use selected_instruction_analyses::SelectedProgramView;
     fn refused(stage: &'static str, error: impl std::fmt::Debug) -> VerificationError {
         VerificationError::Stage {
@@ -543,7 +540,6 @@ pub mod physical {
         originals: &RetainedPhysicalInputs,
         instructions: &post_allocation_machine::PostAllocationMachineProgram,
         layout: &machine_code::OptimizedMachineLayout,
-        trace: Option<&machine_code::layout::X86BranchRelaxationRecord>,
     ) -> Result<register_homes::AllocatedCalleeSavedRequirements, VerificationError> {
         originals
             .allocation
@@ -597,16 +593,17 @@ pub mod physical {
                 .selections()
                 .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout),
             layout,
-            trace,
         )
         .map_err(|error| refused("layout optimization", error))?;
         encoding_admission::layout::validate_current_resolved_layout(program)
             .map_err(|error| refused("resolved layout bytes", error))?;
-        validate_current_layout_optimization(layout, trace)
+        validate_current_layout_optimization(layout)
             .map_err(|error| refused("relaxation trace", error))?;
         let requirements = validate_allocated_callee_saved_requirements(
             current,
-            program.context.preservation.plan().clone(),
+            register_homes::AllocatedCalleeSavedRequirementPlan::clone(
+                &program.context.preservation,
+            ),
         )
         .map_err(|error| refused("callee-saved requirements", error))?;
         if encoding_admission::fragment_origins::prepare_fragment_origins(instructions)

@@ -410,18 +410,14 @@ impl<'program> HostedTerminalProgram<'program> {
                     error,
                 ))
             })?;
-        let mut host_boundaries = host_imports::HostBoundarySelections::default();
-        if let Some(provisions) = request.provisions {
-            for provision in provisions.host() {
-                if matches!(&provision.realization,
-                target_vocabulary::BoundarySettlementRealization::NormalizedForeignCall(binding)
-                    if matches!(binding.mechanism, target_vocabulary::NormalizedForeignCallMechanism::Component { .. }))
-                {
-                    continue;
-                }
-                host_boundaries.add(&program, provision);
-            }
-        }
+        let host_boundaries = request
+            .provisions
+            .map_or_else(Default::default, |provisions| {
+                host_imports::HostBoundarySelections::from_provisions(
+                    &program,
+                    provisions.host_provisions(),
+                )
+            });
 
         let providers = proposed_installation
             .map(std::borrow::Cow::Owned)

@@ -411,12 +411,7 @@ pub(crate) mod activation_storage {
                 self.activation_storage
                     .claim_descriptors
                     .insert(place, descriptor_binding)?;
-                crate::engine::custody::bind_result_claim(
-                    &mut self.live_claims,
-                    binding,
-                    result.place,
-                    result.multiplicity,
-                )?;
+                crate::engine::custody::bind_result_claim(&mut self.live_claims, binding, result)?;
             }
             let mut frontier = self.live_affine_frontier.clone();
             self.stage_result_affine_frontier(result, &mut frontier, &|current| {
@@ -786,12 +781,7 @@ pub(crate) mod activation_storage {
                 {
                     continue;
                 }
-                crate::engine::custody::bind_result_claim(
-                    &mut self.live_claims,
-                    binding,
-                    result.place,
-                    result.multiplicity,
-                )?;
+                crate::engine::custody::bind_result_claim(&mut self.live_claims, binding, result)?;
             }
             let mut frontier = self.live_affine_frontier.clone();
             self.stage_result_affine_frontier(result, &mut frontier, &|current| {
@@ -4249,37 +4239,6 @@ pub(crate) mod primitive_storage {
             Ok(Some(value))
         }
 
-        pub(crate) fn read_retained_reference_scalar(
-            &self,
-            source: PlaceId,
-            owner: &TerminalStructuralValue,
-            path: &[StructuralPathSegment],
-            expected: ScalarType,
-        ) -> Result<TerminalScalarValue, TerminalInterpretError> {
-            if let Some((prefix, field_path)) = scalar_field_projection(path) {
-                let projection = self
-                    .resolve_reference_storage_projection(
-                        owner,
-                        prefix,
-                        StructuralAccess::SharedBorrow,
-                    )?
-                    .ok_or(malformed())?;
-                if let Some(value) = self
-                    .scalar_field_projection_read(source, projection, field_path, expected, None)?
-                {
-                    return if terminal_scalar_belongs_to_type(value) {
-                        Ok(value)
-                    } else {
-                        Err(malformed())
-                    };
-                }
-            }
-            let (storage, scalar, shared) = self
-                .reference_primitive_access(owner, false, path)?
-                .ok_or(malformed())?;
-            self.read_primitive_storage(source, storage, scalar, expected, shared)
-        }
-
         pub(crate) fn execute_primitive_read(
             &mut self,
             operation: &Operation,
@@ -4774,7 +4733,6 @@ pub(crate) mod primitive_storage {
         stored: TerminalScalarValue,
         target: ScalarType,
     ) -> Result<TerminalScalarValue, TerminalInterpretError> {
-        use terminal_semantics::ScalarViewValue;
         if stored.scalar_type() == target {
             return Ok(stored);
         }
@@ -4782,18 +4740,7 @@ pub(crate) mod primitive_storage {
         let observed =
             terminal_semantics::scalar_reference_view_value(stored.scalar_type(), target, input)
                 .ok_or(malformed())?;
-        match (observed, target) {
-            (ScalarViewValue::Boolean(value), ScalarType::Boolean) => {
-                Ok(TerminalScalarValue::Boolean(value))
-            }
-            (ScalarViewValue::Integer(value), ScalarType::Integer(scalar_type)) => {
-                Ok(TerminalScalarValue::Integer { scalar_type, value })
-            }
-            (ScalarViewValue::IeeeFloat(value), ScalarType::IeeeFloat(_)) => {
-                Ok(TerminalScalarValue::IeeeFloat(value))
-            }
-            _ => Err(malformed()),
-        }
+        crate::boundary::values::scalar_from_view(target, observed)
     }
 }
 

@@ -665,22 +665,8 @@ mod tests {
             }],
             blocks: Vec::new(),
         };
-        let frame = TargetFrameLayoutPlan {
-            post_allocation_machine: post_allocation_machine::test_support::placeholder_plan(),
-            callee_saved_requirements:
-                register_homes::AllocatedCalleeSavedRequirementIdentity::from_bytes([0; 32]),
-            callee_save_storage:
-                machine_code::NonAuthoritativeCalleeSaveStorageIdentity::from_bytes([0; 32]),
-            register_environment: register_model::TargetRegisterEnvironmentIdentity::from_bytes(
-                [0; 32],
-            ),
-            physical_register_model: register_model::PhysicalRegisterModelIdentity::from_bytes(
-                [0; 32],
-            ),
-            target: target::NativeTarget::linux_x64(),
-            abi: register_model::FrameAbiPreservationConvention::SystemVAMD64,
-            policy: machine_code::TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
-            functions: vec![FunctionTargetFrameLayout {
+        let frame =
+            machine_code::test_support::placeholder_frame_plan(vec![FunctionTargetFrameLayout {
                 machine,
                 contains_call: false,
                 stack_pointer: register_model::RegisterViewId(0),
@@ -717,8 +703,7 @@ mod tests {
                             size_bytes: 8,
                         },
                 },
-            }],
-        };
+            }]);
         let instruction = PostAllocationMachineInstruction {
             instruction: SelectedInstructionId(1),
             alternative: MachineAlternative {

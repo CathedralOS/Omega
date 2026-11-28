@@ -1,14 +1,13 @@
 //! Selected literal-fold records for in-process selected-instruction rewrites.
-use crate::{AllocatorAvailabilityIdentity, RecoveryClassificationIdentity, SpillChoiceIdentity};
+use crate::AllocatorAvailabilityIdentity;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::{RegisterConstraintKey, TargetRegisterEnvironmentIdentity};
 use selected_instructions::{
-    LiteralFoldIdentity, MachineEffectCatalogIdentity, SelectedBlockId, SelectedInstructionId,
-    SelectedInstructionPlan, VirtualRegisterId,
+    MachineEffectCatalogIdentity, SelectedBlockId, SelectedInstructionId, SelectedInstructionPlan,
+    VirtualRegisterId,
 };
 use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 use std::sync::Arc;
-use wire::codec_bytes::push_encoded;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LiteralFoldPolicy {
@@ -165,8 +164,6 @@ impl LiteralFoldPolicy {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LiteralFoldPlan {
     pub source_selected: Arc<SelectedInstructionPlan>,
-    pub spill_choices: SpillChoiceIdentity,
-    pub recovery_classifications: RecoveryClassificationIdentity,
     pub register_environment: TargetRegisterEnvironmentIdentity,
     pub allocator_availability: AllocatorAvailabilityIdentity,
     pub machine_effect_catalog: MachineEffectCatalogIdentity,
@@ -195,55 +192,4 @@ pub struct LiteralFoldAction {
     pub result: Option<VirtualRegisterId>,
     pub immediate: u64,
     pub immediate_constraint: RegisterConstraintKey,
-}
-
-pub fn literal_fold_identity(plan: &LiteralFoldPlan) -> LiteralFoldIdentity {
-    let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-literal-fold.v10\0");
-    bytes.extend_from_slice(&encode_terminal_literal_fold_content(plan));
-    LiteralFoldIdentity::from_canonical_bytes(&bytes)
-}
-
-fn encode_terminal_literal_fold_content(plan: &LiteralFoldPlan) -> Vec<u8> {
-    let mut bytes = Vec::new();
-    bytes.extend_from_slice(&plan.spill_choices.bytes());
-    bytes.extend_from_slice(&plan.recovery_classifications.bytes());
-    bytes.extend_from_slice(&plan.register_environment.bytes());
-    bytes.extend_from_slice(&plan.allocator_availability.bytes());
-    bytes.extend_from_slice(&plan.machine_effect_catalog.bytes());
-    bytes.extend_from_slice(&plan.optimization_unit.bytes());
-    push_encoded(&mut bytes, plan.work_schedule.marker().to_le_bytes());
-    push_encoded(&mut bytes, plan.policy.canonical_bits().to_le_bytes());
-    bytes.extend_from_slice(&plan.budget.encode());
-    bytes.extend_from_slice(&plan.usage.encode());
-    length(&mut bytes, plan.functions.len());
-    for function in &plan.functions {
-        push_encoded(&mut bytes, function.machine.get().to_le_bytes());
-        length(&mut bytes, function.actions.len());
-        for action in &function.actions {
-            push_encoded(&mut bytes, action.block.0.to_le_bytes());
-            push_encoded(&mut bytes, action.literal_instruction.0.to_le_bytes());
-            push_encoded(&mut bytes, action.victim.0.to_le_bytes());
-            push_encoded(&mut bytes, action.consumer_instruction.0.to_le_bytes());
-            push_encoded(&mut bytes, action.surviving.0.to_le_bytes());
-            match action.result {
-                None => bytes.push(0),
-                Some(result) => {
-                    bytes.push(1);
-                    push_encoded(&mut bytes, result.0.to_le_bytes());
-                }
-            }
-            push_encoded(&mut bytes, action.immediate.to_le_bytes());
-            register_model::encode_constraint_key(&mut bytes, action.immediate_constraint);
-        }
-    }
-    bytes
-}
-
-fn length(bytes: &mut Vec<u8>, value: usize) {
-    bytes.extend_from_slice(
-        &u64::try_from(value)
-            .expect("literal-fold identity length fits u64")
-            .to_le_bytes(),
-    );
 }

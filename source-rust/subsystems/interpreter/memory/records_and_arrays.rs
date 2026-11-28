@@ -185,7 +185,7 @@ pub(crate) mod record {
         }
 
         pub(crate) struct PreparedConstructorOperands {
-            homes: Vec<(StructuralArgument, ArrayRetirement)>,
+            homes: Vec<(Option<semantic_vocabulary::PlaceId>, ArrayRetirement)>,
             frontier: BTreeSet<StructuralAffineDiscard>,
             claims: BTreeMap<semantic_vocabulary::ClaimId, LiveClaim>,
         }
@@ -195,10 +195,10 @@ pub(crate) mod record {
                 self,
                 execution: &mut TerminalExecution<'_>,
             ) -> Result<(), TerminalInterpretError> {
-                for (argument, retirement) in self.homes {
+                for (whole_place, retirement) in self.homes {
                     execution.prune_subtree(retirement)?;
-                    if argument.path.is_empty() {
-                        execution.structural_values.remove(&argument.place);
+                    if let Some(place) = whole_place {
+                        execution.structural_values.remove(&place);
                     }
                 }
                 execution.live_affine_frontier = self.frontier;
@@ -587,7 +587,7 @@ pub(crate) mod record {
                             argument,
                         )?;
                         Ok((
-                            argument.clone(),
+                            argument.path.is_empty().then_some(argument.place),
                             self.prepare_subtree_retirement(&StructuralRuntimePlace::from(&child))?,
                         ))
                     })
@@ -843,10 +843,10 @@ pub(crate) mod record {
                     additional_input_qualifications: Vec::new(),
                     qualification_establishments: Vec::new(),
                     claims: claims
-                        .iter()
+                        .into_iter()
                         .map(|(identity, claim)| StructuralResultClaimBinding {
-                            claim: *identity,
-                            path: claim.path.clone(),
+                            claim: identity,
+                            path: claim.path,
                         })
                         .collect(),
                 };
@@ -1287,6 +1287,32 @@ pub(crate) mod record {
         }
 
         impl ConstructorStorage {
+            pub(crate) fn publish_construction(
+                self,
+                execution: &mut TerminalExecution<'_>,
+                result: &terminal_psi::StructuralOperationResult,
+                value: TerminalStructuralValue,
+                operands: &[(
+                    &terminal_psi::StructuralArgument,
+                    Vec<StructuralPathSegment>,
+                )],
+                mut frontier: std::collections::BTreeSet<terminal_psi::StructuralAffineDiscard>,
+                consumed: &[terminal_psi::StructuralArgument],
+            ) -> Result<(), TerminalInterpretError> {
+                let claims = execution.stage_constructor_claims(
+                    super::ResultClaimOrigin::Construction,
+                    result,
+                    operands,
+                    &mut frontier,
+                    &|current| self.case_at_projection(execution, &value, &current.path),
+                )?;
+                let retirement =
+                    execution.prepare_constructor_operands(frontier, consumed, claims)?;
+                self.publish(execution)?;
+                execution.structural_values.insert(result.place, value)?;
+                retirement.commit(execution)
+            }
+
             pub(crate) fn retain_storage(
                 &self,
                 retained: &mut crate::storage::structural_storage::RetainedStorage,
@@ -2467,17 +2493,14 @@ pub(crate) mod record {
                 // Each element delivered the declared domains. Keep the same
                 // family on the aggregate so a checked index can project it.
                 value.projected_qualifications = result.projected_qualifications.clone();
-                let claims = self.stage_constructor_claims(
-                    super::ResultClaimOrigin::Construction,
+                staged.publish_construction(
+                    self,
                     result,
+                    value,
                     &claim_operands,
-                    &mut frontier,
-                    &|current| staged.case_at_projection(self, &value, &current.path),
+                    frontier,
+                    &consumed,
                 )?;
-                let retirement = self.prepare_constructor_operands(frontier, &consumed, claims)?;
-                staged.publish(self)?;
-                self.structural_values.insert(result.place, value)?;
-                retirement.commit(self)?;
                 self.local_structural_identities.commit_cursor(cursor);
                 Ok(crate::engine::execution::OperationFlow::Advance)
             }
@@ -2602,17 +2625,14 @@ pub(crate) mod record {
                 &value,
                 &result.projected_qualifications,
             )?;
-            let claims = self.stage_constructor_claims(
-                ResultClaimOrigin::Construction,
+            storage.publish_construction(
+                self,
                 result,
+                value,
                 &claim_operands,
-                &mut frontier,
-                &|current| storage.case_at_projection(self, &value, &current.path),
+                frontier,
+                &consumed,
             )?;
-            let retirement = self.prepare_constructor_operands(frontier, &consumed, claims)?;
-            storage.publish(self)?;
-            self.structural_values.insert(result.place, value)?;
-            retirement.commit(self)?;
             Ok(())
         }
         pub(crate) fn stage_owned_value_arguments(

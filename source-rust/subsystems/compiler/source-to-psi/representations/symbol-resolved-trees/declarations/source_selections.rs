@@ -723,6 +723,20 @@ impl AuthoredDeclarationSelections {
             .map(|selection| selection.occurrence_id)
     }
 
+    /// Every selection recorded at exactly `source_span`, in ledger order.
+    ///
+    /// Callers that match a source token against the ledger read the span
+    /// index every record keeps, so a lookup costs the rows at that
+    /// coordinate instead of a scan of the whole ledger.
+    pub fn at_source_span(
+        &self,
+        source_span: SourceSpan,
+    ) -> impl Iterator<Item = &AuthoredDeclarationSelection> + '_ {
+        self.by_span
+            .positions(source_span)
+            .map(|position| &self.rows[position as usize])
+    }
+
     pub fn get(
         &self,
         occurrence_id: AuthoredDeclarationSelectionOccurrenceId,

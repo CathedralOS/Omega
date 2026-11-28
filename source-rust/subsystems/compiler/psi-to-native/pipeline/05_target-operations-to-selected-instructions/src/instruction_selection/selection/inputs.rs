@@ -53,7 +53,7 @@ pub(crate) mod activation_storage_input {
             return None;
         }
         let types = source.geometry();
-        let backing = terminal_psi::find_structural_type(types, *backing_type)?;
+        let backing = types.declaration(*backing_type).ok()?;
         if backing.owns_linear_claim
             || backing.descriptor_cleanup
             || !backing.no_code_affine_cleanup
@@ -536,23 +536,6 @@ pub(crate) mod aggregate_result_input {
         }) {
             return false;
         }
-        let binds = |successor: &legalized_operations::LegalizedScalarSuccessor| {
-            successor
-                .structural_bindings
-                .iter()
-                .any(|binding| binding.semantic.argument.place == place)
-        };
-        let forwarded = source.blocks.iter().any(|block| match &block.terminator {
-            legalized_operations::LegalizedScalarTerminator::Jump { successor, .. } => {
-                binds(successor)
-            }
-            legalized_operations::LegalizedScalarTerminator::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => binds(when_true) || binds(when_false),
-            _ => false,
-        });
         let dispatched = source.blocks.iter().any(|block| {
             matches!(
                 &block.terminator,
@@ -577,7 +560,7 @@ pub(crate) mod aggregate_result_input {
             legalized_operations::LegalizedScalarTerminator::InvokeNoNormal { call, .. }
                 if borrows_parameter(call))
         });
-        forwarded
+        super::established_view_input::transferred(source, place)
             || dispatched
             || cleanup_borrow
             || terminal_borrow
@@ -778,8 +761,7 @@ pub(crate) mod aggregate_result_input {
         &'a calling_conventions::ValuePlacement,
     )> {
         let result = call.structural_result.as_ref()?;
-        let declaration =
-            terminal_psi::find_structural_type(source.geometry(), result.structural_type)?;
+        let declaration = source.geometry().declaration(result.structural_type).ok()?;
         let shape = match &declaration.shape {
             terminal_psi::StructuralTypeShape::Record { .. }
             | terminal_psi::StructuralTypeShape::FixedArray { .. } => primitive_array_shape(
@@ -2428,7 +2410,7 @@ pub(crate) mod established_view_input {
                     types,
                 )?;
                 let StructuralTypeShape::Reference { referent, access } =
-                    types.iter().find(|row| row.id == reference)?.shape
+                    types.declaration(reference).ok()?.shape
                 else {
                     return None;
                 };
@@ -2461,7 +2443,7 @@ pub(crate) mod established_view_input {
                     terminal_psi::ByteSequenceCarrier::BoundedOwned { .. } => A::Owned,
                 },
                 StructuralStorageProjection::Endpoint(identity) => {
-                    match types.iter().find(|row| row.id == identity)?.shape {
+                    match types.declaration(identity).ok()?.shape {
                         StructuralTypeShape::ElementView { access, .. } => access.unwrap_or({
                             if source.path.len() == prefix_start {
                                 authority
@@ -2955,20 +2937,24 @@ pub(crate) mod established_view_input {
 }
 
 pub(crate) mod literal_compare_input {
-    use std::ops::RangeInclusive;
-
     use legalized_operations::{
         LegalizedScalarBlock, LegalizedScalarComparison, LegalizedScalarInstruction,
         LegalizedScalarInstructionKind,
     };
     use semantic_vocabulary::{IntegerSign, IntegerValue};
 
-    fn folded_literal<'a>(
+    pub(crate) struct FoldedLiteral<'a> {
+        pub row: &'a LegalizedScalarInstruction,
+        pub operand: semantic_vocabulary::ValueId,
+        pub literal_value: semantic_vocabulary::ValueId,
+        pub immediate: u64,
+    }
+
+    pub(crate) fn folded_literal<'a>(
         function: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
         block: &'a LegalizedScalarBlock,
         comparison_index: usize,
-        immediates: RangeInclusive<u64>,
-    ) -> Option<&'a LegalizedScalarInstruction> {
+    ) -> Option<FoldedLiteral<'a>> {
         let comparison = block.instructions.get(comparison_index)?;
         let literal = block.instructions.get(comparison_index.checked_sub(1)?)?;
         let definition = literal.result?;
@@ -2979,7 +2965,7 @@ pub(crate) mod literal_compare_input {
         let value = u64::try_from(value).ok()?;
         if !matches!(definition.scalar_type, semantic_vocabulary::ClosedScalarType::Integer(integer)
                 if integer.sign() == IntegerSign::Unsigned && integer.bits() == 64
-        ) || !immediates.contains(&value)
+        ) || value > 4095
         {
             return None;
         }
@@ -3013,23 +2999,16 @@ pub(crate) mod literal_compare_input {
                 }
             }
         }
-        Some(literal)
-    }
-
-    pub(crate) fn folded_zero<'a>(
-        function: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
-        block: &'a LegalizedScalarBlock,
-        comparison_index: usize,
-    ) -> Option<&'a LegalizedScalarInstruction> {
-        folded_literal(function, block, comparison_index, 0..=0)
-    }
-
-    pub(crate) fn folded_immediate<'a>(
-        function: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
-        block: &'a LegalizedScalarBlock,
-        comparison_index: usize,
-    ) -> Option<&'a LegalizedScalarInstruction> {
-        folded_literal(function, block, comparison_index, 1..=4095)
+        Some(FoldedLiteral {
+            row: literal,
+            operand: if left == definition.value {
+                right
+            } else {
+                left
+            },
+            literal_value: definition.value,
+            immediate: value,
+        })
     }
 }
 
@@ -3382,7 +3361,7 @@ pub(crate) mod primitive_local_input {
                 let mut geometry =
                     descriptor_source_geometry(root, &argument.path, source.geometry())?;
                 let terminal_psi::StructuralTypeShape::ByteSequence(carrier) =
-                    terminal_psi::find_structural_type(source.geometry(), geometry.selected)?.shape
+                    source.geometry().declaration(geometry.selected).ok()?.shape
                 else {
                     return None;
                 };
@@ -4194,10 +4173,8 @@ pub(crate) mod reference_input {
         {
             return None;
         }
-        let StructuralTypeShape::Reference { access, referent } = declarations
-            .iter()
-            .find(|declaration| declaration.id == result.structural_type)?
-            .shape
+        let StructuralTypeShape::Reference { access, referent } =
+            declarations.declaration(result.structural_type).ok()?.shape
         else {
             return None;
         };
@@ -4252,7 +4229,7 @@ pub(crate) mod reference_input {
                 declarations,
             )?;
             let StructuralTypeShape::Reference { referent, .. } =
-                terminal_psi::find_structural_type(declarations, carrier)?.shape
+                declarations.declaration(carrier).ok()?.shape
             else {
                 return None;
             };
@@ -4281,8 +4258,8 @@ pub(crate) mod reference_input {
         };
         let selected_shape = selected.and_then(|identity| {
             declarations
-                .iter()
-                .find(|row| row.id == identity)
+                .declaration(identity)
+                .ok()
                 .map(|row| &row.shape)
         });
         let (actual, mut load_pointer) = match selected_shape {
@@ -5301,7 +5278,7 @@ pub(crate) mod scalar_array_input {
         let mut count = Some(1u64);
         let mut empty = false;
         for depth in 0..=declarations.len() {
-            let declaration = terminal_psi::find_structural_type(declarations, current)?;
+            let declaration = declarations.declaration(current).ok()?;
             match declaration.shape {
                 terminal_psi::StructuralTypeShape::FixedArray {
                     element,
@@ -6170,10 +6147,11 @@ pub(crate) mod storage_origin_input {
             .as_ref()
             .ok_or_else(SelectedInstructionError::custody)?;
         let declarations = function.geometry();
-        let terminal_psi::StructuralTypeShape::Reference { referent, .. } =
-            terminal_psi::find_structural_type(declarations, reference)
-                .ok_or_else(SelectedInstructionError::custody)?
-                .shape
+        let terminal_psi::StructuralTypeShape::Reference { referent, .. } = declarations
+            .declaration(reference)
+            .ok()
+            .ok_or_else(SelectedInstructionError::custody)?
+            .shape
         else {
             return Err(SelectedInstructionError::custody());
         };
@@ -6285,7 +6263,7 @@ pub(crate) mod storage_origin_input {
         if !visited.insert(identity) {
             return false;
         }
-        let Some(declaration) = terminal_psi::find_structural_type(types, identity) else {
+        let Some(declaration) = types.declaration(identity).ok() else {
             return true;
         };
         match &declaration.shape {
@@ -6732,9 +6710,7 @@ pub(crate) mod structural_array_input {
         };
         source.structural.as_ref()?;
         let types = source.geometry();
-        let declaration = types
-            .iter()
-            .find(|entry| entry.id == result.structural_type)?;
+        let declaration = types.declaration(result.structural_type).ok()?;
         let count = u64::try_from(elements.len()).ok()?;
         let (element, length, base, live_length) = match declaration.shape {
             StructuralTypeShape::FixedArray {
@@ -6756,7 +6732,7 @@ pub(crate) mod structural_array_input {
         let geometry =
             crate::instruction_selection::structural_inputs::structural_reference_input::shape;
         if row.result.is_some()
-            || u64::try_from(elements.len()).ok()? != length
+            || count != length
             || geometry(result.structural_type, types)? != *shape
         {
             return None;

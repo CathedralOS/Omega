@@ -2,7 +2,7 @@
 We place frame-applied function fragments into a single dense text section and
 resolve every ordinary internal machine call in section coordinates.
 
-`stage_optimized_fixed_frame_text_section` validates per-architecture span
+`place_fixed_frame` validates per-architecture span
 alignment, concatenates framed function fragments in validated order without
 padding, patches internal machine call displacements (`resolve`), and records
 section-relative foreign-call and image-address relocation fields
@@ -12,11 +12,11 @@ optimization selections the object records.
 application, independently verifies every placed span, patched call field, and
 unchanged byte range (`validate_fragment_text_section`), checks that every
 internal call was resolved, and compares the carried selections with the
-retained realization's.
+retained program's.
 */
 
 use crate::code_layout::requested_native_code_layouts;
-use crate::fragment_emission::FunctionFragmentEmissionError;
+
 use crate::frame_application::{
     FunctionFragmentFrameApplicationError, StagedFunctionFragmentFrameApplication,
     validate_function_fragment_frame_application,
@@ -41,32 +41,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use target::Architecture;
 
-pub(super) fn stage_optimized_fixed_frame_text_section<Contracts>(
-    source: StagedFunctionFragmentFrameApplication,
-    contracts: machine_code::layout::FramePlacementContracts<Contracts>,
-) -> Result<FunctionPlacement<Contracts>, RelocationFreeTextSectionPlacementError> {
-    let text_section = place_fixed_frame(source.fragments())?;
-    let native_layouts =
-        requested_native_code_layouts(&text_section, &source.application().functions);
-    let text = StagedOptimizedFixedFrameTextSection {
-        contracts: contracts.publication,
-        encoded: contracts.encoded,
-        body: Arc::clone(&source.placed_body),
-        text_section: Arc::new(text_section),
-        native_layouts,
-        selections: realization_selections(&source),
-    };
-    Ok(FunctionPlacement {
-        text,
-        frame_application: contracts.retain_original.then_some(source),
-    })
-}
-
 /// Placement releases its working layout when it issues ordinary text. An audit
 /// request retains the frame application separately for independent replay.
 pub struct FunctionPlacement<Contracts> {
-    text: StagedOptimizedFixedFrameTextSection<Contracts>,
-    frame_application: Option<StagedFunctionFragmentFrameApplication>,
+    pub(super) text: StagedOptimizedFixedFrameTextSection<Contracts>,
+    pub(super) frame_application: Option<StagedFunctionFragmentFrameApplication>,
 }
 
 impl<Contracts> FunctionPlacement<Contracts> {
@@ -91,7 +70,14 @@ pub fn validate_optimized_fixed_frame_text_section<Contracts>(
         .map_err(RelocationFreeTextSectionPlacementError::FrameSource)?;
     check_placed_section(original.fragments(), &staged.text_section)?;
     check_internal_calls_resolved(&staged.text_section, original.fragments())?;
-    if staged.selections != realization_selections(original) {
+    if staged.selections
+        != original
+            .program()
+            .context
+            .publication
+            .selections()
+            .identity()
+    {
         return Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch);
     }
     if staged.native_layouts
@@ -100,18 +86,6 @@ pub fn validate_optimized_fixed_frame_text_section<Contracts>(
         return Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch);
     }
     Ok(())
-}
-
-/// The object records the selections the realization was optimized under.
-fn realization_selections(
-    source: &StagedFunctionFragmentFrameApplication,
-) -> OptimizationSelectionIdentity {
-    source
-        .source()
-        .source()
-        .function_relative_manifest()
-        .record()
-        .selections
 }
 
 /// Placed text carries its code and selections. Only an audit can retain the working layout.
@@ -123,12 +97,12 @@ fn realization_selections(
 #[derive(Debug)]
 #[must_use = "a staged fixed-frame text section owns its exact frame-application custody"]
 pub struct StagedOptimizedFixedFrameTextSection<Contracts> {
-    contracts: Arc<Contracts>,
-    encoded: machine_code::program_context::BoundEncodingSubject,
-    body: Arc<crate::PlacedBodyEvidence>,
-    text_section: Arc<RelocationFreeTextSectionPlacement>, // Placed dense text section with resolved internal calls.
-    native_layouts: Result<Arc<[NativeCodeLayout]>, NativeCodeLayoutError>,
-    selections: OptimizationSelectionIdentity, // Selections the placed code was optimized under.
+    pub(super) contracts: Arc<Contracts>,
+    pub(super) encoded: machine_code::program_context::BoundEncodingSubject,
+    pub(super) body: Arc<crate::PlacedBodyEvidence>,
+    pub(super) text_section: Arc<RelocationFreeTextSectionPlacement>, // Placed dense text section with resolved internal calls.
+    pub(super) native_layouts: Result<Arc<[NativeCodeLayout]>, NativeCodeLayoutError>,
+    pub(super) selections: OptimizationSelectionIdentity, // Selections the placed code was optimized under.
 }
 
 impl<Contracts> StagedOptimizedFixedFrameTextSection<Contracts> {
@@ -174,7 +148,6 @@ impl<Contracts> StagedOptimizedFixedFrameTextSection<Contracts> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RelocationFreeTextSectionPlacementError {
-    Source(FunctionFragmentEmissionError),
     FrameSource(FunctionFragmentFrameApplicationError),
     DuplicateFunction(MachineId),
     MissingSemanticEntry(MachineId),
@@ -296,7 +269,7 @@ fn place_block_spans(
     Ok(blocks)
 }
 
-fn place_fixed_frame(
+pub(super) fn place_fixed_frame(
     fragments: &FunctionFragmentEmissionPlan,
 ) -> Result<RelocationFreeTextSectionPlacement, RelocationFreeTextSectionPlacementError> {
     let section_alignment = match fragments.target.architecture {
@@ -344,7 +317,9 @@ fn place_fixed_frame(
             ));
         }
         let section_offset = offsets[&function.machine];
-        let mut function_bytes = function.bytes.clone();
+        let start = bytes.len();
+        bytes.extend_from_slice(&function.bytes);
+        let function_bytes = &mut bytes[start..];
         for block in &function.blocks {
             for instruction in &block.instructions {
                 if let Some(fixup) = instruction.internal_machine_fixup() {
@@ -405,7 +380,7 @@ fn place_fixed_frame(
                         section_offset,
                         callee_section_offset,
                         fixup,
-                        &mut function_bytes,
+                        function_bytes,
                     )?);
                 }
                 if let Some(fixup) = instruction.normalized_foreign_call_fixup().cloned() {
@@ -435,7 +410,7 @@ fn place_fixed_frame(
                         &instruction.bytes,
                         section_offset,
                         fixup,
-                        &function_bytes,
+                        function_bytes,
                     )?);
                 }
                 if let Some(fixup) = instruction.image_address_fixup() {
@@ -445,13 +420,12 @@ fn place_fixed_frame(
                         instruction,
                         section_offset,
                         fixup,
-                        &function_bytes,
+                        function_bytes,
                     )?);
                 }
             }
         }
         let blocks = place_block_spans(fragments.target.architecture, function, section_offset)?;
-        bytes.extend_from_slice(&function_bytes);
         functions.push(PlacedFunctionFragment {
             source_function_index: usize_to_u64(source_function_index)?,
             machine: function.machine,

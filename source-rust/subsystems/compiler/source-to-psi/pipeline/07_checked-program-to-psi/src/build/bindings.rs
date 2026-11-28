@@ -179,25 +179,7 @@ impl TerminalBuildBindings {
 
 pub(crate) fn validate_companions(
     artifact: TerminalExecutionView<'_>,
-    bindings: &[TerminalBuildBindingCall],
-    queries: &[TerminalBuildQueryCall],
-    requests: &[build_requests::TerminalBuildRequestCall],
-    filesystem: &[build_filesystem::TerminalBuildFilesystemCall],
-) -> Result<(), &'static str> {
-    validate_sites(
-        artifact,
-        bindings
-            .iter()
-            .map(|call| call.site)
-            .chain(queries.iter().map(|call| call.site))
-            .chain(requests.iter().map(|call| call.site))
-            .chain(filesystem.iter().map(|call| call.site)),
-    )
-}
-
-fn validate_sites(
-    artifact: TerminalExecutionView<'_>,
-    sites: impl IntoIterator<Item = BuildCallSite>,
+    companions: &super::companions::BuildCompanions,
 ) -> Result<(), &'static str> {
     let mut emitted = Vec::new();
     for machine in &artifact.module().machines {
@@ -211,8 +193,13 @@ fn validate_sites(
         }
     }
     emitted.sort_unstable();
-    let mut sites = sites
-        .into_iter()
+    let mut sites = companions
+        .bindings
+        .iter()
+        .map(|call| call.site)
+        .chain(companions.queries.iter().map(|call| call.site))
+        .chain(companions.requests.iter().map(|call| call.site))
+        .chain(companions.filesystem.iter().map(|call| call.site))
         .map(|site| (site.machine, site.operation, site.boundary))
         .collect::<Vec<_>>();
     sites.sort_unstable();
@@ -229,6 +216,26 @@ fn validate_sites(
         return Err("Build companion has no exact emitted boundary call");
     }
     Ok(())
+}
+
+/// Build hosts can read protocol calls only for the program that emitted them.
+#[derive(Debug, PartialEq, Eq)]
+pub struct BuildProtocolCalls<Call> {
+    identity: terminal_codec::TerminalExecutionIdentity,
+    calls: Arc<[Call]>,
+}
+
+impl<Call> BuildProtocolCalls<Call> {
+    pub fn calls_for(&self, artifact: TerminalExecutionView<'_>) -> Option<&Arc<[Call]>> {
+        (self.identity == artifact.custody_identity()).then_some(&self.calls)
+    }
+
+    pub(crate) fn new(artifact: TerminalExecutionView<'_>, calls: impl Into<Arc<[Call]>>) -> Self {
+        Self {
+            identity: artifact.custody_identity(),
+            calls: calls.into(),
+        }
+    }
 }
 
 pub(crate) mod build_filesystem {
@@ -263,30 +270,7 @@ pub(crate) mod build_filesystem {
         pub action: TerminalBuildFilesystemOperation,
     }
 
-    #[derive(Debug, PartialEq, Eq)]
-    pub struct TerminalBuildFilesystem {
-        identity: terminal_codec::TerminalExecutionIdentity,
-        calls: std::sync::Arc<[TerminalBuildFilesystemCall]>,
-    }
-
-    impl TerminalBuildFilesystem {
-        pub fn calls_for(
-            &self,
-            artifact: terminal_codec::TerminalExecutionView<'_>,
-        ) -> Option<&std::sync::Arc<[TerminalBuildFilesystemCall]>> {
-            (self.identity == artifact.custody_identity()).then_some(&self.calls)
-        }
-
-        pub(crate) fn new(
-            artifact: terminal_codec::TerminalExecutionView<'_>,
-            calls: impl Into<std::sync::Arc<[TerminalBuildFilesystemCall]>>,
-        ) -> Self {
-            Self {
-                identity: artifact.custody_identity(),
-                calls: calls.into(),
-            }
-        }
-    }
+    pub type TerminalBuildFilesystem = super::BuildProtocolCalls<TerminalBuildFilesystemCall>;
 }
 
 pub(crate) mod build_provider {
@@ -430,28 +414,5 @@ pub(crate) mod build_requests {
         pub action: TerminalBuildRequestOperation,
     }
 
-    #[derive(Debug, PartialEq, Eq)]
-    pub struct TerminalBuildRequests {
-        identity: terminal_codec::TerminalExecutionIdentity,
-        calls: std::sync::Arc<[TerminalBuildRequestCall]>,
-    }
-
-    impl TerminalBuildRequests {
-        pub fn calls_for(
-            &self,
-            artifact: terminal_codec::TerminalExecutionView<'_>,
-        ) -> Option<&std::sync::Arc<[TerminalBuildRequestCall]>> {
-            (self.identity == artifact.custody_identity()).then_some(&self.calls)
-        }
-
-        pub(crate) fn new(
-            artifact: terminal_codec::TerminalExecutionView<'_>,
-            calls: impl Into<std::sync::Arc<[TerminalBuildRequestCall]>>,
-        ) -> Self {
-            Self {
-                identity: artifact.custody_identity(),
-                calls: calls.into(),
-            }
-        }
-    }
+    pub type TerminalBuildRequests = super::BuildProtocolCalls<TerminalBuildRequestCall>;
 }

@@ -12,7 +12,7 @@ use crate::NativeSelectedProviderPlan;
 use crate::OptimizedBoundaryOccurrence;
 use crate::PhysicalChildParent;
 use crate::PhysicalRelocationDisposition;
-use crate::physical::derivation::evidence::boundary_physical_child_parts;
+use crate::physical::derivation::evidence::PhysicalChildPlacement;
 use crate::physical::derivation::evidence::span;
 use crate::physical::derivation::evidence::text_relocation_overlaps;
 use crate::physical::derivation::provider_custody::direct_port_read_custody;
@@ -23,19 +23,18 @@ use crate::physical::derivation::settlement_identity::admitted_provider_settleme
 use crate::physical::native_byte_span;
 use crate::physical::sole_terminal_operation;
 use machine_code::BoundaryExecutionRecord;
-use optimization_core::NativeOptimizationProjectionIdentity;
 use std::collections::BTreeSet;
 use target::NativeTarget;
 use target_vocabulary::BoundaryRealization;
 use terminal_psi::OperationKind;
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn derive_admitted_provider_settlement_child(
+pub(super) fn derive_admitted_provider_settlement_child(
     module: &terminal_psi::TerminalModule,
     object: &image_emission::ObjectArtifact,
     image: &[u8],
     occurrence: &OptimizedBoundaryOccurrence,
-    projection: NativeOptimizationProjectionIdentity,
+    placement: PhysicalChildPlacement,
     requirement_identity: &str,
     selected_plan: &NativeSelectedProviderPlan,
     provider_executions: &[NativeProviderExecution],
@@ -165,10 +164,9 @@ pub(crate) fn derive_admitted_provider_settlement_child(
     }
     let machine_span = native_byte_span(settlement.code_offset, settlement.byte_count);
     let object_span = native_byte_span(installed.text_offset, settlement.byte_count);
-    let final_image_span = object_span;
     let machine_bytes = span(function.bytes(object), machine_span)?;
     let object_bytes = span(object.text_bytes(), object_span)?;
-    let final_image_bytes = span(image, final_image_span)?;
+    let final_image_bytes = span(image, object_span)?;
     if machine_bytes != object_bytes || object_bytes != final_image_bytes {
         return Err("installed D41 settlement bytes changed across physical custody");
     }
@@ -203,19 +201,12 @@ pub(crate) fn derive_admitted_provider_settlement_child(
             role,
             identity: parent_identity,
         });
-    Ok(Some(
-        boundary_physical_child_parts(
-            parent,
-            projection,
-            NativePhysicalOccurrence::Boundary(occurrence.identity()),
-            machine_span,
-            object_span,
-            final_image_span,
-            machine_bytes,
-            object_bytes,
-            final_image_bytes,
-            PhysicalRelocationDisposition::DirectInstructionBytes,
-        )
-        .into(),
-    ))
+    Ok(Some(placement.seal_boundary(
+        parent,
+        NativePhysicalOccurrence::Boundary(occurrence.identity()),
+        machine_span,
+        object_span,
+        object_bytes,
+        PhysicalRelocationDisposition::DirectInstructionBytes,
+    )?))
 }

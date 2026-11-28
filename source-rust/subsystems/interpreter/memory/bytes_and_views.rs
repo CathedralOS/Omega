@@ -108,7 +108,7 @@ pub(crate) mod byte_sequences {
 
             pub(crate) fn with_descriptor_home(mut self, home: TerminalStructuralValue) -> Self {
                 match &mut self {
-                    Self::Immutable(view) => *view = view.clone().with_descriptor_home(home),
+                    Self::Immutable(view) => view.descriptor_home = Some(home),
                     Self::Representation(view) => {
                         *view =
                             std::sync::Arc::new(view.as_ref().clone().with_descriptor_home(home))
@@ -3518,6 +3518,22 @@ pub(crate) mod element_views {
             }
         }
 
+        fn indexed_path<'path>(
+            &self,
+            path: &'path [StructuralPathSegment],
+        ) -> Result<(usize, &'path [StructuralPathSegment]), TerminalInterpretError> {
+            let Some((StructuralPathSegment::FixedIndex(index), suffix)) = path.split_first()
+            else {
+                return Err(malformed());
+            };
+            let index = usize::try_from(*index).map_err(|_| malformed())?;
+            if index >= self.len() {
+                return Err(malformed());
+            }
+            let position = self.window.start.checked_add(index).ok_or(malformed())?;
+            Ok((position, suffix))
+        }
+
         pub(crate) fn structural_projection(
             &self,
             types: &crate::embedding::program::ProgramDeclarations<
@@ -3532,16 +3548,7 @@ pub(crate) mod element_views {
                 if writing || self.access != StructuralAccess::SharedBorrow {
                     return Err(malformed());
                 }
-                let Some((StructuralPathSegment::FixedIndex(position), suffix)) =
-                    path.split_first()
-                else {
-                    return Err(malformed());
-                };
-                let position = usize::try_from(*position).map_err(|_| malformed())?;
-                if position >= self.len() {
-                    return Err(malformed());
-                }
-                let selected = self.window.start.checked_add(position).ok_or(malformed())?;
+                let (selected, suffix) = self.indexed_path(path)?;
                 return Ok((
                     elements.element(selected).ok_or(malformed())?.clone(),
                     suffix.to_vec(),
@@ -3569,15 +3576,7 @@ pub(crate) mod element_views {
                 }
                 return Ok((collection.clone(), Vec::new()));
             }
-            let Some((StructuralPathSegment::FixedIndex(index), suffix)) = path.split_first()
-            else {
-                return Err(malformed());
-            };
-            let index = usize::try_from(*index).map_err(|_| malformed())?;
-            if index >= self.len() {
-                return Err(malformed());
-            }
-            let selected = self.window.start.checked_add(index).ok_or(malformed())?;
+            let (selected, suffix) = self.indexed_path(path)?;
             let mut path = Vec::with_capacity(path.len());
             path.push(StructuralPathSegment::FixedIndex(
                 u64::try_from(selected).map_err(|_| malformed())?,
@@ -3893,20 +3892,7 @@ pub(crate) mod element_views {
             if !requested.admits_referent(self.access) {
                 return Err(malformed());
             }
-            let Some((StructuralPathSegment::FixedIndex(element_index), suffix)) =
-                path.split_first()
-            else {
-                return Err(malformed());
-            };
-            let element_index = usize::try_from(*element_index).map_err(|_| malformed())?;
-            if element_index >= self.len() {
-                return Err(malformed());
-            }
-            let position = self
-                .window
-                .start
-                .checked_add(element_index)
-                .ok_or(malformed())?;
+            let (position, suffix) = self.indexed_path(path)?;
             if let ElementViewBacking::ImmutableSequence(elements) = &self.backing {
                 if writing || self.access != StructuralAccess::SharedBorrow {
                     return Err(malformed());
@@ -5104,13 +5090,8 @@ pub(crate) mod element_views {
             self.reference_referents.insert(
                 crate::boundary::values::StructuralRuntimePlace::from(&carrier),
                 crate::storage::reference::ReferenceReferent {
-                    placed: None,
-                    view: referent,
-                    primitive_loan: None,
                     collection_loan: Some(loan),
-                    byte_owner: None,
-                    byte_region: None,
-                    aggregate_view: None,
+                    ..crate::storage::reference::ReferenceReferent::from_view(referent)
                 },
             )?;
             self.structural_values.insert(result.place, carrier)?;
@@ -5824,7 +5805,7 @@ pub(crate) mod element_views {
         use terminal_psi::{StructuralAccess, StructuralArgument, StructuralPathSegment};
         use terminal_semantics::{
             ElementRepresentationLeaf, ElementRepresentationRelation, ScalarRepresentationViewPair,
-            ScalarViewValue, scalar_reference_view_value,
+            scalar_reference_view_value,
         };
 
         pub(crate) struct TypedElementView {
@@ -5893,18 +5874,7 @@ pub(crate) mod element_views {
                     ScalarRepresentationViewPair::classify(value.scalar_type(), target)?.view(input)
                 })
                 .ok_or(malformed())?;
-            match (target, output) {
-                (ScalarType::Boolean, ScalarViewValue::Boolean(value)) => {
-                    Ok(TerminalScalarValue::Boolean(value))
-                }
-                (ScalarType::Integer(scalar_type), ScalarViewValue::Integer(value)) => {
-                    Ok(TerminalScalarValue::Integer { scalar_type, value })
-                }
-                (ScalarType::IeeeFloat(_), ScalarViewValue::IeeeFloat(value)) => {
-                    Ok(TerminalScalarValue::IeeeFloat(value))
-                }
-                _ => Err(malformed()),
-            }
+            crate::boundary::values::scalar_from_view(target, output)
         }
 
         impl TerminalExecution<'_> {

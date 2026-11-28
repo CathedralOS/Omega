@@ -499,7 +499,7 @@ pub mod compute {
 }
 
 use optimization_core::OptimizationWorkUsage;
-use register_homes::{AllocatorAvailabilityIdentity, SpillChoiceIdentity, SpillChoicePlan};
+use register_homes::{AllocatorAvailabilityIdentity, SpillChoicePlan};
 
 use crate::WorkDefect;
 
@@ -530,8 +530,7 @@ pub fn choose_spill_victims(
 
 seal_plan!(
     seal_spill_choices(SpillChoicePlan)
-        -> ValidatedSpillChoices: SpillChoiceValidationReceipt
-        = register_homes::spill_choice_identity, SpillChoiceError
+        -> ValidatedSpillChoices: SpillChoiceValidationReceipt, SpillChoiceError
     {
         register_environment,
         allocator_availability,
@@ -543,7 +542,6 @@ seal_plan!(
 copy_receipt! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct SpillChoiceValidationReceipt {
-        pub(crate) identity: SpillChoiceIdentity,
         pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
         pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
         pub(crate) policy: SpillChoicePolicy,

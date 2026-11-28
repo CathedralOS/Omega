@@ -38,10 +38,7 @@ pub(super) fn check_bindings(
             inherited.parameters(definition.symbol),
         );
         if definition.attached_data_symbol.is_valid()
-            && let Some(data) = program
-                .data_definitions
-                .iter()
-                .find(|data| data.symbol == definition.attached_data_symbol)
+            && let Some(data) = program.data_definition_by_symbol(definition.attached_data_symbol)
         {
             visible = super::scopes::declaration_type_scope(
                 &visible,

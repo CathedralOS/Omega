@@ -121,7 +121,7 @@ impl Program<'_> {
             }
             return Ok(Some(ValueType::Record(id, qualification, regions)));
         }
-        let id = self.records.push(RecordType {
+        let record_type = RecordType {
             multiplicity: if access == StructuralAccess::SharedBorrow {
                 terminal_psi::StructuralMultiplicity::Unrestricted
             } else {
@@ -133,8 +133,8 @@ impl Program<'_> {
             requires: Vec::new(),
             authored_layout: false,
             erased: Vec::new(),
-        });
-        self.record_sources.push(RecordSource {
+        };
+        let source = RecordSource {
             constant_input_owner,
             declaration: symbols::SymbolHandle::invalid(),
             cleanup: None,
@@ -147,7 +147,8 @@ impl Program<'_> {
             fields: Vec::new(),
             cases: Vec::new(),
             erased: Vec::new(),
-        });
+        };
+        let id = self.push_record_row(record_type, source);
         Ok(Some(ValueType::Record(id, qualification, regions)))
     }
 

@@ -453,7 +453,6 @@ pub mod compute {
             .collect::<Result<Vec<_>, _>>()?;
         Ok(RecoveryClassificationPlan {
             selected: selected.shared_selected_plan(),
-            spill_choices: spill_choices.receipt().identity(),
             register_environment: legality.receipt().register_environment(),
             allocator_availability: legality.receipt().allocator_availability(),
             optimization_unit: selected.optimization_unit_identity(),
@@ -491,10 +490,7 @@ pub mod compute {
 }
 
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkUsage};
-use register_homes::{
-    AllocatorAvailabilityIdentity, RecoveryClassificationIdentity, RecoveryClassificationPlan,
-    SpillChoiceIdentity,
-};
+use register_homes::{AllocatorAvailabilityIdentity, RecoveryClassificationPlan};
 use register_model::TargetRegisterEnvironmentIdentity;
 use semantic_vocabulary::WorkScheduleIdentity;
 
@@ -521,10 +517,9 @@ pub fn classify_pressure_recovery<S: SelectedProgramView>(
 
 seal_plan!(
     seal_recovery_classifications(RecoveryClassificationPlan)
-        -> ValidatedRecoveryClassifications: RecoveryClassificationValidationReceipt
-        = register_homes::recovery_classification_identity, RecoveryClassificationError
+        -> ValidatedRecoveryClassifications: RecoveryClassificationValidationReceipt,
+            RecoveryClassificationError
     {
-        spill_choices,
         register_environment,
         allocator_availability,
         optimization_unit,
@@ -536,8 +531,6 @@ seal_plan!(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RecoveryClassificationValidationReceipt {
-    pub(crate) identity: RecoveryClassificationIdentity,
-    pub(crate) spill_choices: SpillChoiceIdentity,
     pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
     pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
     pub(crate) optimization_unit: OptimizationUnitIdentity,
@@ -548,8 +541,6 @@ pub struct RecoveryClassificationValidationReceipt {
 
 impl RecoveryClassificationValidationReceipt {
     receipt_accessor_rows!(RecoveryClassificationValidationReceipt {
-        identity: RecoveryClassificationIdentity,
-        spill_choices: SpillChoiceIdentity,
         policy: RecoveryClassificationPolicy,
         usage: OptimizationWorkUsage,
     });

@@ -154,7 +154,7 @@ impl Program<'_> {
                     Some(integer),
                     super::types::AnonymousLanding::ExplicitAs,
                 )?;
-                let owner = self.symbols.get(id).copied().unwrap_or_default();
+                let owner = self.machine_symbol(id)?;
                 self.complete_anonymous_operators(id, owner, &evaluated.operators)?;
                 Expression {
                     call_context: None,

@@ -81,7 +81,7 @@ pub(crate) fn prepare(
     // Closed literal widths must name carriers before constants land in them.
     // Named widths remain for resolution in their lexical scope.
     constant_selection.install_integer_types(integer_widths::normalize(&mut syntax)?);
-    generic_data::domain_heads::normalize(&mut syntax, Some(&constant_selection))?;
+    generic_data::domain_heads::normalize(&mut syntax, &constant_selection)?;
     generic_data::fold_closed_scalar_initializers(&mut syntax, &constant_selection)?;
     let integer_types = integer_widths::normalize(&mut syntax)?;
     let new_integer_types = !integer_types.is_empty();

@@ -159,15 +159,7 @@ impl TerminalExecution<'_> {
         let view = self.stage_host_referent(result.place, referent, access, &supply)?;
         self.reference_referents.insert(
             StructuralRuntimePlace::from(&value),
-            crate::storage::reference::ReferenceReferent {
-                view,
-                placed: None,
-                primitive_loan: None,
-                collection_loan: None,
-                byte_owner: None,
-                byte_region: None,
-                aggregate_view: None,
-            },
+            crate::storage::reference::ReferenceReferent::from_view(view),
         )?;
         self.structural_host_atoms.insert(
             StructuralRuntimePlace::from(&value),
@@ -345,15 +337,7 @@ impl TerminalExecution<'_> {
                     )
                     .ok_or(malformed())?,
                 },
-                crate::storage::reference::ReferenceReferent {
-                    view: nested_view,
-                    placed: None,
-                    primitive_loan: None,
-                    collection_loan: None,
-                    byte_owner: None,
-                    byte_region: None,
-                    aggregate_view: None,
-                },
+                crate::storage::reference::ReferenceReferent::from_view(nested_view),
             )?;
         }
         Ok(view)
@@ -516,9 +500,8 @@ impl TerminalExecution<'_> {
                     claim_path.push(StructuralPathSegment::Field(declaration.identity));
                     let member = StructuralRuntimePlace {
                         opaque_identity: value.opaque_identity,
-                        path: claim_path.clone(),
+                        path: claim_path,
                     };
-                    claim_operands.push((argument, claim_path.clone()));
                     let child = ConstructorValue::resolve(self, argument)?;
                     if let Some(bytes) = self.prepare_constructor_byte_field(
                         declaration,
@@ -527,6 +510,7 @@ impl TerminalExecution<'_> {
                         &mut frontier,
                         &mut consumed,
                     )? {
+                        claim_operands.push((argument, member.path));
                         storage.stage_byte_field(
                             StructuralByteSequenceRuntimeField {
                                 parent: member_root.clone(),
@@ -544,8 +528,9 @@ impl TerminalExecution<'_> {
                     {
                         return Err(malformed());
                     }
-                    child.append_memberships(&claim_path, &mut value.projected_qualifications);
+                    child.append_memberships(&member.path, &mut value.projected_qualifications);
                     storage.stage(self, argument, &child, &member, transfers_custody)?;
+                    claim_operands.push((argument, member.path));
                 }
             }
         }
@@ -553,17 +538,7 @@ impl TerminalExecution<'_> {
         value.projected_qualifications.sort();
         value.projected_qualifications.dedup();
         storage.validate_projected_memberships(self, &value, &result.projected_qualifications)?;
-        let claims = self.stage_constructor_claims(
-            crate::storage::record::ResultClaimOrigin::Construction,
-            result,
-            &claim_operands,
-            &mut frontier,
-            &|current| storage.case_at_projection(self, &value, &current.path),
-        )?;
-        let retirement = self.prepare_constructor_operands(frontier, &consumed, claims)?;
-        storage.publish(self)?;
-        self.structural_values.insert(result.place, value)?;
-        retirement.commit(self)?;
+        storage.publish_construction(self, result, value, &claim_operands, frontier, &consumed)?;
         Ok(())
     }
 

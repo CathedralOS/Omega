@@ -7,7 +7,7 @@ the stack frame.
 
 use crate::allocation::{
     ValidatedAllocatorAvailability, ValidatedLiveRanges, ValidatedRecoveryClassifications,
-    ValidatedSelectedAnalysis, ValidatedSpillChoices,
+    ValidatedSelectedAnalysis,
 };
 use register_model::{
     PreparedRegisterConstraintCatalog, TargetRegisterEnvironmentConstraintKeys,
@@ -588,7 +588,7 @@ pub(crate) mod compute {
     use crate::allocation::{
         PressureRematerializationError, PressureRematerializationPlan,
         PressureRematerializationPolicy, ValidatedAllocatorAvailability, ValidatedLiveRanges,
-        ValidatedRecoveryClassifications, ValidatedSelectedAnalysis, ValidatedSpillChoices,
+        ValidatedRecoveryClassifications, ValidatedSelectedAnalysis,
     };
 
     pub(crate) use function_plans::build_functions;
@@ -597,7 +597,6 @@ pub(crate) mod compute {
     pub(crate) fn compute_terminal_pressure_rematerialization<S: ValidatedSelectedAnalysis>(
         selected: &S,
         ranges: &ValidatedLiveRanges,
-        spill_choices: &ValidatedSpillChoices,
         recovery: &ValidatedRecoveryClassifications,
         availability: &ValidatedAllocatorAvailability,
         register_environment: TargetRegisterEnvironmentIdentity,
@@ -621,8 +620,6 @@ pub(crate) mod compute {
         let transformed = std::sync::Arc::new(transformed);
         let plan = PressureRematerializationPlan {
             source_selected: selected.shared_selected_plan(),
-            spill_choices: spill_choices.receipt().identity(),
-            recovery_classifications: recovery.receipt().identity(),
             register_environment,
             allocator_availability: availability.receipt().identity(),
             optimization_unit: selected.optimization_unit_identity(),
@@ -649,7 +646,6 @@ pub(crate) mod compute {
     }
 }
 pub(crate) mod receipt {
-    use crate::allocation::rewrites::pressure_rematerialization_identity;
     use crate::allocation::{PressureRematerializationPlan, PressureRematerializationReceipt};
 
     pub(crate) fn bind(
@@ -659,9 +655,6 @@ pub(crate) mod receipt {
         rewritten_use_count: usize,
     ) -> PressureRematerializationReceipt {
         PressureRematerializationReceipt {
-            identity: pressure_rematerialization_identity(plan),
-            spill_choices: plan.spill_choices,
-            recovery_classifications: plan.recovery_classifications,
             register_environment: plan.register_environment,
             allocator_availability: plan.allocator_availability,
             optimization_unit: plan.optimization_unit,
@@ -675,21 +668,18 @@ pub(crate) mod receipt {
     }
 }
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
-use register_homes::{
-    AllocatorAvailabilityIdentity, RecoveryClassificationIdentity, SpillChoiceIdentity,
-};
+use register_homes::AllocatorAvailabilityIdentity;
 pub use register_homes::{
     FunctionPressureRematerialization, PressureRematerializationAction,
     PressureRematerializationPlan, PressureRematerializationPolicy,
-    PressureRematerializationRewrite, pressure_rematerialization_identity,
+    PressureRematerializationRewrite,
 };
-use selected_instructions::{PressureRematerializationIdentity, SelectedInstructionPlan};
+use selected_instructions::SelectedInstructionPlan;
 use semantic_vocabulary::WorkScheduleIdentity;
 
 pub fn rematerialize_selected_active_resident<S: ValidatedSelectedAnalysis>(
     selected: &S,
     ranges: &ValidatedLiveRanges,
-    spill_choices: &ValidatedSpillChoices,
     recovery: &ValidatedRecoveryClassifications,
     availability: &ValidatedAllocatorAvailability,
     register_environment: TargetRegisterEnvironmentIdentity,
@@ -706,7 +696,6 @@ pub fn rematerialize_selected_active_resident<S: ValidatedSelectedAnalysis>(
     } = compute::compute_terminal_pressure_rematerialization(
         selected,
         ranges,
-        spill_choices,
         recovery,
         availability,
         register_environment,
@@ -725,9 +714,6 @@ pub fn rematerialize_selected_active_resident<S: ValidatedSelectedAnalysis>(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PressureRematerializationReceipt {
-    pub(crate) identity: PressureRematerializationIdentity,
-    pub(crate) spill_choices: SpillChoiceIdentity,
-    pub(crate) recovery_classifications: RecoveryClassificationIdentity,
     pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
     pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
     pub(crate) optimization_unit: OptimizationUnitIdentity,
@@ -741,9 +727,6 @@ pub struct PressureRematerializationReceipt {
 
 impl PressureRematerializationReceipt {
     receipt_accessor_rows!(PressureRematerializationReceipt {
-        identity: PressureRematerializationIdentity,
-        spill_choices: SpillChoiceIdentity,
-        recovery_classifications: RecoveryClassificationIdentity,
         policy: PressureRematerializationPolicy,
         usage: OptimizationWorkUsage,
         function_count: usize,

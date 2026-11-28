@@ -772,6 +772,44 @@ impl Program<'_> {
 }
 
 impl Program<'_> {
+    /// Resolve an explicitly named outer borrow against its source occurrence.
+    pub(super) fn named_reference_region(
+        &self,
+        machine: MachineId,
+        reference: crate::source_state::types::TypeReferenceHandle,
+        lexical_owner: SymbolHandle,
+        tag: &str,
+    ) -> Checked<Region> {
+        let owner = match self
+            .typed
+            .type_reference_table
+            .operand_lifetime_owner(reference)
+        {
+            retained if retained.is_valid() => retained,
+            _ => lexical_owner,
+        };
+        super::places::reference_lifetime_declared(self.typed, machine, reference, owner)?;
+        let parameter = self
+            .typed
+            .type_reference_table
+            .operand_lifetimes(reference)
+            .first()
+            .copied()
+            .filter(|region| region.declaration.is_valid())
+            .or_else(|| {
+                crate::source_state::type_identity::lifetime_parameter_identity(
+                    self.typed, owner, tag,
+                )
+            })
+            .ok_or_else(|| {
+                refuse_at(
+                    machine,
+                    Unserved::Type("borrowed view has no complete owned region identity"),
+                )
+            })?;
+        Ok(Region::Parameter(parameter))
+    }
+
     /// The outer region of a borrowed view, resolved from the same retained
     /// source occurrence as its type. Element regions remain separate tuple
     /// positions; a borrowed descriptor cannot erase what its elements carry.
@@ -789,40 +827,7 @@ impl Program<'_> {
                     lifetime: Some(tag),
                     ..
                 } => {
-                    let owner = match self
-                        .typed
-                        .type_reference_table
-                        .operand_lifetime_owner(reference)
-                    {
-                        retained if retained.is_valid() => retained,
-                        _ => lexical_owner,
-                    };
-                    super::places::reference_lifetime_declared(
-                        self.typed, machine, reference, owner,
-                    )?;
-                    let parameter = self
-                        .typed
-                        .type_reference_table
-                        .operand_lifetimes(reference)
-                        .first()
-                        .copied()
-                        .filter(|region| region.declaration.is_valid())
-                        .or_else(|| {
-                            crate::source_state::type_identity::lifetime_parameter_identity(
-                                self.typed,
-                                owner,
-                                tag.as_str(),
-                            )
-                        })
-                        .ok_or_else(|| {
-                            refuse_at(
-                                machine,
-                                Unserved::Type(
-                                    "borrowed view has no complete owned region identity",
-                                ),
-                            )
-                        })?;
-                    Region::Parameter(parameter)
+                    self.named_reference_region(machine, reference, lexical_owner, tag.as_str())?
                 }
                 // Elided: a fresh lifetime of the signature, a region variable
                 // of a local, refused in a field, or the one identity it has

@@ -105,6 +105,8 @@ impl<'a> ProviderPlanInput<'a> {
             reader.synchronous_invocations(parameter_count)?;
             reader.tag(1)?;
             reader.tag(1)?;
+            // The service method records its caller-stack byte count before the termination flag.
+            reader.number()?;
             reader.tag(1)?;
             let mut previous_premise = None;
             for _ in 0..reader.count()? {
