@@ -11,6 +11,8 @@ struct CapturedRegion {
     /// A captured window's enclosing place bounds overlap. A write through
     /// the window does not initialize that entire place.
     place_is_exact: bool,
+    /// An opaque native reference names bytes outside its descriptor home.
+    native_storage: bool,
     // Keep the complete formation address, rather than only its flattened
     // path. Different capture events are not the same selected reference.
     origin: Option<DescriptorCallOrigin>,
@@ -64,6 +66,7 @@ impl Backing {
             regions: vec![CapturedRegion {
                 place,
                 place_is_exact: true,
+                native_storage: false,
                 origin: None,
                 index_can_change_on_reentry: false,
             }],
@@ -89,6 +92,7 @@ impl Backing {
             let mut referent = descriptor.clone();
             referent.segments.push(Segment::Referent);
             let mut backing = Self::direct(referent);
+            backing.regions[0].native_storage = true;
             backing.native_operand = Some(address);
             return backing;
         }
@@ -108,7 +112,7 @@ impl Backing {
         mut regions: Vec<CapturedRegion>,
         owner: Option<BlockId>,
     ) -> Result<Self, &'static str> {
-        regions.sort_by(|left, right| left.place.cmp(&right.place));
+        regions.sort_by(|left, right| (left.place.root, left.native_storage, &left.place.segments).cmp(&(right.place.root, right.native_storage, &right.place.segments)));
         let first = regions
             .first()
             .ok_or("captured storage has no actual address")?;
@@ -148,7 +152,7 @@ impl Backing {
     pub(super) fn same_single_region(&self, other: &Self) -> bool {
         match (self.regions.as_slice(), other.regions.as_slice()) {
             ([left], [right]) if left.place_is_exact && right.place_is_exact => {
-                left.place == right.place
+                left.native_storage == right.native_storage && left.place == right.place
                     && (left
                         .place
                         .segments
@@ -199,7 +203,7 @@ impl Backing {
         };
         let families = self.regions.len() > 1 || selected.regions.len() > 1;
         if !self.regions.iter().all(|parent| {
-            parent.place.root == deepest.place.root
+            parent.native_storage == deepest.native_storage && parent.place.root == deepest.place.root
                 && deepest.place.segments.starts_with(&parent.place.segments)
                 && (!families
                     || parent
@@ -208,7 +212,7 @@ impl Backing {
                         .iter()
                         .all(|segment| !matches!(segment, Segment::RuntimeIndex { .. })))
         }) || !selected.regions.iter().all(|child| {
-            deepest.place.root == child.place.root
+            deepest.native_storage == child.native_storage && deepest.place.root == child.place.root
                 && child.place.segments.starts_with(&deepest.place.segments)
         }) {
             return false;
@@ -258,6 +262,7 @@ impl Backing {
     ) -> bool {
         if !parent.place_is_exact
             || (!child.place_is_exact && matches!(comparison, CaptureComparison::Independent))
+            || child.native_storage != parent.native_storage
             || child.place.root != parent.place.root
             || !child.place.segments.starts_with(&parent.place.segments)
         {
@@ -395,6 +400,10 @@ impl Backing {
 }
 
 impl StorageAddresses for Backing {
+    fn native_storage(&self, index: usize) -> bool {
+        self.regions[index].native_storage
+    }
+
     fn address_count(&self) -> usize {
         self.regions.len()
     }
@@ -894,6 +903,7 @@ impl<'a> Storage<'a> {
             regions.push(CapturedRegion {
                 place: storage,
                 place_is_exact: exact,
+                native_storage: true,
                 origin: Some(origin),
                 index_can_change_on_reentry: true,
             });
@@ -1012,6 +1022,7 @@ impl<'a> Storage<'a> {
             regions.push(CapturedRegion {
                 place: resolved,
                 place_is_exact,
+                native_storage: false,
                 origin: Some(origin),
                 index_can_change_on_reentry,
             });
@@ -1051,6 +1062,7 @@ mod address_comparison_tests {
             vec![CapturedRegion {
                 place: bounds.clone(),
                 place_is_exact: false,
+                native_storage: false,
                 origin: Some(capture.clone()),
                 index_can_change_on_reentry: true,
             }],
@@ -1084,6 +1096,7 @@ mod address_comparison_tests {
                     .map(|place| CapturedRegion {
                         place,
                         place_is_exact: true,
+                        native_storage: false,
                         origin: None,
                         index_can_change_on_reentry: false,
                     })

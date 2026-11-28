@@ -132,6 +132,7 @@ pub(crate) struct Lineage {
 /// A complete storage-address family, sorted by root and then path.
 /// Unknown or empty captured families are refused before this interface.
 pub(crate) trait StorageAddresses {
+    fn native_storage(&self, _index: usize) -> bool { false }
     fn address_count(&self) -> usize;
     fn address(&self, index: usize) -> &Lineage;
 }
@@ -205,13 +206,13 @@ pub(crate) fn overlap(left: &impl StorageAddresses, right: &impl StorageAddresse
     fn partition(
         addresses: &impl StorageAddresses,
         range: std::ops::Range<usize>,
-        mut same: impl FnMut(&Lineage) -> bool,
+        mut same: impl FnMut(&Lineage, usize) -> bool,
     ) -> usize {
         let mut start = range.start;
         let mut end = range.end;
         while start < end {
             let middle = start + (end - start) / 2;
-            if same(addresses.address(middle)) {
+            if same(addresses.address(middle), middle) {
                 start = middle + 1;
             } else {
                 end = middle;
@@ -268,10 +269,10 @@ pub(crate) fn overlap(left: &impl StorageAddresses, right: &impl StorageAddresse
         while left_index < left_range.end && right_index < right_range.end {
             let a = left.address(left_index).segments[depth];
             let b = right.address(right_index).segments[depth];
-            let left_end = partition(left, left_index..left_range.end, |place| {
+            let left_end = partition(left, left_index..left_range.end, |place, _| {
                 place.segments[depth] == a
             });
-            let right_end = partition(right, right_index..right_range.end, |place| {
+            let right_end = partition(right, right_index..right_range.end, |place, _| {
                 place.segments[depth] == b
             });
             match a.cmp(&b) {
@@ -298,13 +299,13 @@ pub(crate) fn overlap(left: &impl StorageAddresses, right: &impl StorageAddresse
     let mut left_index = 0;
     let mut right_index = 0;
     while left_index < left.address_count() && right_index < right.address_count() {
-        let a = left.address(left_index).root;
-        let b = right.address(right_index).root;
-        let left_end = partition(left, left_index..left.address_count(), |place| {
-            place.root == a
+        let a = (left.address(left_index).root, left.native_storage(left_index));
+        let b = (right.address(right_index).root, right.native_storage(right_index));
+        let left_end = partition(left, left_index..left.address_count(), |place, i| {
+            (place.root, left.native_storage(i)) == a
         });
-        let right_end = partition(right, right_index..right.address_count(), |place| {
-            place.root == b
+        let right_end = partition(right, right_index..right.address_count(), |place, i| {
+            (place.root, right.native_storage(i)) == b
         });
         match a.cmp(&b) {
             std::cmp::Ordering::Less => left_index = left_end,
