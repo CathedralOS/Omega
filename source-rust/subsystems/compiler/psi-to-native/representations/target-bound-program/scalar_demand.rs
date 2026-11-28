@@ -196,9 +196,13 @@ mod storage {
                                 terminal_psi::OperationKind::CallMachine {
                                     structural_arguments,
                                     ..
-                                } => call_argument_storage(storage, structural_arguments, |index| {
-                                    package_sites.borrowed_argument(machine.id, operation.id, index).is_some()
-                                }),
+                                } => {
+                                    call_argument_storage(storage, structural_arguments, |index| {
+                                        package_sites
+                                            .borrowed_argument(machine.id, operation.id, index)
+                                            .is_some()
+                                    })
+                                }
                                 _ => storage,
                             };
                             terminal_semantics::storage_operand_dependencies(
@@ -268,6 +272,69 @@ mod storage {
     mod tests {
         use super::*;
         use semantic_vocabulary::StructuralTypeId;
+
+        #[test]
+        fn only_the_checked_borrow_stops_at_its_stored_reference() {
+            use terminal_psi::{OperationProjection, StructuralArgument, StructuralPathSegment};
+
+            let place = semantic_vocabulary::PlaceId::new(1).unwrap();
+            let path = [
+                StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(0)),
+                StructuralPathSegment::Referent,
+            ];
+            let projection = OperationProjection {
+                root: place,
+                path: &path,
+                field: None,
+            };
+            let stored = OperationProjection {
+                path: &path[..1],
+                ..projection
+            };
+            let argument = StructuralArgument {
+                place,
+                path: path.to_vec(),
+                access: StructuralAccess::MutableBorrow,
+            };
+            let borrow = |projection: OperationProjection, argument, checked| {
+                let terminal_psi::StructuralStorageUse::Projection(actual) =
+                    call_argument_storage(projection.into(), &[argument], |position| {
+                        position == 0 && checked
+                    })
+                else {
+                    panic!("a call argument must retain its reference carrier");
+                };
+                assert_eq!(actual.root, projection.root);
+                (actual.path.to_vec(), actual.field)
+            };
+            assert_eq!(
+                borrow(projection, argument.clone(), true),
+                (stored.path.to_vec(), None)
+            );
+            assert_eq!(
+                borrow(projection, argument.clone(), false),
+                (path.to_vec(), None)
+            );
+            assert_eq!(
+                borrow(
+                    projection,
+                    StructuralArgument {
+                        access: StructuralAccess::Owned,
+                        ..argument.clone()
+                    },
+                    true
+                ),
+                (path.to_vec(), None)
+            );
+            let selected_field = OperationProjection {
+                field: semantic_vocabulary::StructuralFieldId::new(2),
+                ..projection
+            };
+            assert_eq!(
+                borrow(selected_field, argument, true),
+                (path.to_vec(), selected_field.field)
+            );
+        }
 
         #[test]
         fn opaque_and_slice_borrows_leave_pointee_storage_out_of_formal_demand() {
