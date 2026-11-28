@@ -2244,7 +2244,7 @@ fn with_prepared_machine<'r, Outcome>(
         formed.schemas,
     )?;
     let (context, ranking_bindings, result) = {
-        let own_index;
+        let independent;
         let (mut references, type_index) = match shared {
             Some((analyses, summaries)) => {
                 let mut references = analyses.analysis(
@@ -2260,15 +2260,20 @@ fn with_prepared_machine<'r, Outcome>(
                 (references, analyses.types())
             }
             None => {
-                own_index = terminal_semantics::descriptor_lifetimes::StructuralTypeIndex::new(
-                    &module.types.structural_types,
-                );
+                independent = terminal_semantics::ModuleAnalyses::new(module).map_err(|error| {
+                    refusal(
+                        RefusalReason::Unsupported,
+                        id,
+                        Construct::Machine,
+                        &error.in_module(module),
+                    )
+                })?;
                 (
-                    terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
-                        &module.types.structural_types,
-                        reference_graph.view(),
+                    independent.analysis(
+                        terminal_semantics::descriptor_results::DescriptorSlotKind::BorrowedStorage,
+                        &reference_graph,
                     ),
-                    &own_index,
+                    independent.types(),
                 )
             }
         };
