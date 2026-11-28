@@ -302,8 +302,11 @@ mod tests {
     fn a_block_scoped_witness_cannot_flow_to_an_outer_local() {
         let source = format!(
             "{PAIR}
-            machine leak(p: @Pair) {{
-                let value: @u8 = {{ let inner: @Pair = p; inner.first }};
+            machine leak(p: @Pair, ordinary: @u8, code: u32) {{
+                let value: @u8 = match code {{
+                    0 -> {{ let inner: @Pair = p; inner.first }},
+                    _ -> ordinary,
+                }};
             }}"
         );
         let error = checked(&[("main.omg", &source)]).unwrap_err();
