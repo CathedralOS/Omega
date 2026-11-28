@@ -3,7 +3,7 @@
 /*
 We assign physical register homes and execute admitted register-pressure
 recovery over the selected instruction program. `stage_register_allocation`
-in `register_allocation.rs` consumes the `SelectedAllocationInput` from
+in `register_allocation.rs` consumes the `SelectedBody` from
 selected instruction optimization. It carries the current program, its
 validated analyses and its `SelectedOptimizationRecord`. The entry point
 runs the allocation procedure the selected allocation-recovery catalog entry
@@ -25,7 +25,7 @@ fresh liveness, live-range, and legality checks before its homes are accepted.
 */
 
 /*
-- Native stage 06 (`selected-instructions-to-selected-instructions`) supplies `SelectedAllocationInput`.
+- Native stage 06 (`selected-instructions-to-selected-instructions`) supplies `SelectedBody`.
 - Native stage 08 (`register-homes-to-post-allocation-machine`) consumes the issued `allocated_body::AllocatedBody`; replay evidence stays with the driver.
 - Flat module layout:
   - `register_allocation.rs`: the stage entrance: select the recovery catalog entry, take the legality analysis, run the procedure the entry names, admit the result.

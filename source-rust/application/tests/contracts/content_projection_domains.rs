@@ -299,16 +299,41 @@ fn a_content_guarantee_cannot_borrow_an_unqualified_input_or_an_entry_result() {
     assert!(report.contains("has no entry content"), "{report}");
 }
 
+const FORWARDER: &str = r#"use {omega}/language/core/extent.omg as extent;
+use {omega}/language/core/foundation.omg as proof;
+use {omega}/language/core/content.omg;
+use {omega}/language/core/nat.omg;
+public boundary trait Move {
+    machine pass(storage: |extent|::Extent in |extent|::Extent::Granted) -> |extent|::Extent
+    reaches none
+    ensures result in |extent|::Extent::Granted,
+        |proof|::Identity::<|content|::IntervalSet<|nat|::Nat>>(|extent|::Granted::content(old(@storage)), |extent|::Granted::content(@result))
+    crashes Trap crashes Abort;
+}
+machine forward(input: |extent|::Extent in |extent|::Extent::Granted) -> |extent|::Extent
+ensures
+    result in |extent|::Extent::Granted,
+    |proof|::Identity::<|content|::IntervalSet<|nat|::Nat>>(|extent|::Granted::content(old(@input)), |extent|::Granted::content(@result))
+crashes Trap crashes Abort
+{ CALL(input) }
+machine main() {}"#;
+
 #[test]
 fn a_boundary_call_composes_the_declared_interval_law_at_its_normal_result() {
     use semantic_vocabulary::{ContentPlaceVersion, ContentTerm};
     use terminal_psi::{BoundaryContentGuarantee, OperationKind};
-    use terminal_semantics::content_transformations::boundary_calls;
 
-    let source = r#"use {omega}/language/core/extent.omg as extent;
-        machine forward(input: |extent|::Extent in |extent|::Extent::Granted) -> |extent|::Extent
-            crashes Trap crashes Abort { |extent|::VacantContentTransfer::transfer(input) }
-        machine main() {}"#;
+    let mut source = FORWARDER.replace("CALL", "Move::pass");
+    source.push_str(r#"
+machine keep(storage: |extent|::Extent in |extent|::Extent::Granted) -> |extent|::Extent
+satisfies Move::pass
+reaches none
+ensures result in |extent|::Extent::Granted,
+    |proof|::Identity::<|content|::IntervalSet<|nat|::Nat>>(|extent|::Granted::content(old(@storage)), |extent|::Granted::content(@result))
+crashes Trap crashes Abort
+{ |extent|::VacantContentTransfer::transfer(storage) }
+Keeper satisfies Move { Move::pass = keep; }
+"#);
     let scratch = platform_custody::temporary_directory::TemporaryDirectory::create(
         "boundary-content-call",
         false,
@@ -316,7 +341,7 @@ fn a_boundary_call_composes_the_declared_interval_law_at_its_normal_result() {
     .unwrap();
     let artifact = scratch.path().join("forward.psi");
     let (out, report) = program::invoke(
-        source,
+        &source,
         &[
             "psi",
             "inspect",
@@ -331,10 +356,15 @@ fn a_boundary_call_composes_the_declared_interval_law_at_its_normal_result() {
         terminal_codec::CanonicalTerminalArtifact::from_bytes(&std::fs::read(artifact).unwrap())
             .unwrap();
     let module = saved.semantic_module();
+    let [provider] = module.interfaces.provider_candidates.as_slice() else {
+        panic!("one provider for the authored Move boundary")
+    };
     let ordinal = module
         .machines
         .iter()
-        .position(|machine| !machine.content_partition_compositions.is_empty())
+        .position(|machine| {
+            module.entry == Some(terminal_psi::TargetMachineCallable::Machine(machine.id))
+        })
         .unwrap();
     let machine = &module.machines[ordinal];
     let [row] = machine.content_partition_compositions.as_slice() else {
@@ -350,6 +380,7 @@ fn a_boundary_call_composes_the_declared_interval_law_at_its_normal_result() {
     else {
         panic!("ordinary boundary call")
     };
+    assert_eq!(*boundary, provider.boundary);
     let declaration = module.boundary_machine(*boundary).unwrap();
     let [BoundaryContentGuarantee::Conservation(law)] = declaration.content_guarantees.as_slice()
     else {
@@ -387,21 +418,76 @@ fn a_boundary_call_composes_the_declared_interval_law_at_its_normal_result() {
     let mut roots = [input.place, result.place];
     roots.sort_unstable();
     assert_eq!([a.root, b.root], roots);
-    assert!(boundary_calls::verify_machine(module, machine).is_ok());
+    let receive = |module: &terminal_psi::TerminalModule| {
+        let bytes = terminal_codec::encode_module(module).expect("the rows are encodable");
+        terminal_codec::decode_module(&bytes)
+    };
+    receive(module).expect("the receiver admits the provider and its caller");
 
     let mut forged = module.clone();
     forged.machines[ordinal].content_partition_compositions[0].input_claims =
         vec![result.claims[0].claim];
-    assert!(boundary_calls::verify_machine(&forged, &forged.machines[ordinal]).is_err());
+    assert!(receive(&forged).is_err());
     forged.machines[ordinal].content_partition_compositions[0] = row.clone();
     forged.machines[ordinal].content_partition_compositions[0].substitutions[0]
         .target
         .root = result.place;
-    assert!(boundary_calls::verify_machine(&forged, &forged.machines[ordinal]).is_err());
+    assert!(receive(&forged).is_err());
     forged.machines[ordinal]
         .content_partition_compositions
         .clear();
-    assert!(boundary_calls::verify_machine(&forged, &forged.machines[ordinal]).is_err());
+    assert!(receive(&forged).is_err());
+
+    // A provider must declare the boundary's equation even when its body preserves the input.
+    let body = module
+        .machines
+        .iter()
+        .position(|machine| machine.id == provider.candidate)
+        .unwrap();
+    let mut missing_law = module.clone();
+    missing_law.machines[body]
+        .contract
+        .ensures
+        .retain(|clause| {
+            !matches!(
+                clause.proposition,
+                semantic_vocabulary::Proposition::ContentConservation(_)
+            )
+        });
+    assert!(receive(&missing_law).is_err());
+    // Leave the provider's promise and the caller's receipts intact. Its own call
+    // can no longer establish that promise once the called boundary loses its law.
+    let mut unproved_return = module.clone();
+    let machine_for_provider = &module.machines[body];
+    let [composition] = machine_for_provider
+        .content_partition_compositions
+        .as_slice()
+    else {
+        panic!("one transfer inside the provider")
+    };
+    let OperationKind::BoundaryCall {
+        boundary: transfer, ..
+    } = machine_for_provider
+        .operation(composition.producer_operation)
+        .unwrap()
+        .kind
+    else {
+        panic!("provider forwards through a boundary")
+    };
+    assert_ne!(transfer, provider.boundary);
+    let called = unproved_return
+        .interfaces
+        .boundary_machines
+        .iter_mut()
+        .find(|row| row.id == transfer)
+        .unwrap();
+    called
+        .content_guarantees
+        .retain(|law| !matches!(law, BoundaryContentGuarantee::Conservation(_)));
+    unproved_return.machines[body]
+        .content_partition_compositions
+        .clear();
+    assert!(receive(&unproved_return).is_err());
 }
 
 /// A machine that forwards an `Extent` through a boundary call restates the
@@ -413,24 +499,6 @@ fn a_boundary_call_composes_the_declared_interval_law_at_its_normal_result() {
 /// has nothing to stand on and is refused.
 #[test]
 fn a_forwarder_restates_the_interval_law_its_boundary_call_declares() {
-    const FORWARDER: &str = r#"use {omega}/language/core/extent.omg as extent;
-use {omega}/language/core/foundation.omg as proof;
-use {omega}/language/core/content.omg;
-use {omega}/language/core/nat.omg;
-public boundary trait Move {
-    machine pass(storage: |extent|::Extent in |extent|::Extent::Granted) -> |extent|::Extent
-    reaches none
-    ensures result in |extent|::Extent::Granted,
-        |proof|::Identity::<|content|::IntervalSet<|nat|::Nat>>(|extent|::Granted::content(old(@storage)), |extent|::Granted::content(@result))
-    crashes Trap crashes Abort;
-}
-machine forward(input: |extent|::Extent in |extent|::Extent::Granted) -> |extent|::Extent
-ensures
-    result in |extent|::Extent::Granted,
-    |proof|::Identity::<|content|::IntervalSet<|nat|::Nat>>(|extent|::Granted::content(old(@input)), |extent|::Granted::content(@result))
-crashes Trap crashes Abort
-{ CALL(input) }
-machine main() {}"#;
     let core = FORWARDER.replace("CALL", "|extent|::VacantContentTransfer::transfer");
     let (output, report) = program::invoke(&core, &["--check"]);
     assert!(output.status.success(), "{report}");

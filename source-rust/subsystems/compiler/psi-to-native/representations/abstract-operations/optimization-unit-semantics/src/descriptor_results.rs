@@ -952,71 +952,105 @@ pub(crate) mod scalar_expressions {
 
         pub(super) fn native_address(
             &self,
+            functions: &[&PsiOptimizationFunction],
             value: ValueId,
         ) -> terminal_semantics::storage::native_borrows::NativeAddressOrigin<
             terminal_psi::StructuralArgument,
         > {
-            use terminal_semantics::storage::native_borrows::{AddressDefinition, trace_address};
-            trace_address(value, |value| {
-                if let Some(definition) = self.definitions.get(&value) {
-                    return match &definition.node.operation {
-                        O::ObserveStorageLocation {
-                            query: terminal_psi::StorageLocationQuery::Address,
-                            source,
-                            path,
-                            ..
-                        } => {
-                            let (block, index) = definition.position;
-                            let Ok(index) = u32::try_from(index) else {
-                                return AddressDefinition::Opaque;
-                            };
-                            AddressDefinition::Storage(
-                                terminal_psi::StructuralArgument {
-                                    place: *source,
-                                    path: path.clone(),
-                                    access: terminal_psi::StructuralAccess::SharedBorrow,
-                                },
-                                (block, index),
-                            )
-                        }
-                        O::ScalarRepresentationView { operand, .. }
-                        | O::IntegerWiden { operand, .. }
-                        | O::IntegerExactCast { operand, .. } => {
-                            AddressDefinition::Forward(*operand)
-                        }
-                        O::IntegerArithmetic {
-                            arithmetic,
-                            left,
-                            right,
-                            ..
-                        } if matches!(
-                            arithmetic.operator(),
-                            abstract_operations::IntegerArithmeticOperator::Add
-                                | abstract_operations::IntegerArithmeticOperator::Subtract
-                        ) =>
-                        {
-                            AddressDefinition::Adjust(*left, *right)
-                        }
-                        _ => AddressDefinition::Opaque,
-                    };
-                }
-                if self.is_formal(value) {
-                    return AddressDefinition::Parameter;
-                }
-                let Some(owner) = self.owners.get(&value) else {
-                    return AddressDefinition::Opaque;
-                };
-                AddressDefinition::Incoming(
-                    self.incoming
-                        .get(owner)
-                        .into_iter()
-                        .flatten()
-                        .map(|incoming| {
-                            incoming.edge.binding(value).map(|binding| binding.argument)
+            use terminal_semantics::storage::native_borrows::{AddressReturnBody, trace_address};
+            trace_address(
+                value,
+                |v| self.address_definition(v),
+                |id| {
+                    let mut matching = functions
+                        .iter()
+                        .copied()
+                        .filter(|function| function.machine == id);
+                    let callee = matching.next()?;
+                    if matching.next().is_some() {
+                        return None;
+                    }
+                    let results = callee
+                        .block_nodes()
+                        .filter_map(|node| match &node.operation {
+                            O::Return { value, .. } => Some(*value),
+                            _ => None,
                         })
-                        .collect(),
-                )
-            })
+                        .collect();
+                    let expressions = ScalarExpressions::new(callee);
+                    Some(AddressReturnBody::new(
+                        callee.parameters.iter().map(|p| p.value).collect(),
+                        results,
+                        |v| expressions.address_definition(v),
+                    ))
+                },
+            )
+        }
+
+        fn address_definition(
+            &self,
+            value: ValueId,
+        ) -> terminal_semantics::storage::native_borrows::AddressDefinition<
+            terminal_psi::StructuralArgument,
+        > {
+            use terminal_semantics::storage::native_borrows::AddressDefinition;
+            if let Some(definition) = self.definitions.get(&value) {
+                if let Some(call) = definition.node.operation.module_invocation() {
+                    return AddressDefinition::Call(call.callee, call.arguments.to_vec());
+                }
+                return match &definition.node.operation {
+                    O::ObserveStorageLocation {
+                        query: terminal_psi::StorageLocationQuery::Address,
+                        source,
+                        path,
+                        ..
+                    } => {
+                        let (block, index) = definition.position;
+                        let Ok(index) = u32::try_from(index) else {
+                            return AddressDefinition::Opaque;
+                        };
+                        AddressDefinition::Storage(
+                            terminal_psi::StructuralArgument {
+                                place: *source,
+                                path: path.clone(),
+                                access: terminal_psi::StructuralAccess::SharedBorrow,
+                            },
+                            (block, index),
+                        )
+                    }
+                    O::ScalarRepresentationView { operand, .. }
+                    | O::IntegerWiden { operand, .. }
+                    | O::IntegerExactCast { operand, .. } => AddressDefinition::Forward(*operand),
+                    O::IntegerArithmetic {
+                        arithmetic,
+                        left,
+                        right,
+                        ..
+                    } if matches!(
+                        arithmetic.operator(),
+                        abstract_operations::IntegerArithmeticOperator::Add
+                            | abstract_operations::IntegerArithmeticOperator::Subtract
+                    ) =>
+                    {
+                        AddressDefinition::Adjust(*left, *right)
+                    }
+                    _ => AddressDefinition::Opaque,
+                };
+            }
+            if self.is_formal(value) {
+                return AddressDefinition::Parameter;
+            }
+            let Some(owner) = self.owners.get(&value) else {
+                return AddressDefinition::Opaque;
+            };
+            AddressDefinition::Incoming(
+                self.incoming
+                    .get(owner)
+                    .into_iter()
+                    .flatten()
+                    .map(|incoming| incoming.edge.binding(value).map(|binding| binding.argument))
+                    .collect(),
+            )
         }
 
         pub(crate) fn literal(&self, value: ValueId) -> Option<T> {
@@ -1614,7 +1648,7 @@ fn adapt(
                             .iter()
                             .map(|formal| formal.value)
                             .zip(actuals.iter().copied()),
-                        |actual| scalar_expressions.native_address(actual),
+                        |actual| scalar_expressions.native_address(functions, actual),
                         track_native_address_effects,
                     )
                 };
@@ -1927,7 +1961,7 @@ fn adapt(
                     address,
                     ..
                 } if slot_kind.tracks_references() => {
-                    let origin = scalar_expressions.native_address(*address);
+                    let origin = scalar_expressions.native_address(functions, *address);
                     graph.native_address_borrow(
                         types,
                         position,

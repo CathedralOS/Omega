@@ -24,6 +24,24 @@ pub mod entry_claims;
 pub mod forwarding;
 pub(crate) mod partition;
 
+/// Check the module's content laws once per provider declaration, machine body and call site.
+/// A candidate promises the boundary's equation, its body proves the promise on return,
+/// and a caller accounts for the owned inputs and results of its own calls.
+pub fn verify_module(analyses: &crate::ModuleAnalyses<'_>) -> Result<(), &'static str> {
+    let module = analyses.module();
+    for candidate in &module.interfaces.provider_candidates {
+        crate::provider_candidates::conservation::match_declared_guarantees(module, candidate)?;
+    }
+    let has_boundary_content = boundary_calls::has_declared_conservation(module);
+    for machine in &module.machines {
+        forwarding::checked_returns_in(analyses, machine)?;
+        if has_boundary_content || !machine.content_partition_compositions.is_empty() {
+            boundary_calls::verify_compositions_in(analyses, machine)?;
+        }
+    }
+    Ok(())
+}
+
 pub fn structural_path<'a>(
     types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     identities: &TerminalIdentityTable,

@@ -46,6 +46,11 @@ machine capacity() -> u64 { 4 }
         };
         slots.type_reference
     };
+    let integer = |value| {
+        typed_trees::expression::ExpressionNode::Integer(
+            numeric_literals::IntegerLiteral::from_value(value),
+        )
+    };
     let original_extent = extent(&program, buffer);
     assert!(
         matches!(program.type_reference_table.type_reference(original_extent),
@@ -54,7 +59,7 @@ machine capacity() -> u64 { 4 }
     );
     assert!(!program.data_application_is_closed(envelope));
     assert_eq!(
-        settle_const_argument(&mut program, count, "-1"),
+        settle_const_argument(&mut program, count, integer(-1)),
         Err("an applied array length is not a closed nonnegative integer".into())
     );
     assert!(matches!(
@@ -63,11 +68,11 @@ machine capacity() -> u64 { 4 }
     ));
     assert_eq!(extent(&program, buffer), original_extent);
 
-    settle_const_argument(&mut program, count, "4").unwrap();
+    settle_const_argument(&mut program, count, integer(4)).unwrap();
     assert_eq!(
         program
-            .type_reference_table
-            .anonymous_numeric_literal_value(count),
+            .static_const_literal_from_type_reference(count)
+            .and_then(|literal| literal.value_u64()),
         Some(4)
     );
     assert_eq!(

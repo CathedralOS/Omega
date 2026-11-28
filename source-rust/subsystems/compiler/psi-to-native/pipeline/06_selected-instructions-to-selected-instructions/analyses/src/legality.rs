@@ -272,6 +272,28 @@ pub struct StagedOptimizedAllocationLegality {
 }
 
 impl StagedOptimizedAllocationLegality {
+    pub(crate) fn into_parts(
+        self,
+    ) -> (
+        StagedOptimizedLiveRanges,
+        ValidatedAllocatorAvailability,
+        ValidatedAllocationLegality,
+    ) {
+        (self.ranges, self.availability, self.legality)
+    }
+    pub(crate) fn from_published(
+        ranges: StagedOptimizedLiveRanges,
+        availability: ValidatedAllocatorAvailability,
+        legality: ValidatedAllocationLegality,
+    ) -> Self {
+        let custody = custody::custody_receipt(ranges.custody(), availability.receipt().identity());
+        Self {
+            ranges,
+            availability,
+            legality,
+            custody,
+        }
+    }
     staged_producer_accessors!(
         ranges; ranges, liveness, selected, record, register_environment, selections, budget_per_pass
     );

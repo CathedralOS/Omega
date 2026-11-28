@@ -100,7 +100,7 @@ pub(crate) fn constructor_type<'name>(
 ) -> Result<Option<(SymbolHandle, Option<&'name str>)>, String> {
     let record = symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
         name,
-        &[SymbolKind::Data],
+        &[SymbolKind::Data, SymbolKind::Trait],
         reference,
         |_| true,
     );

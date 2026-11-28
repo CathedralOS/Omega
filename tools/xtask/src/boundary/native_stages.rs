@@ -19,6 +19,10 @@ pub(super) const OBJECT_REPLAY: &str = native!("/verification/published-objects"
 pub(super) const PRODUCT_PUBLICATION: &str = "source-rust/subsystems/compiler/build/publication";
 const BODY_PLAN: &str = native!("/representations/target-operations/body-plan");
 const PLAN_ISSUER: &str = native!("/representations/target-operations/body-plan/issuer");
+const SELECTED_BODY: &str = native!("/representations/selected-instructions/published");
+const SELECTED_FACTS: &str = native!("/representations/selected-instructions/published/facts");
+const SELECTED_BODY_ISSUER: &str =
+    native!("/representations/selected-instructions/published/issuer");
 const ALLOCATED_BODY: &str = native!("/representations/register-homes/published");
 const ALLOCATION_ISSUER: &str = native!("/representations/register-homes/published/issuer");
 /// Program forms instruction selection consumes. Later stages read the facts
@@ -127,6 +131,42 @@ pub(super) fn rules() -> Vec<Rule> {
             dependency: ALLOCATION_ISSUER,
         }],
     });
+    rules.push(Rule {
+        owners: vec![stages[6]],
+        forbidden: vec![],
+        forbidden_packages: vec![stages[5]],
+        reason: "allocation consumes the issued selected representation, not the rewrite driver",
+        except_package: None,
+        except_owners: vec![],
+        allowed: vec![],
+    });
+    rules.push(Rule {
+        owners: vec![""],
+        forbidden: vec![],
+        forbidden_packages: vec![SELECTED_BODY_ISSUER],
+        reason: "only selected optimization may issue the completed allocation input",
+        except_package: Some(SELECTED_BODY),
+        except_owners: vec![],
+        allowed: vec![
+            Allowance {
+                owner: stages[5],
+                dependency: SELECTED_BODY_ISSUER,
+            },
+            Allowance {
+                owner: SELECTED_FACTS,
+                dependency: SELECTED_BODY_ISSUER,
+            },
+        ],
+    });
+    rules.push(Rule {
+        owners: vec![ANALYSES],
+        forbidden: vec![],
+        forbidden_packages: vec![SELECTED_BODY],
+        reason: "shared selected analyses consume facts without body publication metadata",
+        except_package: None,
+        except_owners: vec![],
+        allowed: vec![],
+    });
     // Stage 02's abstract program and stage 04's target operations stop at
     // instruction selection. The requested object audit that rejoins them to an
     // emitted object lives in the published-object verifier, outside the pipeline,
@@ -172,6 +212,36 @@ mod tests {
                 violations.is_empty(),
                 permitted,
                 "{owner} -> {dependency} ({kind:?}): {violations:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn allocation_reads_the_selected_product_without_its_producer_or_issuer() {
+        for (owner, dependency, permitted) in [
+            (NATIVE_STAGES[6], SELECTED_BODY, true),
+            (NATIVE_STAGES[6], ANALYSES, true),
+            (NATIVE_STAGES[6], NATIVE_STAGES[5], false),
+            (NATIVE_STAGES[6], SELECTED_BODY_ISSUER, false),
+            (DRIVER, SELECTED_BODY_ISSUER, false),
+            (ANALYSES, SELECTED_BODY_ISSUER, false),
+            (ANALYSES, SELECTED_BODY, false),
+            (ANALYSES, SELECTED_FACTS, true),
+            (SELECTED_FACTS, SELECTED_BODY_ISSUER, true),
+            (SELECTED_FACTS, ANALYSES, false),
+            (NATIVE_STAGES[5], SELECTED_BODY_ISSUER, true),
+            (SELECTED_BODY, SELECTED_BODY_ISSUER, true),
+            (SELECTED_BODY, ANALYSES, false),
+        ] {
+            let metadata = Metadata {
+                workspace_root: "/repo".into(),
+                packages: vec![pkg("reader", owner, &[("dependency", dependency, None)])],
+            };
+            let violations = forbidden_dependency_violations(&metadata, &rules()).unwrap();
+            assert_eq!(
+                violations.is_empty(),
+                permitted,
+                "{owner} -> {dependency}: {violations:?}"
             );
         }
     }
