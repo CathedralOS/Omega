@@ -138,3 +138,32 @@ fn a_call_through_a_machine_value_owes_its_callable_types_requirement() {
         "{refusal:?}"
     );
 }
+
+#[test]
+fn a_returned_reader_can_call_its_own_state_of_the_same_concrete_type() {
+    let source = r#"data File { byte: u8; }
+data ReaderFn<S> = machine(state: @S) -> u8 reaches none crashes none;
+data Reader<'a, some S> { state: @'a S; read: ReaderFn<S>; }
+machine from_file(state: @File) -> u8 reaches none crashes none { state.byte }
+machine pack<'a>(file: @'a File) -> Reader<'a> {
+    Reader { state: file, read: from_file }
+}
+machine main() crashes Trap {
+    let file: File = File { byte: 17u8 };
+    let other_file: File = File { byte: 42u8 };
+    let reader: Reader = pack(@file);
+    let other: Reader = pack(@other_file);
+    let value: u8 = (reader.read)(reader.state);
+    transition value == 17u8 { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}
+"#;
+    Program::of(source).judged(|_| ()).accepted();
+
+    let crossed = source.replace("(reader.read)(reader.state)", "(reader.read)(other.state)");
+    let Err(refusal) = Program::try_of(&[("main.omg", &crossed)]) else {
+        panic!("the two returned File readers must keep distinct openings");
+    };
+    assert!(refusal.message.contains("argument types"), "{refusal:?}");
+}
