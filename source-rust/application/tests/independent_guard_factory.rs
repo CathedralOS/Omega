@@ -1,12 +1,15 @@
 //! The selected provider returns a guard to its caller. The caller may keep it
 //! across another acquisition or release it first, possibly on a sibling word.
-#![cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[path = "support/components.rs"]
+mod components;
 
 #[path = "support/project.rs"]
 mod project;
 
+use psi_provider_selections::invocation_progress_failure;
 use std::fs;
 use std::path::Path;
+use terminal_semantics::synchronization::{ProgressFailure, ProgressScope};
 
 const FACTORY: &str = r#"public data Lock { held: AtomicU32; }
 
@@ -40,7 +43,9 @@ public GuardedPair satisfies Protect {
 
 const CALLER: &str = r#"use {signals}/main.omg as locks;
 
-machine main() reaches |locks|::Protect crashes none {
+machine main() reaches |locks|::Protect crashes none { work(); }
+
+machine work() reaches |locks|::Protect crashes none {
     let mutable first: |locks|::Lock;
     let mutable second: |locks|::Lock;
     let outer: |locks|::Guard = |locks|::Protect::hold_guard(@first, @first);
@@ -61,56 +66,56 @@ fn checked_factory_returns_the_exact_borrow_until_its_consumer_drops_it() {
     let reacquire = CALLER.replace("(@second, @second)", "(@first, @first)");
     let released = reacquire.replace("let kept: |locks|::Guard = move outer;", "");
     let sibling = released.replacen("(@first, @first)", "(@first, @second)", 1);
-    for (name, source, deadlock) in [
-        ("distinct", CALLER, false),
-        ("reacquire", &reacquire, true),
-        ("released", &released, false),
-        ("cleanup of sibling", &sibling, true),
+    let scratch = project::stage(
+        "independent-guard-factory",
+        &[
+            ("supplier/main.omg", FACTORY),
+            ("supplier/build.omg", &package),
+            ("application/main.omg", CALLER),
+            ("application/build.omg", &build),
+        ],
+    );
+    let supplier_dir = scratch.path().join("supplier");
+    let (ok, report) = project::status(&project::omega(
+        &supplier_dir,
+        &["--emit-psi", "factory.psi", "build.omg"],
+    ));
+    assert!(ok, "{report}");
+    let supplier = terminal_codec::CanonicalTerminalArtifact::from_bytes(
+        &fs::read(supplier_dir.join("factory.psi")).unwrap(),
+    )
+    .unwrap();
+    let [factory] = supplier
+        .semantic_module()
+        .interfaces
+        .provider_candidates
+        .as_slice()
+    else {
+        panic!("expected one checked factory");
+    };
+    let app = scratch.path().join("application");
+    for (name, source, expected) in [
+        ("distinct", CALLER, None),
+        ("reacquire", &reacquire, Some(ProgressFailure::Deadlock)),
+        ("released", &released, None),
+        (
+            "cleanup of sibling",
+            &sibling,
+            Some(ProgressFailure::Deadlock),
+        ),
     ] {
-        let scratch = project::stage(
-            "independent-guard-factory",
-            &[
-                ("supplier/main.omg", FACTORY),
-                ("supplier/build.omg", &package),
-                ("application/main.omg", source),
-                ("application/build.omg", &build),
-            ],
-        );
-        let root = scratch.path().join("application");
-        let (built, report) = project::status(&project::omega(
-            &root,
-            &[
-                "--target",
-                "linux_x86_64",
-                "--build-dir",
-                "out",
-                "build.omg",
-            ],
-        ));
-        assert_eq!(built, !deadlock, "{name}: {report}");
-        if built {
-            project::assert_native_returns(&root.join("out/omega-program"), name);
-        }
-        let (ran, diagnostic) = project::status(&project::omega(
-            &root,
-            &[
-                "run",
-                "--target",
-                "linux_x86_64",
-                "--psi-work-budget",
-                "10000",
-                "build.omg",
-            ],
-        ));
-        assert_eq!(ran, !deadlock, "{name}: {diagnostic}");
-        if deadlock {
-            for failure in [report, diagnostic] {
-                assert!(
-                    failure.contains("synchronization deadlock")
-                        && failure.contains("unchanged private atomic storage"),
-                    "{name}: {failure}"
-                );
-            }
+        project::write(&app, &[("main.omg", source)]);
+        let receiver = components::inspect(&app, "work");
+        let Some(terminal_psi::TargetMachineCallable::Machine(entry)) =
+            receiver.semantic_module().entry
+        else {
+            panic!("expected the consumer's checked work entry");
+        };
+        let admitted = components::admit(&receiver, &supplier, factory);
+        for scope in [ProgressScope::Executable, ProgressScope::OpenInterface] {
+            let failure =
+                invocation_progress_failure(receiver.view(), entry, scope, [&admitted], |_| None);
+            assert_eq!(failure.map(|failure| failure.cause), expected, "{name}");
         }
     }
 }
