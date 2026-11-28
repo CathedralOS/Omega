@@ -126,7 +126,7 @@ pub fn prepare_replay<'source>(
                     QualificationViolation::Establishment(denied) => {
                         denied_domain_cast(elaboration, denied)
                     }
-                    QualificationViolation::MemoryAccess { machine, operation } => crate::refusal(
+                    QualificationViolation::Operation { machine, operation } => crate::refusal(
                         RefusalReason::Violation,
                         machine,
                         Construct::Operation(operation),
