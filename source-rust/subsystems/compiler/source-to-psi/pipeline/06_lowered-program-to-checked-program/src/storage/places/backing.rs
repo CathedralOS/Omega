@@ -1002,38 +1002,15 @@ impl<'a> Storage<'a> {
                         &location,
                     )
                 {
+                    addresses
+                } else {
                     return self
                         .native_referent_backing(references, place, at, concerns)?
                         .map(Some)
-                        .ok_or_else(|| {
-                            self.unsupported(
-                                concerns,
-                                "native reference has no current typed referent",
-                            )
-                        });
+                        .ok_or_else(|| self.unsupported(concerns, detail));
                 }
-                Ok(Some(addresses)) => addresses,
-                Ok(None) => return Ok(None),
-                Err(detail) => {
-                    if call_write
-                        && let Some(addresses) =
-                            terminal_semantics::packages::local_call_write_origins(
-                                self.module,
-                                self.lowered,
-                                at,
-                                references,
-                                &location,
-                            )
-                    {
-                        addresses
-                    } else {
-                        return self
-                            .native_referent_backing(references, place, at, concerns)?
-                            .map(Some)
-                            .ok_or_else(|| self.unsupported(concerns, detail));
-                    }
-                }
-            };
+            }
+        };
         let owner = if borrowed_arrival && !place.segments.contains(&Segment::Referent) {
             match self.root_kind(place.root, concerns)? {
                 StructuralPlaceKind::BlockParameter { block, .. } => Some(block),
