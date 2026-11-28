@@ -7995,10 +7995,26 @@ pub(crate) mod storage_foundations {
             if !super::super::is_op_result_place(machine, operation, result) {
                 return malformed("owned value transfer result is not a fresh occurrence");
             }
-            if !terminal_payload_contract(machine, source.place).is_some_and(|declared| {
-                declared.move_preserves_qualifications(&source.path, result)
-            }) {
-                return malformed("owned value transfer loses source memberships");
+            let declared = terminal_payload_contract(machine, source.place).ok_or(
+                CodecError::MalformedStructuralFoundation("owned value transfer has no source declaration"),
+            )?;
+            if !declared.move_preserves_qualifications(&source.path, result) {
+                let (whole, projected) = terminal_psi::StructuralPathQualification::select(
+                    &declared.qualifications,
+                    &declared.projected_qualifications,
+                    &source.path,
+                );
+                let memberships = terminal_semantics::structural_qualifications::Memberships {
+                    whole,
+                    projected,
+                };
+                if !analyses
+                    .package_sites()
+                    .map_err(CodecError::MalformedStructuralFoundation)?
+                    .moved_owner_carries(module, machine, operation, selected.id, &memberships)
+                {
+                    return malformed("owned value transfer loses source memberships");
+                }
             }
             validate_current_source_memberships(analyses, machine, operation)?;
             validate_byte_transfer_qualifications(module, machine, operation)

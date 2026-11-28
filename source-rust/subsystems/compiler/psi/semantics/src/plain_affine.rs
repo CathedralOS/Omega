@@ -6,7 +6,7 @@
 //! edge schedule; a checker reconstructs it from the same unsealed operations.
 
 mod claims;
-pub use claims::{ClaimLocation, ClaimsPlan, publish_contract_claims};
+pub use claims::{ClaimLocation, ClaimsPlan, publish_callable_claims, publish_contract_claims};
 mod fences;
 
 pub use fences::CallFence;
