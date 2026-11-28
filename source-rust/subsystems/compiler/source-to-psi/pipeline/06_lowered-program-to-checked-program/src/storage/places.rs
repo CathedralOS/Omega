@@ -4180,11 +4180,12 @@ impl<'a> Storage<'a> {
         Ok(true)
     }
 
-    fn native_scalar_contents(
+    fn initialized_native_contents(
         &self,
         mut owner: StructuralTypeId,
         tail: &[Segment],
         concerns: Construct,
+        stored_reference: impl FnOnce() -> bool,
     ) -> Checked<bool> {
         for (position, step) in tail.iter().enumerate() {
             let declaration = self.declaration(owner, concerns)?;
@@ -4214,7 +4215,13 @@ impl<'a> Storage<'a> {
         }
         let declaration = self.declaration(owner, concerns)?;
         Ok(declaration.quotient_carrier.is_none()
-            && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_)))
+            && match declaration.shape {
+                StructuralTypeShape::PrimitiveScalar(_) => true,
+                StructuralTypeShape::Reference {
+                    access: StructuralAccess::SharedBorrow, ..
+                } => stored_reference(),
+                _ => false,
+            })
     }
 
     fn reaching_supply(
@@ -4228,9 +4235,8 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<Supply> {
         let original = asked.place();
-        // Formation asserts an initialized native T. Only scalar storage inside
-        // that T is established here. Bounds, stored values and the backing of
-        // an embedded reference have their own observations.
+        // Formation supplies the initialized scalar leaves of T. A stored
+        // reference also requires its own current backing at this read.
         if matches!(asked, Asked::Contents(_))
             && let Some(crossing) = original
                 .segments
@@ -4248,7 +4254,12 @@ impl<'a> Storage<'a> {
             let tail = &original.segments[crossing + 1..];
             let established = match source {
                 loans::ExternalReferent::Native => {
-                    self.native_scalar_contents(referent, tail, concerns)?
+                    self.initialized_native_contents(referent, tail, concerns, || {
+                        original
+                            .descriptor_location()
+                            .and_then(|cell| references.symbolic_source_origins(self.machine, at, &cell))
+                            .is_some_and(|origins| !origins.is_empty())
+                    })?
                 }
                 loans::ExternalReferent::Provider if tail.is_empty() => {
                     let declaration = self.declaration(referent, concerns)?;

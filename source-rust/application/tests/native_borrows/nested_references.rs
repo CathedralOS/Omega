@@ -103,6 +103,36 @@ fn replacing_a_reference_through_its_native_address_changes_only_the_slot() {
 }
 
 #[test]
+fn a_helper_reads_an_initialized_reference_cell_through_its_address() {
+    let source = r#"
+machine load<'a>(location: address) -> u8 {
+    let view: @@'a u8 = |native|::borrow_at::<@'a u8>(location);
+    let stored: @'a u8 = $view;
+    $stored
+}
+machine inspect<'a>(source: @'a u8) -> u8 {
+    let slot: @'a u8 = source;
+    load(address_of(@slot))
+}
+machine main() crashes Trap {
+    let first: u8 = 19u8;
+    let second: u8 = 31u8;
+    transition inspect(@first) == 19u8 && inspect(@second) == 31u8 {
+        true -> {}, false -> wrong()
+    }
+    machine wrong() { crash Trap; }
+}"#;
+    Program::new(source, &[READ]).assert_native_returns();
+    let denied = source.replace("    $stored\n", "    $stored = 7u8;\n    $stored\n");
+    let result = Program::new(&denied, &[READ]).check();
+    let diagnostic = super::report(&result);
+    assert!(
+        !result.status.success() && diagnostic.contains("grants shared access only"),
+        "{diagnostic}"
+    );
+}
+
+#[test]
 fn a_helper_updates_the_callers_reference_slot_through_its_address() {
     let source = r#"
 machine load<'a>(location: address, replacement: @'a u8) -> u8 {
