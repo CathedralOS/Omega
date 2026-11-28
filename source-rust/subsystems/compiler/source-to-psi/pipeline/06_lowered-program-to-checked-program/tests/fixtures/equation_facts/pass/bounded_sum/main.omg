@@ -1,0 +1,14 @@
+// `embed(x) + embed(y)` equals `embed(z)`, and `z` is a `u64`, so the sum
+// stays within the `u64` range although `x` and `y` alone could each reach
+// its top. The floor rewrites the sum to `embed(z)` and bounds that.
+machine bounded(x: u64, y: u64, z: u64)
+requires embed(x) + embed(y) == embed(z)
+{
+    fits(x, y);
+}
+
+machine fits(x: u64, y: u64)
+requires embed(x) + embed(y) <= 18446744073709551615
+{}
+
+machine main() {}
