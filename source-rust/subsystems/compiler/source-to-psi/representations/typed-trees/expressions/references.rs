@@ -4110,7 +4110,7 @@ fn visit_interrupt_registration(
 ) {
     visit_symbol(retained, installation.registrar_trait);
     if retained.derived_declaration_references()
-        && let Some(registrar) = installation.prepared
+        && let Some(registrar) = installation.prepared.as_deref()
     {
         visit_callable_symbol(program, retained, registrar.target);
         visit_static_machine_bindings(program, retained, registrar.application);

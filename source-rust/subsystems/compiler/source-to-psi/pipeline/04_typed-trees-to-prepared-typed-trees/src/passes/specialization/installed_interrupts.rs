@@ -5,7 +5,7 @@
 use super::{
     Applied, Served, Site, StaticArgumentCall, TypedTrees, static_operand_binding, unserved,
 };
-use crate::source_state::expression::{ExpressionNode, PreparedInterruptRegistrar};
+use crate::source_state::expression::{ExpressionNode, PreparedInterruptRegistration};
 use crate::source_state::statement::StatementNode;
 use crate::source_state::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
 use language_core::sealed_intrinsics::SealedIntrinsic;
@@ -43,8 +43,16 @@ pub(super) fn prepare_registrar(
         ));
     }
     let caller = program
+        .expression_table
         .static_machine_application(installer.application)
         .lexical_owner;
+    let sources = source_admission::source_identity::toolchain_source_identities(
+        program.symbols.source_files(),
+    )
+    .map_err(unserved)?;
+    let timer_slot = program
+        .private_callback_slot_selection(&request.timer_slot, caller, &sources)
+        .map_err(unserved)?;
     let mut requirement = &request.registrar;
     let receiver = request
         .registrar
@@ -109,15 +117,16 @@ pub(super) fn prepare_registrar(
     .ok_or(unserved(
         "interrupt registrar needs its exact receiving trait arguments",
     ))?;
-    if let Some(previous) = request.prepared
+    if let Some(previous) = request.prepared.as_deref()
         && (previous.receiving_scope.supplying_owner() != caller
+            || previous.timer_slot != timer_slot
             || previous
                 .receiving_scope
                 .scope(program)
                 .is_none_or(|old| !old.same_application(program, &scope)))
     {
         return Err(unserved(
-            "prepared interrupt registrar lost its receiving scope",
+            "prepared interrupt registration lost its receiving scope or private slot",
         ));
     }
     let receiving = scope.environment();
@@ -128,7 +137,7 @@ pub(super) fn prepare_registrar(
         ))?;
     let needs_closed = header_has_binders || !declaring.keeps_declared_signatures(program);
     let declaring = declaring.environment();
-    let application = if let Some(prepared) = request.prepared {
+    let application = if let Some(prepared) = request.prepared.as_deref() {
         if !program
             .expression_table
             .static_machine_application_is_valid(prepared.application)
@@ -137,10 +146,14 @@ pub(super) fn prepare_registrar(
                 "prepared interrupt registrar lost its original call or receiving scope",
             ));
         }
-        let previous = program.static_machine_application(prepared.application);
+        let previous = program
+            .expression_table
+            .static_machine_application(prepared.application);
         if previous.lexical_owner != caller
             || previous.registration_operation != target
-            || program.static_machine_application_arguments(prepared.application)
+            || program
+                .expression_table
+                .static_machine_application_arguments(prepared.application)
                 != method_arguments
         {
             return Err(unserved(
@@ -177,7 +190,7 @@ pub(super) fn prepare_registrar(
             ));
         }
     };
-    if let Some(previous) = request.prepared {
+    if let Some(previous) = request.prepared.as_deref() {
         return if previous.target == selected {
             Ok(())
         } else {
@@ -198,10 +211,11 @@ pub(super) fn prepare_registrar(
         },
     }
     .ok_or(unserved("interrupt registration lost its source call"))?;
-    request.prepared = Some(PreparedInterruptRegistrar {
+    request.prepared = Some(Box::new(PreparedInterruptRegistration {
         application,
         target: selected,
         receiving_scope: receiving,
-    });
+        timer_slot,
+    }));
     Ok(())
 }

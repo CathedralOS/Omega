@@ -5044,7 +5044,7 @@ pub mod expression {
 
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
     pub struct InstalledInterruptOperationRequest {
-        pub prepared: Option<PreparedInterruptRegistrar>,
+        pub prepared: Option<Box<PreparedInterruptRegistration>>,
         pub registrar_selection:
             Option<crate::source_selections::AuthoredDeclarationSelectionOccurrenceId>,
         pub registrar_trait: SymbolHandle,
@@ -5052,12 +5052,13 @@ pub mod expression {
         pub timer_slot: StaticMachineArgument,
     }
 
-    /// A prepared scope and target belong to the same registrar application.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
-    pub struct PreparedInterruptRegistrar {
+    /// One installation owns its registrar application, receiving scope and private slot.
+    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+    pub struct PreparedInterruptRegistration {
         pub application: crate::source_state::static_applications::StaticMachineApplicationHandle,
         pub target: SymbolHandle,
         pub receiving_scope: crate::source_state::trait_definition::RetainedTraitScope,
+        pub timer_slot: application_identity::callback_declarations::PrivateCallbackSlotSelection,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]

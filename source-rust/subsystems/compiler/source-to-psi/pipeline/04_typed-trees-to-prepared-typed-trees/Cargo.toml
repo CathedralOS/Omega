@@ -13,6 +13,7 @@ test-support = ["prepared-source/test-support"]
 [dependencies]
 prepared-source = { path = "../../representations/prepared-source" }
 prepared-source-issuer = { path = "../../representations/prepared-source/issuer" }
+source-admission = { path = "../../representations/source-files/custody" }
 source-declarations = { path = "../../representations/symbol-resolved-trees/declarations" }
 typed-trees = { path = "../../representations/typed-trees" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
@@ -29,5 +30,4 @@ symbols = { path = "../../../foundation/declaration-identity" }
 prepared-source = { path = "../../representations/prepared-source", features = ["test-support"] }
 source-symbol-table = { path = "../../representations/symbol-resolved-trees/symbol-table" }
 application-identity = { path = "../../../psi/identities/applications" }
-source-admission = { path = "../../representations/source-files/custody" }
 record-storage = { path = "../../../../../foundation/record-storage" }
