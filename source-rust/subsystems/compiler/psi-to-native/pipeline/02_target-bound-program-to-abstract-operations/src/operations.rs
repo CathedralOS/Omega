@@ -835,15 +835,10 @@ mod machine {
                             .structural()
                             .cloned()
                             .ok_or(LoweringError::UnsupportedReferenceCustody(operation.id))?;
-                        let origin = terminal_semantics::storage::native_borrows::address_origin(
-                            machine, *address,
-                        );
                         Ok(AbstractOperation::BorrowAt {
                             psi_operation: operation.id,
                             result,
                             address: *address,
-                            sources: origin.sources.into_iter().cloned().collect(),
-                            exact_origin: origin.exact,
                         })
                     }
                     OperationKind::UpgradeMutability { source } => {

@@ -705,10 +705,6 @@ define_abstract_operations! {
         psi_operation: OperationId,
         result: OperationResult,
         address: ValueId,
-        // Storage known to the checked address computation. These observations
-        // retain aliases across the native pipeline without becoming operands.
-        sources: Vec<StructuralArgument>,
-        exact_origin: bool,
     },
     UpgradeMutability {
         psi_operation: OperationId,

@@ -2040,6 +2040,7 @@ pub(crate) fn establish_trusted(
     operation: &AbstractOperation,
     site: &mut RowSite<'_>,
 ) -> Result<(), LoweringError> {
+    let native_addresses = site.native_addresses;
     let (function, types, live, operations, provenance) = site.parts();
     let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let (psi_operation, result) = match operation {
@@ -2073,20 +2074,16 @@ pub(crate) fn establish_trusted(
     }
     let result_home = super::aggregate_results::home(psi_operation, result, types)?;
     let targeted = match operation {
-        AbstractOperation::BorrowAt {
-            address,
-            sources,
-            exact_origin,
-            ..
-        } => {
+        AbstractOperation::BorrowAt { address, .. } => {
             let scalar = super::scalar_sources::source(*address, function, live)?.scalar_type();
             if !terminal_psi::StorageLocationQuery::Address.admits_result(scalar) {
                 return Err(invalid());
             }
+            let origin = native_addresses.origin(*address).ok_or_else(invalid)?;
             let mut origins = Vec::new();
-            for source in sources {
+            for source in &origin.sources {
                 let root = normalized_source(function, live, types, source)?;
-                let extent = if *exact_origin
+                let extent = if origin.exact
                     && reference_source_type(function, live, types, source) == Some(referent)
                 {
                     semantic_vocabulary::ReferenceOriginExtent::Projected

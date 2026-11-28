@@ -568,6 +568,8 @@ mod row {
     );
 
     pub(crate) struct RowSite<'a> {
+        pub(crate) native_addresses:
+            &'a optimization_unit_semantics::descriptor_results::NativeAddresses,
         pub(crate) function: &'a AbstractFunction,
         pub(crate) types: &'a StructuralTypeLookup<'a>,
         pub(crate) live: &'a mut LiveDefinitions,
@@ -577,6 +579,7 @@ mod row {
 
     impl<'a> RowSite<'a> {
         pub(crate) fn new(
+            native_addresses: &'a optimization_unit_semantics::descriptor_results::NativeAddresses,
             function: &'a AbstractFunction,
             types: &'a StructuralTypeLookup<'a>,
             live: &'a mut LiveDefinitions,
@@ -584,6 +587,7 @@ mod row {
             provenance: &'a mut TerminalPsiProvenance,
         ) -> Self {
             Self {
+                native_addresses,
                 function,
                 types,
                 live,
@@ -3096,6 +3100,8 @@ pub(crate) fn lower(
         );
         reference_storage[position] = storage;
     }
+    let native_addresses =
+        optimization_unit_semantics::descriptor_results::NativeAddresses::new(optimized);
     let mut live_exits: Vec<Option<LiveDefinitions>> = vec![None; entries.len()];
     let mut reference_entries = vec![None; entries.len()];
     let mut borrowed_entries = vec![None; entries.len()];
@@ -3260,6 +3266,7 @@ pub(crate) fn lower(
                 lower_operation(
                     operation,
                     &mut RowSite::new(
+                        &native_addresses,
                         function,
                         structural_types,
                         &mut live,

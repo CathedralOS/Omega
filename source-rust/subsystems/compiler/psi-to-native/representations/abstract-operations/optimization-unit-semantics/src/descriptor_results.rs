@@ -855,6 +855,7 @@ pub(crate) mod scalar_expressions {
 
     pub(crate) struct ScalarExpressions<'function> {
         entry: BlockId,
+        formals: Vec<ValueId>,
         types: BTreeMap<ValueId, ScalarType>,
         constants: std::cell::RefCell<terminal_semantics::ScalarConstants>,
         definitions: BTreeMap<ValueId, ScalarDefinition<'function>>,
@@ -875,8 +876,15 @@ pub(crate) mod scalar_expressions {
                 .map(|value| (value.value, value.scalar_type))
                 .collect();
             let constants = terminal_semantics::ScalarConstants::for_values(types.keys().copied());
+            let mut formals: Vec<_> = function
+                .parameters
+                .iter()
+                .map(|formal| formal.value)
+                .collect();
+            formals.sort_unstable();
             let mut reader = Self {
                 entry: function.entry,
+                formals,
                 types,
                 constants: std::cell::RefCell::new(constants),
                 definitions: BTreeMap::new(),
@@ -936,10 +944,13 @@ pub(crate) mod scalar_expressions {
             reader
         }
 
+        pub(super) fn is_formal(&self, value: ValueId) -> bool {
+            self.formals.binary_search(&value).is_ok()
+        }
+
         pub(super) fn native_address(
             &self,
             value: ValueId,
-            scalar_formals: &[ValueId],
         ) -> terminal_semantics::storage::native_borrows::NativeAddressOrigin<
             terminal_psi::StructuralArgument,
         > {
@@ -978,7 +989,7 @@ pub(crate) mod scalar_expressions {
                         _ => AddressDefinition::Opaque,
                     };
                 }
-                if scalar_formals.binary_search(&value).is_ok() {
+                if self.is_formal(value) {
                     return AddressDefinition::Parameter;
                 }
                 let Some(owner) = self.owners.get(&value) else {
@@ -1090,6 +1101,43 @@ use semantic_vocabulary::ValueId;
 use terminal_psi::TerminalDynamicDispatchCatalog;
 use terminal_semantics::descriptor_lifetimes::canonical_descriptor_location;
 use terminal_semantics::runtime_structural_path_tip;
+
+use terminal_semantics::storage::native_borrows::NativeAddressOrigin;
+
+/// Storage identified by the raw address operands in this optimized function.
+pub struct NativeAddresses(Vec<(ValueId, NativeAddressOrigin<StructuralArgument>)>);
+
+impl NativeAddresses {
+    pub fn new(function: &PsiOptimizationFunction) -> Self {
+        let mut addresses = function
+            .block_nodes()
+            .filter_map(|node| match &node.operation {
+                O::BorrowAt { address, .. } => Some(*address),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if addresses.is_empty() {
+            return Self(Vec::new());
+        }
+        addresses.sort_unstable();
+        addresses.dedup();
+        let expressions = ScalarExpressions::new(function);
+        Self(
+            addresses
+                .into_iter()
+                .map(|value| (value, expressions.native_address(value)))
+                .collect(),
+        )
+    }
+
+    pub fn origin(&self, address: ValueId) -> Option<&NativeAddressOrigin<StructuralArgument>> {
+        let position = self
+            .0
+            .binary_search_by_key(&address, |(value, _)| *value)
+            .ok()?;
+        Some(&self.0[position].1)
+    }
+}
 
 pub fn abstract_reference_catalog_graph<'function, 'boundary>(
     functions: impl IntoIterator<Item = &'function AbstractFunction>,
@@ -1333,15 +1381,9 @@ fn adapt(
     selector_graph: Option<&[DescriptorMachine]>,
 ) -> Option<DescriptorMachine> {
     let scalar_expressions = ScalarExpressions::new(function);
-    let mut scalar_formals = function
-        .parameters
-        .iter()
-        .map(|parameter| parameter.value)
-        .collect::<Vec<_>>();
-    scalar_formals.sort_unstable();
     let selector = |value| {
         kernel::entry_selector(scalar_expressions.expression(value)?, |id| {
-            scalar_formals.binary_search(&id).is_ok()
+            scalar_expressions.is_formal(id)
         })
     };
     let mut graph = DescriptorMachine {
@@ -1591,7 +1633,7 @@ fn adapt(
                             .iter()
                             .map(|formal| formal.value)
                             .zip(actuals.iter().copied()),
-                        |actual| scalar_expressions.native_address(actual, &scalar_formals),
+                        |actual| scalar_expressions.native_address(actual),
                     )
                 };
             if let O::IntegerConstant {
@@ -1903,7 +1945,7 @@ fn adapt(
                     address,
                     ..
                 } if slot_kind.tracks_references() => {
-                    let origin = scalar_expressions.native_address(*address, &scalar_formals);
+                    let origin = scalar_expressions.native_address(*address);
                     graph.native_address_borrow(
                         types,
                         position,
