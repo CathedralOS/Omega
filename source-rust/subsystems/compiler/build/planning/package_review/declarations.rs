@@ -4,6 +4,7 @@
 //! the review incomplete instead of vanishing from its inventory.
 
 use super::input::PolicySource;
+use super::telescope::SignatureScope;
 use diagnostics::Diagnostic;
 use review_evidence::record::PackageReviewDomainEstablishmentRoute as ReviewedIssuer;
 use review_evidence::record::{
@@ -468,16 +469,12 @@ impl<'a> PolicySource<'a> {
             if !self.owns(definition.symbol, package)? {
                 continue;
             }
-            if !definition.type_parameters.is_empty()
-                || !definition.index_arguments.is_empty()
-                || definition.alias.is_some()
+            if definition.alias.is_some()
                 || definition.classification.is_some()
                 || definition.cleanup_selection.is_some()
                 || !definition.operators.is_empty()
             {
-                return Err(unavailable(
-                    "this domain's complete parameter, alias or role contract",
-                ));
+                return Err(unavailable("this domain's complete alias or role contract"));
             }
             if definition.semantic_roles.denotation_dimension.is_some()
                 || definition.semantic_roles.arithmetic_policy.is_some()
@@ -499,11 +496,16 @@ impl<'a> PolicySource<'a> {
             }
             predicate_facts.sort();
             predicate_facts.dedup();
+            let scope = SignatureScope::declaration(self, &[definition.symbol])?;
             rows.push(PackagePolicyDomainShape {
                 identity: self.nominal(definition.symbol)?,
-                type_parameters: Vec::new(),
-                target_type: self.type_identity(definition.symbol, definition.target_type)?,
-                index_arguments: Vec::new(),
+                type_parameters: self.scoped_parameters(definition.symbol, &scope)?,
+                target_type: self.scoped_type(definition.symbol, definition.target_type, &scope)?,
+                index_arguments: definition
+                    .index_arguments
+                    .iter()
+                    .map(|&argument| self.scoped_type(definition.symbol, argument, &scope))
+                    .collect::<Result<_, _>>()?,
                 predicate_presence: definition.predicate_presence,
                 predicate_facts,
                 alias_expansion: None,
@@ -546,7 +548,7 @@ impl<'a> PolicySource<'a> {
                 owner: domain.symbol,
                 subject: Some((domain.subject_symbol, domain.target_type)),
                 parameters: Default::default(),
-                statics: Default::default(),
+                statics: self.typed().domain_type_parameters(domain),
                 result: None,
             },
             0,

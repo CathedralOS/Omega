@@ -1598,6 +1598,42 @@ data LocalAlias = i64;
 }
 
 #[test]
+fn public_domain_review_keeps_the_element_and_placement_binders_in_order() {
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "review-domain-placement",
+        false,
+    )
+    .unwrap();
+    let root = temporary.path();
+    std::fs::write(
+        root.join("build.omg"),
+        r#"machine build(builder: @mutable BuildPlan) {
+            builder.product = BuildProduct::Package { name: "placements" };
+        }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("main.omg"),
+        "public domain<Value, Policy> Value::At<Policy>;
+         public domain<Element, Location> Element::AlsoAt<Location>;",
+    )
+    .unwrap();
+
+    let policy = reviewed_policy(&root.join("build.omg"), TargetProfile::LinuxX64).policy;
+    let domains = &policy.public_api.domains;
+    assert_eq!(domains.len(), 2);
+    for domain in domains {
+        assert_eq!(domain.type_parameters.len(), 2);
+        let [placement] = domain.index_arguments.as_slice() else {
+            panic!("expected one placement index in {}", domain.identity.path);
+        };
+        assert_ne!(placement, &domain.target_type);
+    }
+    assert_eq!(domains[0].target_type, domains[1].target_type);
+    assert_eq!(domains[0].index_arguments, domains[1].index_arguments);
+}
+
+#[test]
 fn selected_provider_review_preserves_qualified_scalar_parameters() {
     for provider in ["Marked", "Other"] {
         check_qualified_parameter("i32", "self >= 0", "self <= 0", provider, false);
