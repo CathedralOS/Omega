@@ -16,6 +16,9 @@ use terminal_check_tables::{Checked, ExactPlaceId, ProgramPoint};
 
 use super::Lowering;
 
+#[path = "places_contents/case_arrays.rs"]
+mod case_arrays;
+
 #[path = "places_contents/formal_fields.rs"]
 mod formal_fields;
 
@@ -240,6 +243,14 @@ impl Lowering<'_> {
         {
             return None;
         }
+        self.literal_default_indices(types, false)
+    }
+
+    fn literal_default_indices(
+        &self,
+        types: &[terminal_psi::StructuralTypeDeclaration],
+        captured_indices: bool,
+    ) -> Option<BTreeSet<u64>> {
         let mut indices = BTreeSet::new();
         for place in self.tables.places.values() {
             let PlaceOrigin::Projection { segment, .. } = place.origin else {
@@ -250,6 +261,7 @@ impl Lowering<'_> {
                     indices.insert(index);
                 }
                 Segment::Field(_) | Segment::Case(_) | Segment::Extent | Segment::Referent => {}
+                Segment::RuntimeIndex { .. } if captured_indices => {}
                 _ => return None,
             }
         }
@@ -280,6 +292,11 @@ impl Lowering<'_> {
     ) -> Checked<()> {
         use terminal_semantics::structural_qualifications::DefaultRequirements;
 
+        // Each case payload gets its current value only where the case is
+        // selected. A captured index remains a distinct projected place; its
+        // write still overlaps every possible literal index in the checker.
+        let case_indices = std::cell::OnceCell::new();
+        let exposed = std::cell::OnceCell::new();
         let (inventory, clause_indices, clauses) = {
             let requirements =
                 DefaultRequirements::new(types, &self.qualifications.structural, machine)
@@ -302,9 +319,17 @@ impl Lowering<'_> {
                     if fields.excludes(root, path) {
                         return Some(Vec::new());
                     }
-                    indices
-                        .as_ref()
-                        .map(|set| set.range(..length).copied().collect())
+                    let indices = indices.as_ref().or_else(|| {
+                        if !path.is_empty()
+                            || !self.indexed_case_array(root, types, machine, &exposed)
+                        {
+                            return None;
+                        }
+                        case_indices
+                            .get_or_init(|| self.literal_default_indices(types, true))
+                            .as_ref()
+                    });
+                    indices.map(|set| set.range(..length).copied().collect())
                 })
                 .map_err(|error| self.internal(error.detail))?;
             // Keep the paths in their original allocation. Only the clause index

@@ -427,3 +427,58 @@ fn a_fixed_whole_borrow_preserves_defaults_without_naming_its_unused_elements() 
     );
     assert!(matches!(overwritten.judged(|_| {}), program::Verdict::Rejected(_)));
 }
+
+/// A captured selector can overwrite either literal slot. A disjoint
+/// literal write preserves both payloads.
+#[test]
+fn mutable_sum_array_snapshots_preserve_overlapping_writes() {
+    let program = |length: usize, selector: &str, read: usize| {
+        Program::of(&format!(
+        "domain u64::Small requires self <= 31;
+         data Slot [copy] {{ case Empty; case Full(value: u64 in Small); }}
+         machine observe(slots: @mutable [Slot; {length}], index: u64) -> u64
+         requires index < {length}
+         ensures result == 7 {{
+             slots[2] = Slot::Full {{ value: 7u64 as + Small }};
+             slots[3] = Slot::Full {{ value: 7u64 as + Small }};
+             slots[{selector}] = Slot::Full {{ value: 9u64 as + Small }};
+             transition slots[{read}] {{ Slot::Full {{ value }} -> (value as - Small), Slot::Empty -> 0 }}
+         }}"
+    ))
+    };
+    let [small, large] = [8, 4096].map(|length| {
+        let program = program(length, "index", 2);
+        let lowered = program.lower();
+        let machine = lowered.machine("observe");
+        let tables = lowered.elaboration.tables.machines.get(machine.id).unwrap();
+        use terminal_check_tables::bindings::{PlaceOrigin, Segment};
+        let projections: Vec<_> = tables
+            .places
+            .values()
+            .filter_map(|row| match row.origin {
+                PlaceOrigin::Projection { segment, .. } => Some(segment),
+                PlaceOrigin::Root(_) => None,
+            })
+            .collect();
+        assert!(projections.contains(&Segment::FixedIndex(2)));
+        assert!(projections.contains(&Segment::FixedIndex(3)));
+        assert!(
+            projections
+                .iter()
+                .any(|s| matches!(s, Segment::RuntimeIndex { .. }))
+        );
+        (tables.values.len(), tables.places.len())
+    });
+    assert_eq!(small, large);
+    for read in [2, 3] {
+        program(8, "1", read).judged(|_| {}).accepted();
+        let rejection = program(8, "index", read).judged(|_| {}).rejected();
+        assert!(
+            rejection
+                .unproved
+                .iter()
+                .any(|kind| kind.starts_with("NormalGuarantee")),
+            "{rejection:?}"
+        );
+    }
+}
