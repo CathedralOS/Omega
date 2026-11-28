@@ -416,7 +416,8 @@ mod tests {
         source: &mut terminal_psi::StructuralReferenceOrigin,
     ) -> &mut terminal_psi::ReferenceOriginSource {
         match source {
-            terminal_psi::StructuralReferenceOrigin::Parameter(source) => source,
+            terminal_psi::StructuralReferenceOrigin::Parameter(source)
+            | terminal_psi::StructuralReferenceOrigin::UpgradedParameter(source) => source,
             terminal_psi::StructuralReferenceOrigin::Invocation { .. } => {
                 panic!("expected parameter origin")
             }

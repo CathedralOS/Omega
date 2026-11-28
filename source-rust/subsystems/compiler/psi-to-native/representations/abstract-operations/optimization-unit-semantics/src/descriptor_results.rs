@@ -856,6 +856,7 @@ pub(crate) mod scalar_expressions {
 
     pub(crate) struct ScalarExpressions<'function> {
         entry: BlockId,
+        formals: Vec<ValueId>,
         types: BTreeMap<ValueId, ScalarType>,
         constants: std::cell::RefCell<terminal_semantics::ScalarConstants>,
         definitions: BTreeMap<ValueId, ScalarDefinition<'function>>,
@@ -876,8 +877,15 @@ pub(crate) mod scalar_expressions {
                 .map(|value| (value.value, value.scalar_type))
                 .collect();
             let constants = terminal_semantics::ScalarConstants::for_values(types.keys().copied());
+            let mut formals: Vec<_> = function
+                .parameters
+                .iter()
+                .map(|formal| formal.value)
+                .collect();
+            formals.sort_unstable();
             let mut reader = Self {
                 entry: function.entry,
+                formals,
                 types,
                 constants: std::cell::RefCell::new(constants),
                 definitions: BTreeMap::new(),
@@ -935,6 +943,79 @@ pub(crate) mod scalar_expressions {
                 }
             }
             reader
+        }
+
+        pub(super) fn is_formal(&self, value: ValueId) -> bool {
+            self.formals.binary_search(&value).is_ok()
+        }
+
+        pub(super) fn native_address(
+            &self,
+            value: ValueId,
+        ) -> terminal_semantics::storage::native_borrows::NativeAddressOrigin<
+            terminal_psi::StructuralArgument,
+        > {
+            use terminal_semantics::storage::native_borrows::{AddressDefinition, trace_address};
+            trace_address(value, |value| {
+                if let Some(definition) = self.definitions.get(&value) {
+                    return match &definition.node.operation {
+                        O::ObserveStorageLocation {
+                            query: terminal_psi::StorageLocationQuery::Address,
+                            source,
+                            path,
+                            ..
+                        } => {
+                            let (block, index) = definition.position;
+                            let Ok(index) = u32::try_from(index) else {
+                                return AddressDefinition::Opaque;
+                            };
+                            AddressDefinition::Storage(
+                                terminal_psi::StructuralArgument {
+                                    place: *source,
+                                    path: path.clone(),
+                                    access: terminal_psi::StructuralAccess::SharedBorrow,
+                                },
+                                (block, index),
+                            )
+                        }
+                        O::ScalarRepresentationView { operand, .. }
+                        | O::IntegerWiden { operand, .. }
+                        | O::IntegerExactCast { operand, .. } => {
+                            AddressDefinition::Forward(*operand)
+                        }
+                        O::IntegerArithmetic {
+                            arithmetic,
+                            left,
+                            right,
+                            ..
+                        } if matches!(
+                            arithmetic.operator(),
+                            abstract_operations::IntegerArithmeticOperator::Add
+                                | abstract_operations::IntegerArithmeticOperator::Subtract
+                        ) =>
+                        {
+                            AddressDefinition::Adjust(*left, *right)
+                        }
+                        _ => AddressDefinition::Opaque,
+                    };
+                }
+                if self.is_formal(value) {
+                    return AddressDefinition::Parameter;
+                }
+                let Some(owner) = self.owners.get(&value) else {
+                    return AddressDefinition::Opaque;
+                };
+                AddressDefinition::Incoming(
+                    self.incoming
+                        .get(owner)
+                        .into_iter()
+                        .flatten()
+                        .map(|incoming| {
+                            incoming.edge.binding(value).map(|binding| binding.argument)
+                        })
+                        .collect(),
+                )
+            })
         }
 
         pub(crate) fn literal(&self, value: ValueId) -> Option<T> {
@@ -1185,6 +1266,11 @@ fn catalog_graph<'function, 'boundary>(
 ) -> Option<Vec<DescriptorMachine>> {
     let functions = functions.into_iter().collect::<Vec<_>>();
     let boundaries = boundaries.into_iter().collect::<Vec<_>>();
+    let track_native_address_effects = functions.iter().any(|function| {
+        function
+            .block_nodes()
+            .any(|node| matches!(node.operation, O::BorrowAt { .. }))
+    });
     let build = |selector_graph: Option<&[DescriptorMachine]>| {
         let mut identities = BTreeSet::new();
         functions
@@ -1204,6 +1290,7 @@ fn catalog_graph<'function, 'boundary>(
                     slot_kind,
                     &preserves_boundary,
                     selector_graph,
+                    track_native_address_effects,
                 )
             })
             .collect::<Option<Vec<_>>>()
@@ -1271,17 +1358,12 @@ fn adapt(
     slot_kind: kernel::DescriptorSlotKind,
     preserves_boundary: &impl Fn(&PsiOptimizationFunction, &OptimizationNode) -> bool,
     selector_graph: Option<&[DescriptorMachine]>,
+    track_native_address_effects: bool,
 ) -> Option<DescriptorMachine> {
     let scalar_expressions = ScalarExpressions::new(function);
-    let mut scalar_formals = function
-        .parameters
-        .iter()
-        .map(|parameter| parameter.value)
-        .collect::<Vec<_>>();
-    scalar_formals.sort_unstable();
     let selector = |value| {
         kernel::entry_selector(scalar_expressions.expression(value)?, |id| {
-            scalar_formals.binary_search(&id).is_ok()
+            scalar_expressions.is_formal(id)
         })
     };
     let mut graph = DescriptorMachine {
@@ -1467,7 +1549,7 @@ fn adapt(
         }
     }
     graph.places.sort_unstable_by_key(|row| row.place);
-    let location = |root, path: &[StructuralPathSegment], field| {
+    let location = |graph: &DescriptorMachine, root, path: &[StructuralPathSegment], field| {
         descriptor_location(types, root, *graph.place_types.get(&root)?, path, field)
     };
     for block in &function.blocks {
@@ -1503,7 +1585,7 @@ fn adapt(
                 ..
             } = operation
                 && let Some(value) = scalar_expressions.expression(value.value)
-                && let Some(destination) = location(destination.place(), path, Some(*field))
+                && let Some(destination) = location(&graph, destination.place(), path, Some(*field))
             {
                 graph
                     .scalar_payload_writes
@@ -1512,6 +1594,29 @@ fn adapt(
                     .push((destination, value));
             }
             let result = operation.structural_result().map(|(_, result)| result);
+            let bind_address_arguments =
+                |graph: &DescriptorMachine,
+                 call: &mut kernel::DescriptorInvocation,
+                 callee: &PsiOptimizationFunction,
+                 actuals: &[semantic_vocabulary::ValueId]| {
+                    if callee.parameters.len() != actuals.len() {
+                        return None;
+                    }
+                    graph.bind_native_address_arguments(
+                        call,
+                        types,
+                        position,
+                        &callee.structural_parameters,
+                        result,
+                        callee
+                            .parameters
+                            .iter()
+                            .map(|formal| formal.value)
+                            .zip(actuals.iter().copied()),
+                        |actual| scalar_expressions.native_address(actual),
+                        track_native_address_effects,
+                    )
+                };
             if let O::IntegerConstant {
                 result,
                 value: semantic_vocabulary::IntegerValue::Unsigned(value),
@@ -1533,7 +1638,7 @@ fn adapt(
                 result,
                 ..
             } = operation
-                && let Some(location) = location(*source, path, None)
+                && let Some(location) = location(&graph, *source, path, None)
             {
                 graph
                     .scalar_payload_reads
@@ -1741,10 +1846,15 @@ fn adapt(
                     {
                         return None;
                     }
-                    step.replace_value_inputs([location(subject.place, &subject.path, None)?]);
+                    step.replace_value_inputs([location(
+                        &graph,
+                        subject.place,
+                        &subject.path,
+                        None,
+                    )?]);
                 }
                 O::ReleaseReference { source, path, .. } => {
-                    let source = location(*source, path, None)?;
+                    let source = location(&graph, *source, path, None)?;
                     step.inputs = vec![(Some(source.clone()), None)];
                     step.definitions.push(source);
                 }
@@ -1810,6 +1920,28 @@ fn adapt(
                         },
                     ));
                 }
+                O::BorrowAt {
+                    psi_operation,
+                    result,
+                    address,
+                    ..
+                } if slot_kind.tracks_references() => {
+                    let origin = scalar_expressions.native_address(*address);
+                    graph.native_address_borrow(
+                        types,
+                        position,
+                        &mut step,
+                        *psi_operation,
+                        result,
+                        origin.observed_sources(),
+                        origin.exact,
+                        origin.parameters.clone(),
+                        origin.opaque,
+                    )?;
+                }
+                O::UpgradeMutability { result, source, .. } if slot_kind.tracks_references() => {
+                    graph.mutability_upgrade(types, position, &mut step, source, result)?;
+                }
                 O::EstablishElementView { result, source, .. }
                 | O::EstablishReference { result, source, .. } => {
                     let destination = DescriptorLocation::whole(result.place);
@@ -1847,7 +1979,7 @@ fn adapt(
                         for alternative in alternatives {
                             step.derivations.push((alternative, destination.clone()));
                         }
-                    } else if let Some(source) = location(source.place, path, None) {
+                    } else if let Some(source) = location(&graph, source.place, path, None) {
                         step.derivations.push((source.clone(), destination.clone()));
                         if slot_kind.tracks_references()
                             && matches!(operation, O::EstablishReference { .. })
@@ -1916,7 +2048,7 @@ fn adapt(
                     };
                     let destination = DescriptorLocation::whole(result.place);
                     let location = match path {
-                        StructuralCopyPath::Ordinary(path) => location(*source, path, None),
+                        StructuralCopyPath::Ordinary(path) => location(&graph, *source, path, None),
                         StructuralCopyPath::Case(path) => canonical_descriptor_location(
                             types,
                             *source,
@@ -1962,7 +2094,7 @@ fn adapt(
                     }
                 }
                 abstract_operations::byte_len_or_field_read_pattern!(source, path, field, ..) => {
-                    if let Some(source) = location(*source, path, Some(*field)) {
+                    if let Some(source) = location(&graph, *source, path, Some(*field)) {
                         step.inputs = vec![(Some(source), None)];
                     } else {
                         step.may_escape = true;
@@ -1996,7 +2128,7 @@ fn adapt(
                             true,
                         )?,
                     );
-                    if let Some(source) = location(source.place(), path, *field) {
+                    if let Some(source) = location(&graph, source.place(), path, *field) {
                         let destination = DescriptorLocation::whole(result.place);
                         step.inputs = vec![(Some(source.clone()), None)];
                         step.definitions.push(source.clone());
@@ -2040,8 +2172,8 @@ fn adapt(
                         )?,
                     );
                     if let (Some(destination), Some(source)) = (
-                        location(destination.place(), path, *field),
-                        location(value.place, &value.path, None),
+                        location(&graph, destination.place(), path, *field),
+                        location(&graph, value.place, &value.path, None),
                     ) {
                         step.definitions.push(destination.clone());
                         step.derivations.push((source, destination.clone()));
@@ -2100,22 +2232,24 @@ fn adapt(
                 }
                 O::EstablishPrimitiveLocal { result, value, .. } => {
                     if let Some(value) = scalar_expressions.expression(value.value) {
+                        let destination = location(&graph, result.place, &[], None)?;
                         graph
                             .scalar_payload_writes
                             .entry(position)
                             .or_default()
-                            .push((location(result.place, &[], None)?, value));
+                            .push((destination, value));
                     }
                 }
                 O::PrimitiveLocalStore {
                     destination, value, ..
                 } => {
                     if let Some(value) = scalar_expressions.expression(value.value) {
+                        let destination = location(&graph, *destination, &[], None)?;
                         graph
                             .scalar_payload_writes
                             .entry(position)
                             .or_default()
-                            .push((location(*destination, &[], None)?, value));
+                            .push((destination, value));
                     }
                 }
                 O::EstablishScalarArray {
@@ -2128,11 +2262,12 @@ fn adapt(
                             u64::try_from(ordinal).ok()?,
                         )?;
                         if let Some(value) = scalar_expressions.expression(*value) {
+                            let destination = location(&graph, result.place, &path, None)?;
                             graph
                                 .scalar_payload_writes
                                 .entry(position)
                                 .or_default()
-                                .push((location(result.place, &path, None)?, value));
+                                .push((destination, value));
                         }
                     }
                 }
@@ -2164,11 +2299,13 @@ fn adapt(
                 } => {
                     for (index, argument) in elements.iter().enumerate() {
                         let destination = location(
+                            &graph,
                             result.place,
                             &[StructuralPathSegment::FixedIndex(index as u64)],
                             None,
                         )?;
-                        if let Some(source) = location(argument.place, &argument.path, None) {
+                        if let Some(source) = location(&graph, argument.place, &argument.path, None)
+                        {
                             step.derivations.push((source, destination));
                         } else {
                             step.may_escape = true;
@@ -2216,9 +2353,9 @@ fn adapt(
                                     field_ordinal,
                                     field.field,
                                 )?;
-                                location(result.place, &path, None)?
+                                location(&graph, result.place, &path, None)?
                             }
-                            _ => location(result.place, &[], Some(field.field))?,
+                            _ => location(&graph, result.place, &[], Some(field.field))?,
                         };
                         if let terminal_psi::RecordFieldValue::Scalar { value, .. } = &field.value
                             && let Some(value) = scalar_expressions.expression(*value)
@@ -2230,7 +2367,8 @@ fn adapt(
                                 .push((destination.clone(), value));
                         }
                         if let terminal_psi::RecordFieldValue::Structural(source) = &field.value {
-                            if let Some(source) = location(source.place, &source.path, None) {
+                            if let Some(source) = location(&graph, source.place, &source.path, None)
+                            {
                                 step.derivations.push((source, destination));
                             } else {
                                 step.may_escape = true;
@@ -2288,6 +2426,7 @@ fn adapt(
                             interface,
                             slot,
                         },
+                    arguments: scalar_actuals,
                     structural_arguments,
                     ..
                 } => {
@@ -2320,6 +2459,13 @@ fn adapt(
                     )?;
                     let complete_contents = call.argument_contents.iter().all(Option::is_some);
                     let effects_machine = effects_machine.filter(|_| complete_contents);
+                    if let Some(machine) = effects_machine {
+                        let callee = functions
+                            .iter()
+                            .copied()
+                            .find(|body| body.machine == machine)?;
+                        bind_address_arguments(&graph, &mut call, callee, scalar_actuals)?;
+                    }
                     if let kernel::DescriptorInvocationTarget::Public {
                         effects_machine: target,
                         ..
@@ -2355,17 +2501,16 @@ fn adapt(
                     }
                     kernel::insert_invocation(&mut graph.calls, position, call)?;
                 }
-                O::CallStructural {
-                    callee,
-                    arguments: scalar_actuals,
-                    structural_arguments,
-                    claim_transfers,
-                    result: call_result,
-                    ..
-                } => {
+                O::CallStructural { .. } | O::Call { .. }
+                    if track_native_address_effects
+                        || matches!(operation, O::CallStructural { .. }) =>
+                {
+                    let invocation = operation.module_invocation()?;
+                    let scalar_actuals = invocation.arguments;
+                    let structural_arguments = invocation.structural_arguments;
                     let mut matching = functions
                         .iter()
-                        .filter(|function| Some(function.machine) == callee.machine());
+                        .filter(|function| function.machine == invocation.callee);
                     if let Some(callee) = matching.next().copied() {
                         if matching.next().is_some()
                             || callee.structural_parameters.len() != structural_arguments.len()
@@ -2387,6 +2532,7 @@ fn adapt(
                                 .iter()
                                 .map(|actual| graph.place_types.get(&actual.place).copied()),
                         )?;
+                        bind_address_arguments(&graph, &mut call, callee, scalar_actuals)?;
                         call.scalar_arguments = kernel::descriptor_scalar_arguments(
                             callee
                                 .parameters
@@ -2412,11 +2558,8 @@ fn adapt(
                     } else {
                         let declarations = types.iter().map(|ty| (ty.id, ty)).collect();
                         let mut closed_storage = BTreeMap::new();
-                        let closed = matches!(
-                            call_result,
-                            abstract_operations::AbstractStructuralCallResult::Unit
-                                | abstract_operations::AbstractStructuralCallResult::Scalar(_)
-                        ) && claim_transfers.is_empty()
+                        let closed = result.is_none()
+                            && invocation.claim_transfers.is_empty()
                             && structural_arguments.iter().all(|actual| {
                                 actual.access == StructuralAccess::SharedBorrow
                                     || graph.place_types.get(&actual.place).is_some_and(|ty| {
@@ -2562,7 +2705,7 @@ fn adapt(
                     for argument in structural_arguments {
                         step.inputs.push((
                             Some(
-                                location(argument.place, &argument.path, None)
+                                location(&graph, argument.place, &argument.path, None)
                                     .unwrap_or_else(|| DescriptorLocation::whole(argument.place)),
                             ),
                             None,
@@ -2624,7 +2767,7 @@ fn adapt(
                 ..
             } = operation
             {
-                let subject = match location(*source, path, None) {
+                let subject = match location(&graph, *source, path, None) {
                     Some(location) => DescriptorFlowSource::Location(location),
                     None => DescriptorFlowSource::Contents(kernel::descriptor_contents_query_with(
                         types,
@@ -2661,6 +2804,8 @@ fn adapt(
                 O::EstablishAccessReference { .. }
                     | O::EstablishElementView { .. }
                     | O::EstablishReference { .. }
+                    | O::BorrowAt { .. }
+                    | O::UpgradeMutability { .. }
             ) {
                 step.authority_derivations = step.derivations.clone();
             }
@@ -2884,7 +3029,7 @@ fn adapt(
                             return None;
                         }
                         let source = if let Some(source) =
-                            location(binding.argument.place, &binding.argument.path, None)
+                            location(&graph, binding.argument.place, &binding.argument.path, None)
                         {
                             DescriptorFlowSource::Location(source)
                         } else {
@@ -2915,7 +3060,7 @@ fn adapt(
                         )?);
                     }
                     for action in &edge.cleanup_actions {
-                        definitions.push(location(action.place(), action.path(), None)?);
+                        definitions.push(location(&graph, action.place(), action.path(), None)?);
                     }
                     step.successors.push(DescriptorFlowEdge {
                         borrowed_header_ends: Box::default(),
@@ -3185,7 +3330,10 @@ fn selected_effects_machine(
                     && result.scalar_type == expected.scalar_type
             })
         }
-        terminal_psi::BoundaryMachineResult::Structural(_) => false,
+        terminal_psi::BoundaryMachineResult::Structural(_) => body
+            .result
+            .structural()
+            .is_some_and(|result| signature.result.matches_structural_result(result)),
     };
     if bodies.next().is_some()
         || !result_matches

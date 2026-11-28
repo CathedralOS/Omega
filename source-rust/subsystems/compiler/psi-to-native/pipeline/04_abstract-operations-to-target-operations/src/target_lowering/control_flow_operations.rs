@@ -815,6 +815,9 @@ pub(crate) mod operations {
             AbstractOperation::EstablishAccessReference { .. } => {
                 super::references::establish_access(operation, site)
             }
+            AbstractOperation::BorrowAt { .. } | AbstractOperation::UpgradeMutability { .. } => {
+                super::references::establish_trusted(operation, site)
+            }
             AbstractOperation::EstablishReference { .. } => {
                 super::references::establish(operation, site)
             }

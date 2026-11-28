@@ -226,6 +226,7 @@ fn completed_return_tags_union_all_exits_and_unknown_or_public_returns_grant_not
         .insert_call(
             position(0),
             DescriptorInvocation {
+                native_address_arguments: Vec::new(),
                 scalar_arguments: Vec::new(),
                 owner: DescriptorInvocationOwner::Operation(
                     OperationId::new(1).unwrap(),

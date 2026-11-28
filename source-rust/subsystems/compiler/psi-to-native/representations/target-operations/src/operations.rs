@@ -413,6 +413,17 @@ pub enum TargetUnitOperation {    InstallStaticInterrupt {
         correspondence: operation_operands::access_references::AccessReferenceBacking,
         indices: Vec<TargetStructuralRuntimeIndex>,
     },
+    BorrowAt {
+        psi_operation: OperationId,
+        result_home: crate::TargetStructuralHomeRequirement,
+        address: ValueId,
+    },
+    UpgradeMutability {
+        psi_operation: OperationId,
+        result_home: crate::TargetStructuralHomeRequirement,
+        source: StructuralArgument,
+        indices: Vec<TargetStructuralRuntimeIndex>,
+    },
     EstablishReference {
         psi_operation: OperationId,
         result_home: crate::TargetStructuralHomeRequirement,
@@ -684,6 +695,16 @@ impl TargetUnitOperation {
                 ..
             }
             | Self::EstablishRecord {
+                psi_operation,
+                result_home,
+                ..
+            }
+            | Self::BorrowAt {
+                psi_operation,
+                result_home,
+                ..
+            }
+            | Self::UpgradeMutability {
                 psi_operation,
                 result_home,
                 ..

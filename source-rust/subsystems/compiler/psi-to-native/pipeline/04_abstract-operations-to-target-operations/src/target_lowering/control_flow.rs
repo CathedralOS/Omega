@@ -2894,6 +2894,8 @@ pub(crate) fn lower(
             | AbstractOperation::EstablishRecord { result, .. }
             | AbstractOperation::EstablishZeroedStructural { result, .. }
             | AbstractOperation::EstablishCase { result, .. }
+            | AbstractOperation::BorrowAt { result, .. }
+            | AbstractOperation::UpgradeMutability { result, .. }
             | AbstractOperation::EstablishReference { result, .. }
             | AbstractOperation::EstablishAccessReference { result, .. }
             | AbstractOperation::CallStructural {

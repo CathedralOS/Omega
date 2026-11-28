@@ -2149,6 +2149,10 @@ pub(crate) mod unit_encoding {
                         bytes.u8(1);
                         bytes.id(source.place);
                     }
+                    terminal_psi::StructuralReferenceOrigin::UpgradedParameter(source) => {
+                        bytes.u8(3);
+                        bytes.id(source.place);
+                    }
                     terminal_psi::StructuralReferenceOrigin::Invocation {
                         carrier_type, ..
                     } => {

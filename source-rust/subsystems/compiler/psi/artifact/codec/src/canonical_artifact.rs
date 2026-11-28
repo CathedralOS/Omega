@@ -886,11 +886,11 @@ mod tests {
         assert!(closed.semantic_bytes() == received.semantic_bytes());
         assert_eq!(
             hex(&content_identity(closed.semantic_bytes())),
-            "9fabaee699cc9cf176bcf79b4c3041628ba9b7e21ae3193e1874454e45283cdb"
+            "fb1299f0b086af081b87284dd9c23c770434b2deffbf0298d92230b3758dbcbf"
         );
         assert_eq!(
             closed.identity().program_fingerprint.to_string(),
-            "877ea7200bba659aa8f753e728d8e8b8cd947fb929c2370373181b1ef2635dbc"
+            "742fc4c10d6fe8821f5abf8cfd853fb705a6d4c59da46265e53e04c821866244"
         );
         let debug = received
             .debug_bytes()
@@ -910,12 +910,12 @@ mod tests {
         .unwrap();
         assert_eq!(
             rebuilt.manifest().identity().to_string(),
-            "e1b11e284ffab0a3f7ec76ac14d3b8c4ed1e9027db40132b803b9522ce100aa5"
+            "b48b7abccbf342c913ae8980200c9935a08fb28e8ffea4099822cece439926f5"
         );
         let encoded = rebuilt.to_bytes();
         assert_eq!(
             hex(&content_identity(&encoded)),
-            "bd21b447426a277c0e9453a1d7055bea3b82e4462ca12a3a1eb2633ce7d8e147"
+            "ce6f4fc470b9f26d05015c51bf59619570d7d3208f0c5afd9ed9c9fae0536365"
         );
         assert!(encoded.as_slice() == bytes);
     }

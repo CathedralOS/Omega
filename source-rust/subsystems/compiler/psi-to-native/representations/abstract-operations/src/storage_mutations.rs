@@ -33,6 +33,7 @@ impl AbstractOperation {
                 .location()
                 .map(|location| region(location.root, &location.path, None))
                 .unwrap_or_default(),
+            Self::UpgradeMutability { source, .. } => region(source.place, &source.path, None),
             Self::EstablishReference { source, .. }
             | Self::EstablishAccessReference { source, .. }
             | Self::EstablishElementView { source, .. } => exclusive(std::slice::from_ref(source)),

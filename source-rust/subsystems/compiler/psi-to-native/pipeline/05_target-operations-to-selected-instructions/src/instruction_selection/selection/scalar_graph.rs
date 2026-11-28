@@ -7647,6 +7647,8 @@ pub(crate) fn select_function(
                     | LegalizedScalarInstructionKind::StoreStructuralField { .. }
                     | LegalizedScalarInstructionKind::DecomposeStructuralValue { .. }
                     | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
+                    | LegalizedScalarInstructionKind::BorrowAt { .. }
+                    | LegalizedScalarInstructionKind::UpgradeMutability { .. }
                     | LegalizedScalarInstructionKind::EstablishReference { .. }
                     | LegalizedScalarInstructionKind::EstablishAccessReference { .. }
                     | LegalizedScalarInstructionKind::ElementViewFixedArray { .. }

@@ -884,6 +884,8 @@ pub fn reference_loan_parent<'a>(
 /// lifetimes.md, "Returned views", requires to "remain live for the
 /// result's use".
 pub struct RetainedCallLoan {
+    /// The actual returned descriptor descends from a checked mutability upgrade.
+    pub upgraded_mutability: bool,
     pub position: usize,
     pub path: Vec<StructuralPathSegment>,
     pub lifetime: crate::descriptor_lifetimes::DescriptorLifetime,
@@ -916,12 +918,14 @@ fn retain_call_lifetime(
     retained: &mut Vec<RetainedCallLoan>,
     position: usize,
     path: Vec<StructuralPathSegment>,
+    upgraded_mutability: bool,
     lifetime: crate::descriptor_lifetimes::DescriptorLifetime,
 ) {
-    if let Some(previous) = retained
-        .iter_mut()
-        .find(|previous| previous.position == position && previous.path == path)
-    {
+    if let Some(previous) = retained.iter_mut().find(|previous| {
+        previous.position == position
+            && previous.path == path
+            && previous.upgraded_mutability == upgraded_mutability
+    }) {
         let previous = &mut previous.lifetime;
         if previous.returned_origin != lifetime.returned_origin {
             previous.returned_origin = None;
@@ -938,6 +942,7 @@ fn retain_call_lifetime(
         }
     } else {
         retained.push(RetainedCallLoan {
+            upgraded_mutability,
             position,
             path,
             lifetime,
@@ -1092,6 +1097,7 @@ fn retain_result_dependencies(
             }
             DescriptorStoredOrigin::Invocation { .. }
             | DescriptorStoredOrigin::AccessFormation { .. }
+            | DescriptorStoredOrigin::NativeAddress { .. }
             | DescriptorStoredOrigin::Carried { .. } => {
                 return Err("returned value dependency needs its admitted retention resource");
             }
@@ -1141,6 +1147,7 @@ fn retain_result_dependencies(
             retained,
             position,
             argument.path.clone(),
+            false,
             crate::descriptor_lifetimes::DescriptorLifetime {
                 returned_origin: None,
                 recurring_authority: None,
@@ -1504,19 +1511,21 @@ fn reference_call_lifetimes_with_index(
             .zip(binding.sources)
             .enumerate()
         {
-            let (position, source, transfers_existing) = match (position, bound.origin) {
-                (
-                    Some(position),
-                    ReferenceCallOrigin::Parameter {
-                        source,
-                        transfers_existing,
-                    },
-                ) => (position, source, transfers_existing),
-                // The producing call establishes its own address. Its reconstructed
-                // provider debts below still retain every required input loan.
-                (None, ReferenceCallOrigin::Invocation { .. }) => continue,
-                _ => return Err(refuse("returned reference binding changes its origin")),
-            };
+            let (position, source, transfers_existing, upgraded_mutability) =
+                match (position, bound.origin) {
+                    (
+                        Some(position),
+                        ReferenceCallOrigin::Parameter {
+                            source,
+                            transfers_existing,
+                            upgraded_mutability,
+                        },
+                    ) => (position, source, transfers_existing, upgraded_mutability),
+                    // The producing call establishes its own address. Its reconstructed
+                    // provider debts below still retain every required input loan.
+                    (None, ReferenceCallOrigin::Invocation { .. }) => continue,
+                    _ => return Err(refuse("returned reference binding changes its origin")),
+                };
             if transfers_existing {
                 // The existing descriptor flow transports that input
                 // occurrence. It does not form a new loan of its backing.
@@ -1551,6 +1560,7 @@ fn reference_call_lifetimes_with_index(
                 &mut retained,
                 position,
                 retained_call_path(argument, &source.path),
+                upgraded_mutability,
                 lifetime,
             );
         }
@@ -1660,7 +1670,13 @@ fn reference_call_lifetimes_with_index(
                     if lifetime.live.contains(&at) {
                         return Err(refuse("returned view loan crosses its own call formation"));
                     }
-                    retain_call_lifetime(&mut retained, *position, argument.path.clone(), lifetime);
+                    retain_call_lifetime(
+                        &mut retained,
+                        *position,
+                        argument.path.clone(),
+                        false,
+                        lifetime,
+                    );
                 }
                 Ok::<(), crate::descriptor_results::DescriptorGraphError>(())
             },

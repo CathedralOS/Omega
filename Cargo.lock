@@ -1491,6 +1491,7 @@ dependencies = [
  "target-operations-to-selected-instructions",
  "terminal-codec",
  "terminal-psi",
+ "terminal-semantics",
  "verified-optimization-input",
  "wire",
 ]
@@ -2373,6 +2374,7 @@ dependencies = [
 name = "psi-provider-selections"
 version = "0.1.0"
 dependencies = [
+ "application-identity",
  "diagnostics",
  "record-storage",
  "schema-reflection",

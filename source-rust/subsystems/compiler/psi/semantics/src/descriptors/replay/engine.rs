@@ -161,7 +161,7 @@ impl StorageResolution {
 /// Sharing the prepared vectors keeps ordinary Summary clones cheap.
 #[derive(Clone, Default)]
 pub(crate) struct StorageFrame {
-    pub(crate) writes: Option<Arc<Option<Vec<DescriptorLocation>>>>,
+    pub(crate) writes: Option<Arc<Option<Vec<StorageWriteTarget>>>>,
     pub(crate) accesses: Option<Arc<Option<Vec<(DescriptorPosition, usize)>>>>,
 }
 
@@ -265,6 +265,42 @@ pub(crate) struct Summary {
     pub(crate) effects: EffectObservations,
     pub(crate) invalidates_contents: bool,
     pub(crate) storage_frame: StorageFrame,
+}
+
+/// The header declares which references a caller may receive. For a selected
+/// implementation, preserve any native formation's actual scalar backing so
+/// forwarding it cannot erase a known address in this call.
+fn selected_target_summary(target: &DescriptorInvocationTarget, body: &Summary) -> Option<Summary> {
+    let mut public = direct_target_summary(target)?;
+    public.effects = body.effects.clone();
+    public.invalidates_contents |= body.invalidates_contents;
+    if let ResultObservations::Observed {
+        slots: Some(declared),
+        ..
+    } = &mut public.result
+        && let Some(actuals) = body.result.slots()
+    {
+        for slot in declared {
+            if !slot
+                .origins
+                .iter()
+                .any(|origin| matches!(origin, DescriptorStoredOrigin::Invocation { .. }))
+            {
+                continue;
+            }
+            let Some(body_slot) = actuals.iter().find(|row| row.path == slot.path) else {
+                continue;
+            };
+            if body_slot
+                .origins
+                .iter()
+                .any(|origin| matches!(origin, DescriptorStoredOrigin::NativeAddress { .. }))
+            {
+                slot.origins.clone_from(&body_slot.origins);
+            }
+        }
+    }
+    Some(public)
 }
 
 fn direct_target_summary(target: &DescriptorInvocationTarget) -> Option<Summary> {
@@ -547,6 +583,120 @@ impl<'a> Replay<'a> {
         identity: MachineId,
         position: DescriptorPosition,
     ) -> Result<Option<Vec<DescriptorLocation>>, &'static str> {
+        Ok(self.write_targets(identity, position)?.and_then(|targets| {
+            targets
+                .into_iter()
+                .map(|target| match target {
+                    StorageWriteTarget::Storage(location) => Some(location),
+                    StorageWriteTarget::NativeAddress(_) | StorageWriteTarget::Unlocated => None,
+                })
+                .collect()
+        }))
+    }
+
+    /// Recover the storage reached by the checked native descriptor. Its
+    /// enclosing places limit lifetime and are also the write footprint
+    /// when the native type or offset differs from the exposed storage.
+    fn native_write_targets(
+        &self,
+        machine: &DescriptorMachine,
+        state: &State,
+        location: &DescriptorLocation,
+    ) -> Option<Vec<StorageWriteTarget>> {
+        let crossing = location
+            .path
+            .iter()
+            .position(|step| *step == DescriptorPathSegment::Referent)?;
+        let mut carrier = location.clone();
+        carrier.path.truncate(crossing);
+        let origins = self.symbolic(machine, self.read(machine, state, &carrier)?)?;
+        let native = origins.iter().any(|origin| {
+            matches!(
+                origin,
+                DescriptorSourceOrigin::Backing(DescriptorCallOrigin::NativeAddress { .. })
+                    | DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
+                        projection: Projection {
+                            upgraded_mutability: true,
+                            ..
+                        },
+                        ..
+                    })
+                    | DescriptorSourceOrigin::IncomingContents {
+                        projection: Projection {
+                            upgraded_mutability: true,
+                            ..
+                        },
+                        ..
+                    }
+            )
+        });
+        if !native {
+            return None;
+        }
+        let mut targets = Vec::new();
+        for origin in origins {
+            match origin {
+                DescriptorSourceOrigin::Backing(DescriptorCallOrigin::NativeAddress {
+                    parameters,
+                    opaque,
+                    ..
+                }) => {
+                    if opaque {
+                        targets.push(StorageWriteTarget::Unlocated);
+                    }
+                    targets.extend(
+                        parameters
+                            .into_iter()
+                            .map(StorageWriteTarget::NativeAddress),
+                    );
+                }
+                DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
+                    source,
+                    projection,
+                }) => {
+                    let mut actual = self.type_index.descriptor_location(
+                        source,
+                        *machine.place_types.get(&source)?,
+                        &projection.path,
+                        None,
+                    )?;
+                    if !projection.is_native_enclosing_storage() {
+                        actual
+                            .path
+                            .extend_from_slice(&location.path[crossing + 1..]);
+                    }
+                    targets.push(StorageWriteTarget::Storage(actual));
+                }
+                DescriptorSourceOrigin::IncomingContents { query, projection }
+                    if projection.upgraded_mutability =>
+                {
+                    let mut actual = query.observation();
+                    let root = *machine.place_types.get(&actual.root)?;
+                    let endpoint = self
+                        .type_index
+                        .descriptor_location_type(root, &actual.path)?;
+                    if matches!(
+                        self.type_index.find(endpoint)?.shape,
+                        StructuralTypeShape::Reference { .. }
+                    ) {
+                        actual.path.push(DescriptorPathSegment::Referent);
+                    }
+                    actual
+                        .path
+                        .extend_from_slice(&location.path[crossing + 1..]);
+                    targets.push(StorageWriteTarget::Storage(actual));
+                }
+                _ => return None,
+            }
+        }
+        (!targets.is_empty()).then_some(targets)
+    }
+
+    fn write_targets(
+        &mut self,
+        identity: MachineId,
+        position: DescriptorPosition,
+    ) -> Result<Option<Vec<StorageWriteTarget>>, &'static str> {
         let machine = self
             .machine(identity)
             .ok_or("storage write has no owning machine")?;
@@ -591,6 +741,7 @@ impl<'a> Replay<'a> {
             return Ok(Some(Vec::new()));
         };
         let mut writes = step.definitions.clone();
+        let mut located = Vec::new();
         // A known direct call uses its checked frame instead of the
         // conservative source-call ceiling. Cleanup remains additional to
         // the terminator's own writes and uses each action's real prestate.
@@ -635,6 +786,10 @@ impl<'a> Replay<'a> {
                     return Ok(None);
                 }
             }
+            if let Some(targets) = self.native_write_targets(machine, before, &prefix) {
+                located.extend(targets);
+                continue;
+            }
             let Some(targets) = self.contents_targets(
                 machine,
                 before,
@@ -656,12 +811,15 @@ impl<'a> Replay<'a> {
                 writes.push(location);
             }
         }
-        let mut located = Vec::with_capacity(writes.len());
         for write in writes {
+            if let Some(targets) = self.native_write_targets(machine, before, &write) {
+                located.extend(targets);
+                continue;
+            }
             let Some(write) = self.canonical_storage(machine, before, &write, None) else {
                 return Ok(None);
             };
-            located.push(write);
+            located.push(StorageWriteTarget::Storage(write));
         }
         for call in machine.calls_at(position) {
             let Some(before) = self.invocation_state(identity, position, call.owner) else {
@@ -684,17 +842,62 @@ impl<'a> Replay<'a> {
                 .machine(*callee)
                 .ok_or("write frame call has no callee")?;
             for written in frame {
+                let StorageWriteTarget::Storage(written) = written else {
+                    let StorageWriteTarget::NativeAddress(formal) = written else {
+                        return Ok(None);
+                    };
+                    let Some(actual) = call
+                        .native_address_arguments
+                        .iter()
+                        .find(|row| row.parameter == *formal)
+                    else {
+                        return Ok(None);
+                    };
+                    if actual.opaque {
+                        return Ok(None);
+                    }
+                    located.extend(
+                        actual
+                            .parameters
+                            .iter()
+                            .copied()
+                            .map(StorageWriteTarget::NativeAddress),
+                    );
+                    for observed in &actual.sources {
+                        let Some(captured) = states.get(&observed.at) else {
+                            return Ok(None);
+                        };
+                        let source = &observed.location;
+                        if let Some(targets) = self.native_write_targets(machine, captured, source)
+                        {
+                            located.extend(targets);
+                        } else if let Some(storage) =
+                            self.canonical_storage(machine, captured, source, None)
+                        {
+                            located.push(StorageWriteTarget::Storage(storage));
+                        } else {
+                            return Ok(None);
+                        }
+                    }
+                    if actual.sources.is_empty() && actual.parameters.is_empty() {
+                        return Ok(None);
+                    }
+                    continue;
+                };
                 let Some((parameter, _, _)) = self.parameter(callee, written.root) else {
                     return Err("published write does not name a callee formal");
                 };
                 let Some(actual) = self.actual_slot(call, parameter, &written.path) else {
                     return Ok(None);
                 };
-                let Some(actual) = self.canonical_storage(machine, before, &actual, None)
-                else {
+                if let Some(targets) = self.native_write_targets(machine, before, &actual) {
+                    located.extend(targets);
+                } else if let Some(storage) = self.canonical_storage(machine, before, &actual, None)
+                {
+                    located.push(StorageWriteTarget::Storage(storage));
+                } else {
                     return Ok(None);
-                };
-                located.push(actual);
+                }
             }
         }
         located.sort_unstable();
@@ -835,7 +1038,7 @@ impl<'a> Replay<'a> {
     fn infer_write_frame(
         &mut self,
         identity: MachineId,
-    ) -> Result<Option<Vec<DescriptorLocation>>, &'static str> {
+    ) -> Result<Option<Vec<StorageWriteTarget>>, &'static str> {
         if self.prepare_states(identity).is_none() {
             return Ok(None);
         }
@@ -853,12 +1056,19 @@ impl<'a> Replay<'a> {
             .collect();
         let mut frame = Vec::new();
         for position in positions {
-            let Some(writes) = self.storage_writes(identity, position)? else {
+            let Some(writes) = self.write_targets(identity, position)? else {
                 return Ok(None);
             };
             for write in writes {
+                if write == StorageWriteTarget::Unlocated {
+                    return Ok(None);
+                }
+                let StorageWriteTarget::Storage(location) = &write else {
+                    frame.push(write);
+                    continue;
+                };
                 let Some(place) =
-                    exactly_one(machine.places.iter(), |row| row.place == write.root)
+                    exactly_one(machine.places.iter(), |row| row.place == location.root)
                 else {
                     return Err("write frame has no unique storage origin");
                 };
@@ -868,7 +1078,7 @@ impl<'a> Replay<'a> {
                         access: StructuralAccess::Owned,
                         ..
                     } if self
-                        .inline_steps(machine, &DescriptorContentsQuery::from_location(&write))
+                        .inline_steps(machine, &DescriptorContentsQuery::from_location(location))
                         .is_some_and(|steps| steps.into_iter().all(|inline| inline)) =>
                     {
                         // By-value arguments have private working storage.
@@ -886,7 +1096,7 @@ impl<'a> Replay<'a> {
             }
         }
         frame.sort_unstable();
-        let mut normalized: Vec<DescriptorLocation> = Vec::with_capacity(frame.len());
+        let mut normalized: Vec<StorageWriteTarget> = Vec::with_capacity(frame.len());
         for write in frame {
             if !normalized
                 .last()
@@ -969,6 +1179,38 @@ impl<'a> Replay<'a> {
             return Ok(None);
         }
         for origin in &origins {
+            if let DescriptorCallOrigin::NativeAddress {
+                machine: owner,
+                place,
+                carrier,
+                projection,
+                ..
+            } = origin
+            {
+                let owner = self
+                    .machine(*owner)
+                    .ok_or("native reference formation lost its machine")?;
+                if owner.place_types.get(place) != Some(carrier) {
+                    return Err("native reference formation lost its typed descriptor");
+                }
+                let StructuralTypeShape::Reference { referent, .. } = self
+                    .type_index
+                    .find(*carrier)
+                    .ok_or("native reference type is absent")?
+                    .shape
+                else {
+                    return Err("native formation does not have reference type");
+                };
+                let path = projection
+                    .validate_captured_storage_address(|at| owner.flow.contains_key(&at))?
+                    .ok_or("native reference has an unresolved captured window")?;
+                if crate::runtime_read_projection_tip(&*self.type_index, referent, &path).is_none()
+                    && crate::runtime_structural_field(&*self.type_index, referent, &path).is_none()
+                {
+                    return Err("native reference projection does not follow its pointee type");
+                }
+                continue;
+            }
             let DescriptorCallOrigin::Argument { source, projection } = origin else {
                 return Err("captured storage family has no original storage source");
             };
@@ -1186,7 +1428,10 @@ impl<'a> Replay<'a> {
             {
                 BTreeSet::from([Origin::Storage(location)])
             }
-            StorageResolution::Projected(origin) if matches!(&origin, DescriptorCallOrigin::Argument { projection, .. } if projection.has_captured_reference_crossing() == Ok(false)) => {
+            StorageResolution::Projected(origin)
+                if matches!(&origin, DescriptorCallOrigin::NativeAddress { .. })
+                    || matches!(&origin, DescriptorCallOrigin::Argument { projection, .. } if projection.has_captured_reference_crossing() == Ok(false)) =>
+            {
                 BTreeSet::from([Origin::Backing(origin)])
             }
             StorageResolution::Alternatives(origins) => origins
@@ -1257,6 +1502,17 @@ impl<'a> Replay<'a> {
             }
             _ => return None,
         };
+        if let DescriptorCallOrigin::NativeAddress { .. } = origin {
+            let mut projected = origin;
+            let DescriptorCallOrigin::NativeAddress { projection, .. } = &mut projected else {
+                unreachable!();
+            };
+            *projection = projection.then(&Projection::new(suffix));
+            return Some(match unavailable {
+                Some(reason) => StorageResolution::OpaqueProjection(projected, reason),
+                None => StorageResolution::Projected(projected),
+            });
+        }
         let DescriptorCallOrigin::Argument { source, projection } = origin else {
             return None;
         };
@@ -1563,7 +1819,9 @@ impl<'a> Replay<'a> {
                             | Origin::Incoming(_)
                             | Origin::IncomingContents(_, _)
                             | Origin::Backing(
-                                DescriptorCallOrigin::Argument { .. } | DescriptorCallOrigin::Empty
+                                DescriptorCallOrigin::Argument { .. }
+                                    | DescriptorCallOrigin::NativeAddress { .. }
+                                    | DescriptorCallOrigin::Empty
                             )
                             | Origin::CapturedStorage(_)
                     )
@@ -1579,6 +1837,26 @@ impl<'a> Replay<'a> {
                     let mut next_entry = None;
                     let mut target = match origin {
                         Origin::Backing(DescriptorCallOrigin::Empty) => continue,
+                        Origin::Backing(origin @ DescriptorCallOrigin::NativeAddress { .. }) => {
+                            let full =
+                                machine.location_path_indexed(&self.type_index, &current, None)?;
+                            let prefix_path =
+                                machine.location_path_indexed(&self.type_index, &prefix, None)?;
+                            let [StructuralPathSegment::Referent, suffix @ ..] =
+                                full.get(prefix_path.len()..)?
+                            else {
+                                return None;
+                            };
+                            projected.push(self.append_storage_capture(
+                                machine,
+                                state,
+                                &StorageResolution::Projected(origin.clone()),
+                                suffix,
+                                depth,
+                                expansions.clone(),
+                            )?);
+                            continue;
+                        }
                         Origin::Backing(DescriptorCallOrigin::Argument {
                             source,
                             projection,
@@ -1595,6 +1873,15 @@ impl<'a> Replay<'a> {
                                 return None;
                             }
                             let suffix = &full[prefix_path.len() + 1..];
+                            if projection.is_native_enclosing_storage() {
+                                projected.push(StorageResolution::Projected(
+                                    DescriptorCallOrigin::Argument {
+                                        source: *source,
+                                        projection: projection.clone(),
+                                    },
+                                ));
+                                continue;
+                            }
                             let root_type = *machine.place_types.get(source)?;
                             // A fixed-array reference to an incoming view's window
                             // names that window of the view's payload, which
@@ -2242,6 +2529,8 @@ impl<'a> Replay<'a> {
                         } => {
                             let composed = prefix.then(projection);
                             if composed.exact
+                                && !composed.upgraded_mutability
+                                && !composed.is_native_enclosing_storage()
                                 && !composed.indirect
                                 && composed.window.is_none()
                                 && composed.captured_at.is_none()
@@ -2291,6 +2580,25 @@ impl<'a> Replay<'a> {
                     carrier,
                     projection: prefix,
                 }) => Some(Origin::Backing(DescriptorCallOrigin::AccessFormation {
+                    machine,
+                    operation,
+                    place,
+                    carrier,
+                    projection: prefix.then(projection),
+                })),
+                Origin::Backing(DescriptorCallOrigin::NativeAddress {
+                    opaque,
+                    exact_parameters,
+                    parameters,
+                    machine,
+                    operation,
+                    place,
+                    carrier,
+                    projection: prefix,
+                }) => Some(Origin::Backing(DescriptorCallOrigin::NativeAddress {
+                    opaque,
+                    exact_parameters,
+                    parameters,
                     machine,
                     operation,
                     place,
@@ -2360,6 +2668,38 @@ impl<'a> Replay<'a> {
             storage()
         };
         self.project(machine, value, Some(projection))
+    }
+
+    fn observed_native_source(
+        &self,
+        machine: &DescriptorMachine,
+        source: &NativeAddressObservation,
+        reads: &DescriptorReadDepth<'_>,
+    ) -> Value {
+        let history = reads
+            .history
+            .filter(|(owner, _)| owner.id == machine.id)
+            .map(|(_, rows)| rows)
+            .or_else(|| {
+                self.snapshots
+                    .get(&machine.id)?
+                    .ready()
+                    .map(|prepared| prepared.before.as_ref())
+            })?;
+        let state = history.get(&source.at)?;
+        let observed = DescriptorReadDepth::at(machine, state, Some(history));
+        if source.storage_address {
+            let value = self.capture_storage(machine, state, &source.location, &observed);
+            self.project(machine, value, source.projection.as_ref())
+        } else {
+            self.captured_source_value(
+                machine,
+                state,
+                &source.location,
+                source.projection.as_ref(),
+                &observed,
+            )
+        }
     }
 
     /// Capture the address that a reference or inline collection view
@@ -3367,6 +3707,23 @@ impl<'a> Replay<'a> {
                             .insert(location.clone(), Some(BTreeSet::from([origin])));
                     }
                 }
+                if let Some(formation) = step.native_borrow.as_deref() {
+                    let (destination, sources) = formation;
+                    let mut values = BTreeSet::new();
+                    if let Some(issued) = machine.originations.get(&position) {
+                        for (location, origin) in issued {
+                            if location == destination
+                                && matches!(origin, DescriptorCallOrigin::NativeAddress { .. })
+                            {
+                                values.insert(Origin::Backing(origin.clone()));
+                            }
+                        }
+                    }
+                    for source in sources {
+                        values.extend(self.observed_native_source(machine, source, &reads)?);
+                    }
+                    after.slots_mut().insert(destination.clone(), Some(values));
+                }
                 if let Some(call) = machine.direct_call(position)
                     && call.argument_contents.iter().all(Option::is_some)
                     && let Err(detail) = self.apply_invocation(
@@ -3585,10 +3942,7 @@ impl<'a> Replay<'a> {
                 ..
             } => {
                 let effects = self.summary(*machine, depth)?;
-                let mut summary = direct_target_summary(target)?;
-                summary.effects = effects.effects.clone();
-                summary.invalidates_contents |= effects.invalidates_contents;
-                Some(Arc::new(summary))
+                Some(Arc::new(selected_target_summary(target, &effects)?))
             }
             DescriptorInvocationTarget::Public { realizations, .. }
                 if !realizations.is_empty() =>
@@ -3619,10 +3973,7 @@ impl<'a> Replay<'a> {
                 ..
             } => {
                 let effects = self.summaries.get(machine)?.as_ref()?;
-                let mut summary = direct_target_summary(target)?;
-                summary.effects = effects.effects.clone();
-                summary.invalidates_contents |= effects.invalidates_contents;
-                Some(Arc::new(summary))
+                Some(Arc::new(selected_target_summary(target, effects)?))
             }
             DescriptorInvocationTarget::Public { realizations, .. }
                 if !realizations.is_empty() =>
@@ -3665,7 +4016,8 @@ impl<'a> Replay<'a> {
         reads: &DescriptorReadDepth<'_>,
     ) -> Value {
         let value = self.substitute_with_depth(machine, state, call, origin, reads);
-        if matches!(
+        if !matches!(origin, DescriptorStoredOrigin::NativeAddress { .. })
+            && matches!(
             call.target,
             DescriptorInvocationTarget::Public {
                 extent: semantic_vocabulary::ReferenceOriginExtent::WithinRegion,
@@ -3771,6 +4123,63 @@ impl<'a> Replay<'a> {
                     projection: projection.clone(),
                 },
             )])),
+            DescriptorStoredOrigin::NativeAddress {
+                machine: formed_in,
+                operation,
+                place,
+                carrier,
+                projection,
+                parameters,
+                exact_parameters,
+                opaque,
+            } => {
+                let StructuralTypeShape::Reference { referent, .. } =
+                    self.type_index.find(*carrier)?.shape
+                else {
+                    return None;
+                };
+                let mut origins = BTreeSet::new();
+                let mut forwarded = BTreeSet::new();
+                let mut forwarded_exact = *exact_parameters;
+                let mut opaque = *opaque;
+                let mut needs_formation = false;
+                for parameter in parameters {
+                    let actual = actuals
+                        .native_address_arguments
+                        .iter()
+                        .find(|row| row.parameter == *parameter)?;
+                    opaque |= actual.opaque;
+                    if !actual.parameters.is_empty() {
+                        forwarded_exact &= actual.exact;
+                    }
+                    for source in &actual.sources {
+                        let enclosing =
+                            !*exact_parameters || !actual.exact || source.pointee != Some(referent);
+                        needs_formation |= enclosing;
+                        let value = self.observed_native_source(machine, source, reads);
+                        if enclosing {
+                            let bound = Projection::new(&[]).into_native_enclosing_storage();
+                            origins.extend(self.project(machine, value, Some(&bound))?);
+                        } else {
+                            origins.extend(self.project(machine, value, Some(projection))?);
+                        }
+                    }
+                    forwarded.extend(actual.parameters.iter().copied());
+                }
+                if origins.is_empty() || opaque || needs_formation || !forwarded.is_empty() {
+                    origins.insert(Origin::Backing(DescriptorCallOrigin::NativeAddress {
+                        machine: *formed_in,
+                        operation: *operation,
+                        place: *place,
+                        carrier: *carrier,
+                        exact_parameters: forwarded_exact,
+                        opaque,
+                        parameters: forwarded.into_iter().collect(),
+                        projection: projection.clone(),
+                    }));
+                }
+                Some(origins)
+            }
             DescriptorStoredOrigin::Empty => Some(BTreeSet::from([Origin::Backing(
                 DescriptorCallOrigin::Empty,
             )])),
@@ -4103,6 +4512,25 @@ impl<'a> Replay<'a> {
                 carrier,
                 projection,
             }) => Some(DescriptorStoredOrigin::AccessFormation {
+                machine: *machine,
+                operation: *operation,
+                place: *place,
+                carrier: *carrier,
+                projection: projection.clone().without_runtime_coordinates(),
+            }),
+            Origin::Backing(DescriptorCallOrigin::NativeAddress {
+                opaque,
+                exact_parameters,
+                parameters,
+                machine,
+                operation,
+                place,
+                carrier,
+                projection,
+            }) => Some(DescriptorStoredOrigin::NativeAddress {
+                opaque: *opaque,
+                exact_parameters: *exact_parameters,
+                parameters: parameters.clone(),
                 machine: *machine,
                 operation: *operation,
                 place: *place,
