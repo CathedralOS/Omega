@@ -26,7 +26,7 @@ pub(crate) struct Backing {
     regions: Vec<CapturedRegion>,
     /// Two raw loans starting at the same SSA address have a known overlap,
     /// even if their result descriptors have different roots and types.
-    native_operand: Option<ValueId>,
+    pub(super) native_operand: Option<ValueId>,
     subject: Option<(BlockId, Lineage)>,
 }
 
@@ -92,11 +92,6 @@ impl Backing {
         let mut backing = Self::captured(descriptor, regions, None).expect("known native address origins");
         backing.native_operand = Some(address);
         backing
-    }
-
-    pub(super) fn overlaps_loan(&self, other: &Self) -> bool {
-        self.native_operand.is_some_and(|address| other.native_operand == Some(address))
-            || overlap(self, other)
     }
 
     fn captured(

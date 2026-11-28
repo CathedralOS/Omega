@@ -255,7 +255,8 @@ fn competing_borrows(
     else {
         return None;
     };
-    if !left_place.overlaps_loan(right_place) || !left.is_exclusive() && !right.is_exclusive() {
+    let same_address = left_place.native_operand.is_some_and(|address| right_place.native_operand == Some(address));
+    if (!same_address && !overlap(left_place, right_place)) || (!left.is_exclusive() && !right.is_exclusive()) {
         None
     } else if left.is_exclusive() && right.is_exclusive() {
         Some(LoanConflict::TwiceExclusive)
