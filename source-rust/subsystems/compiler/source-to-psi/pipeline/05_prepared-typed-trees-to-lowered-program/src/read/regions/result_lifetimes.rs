@@ -424,6 +424,15 @@ impl Frontier<'_, '_> {
                 return Ok(true);
             }
             StorageShape::Opaque => return Ok(regions.is_empty()),
+            // A lifetime on an opaque value bounds hidden contents. There is
+            // no field here that a caller may dereference. The origin of the
+            // debt must come from its producer, never from an empty frontier.
+            StorageShape::BorrowingOpaque { lifetime_count } => {
+                if lifetime_count.get() as usize != regions.len() {
+                    return Err("opaque occurrence has a different number of lifetime arguments");
+                }
+                return Ok(false);
+            }
             StorageShape::AtomicCell(_)
             | StorageShape::PrimitiveScalar { .. }
             | StorageShape::ByteSequence(_) => return Ok(true),

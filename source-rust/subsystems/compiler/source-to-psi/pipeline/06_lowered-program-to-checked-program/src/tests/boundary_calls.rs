@@ -209,6 +209,23 @@ fn a_boundary_call_selects_its_structural_const_by_value() {
 }
 
 #[test]
+fn a_record_index_retains_a_closed_enum_case_across_a_call() {
+    let source = r#"
+        data Mode [copy] { case Fixed; case Split; }
+        data Slot<const Plan: Mode> { value: u32; }
+        machine observe(value: @Slot<Mode::Fixed>) -> u32 { value.value }
+        machine entry(input: @Slot<Mode::Fixed>) -> u32 { observe(input) }
+    "#;
+    let result = judge_boundary_package(source);
+    assert!(!result.is_empty());
+    assert!(result.iter().all(|v| matches!(v, Ok(RouteVerdict::Accepted(_)))), "{result:?}");
+    let wrong = source.replace("entry(input: @Slot<Mode::Fixed>", "entry(input: @Slot<Mode::Split>");
+    let negative = judge_boundary_package(&wrong);
+    assert!(negative.iter().any(|v| matches!(v, Ok(RouteVerdict::FallBack(refusal))
+        if refusal.reason == RefusalReason::Violation)), "{negative:?}");
+}
+
+#[test]
 fn a_generic_boundary_caller_forwards_its_plan_and_checks_the_worker() {
     let source = r#"
         data Storage [copy] { case Fixed; case Split; }

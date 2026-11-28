@@ -432,7 +432,7 @@ impl Program<'_> {
                     }
                 }
             }
-            StorageShape::Opaque
+            StorageShape::Opaque | StorageShape::BorrowingOpaque { .. }
             | StorageShape::TypeParameter(_)
             | StorageShape::ByteSequence(_)
             | StorageShape::AtomicCell(_)
@@ -450,6 +450,26 @@ impl Program<'_> {
         let typed = self.typed;
         let symbol = data.symbol;
         self.served(id, symbol)?;
+        // Only type binders name runtime types. Const and machine operands
+        // were checked when the source application matched its template.
+        let read_argument_types = |program: &mut Self| -> Checked<()> {
+            let Some(application) = &application else { return Ok(()) };
+            let template = typed.unique_data_definition_by_symbol(symbol)
+                .ok_or_else(|| refuse_at(id, Unserved::Type("applied data lost its template")))?;
+            let parameters = typed.data_type_parameters(template);
+            if parameters.len() != application.substitutions.len() {
+                return Err(refuse_at(id, Unserved::Type("record lost its supplied arguments")));
+            }
+            for (parameter, &(binder, argument)) in parameters.iter().zip(&application.substitutions) {
+                if parameter.symbol != binder {
+                    return Err(refuse_at(id, Unserved::Type("record argument names another binder")));
+                }
+                if matches!(parameter.kind, crate::source_state::data::TypeParameterKind::Type) {
+                    program.value_type(id, argument)?;
+                }
+            }
+            Ok(())
+        };
         let same =
             |owner: SymbolHandle, retained: &Option<crate::source_state::SourceTypeApplication>| {
                 owner == symbol
@@ -535,11 +555,7 @@ impl Program<'_> {
                 self.resolving.push((symbol, application.clone()));
                 let enclosing = std::mem::replace(&mut self.lifetime_owner, symbol);
                 let read = (|| {
-                    if let Some(application) = &application {
-                        for (_, argument) in &application.substitutions {
-                            self.value_type(id, *argument)?;
-                        }
-                    }
+                    read_argument_types(self)?;
                     self.declared_members(id, typed.data_members(data))
                 })();
                 self.lifetime_owner = enclosing;
@@ -629,25 +645,7 @@ impl Program<'_> {
         let read = (|| {
             // A closed metadata row is not argument admission. Each supplied
             // type must itself be a type this same checked route can serve.
-            if let Some(application) = &application {
-                let template = typed
-                    .unique_data_definition_by_symbol(symbol)
-                    .ok_or_else(|| unserved("applied data lost its template"))?;
-                for (parameter, argument) in typed
-                    .data_type_parameters(template)
-                    .iter()
-                    .zip(&application.substitutions)
-                {
-                    if matches!(
-                        parameter.kind,
-                        crate::source_state::data::TypeParameterKind::Type
-                    ) {
-                        self.value_type(id, argument.1)?;
-                    }
-                    // source_application checks each const against its carrier;
-                    // a const is not itself a runtime value type to read here.
-                }
-            }
+            read_argument_types(self)?;
             // The supplied types are admitted above; the members are read as
             // fields of this declaration, which state their lifetimes.
             self.elision = super::regions::Elision::Members;
@@ -758,7 +756,11 @@ impl Program<'_> {
             return Err(unserved("copy data with an owned field"));
         }
         let shape = if data.supply_mode == language_core::DataSupplyMode::BoundaryOpaque {
-            crate::StorageShape::Opaque
+            match std::num::NonZeroU32::new(u32::try_from(data.lifetime_parameters.len())
+                .map_err(|_| unserved("opaque lifetime binder count exceeds u32"))?) {
+                None => crate::StorageShape::Opaque,
+                Some(lifetime_count) => crate::StorageShape::BorrowingOpaque { lifetime_count },
+            }
         } else if case_types.is_empty() {
             crate::StorageShape::Record(declared)
         } else {
@@ -768,7 +770,14 @@ impl Program<'_> {
         // (`Index<Limit>` while `Limit` is rigid) makes the requires name that
         // input, so the record belongs to this checking machine like an array
         // sized by one.
-        let (bound, bound_owner) = self.application_values(id, symbol, application.as_ref())?;
+        // The application already retains and checks every static operand.
+        // Only a declaration predicate needs those operands as proof terms;
+        // a record indexed by an enum need not reinterpret it as an integer.
+        let (bound, bound_owner) = if data.requires_facts.is_empty() {
+            (Vec::new(), None)
+        } else {
+            self.application_values(id, symbol, application.as_ref())?
+        };
         let storage_owner = self.storage_constant_input_owner(id, &shape)?;
         let constant_input_owner = match (storage_owner, bound_owner) {
             (Some(left), Some(right)) if left != right => {
@@ -1749,7 +1758,7 @@ impl Program<'_> {
         };
         if matches!(
             self.data_type(id, record)?.shape,
-            crate::StorageShape::Opaque
+            crate::StorageShape::Opaque | crate::StorageShape::BorrowingOpaque { .. }
         ) {
             return Err(typing(
                 "opaque literal requires its checked representation and supplied contents",
@@ -2376,9 +2385,6 @@ fn record_shape_for(
         return unserved("opaque data with declared members");
     }
     if data.supply_mode == language_core::DataSupplyMode::BoundaryOpaque {
-        if !data.lifetime_parameters.is_empty() {
-            return unserved("opaque data without its retained lifetime obligations");
-        }
         if !data.requires_facts.is_empty() {
             return unserved("opaque data without its checked value predicates");
         }

@@ -2219,7 +2219,14 @@ mod value_expressions {
             SymbolKind::Const,
             name,
         );
-        constant.is_valid().then_some(constant)
+        if constant.is_valid() {
+            return Some(constant);
+        }
+        // A qualified, payload-free case names a value in an index just as it
+        // does in an expression. Keep the selected declaration, not its text.
+        crate::resolution::names::qualified_payload_free_case_type(
+            symbols, name.as_str(), name.source_span(),
+        ).ok().flatten().map(|(_, case, _)| case)
     }
 
     #[cfg(test)]

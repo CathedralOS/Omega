@@ -384,10 +384,16 @@ fn checked_source_application(
                                 "record const argument with an unsupported canonical carrier",
                             ));
                         }
+                        let supplied = scope.supplied_type_reference(typed, *argument)
+                            .map_err(|reason| malformed(machine, reason))?;
                         let value =
-                            crate::source_state::canonical_const_argument_value(typed, *argument)
+                            crate::source_state::canonical_const_argument_value(typed, supplied.reference)
                                 .ok_or_else(|| {
-                                unavailable("record const argument has no canonical value")
+                                let mut refusal = unavailable("record const argument has no canonical value");
+                                refusal.detail.push_str(&format!(" for parameter `{}` of `{}`: {}",
+                                    typed.symbols.name(parameter.symbol), template.name.as_str(),
+                                    typed.normalized_type_identity_text(supplied.reference)));
+                                refusal
                             })?;
                         let bindings = parameters
                             .iter()

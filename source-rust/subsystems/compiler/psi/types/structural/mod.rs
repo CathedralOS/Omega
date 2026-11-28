@@ -83,6 +83,10 @@ pub enum StructuralTypeShape {
     /// preserves the supplying host's identity, rather than constructing
     /// an empty record with the same name.
     Opaque,
+    /// The value owns hidden contents bounded by these declared lifetime
+    /// parameters. Moving it transfers its existing loan dependencies; it
+    /// supplies neither a reference nor a way to inspect those contents.
+    BorrowingOpaque { lifetime_count: std::num::NonZeroU32 },
     Reference {
         referent: StructuralTypeId,
         access: crate::StructuralAccess,

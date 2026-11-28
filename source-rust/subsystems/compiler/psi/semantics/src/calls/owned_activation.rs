@@ -100,7 +100,7 @@ fn named(name: &str) -> String {
     compound(TypeForm::Named, [atom(Label::Name, name)])
 }
 
-fn published_request_types(reply: &str) -> (String, String, String) {
+fn publication_types(role: &str, reply: &str) -> (String, String, String) {
     use application_identity::type_identity::vocabulary::ConstraintForm;
     use language_core::bundled_files::core_revision;
     let carrier = named(&toolchain_name("Publication"));
@@ -109,7 +109,7 @@ fn published_request_types(reply: &str) -> (String, String, String) {
         ConstraintForm::DeclaredDomain,
         [
             atom(Label::Name, &toolchain_name(family)),
-            named(&toolchain_name("RequestRole")),
+            named(&toolchain_name(role)),
             reply.to_owned(),
         ],
     );
@@ -134,7 +134,7 @@ fn published_request_types(reply: &str) -> (String, String, String) {
         TypeForm::Generic,
         [
             atom(Label::Name, &core_owner(&core_revision::REPLY, &owner)),
-            named(&core_owner(&core_revision::REPLY, "RequestRole")),
+            named(&core_owner(&core_revision::REPLY, role)),
             reply.to_owned(),
         ],
     );
@@ -294,12 +294,51 @@ pub fn park_shape(
     let [request_declared] = source.parameter_types.as_slice() else {
         return Err("park lacks its sole declared request");
     };
+    if !boundary.scalar_parameters.is_empty()
+        || boundary.parameter_order != [BoundaryParameterKind::Structural]
+    {
+        return Err("park consumes the request alone");
+    }
+    publication_shape(module, request, *request_declared, source.result_type, "RequestRole")
+}
+
+/// Check the caller's one-shot answer against the reply binder of the actual
+/// resume declaration. A handle to the same slot with the request role is
+/// not an answer permit. This check does not establish the parked owner.
+pub fn resume_permit(module: &TerminalModule, boundary: &BoundaryMachineDeclaration)
+    -> Result<ParkShape, &'static str> {
+    use terminal_psi::{CheckedBoundaryExecution, ClosedReachArgument as Arg};
+    let checked = boundary.declaration.as_ref().ok_or("resume has no declaration")?;
+    let source = &checked.source;
+    let closed = source.specialization.as_ref().ok_or("resume has no specialisation")?;
+    let [Arg::Type(_), Arg::Type(_), Arg::Type(reply), Arg::Machine { .. }, Arg::Const(_)] =
+        checked.method_arguments.as_slice() else { return Err("resume lost its closed reply type"); };
+    let [_, declared, value] = source.parameter_types.as_slice() else { return Err("resume needs owner, permit and value"); };
+    if checked.execution != CheckedBoundaryExecution::OwnedActivation(ActivationOperation::Resume)
+        || module.identities.text(closed.template.identity()) != Some(source_owner("resume").as_str())
+        || module.identities.text(closed.template_entry.identity()) != Some(source_owner("resume::entry").as_str())
+        || source.published_may_suspend || source.published_may_block
+        || boundary.parameter_order.get(1) != Some(&BoundaryParameterKind::Structural)
+        || module.identities.text(*value) != module.identities.text(*reply) {
+        return Err("resume has a different operation or value type");
+    }
+    let permit = boundary.structural_parameters.get(1)
+        .filter(|p| p.position == 1)
+        .ok_or("resume needs its original answer permit")?;
+    publication_shape(module, permit, *declared, *reply, "AnswerRole")
+}
+
+fn publication_shape(
+    module: &TerminalModule, request: &terminal_psi::StructuralParameterDeclaration,
+    declared_type: terminal_psi::TerminalIdentityIndex, reply_type: terminal_psi::TerminalIdentityIndex,
+    role: &str,
+) -> Result<ParkShape, &'static str> {
+    let text = |id| module.identities.text(id);
+    let reply = text(reply_type).ok_or("publication has no closed reply type")?;
     let carrier = module
         .structural_type(request.structural_type)
         .ok_or("park request type is absent")?;
-    if !boundary.scalar_parameters.is_empty()
-        || boundary.parameter_order != [BoundaryParameterKind::Structural]
-        || request.access != StructuralAccess::Owned
+    if request.access != StructuralAccess::Owned
         || request.multiplicity != StructuralMultiplicity::Linear
         || carrier.multiplicity != StructuralMultiplicity::Linear
         || text(carrier.declaration_identity) != Some("toolchain::Publication")
@@ -366,8 +405,8 @@ pub fn park_shape(
     {
         return Err("park requires the exact field borrowing the slot's ordinary byte");
     }
-    let (base, declared, issued) = published_request_types(reply);
-    if text(*request_declared) != Some(declared.as_str())
+    let (base, declared, issued) = publication_types(role, reply);
+    if text(declared_type) != Some(declared.as_str())
         || text(qualified.identity) != Some(issued.as_str())
         || text(qualified.subject_identity) != Some(base.as_str())
         || text(carrier.identity) != Some(base.as_str())
@@ -377,6 +416,6 @@ pub fn park_shape(
     Ok(ParkShape {
         anchor: field.id,
         anchor_identity: field.identity,
-        reply: source.result_type,
+        reply: reply_type,
     })
 }

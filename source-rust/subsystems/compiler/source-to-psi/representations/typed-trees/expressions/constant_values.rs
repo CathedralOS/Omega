@@ -41,30 +41,30 @@ pub fn canonical_const_argument_value(
     {
         return None;
     }
-    let value = match program.type_reference_table.type_reference(reference) {
-        types::TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => {
-            if !program.symbols.symbols().nodes().is_valid(*symbol) {
-                return None;
-            }
-            if let Some((owner, _)) = program.variant_owner(*symbol) {
-                let carrier = program.type_reference_table.find_named_type_reference(owner.symbol)?;
-                program.canonical_case_argument(carrier, *symbol).ok()?
-            } else {
-                canonical_const_declaration_value(program, *symbol)?
-            }
+    let named = |symbol| {
+        if !program.symbols.symbols().nodes().is_valid(symbol) {
+            return None;
         }
+        if let Some((owner, _)) = program.variant_owner(symbol) {
+            let carrier = program.type_reference_table.find_named_type_reference(owner.symbol)?;
+            program.canonical_case_argument(carrier, symbol).ok()
+        } else {
+            canonical_const_declaration_value(program, symbol)
+        }
+    };
+    let value = match program.type_reference_table.type_reference(reference) {
+        types::TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => named(*symbol)?,
         types::TypeReferenceNode::Named { name, .. } => {
             CanonicalConstValue::from_atom(name.as_str()).or_else(|| {
                 boolean_literal_spelling(name.as_str()).map(CanonicalConstValue::boolean)
             })?
         }
         types::TypeReferenceNode::ConstExpression(expression) => {
-            let expression::ExpressionNode::Boolean(value) =
-                program.expression_table.expression(*expression)
-            else {
-                return None;
-            };
-            CanonicalConstValue::boolean(*value)
+            match program.expression_table.expression(*expression) {
+                expression::ExpressionNode::Boolean(value) => CanonicalConstValue::boolean(*value),
+                expression::ExpressionNode::Name(path) => named(path.symbol)?,
+                _ => return None,
+            }
         }
         _ => return None,
     };

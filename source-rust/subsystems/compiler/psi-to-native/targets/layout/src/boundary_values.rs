@@ -501,7 +501,7 @@ impl<'module> TerminalBoundaryRecipes<'module> {
                     "generic boundary value needs a closed application before ABI planning".into(),
                 );
             }
-            StructuralTypeShape::Opaque => {
+            StructuralTypeShape::Opaque | StructuralTypeShape::BorrowingOpaque { .. } => {
                 return Err(
                     "opaque boundary value needs its selected representation before ABI planning"
                         .into(),

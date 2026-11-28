@@ -1785,6 +1785,7 @@ impl<'t> Program<'t> {
             StorageShape::Opaque
             | StorageShape::TypeParameter(_)
             | StorageShape::Reference { .. }
+            | StorageShape::BorrowingOpaque { .. }
             | StorageShape::ElementView { .. } => true,
             StorageShape::ByteSequence(carrier) => matches!(
                 carrier,
@@ -1825,6 +1826,7 @@ impl<'t> Program<'t> {
             StorageShape::Opaque
             | StorageShape::TypeParameter(_)
             | StorageShape::Reference { .. }
+            | StorageShape::BorrowingOpaque { .. }
             | StorageShape::ElementView { .. } => false,
             StorageShape::ByteSequence(carrier) => matches!(
                 carrier,

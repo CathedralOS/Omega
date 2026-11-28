@@ -2351,6 +2351,7 @@ bound strictly ordered.
 | 17 | Record with requires | record storage tag (1, 10, 13, 14 or 15) + that tag's fields + nonempty counted propositions |
 | 18 | Sum with requires | tag 3's fields + nonempty counted propositions |
 | 19 | Opaque | — |
+| 21 | BorrowingOpaque | Nonzero `u32` count of declared lifetime parameters. An owned occurrence retains the loans it receives from its producer; it exposes neither a reference field nor a concrete address. |
 
 Tags 9 and 11 are retired: a decoder rejects them rather than reinterpreting
 them. Checking rejects a boundary trait in every runtime value position, so no

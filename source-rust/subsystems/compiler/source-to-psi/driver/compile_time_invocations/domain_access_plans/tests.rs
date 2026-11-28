@@ -164,6 +164,10 @@ fn preparing_a_child_names_its_worker_and_returns_the_rejected_backing() {
     let call = typed.expression_table.call_node(call).unwrap();
     let declaration = typed.machine_by_symbol(call.target_symbol)
         .or_else(|| typed.machine_holding_state(call.target_symbol)).unwrap();
+    assert_eq!(typed.sealed_callable(declaration.symbol),
+        Some(language_core::sealed_intrinsics::SealedIntrinsic::OwnedActivation(
+            language_core::sealed_intrinsics::ActivationOperation::Prepare)),
+        "the source fixture must use the same bundled core revision as the compiler");
     let parameters = typed.machine_callable_parameters(declaration);
     let plan = parameters.last().unwrap();
     let crate::source_state::data::TypeParameterKind::Const { type_reference } = plan.kind else {

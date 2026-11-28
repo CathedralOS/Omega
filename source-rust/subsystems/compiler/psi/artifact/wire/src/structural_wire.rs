@@ -1018,7 +1018,7 @@ pub(crate) mod structural_type_wire {
                     "an open type parameter cannot be serialized as executable storage",
                 ));
             }
-            StructuralTypeShape::Opaque => {
+            StructuralTypeShape::Opaque | StructuralTypeShape::BorrowingOpaque { .. } => {
                 if declaration.quotient_carrier.is_some()
                     || declaration.scalar_restriction.is_some()
                     || !declaration.requires.is_empty()
@@ -1027,7 +1027,12 @@ pub(crate) mod structural_type_wire {
                         "opaque data cannot supply a visible carrier or authored value predicate",
                     ));
                 }
-                writer.u8(19);
+                if let StructuralTypeShape::BorrowingOpaque { lifetime_count } = &declaration.shape {
+                    writer.u8(21);
+                    writer.u32(lifetime_count.get());
+                } else {
+                    writer.u8(19);
+                }
             }
             StructuralTypeShape::Reference { referent, access } => {
                 writer.u8(7);
@@ -1223,6 +1228,11 @@ pub(crate) mod structural_type_wire {
                     ))?,
             ),
             19 => StructuralTypeShape::Opaque,
+            21 => StructuralTypeShape::BorrowingOpaque {
+                lifetime_count: std::num::NonZeroU32::new(reader.u32()?).ok_or(
+                    CodecError::MalformedStructuralFoundation("an opaque borrower has no lifetime parameters"),
+                )?,
+            },
             tag => return Err(CodecError::InvalidTag("StructuralTypeShape", tag)),
         };
         let requires = if declares_requires {

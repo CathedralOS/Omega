@@ -48,7 +48,7 @@ pub(super) fn result_shape(module: &TerminalModule, boundary: &BoundaryMachineDe
     if name(owner.declaration_identity) != Some("toolchain::ActivationPreparation::Ready::owner")
         || name(token.declaration_identity) != Some("toolchain::ReadyActivation")
         || !token.owns_linear_claim || token.multiplicity != StructuralMultiplicity::Linear
-        || token.shape != StructuralTypeShape::Opaque {
+        || !matches!(token.shape, StructuralTypeShape::BorrowingOpaque { lifetime_count } if lifetime_count.get() == 1) {
         return Err("ready must hold the core linear execution owner");
     }
     if rejected.fields.len() != 2 { return Err("rejection must return both inputs"); }
