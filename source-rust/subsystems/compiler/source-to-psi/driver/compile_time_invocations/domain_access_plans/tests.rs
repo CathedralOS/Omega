@@ -254,16 +254,26 @@ fn judge_activation(
     source: &str,
     roots: &[&str],
 ) -> Result<production::AcceptedTerminalSource, Vec<diagnostics::Diagnostic>> {
+    let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0xA1; 32]).unwrap();
     let mut typed = schema_customer_source::source_with_core(
         &fixture_repository::root().join("source/library"),
         source,
-        semantic_vocabulary::PackageKeyIdentity::from_digest([0xA1; 32]).unwrap(),
+        package,
         &[],
     )
     .map_err(|detail| vec![diagnostics::Diagnostic::error(detail)])?;
     let entries = roots
         .iter()
-        .map(|name| typed.realized_machine_named(name).unwrap().symbol)
+        .map(|name| {
+            let mut matches = typed.machines().iter().filter(|machine| {
+                machine.target.is_none()
+                    && machine.name.as_str() == *name
+                    && typed.symbols.symbol_package_identity(machine.symbol) == Some(package)
+            });
+            let selected = matches.next().expect("the authored fixture root");
+            assert!(matches.next().is_none(), "ambiguous fixture root {name}");
+            selected.symbol
+        })
         .collect::<Vec<_>>();
     let request = production::TerminalSourceCompilation {
         calling: None,
