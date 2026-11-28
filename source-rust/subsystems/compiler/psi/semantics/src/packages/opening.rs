@@ -33,9 +33,8 @@ pub(super) fn projection(
     let Some((StructuralPathSegment::Field(identity), parent)) = path.split_last() else {
         return Err("package projection does not read a field");
     };
-    if *source != opened.subject.place
-        || !crate::structural_paths_select_same_location(parent, &opened.subject.path)
-        || *identity != declaration.identity
+    if *identity != declaration.identity
+        || !same_subject_at(module, machine, operation, opened, *source, parent)
     {
         return Err("package projection reads a field of another subject");
     }
@@ -117,41 +116,91 @@ pub(super) fn projection(
     Ok(projected)
 }
 
-/// The stored reference that supplies this call's borrowed witness. Only
-/// inline fields and elements of the opened subject can own that reference.
+/// Follow ordinary checked reference formation at the operation's prestate.
+/// Equal sets of possible targets do not prove that two references select
+/// the same one. Only one resolved storage location can match the anchor.
+pub(super) fn same_subject_at(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+    opened: &TerminalPackageOpening,
+    place: semantic_vocabulary::PlaceId,
+    path: &[StructuralPathSegment],
+) -> bool {
+    use crate::descriptor_results::{DescriptorAnalysis, terminal_borrowed_storage_graph_from};
+    use crate::descriptors::descriptor_lifetimes::{DescriptorLocation, descriptor_location};
+    let anchor = &opened.subject;
+    if anchor.place == place && crate::structural_paths_select_same_location(&anchor.path, path) {
+        return true;
+    }
+    if path
+        .iter()
+        .chain(&anchor.path)
+        .any(|step| matches!(step, StructuralPathSegment::RuntimeIndex { .. }))
+    {
+        return false;
+    }
+    let Some(position) = machine.blocks.iter().find_map(|block| {
+        let offset = block
+            .operations
+            .iter()
+            .position(|op| op.id == operation.id)?;
+        Some((block.id, u32::try_from(offset).ok()?))
+    }) else {
+        return false;
+    };
+    let Ok(graph) = terminal_borrowed_storage_graph_from(module, [machine.id], &[]) else {
+        return false;
+    };
+    let types = &module.types.structural_types;
+    let mut replay = DescriptorAnalysis::with_borrowed_storage_slots(types, &graph);
+    let mut address = |place, path: &[StructuralPathSegment]| {
+        let root = machine.structural_place_type(place)?;
+        let ty = crate::runtime_structural_path_tip(types.iter(), root, path)?;
+        if ty.id != opened.record {
+            return None;
+        }
+        let coordinate = descriptor_location(types, place, root, path, None)?;
+        let resolved = replay.location(machine.id, position, &coordinate)?;
+        DescriptorLocation::captured(resolved.root, &resolved.path)
+    };
+    address(anchor.place, &anchor.path)
+        .is_some_and(|recorded| address(place, path) == Some(recorded))
+}
+
+/// Read the stored reference of this package or an alias of that same home.
 pub(super) fn subject_reference(
     module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
     opening: &TerminalPackageOpening,
     arg: &StructuralArgument,
 ) -> Option<(StructuralTypeId, StructuralAccess)> {
-    if arg.place != opening.subject.place || arg.path.len() < opening.subject.path.len() {
-        return None;
-    }
-    let (parent, selected) = arg.path.split_at(opening.subject.path.len());
-    let [
-        StructuralPathSegment::Field(field),
-        path @ ..,
-        StructuralPathSegment::Referent,
-    ] = selected
-    else {
+    let (StructuralPathSegment::Referent, stored) = arg.path.split_last()? else {
         return None;
     };
-    if !crate::structural_paths_select_same_location(parent, &opening.subject.path) {
+    for (i, segment) in stored.iter().enumerate() {
+        let StructuralPathSegment::Field(id) = segment else {
+            continue;
+        };
+        if !same_subject_at(module, machine, operation, opening, arg.place, &stored[..i]) {
+            continue;
+        }
+        let field = fields(module, opening.record)
+            .ok()?
+            .iter()
+            .find(|field| field.identity == *id && !field.relevance.is_erased())?;
+        let reference = crate::inline_descriptor_type(
+            module.types.structural_types.iter(),
+            field.field_type.as_structural()?,
+            &stored[i + 1..],
+        )?;
+        if let StructuralTypeShape::Reference { referent, access } = reference.shape {
+            return Some((referent, access));
+        }
         return None;
     }
-    let field = fields(module, opening.record)
-        .ok()?
-        .iter()
-        .find(|decl| decl.identity == *field && !decl.relevance.is_erased())?;
-    let reference = crate::inline_descriptor_type(
-        module.types.structural_types.iter(),
-        field.field_type.as_structural()?,
-        path,
-    )?;
-    match reference.shape {
-        StructuralTypeShape::Reference { referent, access } => Some((referent, access)),
-        _ => None,
-    }
+    None
 }
 
 /// A returned owner gets the descriptor's opening when the call's complete
@@ -246,7 +295,7 @@ pub(super) fn invocation(
         else {
             continue;
         };
-        let (referent, access) = subject_reference(module, opened, arg)
+        let (referent, access) = subject_reference(module, machine, operation, opened, arg)
             .ok_or("package argument comes from another opening")?;
         if referent != schema.witnesses[position]
             || !terminal_psi::structural_access_covers(access, arg.access)

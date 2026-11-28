@@ -368,6 +368,38 @@ impl OpeningScope<'_> {
             .find_map(|(position, symbol)| (*position == ordinal).then_some(*symbol))
     }
 
+    /// Two immutable reference bindings can denote the same storage. An
+    /// indexed loan captures its index at formation; re-reading the name of
+    /// a mutable index cannot prove which element that loan holds.
+    fn same_subject(
+        &self,
+        program: &TypedTrees,
+        open: &PackageOpening,
+        subject: &PackageSubject,
+    ) -> bool {
+        if open.subject == *subject {
+            return true;
+        }
+        let Some(anchor) = backing(program, self.state, &open.subject) else {
+            return false;
+        };
+        if anchor
+            .steps
+            .iter()
+            .any(|step| matches!(step, PackageSubjectStep::IndexBinding(_)))
+            || backing(program, self.state, subject).as_ref() != Some(&anchor)
+        {
+            return false;
+        }
+        // An explicitly named witness remains bound to its lexical declaration.
+        open.witnesses.iter().all(|&(binder, ty)| {
+            self.named_type(subject, open.declaration, binder)
+                .is_none_or(|name| {
+                    program.type_reference_table.unconstrained_named_symbol(ty) == Some(name)
+                })
+        })
+    }
+
     fn project(
         &mut self,
         program: &mut TypedTrees,
@@ -421,7 +453,7 @@ impl OpeningScope<'_> {
             if previous.field != field
                 || opening.declaration != declaration
                 || opening.state != state.symbol
-                || opening.subject != subject
+                || !self.same_subject(program, opening, &subject)
                 || (opening.storage_version != self.version && !self.live.contains(&handle))
             {
                 return Err(Diagnostic::error(
@@ -435,7 +467,7 @@ impl OpeningScope<'_> {
         }
         let opening = if let Some(handle) = self.live.iter().copied().find(|handle| {
             let open = program.package_opening(*handle);
-            open.subject == subject && open.declaration == declaration
+            open.declaration == declaration && self.same_subject(program, open, &subject)
         }) {
             handle
         } else {
@@ -657,6 +689,27 @@ mod tests {
         }
         assert_eq!(opened.len(), 2);
         assert_eq!(opened[0], opened[1]);
+    }
+
+    #[test]
+    fn shared_reference_aliases_repack_fields_of_one_subject() {
+        let source = r#"
+            data Pair<'a, some S> { first: @'a S; second: @'a S; }
+            machine repack<'a>(p: @Pair<'a>, q: @Pair<'a>) -> Pair<'a> {
+                let alias: @Pair<'a> = p;
+                Pair { first: p.first, second: alias.second }
+            }
+        "#;
+        let checked =
+            |source: &str| crate::qualified_operator_home_tests::checked(&[("main.omg", source)]);
+        let trees = checked(source).unwrap();
+        let [first, second] = trees.package_projections.as_slice() else {
+            panic!("two field reads")
+        };
+        assert_eq!(first.opening, second.opening);
+        let crossed = source.replace("= p;", "= q;");
+        let error = checked(&crossed).unwrap_err();
+        assert!(error.contains("conflicting generic arguments"), "{error}");
     }
 
     #[test]
