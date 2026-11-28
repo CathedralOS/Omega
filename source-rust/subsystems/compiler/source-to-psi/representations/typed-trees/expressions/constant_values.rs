@@ -41,13 +41,21 @@ pub fn canonical_const_argument_value(
     {
         return None;
     }
-    let value = match program.type_reference_table.type_reference(reference) {
-        types::TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => {
-            if !program.symbols.symbols().nodes().is_valid(*symbol) {
-                return None;
-            }
-            canonical_const_declaration_value(program, *symbol)?
+    let named = |symbol| {
+        if !program.symbols.symbols().nodes().is_valid(symbol) {
+            return None;
         }
+        if let Some((owner, case)) = program.variant_owner(symbol) {
+            let carrier = program
+                .type_reference_table
+                .find_named_type_reference(owner.symbol)?;
+            program.canonical_case_argument(carrier, owner, case).ok()
+        } else {
+            canonical_const_declaration_value(program, symbol)
+        }
+    };
+    let value = match program.type_reference_table.type_reference(reference) {
+        types::TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => named(*symbol)?,
         types::TypeReferenceNode::Named { name, .. } => {
             CanonicalConstValue::from_atom(name.as_str()).or_else(|| {
                 boolean_literal_spelling(name.as_str()).map(CanonicalConstValue::boolean)
@@ -56,17 +64,55 @@ pub fn canonical_const_argument_value(
         types::TypeReferenceNode::ConstExpression(expression)
             if program.expression_table.expression_is_valid(*expression) =>
         {
-            let expression::ExpressionNode::Boolean(value) =
-                program.expression_table.expression(*expression)
-            else {
-                return None;
-            };
-            CanonicalConstValue::boolean(*value)
+            match program.expression_table.expression(*expression) {
+                expression::ExpressionNode::Boolean(value) => CanonicalConstValue::boolean(*value),
+                expression::ExpressionNode::Name(path) => named(path.symbol)?,
+                _ => return None,
+            }
         }
         _ => return None,
     };
     value.decode_encoding()?;
     Some(value)
+}
+
+impl TypedTrees {
+    /// Record indices and machine arguments use the same typed case value.
+    /// Only a nullary, unconstrained case needs no constructor evidence.
+    pub(crate) fn canonical_case_argument(
+        &self,
+        carrier: types::TypeReferenceHandle,
+        owner: &data::DataDefinition,
+        case: &data::DataVariant,
+    ) -> Result<application_identity::const_value::CanonicalConstValue, &'static str> {
+        use application_identity::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+        if self.type_reference_node(carrier).as_named_symbol() != Some(owner.symbol)
+            || !canonical_const_carrier_is_supported(self, carrier)
+            || !owner.type_parameters.is_empty()
+        {
+            return Err("a static case has another or uninstantiated carrier");
+        }
+        if !case.payload.is_empty()
+            || !case.requires_facts.is_empty()
+            || !owner.requires_facts.is_empty()
+        {
+            return Err(
+                "a static case with fields or requirements needs a checked constructor value",
+            );
+        }
+        let name = owner.name.as_str();
+        let case_name = case.name.as_str();
+        CanonicalConstValue::from_decoded_in_type(
+            self.normalized_type_identity_text(carrier),
+            &DecodedCanonicalConstValue::Variant {
+                type_name: name.to_owned(),
+                case_name: case_name.to_owned(),
+                fields: Vec::new(),
+            },
+            format!("{name}::{case_name}"),
+        )
+        .ok_or("a static case has no canonical value")
+    }
 }
 
 /// Whether this closed carrier has the copyable, address-free structural

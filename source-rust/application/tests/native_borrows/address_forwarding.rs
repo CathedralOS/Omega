@@ -74,3 +74,53 @@ machine main() crashes Trap {{
     );
     program.assert_native_returns();
 }
+
+#[test]
+fn a_returned_field_address_borrows_the_structural_argument_that_supplied_it() {
+    let body = r#"
+data Pair { left: u8; right: u8 }
+machine locate(pair: @Pair) -> address { address_of(@pair.right) }
+machine again(pair: @Pair) -> address { locate(pair) }
+machine choose<'a>(incoming: @'a Pair) -> @'a u8 {
+    let local: Pair = Pair { left: 3u8, right: 4u8 };
+    |native|::borrow_at::<u8>(again(ARG))
+}
+machine main() crashes Trap {
+    let caller: Pair = Pair { left: 13u8, right: 17u8 };
+    let result: @u8 = choose(@caller);
+    transition $result == 17u8 && caller.left == 13u8 { true -> {}, _ -> wrong() }
+    machine wrong() { crash Trap; }
+}"#;
+    let refused = Program::new(&body.replace("ARG", "@local"), &[READ]).check();
+    let diagnostic = report(&refused);
+    assert!(
+        !refused.status.success() && diagnostic.contains("outlive its local backing"),
+        "{diagnostic}"
+    );
+    Program::new(&body.replace("ARG", "incoming"), &[READ]).assert_native_returns();
+}
+
+#[test]
+fn a_native_borrow_cannot_be_formed_after_its_address_owners_return() {
+    let program = Program::new(
+        r#"
+machine local_address() -> address {
+    let local: u8 = 13u8;
+    address_of(@local)
+}
+machine forward() -> address { local_address() }
+machine main() {
+    let local: @u8 = |native|::borrow_at::<u8>(forward());
+}
+"#,
+        &[READ],
+    );
+    let refused = program.check();
+    let diagnostic = report(&refused);
+    assert!(
+        !refused.status.success()
+            && diagnostic.contains("already returned")
+            && !diagnostic.contains("not supported yet"),
+        "{diagnostic}"
+    );
+}

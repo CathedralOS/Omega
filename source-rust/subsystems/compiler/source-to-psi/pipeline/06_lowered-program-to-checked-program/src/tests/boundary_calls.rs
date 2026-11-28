@@ -137,6 +137,68 @@ fn judge_boundary_package(source: &str) -> Vec<Result<RouteVerdict, crate::Compi
 }
 
 #[test]
+fn a_record_index_and_a_machine_argument_name_the_same_enum_case() {
+    let source = include_str!("../../tests/fixtures/enum_case_record_index/pass/matching/main.omg");
+    let check = |source: &str| {
+        let prepared = crate::preparation::prepare_typed_trees(typed(source), &[], &[]).unwrap();
+        judge(invocation(prepared.into_inner()))
+    };
+    let positive = check(source);
+    assert!(
+        matches!(positive, Ok(RouteVerdict::Accepted(_))),
+        "{positive:?}"
+    );
+    let negative = source.replace("read::<Mode::Fixed>", "read::<Mode::Split>");
+    let negative = check(&negative);
+    assert!(
+        matches!(negative, Ok(RouteVerdict::Rejected { .. })),
+        "{negative:?}"
+    );
+}
+
+#[test]
+fn record_indices_and_static_machine_arguments_require_a_complete_case_of_the_carrier() {
+    let declarations = "data Mode [copy] { case Fixed; case Split; case Sized(bytes:u32); }
+        data Other [copy] { case Fixed; }
+        data Restricted [copy] requires self in Restricted::Allowed { case Allowed; case Denied; }
+        const page: Mode = Mode::Sized { bytes: 4096u32 };";
+    let record = "data Packet<const M: CARRIER> { value:u32; }
+        machine entry(packet: Packet<ARGUMENT>) -> u32 { packet.value }";
+    let machine = "machine read<const M: CARRIER>() -> u32 { 7 }
+        machine entry() -> u32 { read::<ARGUMENT>() }";
+    for use_site in [record, machine] {
+        for (carrier, argument, accepted) in [
+            ("Mode", "Mode::Fixed", true),
+            ("Mode", "Mode::Split", true),
+            ("Mode", "page", true),
+            ("Mode", "Mode::Sized", false),
+            ("Mode", "Other::Fixed", false),
+            ("Restricted", "Restricted::Allowed", false),
+            ("Restricted", "Restricted::Denied", false),
+        ] {
+            let use_site = use_site
+                .replace("CARRIER", carrier)
+                .replace("ARGUMENT", argument);
+            let source = format!("{declarations}\n{use_site}");
+            let result = try_typed(&source)
+                .map_err(|error| error.message)
+                .and_then(|typed| {
+                    crate::preparation::prepare_typed_trees(typed, &[], &[])
+                        .map_err(|errors| format!("{errors:?}"))
+                })
+                .and_then(|prepared| {
+                    judge(invocation(prepared.into_inner())).map_err(|error| format!("{error:?}"))
+                });
+            assert_eq!(
+                matches!(result, Ok(RouteVerdict::Accepted(_))),
+                accepted,
+                "{use_site}: {result:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn a_boundary_call_selects_its_structural_const_by_value() {
     let source = r#"
         data Storage [copy] { case Fixed; case Split; }

@@ -34,7 +34,7 @@ pub(super) fn projection(
         return Err("package projection does not read a field");
     };
     if *identity != declaration.identity
-        || !same_subject_at(module, machine, operation, opened, *source, parent)
+        || !subjects::same_storage_at(module, machine, operation, opened, *source, parent)
     {
         return Err("package projection reads a field of another subject");
     }
@@ -116,56 +116,12 @@ pub(super) fn projection(
     Ok(projected)
 }
 
-/// Follow ordinary checked reference formation at the operation's prestate.
-/// Equal sets of possible targets do not prove that two references select
-/// the same one. Only one resolved storage location can match the anchor.
-pub(super) fn same_subject_at(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-    operation: &Operation,
-    opened: &TerminalPackageOpening,
-    place: semantic_vocabulary::PlaceId,
-    path: &[StructuralPathSegment],
-) -> bool {
-    use crate::descriptor_results::{DescriptorAnalysis, terminal_borrowed_storage_graph_from};
-    use crate::descriptors::descriptor_lifetimes::{DescriptorLocation, descriptor_location};
-    let anchor = &opened.subject;
-    if anchor.place == place && crate::structural_paths_select_same_location(&anchor.path, path) {
-        return true;
-    }
-    if path
-        .iter()
-        .chain(&anchor.path)
-        .any(|step| matches!(step, StructuralPathSegment::RuntimeIndex { .. }))
-    {
-        return false;
-    }
-    let Some(position) = machine.blocks.iter().find_map(|block| {
-        let offset = block
-            .operations
-            .iter()
-            .position(|op| op.id == operation.id)?;
-        Some((block.id, u32::try_from(offset).ok()?))
-    }) else {
-        return false;
-    };
-    let Ok(graph) = terminal_borrowed_storage_graph_from(module, [machine.id], &[]) else {
-        return false;
-    };
-    let types = &module.types.structural_types;
-    let mut replay = DescriptorAnalysis::with_borrowed_storage_slots(types, &graph);
-    let mut address = |place, path: &[StructuralPathSegment]| {
-        let root = machine.structural_place_type(place)?;
-        let ty = crate::runtime_structural_path_tip(types.iter(), root, path)?;
-        if ty.id != opened.record {
-            return None;
-        }
-        let coordinate = descriptor_location(types, place, root, path, None)?;
-        let resolved = replay.location(machine.id, position, &coordinate)?;
-        DescriptorLocation::captured(resolved.root, &resolved.path)
-    };
-    address(anchor.place, &anchor.path)
-        .is_some_and(|recorded| address(place, path) == Some(recorded))
+/// Checking the witness of a shared input may follow copies. Proving that a
+/// call spared the stored reference requires the original storage address.
+#[derive(Clone, Copy)]
+pub(super) enum FieldMatch {
+    StoredReference,
+    Witness,
 }
 
 /// Read the stored reference of this package or an alias of that same home.
@@ -175,6 +131,7 @@ pub(super) fn subject_reference(
     operation: &Operation,
     opening: &TerminalPackageOpening,
     arg: &StructuralArgument,
+    required: FieldMatch,
 ) -> Option<(StructuralTypeId, StructuralAccess)> {
     let (StructuralPathSegment::Referent, stored) = arg.path.split_last()? else {
         return None;
@@ -183,7 +140,16 @@ pub(super) fn subject_reference(
         let StructuralPathSegment::Field(id) = segment else {
             continue;
         };
-        if !same_subject_at(module, machine, operation, opening, arg.place, &stored[..i]) {
+        let prefix = &stored[..i];
+        let same =
+            subjects::same_storage_at(module, machine, operation, opening, arg.place, prefix);
+        if !(same
+            || matches!(required, FieldMatch::Witness)
+                && arg.access == StructuralAccess::SharedBorrow
+                && subjects::copies_value_at(
+                    module, machine, operation, opening, arg.place, prefix,
+                ))
+        {
             continue;
         }
         let field = fields(module, opening.record)
@@ -295,8 +261,9 @@ pub(super) fn invocation(
         else {
             continue;
         };
-        let (referent, access) = subject_reference(module, machine, operation, opened, arg)
-            .ok_or("package argument comes from another opening")?;
+        let (referent, access) =
+            subject_reference(module, machine, operation, opened, arg, FieldMatch::Witness)
+                .ok_or("package argument comes from another opening")?;
         if referent != schema.witnesses[position]
             || !terminal_psi::structural_access_covers(access, arg.access)
             || arg.access != formal.access

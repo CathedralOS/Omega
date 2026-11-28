@@ -383,10 +383,14 @@ pub mod const_integer {
             ] {
                 assert_eq!(calculation(left, operator, right), None);
             }
-            // One literal is not a calculation: its reader takes it as is.
+        }
+
+        #[test]
+        fn a_closed_literal_keeps_its_declared_integer_type() {
             let mut expressions = ExpressionTable::default();
-            let literal = expressions.insert(ExpressionNode::Integer(anonymous(3)));
-            assert!(closed_literal(&expressions, literal).is_none());
+            let value = landed(3, "u64");
+            let literal = expressions.insert(ExpressionNode::Integer(value.clone()));
+            assert_eq!(closed_literal(&expressions, literal), Some(value));
         }
 
         fn carrier(name: &str, domain: ArithmeticDomain) -> IntegerLanding {
