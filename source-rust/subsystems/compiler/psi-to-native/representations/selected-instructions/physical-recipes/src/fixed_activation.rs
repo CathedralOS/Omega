@@ -63,6 +63,8 @@ impl<Origin> FixedTransferPlan<Origin> {
 /// The two post-call sequences differ only when the core operation returns a
 /// tagged outcome. The nonzero path is Ready for prepare/resume and Parked for step.
 pub struct FixedCall<Origin> {
+    pub physical_identity: [u8;32],
+    pub frame: std::sync::Arc<machine_code::TargetFrameLayoutPlan>,
     pub binding: target_vocabulary::NormalizedForeignCallBinding,
     pub before: post_allocation_machine::adapters::AdapterInstructions,
     pub zero: post_allocation_machine::adapters::AdapterInstructions,

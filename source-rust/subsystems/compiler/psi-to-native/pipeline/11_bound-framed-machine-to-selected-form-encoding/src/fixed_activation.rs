@@ -417,5 +417,5 @@ pub fn encode_call<Origin>(plan:&bound_framed_machine::entries::BoundFixedActiva
         Action::Resume{..}=>{code.extend(encode_resume()?);None}
     };
     Ok(machine_code::fixed_activation::EncodedFixedActivationCall::from_encoder(
-        FixedActivationEncoderOrigin(()),call.binding.clone(),code,worker_call,call.caller_stack_bytes))
+        FixedActivationEncoderOrigin(()),call.physical_identity,std::sync::Arc::clone(&call.frame),call.binding.clone(),code,worker_call,call.caller_stack_bytes))
 }

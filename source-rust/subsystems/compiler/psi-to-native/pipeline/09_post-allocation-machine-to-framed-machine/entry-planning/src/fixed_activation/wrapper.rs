@@ -126,6 +126,7 @@ pub fn plan_call(body:&crate::PhysicalFrameProgram, installations:installation_a
     finish.frame(frame.frame_bytes,granule,touches,false);
     finish.push(Op::Return);
     let plan=FixedCallPlan::from_planner(crate::PhysicalRecipeOrigin(()),FixedCall {
+        physical_identity: body.instructions.identity, frame: body.frame.shared_plan(),
         binding:binding.clone(),before,zero,nonzero,finish,transfer,entry_bridge,caller_stack_bytes:frame.caller_stack_bytes(),
     });
     Ok(bound_framed_machine::entries::BoundEntry::from_binding(installation_binding_issuer::BINDER, plan))
