@@ -57,6 +57,9 @@ use terminal_check_tables::RefusalReason;
 pub(super) enum Stored {
     /// The exact region transferred its value to another owner.
     Vacated,
+    /// An unsafe call may have mutated an existing value. Its previous
+    /// initialization is required independently of the call.
+    MayChange,
     /// Exactly this scalar value.
     Value(ValueId),
     /// An erased scalar field term recorded in `MachineTables::erased_field_terms`.
@@ -167,6 +170,29 @@ pub(super) fn places_are_interned(machine: MachineId, tables: &MachineTables) ->
 }
 
 impl<'a> Storage<'a> {
+    /// A published write frame takes precedence. Without one, only calls with the
+    /// corresponding installed core permission can widen the ordinary borrow ceiling.
+    fn native_write_ceiling(&self, operation: &Operation, concerns: Construct) -> Checked<(bool, bool)> {
+        use semantic_vocabulary::dependency_reach::UnsafeAtom::{BorrowMutabilityUpgrade, RawMemoryWrite};
+        use terminal_psi::TargetMachineCallable;
+        let reach = if let Some(call) = operation.declared_invocation() {
+            match call.callee {
+                TargetMachineCallable::Machine(id) => self.module.invocation_machine_contract(id, call.required_contract)
+                    .map(|contract| contract.published_service_ceiling.as_slice()),
+                TargetMachineCallable::Boundary(id) => self.module.boundary_machine(id)
+                    .map(|boundary| boundary.published_service_ceiling.as_slice()),
+            }
+        } else {
+            operation.kind.callable_invocation().and_then(|call|
+                self.module.execution.callables.contract(call.contract).map(|contract| contract.envelope.service_reach.as_slice()))
+        }.ok_or_else(|| self.foreign(concerns, "call write ceiling has no retained contract"))?;
+        if reach.is_empty() { return Ok((false, false)); }
+        let ids = self.native_write_services.get_or_init(|| [BorrowMutabilityUpgrade, RawMemoryWrite]
+            .map(|atom| self.module.core_unsafe_service(atom).ok().map(|row| row.id)));
+        let permits = |id: Option<semantic_vocabulary::ServiceId>| id.is_some_and(|id| reach.binary_search(&id).is_ok());
+        Ok((permits(ids[0]), permits(ids[1])))
+    }
+
     /// Every store of the machine, in block and operation order.
     pub(super) fn stores(
         &self,
@@ -660,10 +686,24 @@ impl<'a> Storage<'a> {
                     }
                     return Ok(rows);
                 }
+                let (upgrade, address) = self.native_write_ceiling(operation, concerns)?;
+                if address {
+                    let actuals = operation.declared_invocation().map(|call| call.arguments)
+                        .or_else(|| kind.callable_invocation().map(|call| call.arguments))
+                        .ok_or_else(|| self.foreign(concerns, "native write permission has no evaluated call operands"))?;
+                    for &value in actuals {
+                        for source in terminal_semantics::storage::native_borrows::address_origin(self.lowered, value).sources {
+                            rows.push((self.argument(source, concerns)?, Stored::MayChange));
+                        }
+                    }
+                }
                 for argument in kind.structural_arguments() {
                     match argument.access {
                         StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow => {
                             rows.push((self.argument(argument, concerns)?, Stored::Established));
+                        }
+                        StructuralAccess::SharedBorrow if upgrade => {
+                            rows.push((self.argument(argument, concerns)?, Stored::MayChange));
                         }
                         StructuralAccess::Owned | StructuralAccess::SharedBorrow => {}
                     }
@@ -673,7 +713,7 @@ impl<'a> Storage<'a> {
                 // call, after every argument's own row, in the order
                 // lowering writes them (`publish_write_frames`).
                 for argument in kind.structural_arguments() {
-                    if !matches!(
+                    if !upgrade && !matches!(
                         argument.access,
                         StructuralAccess::MutableBorrow | StructuralAccess::Owned
                     ) {
@@ -683,10 +723,10 @@ impl<'a> Storage<'a> {
                     let Shape::Typed(structural_type) = self.shape(&lent, concerns)? else {
                         continue;
                     };
-                    let referents = terminal_semantics::borrowed_storage::carried_exclusive_referents(
+                    let referents = terminal_semantics::borrowed_storage::carried_writable_referents(
                         self.types,
                         structural_type,
-                        argument.access,
+                        argument.access, upgrade,
                     )
                     .ok_or_else(|| {
                         self.unsupported(

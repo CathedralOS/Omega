@@ -25,6 +25,15 @@ pub fn carried_exclusive_referents(
     structural_type: semantic_vocabulary::StructuralTypeId,
     access: terminal_psi::StructuralAccess,
 ) -> Option<Vec<Vec<terminal_psi::ResolvedStructuralPathSegment>>> {
+    carried_writable_referents(types, structural_type, access, false)
+}
+
+pub fn carried_writable_referents(
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    access: terminal_psi::StructuralAccess,
+    upgrade: bool,
+) -> Option<Vec<Vec<terminal_psi::ResolvedStructuralPathSegment>>> {
     use terminal_psi::{
         ResolvedStructuralPathSegment as Segment, StructuralAccess, StructuralFieldType,
         StructuralTypeShape,
@@ -35,6 +44,7 @@ pub fn carried_exclusive_referents(
         types: &[terminal_psi::StructuralTypeDeclaration],
         structural_type: semantic_vocabulary::StructuralTypeId,
         active: &mut Vec<semantic_vocabulary::StructuralTypeId>,
+        upgrade: bool,
     ) -> Option<Paths> {
         if active.contains(&structural_type) || active.len() > 64 {
             return None;
@@ -53,16 +63,16 @@ pub fn carried_exclusive_referents(
         };
         match &declaration.shape {
             StructuralTypeShape::Reference { referent, access } => match access {
-                StructuralAccess::MutableBorrow => {
+                StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow if upgrade || *access == StructuralAccess::MutableBorrow => {
                     found.push(vec![Segment::Referent]);
-                    let paths = walk(types, *referent, active)?;
+                    let paths = walk(types, *referent, active, upgrade)?;
                     beneath(&[Segment::Referent], paths, &mut found);
                 }
                 StructuralAccess::WriteOnlyBorrow => found.push(vec![Segment::Referent]),
-                StructuralAccess::SharedBorrow | StructuralAccess::Owned => {}
+                _ => {}
             },
             StructuralTypeShape::FixedArray { element, length } => {
-                let element = walk(types, *element, active)?;
+                let element = walk(types, *element, active, upgrade)?;
                 if !element.is_empty() {
                     let length = length.literal().filter(|length| *length <= 4096)?;
                     for index in 0..length {
@@ -79,8 +89,8 @@ pub fn carried_exclusive_referents(
             }
             StructuralTypeShape::ElementView {
                 element,
-                access: Some(StructuralAccess::MutableBorrow),
-            } if !walk(types, *element, active)?.is_empty() => return None,
+                access: Some(access),
+            } if (upgrade || *access == StructuralAccess::MutableBorrow) && !walk(types, *element, active, upgrade)?.is_empty() => return None,
             _ => {}
         }
         for (case, field) in declaration.shape.fields_with_case() {
@@ -94,7 +104,7 @@ pub fn carried_exclusive_referents(
                 Some(case) => &[Segment::Case(case.id), Segment::Field(field.id)],
                 None => &[Segment::Field(field.id)],
             };
-            let paths = walk(types, child, active)?;
+            let paths = walk(types, child, active, upgrade)?;
             beneath(prefix, paths, &mut found);
         }
         active.pop();
@@ -102,10 +112,10 @@ pub fn carried_exclusive_referents(
     }
 
     match access {
-        StructuralAccess::MutableBorrow | StructuralAccess::Owned => {
-            walk(types, structural_type, &mut Vec::new())
+        StructuralAccess::MutableBorrow | StructuralAccess::Owned | StructuralAccess::SharedBorrow if upgrade || access != StructuralAccess::SharedBorrow => {
+            walk(types, structural_type, &mut Vec::new(), upgrade)
         }
-        StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow => Some(Vec::new()),
+        _ => Some(Vec::new()),
     }
 }
 

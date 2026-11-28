@@ -1174,6 +1174,7 @@ pub(crate) struct Storage<'a> {
     machine: MachineId,
     lowered: &'a TerminalMachine,
     module: &'a terminal_psi::TerminalModule,
+    native_write_services: std::cell::OnceCell<[Option<semantic_vocabulary::ServiceId>; 2]>,
     float_meanings: std::cell::OnceCell<
         Result<terminal_semantics::float_meaning_sources::Sources, &'static str>,
     >,
@@ -1325,6 +1326,7 @@ impl<'a> Storage<'a> {
             machine,
             lowered,
             module,
+            native_write_services: std::cell::OnceCell::new(),
             float_meanings: std::cell::OnceCell::new(),
             types: &module.types.structural_types,
             type_index,
@@ -3254,6 +3256,11 @@ impl<'a> Storage<'a> {
         let mut weakened = false;
         loop {
             let row = &self.log[row_index];
+            if matches!(row.stored, Stored::MayChange) {
+                let prior = self.reaching_backing_supply(references, tables, asked, watched,
+                    (row.block, row.position - 1), 0, budget, concerns)?;
+                return Ok(prior.without_identity());
+            }
             if budget.initialization == Initialization::WholeArray {
                 // A partial transfer can introduce an unavailable element;
                 // a vacancy, unknown alias effect or non-array producer has
@@ -3425,7 +3432,7 @@ impl<'a> Storage<'a> {
                     .without_identity());
             };
             let reached = match (&row.stored, asked) {
-                (Stored::UnknownPayloadWrite { .. }, _) => Reached::Unknown,
+                (Stored::MayChange | Stored::UnknownPayloadWrite { .. }, _) => Reached::Unknown,
                 (Stored::Vacated, Asked::Contents(_)) => Reached::Unestablished,
                 (Stored::Vacated, Asked::Case(..)) => Reached::Unknown,
                 (Stored::Vacated, Asked::Window { .. }) => {
