@@ -1,0 +1,35 @@
+data File { byte: u8; unused: u8; }
+data Socket { unused: u8; byte: u8; }
+
+data Read<S> = machine(state: @mutable S) -> u8 reaches none crashes none;
+data Reader<'a, some S> {
+    state: @'a mutable S;
+    read: Read<S>;
+}
+
+machine read_file(state: @mutable File) -> u8 reaches none crashes none { state.byte }
+machine read_socket(state: @mutable Socket) -> u8 reaches none crashes none {
+    transition state.byte == 41u8 { true -> 42u8, false -> 0u8 }
+}
+
+machine read_pair(left: @mutable Reader<some S>, right: @mutable Reader) -> bool {
+    let read: Read<S> = left.read;
+    let first: u8 = (read)(left.state);
+    let second: u8 = (right.read)(right.state);
+    first == 17u8 && second == 42u8
+}
+
+machine main() crashes Trap {
+    let mutable file: File = File { byte: 17u8, unused: 91u8 };
+    let mutable socket: Socket = Socket { unused: 93u8, byte: 41u8 };
+    let mutable readers: [Reader; 2] = [
+        Reader { state: @mutable file, read: read_file },
+        Reader { state: @mutable socket, read: read_socket }
+    ];
+    transition read_pair(@mutable readers[0], @mutable readers[1]) {
+        true -> done(),
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

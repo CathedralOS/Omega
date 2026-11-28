@@ -10,6 +10,7 @@ mod inlined_multiple_returns;
 mod inlined_scalar_arguments;
 mod parenthesized_guard;
 mod record_callback_loop;
+mod some_reader;
 mod straight_line_loop_value;
 mod unit_callable_alias;
 
