@@ -36,6 +36,8 @@ pub use provenance::{
 };
 pub mod boundary;
 mod descriptor_input;
+mod fixed_activation;
+pub use fixed_activation::{FixedActivationAction, FixedActivationCall, FixedCase, FixedField};
 pub use boundary::{
     AccessorScalarAccessRealization, BoundaryByteSequenceArgument, BoundaryExecutionBinding,
     BoundaryRealization, BoundaryScalarArgument, BoundarySettlementBinding,

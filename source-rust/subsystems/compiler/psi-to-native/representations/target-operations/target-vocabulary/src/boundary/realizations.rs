@@ -208,6 +208,7 @@ pub struct NormalizedForeignCallBinding {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NormalizedForeignCallMechanism {
+    FixedActivation(crate::FixedActivationCall),
     CompilerImport {
         import: CompilerImport,
         requirement_identity: String,
