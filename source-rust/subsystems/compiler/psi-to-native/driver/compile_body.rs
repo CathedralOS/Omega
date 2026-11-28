@@ -163,7 +163,8 @@ pub(crate) fn prepare_physical_body(
     let optimized = selected_rewrites::optimize_selected_instructions(selected)
         .map_err(OptimizedVerifiedPhysicalPipelineError::SelectedOptimization)?;
     observation.enter(NativePipelineStage::RegisterAllocation);
-    let (allocation, selected_optimization) = allocation::stage_register_allocation(optimized)
+    let selected_optimization = optimized.replay;
+    let allocation = allocation::stage_register_allocation(optimized.program)
         .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterAllocation)?;
     observation.enter(NativePipelineStage::PostAllocationMachine);
     let machine = machine::stage_optimized_post_allocation_machine_plan(&allocation.program)

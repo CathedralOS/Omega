@@ -1,0 +1,10 @@
+[package]
+name = "selected-body"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+selected-body-issuer = { path = "issuer" }
+selected-analysis-facts = { path = "facts" }
+physical-program = { path = "../../post-allocation-machine/body-facts" }

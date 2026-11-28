@@ -363,22 +363,30 @@ public machine forward(source: address) -> address { source }
                 r#"use {readable}/main.omg as allow;
 use {offline}/main.omg as passthrough;
 public machine read(source: address) -> u8 { |allow|::read(|passthrough|::forward(source)) }
+machine main() crashes Trap {
+    let value: u8 = 17u8;
+    transition read(address_of(@value)) == 17u8 { true -> done(), _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
 "#,
             ),
             (
                 "build.omg",
                 r#"use {omega}/language/core/unsafe.omg as trust;
 use {omega}/build/dependency.omg as dep;
+use main.omg as app;
 machine build(plan: @mutable BuildPlan) {
-    plan.product = BuildProduct::Package { name: "consumer" };
+    plan.product = BuildProduct::Application { name: "consumer" };
     Build::enable_unsafe::<|trust|::RawMemoryRead>(plan);
+    let mutable b: DependencyDescription = |dep|::from_source(Source::Path { location: "storage" });
+    |dep|::with_alias(@mutable b, "offline");
+    _ = Build::dependency(plan, b);
     let mutable a: DependencyDescription = |dep|::from_source(Source::Path { location: "storage" });
     |dep|::with_alias(@mutable a, "readable");
     let allowed: [BoundaryServiceReference; 1] = [Build::service::<|trust|::RawMemoryRead>(plan)];
     _ = |dep|::add(plan, a, @allowed[..]);
-    let mutable b: DependencyDescription = |dep|::from_source(Source::Path { location: "storage" });
-    |dep|::with_alias(@mutable b, "offline");
-    _ = Build::dependency(plan, b);
+    Build::bind(plan, linux_x86_64::ProgramEntry, |app|::main);
 }
 "#,
             ),
@@ -428,6 +436,25 @@ machine build(plan: @mutable BuildPlan) {
     assert!(offline.ends_with("admits no Unsafe child"), "{report}");
     assert!(
         report.contains(r#"operation |unsafe|::borrow_at in "storage"::"main.omg::read_cell""#),
+        "{report}"
+    );
+    let admitted_path = report
+        .lines()
+        .find(|line| line.contains(r#"admitted by dependency "readable""#))
+        .unwrap_or_else(|| panic!("{report}"));
+    for callable in [
+        r#""consumer"::"main.omg::main""#,
+        r#""consumer"::"main.omg::read""#,
+        r#""storage"::"main.omg::read""#,
+        r#""storage"::"main.omg::read_cell""#,
+    ] {
+        assert!(
+            admitted_path.contains(callable),
+            "missing {callable} in {admitted_path}"
+        );
+    }
+    assert!(
+        !report.contains(r#"admitted by dependency "offline""#),
         "{report}"
     );
 }

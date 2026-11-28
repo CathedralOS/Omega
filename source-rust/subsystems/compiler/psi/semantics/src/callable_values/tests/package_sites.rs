@@ -153,6 +153,79 @@ fn readers() -> TerminalModule {
 }
 
 #[test]
+fn package_value_queries_keep_the_origin_of_each_callback() {
+    let mut program = readers();
+    add_two_constructions(&mut program);
+    let entry = &mut program.machines[0];
+    for parameter in &entry.contract.structural_parameters {
+        entry.structural_places.push(StructuralPlaceDeclaration {
+            id: parameter.place,
+            kind: StructuralPlaceKind::Parameter {
+                position: parameter.position,
+            },
+        });
+    }
+    for (slot, producer) in [(5, 3), (6, 4)] {
+        entry.structural_places.push(StructuralPlaceDeclaration {
+            id: place(slot),
+            kind: StructuralPlaceKind::OperationResult {
+                producer: operation_id(producer),
+                structural_type: ty(7),
+            },
+        });
+    }
+    let boundary = (entry.entry, entry.blocks[0].operations.len() as u32);
+    let body = entry.id;
+    let projected = terminal_callable_values(&program).unwrap();
+    let field_path = vec![DescriptorPathSegment::Field(field(2))];
+    let opened = resolve_callable_value(
+        &projected,
+        CallableValueQuery::Scalar {
+            machine: body,
+            value: value(1).id,
+            contract: callable(2),
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        opened.inputs,
+        vec![CallableFormalInput {
+            machine: body,
+            parameter: CallableParameter::Structural {
+                position: 0,
+                path: field_path.clone()
+            },
+            contract: callable(1),
+        }]
+    );
+    for (index, slot) in [5, 6].into_iter().enumerate() {
+        let initialized = resolve_callable_value(
+            &projected,
+            CallableValueQuery::Storage {
+                machine: body,
+                position: boundary,
+                location: DescriptorLocation {
+                    root: place(slot),
+                    path: field_path.clone(),
+                },
+                contract: callable(1),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            initialized.inputs,
+            vec![CallableFormalInput {
+                machine: body,
+                parameter: CallableParameter::Scalar(index),
+                contract: callable(index as u64 + 4),
+            }]
+        );
+        assert!(initialized.descriptors.is_empty());
+        assert!(initialized.unresolved_ceilings.is_empty());
+    }
+}
+
+#[test]
 fn package_sites_retain_descriptors_and_require_the_same_state() {
     let mut program = readers();
     let sites = check_package_sites(&program).unwrap();
@@ -176,6 +249,26 @@ fn package_sites_retain_descriptors_and_require_the_same_state() {
         structural_arguments[0].place = place(2);
     }
     assert!(check_package_sites(&program).is_err());
+}
+
+#[test]
+fn opened_descriptors_preserve_the_named_requirement() {
+    let mut program = readers();
+    let mut identities = program.identities.into_builder();
+    let read = identities.intern("Preview::read");
+    let other_read = identities.intern("Other::read");
+    program.identities = identities.build();
+    for contract in &mut program.execution.callables.contracts {
+        contract.requirement = Some(read);
+    }
+    let sites = check_package_sites(&program).unwrap();
+    for (requirement, admitted) in [(Some(read), true), (Some(other_read), false), (None, false)] {
+        program.execution.callables.contracts[4].requirement = requirement;
+        assert_eq!(
+            sites.admits_descriptor(&program, machine_id(1), operation_id(2), callable(5)),
+            admitted
+        );
+    }
 }
 
 #[test]
@@ -868,4 +961,86 @@ fn package_sites_keep_a_fixed_reader_index_across_a_scalar_output_write() {
         index: ValueId::new(9).unwrap(),
         obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
     }));
+}
+
+#[test]
+fn stored_callback_keeps_the_destination_packages_current_witness() {
+    let mut program = readers();
+    let StructuralTypeShape::Record { fields, .. } =
+        &mut program.types.structural_types.last_mut().unwrap().shape
+    else {
+        unreachable!()
+    };
+    fields.push(declaration(
+        3,
+        StructuralFieldType::Scalar(ScalarType::Callable(callable(1))),
+    ));
+    let operations = &mut program.machines[0].blocks[0].operations;
+    let O::PrimitiveScalarRead { path, .. } = &mut operations[0].kind else {
+        unreachable!()
+    };
+    *path = vec![StructuralPathSegment::Field(TerminalIdentityIndex(3))];
+    operations[1] = Operation::unsuspended(
+        operation_id(2),
+        OperationResult::Unit,
+        O::StructuralScalarFieldStore {
+            destination: place(1),
+            path: vec![],
+            field: field(2),
+            value: value(1).id,
+            range_obligation: None,
+        },
+    );
+    let sites = &mut program.execution.packages.sites;
+    sites[0].event = TerminalPackageEvent::Project {
+        opening: 0,
+        field: field(3),
+    };
+    sites[1].event = TerminalPackageEvent::Store {
+        opening: 0,
+        field: field(2),
+    };
+    assert_eq!(
+        check_package_sites(&program)
+            .unwrap()
+            .stored_field_type(machine_id(1), operation_id(2)),
+        Some(&StructuralFieldType::Scalar(ScalarType::Callable(
+            callable(2)
+        )))
+    );
+
+    assert!(check_package_sites(&program).unwrap().admits_descriptor(
+        &program,
+        machine_id(1),
+        operation_id(2),
+        callable(4)
+    ));
+
+    let mut crossed = program.clone();
+    let read = &mut crossed.machines[0].blocks[0].operations[0];
+    let O::PrimitiveScalarRead { source, .. } = &mut read.kind else {
+        unreachable!()
+    };
+    *source = place(2);
+    let OperationResult::Scalar(result) = &mut read.result else {
+        unreachable!()
+    };
+    result.scalar_type = ScalarType::Callable(callable(3));
+    crossed.execution.packages.sites[0].event = TerminalPackageEvent::Project {
+        opening: 1,
+        field: field(3),
+    };
+    assert!(check_package_sites(&crossed).is_err());
+
+    let mut wrong_target = program.clone();
+    let O::StructuralScalarFieldStore { destination, .. } =
+        &mut wrong_target.machines[0].blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    *destination = place(2);
+    assert!(check_package_sites(&wrong_target).is_err());
+
+    program.execution.packages.sites.pop();
+    assert!(check_package_sites(&program).is_err());
 }

@@ -1,10 +1,12 @@
 //! Keep the checked native operations behind the service names in a fresh
 //! package audit, including operations in private machines.
+mod admission;
 use super::input::PolicySource;
+pub use admission::{ReviewedUnsafeAdmission, ReviewedUnsafePath};
 use diagnostics::Diagnostic;
 use language_core::core_vocabulary::UnsafeAtom;
 use review_evidence::record::PackageReviewNominalIdentity;
-use semantic_vocabulary::{OperationId, PackageKeyIdentity, ServiceId};
+use semantic_vocabulary::{OperationId, PackageKeyIdentity, ServiceId, TargetMachineCallable as Callable};
 use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -26,7 +28,8 @@ pub struct ReviewedUnsafeDependency {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReviewedUnsafeUse {
     pub callable: PackageReviewNominalIdentity,
-    pub source: ReviewedUnsafeOrigin,
+    pub origins: Vec<ReviewedUnsafeOrigin>,
+    pub paths: Vec<ReviewedUnsafePath>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -51,11 +54,13 @@ impl PolicySource<'_> {
     pub(super) fn unsafe_authority(
         &self,
         inputs: &package_compilation::PackageCompilationInputs,
+        selected: &compiler::SelectedProviderResult,
     ) -> Result<UnsafeInventory, Vec<Diagnostic>> {
         let package = inputs.root();
         let accepted = self.accepted();
         let module = accepted.module();
         let elaboration = accepted.closure().elaboration();
+        let admissions = admission::paths(self, selected)?;
         let mut uses = Vec::new();
         let mut native_atoms = BTreeSet::new();
         let mut cited_services = Vec::new();
@@ -63,6 +68,7 @@ impl PolicySource<'_> {
             let body = module
                 .machine(machine)
                 .ok_or_else(|| vec![Diagnostic::error("package review lost a checked machine")])?;
+            let mut origins = Vec::new();
             for operation in body.operations() {
                 let Some((name, atoms)) =
                     terminal_semantics::storage::native_borrows::required_authority(
@@ -73,14 +79,19 @@ impl PolicySource<'_> {
                     continue;
                 };
                 native_atoms.extend(atoms.iter().copied());
-                if self.owns(*symbol, package)? {
+                origins.push(ReviewedUnsafeOrigin::NativeOperation {
+                    id: operation.id,
+                    name,
+                    atoms,
+                });
+            }
+            if !origins.is_empty() {
+                let paths = admission::for_callable(&admissions, Callable::Machine(machine));
+                if !paths.is_empty() || self.owns(*symbol, package)? {
                     uses.push(ReviewedUnsafeUse {
                         callable: self.nominal(*symbol)?,
-                        source: ReviewedUnsafeOrigin::NativeOperation {
-                            id: operation.id,
-                            name,
-                            atoms,
-                        },
+                        origins,
+                        paths,
                     });
                 }
             }
@@ -99,11 +110,15 @@ impl PolicySource<'_> {
                     Some(atom)
                 })
                 .collect();
-            if !atoms.is_empty() && self.owns(*symbol, package)? {
-                uses.push(ReviewedUnsafeUse {
-                    callable: self.nominal(*symbol)?,
-                    source: ReviewedUnsafeOrigin::BoundaryContract { atoms },
-                });
+            if !atoms.is_empty() {
+                let paths = admission::for_callable(&admissions, Callable::Boundary(boundary));
+                if !paths.is_empty() || self.owns(*symbol, package)? {
+                    uses.push(ReviewedUnsafeUse {
+                        callable: self.nominal(*symbol)?,
+                        origins: vec![ReviewedUnsafeOrigin::BoundaryContract { atoms }],
+                        paths,
+                    });
+                }
             }
         }
         for atom in native_atoms {

@@ -1151,7 +1151,7 @@ impl<'t> Program<'t> {
         };
         let mut first_element = None;
         if let Some(ty @ ValueType::Record(record, _, _)) = place.result {
-            if let Some((referent, _)) = self.reference_referent(id, ty)? {
+            if !reference && let Some((referent, _)) = self.reference_referent(id, ty)? {
                 reference = true;
                 place = Expression {
                     call_context: None,
@@ -4311,23 +4311,25 @@ impl<'t> Program<'t> {
                     Some(presentation),
                 )
             }
-            _ => (
-                self.place(
+            _ => {
+                let retain_descriptor = if explicit {
+                    self.reference_referent(id, expected)?.is_some()
+                } else {
+                    formal.access == ReferenceAccess::Shared && self.is_borrowed_view(expected)
+                };
+                let place = self.place(
                     id,
                     slots,
                     operand,
-                    (!explicit
-                        && formal.access == ReferenceAccess::Shared
-                        && self.is_borrowed_view(expected))
-                    .then_some(expected),
+                    retain_descriptor.then_some(expected),
                     if access == ReferenceAccess::Shared {
                         Access::Borrow
                     } else {
                         Access::Write
                     },
-                )?,
-                None,
-            ),
+                )?;
+                (place, None)
+            }
         };
         // A write-only loan cannot supply observation to its callee, even
         // when the caller's own source place holds stronger access.
@@ -4400,8 +4402,11 @@ impl<'t> Program<'t> {
                 self.typed.expression_table.display_name(argument),
             ));
         }
+        // An explicit borrow can lend the reference slot itself. Keep that
+        // layer when the formal's referent is the stored reference type.
         if let Some(value_type) = place.result
             && let Some((referent, _)) = self.reference_referent(id, value_type)?
+            && (!explicit || !self.same_type(Some(value_type), expected))
         {
             place = Expression {
                 call_context: None,

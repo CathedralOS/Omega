@@ -10,6 +10,7 @@ use semantic_vocabulary::BoundaryMachineId;
 use terminal_psi::TerminalModule;
 
 pub(crate) struct PreparedReview {
+    admitted_paths: Vec<psi_provider_selections::dependency_reach::AdmittedUnsafeCall>,
     numeric: Result<Vec<BoundaryMachineId>, Vec<Diagnostic>>,
     bindings: Result<ReviewedNativeBindings, Vec<Diagnostic>>,
 }
@@ -83,6 +84,7 @@ pub(super) fn prepare(
         })
     });
     PreparedReview {
+        admitted_paths: requirements.admitted_paths,
         numeric: requirements.numeric,
         bindings,
     }
@@ -96,6 +98,7 @@ impl PreparedReview {
         execution: &SelectedProviderRealization,
     ) -> PackageTargetReview {
         PackageTargetReview {
+            admitted_paths: self.admitted_paths,
             numeric: self
                 .numeric
                 .and_then(|demand| numeric(module, target, execution, demand)),
@@ -188,6 +191,7 @@ fn unavailable(what: &str) -> Vec<Diagnostic> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageTargetReview {
+    pub admitted_paths: Vec<psi_provider_selections::dependency_reach::AdmittedUnsafeCall>,
     /// Includes declarations reached through selected provider implementations.
     pub numeric: Result<Vec<ReviewedNumericBinding>, Vec<Diagnostic>>,
     pub bindings: Result<ReviewedNativeBindings, Vec<Diagnostic>>,

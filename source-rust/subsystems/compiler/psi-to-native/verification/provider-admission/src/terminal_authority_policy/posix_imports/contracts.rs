@@ -1,4 +1,4 @@
-//! Checked call shapes and argument constraints for individual libSystem imports.
+//! Checked call shapes and argument constraints for selected libSystem and glibc imports.
 use calling_conventions::{
     BoundaryEntryPlan, CallSignature, CallingPolicy, terminal_layout::scalar_shape,
 };
@@ -9,49 +9,80 @@ use terminal_psi::{BoundaryMachineDeclaration, BoundaryParameterKind};
 #[derive(Clone, Copy)]
 pub(in super::super) enum Contract {
     DescriptorFreePoll,
-    OpenInternetDatagram,
+    OpenInternetDatagram(CallingPolicy),
 }
 
 impl Contract {
     pub(in super::super) fn for_import(
         import: NormalizedForeignTerminalMechanismIdentity,
     ) -> Option<Self> {
-        if import.target() != target::TargetProfile::MacosArm64 {
-            return None;
-        }
-        static LOCATORS: std::sync::OnceLock<
-            [(target::ForeignLocatorIdentityDigest, Contract); 2],
-        > = std::sync::OnceLock::new();
+        use target::TargetProfile::{LinuxArm64, LinuxX64, MacosArm64};
+
+        type Reviewed = (
+            target::TargetProfile,
+            target::ForeignLocatorIdentityDigest,
+            Contract,
+        );
+        static LOCATORS: std::sync::OnceLock<[Reviewed; 4]> = std::sync::OnceLock::new();
         LOCATORS
             .get_or_init(|| {
-                [
-                    (b"_poll".as_slice(), Self::DescriptorFreePoll),
-                    (b"_socket".as_slice(), Self::OpenInternetDatagram),
-                ]
-                .map(|(symbol, contract)| {
+                let darwin = |symbol, contract| {
                     (
+                        MacosArm64,
                         super::super::host_cohorts::darwin_libsystem_locator(symbol)
                             .expect("reviewed libSystem export"),
                         contract,
                     )
-                })
+                };
+                let linux = |target, version: &[u8], abi| {
+                    let locator = target::normalize_foreign_locator(
+                        target::ForeignLocatorCandidate::ElfVersioned {
+                            object: b"libc.so.6".to_vec(),
+                            symbol: b"socket".to_vec(),
+                            version: version.to_vec(),
+                        },
+                        target,
+                    )
+                    .expect("reviewed glibc socket export");
+                    (
+                        target,
+                        locator.identity_digest(),
+                        Self::OpenInternetDatagram(abi),
+                    )
+                };
+                [
+                    darwin(b"_poll", Self::DescriptorFreePoll),
+                    darwin(
+                        b"_socket",
+                        Self::OpenInternetDatagram(CallingPolicy::DarwinAapcs64),
+                    ),
+                    linux(LinuxX64, b"GLIBC_2.2.5", CallingPolicy::SystemVAMD64),
+                    linux(LinuxArm64, b"GLIBC_2.17", CallingPolicy::Aapcs64),
+                ]
             })
             .iter()
-            .find(|(locator, _)| *locator == import.locator_identity())
-            .map(|(_, contract)| *contract)
+            .find(|(target, locator, _)| {
+                *target == import.target() && *locator == import.locator_identity()
+            })
+            .map(|(_, _, contract)| *contract)
     }
 
     pub(super) fn domain(self) -> &'static [u8] {
         match self {
             Self::DescriptorFreePoll => b"omega.macos.poll.zero-descriptor-count.v1\0",
-            Self::OpenInternetDatagram => b"omega.macos.socket.unconnected-internet-datagram.v1\0",
+            Self::OpenInternetDatagram(CallingPolicy::DarwinAapcs64) => {
+                b"omega.macos.socket.unconnected-internet-datagram.v1\0"
+            }
+            Self::OpenInternetDatagram(_) => {
+                b"omega.glibc.socket.unconnected-internet-datagram.v1\0"
+            }
         }
     }
 
     pub(super) fn classes(self) -> &'static [TerminalAuthorityClass] {
         match self {
             Self::DescriptorFreePoll => &[],
-            Self::OpenInternetDatagram => &[TerminalAuthorityClass::HostNetworkStack],
+            Self::OpenInternetDatagram(_) => &[TerminalAuthorityClass::HostNetworkStack],
         }
     }
 
@@ -77,7 +108,7 @@ impl Contract {
                     && integer(c, IntegerSign::Signed, &[32])
                     && (declaration.result.is_unit() || declaration.result.scalar() == Some(*c))
             }
-            Self::OpenInternetDatagram => {
+            Self::OpenInternetDatagram(_) => {
                 integer(a, IntegerSign::Signed, &[32])
                     && a == b
                     && b == c
@@ -98,7 +129,10 @@ impl Contract {
             return false;
         };
         calling_conventions::evaluate_call_plan(
-            CallingPolicy::DarwinAapcs64,
+            match self {
+                Self::DescriptorFreePoll => CallingPolicy::DarwinAapcs64,
+                Self::OpenInternetDatagram(abi) => abi,
+            },
             &CallSignature { parameters, result },
         )
         .is_ok_and(|expected| expected == entry.call)
@@ -120,10 +154,16 @@ impl Contract {
         let value = |id, ty| constant(id).and_then(|(actual, val)| (actual == ty).then_some(val));
         match self {
             Self::DescriptorFreePoll => value(*b, *tb) == Some(IntegerValue::Unsigned(0)),
-            Self::OpenInternetDatagram => {
-                // Darwin AF_INET or AF_INET6, SOCK_DGRAM, and default protocol or IPPROTO_UDP.
+            Self::OpenInternetDatagram(abi) => {
+                // AF_INET6 is 30 on Darwin and 10 on Linux. AF_INET,
+                // SOCK_DGRAM and IPPROTO_UDP share values on these targets.
+                let ipv6 = if abi == CallingPolicy::DarwinAapcs64 {
+                    30
+                } else {
+                    10
+                };
                 // Creating this unconnected socket supplies neither a destination nor payload.
-                matches!(value(*a, *ta), Some(IntegerValue::Signed(2 | 30)))
+                matches!(value(*a, *ta), Some(IntegerValue::Signed(family)) if family == 2 || family == ipv6)
                     && value(*b, *tb) == Some(IntegerValue::Signed(2))
                     && matches!(value(*c, *tc), Some(IntegerValue::Signed(0 | 17)))
             }
