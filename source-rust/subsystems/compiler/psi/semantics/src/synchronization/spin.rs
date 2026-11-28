@@ -15,7 +15,7 @@ pub(super) use condition::Comparison;
 pub(super) use condition::Operand;
 pub(super) use condition::SpinCondition;
 pub(super) use observations::Observation;
-pub(super) use update::CellUpdate;
+pub(super) use update::{AtomicWordUpdate, CellUpdate};
 
 use super::facts::Facts;
 use cases::CaseValue;
@@ -39,7 +39,9 @@ impl SpinWait {
                 let update = cell
                     .update
                     .try_map(|operand| operand.literal().map(super::progress::ScalarFact::Literal));
-                cell.while_value.failure(None, None, update, &Default::default()).is_some()
+                cell.while_value
+                    .failure(None, None, update, &Default::default())
+                    .is_some()
             }
             WaitRule::Periodic(cell) => cell
                 .while_value
@@ -233,16 +235,10 @@ impl ForwardedWait {
 }
 
 #[derive(Clone, PartialEq, Eq)]
-enum RepeatedUpdate {
-    Stable(CellUpdate<Operand>),
-    Periodic(Orbit<Operand>),
-}
-
-#[derive(Clone, PartialEq, Eq)]
 struct Read {
     site: OperationId,
     cell: Subject,
-    update: RepeatedUpdate,
+    update: AtomicWordUpdate,
     single_attempt: bool,
 }
 
@@ -406,43 +402,8 @@ impl Trace {
                     event,
                     resident_obligation: None,
                 } => {
-                    let update = match event {
-                        AtomicAccessEvent::Load { .. } => {
-                            RepeatedUpdate::Stable(CellUpdate::Observe)
-                        }
-                        AtomicAccessEvent::Swap { value, .. } => RepeatedUpdate::Stable(
-                            CellUpdate::Replace(self.scalar(*value)?.operand()?),
-                        ),
-                        AtomicAccessEvent::ReadModifyWrite {
-                            operation, operand, ..
-                        } => {
-                            use terminal_psi::AtomicReadModifyWrite as Rmw;
-                            let value = self.scalar(*operand)?.operand()?;
-                            match operation {
-                                Rmw::FetchAnd => {
-                                    RepeatedUpdate::Stable(CellUpdate::BitwiseAnd(value))
-                                }
-                                Rmw::FetchOr => {
-                                    RepeatedUpdate::Stable(CellUpdate::BitwiseOr(value))
-                                }
-                                Rmw::FetchAdd | Rmw::FetchSub | Rmw::FetchXor => {
-                                    RepeatedUpdate::Periodic(Orbit {
-                                        operation: *operation,
-                                        operand: value,
-                                    })
-                                }
-                            }
-                        }
-                        AtomicAccessEvent::CompareExchange {
-                            expected,
-                            replacement,
-                            ..
-                        } => RepeatedUpdate::Stable(CellUpdate::CompareExchange {
-                            expected: self.scalar(*expected)?.operand()?,
-                            replacement: self.scalar(*replacement)?.operand()?,
-                        }),
-                        _ => return None,
-                    };
+                    let update =
+                        AtomicWordUpdate::from_observation(event, |id| self.scalar(id)?.operand())?;
                     self.observe(
                         operation.id,
                         self.subject(module, machine, *place, path)?,
@@ -501,7 +462,7 @@ impl Trace {
         &mut self,
         site: OperationId,
         cell: Subject,
-        update: RepeatedUpdate,
+        update: AtomicWordUpdate,
         single_attempt: bool,
     ) -> Option<()> {
         let read = Read {
@@ -771,12 +732,12 @@ fn single_cell_wait(
         positive: equal == Completion::Retries,
     };
     let rule = match read.update {
-        RepeatedUpdate::Stable(update) => WaitRule::Cell(CellWait {
+        AtomicWordUpdate::Stable(update) => WaitRule::Cell(CellWait {
             subject,
             while_value,
             update,
         }),
-        RepeatedUpdate::Periodic(update) => WaitRule::Periodic(CellWait {
+        AtomicWordUpdate::Periodic(update) => WaitRule::Periodic(CellWait {
             subject,
             while_value,
             update,
