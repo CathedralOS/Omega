@@ -944,10 +944,10 @@ impl Unreached {
         }
     }
 
-    pub(crate) fn mark_result(&mut self, machine: MachineId) {
-        if let Some(result) = self.results.get_mut(machine) {
-            *result = true;
-        }
+    pub(crate) fn mark_result(&mut self, machine: MachineId) -> bool {
+        self.results
+            .get_mut(machine)
+            .is_some_and(|result| !std::mem::replace(result, true))
     }
 }
 
