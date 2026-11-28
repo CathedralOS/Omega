@@ -3187,6 +3187,7 @@ pub(crate) mod scalar_fields {
                     }
                 }
                 terminal_psi::sum_or_mixed_shape_pattern!()
+                | StructuralTypeShape::BorrowingOpaque { .. }
                 | StructuralTypeShape::TypeParameter
                 | StructuralTypeShape::Reference { .. }
                 | StructuralTypeShape::AtomicCell(_) => {
@@ -3216,6 +3217,7 @@ pub(crate) mod scalar_fields {
                 };
                 match &declaration.shape {
                     StructuralTypeShape::Reference { .. }
+                    | StructuralTypeShape::BorrowingOpaque { .. }
                     | StructuralTypeShape::TypeParameter
                     | StructuralTypeShape::AtomicCell(_) => {
                         return true;

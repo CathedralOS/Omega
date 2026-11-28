@@ -72,7 +72,7 @@ impl StorageRecipes<'_, '_> {
         self.active.push(root);
         let declaration = self.geometry.declaration(root).ok()?;
         match &declaration.shape {
-            StructuralTypeShape::TypeParameter | StructuralTypeShape::Opaque => return None,
+            StructuralTypeShape::TypeParameter | StructuralTypeShape::Opaque | StructuralTypeShape::BorrowingOpaque { .. } => return None,
             StructuralTypeShape::PrimitiveScalar(scalar) => {
                 self.fields.push((
                     self.path.clone(),

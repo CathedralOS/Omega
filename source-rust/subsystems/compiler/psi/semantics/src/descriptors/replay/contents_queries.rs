@@ -187,11 +187,7 @@ impl Replay<'_> {
         }
         let root = *machine.place_types.get(&location.root)?;
         let carrier = self.type_index.descriptor_location_type(root, path)?;
-        matches!(
-            self.type_index.find(carrier)?.shape,
-            StructuralTypeShape::TypeParameter
-        )
-        .then_some(carrier)
+        self.type_index.find(carrier)?.shape.carries_hidden_contents().then_some(carrier)
     }
 
     /// An indexed copy keeps its source array live even when the caller cannot

@@ -256,7 +256,7 @@ fn collect_reference_inventory<'types>(
             continue;
         }
         let declaration = types.clone().find(|row| row.id == current)?;
-        if matches!(declaration.shape, StructuralTypeShape::TypeParameter)
+        if declaration.shape.carries_hidden_contents()
             || (shared_input
                 && matches!(declaration.shape, StructuralTypeShape::FixedArray { length, .. }
                     if length.literal().is_none()))

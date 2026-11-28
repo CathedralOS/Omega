@@ -93,7 +93,7 @@ fn contains_quotient_storage(module: &TerminalModule, root: StructuralTypeId) ->
             | S::ElementView { .. }
             | S::ByteSequence(_)
             | S::PrimitiveScalar(_) => {}
-            S::AtomicCell(_) | S::Opaque => {}
+            S::AtomicCell(_) | S::Opaque | S::BorrowingOpaque { .. } => {}
         }
     }
     false

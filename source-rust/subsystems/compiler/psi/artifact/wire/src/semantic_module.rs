@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 311`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 312`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -2332,13 +2332,15 @@ mod reference_transport_tests {
         let frame = frame.finish_or(1);
         let reference = TerminalTaskValueType::Structural(StructuralTypeId::new(2).unwrap());
         module.execution.task_activation_demands.push(TerminalTaskActivationDemand {
-            operation: TerminalTaskStartOperation::Start,
+            origin: terminal_psi::TerminalActivationOrigin::TaskRuntime(terminal_psi::TerminalTaskRuntimeSelection {
+                operation: TerminalTaskStartOperation::Start,
+                requirement_callable_identity: callable,
+                requirement_owner_path: callable,
+                requirement_owner_package: None,
+                requirement_in_scope: true,
+                authored_requirement_identity: callable,
+            }),
             report_fingerprint: 1,
-            requirement_callable_identity: callable,
-            requirement_owner_path: callable,
-            requirement_owner_package: None,
-            requirement_in_scope: true,
-            authored_requirement_identity: callable,
             machine_callable_identity: callable,
             entry,
             entry_report_fingerprint: 2,
@@ -2371,6 +2373,19 @@ mod reference_transport_tests {
         });
         let bytes = encode_module(&module).unwrap();
         assert_eq!(decode_module(&bytes).unwrap(), module);
+
+        // A different owner tag cannot turn a scheduled task into a
+        // caller-controlled invocation of a body chosen by its local ID.
+        let mut unbound = module.clone();
+        unbound.execution.task_activation_demands[0].origin = terminal_psi::TerminalActivationOrigin::Caller(
+            terminal_psi::TerminalPreparedActivationEntry {
+                preparation: semantic_vocabulary::BoundaryMachineId::new(1).unwrap(),
+                entry_machine: semantic_vocabulary::MachineId::new(1).unwrap(),
+                storage: terminal_psi::TerminalActivationStorage::Fixed,
+            },
+        );
+        assert!(matches!(decode_module(&encode_raw(&unbound).unwrap()),
+            Err(CodecError::MalformedStructuralFoundation("prepare selected a different worker or storage plan"))));
 
         // ID 1 describes only what a reference points at. Its own storage
         // cannot be used as an activation result or a resident frame value.
@@ -4094,6 +4109,7 @@ pub(crate) use wire::{Reader, Writer, decode_canonical};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
+// Marker 312 separates the owner of an activation from its shared frame description.
 // Marker 311 distinguishes nominal preconditions on exact formals from normal results.
 // Marker 310 records the exact route of a nominal callable contract.
 // Marker 309 retains per-value package schemas, openings and checked construction, projection, call and store sites.
@@ -4114,7 +4130,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // at the FloatMeaning carrier and retires proposition tag 19.
 // Marker 295 retires byte-sequence equality proposition tag 12, which only
 // an uncalled producer wrote.
-pub(crate) const FORMAT_MARKER: u16 = 311;
+pub(crate) const FORMAT_MARKER: u16 = 312;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

@@ -158,11 +158,39 @@ enum PreparedParameter {
     Ready(ClosedReachParameter),
     Machine {
         selected: terminal_psi::TerminalIdentityIndex,
-        upper_bound: Option<Vec<semantic_vocabulary::ServiceId>>,
-        upper_bound_may_suspend: bool,
-        upper_bound_may_block: bool,
-        upper_bound_crashes_none: bool,
+        bounds: CallbackBounds,
     },
+}
+
+#[derive(Debug, Clone)]
+struct CallbackBounds {
+    reach: Option<Vec<semantic_vocabulary::ServiceId>>,
+    may_suspend: bool,
+    may_block: bool,
+    crashes_none: bool,
+}
+
+impl CallbackBounds {
+    fn admits(
+        &self,
+        reach: &[semantic_vocabulary::ServiceId],
+        may_suspend: bool,
+        may_block: bool,
+        may_crash: bool,
+    ) -> Result<(), &'static str> {
+        if self.reach.as_ref().is_some_and(|upper| {
+            reach.iter().any(|service| upper.binary_search(service).is_err())
+        }) {
+            return Err("a selected static callback exceeds its authored reach bound");
+        }
+        if (may_suspend && !self.may_suspend) || (may_block && !self.may_block) {
+            return Err("a selected static callback exceeds its operational bound");
+        }
+        if may_crash && self.crashes_none {
+            return Err("a selected static callback may crash, and its binder declares `crashes none`");
+        }
+        Ok(())
+    }
 }
 
 fn build_identity_remap(
@@ -225,6 +253,7 @@ pub(crate) fn declare(
     >,
     elaboration: &mut Elaboration,
     parallel: bool,
+    caller_entries: &mut Vec<terminal_psi::TerminalPreparedActivationEntry>,
 ) -> Result<Vec<(MachineId, PreparedApplication)>, DeclarationError> {
     let machines = &program.symbols;
     let signatures = &program.signatures;
@@ -376,8 +405,8 @@ pub(crate) fn declare(
                     {
                         application.operational = Some(terminal_semantics::calls::operational_dependencies::direct(
                             &elaboration.module, machine, |binder| match application.telescope.get(binder as usize)? {
-                                PreparedParameter::Machine { upper_bound_may_suspend, upper_bound_may_block, .. } =>
-                                    Some([*upper_bound_may_suspend, *upper_bound_may_block]),
+                                PreparedParameter::Machine { bounds, .. } =>
+                                    Some([bounds.may_suspend, bounds.may_block]),
                                 _ => None,
                             },
                         )?);
@@ -542,6 +571,7 @@ pub(crate) fn declare(
             program,
             &mut elaboration.module,
             &mut identities,
+            caller_entries,
         )?;
         for definition in program.predicate_definitions.iter().flatten() {
             let declaration = semantic_identity(typed, definition.symbol, &mut identities)?;
@@ -1216,10 +1246,12 @@ fn application_bindings_commitment(
                     prepared.parameter_kinds.push(3);
                     prepared.telescope.push(PreparedParameter::Machine {
                         selected: identity,
-                        upper_bound: upper_bound.clone(),
-                        upper_bound_may_suspend: contract.signature().suspends,
-                        upper_bound_may_block: contract.signature().blocks,
-                        upper_bound_crashes_none: contract.signature().declares_no_crash_route,
+                        bounds: CallbackBounds {
+                            reach: upper_bound.clone(),
+                            may_suspend: contract.signature().suspends,
+                            may_block: contract.signature().blocks,
+                            crashes_none: contract.signature().declares_no_crash_route,
+                        },
                     });
                 }
             }
@@ -1686,27 +1718,9 @@ impl PreparedParameter {
         self,
         selections: &[(terminal_psi::TerminalIdentityIndex, ReachSelection)],
     ) -> Result<ClosedReachParameter, &'static str> {
-        let (
-            selected,
-            upper_bound,
-            upper_bound_may_suspend,
-            upper_bound_may_block,
-            upper_bound_crashes_none,
-        ) = match self {
+        let (selected, bounds) = match self {
             Self::Ready(parameter) => return Ok(parameter),
-            Self::Machine {
-                selected,
-                upper_bound,
-                upper_bound_may_suspend,
-                upper_bound_may_block,
-                upper_bound_crashes_none,
-            } => (
-                selected,
-                upper_bound,
-                upper_bound_may_suspend,
-                upper_bound_may_block,
-                upper_bound_crashes_none,
-            ),
+            Self::Machine { selected, bounds } => (selected, bounds),
         };
         let first = selections.partition_point(|(identity, _)| *identity < selected);
         let Some((_, callee)) = selections
@@ -1721,35 +1735,16 @@ impl PreparedParameter {
         {
             return Err("a selected static callback has multiple admitted executable declarations");
         }
-        if upper_bound.as_ref().is_some_and(|upper_bound| {
-            callee
-                .reach
-                .iter()
-                .any(|service| upper_bound.binary_search(service).is_err())
-        }) {
-            return Err("a selected static callback exceeds its authored reach bound");
-        }
-        if (callee.may_suspend && !upper_bound_may_suspend)
-            || (callee.may_block && !upper_bound_may_block)
-        {
-            return Err("a selected static callback exceeds its operational bound");
-        }
-        // effects.md: `crashes none` admits only crash-free selections. A
-        // private callback's inferred routes count as much as authored ones.
-        if callee.may_crash && upper_bound_crashes_none {
-            return Err(
-                "a selected static callback may crash, and its binder declares `crashes none`",
-            );
-        }
+        bounds.admits(&callee.reach, callee.may_suspend, callee.may_block, callee.may_crash)?;
         Ok(ClosedReachParameter::Machine(
             terminal_psi::ClosedReachMachineBinding {
                 nominal_requirement: None,
                 requirement_parameter_kinds: Vec::new(),
                 requirement_arguments: Vec::new(),
-                upper_bound,
-                upper_bound_may_suspend,
-                upper_bound_may_block,
-                upper_bound_crashes_none,
+                upper_bound: bounds.reach,
+                upper_bound_may_suspend: bounds.may_suspend,
+                upper_bound_may_block: bounds.may_block,
+                upper_bound_crashes_none: bounds.crashes_none,
                 selected_may_suspend: callee.may_suspend,
                 selected_may_block: callee.may_block,
                 selected_may_crash: callee.may_crash,
@@ -1826,6 +1821,7 @@ use crate::source_state::service_declarations::service_declaration_commitment;
 pub(crate) fn boundary(
     typed: &TypedTrees,
     symbol: SymbolHandle,
+    header: &BoundaryDeclarationSource,
     execution: terminal_psi::CheckedBoundaryExecution,
     signature: &Signature,
     published: Published<'_>,
@@ -1857,14 +1853,14 @@ pub(crate) fn boundary(
             ));
         }
         return top_level_boundary(
-            typed, symbol, execution, signature, published, None, identities,
+            typed, symbol, header, execution, signature, published, None, identities,
         );
     }
     if matches!(
         execution,
         terminal_psi::CheckedBoundaryExecution::HostedPrimitive { .. }
     ) {
-        return primitive_boundary(typed, symbol, execution, signature, published, identities);
+        return primitive_boundary(typed, symbol, header, execution, signature, published, identities);
     }
     let (owner, requirement) = typed
         .trait_machine_signature(symbol)
@@ -1915,6 +1911,7 @@ pub(crate) fn boundary(
 fn primitive_boundary(
     typed: &TypedTrees,
     symbol: SymbolHandle,
+    header: &BoundaryDeclarationSource,
     execution: terminal_psi::CheckedBoundaryExecution,
     signature: &Signature,
     published: Published<'_>,
@@ -1974,6 +1971,7 @@ fn primitive_boundary(
     top_level_boundary(
         typed,
         symbol,
+        header,
         execution,
         signature,
         published,
@@ -1986,6 +1984,7 @@ fn primitive_boundary(
 fn top_level_boundary(
     typed: &TypedTrees,
     symbol: SymbolHandle,
+    header: &BoundaryDeclarationSource,
     execution: terminal_psi::CheckedBoundaryExecution,
     signature: &Signature,
     published: Published<'_>,
@@ -2067,29 +2066,8 @@ fn top_level_boundary(
         published,
     )
     .map_err(Diagnostic::error)?;
-    let (specialization, method_arguments) = if let Some(row) = typed.machine_specialization(symbol)
-    {
-        let (application, prepared) =
-            application(typed, &sources, symbol, row.template, &[], identities)
-                .map_err(Diagnostic::error)?;
-        let prepared =
-            prepared.ok_or_else(|| Diagnostic::error("primitive has no closed argument record"))?;
-        let arguments = prepared
-            .telescope
-            .iter()
-            .map(|parameter| match parameter {
-                PreparedParameter::Ready(ClosedReachParameter::Type { argument }) => Ok(
-                    terminal_psi::ClosedReachArgument::Type(identities.intern(argument)),
-                ),
-                _ => Err(Diagnostic::error(
-                    "primitive has an unsupported generic argument kind",
-                )),
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        (Some(application), arguments)
-    } else {
-        (None, Vec::new())
-    };
+    let specialization = header.application.as_ref().map(|source| source.specialization(identities));
+    let method_arguments = header.method_arguments(identities);
     let source = CheckedMachineDeclaration {
         machine: owner.clone(),
         state: NominalDeclarationIdentity::new(
@@ -2519,8 +2497,19 @@ pub(crate) struct BoundaryDeclarationSource {
 #[derive(Debug, Clone)]
 struct BoundaryApplicationSource {
     template: String,
+    entry: String,
     semantic: String,
     application: RequirementApplicationSource,
+}
+
+impl BoundaryApplicationSource {
+    fn specialization(&self, identities: &mut TerminalIdentityTableBuilder) -> terminal_psi::CheckedMachineSpecialization {
+        let template = identities.intern(&self.template);
+        let semantic = identities.intern(&self.semantic);
+        let mut closed = self.application.publish_specialization(template, semantic, identities);
+        closed.template_entry = NominalDeclarationIdentity::new(identities.intern(&self.entry));
+        closed
+    }
 }
 
 impl BoundaryDeclarationSource {
@@ -2616,6 +2605,7 @@ pub(crate) fn boundary_source(
             .map(|closed| -> Result<_, &'static str> {
                 Ok(BoundaryApplicationSource {
                     template: nominal_text(closed.template)?,
+                    entry: nominal_text(closed.template)?,
                     semantic: typed
                         .normalized_hermetic_symbol_identity(closed.template)
                         .map_err(
@@ -2675,13 +2665,7 @@ pub(crate) fn boundary_declaration(
     commit_structural_guarantees(typed, &sources, signature, identities, &mut commitment)?;
     proof.crash_routes.hash(&mut commitment);
     signature.termination.hash(&mut commitment);
-    let specialization = source.application.as_ref().map(|source| {
-        let template = identities.intern(&source.template);
-        let semantic = identities.intern(&source.semantic);
-        source
-            .application
-            .publish_specialization(template, semantic, identities)
-    });
+    let specialization = source.application.as_ref().map(|source| source.specialization(identities));
     Ok(CheckedMachineDeclaration {
         machine: NominalDeclarationIdentity::new(identities.intern(&source.machine)),
         state: NominalDeclarationIdentity::new(identities.intern(&source.state)),
@@ -2767,6 +2751,7 @@ pub(crate) fn provider_declaration(
 pub(crate) fn intrinsic_boundary_source(
     typed: &TypedTrees,
     symbol: SymbolHandle,
+    binders: &[(SymbolHandle, Option<Vec<semantic_vocabulary::ServiceId>>)],
 ) -> Result<BoundaryDeclarationSource, &'static str> {
     if let Some(machine) = typed.machine_by_symbol(symbol) {
         let Some([state]) = typed.machine_states(machine).as_array() else {
@@ -2780,7 +2765,7 @@ pub(crate) fn intrinsic_boundary_source(
         if declaration != machine.symbol || signature.symbol != declaration {
             return Err("intrinsic bodyless signature has another contract declaration");
         }
-        return boundary_source(
+        let mut header = boundary_source(
             typed,
             symbol,
             symbol,
@@ -2789,7 +2774,25 @@ pub(crate) fn intrinsic_boundary_source(
             typed
                 .machine_callable_identity_text(machine)
                 .ok_or("intrinsic has no callable identity")?,
-        );
+        )?;
+        if let Some(row) = typed.machine_specialization(symbol) {
+            let sources = source_admission::source_identity::toolchain_source_identities(
+                typed.symbols.source_files()
+            ).map_err(|_| "a specialized primitive lost its source revision")?;
+            let mut ids = TerminalIdentityTableBuilder::default();
+            let (closed, arguments) = application(typed, &sources, symbol, row.template, binders, &mut ids)?;
+            let text = |id| ids.text(id).map(str::to_owned).ok_or("a specialized primitive lost its template identity");
+            header.application = Some(BoundaryApplicationSource {
+                template: text(closed.template.identity())?,
+                entry: text(closed.template_entry.identity())?,
+                semantic: text(closed.template_semantic_declaration)?,
+                application: RequirementApplicationSource::primitive(
+                    typed, symbol, arguments.ok_or("a specialized primitive has no closed argument record")?,
+                    text(closed.template_callable)?, closed.commitment,
+                )?,
+            });
+        }
+        return Ok(header);
     }
     let intrinsic =
         crate::source_state::declarations::intrinsic_requirements::IntrinsicRequirement::by_symbol(
@@ -2836,7 +2839,7 @@ pub(crate) fn intrinsic_boundary_source(
 
 #[cfg(test)]
 mod crash_bound_tests {
-    use super::{PreparedParameter, ReachSelection};
+    use super::{CallbackBounds, PreparedParameter, ReachSelection};
     use semantic_vocabulary::MachineId;
     use terminal_psi::{ClosedReachParameter, TerminalIdentityIndex};
 
@@ -2848,10 +2851,12 @@ mod crash_bound_tests {
         let selected = TerminalIdentityIndex(5);
         PreparedParameter::Machine {
             selected,
-            upper_bound: None,
-            upper_bound_may_suspend: false,
-            upper_bound_may_block: false,
-            upper_bound_crashes_none: bound,
+            bounds: CallbackBounds {
+                reach: None,
+                may_suspend: false,
+                may_block: false,
+                crashes_none: bound,
+            },
         }
         .close(&[(
             selected,

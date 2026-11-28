@@ -1818,46 +1818,13 @@ fn adapt_flow(
                                     result.place,
                                     result.structural_type,
                                 )?;
-                                let mut lifetime_dependencies = Vec::new();
-                                if !inventory.unknown_contents.is_empty() {
-                                    for (position, formal) in public
-                                        .contract()
-                                        .structural_parameters
-                                        .iter()
-                                        .enumerate()
-                                    {
-                                        let ty = module
-                                            .structural_type(formal.structural_type)?;
-                                        if formal.access != StructuralAccess::Owned
-                                            && !ty.shape.is_view_descriptor()
-                                        {
-                                            lifetime_dependencies.push(DescriptorLifetimeDebt {
-                                                origin: DescriptorStoredOrigin::Parameter {
-                                                    position,
-                                                    projection: Projection::new(&[]),
-                                                },
-                                                access: formal.access,
-                                            });
-                                        }
-                                        if formal.access
-                                            == StructuralAccess::WriteOnlyBorrow
-                                        {
-                                            continue;
-                                        }
-                                        for origin in DescriptorSlotKind::BorrowedStorage
-                                            .input_contents_origins(
-                                                &module.types.structural_types,
-                                                formal,
-                                                position,
-                                            )?
-                                        {
-                                            lifetime_dependencies.push(DescriptorLifetimeDebt {
-                                                origin,
-                                                access: formal.access,
-                                            });
-                                        }
-                                    }
-                                }
+                                let lifetime_dependencies = if inventory.unknown_contents.is_empty() {
+                                    Vec::new()
+                                } else {
+                                    replay::retained_input_debts(
+                                        &module.types.structural_types, &public.contract().structural_parameters,
+                                    )?
+                                };
                                 for packet in inventory.unknown_contents {
                                     let path = packet.location.path;
                                     let (last, prefix) = path.split_last()?;
@@ -1989,7 +1956,16 @@ fn adapt_flow(
                                     })
                                 })
                         });
-                    if !preserves_access_token
+                    let declaration = module.boundary_machine(*boundary)?;
+                    let preparation = if declaration.declaration.as_ref().is_some_and(|d| d.execution ==
+                        terminal_psi::CheckedBoundaryExecution::OwnedActivation(
+                            language_core::sealed_intrinsics::ActivationOperation::Prepare))
+                    {
+                        let shape = crate::calls::owned_activation::prepare_shape(module, declaration).ok()?;
+                        Some(super::prepared_owner::invocation(module, machine, operation,
+                            declaration, shape, slot_kind)?)
+                    } else { None };
+                    if preparation.is_none() && !preserves_access_token
                         && !boundary_call_preserves_descriptor_storage(
                             module, machine, operation,
                         )
@@ -2016,7 +1992,9 @@ fn adapt_flow(
                             operation,
                             declaration,
                         );
-                        if let Some(shape) = park
+                        if let Some(call) = preparation {
+                            insert_invocation(&mut graph.calls, position, call)?;
+                        } else if let Some(shape) = park
                             && matches!(
                                 slot_kind,
                                 DescriptorSlotKind::BorrowedStorage

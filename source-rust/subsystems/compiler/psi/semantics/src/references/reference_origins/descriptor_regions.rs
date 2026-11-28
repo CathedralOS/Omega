@@ -259,7 +259,7 @@ pub fn reference_result_contents(
             } else {
                 StructuralAccess::MutableBorrow
             };
-            if !matches!(declaration.shape, StructuralTypeShape::TypeParameter)
+            if !declaration.shape.carries_hidden_contents()
                 || !input_path_accessible(types, parameter, &path, requested)
             {
                 return Err("unknown contents were transferred without owned access");

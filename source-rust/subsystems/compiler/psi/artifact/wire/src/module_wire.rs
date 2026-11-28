@@ -3736,7 +3736,8 @@ pub(crate) mod task_activation_wire {
         U32, U64, wire_enum, wire_record,
     };
     use terminal_psi::{
-        TerminalTaskActivationDemand,
+        TerminalTaskActivationDemand, TerminalActivationOrigin, TerminalTaskRuntimeSelection,
+        TerminalPreparedActivationEntry, TerminalActivationStorage,
         TerminalTaskCarryStorage, TerminalTaskFrame, TerminalTaskFrameCall, TerminalTaskFrameState,
         TerminalTaskLiveCarry, TerminalTaskResidentValue,
         TerminalTaskSignatureValue, TerminalTaskStartOperation, TerminalTaskSuspensionCrossing,
@@ -3746,13 +3747,8 @@ pub(crate) mod task_activation_wire {
 
     wire_record! {
         Demand: TerminalTaskActivationDemand {
-            operation: StartOperation,
+            origin: ActivationOrigin,
             report_fingerprint: U64,
-            requirement_callable_identity: Index,
-            requirement_owner_path: Index,
-            requirement_owner_package: TaskPackage,
-            requirement_in_scope: Flag,
-            authored_requirement_identity: Index,
             machine_callable_identity: Index,
             entry: Index,
             entry_report_fingerprint: U64,
@@ -3772,6 +3768,19 @@ pub(crate) mod task_activation_wire {
             value_type: ValueType,
             normalized_identity: Index,
             is_mutable: Flag,
+        }
+        RuntimeSelection: TerminalTaskRuntimeSelection {
+            operation: StartOperation,
+            requirement_callable_identity: Index,
+            requirement_owner_path: Index,
+            requirement_owner_package: TaskPackage,
+            requirement_in_scope: Flag,
+            authored_requirement_identity: Index,
+        }
+        PreparedEntry: TerminalPreparedActivationEntry {
+            preparation: Id,
+            entry_machine: Id,
+            storage: ActivationStorage,
         }
         Resident: TerminalTaskResidentValue { value_type: ValueType, normalized_identity: Index }
         LiveCarry: TerminalTaskLiveCarry {
@@ -3825,6 +3834,14 @@ pub(crate) mod task_activation_wire {
         StartOperation: TerminalTaskStartOperation, "TerminalTaskStartOperation" {
             1 => Start,
             2 => TryStart,
+        }
+        ActivationOrigin: TerminalActivationOrigin, "TerminalActivationOrigin" {
+            1 => TaskRuntime(selection: RuntimeSelection),
+            2 => Caller(selection: PreparedEntry),
+        }
+        ActivationStorage: TerminalActivationStorage, "TerminalActivationStorage" {
+            1 => Fixed,
+            2 => Split,
         }
     }
 }

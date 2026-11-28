@@ -269,8 +269,16 @@ pub fn validate_boundary_callable(
     hosted_primitive_requirement(module, boundary)?;
     if let terminal_psi::CheckedBoundaryExecution::OwnedActivation(operation) = checked.execution {
         match operation {
-            language_core::sealed_intrinsics::ActivationOperation::Park => {
-                super::owned_activation::validate_park(module, boundary)?
+            language_core::sealed_intrinsics::ActivationOperation::Park => super::owned_activation::validate_park(module, boundary)?,
+            language_core::sealed_intrinsics::ActivationOperation::Prepare => {
+                super::owned_activation::prepare_shape(module, boundary)?;
+                return Err("prepare needs its checked backing and custody contract");
+            }
+            language_core::sealed_intrinsics::ActivationOperation::StepFixed =>
+                return Err("stepping needs the closed worker's effects and fixed backing"),
+            language_core::sealed_intrinsics::ActivationOperation::Resume => {
+                super::owned_activation::resume_permit(module, boundary)?;
+                return Err("resuming needs the checked parked owner and its result custody");
             }
         }
     }

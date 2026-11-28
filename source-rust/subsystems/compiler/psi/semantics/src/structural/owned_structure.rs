@@ -105,6 +105,7 @@ pub fn intrinsic_claim_required(
                 | StructuralTypeShape::Sum { .. }
                 | StructuralTypeShape::Mixed { .. }
                 | StructuralTypeShape::Opaque
+                | StructuralTypeShape::BorrowingOpaque { .. }
         )
 }
 

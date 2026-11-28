@@ -1,3 +1,50 @@
+#[test]
+fn related_carriers_compare_the_whole_application_not_their_outer_name() {
+    use crate::type_identity::{
+        encoding::{atom, compound},
+        named_application_arguments,
+        vocabulary::{Label, TypeForm},
+    };
+    let application = |family: &str, args: &[&str]| {
+        compound(
+            TypeForm::Generic,
+            std::iter::once(atom(Label::Name, family))
+                .chain(args.iter().map(|argument| argument.to_string())),
+        )
+    };
+    let fixed = application(
+        "Ready",
+        &["compiler-type(atom(u8))", "compiler-type(atom(u16))"],
+    );
+    let stopped = application(
+        "Parked",
+        &["compiler-type(atom(u8))", "compiler-type(atom(u16))"],
+    );
+    let other = application(
+        "Parked",
+        &["compiler-type(atom(u8))", "compiler-type(atom(u32))"],
+    );
+    let arguments = named_application_arguments(&fixed, "Ready")
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        named_application_arguments(&stopped, "Parked"),
+        Ok(Some(arguments))
+    );
+    assert_ne!(
+        named_application_arguments(&other, "Parked"),
+        Ok(Some(arguments))
+    );
+    assert_eq!(named_application_arguments(&fixed, "Parked"), Ok(None));
+    assert!(
+        named_application_arguments(
+            "generic(name(Ready),compiler-type(atom(u8)),broken)",
+            "Ready"
+        )
+        .is_err()
+    );
+}
+
 mod array_extent_identity {
     use crate::type_identity::{
         TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError, visit_type_identity_package_owners,

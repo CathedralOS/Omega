@@ -297,6 +297,7 @@ fn descriptor_location_with<'a, L: crate::StructuralDeclarations<'a>>(
                         matches!(
                             declaration.shape,
                             StructuralTypeShape::Opaque
+                                | StructuralTypeShape::BorrowingOpaque { .. }
                                 | StructuralTypeShape::Reference { .. }
                                 | StructuralTypeShape::AtomicCell(_)
                         )
@@ -481,6 +482,7 @@ pub fn view_element_descriptor_prefix(
                 if matches!(
                     owner.shape,
                     StructuralTypeShape::Opaque
+                        | StructuralTypeShape::BorrowingOpaque { .. }
                         | StructuralTypeShape::Reference { .. }
                         | StructuralTypeShape::AtomicCell(_)
                 ) {
@@ -618,6 +620,7 @@ fn resolved_path_with<'a, L: crate::StructuralDeclarations<'a>>(
                         matches!(
                             declaration.shape,
                             StructuralTypeShape::Opaque
+                                | StructuralTypeShape::BorrowingOpaque { .. }
                                 | StructuralTypeShape::Reference { .. }
                                 | StructuralTypeShape::AtomicCell(_)
                         )
@@ -724,6 +727,7 @@ fn resolved_tip_with<'a, L: crate::StructuralDeclarations<'a>>(
                         matches!(
                             declaration.shape,
                             StructuralTypeShape::Opaque
+                                | StructuralTypeShape::BorrowingOpaque { .. }
                                 | StructuralTypeShape::Reference { .. }
                                 | StructuralTypeShape::AtomicCell(_)
                         )
