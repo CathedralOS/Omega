@@ -163,6 +163,14 @@ impl Names<'_> {
                         PackageReviewSynchronousInvocation::Parameter(ordinal) => {
                             write!(output, "parameter {ordinal}")?
                         }
+                        PackageReviewSynchronousInvocation::ProjectedParameter {
+                            parameter,
+                            path,
+                        } => write!(
+                            output,
+                            "parameter {parameter}{}",
+                            semantic_vocabulary::display_invocation_path(path)
+                        )?,
                         PackageReviewSynchronousInvocation::Service(service) => {
                             write!(output, "{}", self.service(service))?
                         }

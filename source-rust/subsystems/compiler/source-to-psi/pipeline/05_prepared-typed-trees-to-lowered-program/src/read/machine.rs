@@ -89,6 +89,20 @@ pub(super) enum ApplicationTypes<'a> {
 }
 
 impl<'t> Program<'t> {
+    pub(crate) fn prepare_call_components(
+        &mut self,
+        bodies: &arena::IdTable<MachineId, Body>,
+    ) -> Checked<crate::components::Components> {
+        crate::prepare_call_components(
+            bodies,
+            &mut self.signatures,
+            &self.theorem_parameters,
+            self.machine_rows
+                .iter()
+                .map(|(machine, row)| (machine, row.context.const_scope.as_slice())),
+        )
+    }
+
     fn boundary_conformer_call_refusal(
         &self,
         id: MachineId,

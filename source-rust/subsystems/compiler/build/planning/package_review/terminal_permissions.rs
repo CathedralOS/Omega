@@ -5,10 +5,9 @@ use super::{
     calling, declarations::unavailable, input::PolicySource, providers::service_method_policy,
     semantic_bindings,
 };
+use build_providers::plans::{ServiceMethod, ServiceSchema};
 use compiler::SelectedProviderResult;
 use diagnostics::Diagnostic;
-use build_providers::acceptance::AcceptedSemanticBinding;
-use build_providers::plans::{ServiceMethod, ServiceSchema};
 use review_evidence::record::PackageReviewTypeIdentity;
 use review_evidence::record::{
     PackagePolicyServiceAuthority, PackagePolicyServiceSignature, PackagePolicyTerminalPermission,
@@ -49,23 +48,11 @@ pub(super) fn project(
     }
 
     let native = selected.realization();
-    // A compiler primitive can carry its own receiver policy. Only an explicitly
-    // supplied binding contributes to the package's review rows.
-    let mut realized = BTreeMap::new();
-    for row in native.terminal_authority_permissions() {
-        let requirement = native
-            .terminal_authority_permission_identities()
-            .text(row.requirement_identity())
-            .ok_or_else(|| unavailable("a realized permission's requirement identity"))?;
-        if realized
-            .insert((row.service_schema(), requirement), row.permitted())
-            .is_some()
-        {
-            return Err(unavailable(
-                "a unique realized receiver permission for each requirement",
-            ));
-        }
-    }
+    let realized = compiler::RealizedServicePermissions::new(
+        native.terminal_authority_permissions(),
+        native.terminal_authority_permission_identities(),
+    )
+    .map_err(unavailable)?;
     let mut services = BTreeMap::new();
     for binding in grants {
         let (symbol, schema) = semantic_bindings::checked_service(input, selected, binding)?;
@@ -84,16 +71,9 @@ pub(super) fn project(
             ));
         }
         for grant in binding.terminal_authority_permissions() {
-            let requirement = permission_requirement(binding, grant)?;
-            if realized
-                .get(&(grant.service_schema(), requirement))
-                .copied()
-                != Some(grant.permitted())
-            {
-                return Err(unavailable(
-                    "the supplied receiver disposition in the selected target",
-                ));
-            }
+            let requirement = realized
+                .supplied_requirement(binding, grant)
+                .map_err(unavailable)?;
             let mut methods = schema
                 .declaration
                 .methods
@@ -129,22 +109,6 @@ pub(super) fn project(
         policy.services.push(service);
     }
     Ok(policy)
-}
-
-fn permission_requirement<'a>(
-    binding: &'a AcceptedSemanticBinding,
-    grant: &build_providers::acceptance::ServiceTerminalAuthorityPermission,
-) -> Result<&'a str, Vec<Diagnostic>> {
-    if grant.service_schema() != binding.normalized_schema_digest() {
-        return Err(unavailable(
-            "the exact accepted service for a receiver permission",
-        ));
-    }
-    binding
-        .terminal_authority_permission_identities()
-        .text(grant.requirement_identity())
-        .filter(|name| !name.is_empty())
-        .ok_or_else(|| unavailable("the explicit receiver permission's requirement"))
 }
 
 fn project_service<'a>(

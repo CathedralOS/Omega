@@ -16,6 +16,8 @@ mod representation;
 mod selected_providers;
 mod terminal_permissions;
 mod values;
+#[cfg(test)]
+pub(in crate::encoding) use values::effects::encode_synchronous_invocation;
 
 #[cfg(test)]
 pub(in crate::encoding) use selected_providers::encode_membership;

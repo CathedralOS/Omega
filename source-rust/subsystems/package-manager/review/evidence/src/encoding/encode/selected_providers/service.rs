@@ -140,6 +140,12 @@ pub(in crate::encoding::encode) fn method(
                     encoder.tag("parameter", 1);
                     encoder.u32_field("position", *position)
                 }
+                ServiceSynchronousInvocation::ProjectedParameter { parameter, path } => {
+                    encoder.tag("projected_parameter", 3);
+                    crate::encoding::encode::values::effects::encode_invocation_path(
+                        encoder, *parameter, path,
+                    )
+                }
                 ServiceSynchronousInvocation::Service(name) => {
                     encoder.tag("service", 2);
                     encoder.string_field("name", name)

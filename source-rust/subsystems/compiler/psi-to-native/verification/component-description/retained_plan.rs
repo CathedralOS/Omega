@@ -368,13 +368,36 @@ impl<'a> Reader<'a> {
     fn synchronous_invocations(&mut self, parameter_count: usize) -> Result<(), &'static str> {
         let mut entries = Vec::new();
         for _ in 0..self.count()? {
-            entries.push(match self.tag(2)? {
+            entries.push(match self.tag(3)? {
                 1 => ServiceSynchronousInvocation::Parameter(u32::from_le_bytes(
                     self.take(4)?
                         .try_into()
                         .map_err(|_| "provider invocation position width")?,
                 )),
                 2 => ServiceSynchronousInvocation::Service(self.nonempty_string()?.to_owned()),
+                3 => {
+                    use semantic_vocabulary::InvocationPathSegment as Step;
+                    let parameter = u32::from_le_bytes(
+                        self.take(4)?
+                            .try_into()
+                            .map_err(|_| "provider invocation position width")?,
+                    );
+                    let mut path = Vec::new();
+                    for _ in 0..self.count()? {
+                        path.push(match self.tag(4)? {
+                            1 => Step::Field(self.nonempty_string()?.to_owned()),
+                            2 => Step::FixedIndex(u64::from_le_bytes(
+                                self.take(8)?
+                                    .try_into()
+                                    .map_err(|_| "provider invocation index width")?,
+                            )),
+                            3 => Step::Case(self.nonempty_string()?.to_owned()),
+                            4 => Step::Referent,
+                            _ => return Err("unknown synchronous invocation path segment"),
+                        });
+                    }
+                    ServiceSynchronousInvocation::ProjectedParameter { parameter, path }
+                }
                 _ => return Err("unknown provider plan synchronous invocation"),
             });
         }

@@ -766,10 +766,10 @@ impl ScalarType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
-pub enum CanonicalStructuralPathSegment {
-    Field(StructuralFieldId),
+pub enum CanonicalStructuralPathSegment<F = StructuralFieldId, C = StructuralCaseId> {
+    Field(F),
     FixedIndex(u64),
-    Case(StructuralCaseId),
+    Case(C),
     Referent,
 }
 

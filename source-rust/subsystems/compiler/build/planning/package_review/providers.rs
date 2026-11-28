@@ -1243,8 +1243,7 @@ impl PolicySource<'_> {
             .collect::<Result<Vec<_>, _>>()?;
         surface_reach.sort_unstable();
         let ceiling_matches = surface_reach == method.service_reach;
-        use service_surface::ServiceSynchronousInvocation;
-        use terminal_psi::TerminalCallableInvocation;
+
         let invocation_contract = declarations
             .accepted
             .module()
@@ -1255,13 +1254,8 @@ impl PolicySource<'_> {
         let mut invocations = invocation_contract
             .invocations
             .iter()
-            .map(|entry| match entry {
-                TerminalCallableInvocation::Parameter(position) => {
-                    Ok(ServiceSynchronousInvocation::Parameter(*position))
-                }
-                TerminalCallableInvocation::Service(service) => declarations
-                    .surface_service_name(*service)
-                    .map(ServiceSynchronousInvocation::Service),
+            .map(|entry| {
+                entry.try_map_service(|service| declarations.surface_service_name(*service))
             })
             .collect::<Result<Vec<_>, _>>()?;
         invocations.sort_unstable();

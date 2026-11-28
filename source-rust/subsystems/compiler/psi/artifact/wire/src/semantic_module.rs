@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 307`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 309`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -4088,7 +4088,8 @@ pub(crate) use wire::{Reader, Writer, decode_canonical};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 308 distinguishes nominal preconditions on exact formals from normal results.
+// Marker 309 distinguishes nominal preconditions on exact formals from normal results.
+// Marker 308 names individual callable fields in invocation contracts.
 // Marker 307 adds the terminal storage-alignment projection on scalar reads.
 // Marker 306 adds native reference formation and checked mutability-upgrade origins.
 // Marker 305 records the supplier's exported provider records separately from local selections.
@@ -4105,7 +4106,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // at the FloatMeaning carrier and retires proposition tag 19.
 // Marker 295 retires byte-sequence equality proposition tag 12, which only
 // an uncalled producer wrote.
-pub(crate) const FORMAT_MARKER: u16 = 308;
+pub(crate) const FORMAT_MARKER: u16 = 309;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

@@ -132,6 +132,7 @@ wire_enum! {
     SynchronousInvocation: ServiceSynchronousInvocation, "ServiceSynchronousInvocation" {
         1 => Parameter(position: crate::wire_fields::U32),
         2 => Service(name: Text),
+        3 => ProjectedParameter { parameter: crate::wire_fields::U32, path: List<psi_declaration_encoding::dispatch::InvocationPathSegment> },
     }
     MembershipSubject: ServiceMembershipSubject, "ServiceMembershipSubject" { 1 => NormalResult, 2 => Input(index: crate::wire_fields::U32) }
     ProgressSubject: ServiceProgressSubject, "ServiceProgressSubject" {
