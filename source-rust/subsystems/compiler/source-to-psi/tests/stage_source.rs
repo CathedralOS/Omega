@@ -1232,9 +1232,9 @@ fn typed_trees_check_their_record_format_before_reading_the_forest() {
             record_storage::decode::<typed_trees::TypedTrees>(&former_header, limits).unwrap_err();
         assert_eq!(error.reason, "unsupported TypedTrees record format");
     }
-    let header = b"OmegaTypedTrees2";
+    let header = b"OmegaTypedTrees3";
     assert!(bytes.starts_with(header));
-    for version in [b'1', b'3'] {
+    for version in [b'1', b'2', b'4'] {
         let mut other_format = bytes.clone();
         other_format[header.len() - 1] = version;
         assert_eq!(

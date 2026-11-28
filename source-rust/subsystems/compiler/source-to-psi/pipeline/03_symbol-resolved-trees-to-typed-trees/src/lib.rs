@@ -145,6 +145,7 @@ pub(crate) mod expressions {
     pub(crate) mod expression_meanings;
     pub(crate) mod operand_owners;
     pub(crate) mod operator_calls;
+    pub(crate) mod package_openings;
     pub(crate) mod runtime_callables;
 
     pub(crate) use crate::expressions::call_and_product_selections::{
