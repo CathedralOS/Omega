@@ -122,7 +122,20 @@ pub(super) fn invocation(
     let mut argument_contents = Vec::with_capacity(formals.len());
     let mut results = Vec::new();
     let mut contents = Vec::new();
-    for (position, (actual, formal)) in structural_arguments.iter().zip(formals).enumerate() {
+    let structural_positions =
+        boundary
+            .parameter_order
+            .iter()
+            .enumerate()
+            .filter_map(|(position, kind)| {
+                (*kind == terminal_psi::BoundaryParameterKind::Structural).then_some(position)
+            });
+    for (position, ((actual, formal), source_position)) in structural_arguments
+        .iter()
+        .zip(formals)
+        .zip(structural_positions)
+        .enumerate()
+    {
         let root = machine.structural_place_type(actual.place)?;
         let tip = crate::runtime_structural_path_tip(types.iter(), root, &actual.path)?;
         if formal.structural_type != tip.id || actual.access != formal.access {
@@ -142,7 +155,7 @@ pub(super) fn invocation(
             &actual.path,
             None,
         )?));
-        let path = match (&transfer, formal.position) {
+        let path = match (&transfer, source_position) {
             (Transfer::Prepare(s), 0) => field(s.rejected, s.arguments),
             (Transfer::Prepare(s), 1) => field(s.rejected, s.retained),
             (Transfer::Resume(s), 0) => field(s.mismatch, s.mismatch_owner),
@@ -225,7 +238,7 @@ pub(super) fn invocation(
     if kind.tracks_views() {
         stack_sources.push(match transfer {
             Transfer::Prepare(_) => DescriptorStoredOrigin::IncomingSlot {
-                position: formals.iter().position(|formal| formal.position == 1)?,
+                position: formals.len().checked_sub(1)?,
                 path: Vec::new(),
             },
             _ => backing_from_owner(preparation, None),
