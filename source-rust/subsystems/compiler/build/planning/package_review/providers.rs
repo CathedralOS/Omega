@@ -54,6 +54,7 @@ impl ReviewedProviders {
         declarations: &AcceptedDeclarations<'_>,
         callables: &[PackagePolicyCallable],
         traits: &[PackagePolicyTraitShape],
+        unsafe_services: &[ServiceId],
     ) -> Result<(), Vec<Diagnostic>> {
         use std::collections::{BTreeMap, BTreeSet};
         let signatures = traits
@@ -84,7 +85,11 @@ impl ReviewedProviders {
                     .or_insert(Some(*id));
             }
         }
-        let cited: BTreeSet<_> = applications.into_values().flatten().collect();
+        let cited: BTreeSet<_> = applications
+            .into_values()
+            .flatten()
+            .chain(unsafe_services.iter().copied())
+            .collect();
         for ReviewedService {
             id: service,
             owner,
