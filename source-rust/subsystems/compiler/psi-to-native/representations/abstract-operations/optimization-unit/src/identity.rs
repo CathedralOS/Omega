@@ -2281,6 +2281,7 @@ pub(crate) mod operation_encoding {
     }
     ids!(
         OperationId,
+        SuspensionCrossingId,
         ValueId,
         MachineId,
         StructuralTypeId,

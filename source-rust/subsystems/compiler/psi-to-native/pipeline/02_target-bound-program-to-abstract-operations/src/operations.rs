@@ -213,6 +213,7 @@ mod machine {
                         ..
                     } => AbstractOperation::CallStructural {
                         psi_operation: operation.id,
+                        suspension_crossing: operation.suspension_crossing,
                         callee: AbstractCallTarget::Callable { callee, contract },
                         arguments,
                         structural_arguments,
@@ -246,6 +247,7 @@ mod machine {
                         ..
                     } => AbstractOperation::CallStructural {
                         psi_operation: operation.id,
+                        suspension_crossing: operation.suspension_crossing,
                         callee: AbstractCallTarget::Dynamic {
                             selector,
                             interface,
@@ -282,6 +284,7 @@ mod machine {
                         crash_continuations,
                     } => AbstractOperation::CallStructural {
                         psi_operation: operation.id,
+                        suspension_crossing: operation.suspension_crossing,
                         callee: callee.into(),
                         arguments,
                         structural_arguments,
@@ -303,6 +306,7 @@ mod machine {
                         let result = operation.result.expect_scalar();
                         AbstractOperation::CallStructural {
                             psi_operation: operation.id,
+                            suspension_crossing: operation.suspension_crossing,
                             result: AbstractStructuralCallResult::Scalar(result.into()),
                             callee: callee.into(),
                             arguments,
@@ -340,6 +344,7 @@ mod machine {
                         };
                         AbstractOperation::CallStructural {
                             psi_operation: operation.id,
+                            suspension_crossing: operation.suspension_crossing,
                             result: AbstractStructuralCallResult::Structural {
                                 result,
                                 selected_evidence,
@@ -386,6 +391,7 @@ mod machine {
                         completion_claim_sources.sort();
                         AbstractOperation::BoundaryCall {
                             psi_operation: operation.id,
+                            suspension_crossing: operation.suspension_crossing,
                             result: match &operation.result {
                                 terminal_psi::OperationResult::Unit => {
                                     abstract_operations::AbstractBoundaryResult::Unit
@@ -417,6 +423,7 @@ mod machine {
                         crash_continuations,
                     } => AbstractOperation::Call {
                         psi_operation: operation.id,
+                        suspension_crossing: operation.suspension_crossing,
                         result: operation.result.expect_scalar().id,
                         scalar_type: operation.result.expect_scalar().scalar_type,
                         callee,

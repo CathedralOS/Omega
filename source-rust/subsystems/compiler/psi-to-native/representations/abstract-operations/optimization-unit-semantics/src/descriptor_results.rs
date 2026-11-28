@@ -641,6 +641,7 @@ pub(crate) mod scalar_expressions {
             fn saved_case_membership_does_not_survive_replacement_or_call() {
                 let call = Operation::CallStructural {
                     psi_operation: OperationId::new(2).unwrap(),
+                    suspension_crossing: None,
                     callee: MachineId::new(2).unwrap().into(),
                     arguments: Vec::new(),
                     structural_arguments: vec![

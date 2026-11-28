@@ -7,6 +7,11 @@ The [stage entry](src/lib.rs) lowers checked Psi for native execution. The build
 selection names the functions that need target support. Test fixtures can exercise whole-module lowering through the opt-in test support API. Unused library helpers thus demand no
 unavailable target operations.
 
+A call carries its checked suspension occurrence through native call planning.
+Selecting a provider or assigning arguments to registers does not create another
+occurrence. The native optimizer keeps that call so a parked caller has the
+same place to resume.
+
 Public entry needs host-authorized producer trust bound to the complete
 canonical artifact. Decoding bytes establishes their identity, not permission
 to run them. The authorization travels with the native input through lowering

@@ -401,6 +401,7 @@ mod program_image {
         let (_, _, live, operations, provenance) = site.parts();
         let AbstractOperation::BoundaryCall {
             psi_operation,
+            suspension_crossing: None,
             result,
             boundary,
             arguments,

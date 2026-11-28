@@ -6517,6 +6517,7 @@ pub(crate) mod storage_origin_input {
             .unwrap();
             let operation = OperationId::new(1).unwrap();
             let call = LegalizedNormalizedForeignCall {
+                suspension_crossing: None,
                 boundary: BoundaryMachineId::new(1).unwrap(),
                 provider_execution: target_vocabulary::ExternalExecutionBinding::NativeBinding(
                     execution,

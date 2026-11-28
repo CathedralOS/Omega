@@ -107,6 +107,7 @@ pub(crate) fn project(
                 let mut semantic = arguments[if position == 0 { 0 } else { 5 }].clone();
                 semantic.access = terminal_psi::StructuralAccess::SharedBorrow;
                 Ok::<_, Error>(legalized_operations::LegalizedScalarCall {
+                    suspension_crossing: None,
                     source: target_operations::NativeCallOrigin::Authored,
                     target: target_operations::NativeCallTarget::Machine(call.callee),
                     call_plan: call.call_plan.clone(),

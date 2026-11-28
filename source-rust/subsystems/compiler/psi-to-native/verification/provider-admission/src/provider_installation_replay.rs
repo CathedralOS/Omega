@@ -164,6 +164,7 @@ pub(super) fn replay_installed_provider_calls(
             }
             let AbstractOperation::BoundaryCall {
                 psi_operation,
+                suspension_crossing,
                 result,
                 boundary,
                 arguments,
@@ -211,6 +212,7 @@ pub(super) fn replay_installed_provider_calls(
                 _ => false,
             };
             if !exact_result
+                || *suspension_crossing != terminal_operation.suspension_crossing
                 || boundary_declaration.identity != provider.requirement_identity
                 || !replays_result(
                     &terminal_operation.result,
