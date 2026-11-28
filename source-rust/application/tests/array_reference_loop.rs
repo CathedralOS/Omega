@@ -7,7 +7,7 @@ mod support;
 
 fn observe(fixture: &str, arguments: &[&str]) -> (bool, String) {
     let project = support::repository_root().join(fixture);
-    let output = project::omega(&project, arguments);
+    let output = project::observe(&project, arguments);
     let report = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
@@ -33,13 +33,12 @@ fn observe(fixture: &str, arguments: &[&str]) -> (bool, String) {
 
 #[test]
 fn a_loop_keeps_the_selected_shape_in_native_and_psi_execution() {
-    for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+    for command in ["run", "build"] {
         let (success, report) = observe(
             "source-rust/application/tests/fixtures/references/run/array_reference_loop",
-            &["run", "--engine", engine, "main.omg"],
+            &[command, "main.omg"],
         );
         assert!(success, "{report}");
-        assert!(report.lines().any(|line| line == receipt), "{report}");
     }
 }
 

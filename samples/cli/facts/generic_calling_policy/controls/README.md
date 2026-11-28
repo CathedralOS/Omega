@@ -22,7 +22,7 @@ These controls retain the canonical fact's Width-8 policy and boundary result
   the Width-4 twin still fails for incomplete byte coverage.
 
 Producer `002791b61f14404bcf6ce65e5376131ca16e1efe` runs the inherited-helper
-and unused-descendant public samples through `omega run --both` on macOS arm64;
+and unused-descendant public samples through the native/Psi comparison on macOS arm64;
 both Width-4 twins reject for their intended byte-coverage obligation. The
 focused corpus also runs `helper_uses_own_policy` at native/Terminal exit 0 and
 retains the selected rejection and missing-selection controls. The fact README

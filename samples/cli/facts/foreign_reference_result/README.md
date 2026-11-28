@@ -64,7 +64,7 @@ and must correlate the actual returned address with an admitted captured endpoin
 
 At fixed source `f243fb583a50596be3287aafefdd864d3d3eaa58`, all nine positives
 check and all nine shared-input controls reject. The bounded root probe executes
-natively with exit 0, including the observable provider write. `--both` reports
+natively with exit 0, including the observable provider write. The native/Psi comparison reports
 `interp: DECLINED (native-provider-adapter: native value ABI needs plain scalar or finite record/array storage)`;
 its wrapper exit 0 is retained as a red Terminal baseline.
 

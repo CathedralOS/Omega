@@ -41,7 +41,7 @@ corroborating executions do not relabel them.
 Fact: A selected member preserves runtime index 9 below bound 10, so exact
 10 - right yields 1, while returning the second Cell and closed left 7.
 
-Acceptance: run each positive below with `omega run --both <main.omg>` on a
+Acceptance: run each positive below with `mbx xtask sample-gate --filter samples/cli/facts/selected_value_application` on a
 matching hosted target; each must produce native and Terminal exit 0. Every
 positive binds all four hosted targets. Runtime evidence is host-specific;
 retained observations cover `macos_arm64` and `linux_x86_64`, not all four hosts.

@@ -1351,7 +1351,7 @@ fn implementation_selection_keeps_the_owned_requirement_lookup_error() {
         identity: super::Identity::Declaration(selected.symbol),
         value: StaticMachineBindingValue::Conformance(selected.clone()),
         argument: selected,
-        scalar: None,
+        closed_value: None,
     };
     // The missing owner record makes the shared lookup return an owned error.
     assert!(matches!(
@@ -3242,7 +3242,7 @@ fn a_substituted_const_expression_is_exact_in_its_parameter_type() {
         identity: super::Identity::Scalar(value.to_string()),
         argument: argument(count, "Count"),
         value: StaticMachineBindingValue::Const(TypeReferenceHandle::invalid()),
-        scalar: Some(super::Value::Integer(value)),
+        closed_value: Some(super::Value::Integer(value)),
     };
     assert!(matches!(
         super::substituted_const_int(&program, sum, &[operand(landed("3", "u8"))]),

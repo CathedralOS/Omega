@@ -46,11 +46,16 @@ fn prepare_selections(
     let mut family = Vec::new();
     let mut realizations = Vec::new();
     for (ordinal, conformance) in program.conformances().iter().enumerate() {
-        if program.symbols.sealed_intrinsic(conformance.trait_symbol)
-            != Some(SealedIntrinsic::EqualityProtocol)
-        {
-            continue;
-        }
+        // An equality evidence implementation is an `Equatable` one too: its
+        // `equals` is the inherited row the operator selects
+        // (contracts.md, "Equality bridges and comparison facts": "Applying
+        // the law to `a == b` requires the operator to select that same
+        // applied comparison").
+        let evidence = match program.symbols.sealed_intrinsic(conformance.trait_symbol) {
+            Some(SealedIntrinsic::EqualityProtocol) => false,
+            Some(SealedIntrinsic::EqualityEvidence) => true,
+            _ => continue,
+        };
         let [application] = program
             .type_reference_table
             .type_reference_handles(conformance.arguments)
@@ -66,7 +71,12 @@ fn prepare_selections(
                 "core equality application lost its complete type identity",
             ));
         }
-        let [row] = conformance.rows.as_slice() else {
+        let mut rows = conformance.rows.iter().filter(|row| {
+            !evidence
+                || program.symbols.sealed_intrinsic(row.declaring_trait)
+                    == Some(SealedIntrinsic::EqualityProtocol)
+        });
+        let (Some(row), None) = (rows.next(), rows.next()) else {
             return Err(Diagnostic::error(
                 "core equality implementation lost its unique equals row",
             ));

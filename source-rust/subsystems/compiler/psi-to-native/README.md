@@ -48,6 +48,12 @@ the `BoundFunctionBody` and bound entry recipes that stage 11 encodes. Only that
 module links the [binding issuer](representations/bound-framed-machine/issuer/issuer.rs),
 so stage 11 cannot accept a body or entry that skipped the check.
 
+Stages 12 and 13 share the work of laying out a function. Stage 12 fixes the
+instruction order and records any selected branch relaxation. Stage 13 writes
+instructions directly at their framed offsets and places calls and relocations
+in the closed text section. An audit retains the original layout and unframed
+rows so it can independently check the placed bytes. [Placement](pipeline/13_resolved-layout-to-placed-functions/src/lib.rs)
+
 | Stage | Lines | Produces | Read by |
 | --- | --- | --- | --- |
 | 00 admitted inputs | 919 | `AdmittedProviderDemand` (checks the authorization matches the artifact) | 01 only |
@@ -82,31 +88,43 @@ requires each optimization to have one phase owner. It leaves the list of
 phases to this compiler. That list is `OptimizationExecutionPhase` in
 [`optimization-selections`](../foundation/optimization-selections/src/lib.rs). The
 table shows each phase's catalog entry count and the native stages that name the
-phase, measured on `baa76c5b222e` (after archiving Stage 03).
+phase, measured on `baa76c5b222e` (after archiving Stage 03), with the two
+`SelectedLowering` entries added since.
 
 | Phase | Catalog entries | Stages naming it |
 | --- | --- | --- |
 | `Psi` | 9 | none; runs before Terminal Psi publication |
 | `TargetOperations` | 2 | 04 (rewrites applied in 05) |
-| `SelectedLowering` | 23 | 06, 07, 12, 13 |
+| `SelectedLowering` | 25 | 06, 07, 12, 13 |
 | `PreAllocation` | 10 | 06, 07 |
 | `AllocationRecovery` | 2 | 06, 07, 13 |
 | `PostAllocationMachine` | 9 | 08, 13 |
 | `FunctionRelativeLayout` | 1 | 12, 13 |
 
-Stage 05 also runs call inlining (`selection_inlining.rs`) and vector promotion
-(`selection_vector_promotion.rs`) on every build without a catalog entry. The
-contract forbids a compiler default from enabling an optimization, so every
-part a target can lower without belongs in the catalog, off by default.
-`TASKS.md` **STAGE-05-DEFAULT-REWRITES** tracks that split.
+Call inlining and vector promotion run only when a build selects them, as the
+`SelectedLowering` entries `SelectedAcyclicCallInliningV1` and
+`SelectedPackedVectorPromotionV1`. Stage 05 used to run both on every build,
+which the contract forbids. Stage 06 now runs them before the pair-rule
+literal folds, without starting those folds when no pair rule is selected
+([`structural_rewrites.rs`](pipeline/06_selected-instructions-to-selected-instructions/src/selected_rewrites/structural_rewrites.rs)).
+Their replay validator, `SelectedInstructionRewriteReplay`, re-executes each
+step and checks each rewrite's postconditions. No part of either rewrite is
+legalization. Every hosted target compiled the test fixtures and the
+dependency-free samples with both turned off, and x86-64 runs every packed
+operation in its memory form. Promotion needs 128-bit packed register forms,
+which only x86-64 has, so a build that selects it for an AArch64 target is
+refused by name.
 
 ## Plan identities
 
-Stages 04–14 hash their in-memory plans with SHA-256 and hand the hashes on.
-Because both sides run in the same compile, most of these hashes only let the
-compiler check its own output, which default compilation does not do. They are
-being removed. A hash stays only where an explicit validator, a published
-artifact or a foreign-package boundary reads it.
+Stages 04–14 used to hash their in-memory plans with SHA-256 and hand the
+hashes on. Because both sides run in the same compile, these hashes only let
+the compiler check its own output, which default compilation does not do. Most
+have been removed: records share the plans they were built from through an
+`Arc`, and checks compare those plans (pointer first, then structure). A hash
+stays only where an explicit validator, a published artifact, a catalog or a
+foreign-package boundary reads it; the rows marked "kept for now" are the
+in-process digests still left.
 
 | Identity | Readers that matter | Decision |
 | --- | --- | --- |
@@ -117,8 +135,16 @@ artifact or a foreign-package boundary reads it.
 | `FixedPrecolored*PlanIdentity`, register-homes receipts (06–07) | sibling receipts only | deleted |
 | `SelectedInstructionPlanIdentity`, `RetainedPlanPrefix`, effects identities (05–06) | receipts; validators compare retained program | deleted; rewrite receipts, liveness, live-range, effects and recovery plans, the post-allocation manifest and machine plan share `Arc<SelectedInstructionPlan>` and checks compare it; records that already share the machine plan drop their own copy; runtime spill, split, rematerialization and fixed-occurrence ledger rows record only their kind |
 | `LivenessIdentity`, `LiveRangeIdentity`, `AllocationLegalityIdentity` and the receipt and manifest digests built on them (06–08) | receipts; the post-allocation manifest digest | deleted, with their per-function digests and the carried-digest cache; legality, spill-choice, fixed-precolored and register-home plans name their program through the shared `selected` plan, and checks compare that plan; custody, completion and recovery receipts and the post-allocation manifest no longer record them, and the post-allocation machine plan drops its copies |
-| `OptimizationUnitIdentity` (04) | the unoptimized program record and its pre-physical manifest, fact keys | keep as the one unit hash |
+| `OptimizationIdentityBundleIdentity`, `OptimizedAbstractPlanProjectionIdentity`, `PrePhysicalOptimizationManifestIdentity` (04–15) | stage 05–07 custody, the post-allocation manifest, execution facts and the stage 15 physical scope, which only rehashed the unit, selections and budget | deleted; those records carry and compare the unit identity, selection identity and budget directly |
+| Rewrite receipt identities (`CopyRemovalIdentity`, `LiteralFoldIdentity`, `FixedViewCopyIdentity`, `PressureRematerializationIdentity` and nine siblings), `SpillChoiceIdentity`, `RecoveryClassificationIdentity`, `SelectedLoweringOptimizationCompletionIdentity`, `PreAllocationOptimizationCompletionIdentity` (06–07) | sibling receipts, the transformation ledger and the post-allocation manifest; replay compares whole steps | deleted; ledger rows record each rewrite by kind; the optimization record and manifest name the program each Omega 04 phase ended with (`selected_lowering_output`, `pre_allocation_output`), and the replay validator compares that program with the run's output |
+| `RegisterHomeIdentity`, `PostAllocationOptimizationManifestIdentity`, `AllocatedCalleeSavedRequirementIdentity`, the allocation publication digest (07–13) | custody receipts; machine plan, preservation, frame demands, exit contract and `published-objects` root checks | deleted; the manifest, machine plan, preservation requirements and callee-save storage share `Arc<RegisterHomePlan>` and `Arc<PostAllocationOptimizationManifest>`, and checks compare them; records that already share the machine plan drop their own copies |
+| `NonAuthoritativeCalleeSaveStorageIdentity`, `TargetFrameProtocolEncodingIdentity` (09–13) | frame layout and frame-application roots; exit contract frame disposition | deleted; the frame layout shares the requirements and storage plans, the exit contract shares the protocol plan, and frame application is checked against the protocol its source carries |
+| `SelectedFormEncodingIdentity`, `WholeFunctionExitContractIdentity` (11–13) | layout, relaxation record, exit requirements and encoded-program context; the contract's own recheck | deleted; those records hold a weak `SelectedFormEncodingHandle` and checks compare it so ordinary placement still releases the encoding before object construction; the footprint interning bucket key stays as a storage key |
+| Physical-program digest (`PostAllocationMachineProgram::identity`, 08–13) | stage 09 call origins, installed handlers and body CPU facts; bound encoding subject | kept for now; it no longer hashes the preservation requirements or the allocation publication, which records share and compare |
+| `X86BranchRelaxationIdentity`, `X86BranchRelaxationRevisionIdentity` (12–13) | relaxation replay; exit-contract layout custody | kept for now as replay checkpoints over the function rows; they no longer hash the pre-layout encoding |
+| `OptimizationUnitIdentity` (04) | the unoptimized program record, custody, the post-allocation manifest, execution facts, fact keys | bind the Psi fingerprint, work schedule, entry, target, admitted scalar values, selected machines and boundaries, provider candidates, target geometry, sequence bounds, module attachment and accepted facts. Stage 02 lowers each selected body in Psi order. The seed API also accepts independently constructed functions. It hashes their complete operands once and retains the digest with the read-only graph, so attaching proof facts reuses the same function identity |
 | `MachineFunctionIdentity` | sort key in validator replay; program fingerprint plus placement, not a plan hash | keep |
+| `MachineEffectCatalogIdentity`, `RegisterConstraintCatalogIdentity`, `TargetRegisterEnvironmentIdentity`, `PhysicalRegisterModelIdentity`, `AllocatorAvailabilityIdentity`, `OptimizationSelectionIdentity` | catalog and target configuration roots compared across stages | keep; they name configuration, not a stage's output |
 | `NativeArtifactIdentity` | `native.identity.txt` (`omega run --keep`) | keep; binds emitted bytes, no longer plan hashes |
 
 `NativeArtifactIdentity` already hashes the object, image and text bytes. The

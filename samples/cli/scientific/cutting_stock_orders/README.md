@@ -73,14 +73,14 @@ its matching library. `OMEGA` below names that binary:
 
 ```sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
-"$OMEGA" update --project samples/cli/independent/cutting_stock_orders --target linux_x86_64
+"$OMEGA" update --project samples/cli/scientific/cutting_stock_orders --target linux_x86_64
 # Read the generated ordinary package review, accept only reviewed decisions,
 # then resume using the documented package review workflow.
-"$OMEGA" update --resume --project samples/cli/independent/cutting_stock_orders
-"$OMEGA" --check --target linux_x86_64 samples/cli/independent/cutting_stock_orders/main.omg
-"$OMEGA" --target linux_x86_64 --build-dir samples/cli/independent/cutting_stock_orders/build/native samples/cli/independent/cutting_stock_orders/main.omg
-"$OMEGA" run --both samples/cli/independent/cutting_stock_orders/main.omg < samples/cli/independent/cutting_stock_orders/data/kerf_ties.stdin
-"$OMEGA" --check samples/cli/independent/cutting_stock_orders/controls/invalid_contract/main.omg
+"$OMEGA" update --resume --project samples/cli/scientific/cutting_stock_orders
+"$OMEGA" --check --target linux_x86_64 samples/cli/scientific/cutting_stock_orders/main.omg
+"$OMEGA" --target linux_x86_64 --build-dir samples/cli/scientific/cutting_stock_orders/build/native samples/cli/scientific/cutting_stock_orders/main.omg
+"$OMEGA" run samples/cli/scientific/cutting_stock_orders/main.omg < samples/cli/scientific/cutting_stock_orders/data/kerf_ties.stdin
+"$OMEGA" --check samples/cli/scientific/cutting_stock_orders/controls/invalid_contract/main.omg
 ```
 
 The separately complete invalid source calls a cut requiring sufficient stock
@@ -92,7 +92,7 @@ the validated Linux x86-64 entry; other target routes are not advertised.
 Generated output belongs under ignored `build/`; validation records include
 actual commands, exits, output hashes, and explicit Terminal declines.
 
-The CLI forwards native stdout and compares termination, stdout and stderr with the
+The earlier comparison forwarded native stdout and compares termination, stdout and stderr with the
 Psi run. The validator checks native stdout against the expected bytes.
 
 Compiler regression boundaries

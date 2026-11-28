@@ -53,7 +53,7 @@ instantiated copies, ``expects `@i32` `` and ``expects `@u8` ``, so the open-`T`
 fragment pins the repair.
 
 On Windows x86_64, with the optimized producer built from `0402685c2f2` plus this change,
-all nine positives report native exit 0 and interpreter exit 0 from `omega run --both`,
+all nine positives report native exit 0 and interpreter exit 0 from the native/Psi comparison,
 and all nine twins reject. At the same base without the change all nine positives refused
 ``qualified call `record` has no resolved callable declaration`` at the statement call.
 Linux, macOS, and QEMU were not run; the other hosted targets are bound, not executed.

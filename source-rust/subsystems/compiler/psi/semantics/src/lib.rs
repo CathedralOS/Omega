@@ -49,6 +49,7 @@ pub use scalar_target_ranges::{
     target_scalar_ranges_in,
 };
 pub(crate) mod scalars;
+pub use scalars::atomic_update::atomic_read_modify_write;
 pub mod static_reach;
 pub mod storage;
 pub mod structural;

@@ -61,8 +61,7 @@ inserts one read of the original Buffer before its registration completes.
 Build the matching provider with `python3
 samples/cli/facts/foreign_retained_mutable_borrow/fixture/prepare.py`. Put
 `build/foreign_retained_mutable_fixture` on `LD_LIBRARY_PATH` (Linux),
-`DYLD_LIBRARY_PATH` (macOS), or `PATH` (Windows), then run `omega run --both
-samples/cli/facts/foreign_retained_mutable_borrow/local/main.omg`. The mixed-issuer
+`DYLD_LIBRARY_PATH` (macOS), or `PATH` (Windows), then run `mbx xtask sample-gate --filter samples/cli/facts/foreign_retained_mutable_borrow/local`. The mixed-issuer
 control also needs the shared fixture and its library directory.
 
 ## Verification and remaining scope

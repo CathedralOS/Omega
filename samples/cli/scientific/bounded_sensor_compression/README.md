@@ -57,14 +57,13 @@ Input is validated before processing and no invalid partial output is reported.
 From repository root, with a compiler built from the recorded base:
 
 ```sh
-omega packages update --project samples/cli/independent/bounded_sensor_compression --target linux_x86_64
+omega packages update --project samples/cli/scientific/bounded_sensor_compression --target linux_x86_64
 # Review the generated omega.review decisions; accept only understood claims.
-omega packages update --resume --project samples/cli/independent/bounded_sensor_compression
-omega --check --target linux_x86_64 samples/cli/independent/bounded_sensor_compression/main.omg
-omega --target linux_x86_64 samples/cli/independent/bounded_sensor_compression/main.omg
-omega run --engine native samples/cli/scientific/bounded_sensor_compression/main.omg < samples/cli/scientific/bounded_sensor_compression/data/smooth.bin
-omega run --engine psi samples/cli/scientific/bounded_sensor_compression/main.omg < samples/cli/scientific/bounded_sensor_compression/data/smooth.bin
-omega --check samples/cli/independent/bounded_sensor_compression/controls/invalid_bound/main.omg
+omega packages update --resume --project samples/cli/scientific/bounded_sensor_compression
+omega --check --target linux_x86_64 samples/cli/scientific/bounded_sensor_compression/main.omg
+omega --target linux_x86_64 samples/cli/scientific/bounded_sensor_compression/main.omg
+omega run samples/cli/scientific/bounded_sensor_compression/main.omg < samples/cli/scientific/bounded_sensor_compression/data/smooth.bin
+omega --check samples/cli/scientific/bounded_sensor_compression/controls/invalid_bound/main.omg
 ```
 
 The last command must reject for the exact out-of-bounds index fragment in

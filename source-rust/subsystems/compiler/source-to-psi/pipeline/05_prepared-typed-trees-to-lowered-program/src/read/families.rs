@@ -1417,7 +1417,7 @@ impl Program<'_> {
         let own_types: Vec<_> = types.iter().map(|(_, symbol)| *symbol).collect();
         // The record is reserved before the cases are read, so that a child
         // of the family's own type resolves to it.
-        let record = self.records.push(RecordType {
+        let record_type = RecordType {
             multiplicity: crate::body::source_multiplicity(data.properties.multiplicity),
             cleanup: None,
             identity,
@@ -1425,8 +1425,8 @@ impl Program<'_> {
             requires: Vec::new(),
             authored_layout: false,
             erased: Vec::new(),
-        });
-        self.record_sources.push(RecordSource {
+        };
+        let source = RecordSource {
             constant_input_owner: None,
             declaration: symbol,
             cleanup: None,
@@ -1435,7 +1435,8 @@ impl Program<'_> {
             fields: Vec::new(),
             cases: Vec::new(),
             erased: Vec::new(),
-        });
+        };
+        let record = self.push_record_row(record_type, source);
         if let Err(position) = self.self_containing.binary_search(&record) {
             self.self_containing.insert(position, record);
         }

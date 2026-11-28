@@ -43,7 +43,7 @@ consume's input requirement and the sibling hook prerequisite. Fresh main
 30fbbc91026a still refuses the unchanged row. The repaired
 compiler runs the unchanged root and all nine places with native/Terminal exit
 0 on macOS ARM64; every seed-8 twin rejects the residual hook prerequisite.
-Replay with `omega run --both <place>/main.omg` after ordinary package preparation.
+Replay with the native/Psi comparison after ordinary package preparation.
 
 The proof controls retain source-selected operator meaning: authored, lexical
 and abstract-bound `[]` cannot borrow builtin array laws. Plain builtin indexing

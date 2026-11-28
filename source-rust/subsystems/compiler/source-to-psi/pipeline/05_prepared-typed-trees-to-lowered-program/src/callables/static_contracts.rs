@@ -17,12 +17,12 @@ pub use terminal_check_tables::contracts::{
     StaticSchemaQuestion, StaticServiceCeiling,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum SourceServiceCeiling {
     Open,
     Closed(Vec<ServiceReachId>),
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct StaticSourceEnvelope {
     pub service_reach: SourceServiceCeiling,
     pub invocations: Vec<SourceInvocation>,

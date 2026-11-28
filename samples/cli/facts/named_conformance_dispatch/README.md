@@ -32,7 +32,7 @@ Every positive below, including the root, declares `Expected exit: 0` and binds
 | Another machine | [main](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
 | Another target body | [main](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
-`omega run --both <place>/main.omg` reports Terminal Psi and native exit 0.
+The native/Psi comparison reports Terminal Psi and native exit 0.
 Each twin omits the right operand bound and rejects at its receiving `apply`
 call, or at the independent nested `step` boundary.
 
@@ -55,7 +55,7 @@ call, or at the independent nested `step` boundary.
    bound still refuses.
 5. **Checked-to-Terminal Psi lowering (Psi 06–08).** The evidence dispatch
    lowers to the selected inline member. Proof obligations are checked and
-   erased. `omega run --both` agrees on exit 0 for the root and all nine places.
+   erased. The native/Psi comparison agrees on exit 0 for the root and all nine places.
 6. **Provider settlement, layout geometry, and ABI calling plans (Omega 00–02).**
    Each positive binds `ProgramEntry` for all four hosted targets. The `i32`
    operands and result use the ordinary integer calling plan.
@@ -64,7 +64,7 @@ call, or at the independent nested `step` boundary.
    add and the ordinary frame for `main`. Windows x86-64 is the host that
    executed this row.
 8. **Form encoding, branch relaxation, relocations, and native image emission
-   (Omega 07–09 + emission).** `omega run --both` emits and runs the Windows
+   (Omega 07–09 + emission).** the native/Psi comparison emits and runs the Windows
    image. The other three targets are bound and checked; their native images
    were not executed on this host.
 
@@ -78,7 +78,7 @@ by reading the caller's public requirement contract in
 `selected_call_site_contract`. This row does not add a second lookup.
 
 Fresh: Windows x86-64, producer at the parent of this record.
-`omega run --both` on the root and all nine places returns native exit 0 and
+The native/Psi comparison on the root and all nine places returns native exit 0 and
 Terminal Psi exit 0. The nine reject twins still refuse
 `cannot prove requires contract for call apply`. A caller ensures of
 `result == left + right + 1` still refuses.
@@ -96,4 +96,4 @@ separate witness.
 
 ## Build-owned target-body migration
 
-The `target_body` place and its twins carry no source target prefix. `BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected by explicit target-keyed Build rows. The operation, inputs, contracts and exit oracle are unchanged. The entry wrapper and each implementation check a tag (17 for x86-64, 29 for AArch64), so a wrong Build row traps. The generic `apply<Operations satisfies Arithmetic<i32>>` stays an ordinary machine that each implementation calls; the entries acknowledge the blocking `main`. Observed on macOS x86-64 with optimized producers for base 4f87c9e08b1 and for the #1378 head: the migrated positive exits 0 under `omega run --both` (native and Terminal Psi agree) and every twin and control in the place still rejects with its authored fragment. No compiler change was needed. The other hosted targets keep their authored rows, unexecuted here.
+The `target_body` place and its twins carry no source target prefix. `BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected by explicit target-keyed Build rows. The operation, inputs, contracts and exit oracle are unchanged. The entry wrapper and each implementation check a tag (17 for x86-64, 29 for AArch64), so a wrong Build row traps. The generic `apply<Operations satisfies Arithmetic<i32>>` stays an ordinary machine that each implementation calls; the entries acknowledge the blocking `main`. Observed on macOS x86-64 with optimized producers for base 4f87c9e08b1 and for the #1378 head: the migrated positive exits 0 under the native/Psi comparison (native and Terminal Psi agree) and every twin and control in the place still rejects with its authored fragment. No compiler change was needed. The other hosted targets keep their authored rows, unexecuted here.

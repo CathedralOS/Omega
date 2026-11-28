@@ -34,7 +34,7 @@ impl SemanticEmissionFacts {
             || !self.admission.belongs_to(&lowering)
             || self.program.psi != working.psi
             || self.program.entry != working.entry
-            || self.projection.identity != optimized.projection()
+            || self.projection.selection != optimized.selections().identity()
             || self.projection.terminal != optimized.unit().psi
             || self.projection.final_unit != optimized.unit().identity
             || optimized.plan().psi != working.psi

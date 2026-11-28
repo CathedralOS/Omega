@@ -60,6 +60,6 @@ byte array.
 - Open: `@mutable` element loans of frame arrays and multi-dimensional or non-u8
   frame arrays take the same path but have no witness here.
 
-Acceptance is `omega run --both <place>/main.omg` with both exits 0 on each
+Acceptance is `mbx xtask sample-gate --filter samples/cli/facts/foreign_byte_array_element_backing/<place>` with both exits 0 on each
 matching host, plus each twin's rejection. Linux x86_64 is observed; Windows,
 macOS ARM64 and Linux ARM64 execution remain unverified.

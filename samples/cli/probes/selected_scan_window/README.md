@@ -7,9 +7,11 @@ exit: 0.
 
 ```sh
 omega packages update --project samples/cli/collections/selected_scan_window --target macos_arm64
-omega run --engine native samples/cli/collections/selected_scan_window/main.omg
-omega run --engine psi samples/cli/collections/selected_scan_window/main.omg
+omega run samples/cli/collections/selected_scan_window/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/probes/selected_scan_window` from the repository root.
 
 The runtime position does not grant static knowledge of the overwritten element.
 Source checking retains every possible old and replacement backing until the

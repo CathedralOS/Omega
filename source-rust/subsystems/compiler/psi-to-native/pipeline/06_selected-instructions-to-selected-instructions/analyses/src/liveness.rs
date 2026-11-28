@@ -2074,9 +2074,8 @@ mod staging {
     use crate::SelectedOptimizationInput;
     use crate::{LivenessError, ValidatedLiveness};
     use optimization_core::{
-        OptimizationIdentityBundleIdentity, OptimizationSelections, OptimizationUnitIdentity,
-        OptimizationWorkBudget, OptimizedAbstractPlanProjectionIdentity,
-        PrePhysicalOptimizationManifestIdentity,
+        OptimizationSelectionIdentity, OptimizationSelections, OptimizationUnitIdentity,
+        OptimizationWorkBudget,
     };
     use register_environment::ValidatedTargetRegisterEnvironment;
     use selected_instructions::SelectedProgram;

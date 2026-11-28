@@ -236,6 +236,11 @@ path = "pipeline/06_lowered-program-to-checked-program/tests/required_floor.rs"
 required-features = ["test-support"]
 
 [[test]]
+name = "checking_equation_facts"
+path = "pipeline/06_lowered-program-to-checked-program/tests/equation_facts.rs"
+required-features = ["test-support"]
+
+[[test]]
 name = "checking_dominance"
 path = "pipeline/06_lowered-program-to-checked-program/tests/dominance.rs"
 required-features = ["test-support"]

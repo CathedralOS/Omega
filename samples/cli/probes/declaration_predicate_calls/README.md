@@ -5,9 +5,11 @@ inside a predicate domain. This smaller program also exercises embedding in a
 data invariant and reads the classified values natively.
 
 ```text
-omega run --engine native samples/cli/memory/declaration_predicate_calls/main.omg
-omega run --engine psi samples/cli/memory/declaration_predicate_calls/main.omg
+omega run samples/cli/memory/declaration_predicate_calls/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/probes/declaration_predicate_calls` from the repository root.
 
 Expected exit: 0 in both native and Terminal execution. The program exercises
 lexically selected mathematical helpers, policy-preserving integer arithmetic,

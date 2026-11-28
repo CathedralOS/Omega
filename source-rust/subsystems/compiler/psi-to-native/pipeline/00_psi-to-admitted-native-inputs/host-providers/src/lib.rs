@@ -54,7 +54,7 @@ impl InstalledPackageProviders {
 
     pub fn for_program(
         self,
-        authorization: &psi_authorization::AuthorizedTerminalArtifact,
+        authorization: &psi_authorization::AdmittedTerminalArtifact,
     ) -> TargetProviderInstallation {
         TargetProviderInstallation::new(
             authorization.identity(),
@@ -178,7 +178,7 @@ mod tests {
             ProductDeclarationScope::from_direct_dependencies(&[], []),
             Arc::default(),
         );
-        let installed = packages.for_program(&authorization);
+        let installed = packages.for_program(&authorization.clone().into());
         let reopened =
             Arc::new(CanonicalTerminalArtifact::from_bytes(&program.to_bytes()).unwrap());
         let origins = installed.clone().attach(reopened, profile).unwrap();

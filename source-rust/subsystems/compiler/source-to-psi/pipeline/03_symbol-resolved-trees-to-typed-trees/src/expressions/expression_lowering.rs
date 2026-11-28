@@ -1548,6 +1548,7 @@ pub(crate) mod expression {
                                 .insert(typed::expression::ExpressionNode::Atomic(
                                     typed::expression::TableAtomicExpression {
                                         value,
+                                        exchange_operands: None,
                                         result,
                                         ordering: atomic.ordering,
                                         result_custody: atomic.result_custody,
@@ -1620,6 +1621,7 @@ pub(crate) mod expression {
                                     typed::expression::TableCastExpression {
                                         value,
                                         target_type,
+                                        recast_storage_type: Default::default(),
                                         result_type: typed::types::TypeReferenceHandle::invalid(),
                                         target_label,
                                         domain: cast.domain,

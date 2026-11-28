@@ -69,13 +69,12 @@ trajectories accompany invalid syntax, radius, bounds and overflow controls.
 With an exact qualified compiler, from the repository root:
 
 ```sh
-project=samples/cli/independent/orbital_dynamics
+project=samples/cli/scientific/orbital_dynamics
 omega packages update --project "$project" --target linux_x86_64
 # Read the generated review; accept only the intended scoped decisions.
 omega packages update --resume --project "$project"
 omega --check "$project/main.omg"
-omega run --engine native --keep "$project/main.omg" < "$project/data/circular.stdin"
-omega run --engine psi --keep "$project/main.omg" < "$project/data/circular.stdin"
+omega run --keep "$project/main.omg" < "$project/data/circular.stdin"
 # This observer has its own executable identity: prepare its normal review first.
 /path/to/terminal-observer --review "$project"
 # Read the review; preserve existing scoped authority decisions; then resume.
@@ -85,7 +84,7 @@ omega run --engine psi --keep "$project/main.omg" < "$project/data/circular.stdi
 
 System source-risk disclosures do not authorize host access. Package preparation
 and the Terminal observer retain the normal acceptance, executable identity,
-provider, authority and custody checks. Denial is a blocker. `run --both` checks
+provider, authority and custody checks. Denial is a blocker. The native/Psi comparison checks
 termination parity when both routes complete. Its default reference work can be
 exhausted by a complete one-period numerical report; that DECLINED result does
 not establish parity. The public observer uses a bounded 200-million-unit work

@@ -101,7 +101,7 @@ Repeated equal structural array types from distinct Build rows share capture cod
   happens to return a sufficient number. Selection grants no access or trust authority.
 - **Psi 06–08:** ordinary boundary calls and checked provider bodies lower to one
   target-neutral Terminal program. The Build companion retains target-keyed selection
-  separately from source checking. Actual `run --both` observations require agreement.
+  separately from source checking. Actual native/Psi comparison observations require agreement.
 - **Omega 00–02:** whole-provider selection filters exact deployment profiles before
   duplicate/default arbitration and publishes through the existing provider companion.
   Exact supplier source and declaration anchors rejoin receiving symbols; the

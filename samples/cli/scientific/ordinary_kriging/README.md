@@ -60,9 +60,9 @@ an optimized producer, and retain its Cargo JSON artifacts:
 
 ```
 mbx build --release -p omega --message-format=json > build/w2-24/cargo.json
-omega packages update --project samples/cli/independent/ordinary_kriging --target linux_x86_64
+omega packages update --project samples/cli/scientific/ordinary_kriging --target linux_x86_64
 # Resolve the exact generated package-policy choices before execution.
-omega run samples/cli/independent/ordinary_kriging/main.omg < samples/cli/independent/ordinary_kriging/data/planar.stdin
+omega run samples/cli/scientific/ordinary_kriging/main.omg < samples/cli/scientific/ordinary_kriging/data/planar.stdin
 ```
 
 Exit agreement alone cannot pass. Before execution, the sponsor records the retained host

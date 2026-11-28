@@ -51,7 +51,7 @@ recorded list. Every place only transports the `Value<i32>`/`Value<bool>` pair.
 ## Places
 
 All projects bind `ProgramEntry` for the four hosted targets, declare
-`Expected exit: 0` and are run with `omega run --both`, which requires the
+`Expected exit: 0` and are run with `mbx xtask sample-gate --filter samples/cli/facts/case_type_equation_recovery`, which requires the
 Terminal Psi interpreter and the native image to agree. `main` observes `7`
 and `9` from `Value<i32>` and `true` and `false` from `Value<bool>`, so an
 extractor that returns a constant, the wrong payload, or the other case's
@@ -110,7 +110,7 @@ error: machine `extract` state `entry` return value expects `T`, but the value i
 ## Evidence
 
 Producer: the working tree at `origin/main` 0402685c2f2 plus this change,
-built at `opt_level 1`. Host: Windows x86_64. `omega run --both` reports native
+built at `opt_level 1`. Host: Windows x86_64. The native/Psi comparison reports native
 exit 0 and interpreter exit 0 for all ten positives; the ten twins reject with
 the diagnostic above. Linux x86_64, Linux arm64 and macOS arm64 native images
 are bound by the same `build.omg` and unverified here.

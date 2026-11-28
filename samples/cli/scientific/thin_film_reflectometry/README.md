@@ -26,8 +26,8 @@ within that budget. A rejected request prints `ERROR input or domain` and exits
 compiler (exit 1), separately from runtime input refusal.
 
 ```
-omega packages update --project samples/cli/independent/thin_film_reflectometry --target linux_x86_64
-omega run samples/cli/independent/thin_film_reflectometry/main.omg < samples/cli/independent/thin_film_reflectometry/input.txt
+omega packages update --project samples/cli/scientific/thin_film_reflectometry --target linux_x86_64
+omega run samples/cli/scientific/thin_film_reflectometry/main.omg < samples/cli/scientific/thin_film_reflectometry/input.txt
 ```
 
 The application multiplies characteristic matrices. Its amplitude quotient and

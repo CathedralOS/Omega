@@ -93,6 +93,5 @@ published summaries, library customers and existing suites before closing it.
 | Installation | Resolve every static projection to a finite row; reject unresolved or disallowed services. Do not manufacture provider selection or capability grants. |
 
 Extend the existing generic/effect, proof-admission and codec suites; keep their
-reject twins and pinned outcomes. Validate executable cases with
-`omega run --both` on the supported hosts, including the Omega-written compiler's evidence
+reject twins and pinned outcomes. Validate compiled and interpreted cases on the supported hosts, including the Omega-written compiler's evidence
 binder path. No new test subsystem or general row algebra is part of this task.

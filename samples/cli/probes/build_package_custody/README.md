@@ -10,7 +10,7 @@ checks the generator's value before opening its own input and output files.
 The generated wrapper, its handwritten seed, and the receiving Build entry
 all travel in one frozen package directory. The generator's own source stays outside that directory.
 
-Run `omega run --engine native build.omg` or `omega run --engine psi build.omg`.
+Run `omega run build.omg`.
 To check targeting, run `omega --check --target linux_x86_64 --target macos_arm64 build.omg`.
 
 The [negative cases](../build_package_custody_controls/) cover an executable

@@ -10,9 +10,11 @@ loop bounds its remaining distance by `0..=bytes.length` on each invocation.
 From the repository root with a built `omega` on `PATH`:
 
 ```sh
-omega run --engine native samples/cli/probes/recursive_buffer_fill/build.omg
-omega run --engine psi samples/cli/probes/recursive_buffer_fill/build.omg
+omega run samples/cli/probes/recursive_buffer_fill/build.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/probes/recursive_buffer_fill` from the repository root.
 
 The original failure was rank formation for `cells.bytes.length`, followed by
 call-site rejection of fixed-array length bounds after an element write.

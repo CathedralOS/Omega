@@ -110,7 +110,7 @@ fn published_target_entry_emits_linux_image() {
     let artifact = CanonicalTerminalArtifact::from_bytes(SAVED).unwrap();
     assert_eq!(
         artifact.manifest().identity().to_string(),
-        "e3bb2f8242b9e6151ccd7edbb235cb0ccbe9017ef7c6c4d1799fa597317ce983"
+        "67268445edac7ec0ae98551c78b06207173c16ef2ad7f934c33e683c02d44274"
     );
     let entry = artifact
         .semantic_module()
@@ -307,5 +307,55 @@ fn assert_native_exit(bytes: &[u8]) {
         Some(expected),
         "stderr: {:?}",
         output.stderr
+    );
+}
+
+/// Contained runtime admission (wiki/drafts/designs/psi_containment_audit.md):
+/// a contained admission selects host realizations for the interpreter, but
+/// never reaches the optimizer or native code.
+#[test]
+fn contained_saved_psi_is_admitted_for_the_interpreter_and_refused_native_code() {
+    let contained_target = |artifact: CanonicalTerminalArtifact| {
+        let profile = TargetProfile::LinuxX64;
+        let identity = artifact.manifest().identity();
+        let contained =
+            psi_authorization::admit_contained_interpretation(Arc::new(artifact)).unwrap();
+        (contained, identity, profile)
+    };
+    let settings = Default::default();
+    let target = |identity, profile| SavedProgramTarget {
+        profile,
+        installation: TargetProviderInstallation::new(identity, profile, Default::default()),
+        requested_boundaries: Vec::new(),
+        application: Default::default(),
+        optimizations: &settings,
+        behavior_exclusions: &[],
+        x86_scalar_fma_provider: None,
+    };
+
+    let (contained, identity, profile) =
+        contained_target(CanonicalTerminalArtifact::from_bytes(SAVED).unwrap());
+    let admitted =
+        native_compiler::prepare_contained_saved_program(contained, target(identity, profile))
+            .unwrap()
+            .admit_runtime(&[], &mut Vec::new());
+    assert!(admitted.is_ok(), "{:?}", admitted.err());
+
+    let (contained, identity, profile) =
+        contained_target(CanonicalTerminalArtifact::from_bytes(SAVED).unwrap());
+    let emitted =
+        native_compiler::prepare_contained_saved_program(contained, target(identity, profile))
+            .unwrap()
+            .emit(&[], &Default::default());
+    let Err(native_compiler::stage_validators::NativeValidationError::Compilation(diagnostics)) =
+        emitted
+    else {
+        panic!("a contained program must not emit a native image");
+    };
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("producer")),
+        "{diagnostics:?}"
     );
 }

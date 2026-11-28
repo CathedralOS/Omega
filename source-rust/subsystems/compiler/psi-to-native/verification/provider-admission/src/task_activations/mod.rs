@@ -1,5 +1,5 @@
 //! Check published task demands against the selected provider, target storage
-//! and suspension policy before the native proposal is admitted.
+//! and suspension policy when binding the native execution scope.
 
 mod arguments;
 mod carry;
@@ -8,7 +8,7 @@ mod stack;
 mod storage;
 
 use diagnostics::Diagnostic;
-use terminal_psi::{TerminalIdentityIndex, TerminalIdentityTable, TerminalTaskActivationDemands};
+use terminal_psi::{TerminalIdentityIndex, TerminalIdentityTable, TerminalTaskActivationDemand};
 use wire::fnv1a::Fnv1a;
 
 use arguments::TaskArgumentLayout;
@@ -16,17 +16,42 @@ use stack::{compose_task_stack_demand, project_wcsu_stack_plan};
 use storage::TaskStorage;
 
 pub fn validate_task_activations(
-    demands: &TerminalTaskActivationDemands,
+    artifact: terminal_codec::TerminalArtifactView<'_>,
+    reach: &target_bound_program::TargetBoundReach,
+    providers: &build_providers::selections::SelectedProviderPlanFacts,
+    profile: target::TargetProfile,
+) -> Result<(), Vec<Diagnostic>> {
+    let module = artifact.module();
+    let demands = &module.execution.task_activation_demands;
+    if demands.is_empty() {
+        return Ok(());
+    }
+    if reach.layouts().target() != profile.target_name() {
+        return Err(vec![Diagnostic::error(
+            "task storage was admitted for a different target",
+        )]);
+    }
+    let geometry = reach
+        .layouts()
+        .geometry(artifact)
+        .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+    let storage = TaskStorage::new(
+        geometry.declarations(),
+        reach.owned_sequence_bounds(),
+        profile,
+    )?;
+    check_plans(demands, &module.identities, providers, profile, &storage)
+}
+
+fn check_plans(
+    demands: &[TerminalTaskActivationDemand],
     identities: &TerminalIdentityTable,
     selected_provider_plans: &build_providers::selections::SelectedProviderPlanFacts,
     profile: target::TargetProfile,
+    storage: &TaskStorage<'_>,
 ) -> Result<(), Vec<Diagnostic>> {
-    if demands.demands.is_empty() {
-        return Ok(());
-    }
-    let storage = TaskStorage::new(demands, profile)?;
     let target = profile.native_target();
-    for demand in &demands.demands {
+    for demand in demands {
         provider::validate_selected_runtime(identities, selected_provider_plans, demand)?;
         let shapes = demand
             .signature_arguments

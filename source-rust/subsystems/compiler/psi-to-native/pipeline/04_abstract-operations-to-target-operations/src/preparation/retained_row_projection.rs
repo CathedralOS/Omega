@@ -283,9 +283,8 @@ fn retained_interrupt_geometry_does_not_authorize_an_unassociated_helper() {
         &callable_invocations,
         &interrupts,
         fixture_types(),
-        optimization_core::PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(
-            b"standalone native-preparation fixture",
-        ),
+        optimization_core::OptimizationSelections::default().identity(),
+        crate::test_support::standalone_budget(),
     )
     .unwrap();
     // The selector-free helper has a representable operand. Only separately
@@ -321,9 +320,8 @@ fn retained_interrupt_geometry_does_not_authorize_an_unassociated_helper() {
         &callable_invocations,
         &interrupts,
         fixture_types(),
-        optimization_core::PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(
-            b"standalone native-preparation fixture",
-        ),
+        optimization_core::OptimizationSelections::default().identity(),
+        crate::test_support::standalone_budget(),
     )
     .expect_err("operand geometry cannot invent an admitted helper association");
     assert!(

@@ -11,9 +11,11 @@ a shifted subview, zero and the maximum unsigned 64-bit key.
 After ordinary package preparation:
 
 ```sh
-mbx run -p omega -- run --engine native samples/cli/algorithms/record_range_search/main.omg
-mbx run -p omega -- run --engine psi samples/cli/algorithms/record_range_search/main.omg
+mbx run -p omega -- run samples/cli/algorithms/record_range_search/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/algorithms/record_range_search` from the repository root.
 
 The midpoint uses the same live integer relationships for its Exact addition,
 its saved local value and its slice index. Native and Terminal execution both

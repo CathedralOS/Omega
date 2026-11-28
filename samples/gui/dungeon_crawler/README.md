@@ -73,8 +73,7 @@ and `PASS: dungeon campaign, collision, combat, pixels`.
 ```sh
 target/debug/omega packages update --project samples/gui/dungeon_crawler/smoke
 # Review and resume as above.
-target/debug/omega run --engine native samples/gui/dungeon_crawler/smoke/main.omg
-target/debug/omega run --engine psi samples/gui/dungeon_crawler/smoke/main.omg
+target/debug/omega run samples/gui/dungeon_crawler/smoke/main.omg
 ```
 
 The native desktop regression requires an unlocked macOS desktop, Accessibility

@@ -134,7 +134,7 @@ included). The kernel's K/UIP, identity eta, function extensionality and
 equality reflection rejection controls exist. Open-carrier transport needs no
 separate rule, since identity elimination already ranges over any carrier
 variable. No storage receipt is added for polymorphic identity, because the
-receiving kernel checks the citation itself. Retain its `--both` acceptance for
+receiving kernel checks the citation itself. Retain native and interpreted acceptance for
 `samples/cli/facts/{closed_integer_bound,negated_mathematical_order,source_indexed_*,erased_reference_contract}`
 and `proofs/quotient_*`. This docs decision completes none of those implementations.
 

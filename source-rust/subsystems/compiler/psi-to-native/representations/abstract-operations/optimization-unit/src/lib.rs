@@ -31,9 +31,8 @@ use abstract_operations::{
     ValueBinding,
 };
 use optimization_core::{
-    AcceptedObligationFactIdentity, OptimizationIdentityBundleIdentity, OptimizationSelections,
-    OptimizationUnitIdentity, OptimizationWorkBudget, OptimizedAbstractPlanProjectionIdentity,
-    PrePhysicalOptimizationManifestIdentity,
+    AcceptedObligationFactIdentity, OptimizationSelections, OptimizationUnitIdentity,
+    OptimizationWorkBudget,
 };
 use semantic_vocabulary::{
     BlockId, ClaimId, EdgeId, IntegerValue, MachineId, ObligationId, OperationId, PlaceId,
@@ -59,6 +58,7 @@ mod unoptimized;
 pub use construction::{
     OptimizationUnitBuildError, operation_definition, operation_uses,
     reconstruct_psi_optimization_function_seed, reconstruct_psi_optimization_unit_seed,
+    reconstruct_psi_optimization_unit_with_inputs,
 };
 pub(crate) use dominance::DominatorSets;
 pub(crate) use graph::ValueUse;
@@ -85,6 +85,9 @@ pub struct PsiOptimizationUnit {
     pub identity: OptimizationUnitIdentity,
     pub psi: TerminalPsiIdentity,
     pub work_schedule: WorkScheduleIdentity,
+    lowering_target: Option<String>,
+    scope_provider_closure: Option<[u8; 32]>,
+    scalar_values_digest: Option<[u8; 32]>,
     pub entry: MachineId,
     pub structural_types: abstract_operations::StructuralTypeCatalog, // Retained after the full Terminal module is discarded.
     pub structural_domains: Arc<[StructuralDomainDeclaration]>, // Empty on bare lowering seeds; attached before rewrites run.
@@ -97,7 +100,33 @@ pub struct PsiOptimizationUnit {
     pub accepted_obligation_facts: Vec<AcceptedObligationFact>,
     pub identities: terminal_psi::TerminalIdentityTable, // Sealed module table that every `TerminalIdentityIndex` resolves against.
     pub runtime_evidence: Option<Arc<RuntimeEvidenceCatalog>>, // Present on all verified units; `None` only on bare seeds.
-    pub functions: Vec<PsiOptimizationFunction>,
+    pub functions: OptimizationFunctions,
+}
+
+/// The function graph and the digest of the plan that produced it travel together.
+/// Readers can inspect the graph. Only module-context attachment can edit its
+/// copied declarations after construction.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OptimizationFunctions {
+    rows: Vec<PsiOptimizationFunction>,
+    digest: [u8; 32],
+}
+
+impl std::ops::Deref for OptimizationFunctions {
+    type Target = [PsiOptimizationFunction];
+
+    fn deref(&self) -> &Self::Target {
+        &self.rows
+    }
+}
+
+impl<'a> IntoIterator for &'a OptimizationFunctions {
+    type Item = &'a PsiOptimizationFunction;
+    type IntoIter = std::slice::Iter<'a, PsiOptimizationFunction>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.rows.iter()
+    }
 }
 
 /// The machine a direct call transfers control to, whether or not the callee
@@ -122,11 +151,6 @@ impl PsiOptimizationUnit {
     pub fn function(&self, machine: MachineId) -> Option<&PsiOptimizationFunction> {
         self.function_index(machine)
             .map(|index| &self.functions[index])
-    }
-
-    pub fn function_mut(&mut self, machine: MachineId) -> Option<&mut PsiOptimizationFunction> {
-        self.function_index(machine)
-            .map(|index| &mut self.functions[index])
     }
 
     pub fn function_index(&self, machine: MachineId) -> Option<usize> {
@@ -238,19 +262,15 @@ impl PsiOptimizationUnit {
     }
 }
 
-/// The unchanged plan, the unit target lowering reads, and the identities later
-/// stages compare: `optimization` names the selections the plan was lowered
-/// under, `projection` binds the Terminal program to the unit, and
-/// `pre_physical_manifest` binds the projection to the selections and budget.
+/// The unchanged plan, the unit target lowering reads, and the selections and
+/// per-pass budget it was lowered under. Later stages compare the unit
+/// identity, the selection identity and the budget directly.
 #[derive(Debug)]
 pub struct OptimizedAbstractProgram {
     pub plan: Arc<AbstractOperationPlan>,
     pub unit: PsiOptimizationUnit,
     pub selections: OptimizationSelections,
     pub budget_per_pass: OptimizationWorkBudget,
-    pub optimization: OptimizationIdentityBundleIdentity,
-    pub projection: OptimizedAbstractPlanProjectionIdentity,
-    pub pre_physical_manifest: PrePhysicalOptimizationManifestIdentity,
 }
 
 impl OptimizedAbstractProgram {
@@ -272,18 +292,6 @@ impl OptimizedAbstractProgram {
 
     pub const fn budget_per_pass(&self) -> OptimizationWorkBudget {
         self.budget_per_pass
-    }
-
-    pub const fn optimization(&self) -> OptimizationIdentityBundleIdentity {
-        self.optimization
-    }
-
-    pub const fn projection(&self) -> OptimizedAbstractPlanProjectionIdentity {
-        self.projection
-    }
-
-    pub const fn pre_physical_manifest(&self) -> PrePhysicalOptimizationManifestIdentity {
-        self.pre_physical_manifest
     }
 }
 

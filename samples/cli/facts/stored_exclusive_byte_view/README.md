@@ -41,7 +41,7 @@ fail its own bound or receiving contract, not a caller equality guard.
 
 The [root](main.omg) and [root reject](invalid/main.omg) retain the initial
 observation. After ordinary project preparation, run each positive with
-`omega run --both <place>/main.omg`. Its authored result is exit 0 in both engines.
+`mbx xtask sample-gate --filter samples/cli/facts/stored_exclusive_byte_view/<place>`. Its authored result is exit 0 in both engines.
 
 ## Requirements established by this row
 
@@ -78,7 +78,7 @@ observation. After ordinary project preparation, run each positive with
   exercise access attenuation and the current receiving generation.
 - **Checked-to-Terminal Psi (`Psi 06–08`):** byte observations retain complete
   array/reference paths and independently proved bounds. Canonical artifact
-  inspection admits the portable product; `run --both` executes its semantics.
+  inspection admits the portable product; the native/Psi comparison executes its semantics.
   Selected ownership follows ordinary ordered evaluation rather than a
   subject-purity bypass. Controls exercise [effects](controls/match_effectful_subject/main.omg),
   [borrows](controls/match_borrowed_subject/main.omg),

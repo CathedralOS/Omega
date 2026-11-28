@@ -200,6 +200,37 @@ fn a_recursive_view_must_reborrow_its_last_live_carrier() {
 }
 
 #[test]
+fn a_copied_record_does_not_keep_its_slice_cursor_live() {
+    let package = PackageKeyIdentity::from_digest([0x78; 32]).unwrap();
+    let source = r#"
+        data Row [copy] { value: u64; }
+        machine total(rows: @[Row], sum: u64) -> u64
+        terminates by rows -> Slice::Length {
+            transition rows.length > 0 { true -> head(rows, sum), _ -> (sum) }
+            machine head(rows: @[Row], sum: u64) -> u64 requires rows.length > 0 {
+                let row: Row = rows[0];
+                transition { _ -> total(@rows[1..], sum +% row.value) }
+            }
+        }
+        public machine main() crashes Trap {
+            let rows: [Row; 3] = [Row { value: 4 }, Row { value: 5 }, Row { value: 6 }];
+            let sum: u64 = total(@rows[..], 0u64);
+            transition sum == 15 { true -> done(), _ -> wrong() }
+            machine done() {}
+            machine wrong() { crash Trap; }
+        }"#;
+    let (files, root) = captured(package, source);
+    let artifact = compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+    let bytes = artifact.to_bytes();
+    assert_eq!(
+        terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
+            .unwrap()
+            .to_bytes(),
+        bytes,
+    );
+}
+
+#[test]
 fn loop_specializations_publish_the_reach_of_their_emitted_calls() {
     let package = PackageKeyIdentity::from_digest([0xa6; 32]).unwrap();
     let source = r#"

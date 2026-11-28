@@ -1,7 +1,7 @@
 use {omega}/language/core/process_exit.omg;
 // CheckedMath::offset_zero is a one-member boundary trait with an empty
 // reach. Build selects the checked adapter. The direct call stays on that
-// trait through Terminal Psi, and both engines return the adapter's result.
+// trait through Terminal Psi, and interpretation and the compiled executable return the adapter's result.
 // Expected exit: 70.
 
 public boundary trait CheckedMath {

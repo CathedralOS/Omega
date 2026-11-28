@@ -9,6 +9,5 @@ Run the probe from the repository root.
 
 ```text
 omega packages update --project samples/cli/probes/borrowed_sum_repair
-omega run --engine native samples/cli/probes/borrowed_sum_repair/main.omg
-omega run --engine psi samples/cli/probes/borrowed_sum_repair/main.omg
+omega run samples/cli/probes/borrowed_sum_repair/main.omg
 ```

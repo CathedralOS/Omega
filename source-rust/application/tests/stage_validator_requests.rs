@@ -132,6 +132,67 @@ fn every_validator_reports_what_ran_and_what_was_inapplicable() {
     assert!(!report.contains("passed"), "{report}");
 }
 
+/// Call inlining is an opt-in Stage 06 rewrite: a default build runs no
+/// selected-instruction rewrite, and a build that selects it keeps the run for
+/// the replay validator, which re-executes it and checks its postconditions.
+#[test]
+fn selected_call_inlining_is_replayed_and_a_default_build_runs_no_rewrite() {
+    let name = "SelectedInstructionRewriteReplay";
+    let host = target::TargetProfile::from_omega_target_name(None)
+        .unwrap()
+        .target_name();
+    let row = |result: &str| {
+        format!(
+            "stage validator {name} (target {host}, stage selected-instruction rewrite determinism): {result}"
+        )
+    };
+    for (test, optimizations, expected) in [
+        (
+            "rewrite-default",
+            "",
+            row("inapplicable: no selected-instruction rewrite rule ran"),
+        ),
+        (
+            "rewrite-inlining",
+            "    Optimizations::enable(@mutable plan.optimizations, Optimization::SelectedAcyclicCallInliningV1);\n",
+            row(
+                "passed (producer repeatability only; independent rewrite validation not performed)",
+            ),
+        ),
+    ] {
+        let directory = project(test, "tests/fixtures/calls/run/inlined_multiple_returns");
+        let build = std::fs::read_to_string(directory.join("build.omg")).unwrap();
+        let bind = build.find("    Build::bind(").unwrap();
+        std::fs::write(
+            directory.join("build.omg"),
+            format!("{}{optimizations}{}", &build[..bind], &build[bind..]),
+        )
+        .unwrap();
+        let report = directory.join("report.txt");
+        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+            .args(["--every-validator", "--report-file"])
+            .arg(&report)
+            .args([
+                "--build-input",
+                "build.omg",
+                "--build-input",
+                "main.omg",
+                "build.omg",
+            ])
+            .current_dir(&directory)
+            .stdin(Stdio::null())
+            .output()
+            .unwrap();
+        let report = std::fs::read_to_string(report).unwrap_or_default();
+        let _ = std::fs::remove_dir_all(&directory);
+        assert!(output.status.success(), "{test}: {report}");
+        assert!(
+            report.lines().any(|line| line == expected),
+            "{test}: {report}"
+        );
+    }
+}
+
 #[test]
 fn default_compilation_runs_no_validator() {
     // The timing list names every stage that ran; a validator run adds a

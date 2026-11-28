@@ -78,7 +78,7 @@ The immutable optimized repair producer is
 commits leave its Rust and bundled-library inputs unchanged. Commands, source
 hashes, producer profiles, actual engine observations, products and independent
 review are retained in the qualification record accompanying the PR. Run a
-place with `omega run --both <place>/main.omg` and its twin with
+place with the native/Psi comparison and its twin with
 `omega --check <place>/invalid/main.omg`.
 
 Windows and Linux native execution are unverified here. Array-index

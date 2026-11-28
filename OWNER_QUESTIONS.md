@@ -65,85 +65,56 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-<a id="untrusted-psi-run-flag"></a>
-### 1. Should `omega run` accept a Psi artifact the host does not trust, and under what flag?
+### 1. May core `Real` be the quotient of one regular function sequence type?
 
-The admission contract makes an untrusted artifact runnable only through a
-containment-audited interpreter and host bindings, and the command line names
-only the trusted route.
-[Publication and separate consumption](wiki/spec/terminal-psi/product.md#publication-and-separate-consumption) ·
-[Loading and preparation](wiki/spec/build/embedding.md#loading-and-preparation) ·
-[Command line](wiki/spec/build/command_line.md)
+The Real ruling leaves two things without a source form. Every regular
+`Sequence<S, At>` must project into one `Real`, but no declaration names a
+quotient over a whole carrier family. The ruling also requires regularity
+before projection, yet `as Quotient` takes no premise. Take
+`Sequence<Rat, repeat>` for a constant and `Sequence<Nat -> Rat, apply>` for
+a theorem's `f`. Both must give values of one `Real`.
 
-The embedding now has that route.
-`psi_authorization::admit_contained_interpretation` admits an artifact without
-producer trust, `TerminalProgram::admit_contained` runs it, and the runtime
-host's `TerminalRuntimeContainment` runs it under a storage account and output
-limits. It refuses native providers, native services, filesystem delegation,
-components and live time, and native lowering never accepts it.
-[Containment audit](wiki/drafts/designs/psi_containment_audit.md#contained-interpretation) ·
-[Runtime host](source-rust/subsystems/interpreter/host/src/execution.rs)
+Read literally, the carrier is the total family
+`Σ (S: Type<0>). Σ (At: Sampler<S>). Sequence<S, At>`, restricted to regular
+values. A sum over every state type is a large type, so `Real` would live in
+`Type<1>`. The spec forbids resizing it. `Identity::<Real>` would then sit at
+level 1. A sequence or quotient of reals would also need a level above that.
 
-`omega run --trusted-artifact <manifest-id>` is the only CLI form, so a user
-cannot run an untrusted artifact without writing an embedding.
-- **Option A (add a flag):** add
-  `omega run --engine psi --untrusted-artifact [--max-psi-input-bytes <bytes>] <program.psi>`.
-  It runs on the contained route with default work, storage and output limits,
-  and refuses `--engine native`.
-- **Option B (embedding only):** keep the CLI trusted-only. Untrusted
-  interpretation stays an embedding capability that a host opts into in code.
+Checked and found silent:
+[Cauchy sequences and the Real quotient](wiki/spec/proofs/quotients.md#cauchy-sequences-and-the-real-quotient)
+names the carrier but no declaration.
+[Families, relations, and evidence](wiki/spec/proofs/quotients.md#families-relations-and-evidence)
+interprets a family through `A = Σ (I : IndexPack). C<I>` but gives no
+source spelling. [Formation and representation](wiki/spec/proofs/quotients.md#formation-and-representation)
+declares `data Q = C % R` over one carrier, with `as Q` as the sole
+construction route. [Generics](wiki/spec/language/generics.md) and
+[proof contracts](wiki/spec/proofs/contracts.md) state the projection
+requirement but no form for it.
 
-Should the command line expose untrusted interpretation?
-
-<a id="function-valued-data-field"></a>
-### 2. How does a data declaration hold a mathematical function?
-
-The `Real` quotient's representatives are regular Cauchy sequences of `Rat`,
-so its carrier is data holding a function `|nat|::Nat -> |rat|::Rat` and
-the evidence that the function is regular. The spec says `Real` is built
-"over ordinary mathematical data and equivalence/quotient machinery" and
-that "recursive mathematical data without a finite runtime representation
-remain proof-only; this follows from structure."
-[Mathematical values and quantification](wiki/spec/proofs/contracts.md#mathematical-values-and-quantification)
-Arrow types are dependent Π types, and the spec writes them in the
-parameters of a mathematical `let` and in the bounds of type parameters.
-[Universes and mathematical function types](wiki/spec/proofs/mathematical_bindings.md#universes-and-mathematical-function-types)
-The witness bundle shows data holding a value of a type parameter `A` under a
-`requires` clause, but no example puts an arrow in a data field or passes one
-as a type argument.
-[Witnesses, existence and proof construction](wiki/spec/proofs/mathematical_bindings.md#witnesses-existence-and-proof-construction)
-Today the parser accepts an arrow only in those two `let` and bound
-positions: `data Seq { at: N -> N; }` and `Holder<N -> N>` are both parse
-errors. No authored source holds a function in data. `core/cauchy.omg` takes
-sequences as static machine parameters instead, which a quotient cannot use,
-since its representatives are values.
-
-**Recommend that a data field may have a mathematical function type.** The
-carrier is then written
+Recommendation: yes, with ordinary declarations only.
 
 ```omega
-data Sequence
-requires regular(at)
+data Regular {
+    samples: Sequence<Nat -> Rat, apply>;
+}
+requires regular::<Nat -> Rat, apply>(value.samples);
+
+data Real = Regular % converge_together
+requires converge_together satisfies MereEquivalence<Regular, converge_together>
+    as Together;
+
+machine project<S, const At: Sampler<S>>(s: Sequence<S, At>) -> Real
+requires regular::<S, At>(s)
 {
-    at: |nat|::Nat -> |rat|::Rat;
+    // the representative with state `λn. At(s.state, n)`
 }
 ```
 
-with `regular` a `let` over `at`. A value with such a field has no runtime
-representation, so the data is proof-only by structure, as the spec already
-says of infinite recursive data. A field read `s.at(n)` is application, and a
-value is built with a `let` applied to fewer arguments than it takes, as the
-spec already allows (`Sequence { at: sum(x, y) }` with
-`let sum(x: Sequence, y: Sequence, n: |nat|::Nat): |rat|::Rat`). The other
-choice is to keep fields ordinary and allow arrow types as type arguments,
-so the existing witness bundle carries the sequence:
-`Witness<0, 0, |nat|::Nat -> |rat|::Rat, regular>`. That adds no field rule,
-but every ordinary type position then admits arrows. Which should it be?
-
-**Specification text, if adopted.** In mathematical_bindings.md,
-"Universes and mathematical function types", add: "A data field may have a
-mathematical function type. Data with such a field has no runtime
-representation and is proof-only by structure. Reading the field and applying
-it is dependent function application; a value is constructed from a
-mathematical term of that type, such as a `let` applied to fewer arguments
-than it takes."
+The data predicate keeps every representative regular, so the convergence
+relation is an equivalence on the whole carrier. A sequence enters `Real`
+only through `project`, whose `requires` checks regularity for those exact
+samples. Two projections are equal when their
+samples converge together, whatever their `S` and `At`. `Real` stays in
+`Type<0>`. The alternative is a new family-quotient declaration with a
+carrier premise on `as`. That costs a large `Real`, a new surface, and Σ
+over types in the checker.

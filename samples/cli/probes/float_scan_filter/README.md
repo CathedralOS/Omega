@@ -11,9 +11,11 @@ Expected native and Terminal exit: `0`, with no program output.
 
 ```sh
 omega packages update --project samples/cli/collections/float_scan_filter --target macos_arm64 --offline --dangerously-accept-all
-omega run --engine native samples/cli/collections/float_scan_filter/main.omg
-omega run --engine psi samples/cli/collections/float_scan_filter/main.omg
+omega run samples/cli/collections/float_scan_filter/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/probes/float_scan_filter` from the repository root.
 
 The byte views retain the borrowed snapshot's actual extent. Proving eight
 available bytes authorizes one binary64 read; it does not replace the descriptor

@@ -48,21 +48,20 @@ fn run_example(source: &str) {
     let fixture = support::repository_root().join("samples/cli/probes/direct_file_imports");
     let scratch = project::stage("direct-file-imports", &[("main.omg", source)]);
     std::fs::create_dir(scratch.path().join("m")).unwrap();
-    for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-        let mut arguments = vec!["run", "--engine", engine, "--build-input", "main.omg"];
+    for command in ["run", "build"] {
+        let mut arguments = vec![command, "--build-input", "main.omg"];
         for file in ["build.omg", "m/b.omg", "m/value-cell.omg"] {
             std::fs::copy(fixture.join(file), scratch.path().join(file)).unwrap();
             arguments.extend(["--build-input", file]);
         }
         arguments.push("main.omg");
-        let output = project::omega(scratch.path(), &arguments);
+        let output = project::observe(scratch.path(), &arguments);
         let report = format!(
             "{}{}",
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         );
         assert!(output.status.success(), "{report}");
-        assert!(report.lines().any(|line| line == receipt), "{report}");
     }
 }
 

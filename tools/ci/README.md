@@ -20,7 +20,9 @@ frontmatter of single-file Cargo scripts are outside its scope.
 Run `python3 -B tools/ci/check_recycling.py` from a checkout with Python 3.11 or
 newer. `python3 -B tools/ci/test_check_recycling.py` runs its regression checks.
 Admission also requires the shared specification under `wiki/spec/`. It
-compiles and tests no Rust code.
+also checks Omega run examples in Markdown and Omega source, and checks the
+arguments passed by application integration fixtures for retired selectors.
+It compiles and tests no Rust code.
 
 ## Branch cleanup
 

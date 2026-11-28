@@ -45,7 +45,7 @@ From the repository root, using a compiler built at the recorded base:
 ```sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
 OMEGA=/absolute/path/to/verified/omega
-PROJECT=samples/cli/independent/correlated_fault_tree_audit
+PROJECT=samples/cli/scientific/correlated_fault_tree_audit
 "$OMEGA" update --project "$PROJECT" --target linux_x86_64
 # Inspect any pending package review and accept only reviewed decisions.
 # Resume once, after acceptance; a denied route remains a blocker.
@@ -56,8 +56,8 @@ PROJECT=samples/cli/independent/correlated_fault_tree_audit
 Native validation first uses the public CLI to compile, run and retain the
 program, then reuses that exact native image for all remaining fixture inputs.
 The image SHA-256 and build directory are recorded with its first result.
-Run only one compiler execution at a time. `--both` uses finite stdin for native
-and Terminal replay. The CLI compares termination, stdout and stderr between engines. The validator
+Run only one compiler execution at a time. The native/Psi comparison uses finite stdin for native
+and Terminal replay. The recorded comparison checked termination, stdout and stderr between engines. The validator
 separately checks the native bytes against the fixture. Unsupported or declined interpretation
 is not a pass.
 

@@ -1,4 +1,4 @@
-use super::validate_task_activations;
+use super::{TaskStorage, check_plans};
 use build_providers::plans::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod};
 use build_providers::selections::SelectedProviderPlanFacts;
 use target::TargetProfile;
@@ -37,7 +37,7 @@ fn provider() -> SelectedProviderPlanFacts {
     SelectedProviderPlanFacts::from_selected_plans(vec![plan]).unwrap()
 }
 
-fn demands() -> (TerminalTaskActivationDemands, TerminalIdentityTable) {
+fn demands() -> (Vec<TerminalTaskActivationDemand>, TerminalIdentityTable) {
     let mut table = TerminalIdentityTableBuilder::default();
     let start = table.intern("TaskRuntime::start");
     let owner = table.intern("TaskRuntime");
@@ -86,27 +86,29 @@ fn demands() -> (TerminalTaskActivationDemands, TerminalIdentityTable) {
             }],
         }],
     };
-    (
-        TerminalTaskActivationDemands {
-            demands: vec![demand],
-            ..Default::default()
-        },
-        table.build(),
-    )
+    (vec![demand], table.build())
 }
 
 #[test]
 fn the_selected_task_runtime_must_cover_the_published_requirement() {
     let (input, identities) = demands();
+    let storage = TaskStorage::new(std::iter::empty(), &[], TargetProfile::LinuxX64).unwrap();
     assert!(
-        validate_task_activations(&input, &identities, &provider(), TargetProfile::LinuxX64)
-            .is_ok()
+        check_plans(
+            &input,
+            &identities,
+            &provider(),
+            TargetProfile::LinuxX64,
+            &storage
+        )
+        .is_ok()
     );
-    let diagnostics = validate_task_activations(
+    let diagnostics = check_plans(
         &input,
         &identities,
         &SelectedProviderPlanFacts::default(),
         TargetProfile::LinuxX64,
+        &storage,
     )
     .unwrap_err();
     assert_eq!(
@@ -118,25 +120,30 @@ fn the_selected_task_runtime_must_cover_the_published_requirement() {
 #[test]
 fn activation_checks_keep_the_frame_graph_and_suspension_obligations() {
     let (input, identities) = demands();
+    let storage = TaskStorage::new(std::iter::empty(), &[], TargetProfile::LinuxX64).unwrap();
     let check = |input| {
-        validate_task_activations(input, &identities, &provider(), TargetProfile::LinuxX64)
-            .unwrap_err()[0]
+        check_plans(
+            input,
+            &identities,
+            &provider(),
+            TargetProfile::LinuxX64,
+            &storage,
+        )
+        .unwrap_err()[0]
             .message
             .clone()
     };
     let mut cyclic = input.clone();
-    cyclic.demands[0].frames[0]
+    cyclic[0].frames[0]
         .calls
         .push(TerminalTaskFrameCall { callee: 7 });
     assert!(check(&cyclic).contains("non-lowered call cycle"));
     let mut missing = input.clone();
-    missing.demands[0].frames[0]
+    missing[0].frames[0]
         .calls
         .push(TerminalTaskFrameCall { callee: 99 });
     assert!(check(&missing).contains("calls missing checked frame"));
     let mut duplicate = input;
-    duplicate.demands[0].crossings[0].live_carry[0]
-        .claims
-        .push(14);
+    duplicate[0].crossings[0].live_carry[0].claims.push(14);
     assert!(check(&duplicate).contains("duplicate claim"));
 }

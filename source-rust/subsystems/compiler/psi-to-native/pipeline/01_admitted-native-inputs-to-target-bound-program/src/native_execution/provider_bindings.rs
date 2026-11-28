@@ -79,11 +79,17 @@ pub(super) fn callable_coverage(
 
 pub(super) fn bind(
     proposal: &TerminalNativeRealizationProposal,
-    authorization: &psi_authorization::AuthorizedTerminalArtifact,
+    authorization: &psi_authorization::AdmittedTerminalArtifact,
     scope: NativeExecutionScope,
 ) -> Result<PreparedNativeExecution, Vec<Diagnostic>> {
     let artifact = authorization.artifact();
     let module = artifact.semantic_module();
+    provider_admission::validate_task_activations(
+        artifact.view(),
+        scope.reach(),
+        &proposal.providers().selection,
+        proposal.scope_source().root().target(),
+    )?;
     let identity = |boundary: &terminal_psi::BoundaryMachineDeclaration| {
         module
             .identities

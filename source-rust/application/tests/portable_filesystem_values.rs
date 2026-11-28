@@ -2,6 +2,8 @@
 //! preserving valid buffers and complete names. Check the actual adapter
 //! operations, then the selected filesystem service on this host.
 
+#[path = "support/project.rs"]
+mod project;
 mod support;
 
 use platform_custody::temporary_directory::TemporaryDirectory;
@@ -22,17 +24,17 @@ impl Project {
     }
 
     fn observe(&self, arguments: &[&str], build: impl AsRef<Path>) -> Output {
-        Command::new(env!("CARGO_BIN_EXE_omega"))
-            .args(arguments)
-            .arg(build.as_ref())
-            .current_dir(self.0.path())
-            .env(
-                "OMEGA_LIBRARY_ROOT",
-                support::repository_root().join("source/library"),
-            )
-            .stdin(Stdio::null())
-            .output()
-            .expect("run the filesystem program")
+        project::observe_command(
+            Command::new(env!("CARGO_BIN_EXE_omega"))
+                .args(arguments)
+                .arg(build.as_ref())
+                .current_dir(self.0.path())
+                .env(
+                    "OMEGA_LIBRARY_ROOT",
+                    support::repository_root().join("source/library"),
+                )
+                .stdin(Stdio::null()),
+        )
     }
 }
 
@@ -45,9 +47,9 @@ fn report(output: &Output) -> String {
 }
 
 fn check_program(project: &Project, build: impl AsRef<Path>, psi_work_budget: Option<&str>) {
-    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-        let mut options = vec!["run", "--engine", engine];
-        if engine == "psi"
+    for command in ["run", "build"] {
+        let mut options = vec![command];
+        if command == "run"
             && let Some(budget) = psi_work_budget
         {
             options.extend(["--psi-work-budget", budget]);
@@ -55,7 +57,6 @@ fn check_program(project: &Project, build: impl AsRef<Path>, psi_work_budget: Op
         let output = project.observe(&options, &build);
         let text = report(&output);
         assert!(output.status.success(), "{text}");
-        assert!(text.lines().any(|line| line == expected), "{text}");
         assert!(output.stdout.is_empty(), "{output:?}");
     }
 }
@@ -298,28 +299,24 @@ fn portable_filesystem_public_calls_preserve_neighboring_bytes() {
 // This rule checks POSIX mode bits and consumes its input directory.
 #[cfg(unix)]
 #[test]
-fn portable_filesystem_rules_hold_on_each_engine() {
+fn portable_filesystem_rules_hold_when_interpreted_and_built() {
     let build = support::repository_root()
         .join("source-rust/application/tests/fixtures/filesystem/run/portable_rules/build.omg");
-    for (engine, expected) in [("native", "native exit 42"), ("psi", "Psi exit 42")] {
-        let project = Project::new(engine);
+    for command in ["run", "build"] {
+        let project = Project::new(command);
         let wide = project.0.path().join("omega_fs_rules_wide");
         std::fs::create_dir(&wide).unwrap();
         for index in 0..4200 {
             std::fs::File::create(wide.join(index.to_string())).unwrap();
         }
 
-        let output = project.observe(&["run", "--engine", engine], &build);
+        let output = project.observe(&[command], &build);
         let text = report(&output);
-        assert_eq!(output.status.code(), Some(42), "{engine}: {text}");
-        assert!(
-            text.lines().any(|line| line == expected),
-            "{engine}: {text}"
-        );
+        assert_eq!(output.status.code(), Some(42), "{command}: {text}");
         for tree in [wide, project.0.path().join("omega_fs_rules")] {
             assert!(
                 !tree.try_exists().unwrap(),
-                "{engine} left {}",
+                "{command} left {}",
                 tree.display()
             );
         }
@@ -387,7 +384,7 @@ machine posix_filesystem_last_error_i64(filesystem: @mutable PosixFilesystem, re
 "#);
     project.write("posix_filesystem_adapter.omg", &adapter);
     let mut settings = String::from(
-        "use main.omg as app;\nuse posix_filesystem_host.omg as host;\nmachine build(b: @mutable BuildPlan) { b.product = BuildProduct::Application { name: \"posix_names\" };\n",
+        "use main.omg as app;\nuse posix_filesystem_host.omg as posix_host;\nmachine build(b: @mutable BuildPlan) { b.product = BuildProduct::Application { name: \"posix_names\" };\n",
     );
     for target in [
         "linux_x86_64",
@@ -396,7 +393,7 @@ machine posix_filesystem_last_error_i64(filesystem: @mutable PosixFilesystem, re
         "windows_x86_64",
         "windows_arm64",
     ] {
-        settings.push_str(&format!("Build::select_provider::<|host|::PosixFilesystemHost, |host|::Stream>(b, {target});\nBuild::select_provider::<|host|::PosixFilesystemTarget, |host|::Geometry>(b, {target});\nBuild::bind(b, {target}::ProgramEntry, |app|::main);\n"));
+        settings.push_str(&format!("Build::select_provider::<|posix_host|::PosixFilesystemHost, |posix_host|::Stream>(b, {target});\nBuild::select_provider::<|posix_host|::PosixFilesystemTarget, |posix_host|::Geometry>(b, {target});\nBuild::bind(b, {target}::ProgramEntry, |app|::main);\n"));
     }
     settings.push('}');
     project.write("build.omg", &settings);

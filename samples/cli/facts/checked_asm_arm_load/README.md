@@ -4,7 +4,7 @@ An AArch64 `ldr` destination, place reads the typed place, and the following Ome
 
 Owning item: **CHECKED-ASM-LABEL-CONTRACTS** (`TASKS.md`). Exact requirement: the instruction catalog admits `ldr` as a `MemoryTransfer` Load on `linux_arm64` and `macos_arm64`, so the memory operand is an ordinary Omega place expression and the instruction lowers to the same checked place read an ordinary assignment performs; the destination records that value and the following Omega use reads that recorded value. Every positive place binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and declares `Expected exit: 0`.
 
-Host boundary: this row is measured on Apple Silicon (`macos_arm64`). Unlike the Windows host that first pinned the local place, the native leg of `omega run --both` executes the row's `macos_arm64` program here; `linux_arm64`, `linux_x86_64` and `windows_x86_64` are bound and checked, and no Linux or x86 image is executed on this host. The earlier note ("Native arm64 execution is not available here") described that Windows host, not this one.
+Host boundary: this row is measured on Apple Silicon (`macos_arm64`). Unlike the Windows host that first pinned the local place, the native leg of the native/Psi comparison executes the row's `macos_arm64` program here; `linux_arm64`, `linux_x86_64` and `windows_x86_64` are bound and checked, and no Linux or x86 image is executed on this host. The earlier note ("Native arm64 execution is not available here") described that Windows host, not this one.
 
 ## Places
 
@@ -21,7 +21,7 @@ Host boundary: this row is measured on Apple Silicon (`macos_arm64`). Unlike the
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | the read place crosses another machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | each hosted target's scoped body carries the same `ldr` |
 
-Run each place with `omega run --both <place>/main.omg` (stdin closed). Every
+Run each place with `mbx xtask sample-gate --filter samples/cli/facts/checked_asm_arm_load/<place>` (stdin closed). Every
 place's reject twin writes the same `ldr` with its memory operand bracketed
 (`ldr loaded, [<place>]`). A bracketed operand is not an Omega place
 expression, so it refuses before the place-bearing shape applies:
@@ -89,7 +89,7 @@ with its authored fragment):
   the `macos_arm64` image natively on this host.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):**
   the emitted Mach-O image for `macos_arm64` runs to the authored exit and
-  agrees with Terminal Psi (`omega run --both`), which is what the pinned
+  agrees with Terminal Psi, which is what the pinned
   native exit rows record.
 
 ## Regression repair (psi)
@@ -134,10 +134,10 @@ belong on an x86_64 host. On this `macos_arm64` host they are checked at
 Producer: `omega` built from this candidate (`--build-profile` reporting
 `{"schema":"omega-compiler-build-profile-v1","opt_level":"1"}`), worktree
 revision in the commit that carries this row. Host: `macos_arm64`. Command per
-place: `omega run --both <place>/main.omg` with stdin closed; per twin:
+place: the native/Psi comparison with stdin closed; per twin:
 `omega --check <place>/invalid/main.omg`.
 
-| Place | Positive (`--both`) | Reject twin |
+| Place | Positive | Reject twin |
 | --- | --- | --- |
 | root | `native exit 0` / `interp exit: 0` | — |
 | local | `native exit 0` / `interp exit: 0` | rejected: bracketed `[...]` memory addressing |

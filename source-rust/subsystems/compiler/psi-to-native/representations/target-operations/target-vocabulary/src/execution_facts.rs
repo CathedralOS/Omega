@@ -7,25 +7,29 @@
 use std::sync::Arc;
 
 use ::wire::digest_encoder::DomainDigestEncoder;
-use optimization_core::{OptimizationUnitIdentity, PrePhysicalOptimizationManifestIdentity};
+use optimization_core::{
+    OptimizationSelectionIdentity, OptimizationUnitIdentity, OptimizationWorkBudget,
+};
 use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 use terminal_psi::TerminalPsiIdentity;
 pub use terminal_psi::execution::callable_reach::ReachableCallableInvocations;
 use terminal_psi::execution::callable_reach::{CallableValuePossibilities, ReachedCallableTarget};
 
-pub const NATIVE_EXECUTION_FACTS_DOMAIN: &[u8] = b"omega.native-execution-facts.v1\0";
+pub const NATIVE_EXECUTION_FACTS_DOMAIN: &[u8] = b"omega.native-execution-facts.v2\0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NativeExecutionRoots {
     pub psi: TerminalPsiIdentity,
     pub optimization_unit: OptimizationUnitIdentity,
     pub work_schedule: WorkScheduleIdentity,
-    pub pre_physical: PrePhysicalOptimizationManifestIdentity,
+    pub selection: OptimizationSelectionIdentity,
+    pub budget_per_pass: OptimizationWorkBudget,
     pub entry: MachineId,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum NativeExecutionFactsError {    Invalid(&'static str),
+pub enum NativeExecutionFactsError {
+    Invalid(&'static str),
     Wire(psi_declaration_encoding::CodecError),
 }
 
@@ -206,7 +210,8 @@ fn encode(rows: &ExecutionRows, mut write: impl FnMut(&[u8])) {
     write(&rows.roots.psi.vocabulary_marker.get().to_le_bytes());
     write(&rows.roots.optimization_unit.bytes());
     write(&rows.roots.work_schedule.marker().to_le_bytes());
-    write(&rows.roots.pre_physical.bytes());
+    write(&rows.roots.selection.bytes());
+    write(&rows.roots.budget_per_pass.encode());
     write(&rows.roots.entry.get().to_le_bytes());
     write(&(rows.main_bytes.len() as u64).to_le_bytes());
     write(&rows.main_bytes);
@@ -230,9 +235,8 @@ mod tests {
             },
             optimization_unit: OptimizationUnitIdentity::from_canonical_bytes(b"test unit"),
             work_schedule: WorkScheduleIdentity::new(1).unwrap(),
-            pre_physical: PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(
-                b"test prephysical",
-            ),
+            selection: OptimizationSelectionIdentity::from_bytes([2; 32]),
+            budget_per_pass: OptimizationWorkBudget::new(1, 1, 1, 1, 1).unwrap(),
             entry,
         }
     }
@@ -256,11 +260,15 @@ mod tests {
             facts.identity_bytes(),
             ::wire::digest_encoder::content_identity(&bytes)
         );
-        let mut changed = roots(entry);
-        changed.pre_physical =
-            PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(b"other prephysical");
-        let changed = NativeExecutionFacts::seal(changed, main, Vec::new()).unwrap();
-        assert_ne!(facts.identity_bytes(), changed.identity_bytes());
+        let mut reselected = roots(entry);
+        reselected.selection = OptimizationSelectionIdentity::from_bytes([3; 32]);
+        let mut rebudgeted = roots(entry);
+        rebudgeted.budget_per_pass = OptimizationWorkBudget::new(2, 1, 1, 1, 1).unwrap();
+        for changed in [reselected, rebudgeted] {
+            let changed =
+                NativeExecutionFacts::seal(changed, Arc::clone(&main), Vec::new()).unwrap();
+            assert_ne!(facts.identity_bytes(), changed.identity_bytes());
+        }
         assert!(
             facts
                 .callable_invocations_from(MachineId::new(2).unwrap())

@@ -48,5 +48,4 @@ fn a_narrower_theorem_is_refused_before_execution() {
         report.contains("explicit proof argument does not establish the complete aliased contract"),
         "{report}",
     );
-    assert!(!report.contains("native exit 0"), "{report}");
 }

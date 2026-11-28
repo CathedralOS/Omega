@@ -22,7 +22,7 @@ accompanied by `<place>/invalid/` reject twins:
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | shifted result forwarded through intermediate machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | shifted result verified across target-scoped machine bodies |
 
-Run each place with `omega run --both <place>/main.omg`.
+Run each place with `mbx xtask sample-gate --filter samples/cli/facts/signed_64bit_shift_right_arithmetic_bound/<place>`.
 
 ## Requirements and Evidence
 
@@ -45,10 +45,10 @@ Full 8-layer specification and lowering evidence:
   - `target_body`: shifted result is evaluated and verified across target-scoped machine bodies for all four hosted targets (`linux_x86_64`, `linux_arm64`, `windows_x86_64`, `macos_arm64`).
   In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in weakening the input bound to `val >= 296 && val <= 300` (so `val == 296` yields `shifted == 74`), proving that downstream contract verification `requires shifted >= 75 && shifted <= 75` (or `ensures result >= 75 && result <= 75`) strictly fails closed when the post-shift bound allows values below 75.
 - **Soundness boundaries:** All nine reject twins under `<place>/invalid/` reject during compile-time verification (`omega --check`) with `error: cannot prove ... contract ...: ... >= 75`, confirming that the proof engine soundly detects that when `shifted` can be 74, contract satisfaction cannot be established.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Source constructs lower into canonical `PSITERM\0` target-neutral representations. Shift operations are lowered with verified shift count certificates (`count < 64`), preserving interval arithmetic bounds and erasing proof tags. Both Terminal Psi interpretation and native execution agree (`omega run --both` reports exit 0).
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Source constructs lower into canonical `PSITERM\0` target-neutral representations. Shift operations are lowered with verified shift count certificates (`count < 64`), preserving interval arithmetic bounds and erasing proof tags. Both Terminal Psi interpretation and native execution agree (the native/Psi comparison reports exit 0).
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Target realization joins Build companion rows (`ProgramEntry`) across the four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Target layout plans validate 8-byte `i64` scalar storage and alignment, while calling plans assign 64-bit register homes (`rax`/`rcx`/`rdi`/`rsi` on x86_64, `x0`/`x1` on arm64) for passing values across calling conventions.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA arithmetic right shift instructions: 64-bit `sar r64, imm8` on `x86_64` and `asr x, x, #imm` on `arm64`, preserving the sign bit while shifting down by 2 bits. Exact signed subtraction lowers to 64-bit `sub`, and register allocation assigns register homes and disjoint stack activation frames honoring the `StatePlan` ceiling.
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Direct PE/ELF/Mach-O images are emitted with valid machine-state footprint evidence, executing natively and agreeing with Terminal Psi (`omega run --both` reports `native exit 0` and `interp exit: 0`) across all hosted targets.
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Direct PE/ELF/Mach-O images are emitted with valid machine-state footprint evidence, executing natively and agreeing with Terminal Psi (the native/Psi comparison reports `native exit 0` and `interp exit: 0`) across all hosted targets.
 
 Remaining open under NUMERIC-VALUES: dynamic runtime shift counts requiring masking certificates, 128-bit wide shifts across register pairs, and vector SIMD packed arithmetic right shifts.
 

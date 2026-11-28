@@ -8,6 +8,8 @@ no observation of the old referent.
 After ordinary package review, run:
 
 ```sh
-omega run --engine native samples/cli/collections/write_only_field_carrier/main.omg
-omega run --engine psi samples/cli/collections/write_only_field_carrier/main.omg
+omega run samples/cli/collections/write_only_field_carrier/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/probes/write_only_field_carrier` from the repository root.

@@ -97,7 +97,7 @@ machine drain(generator: Generator<u32>) suspends {
 ## Acceptance
 
 - A copying generator and a round-robin scheduler run as ordinary libraries over
-  stepping under `omega run --both`.
+  stepping in compiled and interpreted tests.
 - A stale or mismatched reply returns the activation and the reply unchanged.
 - A recheck notification cannot stand in for a completed read or release its
   buffer.

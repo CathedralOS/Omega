@@ -156,7 +156,8 @@ requires depth > 0 && depth <= 2 && restart <= 1 {
                 assert!(
                     elaboration
                         .module
-                        .proofs.scalar_block_invariants
+                        .proofs
+                        .scalar_block_invariants
                         .iter()
                         .any(|invariant| invariant.machine == machine
                             && invariant.header == head
@@ -514,6 +515,68 @@ machine route(source: Source) -> u32 {{ measure(source.location) }}
         )),
         NO_CASE
     );
+}
+
+/// A contract that tests a case is a proposition over the case's name, and
+/// a payload read whose sum keeps that boundary's case is proved from it.
+/// `requires source in Source::Path` lets `route` read `source.location`,
+/// and so does a disjunction the machine can eliminate, by a second clause
+/// or by testing the other case. A callee's `ensures` does the same for its
+/// result. A wrong case, a disjunction left open, or a store of another
+/// case refuses the read.
+#[test]
+fn a_stated_case_lets_its_payload_be_read() {
+    let entry = |requires: &str, body: &str| {
+        verdict(&format!(
+            r#"{SCALARS}
+machine build_entry() {{ let n: u32 = route(Source::Path {{ location: 3 }}, false); }}
+machine route(source: Source, flag: bool) -> u32 {requires} {{ {body} }}
+"#
+        ))
+    };
+    let read = "source.location";
+    assert_eq!(entry("requires source in Source::Path", read), "accepted");
+    assert_eq!(
+        entry(
+            "requires (source in Source::Path) || flag requires !flag",
+            read
+        ),
+        "accepted"
+    );
+    let eliminated = "transition source in Source::Git { true -> 0u32, false -> source.location }";
+    assert_eq!(entry("", eliminated), "accepted");
+    let copied = "let held: Source = source; held.location";
+    assert_eq!(entry("requires source in Source::Path", copied), "accepted");
+
+    assert_eq!(entry("requires source in Source::Git", read), NO_CASE);
+    assert_eq!(
+        entry("requires (source in Source::Path) || flag", read),
+        NO_CASE
+    );
+    let tested = "transition source in Source::Path { true -> 0u32, false -> source.location }";
+    assert_eq!(entry("", tested), NO_CASE);
+    let replaced = "let mutable held: Source = source; \
+                    held = Source::Git { repository: 1, revision: 2 }; held.location";
+    assert_eq!(entry("requires source in Source::Path", replaced), NO_CASE);
+
+    let returned = |ensures: &str, before: &str| {
+        verdict(&format!(
+            r#"{SCALARS}
+machine pick() -> Source {ensures} {{ Source::Path {{ location: 3 }} }}
+machine build_entry() {{ let n: u32 = route(); }}
+machine route() -> u32 {{ let mutable held: Source = pick(); {before} held.location }}
+"#
+        ))
+    };
+    assert_eq!(returned("ensures result in Source::Path", ""), "accepted");
+    assert_eq!(
+        returned(
+            "ensures result in Source::Path",
+            "held = Source::Git { repository: 1, revision: 2 };"
+        ),
+        NO_CASE
+    );
+    assert_eq!(returned("", ""), NO_CASE);
 }
 
 /// Two payload fields of one case are disjoint places: one lent

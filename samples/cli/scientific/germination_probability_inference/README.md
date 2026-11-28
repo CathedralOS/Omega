@@ -60,10 +60,9 @@ From the repository root with the documented toolchain setup and a compiler
 built from the qualified checkout:
 
 ```sh
-omega packages update --project samples/cli/independent/germination_probability_inference --target linux_x86_64
+omega packages update --project samples/cli/scientific/germination_probability_inference --target linux_x86_64
 # Review exact pending authority decisions before resuming, when required.
-omega run --engine native --keep samples/cli/scientific/germination_probability_inference/main.omg < samples/cli/scientific/germination_probability_inference/input.txt
-omega run --engine psi --keep samples/cli/scientific/germination_probability_inference/main.omg < samples/cli/scientific/germination_probability_inference/input.txt
+omega run --keep samples/cli/scientific/germination_probability_inference/main.omg < samples/cli/scientific/germination_probability_inference/input.txt
 ```
 
 The validator compiles and runs the actual native product with each finite
@@ -71,7 +70,7 @@ input. The observer prepares the complete admitted project, retains its
 canonical Terminal artifact and executes it with the report's exact runtime
 provisions, explicit containing-domain exit delegation, work and wall-clock
 allowances. Actual stdout, stderr, status and numerical values are captured per
-case. `omega run --both` exit agreement alone does not establish numerical
+case. The native/Psi comparison exit agreement alone does not establish numerical
 agreement. Declines, mismatches, wrong source rejection and exhausted allowances
 fail.
 

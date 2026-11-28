@@ -8,7 +8,7 @@ This is a prerequisite for BUMP-ALLOCATOR-CANARY: the compiler must use declared
 custody routes, not infer restrictions from unrelated domains on a linear
 carrier. It does not implement allocation, placement initialization or retirement.
 
-Run each place with `omega run --both <place>/main.omg` after ordinary package
+Run each place with `mbx xtask sample-gate --filter samples/cli/facts/linear_routed_label/<place>` after ordinary package
 preparation. Each must report native exit 0 and Terminal interpreter exit 0.
 Every place's `invalid/main.omg` replaces issuance with construction of the
 same raw carrier; it must reject missing `Claim::Issued` provenance.

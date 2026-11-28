@@ -14,7 +14,7 @@ call-result paths. Each observed value is checked before the success exit.
 
 Run `omega packages update --project samples/cli/proofs/quotient_runtime_carrier --target linux_x86_64`,
 complete the ordinary package review, then run
-`omega run --both --keep samples/cli/proofs/quotient_runtime_carrier/main.omg`.
+`omega run --keep samples/cli/proofs/quotient_runtime_carrier/main.omg`.
 The same source declares the other supported target entries.
 
 The representative relation is exact record equality. Quotient formation does

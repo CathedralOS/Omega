@@ -36,7 +36,7 @@ structurally identical substitute.
 Every positive project declares an exit-0 oracle and ordinary Build bindings for
 `linux_x86_64`, `linux_arm64`, `macos_arm64` and `windows_x86_64`.
 
-Run a witness with `omega run --both <place>/main.omg`; run its twin with
+Run a witness with `mbx xtask sample-gate --filter samples/cli/facts/nominal_record_representation/<place>`; run its twin with
 `omega --check <place>/invalid/main.omg`. Foreign bindings are authored coverage,
 not a claim of execution on an unavailable host. The existing
 `slice_view_layout_geometry` control separately retains two-word slice views.

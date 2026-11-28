@@ -54,13 +54,12 @@ From the repository root, using the compiler built from that checkout and
 `OMEGA_LIBRARY_ROOT` set to its `source/library`:
 
 ```sh
-omega packages update --project samples/cli/independent/exact_contingency_inference
+omega packages update --project samples/cli/scientific/exact_contingency_inference
 # Inspect the generated review; accept only the required documented system decisions.
-omega packages update --resume --project samples/cli/independent/exact_contingency_inference
-omega --check samples/cli/independent/exact_contingency_inference/main.omg
-omega run --keep samples/cli/independent/exact_contingency_inference/main.omg < samples/cli/independent/exact_contingency_inference/data/sparse.stdin
-omega run --engine native --keep samples/cli/scientific/exact_contingency_inference/main.omg < samples/cli/scientific/exact_contingency_inference/data/sparse.stdin
-omega run --engine psi --keep samples/cli/scientific/exact_contingency_inference/main.omg < samples/cli/scientific/exact_contingency_inference/data/sparse.stdin
+omega packages update --resume --project samples/cli/scientific/exact_contingency_inference
+omega --check samples/cli/scientific/exact_contingency_inference/main.omg
+omega run --keep samples/cli/scientific/exact_contingency_inference/main.omg < samples/cli/scientific/exact_contingency_inference/data/sparse.stdin
+omega run --keep samples/cli/scientific/exact_contingency_inference/main.omg < samples/cli/scientific/exact_contingency_inference/data/sparse.stdin
 ```
 
 `controls/invalid_contract/main.omg` is a separate complete source whose returned
@@ -84,6 +83,6 @@ The reserved `!` plus LF input runs `controls/runtime_oracle.omg`: seven valid
 models exercise the actual analyzer and compare every numerical result against
 the frozen independent oracle. It exits 0 and prints
 `PASS frozen_numerical_control` only after every comparison succeeds. This
-provides numerical execution checks under Terminal, whose `--both` CLI normally
+provides numerical execution checks under Terminal, whose the native/Psi comparison CLI normally
 compares exit statuses alone. The stdin-driven inference remains the delivered
 application; this control is supplementary validation.

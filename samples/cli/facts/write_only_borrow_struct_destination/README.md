@@ -24,7 +24,7 @@ Claim Ticket: `0f97c9ed8ebe4f85a776303e1d14b298`
 
 Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hosted
 targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) in its `build.omg`
-and declares `Expected exit: 0`. `omega run --both` reports Terminal Psi interpreter
+and declares `Expected exit: 0`. The native/Psi comparison reports Terminal Psi interpreter
 and native execution agreement:
 
 ```sh
@@ -40,7 +40,7 @@ Upon loan completion, owner read authority is restored with static guarantee `wr
 Exact subtraction `95u64 - slot.written` discharges cleanly at compile time and evaluates to `60u64` at runtime (whereas an unexecuted `@write` store would leave `written == 0u64`, evaluating to `95u64` and trapping).
 The caller verifies `diff == 60u64`, transitioning to `done()` with exit 0.
 
-Measured on `windows_x86_64` with `omega-latest.exe run --both`:
+Measured on `windows_x86_64` with the native/Psi comparison:
 
 | Probe | Perturbation | Native (`windows_x86_64`) | Terminal Psi (`interp`) |
 | --- | --- | --- | --- |
@@ -60,7 +60,7 @@ The compiler strictly fails closed at compile time with:
 exact arithmetic in machine ... may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation)
 ```
 
-| Place | `omega run --both` | Reject twin diagnostic |
+| Place | the native/Psi comparison | Reject twin diagnostic |
 | --- | --- | --- |
 | `local` | native 0 / interp 0 | `exact arithmetic in machine \`probe\` state \`entry\` terminal expression may overflow \`u64\`` |
 | `field` | native 0 / interp 0 | `exact arithmetic in machine \`probe\` state \`entry\` terminal expression may overflow \`u64\`` |
@@ -78,7 +78,7 @@ exact arithmetic in machine ... may overflow `u64`: the operands are not provabl
 - **Identity and lifetime**: The write-only loan suspends caller readability and preserves frame storage identity. Normal return concludes the loan window, restoring owner read authority along with the refined post-write domain fact `written <= 95u64` across value bindings, carrier fields, parameter passing, return values, branch joins, named constants, state transitions, helper machines, and target-scoped bodies.
 - **Composition**: In each place, the restored domain fact `written <= 95u64` composes directly with exact subtraction `95u64 - written` under contract `ensures result <= 95u64`, proving non-negative range without post-hoc caller equality guards.
 - **Soundness boundaries**: In every reject twin, widening the post-write bound to `v <= 96u64` causes the static checker to refuse compilation under decision 17 (exact arithmetic proof obligation), proving that potential underflow cannot bypass semantic checks.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`)**: The write-only borrow, indirect store, and post-loan owner readability restoration lower cleanly into canonical target-neutral Terminal Psi (`PSITERM\0`) with explicit `WriteOnlyBorrow` access and execute identically in the Terminal Psi interpreter (`omega run --both`).
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`)**: The write-only borrow, indirect store, and post-loan owner readability restoration lower cleanly into canonical target-neutral Terminal Psi (`PSITERM\0`) with explicit `WriteOnlyBorrow` access and execute identically in the Terminal Psi interpreter.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)**: Backend provider planning maps destination record homes into target layout plans, lowering `@write DestinationSlot` into direct pointer passing across ABI register conventions (RCX on `windows_x86_64`, RDI on `linux_x86_64`, X0 on `macos_arm64` and `linux_arm64`).
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend code generation realizes the indirect 64-bit store and subsequent frame reload, maintaining disjoint stack activation storage and bounded stack frames without live-across-call spill corruption.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Native image emission links entry symbols and branch displacements into complete PE/ELF/Mach-O binaries that execute natively and agree with Terminal Psi on exit 0 across all four hosted platforms.

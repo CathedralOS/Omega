@@ -3,9 +3,11 @@
 From the repository root, run with a built Omega CLI:
 
 ```text
-omega run --engine native samples/cli/algorithms/bubble_sort/build.omg
-omega run --engine psi samples/cli/algorithms/bubble_sort/build.omg
+omega run samples/cli/algorithms/bubble_sort/build.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/algorithms/bubble_sort` from the repository root.
 
 Press Enter at the closing prompt (EOF also works). Native execution and the
 Terminal interpreter must both exit **10**, the minimum of the sorted input.

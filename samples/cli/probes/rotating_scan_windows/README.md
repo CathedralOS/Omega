@@ -7,9 +7,11 @@ its old descriptor is retired. Expected exit: 0.
 
 ```sh
 omega packages update --project samples/cli/collections/rotating_scan_windows --target macos_arm64
-omega run --engine native samples/cli/collections/rotating_scan_windows/main.omg
-omega run --engine psi samples/cli/collections/rotating_scan_windows/main.omg
+omega run samples/cli/collections/rotating_scan_windows/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/probes/rotating_scan_windows` from the repository root.
 
 The helper uses a fixed element of a runtime-length view. Its checked bound
 comes from the view's own extent, not its caller's fixed-array type. A selector

@@ -196,8 +196,7 @@ Run a place after ordinary package preparation:
 
 ```sh
 omega packages update --project samples/cli/facts/static_callback_reach/local --target linux_x86_64
-omega run --engine native --keep samples/cli/facts/static_callback_reach/local/main.omg
-omega run --engine psi --keep samples/cli/facts/static_callback_reach/local/main.omg
+omega run --keep samples/cli/facts/static_callback_reach/local/main.omg
 omega psi inspect --artifact <kept-directory>/program.oterm
 ```
 
@@ -221,7 +220,7 @@ for AArch64) through the second selected requirement, so a wrong Build row
 traps, and `main` names that service in its reach. The callback, its `Console`
 ceiling and the `37 - result` oracle are unchanged. Observed with the
 optimized producer at `11bdd2fe41f` on macOS x86-64: the positive exits 0
-under `omega run --both` (native and Terminal Psi agree), and the twin still
+under the native/Psi comparison (native and Terminal Psi agree), and the twin still
 rejects because `X86Evaluate::evaluate` and `ArmEvaluate::evaluate` publish `Console + SelectedBodyCheck`
 but reach `Extra`. No compiler change was needed. The other hosted
 targets were not executed here.

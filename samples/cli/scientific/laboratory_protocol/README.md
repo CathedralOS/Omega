@@ -62,15 +62,15 @@ library selected:
 ```sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
 OMEGA=./target/release/omega
-$OMEGA update --project samples/cli/independent/laboratory_protocol --target linux_x86_64
+$OMEGA update --project samples/cli/scientific/laboratory_protocol --target linux_x86_64
 # Inspect the generated review, accept the local system entry binding, then:
-$OMEGA update --resume --project samples/cli/independent/laboratory_protocol
-$OMEGA --check --target linux_x86_64 samples/cli/independent/laboratory_protocol/main.omg
-$OMEGA run --both --keep samples/cli/independent/laboratory_protocol/main.omg < samples/cli/independent/laboratory_protocol/fixtures/nominal.txt
+$OMEGA update --resume --project samples/cli/scientific/laboratory_protocol
+$OMEGA --check --target linux_x86_64 samples/cli/scientific/laboratory_protocol/main.omg
+$OMEGA run --keep samples/cli/scientific/laboratory_protocol/main.omg < samples/cli/scientific/laboratory_protocol/fixtures/nominal.txt
 ```
 
-The public `run --both` route replays the same finite stdin for Terminal and
-native execution. It compares termination, stdout and stderr and forwards the native output.
+The historical comparison replayed the same finite stdin for Terminal and
+native execution. It checked termination, stdout and stderr and forwarded the native output.
 Validation checks all native trace bytes against the frozen oracle and
 requires explicit Terminal exit agreement.
 

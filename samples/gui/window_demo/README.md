@@ -6,7 +6,7 @@ host target and complete the generated local capability review:
 ```sh
 omega packages update --project samples/gui/window_demo --target windows_x86_64 --offline
 omega packages update --project samples/gui/window_demo --resume --offline
-omega run --keep samples/gui/window_demo/main.omg
+omega --build-dir build samples/gui/window_demo/main.omg
 ```
 
 Edit the pending review decisions before `--resume`. Local acceptance records
@@ -31,9 +31,8 @@ conversions use `integer::max<i32>()`; packed header fields and Win32 flags use
 hex values. Windows uses its native frame metrics for the client area, and
 the GUI subsystem keeps it from attaching a separate console window.
 
-On macOS, `--keep` reports the retained build directory containing
-`window_demo.app`. Launch the same bundle with
-`open -n -W <reported-directory>/window_demo.app` to exercise LaunchServices.
+Launch the published executable on Windows. On macOS, use
+`open -n -W build/window_demo.app` to exercise LaunchServices.
 The PASS line establishes the program's frame and cleanup-result checks;
 observing the native window's dimensions, changing pixels and disappearance
 also checks visible presentation and closure.

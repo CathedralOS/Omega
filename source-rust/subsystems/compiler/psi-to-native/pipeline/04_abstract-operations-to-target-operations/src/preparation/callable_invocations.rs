@@ -62,7 +62,8 @@ impl PreparedCallableInvocations {
         &self,
         target: &TargetOperationPlan,
         evidence: crate::preparation::PreparationEvidence<'_>,
-        pre_physical: optimization_core::PrePhysicalOptimizationManifestIdentity,
+        selection: optimization_core::OptimizationSelectionIdentity,
+        budget_per_pass: optimization_core::OptimizationWorkBudget,
     ) -> Result<target_vocabulary::NativeExecutionFacts, target_vocabulary::NativeExecutionFactsError>
     {
         if self.psi != target.psi
@@ -79,7 +80,8 @@ impl PreparedCallableInvocations {
                 psi: self.psi,
                 optimization_unit: self.optimization_unit,
                 work_schedule: self.work_schedule,
-                pre_physical,
+                selection,
+                budget_per_pass,
                 entry: self.entry,
             },
             std::sync::Arc::clone(&self.invocations),

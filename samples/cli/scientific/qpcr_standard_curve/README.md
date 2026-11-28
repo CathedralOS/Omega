@@ -34,9 +34,8 @@ is diagnostic output, not a successful quantification.
 From the repository root, with a compiler built from the qualification revision:
 
 ```
-omega packages update --project samples/cli/independent/qpcr_standard_curve --target linux_x86_64
-omega run --engine native --keep samples/cli/scientific/qpcr_standard_curve/main.omg < samples/cli/scientific/qpcr_standard_curve/input.txt
-omega run --engine psi --keep samples/cli/scientific/qpcr_standard_curve/main.omg < samples/cli/scientific/qpcr_standard_curve/input.txt
+omega packages update --project samples/cli/scientific/qpcr_standard_curve --target linux_x86_64
+omega run --keep samples/cli/scientific/qpcr_standard_curve/main.omg < samples/cli/scientific/qpcr_standard_curve/input.txt
 ```
 
 Build binds the exact main entry for Linux x86-64, Windows x86-64,

@@ -42,7 +42,7 @@ contracts, admitted against each selected target calling/storage plan.
 
 Normal update returned ReviewRequired in 389.640 seconds; 294 individual
 decisions were accepted, and strict resume completed in 190.734 seconds.
-`run --both --keep` completed in 168.235 seconds. Compiler preparation took
+The native and interpreted comparison with retained artifacts completed in 168.235 seconds. Compiler preparation took
 161.000 seconds. No corpus, completed application or additional producer was
 attached after this acceptance.
 

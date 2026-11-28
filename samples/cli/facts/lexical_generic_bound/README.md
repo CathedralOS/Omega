@@ -57,7 +57,7 @@ bindings.
   placements use the ordinary provider and calling-plan route.
 - **Omega 03–06:** emitted calls, fields, joins and state transfers must preserve
   the observed scalar in normal register/frame homes.
-- **Omega 07–09 and emission:** actual `omega run --both` must return native zero
+- **Omega 07–09 and emission:** actual native/Psi comparison must return native zero
   and Terminal zero at each place; declared target entries are not cross-host
   execution evidence.
 

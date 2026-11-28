@@ -17,14 +17,14 @@ Every positive place copies the fact sentence and establishes `u64 in BelowIndex
 from the literal `3`, then consumes the established value as `3`. Only the
 transport changes. The root [`main.omg`](main.omg) provides the baseline positive
 witness. All positives bind the four hosted `ProgramEntry` targets and declare
-`Expected exit: 0`; each passes `omega run --both` at native exit 0 with the
+`Expected exit: 0`; each passes the native/Psi comparison at native exit 0 with the
 admitted Terminal program agreeing at exit 0.
 
 ## Running the fact row
 
 Every positive place (and root [`main.omg`](main.omg)) binds `ProgramEntry` for all
 four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`),
-declares `Expected exit: 0`, and passes `omega run --both`:
+declares `Expected exit: 0`, and passes the native/Psi comparison:
 
 ```bash
 mbx xtask sample-gate --filter samples/cli/facts/scoped_scalar_initializer
@@ -95,7 +95,7 @@ Full 8-layer specification and lowering evidence:
   - `target_body`: each of four target-scoped machine bodies establishes and consumes the scoped value.
   In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ solely in the initializer literal (`3` vs `4`).
 - **Soundness boundaries:** If the initializer literal violates the domain bound (`4 < 4` is false), the compiler strictly refuses to establish qualification without an authorized proof route (`cannot prove initializer ... an annotation cannot establish routed qualification`). The proof system strictly enforces carrier matching, non-empty rosters, and unviolated predicates, preventing invalid qualifications from reaching Terminal Psi or native code.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** The domain qualification `u64 in BelowIndex<4>` uses the primitive `u64` carrier and is completely erased during lowering to canonical Terminal Psi (`PSITERM\0`). No runtime wrappers, dynamic assertions, or metadata overhead are introduced. All positive entries execute in the Terminal Psi interpreter (`omega run --both`), observing exit 0.
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** The domain qualification `u64 in BelowIndex<4>` uses the primitive `u64` carrier and is completely erased during lowering to canonical Terminal Psi (`PSITERM\0`). No runtime wrappers, dynamic assertions, or metadata overhead are introduced. All positive entries execute in the Terminal Psi interpreter, observing exit 0.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Companion build declarations bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Target layout plans assign ordinary `u64` 8-byte scalar geometry (size 8, align 8). `CallPlan` and `StatePlan` place scalar values into standard integer calling registers (`rcx`/`rax` on x86-64 Windows, `rdi`/`rax` on x86-64 Linux, `x0` on ARM64).
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend instruction selection emits standard integer move and subtraction/comparison instructions (`mov`, `sub`, `cmp`). Register allocation assigns general-purpose register homes and activation stack frame spill slots. Activation storage bounds (WCSU) are validated, and standard entry prologues and restoration epilogues are emitted.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Basic blocks and branch displacements relax with offset reflow. Transitive machine footprint evidence (`actual_transitive_footprint ⊆ permitted_transitive_use`) validates within platform limits. Native PE/ELF/Mach-O binary images are emitted directly and execute with native exit 0, matching the Terminal Psi interpreter.

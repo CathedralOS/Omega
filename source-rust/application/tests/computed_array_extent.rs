@@ -137,11 +137,11 @@ fn target_layout_const_array_extent_refuses_out_of_bounds_index_at_closure() {
         check_report.contains("scalar predicate is false"),
         "expected target-closure predicate refusal:\n{check_report}"
     );
-    for engine in ["psi", "native"] {
-        let (output, report) = invoke(&source, &["run", "--engine", engine]);
+    for command in ["run", "build"] {
+        let (output, report) = invoke(&source, &[command]);
         assert!(
             !output.status.success(),
-            "expected {engine} refusal for out-of-bounds index:\n{report}"
+            "expected {command} refusal for out-of-bounds index:\n{report}"
         );
     }
 }
@@ -155,11 +155,11 @@ fn target_layout_const_array_extent_refuses_mismatched_literal_length_at_closure
         check_report.contains("array literal length (3) matches target-dependent extent"),
         "expected literal-extent mismatch refusal:\n{check_report}"
     );
-    for engine in ["psi", "native"] {
-        let (output, report) = invoke(&source, &["run", "--engine", engine]);
+    for command in ["run", "build"] {
+        let (output, report) = invoke(&source, &[command]);
         assert!(
             !output.status.success(),
-            "expected {engine} refusal for mismatched literal length:\n{report}"
+            "expected {command} refusal for mismatched literal length:\n{report}"
         );
     }
 }

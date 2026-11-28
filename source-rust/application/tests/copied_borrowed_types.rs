@@ -18,7 +18,7 @@ fn fixture_path(tier: &str, case: &str) -> std::path::PathBuf {
 }
 
 #[test]
-fn a_borrowed_type_argument_runs_in_both_engines() {
+fn a_borrowed_type_argument_runs_when_interpreted_and_built() {
     program::assert_fixture_silent_return(&fixture_path("run", "copied_borrowed_types"));
 }
 

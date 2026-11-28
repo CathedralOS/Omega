@@ -96,10 +96,8 @@ pub struct Operand {
     /// where a copied body passes it on as a static argument.
     pub argument: StaticMachineArgument,
     pub value: StaticMachineBindingValue,
-    /// A value parameter's closed value, an integer landed in the
-    /// parameter's type or a Boolean: what replaces the parameter where a
-    /// copied expression names it.
-    pub scalar: Option<Value>,
+    /// The checked value substituted for this parameter in a copied expression.
+    pub closed_value: Option<Value>,
 }
 
 impl Operand {
@@ -108,6 +106,20 @@ impl Operand {
         binder: &crate::source_state::data::TypeParameter,
         argument: &StaticMachineArgument,
         supplying_owner: SymbolHandle,
+    ) -> Served<Self> {
+        Self::read_after(program, binder, argument, supplying_owner, &[])
+    }
+
+    /// [`Operand::read`], given the operands already read for the binders
+    /// before this one. An implementation binder bounded by an applied trait,
+    /// `E satisfies EqualImpliesIdentity<T>`, is given an implementation of
+    /// that trait at the types those operands supply.
+    pub fn read_after(
+        program: &mut TypedTrees,
+        binder: &crate::source_state::data::TypeParameter,
+        argument: &StaticMachineArgument,
+        supplying_owner: SymbolHandle,
+        earlier: &[Operand],
     ) -> Served<Self> {
         use crate::source_state::data::TypeParameterKind;
         let parameter = binder.symbol;
@@ -119,7 +131,7 @@ impl Operand {
                 "a non-type binder carries a property bound no application judges",
             ));
         }
-        let mut scalar = None;
+        let mut closed_value = None;
         let (identity, value) = match kind {
             TypeParameterKind::Type => {
                 let reference = named_type(program, argument, supplying_owner)?;
@@ -137,7 +149,7 @@ impl Operand {
                 (identity, StaticMachineBindingValue::Type(reference))
             }
             TypeParameterKind::Implementation => (
-                Identity::Declaration(named_implementation(program, parameter, argument)?),
+                Identity::Declaration(named_implementation(program, parameter, argument, earlier)?),
                 StaticMachineBindingValue::Conformance(argument.clone()),
             ),
             TypeParameterKind::Const { type_reference }
@@ -166,22 +178,31 @@ impl Operand {
                 (identity, StaticMachineBindingValue::Const(reference))
             }
             TypeParameterKind::Const { type_reference }
-                if program.primitive_type_reference(*type_reference).is_none()
-                    && argument.symbol.is_valid()
-                    && program
-                        .const_declaration_by_symbol(argument.symbol)
-                        .is_some() =>
+            | TypeParameterKind::Value { type_reference }
+                if program.is_closed_aggregate_operand(*type_reference, argument) =>
             {
                 let value = program
                     .canonical_aggregate_argument(*type_reference, argument)
                     .map_err(unserved)?;
+                let identity = value.index_identity().ok_or(unserved(
+                    "a static aggregate lost its canonical value identity",
+                ))?;
+                // Later stages recover the exact checked declaration from this
+                // binding. The canonical identity groups equal specializations.
+                let name =
+                    crate::name::Identifier::generated(program.symbols.name(argument.symbol));
                 let reference = program
-                    .static_operand_type_reference(argument)
-                    .map_err(unserved)?;
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Named {
+                        symbol: argument.symbol,
+                        name,
+                    });
+                closed_value = Some(Value::Aggregate {
+                    carrier: *type_reference,
+                    value,
+                });
                 (
-                    Identity::Value(value.index_identity().ok_or(unserved(
-                        "a static aggregate lost its canonical value identity",
-                    ))?),
+                    Identity::Value(identity),
                     StaticMachineBindingValue::Const(reference),
                 )
             }
@@ -194,7 +215,7 @@ impl Operand {
                 let identity = match closed_scalar(program, *type_reference, argument)? {
                     Scalar::Closed(value) => {
                         let identity = Identity::Scalar(value.spelled());
-                        scalar = Some(value);
+                        closed_value = Some(value);
                         identity
                     }
                     // A `const` parameter needs a value that is static in
@@ -218,8 +239,9 @@ impl Operand {
                     }
                     Scalar::Parameter(symbol) => Identity::Declaration(symbol),
                 };
-                let reference = if let Some(value) = &scalar {
-                    let expression = program.expression_table.insert(value.expression());
+                let reference = if let Some(value) = &closed_value {
+                    let node = value.expression(program)?;
+                    let expression = program.expression_table.insert(node);
                     program
                         .type_reference_table
                         .insert(TypeReferenceNode::ConstExpression(expression))
@@ -231,10 +253,11 @@ impl Operand {
                 (identity, StaticMachineBindingValue::Const(reference))
             }
             TypeParameterKind::Machine { contract }
-                if program.machine_parameter_contract_view(contract).is_some()
-                    && program
-                        .machine_by_symbol(program.symbols.get(parameter).parent)
-                        .is_some() =>
+                if program.machine_parameter_contract_view(contract).is_some() && {
+                    let owner = program.symbols.get(parameter).parent;
+                    program.machine_by_symbol(owner).is_some()
+                        || program.trait_machine_signature(owner).is_some()
+                } =>
             {
                 // A nominal contract is judged by `require_nominal_callbacks`
                 // once the whole application's type arguments are known.
@@ -246,7 +269,7 @@ impl Operand {
             }
             TypeParameterKind::Machine { .. } => {
                 return Err(unserved(
-                    "a static machine binder needs a complete contract on a body-bearing declaration",
+                    "a static machine binder needs a complete callable contract",
                 ));
             }
             TypeParameterKind::Proof { .. } => {
@@ -263,7 +286,7 @@ impl Operand {
             identity,
             argument: argument.clone(),
             value,
-            scalar,
+            closed_value,
         })
     }
 
@@ -466,12 +489,16 @@ impl Operand {
     }
 }
 
-/// A closed value of a builtin scalar type: what a value parameter is given.
+/// A closed value supplied to a static parameter, retained for substitution.
 #[derive(Clone)]
 pub enum Value {
     /// An integer literal, landed in the parameter's type.
     Integer(numeric_literals::IntegerLiteral),
     Boolean(bool),
+    Aggregate {
+        carrier: TypeReferenceHandle,
+        value: application_identity::const_value::CanonicalConstValue,
+    },
 }
 
 impl Value {
@@ -481,14 +508,25 @@ impl Value {
         match self {
             Self::Integer(literal) => literal.canonical_spelling().to_string(),
             Self::Boolean(value) => value.to_string(),
+            Self::Aggregate { value, .. } => value.atom(),
         }
     }
 
-    pub fn expression(&self) -> ExpressionNode {
-        match self {
+    pub fn expression(&self, program: &mut TypedTrees) -> Served<ExpressionNode> {
+        Ok(match self {
             Self::Integer(literal) => ExpressionNode::Integer(literal.clone()),
             Self::Boolean(value) => ExpressionNode::Boolean(*value),
-        }
+            Self::Aggregate { carrier, value } => {
+                let decoded = value
+                    .decode_encoding()
+                    .ok_or(Stop::Defect("checked static value has no encoding"))?;
+                program
+                    .materialize_canonical_const_value(*carrier, &decoded)
+                    .ok_or(unserved(
+                        "a static value could not be materialized in its declared carrier",
+                    ))?
+            }
+        })
     }
 }
 
@@ -574,17 +612,19 @@ fn named_callable(program: &TypedTrees, argument: &StaticMachineArgument) -> Ser
 /// The implementation a static argument names when it is only a name, as
 /// the declaration that stands for its value: an implementation parameter
 /// in scope, or a named implementation with no parameters of its own, of
-/// exactly the trait `parameter` is bound by. An applied implementation, a
-/// projection and a bound applied at arguments are unserved here.
+/// exactly the trait `parameter` is bound by, at the bound's arguments with
+/// the `earlier` type operands in place of their binders. An applied
+/// implementation and a projection are unserved here.
 ///
 /// conformances.md, "Resulting-value identity": "A name or unused
 /// constructor argument creates no additional identity", so two names that
 /// construct one value are one argument, and the application is keyed by the
 /// first declaration constructing it (`implementation_value_head`).
 fn named_implementation(
-    program: &TypedTrees,
+    program: &mut TypedTrees,
     parameter: SymbolHandle,
     argument: &StaticMachineArgument,
+    earlier: &[Operand],
 ) -> Served<SymbolHandle> {
     let symbol = argument.symbol;
     if !only_a_name(program, argument)
@@ -610,15 +650,23 @@ fn named_implementation(
                     "an implementation binder needs exactly one declared conformance bound",
                 ));
             };
-            let plain = program.conformance_by_symbol(symbol).is_some_and(|named| {
-                named.trait_symbol == bound.trait_symbol
-                    && bound.arguments.is_empty()
-                    && bound.lifetime_arguments.is_empty()
-                    && named.arguments.is_empty()
-                    && named.trait_lifetime_arguments.is_empty()
-                    && named.lifetime_parameters.is_empty()
-                    && program.conformance_type_parameters(named).is_empty()
-            });
+            let bound = bound.clone();
+            let Some(named) = program.conformance_by_symbol(symbol).cloned() else {
+                return Err(unserved(
+                    "a static implementation must be plain and match its binder's exact trait",
+                ));
+            };
+            let written = program
+                .type_reference_table
+                .type_reference_handles(named.arguments)
+                .to_vec();
+            let plain = named.trait_symbol == bound.trait_symbol
+                && bound.lifetime_arguments.is_empty()
+                && named.trait_lifetime_arguments.is_empty()
+                && named.lifetime_parameters.is_empty()
+                && program.conformance_type_parameters(&named).is_empty()
+                && written.len() == bound.arguments.len()
+                && bound_arguments_match(program, owner, &bound.arguments, &written, earlier)?;
             if !plain {
                 return Err(unserved(
                     "a static implementation must be plain and match its binder's exact trait",
@@ -630,6 +678,34 @@ fn named_implementation(
             "a static implementation argument names neither an implementation nor its parameter",
         )),
     }
+}
+
+/// Whether an implementation's trait arguments are its binder's bound
+/// arguments with each earlier type binder replaced by its operand. A bound
+/// argument still naming an open binder matches no closed implementation.
+fn bound_arguments_match(
+    program: &mut TypedTrees,
+    owner: SymbolHandle,
+    bound: &[TypeReferenceHandle],
+    written: &[TypeReferenceHandle],
+    earlier: &[Operand],
+) -> Served<bool> {
+    let substitutions = earlier
+        .iter()
+        .filter_map(|operand| match operand.value {
+            StaticMachineBindingValue::Type(reference) => Some((operand.parameter, reference)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    for (&bound, &written) in bound.iter().zip(written) {
+        let applied = program
+            .substitute_type_parameters(bound, owner, &substitutions)
+            .map_err(unserved)?;
+        if program.normalized_type_identity(applied) != program.normalized_type_identity(written) {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 fn named_static_record(

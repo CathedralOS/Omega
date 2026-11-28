@@ -59,6 +59,8 @@ There is no debug/release bundle and no `O1`, `O2`, or `O3` alias.
 | `SelectedStoredLoadForwardingV1` | PreAllocation | Target-independent | Experimental | `--disable-optimization SelectedStoredLoadForwardingV1` | Required |
 | `UnsignedPowerOfTwoRemainderMask` | TargetOperations | Target-independent | Experimental | `--disable-optimization UnsignedPowerOfTwoRemainderMask` | Required |
 | `X86ScaledIndexedLoad` | TargetOperations | x86-64 | Experimental | `--disable-optimization X86ScaledIndexedLoad` | Required |
+| `SelectedAcyclicCallInliningV1` | SelectedLowering | Target-independent | Experimental | `--disable-optimization SelectedAcyclicCallInliningV1` | Required |
+| `SelectedPackedVectorPromotionV1` | SelectedLowering | x86-64 | Experimental | `--disable-optimization SelectedPackedVectorPromotionV1` | Required |
 <!-- exact-rule-inventory:end -->
 
 Names and phases come from the source vocabulary; applicability comes from the

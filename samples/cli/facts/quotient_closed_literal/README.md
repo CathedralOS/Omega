@@ -34,6 +34,6 @@ The root [main.omg](main.omg) is another existing witness for the same automatic
 
 ## Validation status
 
-Positive acceptance requires `omega run --both` with exit `0` on all four hosted targets, plus the intended rejection for every invalid twin. Exact-source runs or applicable retained evidence must identify the producer and target under `wiki/development/testing.md`.
+Positive acceptance requires the native/Psi comparison with exit `0` on all four hosted targets, plus the intended rejection for every invalid twin. Exact-source runs or applicable retained evidence must identify the producer and target under `wiki/development/testing.md`.
 
 On 2026-11-27 `mbx xtask sample-gate --filter samples/cli/facts/quotient_closed_literal` passed all nineteen rows on Linux x86-64: each positive exits `0` natively and in Psi, and each invalid twin is refused with `cannot prove requires contract for call representative ...: amount == 3`. The other hosted targets are not yet run.

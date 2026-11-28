@@ -50,7 +50,7 @@ On macOS ARM64, prepare the same fixture and supply its dylib search directory:
 
 ```sh
 python3 samples/cli/facts/foreign_retained_shared_borrow/fixture/prepare.py
-DYLD_LIBRARY_PATH="$PWD/build/foreign_retained_fixture" omega run --both samples/cli/facts/foreign_retained_shared_borrow/local/main.omg
+DYLD_LIBRARY_PATH="$PWD/build/foreign_retained_fixture" omega run samples/cli/facts/foreign_retained_shared_borrow/local/main.omg
 ```
 
 The standalone CLI and corpus sponsor an isolated native provider for Terminal

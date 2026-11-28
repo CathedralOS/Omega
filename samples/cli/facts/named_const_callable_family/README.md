@@ -42,18 +42,16 @@ A callback generic over a type (`accepts<'borrow, Kind>`) failed the same way wi
 
 ## Execution
 
-Every positive binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) in its `build.omg` and declares `Expected exit: 0`. `omega run --both` reports Terminal Psi interpreter and native execution agreement:
+Every positive binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) in its `build.omg` and declares `Expected exit: 0`. The native/Psi comparison reports Terminal Psi interpreter and native execution agreement:
 
 ```sh
-omega run --engine native samples/cli/facts/named_const_callable_family/<place>/main.omg < /dev/null
-omega run --engine psi samples/cli/facts/named_const_callable_family/<place>/main.omg < /dev/null
-omega run --engine native samples/cli/facts/named_const_callable_family/<place>/invalid/main.omg < /dev/null
-omega run --engine psi samples/cli/facts/named_const_callable_family/<place>/invalid/main.omg < /dev/null
+omega run samples/cli/facts/named_const_callable_family/<place>/main.omg < /dev/null
+omega run samples/cli/facts/named_const_callable_family/<place>/invalid/main.omg < /dev/null
 ```
 
 Measured on Windows x86-64 (32 logical CPUs) with the optimized producer built from `949694bc033` plus this change (`omega --build-profile` reports `opt_level: 1`):
 
-- All twelve positives report `native exit 0` and `interp exit: 0` through `omega run --both`.
+- All twelve positives report `native exit 0` and `interp exit: 0` through the native/Psi comparison.
 - All twelve twins exit at compile time with ``generic machine `apply` (`apply_again` in `forwarded_family`) has a static selection, but its complete … specialization tuple cannot be derived …: Const slot `Count` (`Total`) conflicts: 5 … versus 4``, from `main` (`main::check` for the nested machine, `observe` for another machine, `X86Observe::observe` for the target body, `Observer::run` for the implementation scope, `observe_four` for the parameter place).
 - The unmodified base producer reproduces the defect on all twelve positives; its twelve twins reject with the same diagnostic as the repaired producer (see [Reject twins](#reject-twins)).
 
@@ -80,7 +78,7 @@ The corpus gate over the 24 fixtures (`--filter named_const_callable_family`, jo
 5. **Checked-to-Terminal Psi lowering (`Psi 06–08`):** each callback application lowers to an ordinary call of a specialized instance; the lengths are erased to scalar results. The Terminal Psi interpreter executes all twelve positives and agrees with native execution.
 6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** every place and production binds `ProgramEntry` for the four hosted targets; the corpus check leg realizes the host target from those bindings. `target_body` selects distinct implementations per target through Build rows. The arrays are passed as references and the results as `u64` registers.
 7. **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** the executed `windows_x86_64` images assign register homes and disjoint frame slots for two arrays and two scalar results around four calls; a wrong length or instance takes the `bad()` trap.
-8. **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** the emitted PE images execute and agree with Terminal Psi (`omega run --both`); the twins reject before emission.
+8. **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** the emitted PE images execute and agree with Terminal Psi; the twins reject before emission.
 
 ## What remains open
 

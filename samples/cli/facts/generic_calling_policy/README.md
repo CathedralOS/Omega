@@ -41,7 +41,7 @@ Every positive below, including the root, declares `Expected exit: 0` and binds
 | Another machine | [main](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
 | Another target body | [main](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
-Run each positive with `omega run --both <place>/main.omg`; check each twin with
+Run each positive with `mbx xtask sample-gate --filter samples/cli/facts/generic_calling_policy/<place>`; check each twin with
 `omega --check <place>/invalid/main.omg`. The twin's intended diagnostic is
 `calling policy accepted an invalid plan: value 0 placement does not cover every source byte`.
 Four entry bindings establish authored target coverage, not native execution on
@@ -82,7 +82,7 @@ recorded separately.
 5. **Psi 06–08.** Terminal Psi retains the target-neutral boundary demand and
    checked runtime bodies. Evaluated target policy data remains a separate
    realization input. All closed runtime implementation bodies still undergo ordinary
-   lowering; build-time use does not hide their carrier/custody gaps. `--both`
+   lowering; build-time use does not hide their carrier/custody gaps. The native/Psi comparison
    is the execution oracle for the resulting Terminal program.
 6. **Omega 00–02.** The named application is joined to its exact inline plan;
    Build supplies explicit target-keyed selections; Omega passes exact
@@ -151,7 +151,7 @@ invocation count.
 
 The public [inherited helper](controls/inherited_helper/main.omg) and
 [unused descendant](controls/unused_descendant/main.omg) each pass the sample
-gate's `omega run --both`; their Width-4 twins reject for incomplete byte
+gate's the native/Psi comparison; their Width-4 twins reject for incomplete byte
 coverage. Initial package review costs 171 and 154 seconds respectively,
 versus 19 and 18 seconds compiling/running. These are actual public leaf
 observations, not qualification of the root's private source-graph encoding.
@@ -268,7 +268,7 @@ returning `BoundaryPlanResult`. Exact literal-issued image backing now survives
 ordinary call and nested-machine result substitution without becoming a caller
 parameter or manufacturing a loan. The unchanged root then ran with native exit
 0 and Terminal interpreter exit 0. Temporary tracing was removed. The root and
-all nine canonical positives then passed public `omega run --both` at exit 0;
+all nine canonical positives then passed the native/Psi comparison at exit 0;
 the nine Width-4 controls rejected at byte-coverage validation. The mirrored
 corpus checked every positive and rejected every twin, and all nine new plus
 seven retained policy fixtures executed with native/Terminal agreement.

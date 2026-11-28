@@ -1,4 +1,4 @@
-//! Compare the two engines on the sample's actual application entry.
+//! Compare the published host executable with Psi interpretation of the same entry.
 
 use super::file_outputs;
 use super::{SampleProject, host_target, optional_text, parse_header_oracle, with_source_inputs};
@@ -129,18 +129,20 @@ struct Observation {
 }
 
 impl Observation {
-    fn read(directory: &Path, engine: &str) -> Result<Self, String> {
+    fn read(directory: &Path, source: &str) -> Result<Self, String> {
         let path = directory.join("termination.tsv");
         let record = fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-        let (source, termination) = record
+        let (record_source, termination) = record
             .trim_end()
             .split_once('\t')
-            .ok_or("missing engine in termination record")?;
-        if source != engine {
-            return Err(format!("expected {engine} observation, found {source}"));
+            .ok_or("missing source in termination record")?;
+        if record_source != source {
+            return Err(format!(
+                "expected {source} observation, found {record_source}"
+            ));
         }
         let mut fields: Vec<_> = termination.split('\t').collect();
-        let process_exit_excluded = if engine == "native" {
+        let process_exit_excluded = if source == "native" {
             match fields.pop() {
                 Some("process-exit-excluded") => true,
                 Some("process-exit-possible" | "process-exit-unknown") => false,
@@ -153,7 +155,7 @@ impl Observation {
             text.parse::<i32>()
                 .map_err(|_| format!("invalid process status {text:?}"))
         };
-        let (exit, trap) = match (engine, fields.as_slice()) {
+        let (exit, trap) = match (source, fields.as_slice()) {
             ("native", ["exit", code, _]) => (Some(number(code)?), native_trap(&fields)?),
             ("native", ["signal", signal, _]) => {
                 number(signal)?;
@@ -167,7 +169,7 @@ impl Observation {
             ("psi", ["failed" | "unavailable" | "incomplete", ..]) => {
                 return Err(termination.replace('\t', " "));
             }
-            _ => return Err(format!("invalid {engine} termination {termination:?}")),
+            _ => return Err(format!("invalid {source} termination {termination:?}")),
         };
         Ok(Self {
             termination: termination.replace('\t', " "),
@@ -237,6 +239,94 @@ fn agreement(native: &Observation, psi: &Observation) -> Result<(), String> {
     Ok(())
 }
 
+/// Read only the requested build report, never a path printed by the guest.
+fn report_value<'a>(report: &'a str, prefix: &str) -> Result<&'a str, String> {
+    let mut lines = report.lines().filter_map(|line| line.strip_prefix(prefix));
+    let value = lines
+        .next()
+        .ok_or_else(|| format!("missing {prefix} in build report"))?;
+    if lines.next().is_some() {
+        return Err(format!("ambiguous {prefix} in build report"));
+    }
+    Ok(value)
+}
+
+fn run_artifact(
+    cli: &Path,
+    project: &SampleProject,
+    entry: &Path,
+    scratch: &Path,
+    directory: &Path,
+    evidence: &Path,
+    stdin: Stdio,
+) -> Result<(), String> {
+    let build = evidence.join("native-build");
+    let report = evidence.join("native-build.txt");
+    let mut compiler = Command::new(cli);
+    compiler
+        .arg("--build-dir")
+        .arg(&build)
+        .arg("--report-file")
+        .arg(&report);
+    with_source_inputs(&mut compiler, &project.source_inputs);
+    compiler
+        .arg(entry)
+        .current_dir(scratch)
+        .stdin(Stdio::null());
+    let output = execution::output(&mut compiler, evidence, "compile-native")?;
+    if !output.status.success() {
+        return Err(format!(
+            "build {}: {}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    let report = fs::read_to_string(&report).map_err(|e| format!("{}: {e}", report.display()))?;
+    let artifact = scratch
+        .join(report_value(&report, "published native output to ")?)
+        .canonicalize()
+        .map_err(|e| format!("published executable: {e}"))?;
+    if !artifact.is_file()
+        || !artifact.starts_with(build.canonicalize().map_err(|e| e.to_string())?)
+    {
+        return Err("reported executable is outside this sample's native build directory".into());
+    }
+    let admission = report_value(&report, "process-exit-")?;
+    if !matches!(admission, "excluded" | "possible" | "unknown") {
+        return Err(format!("unknown process-exit admission {admission}"));
+    }
+    let expected_trap = report_value(&report, "trap-presentation: ")?;
+    let output = execution::output(
+        Command::new(artifact).current_dir(scratch).stdin(stdin),
+        evidence,
+        "run-native",
+    )?;
+    let status = bounded_process::BoundedProcessExitStatus::from(output.status);
+    let termination = match (status.code(), status.unix_signal()) {
+        (Some(code), _) => format!("exit {code}"),
+        (_, Some(signal)) => format!("signal {signal}"),
+        _ => "terminated".into(),
+    };
+    let trap = if expected_trap == "unknown" {
+        "unknown"
+    } else if termination == expected_trap {
+        "trap"
+    } else {
+        "other"
+    };
+    let termination = termination.replace(' ', "\t");
+    fs::create_dir(directory)
+        .and_then(|_| fs::write(directory.join("stdout"), output.stdout))
+        .and_then(|_| fs::write(directory.join("stderr"), output.stderr))
+        .and_then(|_| {
+            fs::write(
+                directory.join("termination.tsv"),
+                format!("native\t{termination}\t{trap}\tprocess-exit-{admission}\n"),
+            )
+        })
+        .map_err(|e| format!("{}: {e}", directory.display()))
+}
+
 pub(super) fn compare(
     cli: &Path,
     project: &SampleProject,
@@ -256,33 +346,36 @@ pub(super) fn compare(
     if let Some(path) = input {
         fs::copy(path, &snapshot).map_err(|e| format!("capture {}: {e}", path.display()))?;
     }
-    let run = |engine: &str| -> Result<Observation, String> {
-        let scratch = evidence.join(format!("{engine}-cwd"));
+    let run = |source: &str| -> Result<Observation, String> {
+        let scratch = evidence.join(format!("{source}-cwd"));
         fs::create_dir(&scratch).map_err(|e| format!("{}: {e}", scratch.display()))?;
-        let directory = evidence.join(format!("{engine}-outputs"));
-        let mut cmd = Command::new(cli);
-        cmd.args(["run", "--engine", engine, "--outputs"])
-            .arg(&directory);
-        with_source_inputs(&mut cmd, &project.source_inputs);
-        cmd.arg(entry).current_dir(&scratch);
-        cmd.stdin(match input {
+        let directory = evidence.join(format!("{source}-outputs"));
+        let stdin = match input {
             Some(_) => fs::File::open(&snapshot)
                 .map(Stdio::from)
                 .map_err(|e| format!("{}: {e}", snapshot.display()))?,
             None => Stdio::null(),
-        });
-        let name = format!("run-{engine}");
-        let output = execution::output(&mut cmd, evidence, &name)?;
-        let observation = Observation::read(&directory, engine);
-        if !output.status.success() {
-            return Err(format!(
-                "command {}: {} {}",
-                output.status,
-                observation.err().unwrap_or_default(),
-                String::from_utf8_lossy(&output.stderr)
-            ));
+        };
+        if source == "native" {
+            run_artifact(cli, project, entry, &scratch, &directory, evidence, stdin)?;
+        } else {
+            let mut cmd = Command::new(cli);
+            cmd.args(["run", "--outputs"]).arg(&directory);
+            with_source_inputs(&mut cmd, &project.source_inputs);
+            cmd.arg(entry).current_dir(&scratch).stdin(stdin);
+            let output = execution::output(&mut cmd, evidence, "run-psi")?;
+            if !output.status.success() {
+                return Err(format!(
+                    "command {}: {} {}",
+                    output.status,
+                    Observation::read(&directory, source)
+                        .err()
+                        .unwrap_or_default(),
+                    String::from_utf8_lossy(&output.stderr),
+                ));
+            }
         }
-        let mut observation = observation?;
+        let mut observation = Observation::read(&directory, source)?;
         observation.files =
             file_outputs::collect(&scratch, &oracle.files, &directory.join("files"))?;
         Ok(observation)
@@ -329,9 +422,9 @@ mod tests {
         let dir = execution::reserve_directory(&std::env::temp_dir()).unwrap();
         fs::write(dir.join("stdout"), []).unwrap();
         fs::write(dir.join("stderr"), []).unwrap();
-        let read = |engine: &str, record: &str| {
+        let read = |source: &str, record: &str| {
             fs::write(dir.join("termination.tsv"), record).unwrap();
-            Observation::read(&dir, engine)
+            Observation::read(&dir, source)
         };
         let native_zero =
             read("native", "native\texit\t0\tother\tprocess-exit-possible\n").unwrap();

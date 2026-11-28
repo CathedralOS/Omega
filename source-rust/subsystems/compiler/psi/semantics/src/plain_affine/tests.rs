@@ -2084,3 +2084,97 @@ fn a_bundle_checks_type_permissions_on_first_use_and_refuses_as_a_walk_alone() {
     analyses.affine(id(1)).unwrap().plan().unwrap();
     assert!(matches!(analyses.type_permissions.get(), Some(Ok(()))));
 }
+
+/// `verify_with_claims` walks once with claims and answers what `verify` and
+/// `verify_claims` answer alone: for owned roots that relay a value, for
+/// borrowed storage, for machines whose walk without claims stops before the
+/// blocks (no structural value, or only a copyable one), for a schedule
+/// `verify` refuses, and for forged claim rows only the claim walk refuses,
+/// where `verify` keeps the plan of its own walk.
+#[test]
+fn one_walk_with_claims_answers_verify_and_verify_claims_alone() {
+    let mut cases = Vec::new();
+    for linear in [false, true] {
+        cases.push((transfer_only_types(linear), returning_relay(linear)));
+    }
+    cases.push((
+        reconvergence_types(),
+        borrowed_backedge(StructuralAccess::SharedBorrow),
+    ));
+    // No structural value, and a copyable owned value: the walk without
+    // claims stops before the blocks of both.
+    cases.push((reconvergence_types(), transferring(&[], &[], Vec::new())));
+    let mut copyable = reconvergence_types();
+    for declaration in &mut copyable {
+        declaration.multiplicity = terminal_psi::StructuralMultiplicity::Unrestricted;
+    }
+    let mut copied = transferring(
+        &[id(3)],
+        &[id(3)],
+        vec![StructuralArgument::whole(id(1), StructuralAccess::Owned)],
+    );
+    for parameter in copied
+        .contract
+        .structural_parameters
+        .iter_mut()
+        .chain(&mut copied.blocks[1].structural_parameters)
+    {
+        parameter.multiplicity = terminal_psi::StructuralMultiplicity::Unrestricted;
+    }
+    cases.push((copyable, copied));
+    let mut disposes_borrowed = borrowed_backedge(StructuralAccess::SharedBorrow);
+    if let terminal_psi::Terminator::Jump {
+        cleanup_actions, ..
+    } = &mut disposes_borrowed.blocks[1].terminator
+    {
+        cleanup_actions.push(TerminalAffineCleanupAction::RetireHome(id(2)));
+    }
+    cases.push((reconvergence_types(), disposes_borrowed));
+    let mut forged = returning_relay(true);
+    if let terminal_psi::Terminator::ReturnStructural {
+        returned_claims, ..
+    } = &mut forged.blocks[1].terminator
+    {
+        returned_claims[0].claim = id(9);
+    }
+    cases.push((transfer_only_types(true), forged));
+
+    let mut outcomes = Vec::new();
+    let mut stops = Vec::new();
+    for (types, machine) in cases {
+        let mut module = terminal_psi::TerminalModule::for_entry(id(1));
+        module.types.structural_types = types.to_vec();
+        module.machines = vec![machine];
+        let walks = MachineAffine::new(&module, id(1)).unwrap();
+        let machine = &module.machines[0];
+        let types = &module.types.structural_types;
+        stops.push(
+            walk(machine, types, true, Some(&walks), None, None)
+                .is_ok_and(|walked| walked.stops_without_claims),
+        );
+        let alone = walks.verify().map(|mut plan| {
+            plan.claims = None;
+            (plan, walks.verify_claims())
+        });
+        let fused = walks.verify_with_claims();
+        assert_eq!(format!("{fused:?}"), format!("{alone:?}"));
+        outcomes.push(match &fused {
+            Ok((_, Ok(_))) => "both hold",
+            Ok((_, Err(_))) => "claims refused",
+            Err(_) => "verify refused",
+        });
+    }
+    assert_eq!(
+        outcomes,
+        [
+            "both hold",
+            "both hold",
+            "both hold",
+            "both hold",
+            "both hold",
+            "verify refused",
+            "claims refused",
+        ]
+    );
+    assert_eq!(stops, [false, false, false, true, true, false, false]);
+}

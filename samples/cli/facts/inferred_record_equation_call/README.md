@@ -32,7 +32,7 @@ conflicting constructor constants`.
 Authoritative contracts are [structural inference](../../../../wiki/spec/language/generics.md#structural-type-equations-and-inference),
 [applications](../../../../wiki/spec/language/generics.md#applications-and-specialization),
 and [canonical indices](../../../../wiki/spec/language/evaluation.md#canonical-static-identities).
-Run each positive with `omega run --both <place>/main.omg`; both engines must
+Run each positive with `mbx xtask sample-gate --filter samples/cli/facts/inferred_record_equation_call/<place>`; both engines must
 observe exit 0. Check each twin with `omega --check <place>/invalid/main.omg` and
 its authored diagnostic. Generic fixtures also exercise equal explicit indices,
 repeated equal/conflicting values, direct record literals, qualified constants,

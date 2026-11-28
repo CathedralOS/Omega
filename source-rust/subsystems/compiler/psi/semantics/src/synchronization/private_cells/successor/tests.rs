@@ -87,7 +87,7 @@ fn cleanup_keeps_the_captured_value_and_the_borrowed_home() {
     let before = StructuralCaseId::new(1).unwrap();
     let after = StructuralCaseId::new(2).unwrap();
     let input = memory.allocate(Stored::variant(before));
-    let mut bindings = Bindings::default();
+    let mut bindings = Bindings::new(&module, &machine);
     bindings.places.insert(source, input.clone());
     let mut frame = Frame::enter(&machine, bindings, Destination::Unit).unwrap();
 

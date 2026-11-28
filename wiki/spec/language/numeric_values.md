@@ -570,6 +570,9 @@ both. `<`, `<=`, `>`, `>=`, `==`, and `!=` apply the corresponding integer
 relation to those values and return `bool`. They require no common operand
 carrier, implicit cast, or representability of either value in the other
 operand's carrier. Equality here is value equality, not type equality.
+For two operands of the same builtin integer type, proof
+of a true `==` and proof of their typed identity imply one another under the
+[equality bridge](../proofs/contracts.md#equality-bridges-and-comparison-facts).
 
 Each carrier's range is target-independent: `u32` denotes integers from zero
 through `2^32 - 1`, and `i32` from `-2^31` through `2^31 - 1`, on every target.

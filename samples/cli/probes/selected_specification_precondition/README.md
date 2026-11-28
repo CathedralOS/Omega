@@ -1,6 +1,6 @@
 # Selected specification preconditions
 
-Run `omega run --both samples/cli/proofs/selected_specification_precondition/main.omg`
+Run `mbx xtask sample-gate --filter samples/cli/probes/selected_specification_precondition`
 after normal package preparation. Native and captured Terminal execution must
 both exit 70. `oracle.json` states the independently authored identity/result
 row and execution oracle.

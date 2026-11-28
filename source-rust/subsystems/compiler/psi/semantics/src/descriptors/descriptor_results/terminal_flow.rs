@@ -511,7 +511,11 @@ fn adapt_flow(
                             }
                             _ => false,
                         };
-                    step.may_escape |= !primitive;
+                    // An indexed structural copy inventories the selected value
+                    // below. The address used to read it is a distinct input.
+                    if !matches!(operation.kind, OperationKind::StructuralLeafCopy { .. }) {
+                        step.may_escape |= !primitive;
+                    }
                     let selected = DescriptorLocation::whole(root);
                     let access = access.map(|access| {
                         (
@@ -1812,15 +1816,10 @@ fn adapt_flow(
                         }
                         let call = graph.direct_invocation(
                             module,
-                            machines,
+                            terminal_graph_machine(machines, callee)?,
                             slot_kind,
-                            terminal_psi::ModuleInvocation {
-                                site: semantic_vocabulary::InvocationSite::Operation(
-                                    operation.id,
-                                ),
-                                static_reach_binding: operation.static_reach_binding,
-                                inputs,
-                            },
+                            semantic_vocabulary::InvocationSite::Operation(operation.id),
+                            inputs,
                             result,
                             selector,
                         )?;
@@ -2217,36 +2216,36 @@ fn adapt_flow(
                 structural_arguments,
                 ..
             } => {
-                let call = block
-                    .terminator
-                    .module_invocation()
-                    .filter(|inputs| inputs.required_contract.is_none())
-                    .and_then(|inputs| {
-                        graph.direct_invocation(
-                            module,
-                            machines,
-                            slot_kind,
-                            terminal_psi::ModuleInvocation {
-                                site: semantic_vocabulary::InvocationSite::InvokeNoNormal(
-                                    block.terminator.edge(),
-                                ),
-                                static_reach_binding: match block.terminator {
-                                    Terminator::InvokeNoNormal {
-                                        static_reach_binding,
-                                        ..
-                                    } => static_reach_binding,
-                                    _ => None,
-                                },
-                                inputs,
-                            },
-                            None,
-                            selector,
-                        )
-                    });
-                if call
-                    .as_ref()
-                    .is_none_or(|call| !call.arguments.iter().all(Option::is_some))
+                let call = if let Some(inputs) = block.terminator.module_invocation()
+                    && inputs.required_contract.is_none()
+                    && let Some(callee) = terminal_graph_machine(machines, inputs.callee)
                 {
+                    *failure_detail =
+                        Some("descriptor terminal invocation does not match its callee header");
+                    Some(graph.direct_invocation(
+                        module,
+                        callee,
+                        slot_kind,
+                        semantic_vocabulary::InvocationSite::InvokeNoNormal(
+                            block.terminator.edge(),
+                        ),
+                        inputs,
+                        None,
+                        selector,
+                    )?)
+                } else {
+                    None
+                };
+                if call.as_ref().is_none_or(|call| {
+                    !call.arguments.iter().all(Option::is_some)
+                        || matches!(
+                            call.target,
+                            DescriptorInvocationTarget::Public {
+                                invalidates_contents: true,
+                                ..
+                            }
+                        )
+                }) {
                     // An absent result never proves that a call writes
                     // nothing. Unknown and public calls keep the same
                     // conservative invalidation until their owner serves them.

@@ -54,12 +54,12 @@ Each place has an `invalid/` twin that breaks only the exclusive-loan obligation
 Measured on base `9ff26a870215` with the shared wave producer
 (`target/debug/omega`, `{"schema":"omega-compiler-build-profile-v1","opt_level":"1"}`):
 
-- `omega run --both` on the root `main.omg` and the nine places: 10/10 `native exit 0` with `interp exit: 0`.
+- the native/Psi comparison on the root `main.omg` and the nine places: 10/10 `native exit 0` with `interp exit: 0`.
 - `omega --check` on the nine `invalid/` twins: 9/9 exit 1, each with the verbatim diagnostic pinned above.
 The repair (`302bfaad6d4`) and this row's fixtures (`5457f73d3ed`) landed inside
 revision `4fba1ca3cd5a`.
 
-- `omega run --both` on the root `main.omg` and the nine places: 10/10
+- the native/Psi comparison on the root `main.omg` and the nine places: 10/10
   `native exit 0` with `interp exit: 0`; `omega --check` on the nine twins:
   9/9 exit 1; the sample gate above re-ran 38/38 with 18 controls matched.
 ### Repair: a state's own reference handed to a call
@@ -73,7 +73,7 @@ target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(1)),
 ```
 
 The check leg accepted the same fixture (`checked`, `check-target:macos_arm64`)
-and the CLI built and ran it (`omega run --both` native exit 0, `omega --target
+and the CLI built and ran it (the native/Psi comparison native exit 0, `omega --target
 macos_arm64` publishes), so the refusal was a legalization precision gap in
 Omega 03, not a language rule. A probe matrix isolated the shape: a successor
 state passing one of its own reference parameters as a machine-call argument.
@@ -101,7 +101,7 @@ still refuses.
 4. **Soundness boundaries:** all nine twins fail closed during checked compilation (exit 1) with the per-place diagnostic pinned above; the corpus gate records all nine as `rejected` with their expected fragment satisfied.
 5. **Checked-to-Terminal Psi lowering (`Psi 06–08`):** the scalar-subject match lowers to typed branches whose join carries the loan; the match arm selection executes only the selected arm; the Terminal Psi interpreter executes the same program (`interp exit: 0`) and agrees with native execution.
 6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `Slot` is a tagged case payload (discriminant + `i64` payload) with `size_of`/`align_of` geometry; `ProgramEntry` settles for all four hosted targets; the `@mutable` lanes cross calls in the `parameter`, `call_result`, `other_machine` and `target_body` places with register/stack placement under the calling plan.
-7. **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** comparison/branch selection on the boolean subject, the store through the loan, and the reload; disjoint activation frames for `choose`/`apply`/`forward`; `visits` is mutated through a reference across call boundaries. Native execution agrees with Terminal Psi (`omega run --both` exit 0).
+7. **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** comparison/branch selection on the boolean subject, the store through the loan, and the reload; disjoint activation frames for `choose`/`apply`/`forward`; `visits` is mutated through a reference across call boundaries. Native execution agrees with Terminal Psi (exit 0).
 8. **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** direct PE/ELF/Mach-O emission produces functioning executables for the realized host target; the native golden records nine `built ... exit:0` rows on `macos_arm64`, and the check leg records the portability verdict (`check-target:macos_arm64`) for the same nine fixtures.
 
 ### What Remains Open
@@ -126,8 +126,7 @@ Base `4f87c9e08b1` refused the migrated positive at Terminal lowering:
 precondition representation)`. A requirement signature's own case-membership
 precondition (`chosen in Slot::Present`) had no lowering: the case test rejoined
 its scope through a machine state with the same parameters, and a requirement
-has none. Observed on macOS x86-64: the migrated positive exits 0 under `omega
-run --both` (native and Terminal Psi agree) and its twin rejects for the live
+has none. Observed on macOS x86-64: the migrated positive exits 0 under the native/Psi comparison (native and Terminal Psi agree) and its twin rejects for the live
 loan. The other hosted targets keep their authored rows, unexecuted here.
 
 The `other_state` place is red on base and here alike (`machine pick ... cannot prove selected case for payload access`): the nested `pick` machine declares no case precondition of its own. The corpus golden pins it as a regression; it is outside this migration.

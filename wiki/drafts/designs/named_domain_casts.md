@@ -140,7 +140,7 @@ One pass and fail pair per behavior, within the six-file limit per change:
   predicate rejects at the next use; removing a routed domain rejects outside
   its authorized routes.
 
-Acceptance: these pass `omega run --both`, the existing weakening fixtures
+Acceptance: these pass the native and interpreted checks, the existing weakening fixtures
 still reject, and no whole-type cast target remains in `source/library`,
 `samples` or `tests/fixtures`.
 

@@ -1,0 +1,13 @@
+use main.omg as app;
+
+machine build(build: @mutable BuildPlan) {
+    build.product = BuildProduct::Application { name: "selected_callback" };
+    Build::select_provider::<|app|::Dispatch, |app|::LocalDispatcher>(build, windows_x86_64);
+    Build::select_provider::<|app|::Dispatch, |app|::LocalDispatcher>(build, linux_x86_64);
+    Build::select_provider::<|app|::Dispatch, |app|::LocalDispatcher>(build, linux_arm64);
+    Build::select_provider::<|app|::Dispatch, |app|::LocalDispatcher>(build, macos_arm64);
+    Build::bind(build, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(build, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(build, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(build, macos_arm64::ProgramEntry, |app|::main);
+}

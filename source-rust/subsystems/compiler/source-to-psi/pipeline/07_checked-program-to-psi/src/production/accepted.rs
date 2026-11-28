@@ -78,14 +78,8 @@ impl PreparedTerminalPublication {
         );
         let provenance = self.provenance;
         let companions = self.companions;
-        crate::build::bindings::validate_companions(
-            program.view(),
-            &companions.bindings,
-            &companions.queries,
-            &companions.requests,
-            &companions.filesystem,
-        )
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        crate::build::bindings::validate_companions(program.view(), &companions)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let build_bindings = crate::TerminalBuildBindings::new(
             program.view(),
             companions.bindings,
@@ -128,15 +122,21 @@ impl ConstantRead {
         let source = prepared.trees();
         prepared
             .constants()
-            .filter(|constant| !is_immutable_toolchain_literal(source, constant))
-            .map(|constant| Self {
-                name: source.symbols.name(constant.symbol).to_owned(),
-                declaration: crate::source_symbols::retain_declaration(
-                    &source.symbols,
-                    constant.symbol,
-                )
-                .ok(),
-                value: constant.evaluated_value.clone(),
+            .filter_map(|constant| {
+                let declaration =
+                    crate::source_symbols::retain_declaration(&source.symbols, constant.symbol)
+                        .ok();
+                if declaration.as_ref().is_some_and(|declaration| {
+                    is_immutable_toolchain_build_file(declaration.source())
+                        && is_immutable_toolchain_literal(source, constant)
+                }) {
+                    return None;
+                }
+                Some(Self {
+                    name: source.symbols.name(constant.symbol).to_owned(),
+                    declaration,
+                    value: constant.evaluated_value.clone(),
+                })
             })
             .collect()
     }
@@ -161,13 +161,7 @@ fn is_immutable_toolchain_literal(
     {
         return false;
     }
-    let Ok(declaration) =
-        crate::source_symbols::retain_declaration(&source.symbols, constant.symbol)
-    else {
-        return false;
-    };
-    is_immutable_toolchain_build_file(declaration.source())
-        && is_pure_literal_initializer(source, constant.authored_initializer)
+    is_pure_literal_initializer(source, constant.authored_initializer)
 }
 
 fn is_immutable_toolchain_build_file(file: &source_admission::SourceFile) -> bool {
@@ -326,6 +320,15 @@ impl AcceptedTerminalSource {
                 "not supported yet: the checker could not judge this program (accepted forms lost their exact source correspondence); this is a defect of the checker, and the program is refused rather than accepted without a verdict",
             )]);
         }
+        // Both selection checking and publication join these occurrences to the emitted
+        // machine. Preserve authored order among folded calls in the same machine.
+        let primary = source.correspondence.forms[0]
+            .as_mut()
+            .expect("checked above");
+        primary
+            .constructions
+            .sort_unstable_by_key(|&(machine, operation, ..)| (machine, operation));
+        primary.folded_calls.sort_by_key(|&(machine, ..)| machine);
         let generic_callables = source.correspondence.forms[1..]
             .iter()
             .zip(further_forms)

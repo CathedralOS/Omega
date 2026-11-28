@@ -9,9 +9,11 @@ a wrong count or first match crashes.
 Run after ordinary package preparation:
 
 ```sh
-omega run --engine native samples/cli/collections/generic_scan_count/main.omg
-omega run --engine psi samples/cli/collections/generic_scan_count/main.omg
+omega run samples/cli/collections/generic_scan_count/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/probes/generic_scan_count` from the repository root.
 
 The repaired compiler runs this program with exit 0 natively and in Terminal
 interpretation on macOS arm64. Replacement disposes the old descriptor after

@@ -68,10 +68,10 @@ Full 8-layer specification and lowering evidence:
   - `target_body`: checked assembly and exact subtraction are executed across target-scoped bodies for all four hosted targets (`linux_x86_64`, `linux_arm64`, `windows_x86_64`, `macos_arm64`).
   In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in weakening the assembly label and postcondition bound to `eax <= 97` / `result <= 97u64` (and writing `97`), proving that exact subtraction `96u64 - result` strictly fails closed when the post-assembly bound permits underflow.
 - **Soundness boundaries:** All nine reject twins under `<place>/invalid/` reject during compile-time verification (`omega --check`) with `error: exact arithmetic in machine ... may overflow `u64``, confirming that the arithmetic proof engine soundly detects that when `result` can be 97, `96u64 - result` may underflow `u64`.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Source constructs lower into canonical `PSITERM\0` target-neutral representations. The checked `asm` CFG decodes into immutable value versions and ordinary checked state edges, validating label contracts before erasing proof formal tags. Both Terminal Psi interpretation and native execution agree (`omega run --both` reports exit 0).
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Source constructs lower into canonical `PSITERM\0` target-neutral representations. The checked `asm` CFG decodes into immutable value versions and ordinary checked state edges, validating label contracts before erasing proof formal tags. Both Terminal Psi interpretation and native execution agree (the native/Psi comparison reports exit 0).
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Target realization joins Build companion rows (`ProgramEntry`) across the four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Target layout plans validate 32-bit and 64-bit scalar layout, while `CallPlan`/`StatePlan` assign register and stack homes for passing values across calling conventions.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA instructions (`x86_64` and `arm64`) for checked inline assembly (`mov`, `jmp`), 64-bit subtraction (`sub`), and equality comparisons. Backend register allocation assigns register homes and disjoint stack activation frames, inserting entry prologues and restoration epilogues honoring the `StatePlan` frame ceiling.
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack displacements and jump targets resolve into concrete instruction bytes. Basic blocks and branch offsets relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O images execute natively with Terminal Psi agreement (`omega run --both` reports `native exit 0` and `interp exit: 0`) across host platforms.
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack displacements and jump targets resolve into concrete instruction bytes. Basic blocks and branch offsets relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O images execute natively with Terminal Psi agreement (the native/Psi comparison reports `native exit 0` and `interp exit: 0`) across host platforms.
 
 Remaining open under CHECKED-ASM-LABEL-CONTRACTS: dynamic multi-register clobber sets, 64-bit GPR alias bit slices, floating-point/vector register constraints, and arbitrary hardware flag dependencies.
 
@@ -79,9 +79,9 @@ Remaining open under CHECKED-ASM-LABEL-CONTRACTS: dynamic multi-register clobber
 
 Producer: `omega` built from this candidate, `--build-profile` reporting
 `{"schema":"omega-compiler-build-profile-v1","opt_level":"1"}`. Host:
-`windows_x86_64`. Command per place: `omega run --both <place>/main.omg`.
+`windows_x86_64`. Each place was compared.
 
-| Place | Positive (`--both`) | Reject twin (`--check`) |
+| Place | Positive | Reject twin (`--check`) |
 | --- | --- | --- |
 | root | `native exit 0` / `interp exit: 0` | — |
 | local | `native exit 0` / `interp exit: 0` | rejected: ``exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64` `` |

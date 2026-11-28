@@ -43,12 +43,12 @@ From the repository root, select the matching library and compiler:
 
 ```sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
-omega packages update --project samples/cli/independent/absorbing_reliability --target linux_x86_64
+omega packages update --project samples/cli/scientific/absorbing_reliability --target linux_x86_64
 # Read and accept the generated review, then omega packages update --resume --project ...
-omega --check --target linux_x86_64 samples/cli/independent/absorbing_reliability/main.omg
-omega --target linux_x86_64 samples/cli/independent/absorbing_reliability/main.omg
-printf '04\n' | omega run --both --keep samples/cli/independent/absorbing_reliability/main.omg
-omega --check samples/cli/independent/absorbing_reliability/intended_invalid/main.omg
+omega --check --target linux_x86_64 samples/cli/scientific/absorbing_reliability/main.omg
+omega --target linux_x86_64 samples/cli/scientific/absorbing_reliability/main.omg
+printf '04\n' | omega run --keep samples/cli/scientific/absorbing_reliability/main.omg
+omega --check samples/cli/scientific/absorbing_reliability/intended_invalid/main.omg
 ```
 
 The last command must reject the complete source control because 5 is outside

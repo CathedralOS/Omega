@@ -44,7 +44,7 @@ Linux x86-64; no foreign native host is claimed.
 - Omega 03–06: the common subtraction, loads, calls, joins and state transfers
   execute with the authored scalar carriers.
 - Omega 07–09 and emission: native ELF and Terminal interpretation must agree
-  on exit zero through `omega run --both` for every positive above.
+  on exit zero through the native/Psi comparison for every positive above.
 
 ## Baseline and remaining scope
 

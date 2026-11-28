@@ -1028,7 +1028,7 @@ impl Program<'_> {
                 .identity = identity;
             return row;
         }
-        let row = self.records.push(RecordType {
+        let record_type = RecordType {
             multiplicity: if carrier.is_shared_readable_view() {
                 terminal_psi::StructuralMultiplicity::Unrestricted
             } else {
@@ -1040,8 +1040,8 @@ impl Program<'_> {
             requires: Vec::new(),
             authored_layout: false,
             erased: Vec::new(),
-        });
-        self.record_sources.push(RecordSource {
+        };
+        let source = RecordSource {
             constant_input_owner: None,
             declaration: SymbolHandle::invalid(),
             cleanup: None,
@@ -1050,8 +1050,8 @@ impl Program<'_> {
             fields: Vec::new(),
             cases: Vec::new(),
             erased: Vec::new(),
-        });
-        row
+        };
+        self.push_record_row(record_type, source)
     }
 
     /// A slice domain has an unsized logical subject. Its length is observed

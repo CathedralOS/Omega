@@ -32,13 +32,11 @@ The final banner also contains `081`, so that substring alone is not a numeric
 output oracle. Require all nine rows in order and exit 0.
 
 Use Cargo when `mbx` is unavailable. Package review remains part of the command;
-do not manufacture acceptance to advance the sample. An explicit `run --target`
-only compiles for that target, without executing the image.
+do not manufacture acceptance to advance the sample. `run --target` selects the target environment for interpretation.
 
 The complete EOF-driven run is verified on macOS ARM64. Windows x86-64 is
 verified at `b80e3d12bdd` with an optimized dev compiler after local package
 review: EOF and finite Enter each produce all nine rows, the complete 171-byte
-stdout, and exit 0. The combined CLI route reports native and Terminal exit 0;
-its comparison checks exits. Both Linux hosts remain under
+stdout, and exit 0. The earlier native and interpreted runs both exited 0. Both Linux hosts remain under
 [SAMPLE-CORPUS](../../../../TASKS.md); cross-target compilation is not execution
 evidence.

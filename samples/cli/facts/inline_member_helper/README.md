@@ -24,7 +24,7 @@ Every positive place declares `Expected exit: 0` and binds `ProgramEntry` for
 | Another machine | [main](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
 | Another target body | [main](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
-`omega run --both <place>/main.omg` reports Terminal Psi and native exit 0.
+The native/Psi comparison reports Terminal Psi and native exit 0.
 Each twin changes only its place's operand-bound declaration, ceiling constant,
 or produced value. It rejects at the call that needs the missing bound (`step`
 in the nested-machine place, `apply` elsewhere); the call-result twin also
@@ -49,7 +49,7 @@ arm for 22.
 - Checked lowering: the generic `<=` and `+` in `Sum` are schematic over
   `Value`. The concrete member uses `i32`.
 - Calling plans: each positive binds `ProgramEntry` for the four hosted targets.
-- Instruction and image: `omega run --both` on this Linux x86_64 host.
+- Instruction and image: the native/Psi comparison on this Linux x86_64 host.
 - Runtime falsifier: both sums are checked. A constant 42 fails the second call.
   Match join exercises both arms.
 

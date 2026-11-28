@@ -49,8 +49,7 @@ pub enum AtomicCellMember {
     FetchOr,
     FetchAnd,
     Swap,
-    Exchange,
-    Once(AtomicCompareExchangeObservationAxis),
+    Exchange(AtomicCompareExchangeOutcomeIdentity),
 }
 
 impl AtomicCellMember {
@@ -64,10 +63,7 @@ impl AtomicCellMember {
             "fetch_or" => Self::FetchOr,
             "fetch_and" => Self::FetchAnd,
             "swap" => Self::Swap,
-            "compare_exchange" => Self::Exchange,
-            name => Self::Once(AtomicCompareExchangeObservationAxis::single_attempt_member(
-                name,
-            )?),
+            name => Self::Exchange(AtomicCompareExchangeOutcomeIdentity::from_member(name)?),
         })
     }
 }
@@ -87,7 +83,7 @@ pub enum AtomicObservingCompareExchangeResultShape {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, record_storage::Record)]
 pub enum AtomicExpressionResultCustody {
     Scalar,
-    CompareExchangeOnce(AtomicCompareExchangeOnceResultCustody),
+    Exchange(AtomicCompareExchangeOutcomeIdentity),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, record_storage::Record)]
@@ -107,23 +103,6 @@ pub enum AtomicCompareExchangeAttemptAxis {
 pub enum AtomicCompareExchangeObservationAxis {
     Observing,
     NonObserving,
-}
-
-impl AtomicCompareExchangeObservationAxis {
-    pub fn single_attempt_member(name: &str) -> Option<Self> {
-        match name {
-            "compare_exchange_once" => Some(Self::Observing),
-            "try_exchange_once" => Some(Self::NonObserving),
-            _ => None,
-        }
-    }
-
-    pub const fn single_attempt_member_name(self) -> &'static str {
-        match self {
-            Self::Observing => "compare_exchange_once",
-            Self::NonObserving => "try_exchange_once",
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -214,6 +193,16 @@ pub enum AtomicCompareExchangeOutcomeIdentity {
 }
 
 impl AtomicCompareExchangeOutcomeIdentity {
+    pub fn from_member(name: &str) -> Option<Self> {
+        match name {
+            "compare_exchange" => Some(Self::AtomicCompareExchangeOutcome),
+            "try_exchange" => Some(Self::AtomicTryExchangeOutcome),
+            "compare_exchange_once" => Some(Self::AtomicCompareExchangeOnceOutcome),
+            "try_exchange_once" => Some(Self::AtomicTryExchangeOnceOutcome),
+            _ => None,
+        }
+    }
+
     pub const ALL: [Self; 4] = [
         Self::AtomicCompareExchangeOutcome,
         Self::AtomicCompareExchangeOnceOutcome,
@@ -353,18 +342,26 @@ impl AtomicCompareExchangeOnceResultCustody {
 impl AtomicExpressionResultCustody {
     pub const fn is_valid_for(self, ordering: AtomicOrderingPlan) -> bool {
         match (self, ordering) {
-            (Self::Scalar, AtomicOrderingPlan::CompareExchangeOnce { .. }) => false,
-            (Self::Scalar, _) => true,
             (
-                Self::CompareExchangeOnce(custody),
-                AtomicOrderingPlan::CompareExchangeOnce { .. },
-            ) => custody.is_canonical(),
-            (Self::CompareExchangeOnce(_), _) => false,
+                Self::Scalar,
+                AtomicOrderingPlan::CompareExchange { .. }
+                | AtomicOrderingPlan::CompareExchangeOnce { .. },
+            ) => false,
+            (Self::Scalar, _) => true,
+            (Self::Exchange(identity), AtomicOrderingPlan::CompareExchange { .. }) => matches!(
+                identity.attempt(),
+                AtomicCompareExchangeAttemptAxis::Decisive
+            ),
+            (Self::Exchange(identity), AtomicOrderingPlan::CompareExchangeOnce { .. }) => matches!(
+                identity.attempt(),
+                AtomicCompareExchangeAttemptAxis::SingleAttempt
+            ),
+            (Self::Exchange(_), _) => false,
         }
     }
 
     pub const fn has_structural_result(self) -> bool {
-        matches!(self, Self::CompareExchangeOnce(_))
+        matches!(self, Self::Exchange(_))
     }
 }
 
@@ -506,6 +503,54 @@ mod tests {
             Operation::SingleAttempt.outcome_identity(),
             Shape::ExchangedOrMismatchedOrUncommittedObserved.outcome_identity()
         );
+    }
+
+    #[test]
+    fn each_exchange_member_selects_its_exact_outcome_and_attempt() {
+        use super::{
+            AtomicCellMember, AtomicCompareExchangeOutcomeIdentity as Outcome,
+            AtomicExpressionResultCustody, AtomicOrderingPlan, MemoryOrdering,
+        };
+        let success = MemoryOrdering::ReceivePublish;
+        let failure = MemoryOrdering::Receive;
+        let decisive = AtomicOrderingPlan::CompareExchange { success, failure };
+        let single = AtomicOrderingPlan::CompareExchangeOnce { success, failure };
+        assert!(!AtomicExpressionResultCustody::Scalar.is_valid_for(decisive));
+        assert!(!AtomicExpressionResultCustody::Scalar.is_valid_for(single));
+        for (name, outcome, expected, other) in [
+            (
+                "compare_exchange",
+                Outcome::AtomicCompareExchangeOutcome,
+                decisive,
+                single,
+            ),
+            (
+                "try_exchange",
+                Outcome::AtomicTryExchangeOutcome,
+                decisive,
+                single,
+            ),
+            (
+                "compare_exchange_once",
+                Outcome::AtomicCompareExchangeOnceOutcome,
+                single,
+                decisive,
+            ),
+            (
+                "try_exchange_once",
+                Outcome::AtomicTryExchangeOnceOutcome,
+                single,
+                decisive,
+            ),
+        ] {
+            assert_eq!(
+                AtomicCellMember::from_name(name),
+                Some(AtomicCellMember::Exchange(outcome))
+            );
+            let result = AtomicExpressionResultCustody::Exchange(outcome);
+            assert!(result.is_valid_for(expected));
+            assert!(!result.is_valid_for(other));
+        }
     }
 
     #[test]

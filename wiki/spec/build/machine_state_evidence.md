@@ -35,8 +35,7 @@ explicitly admitted for opaque providers.
 
 The native backend enforces these constraints as it constructs the image.
 For example, when encoding a branch it must resolve its target and select a
-displacement that fits. Ordinary `omega build` and the compilation step of
-`omega run` must publish the emitted bytes directly. Publication and native
+displacement that fits. When `omega build` produces a native executable, it publishes the emitted bytes directly. Publication and native
 artifact identity must be independent of a second pass over those bytes and
 of any digest recording its result.
 

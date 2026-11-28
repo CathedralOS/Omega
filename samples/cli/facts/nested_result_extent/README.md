@@ -10,7 +10,7 @@ The compiler uses the contracted postconditions (`result <= left && result <= ri
 Every positive place (and the root `main.omg`) binds `ProgramEntry` for all four hosted targets
 (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declares `Expected exit: 0`,
 and carries an authored `expected_native_exit.txt` containing `0` beside its entry. Both engines
-(`omega run --both`) agree: Terminal Psi and native execution report exit 0.
+(the native/Psi comparison) agree: Terminal Psi and native execution report exit 0.
 
 ## Places
 
@@ -30,7 +30,7 @@ and carries an authored `expected_native_exit.txt` containing `0` beside its ent
 ## Execution
 
 Every positive place has an authored native exit oracle of zero and verifies that `first == 8 && second == 0`,
-crashing `Trap` otherwise. Run with `omega run --both`:
+crashing `Trap` otherwise. Run with `mbx xtask sample-gate --filter samples/cli/facts/nested_result_extent`:
 
 ```sh
 mbx xtask sample-gate --filter samples/cli/facts/nested_result_extent
@@ -86,7 +86,7 @@ Full 8-layer specification and lowering evidence:
 - **Identity and lifetime:** The mutable slice descriptor `buffer: @mutable [u8]` maintains exact identity throughout the nested minimum calls and subslice projection. The fact `capacity <= buffer.length` specifically and exclusively describes the extent of `buffer`, not unrelated descriptors such as `other`. Overlapping writes or modifications to other storage (as verified in the disjoint-write fixtures) preserve this extent guarantee, while descriptor substitution or view confusion invalidates the subslice bound.
 - **Composition:** The bound composes across calls (contract substitution `minimum` -> `trial`), across local variables (`local`), through nominal struct fields (`Bound.end`), through call result expressions (`call_result`), across match branch convergence joins (`match_join`), via named constants (`const_name`), across state transitions (`other_state`), across associated machine invocations (`other_machine`), and through target-scoped body candidates (`target_body`). In every place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differs solely in referencing `other.length` instead of `buffer.length`, demonstrating that only the matching view's length establishes the subslice precondition.
 - **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins (and root `invalid/main.omg`) fail closed with targeted compile-time diagnostics (`cannot prove subslice range end bound ... is within unknown slice length` or `cannot prove requires contract for call consume from trial: ... buffer.length`). Unrelated slice lengths cannot donate extent to a distinct descriptor, preserving borrow and slice projection safety across the language boundary.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Contracts and subslice range checks are verified statically during checking. Slicing lowers into target-neutral Terminal Psi (`PSITERM\0`) pointer arithmetic and length calculations with explicit affine cleanup and loan restoration windows. Terminal Psi interpreter executes identically to native code (`omega run --both`), observing `first == 8 && second == 0`.
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Contracts and subslice range checks are verified statically during checking. Slicing lowers into target-neutral Terminal Psi (`PSITERM\0`) pointer arithmetic and length calculations with explicit affine cleanup and loan restoration windows. Terminal Psi interpreter executes identically to native code, observing `first == 8 && second == 0`.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Build companion rows bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Slice views `@mutable [u8]` lower to pointer-and-length fat pointers (16 bytes, 8-byte alignment). Call plans pass fat pointer components and integer parameters in standard ABI registers (e.g. `rcx`/`rdx`/`r8` on Windows x86-64, `rdi`/`rsi`/`rdx` on System V x86-64, `x0`-`x2` on ARM64).
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowers comparisons, conditional moves/branches for `minimum`, subslice pointer offsets, and length extractions. Stack-frame activation storage accommodates locals and spill slots with validated worst-case stack usage (WCSU).
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Emits native images (PE/ELF/Mach-O) that execute and exit with code 0 on all hosted platforms, in full differential agreement with the Terminal Psi reference interpreter.

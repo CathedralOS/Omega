@@ -461,20 +461,20 @@ pub(crate) mod integer_conversion {
 
 pub(crate) mod scalar_applications {
     use abstract_operations::AbstractOperation;
+    use psi_scalar_applications::ScalarApplicationValues;
     use semantic_vocabulary::ScalarApplicationId;
-    use terminal_semantics::entry_values::TerminalScalarValue;
-    use psi_scalar_applications::AdmittedScalarApplications;
     use terminal_psi::Operation;
+    use terminal_semantics::entry_values::TerminalScalarValue;
 
     use crate::operations::LoweringError;
 
     pub(crate) fn lower(
         operation: &Operation,
         application: ScalarApplicationId,
-        completed: Option<&AdmittedScalarApplications>,
+        values: Option<&ScalarApplicationValues>,
     ) -> Result<AbstractOperation, LoweringError> {
-        let value = completed
-            .and_then(|completed| completed.values().value(application))
+        let value = values
+            .and_then(|values| values.value(application))
             .ok_or(LoweringError::UnclosedScalarApplication(application))?;
         let result = operation
             .result

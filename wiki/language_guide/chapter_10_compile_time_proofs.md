@@ -229,7 +229,10 @@ trust boundaries.
 ## Further
 
 Mathematical libraries include predicates without executable tests, existence
-claims and quotients such as real numbers built from Cauchy sequences. See
+claims and quotients. For example, the constant rational sequence at 3 uses
+3 as its state and a sampling machine that returns that state at every index.
+All its samples agree, which proves regularity and lets it represent the real
+number 3. See [Cauchy sequences and the Real quotient](../spec/proofs/quotients.md#cauchy-sequences-and-the-real-quotient),
 [mathematical bindings](../spec/proofs/mathematical_bindings.md),
 [quotients](../spec/proofs/quotients.md) and the complete
 [proof contracts](../spec/proofs/contracts.md).

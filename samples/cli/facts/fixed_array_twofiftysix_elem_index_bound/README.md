@@ -28,7 +28,7 @@ Run each place with `omega run <place>/main.omg`.
 
 Evidence with the shared generation producer (`gen-9d9ba4fb625`, revision `9d9ba4fb625`):
 
-- root plus all nine positive places: `omega run --both` — native exit 0 and interp exit: 0;
+- root plus all nine positive places: the native/Psi comparison — native exit 0 and interp exit: 0;
 - all nine twins: `omega --check` — rejected with `cannot prove index ... is within length 256`;
 ## Requirements and Evidence
 
@@ -37,7 +37,7 @@ Evidence with the shared generation producer (`gen-9d9ba4fb625`, revision `9d9ba
 
 Full 8-layer specification and lowering evidence:
 
-- **Establishment:** Fixed-size 256-element array `[u64; 256]` literal construction and static entry precondition `requires idx < 256` (or record constraint `where idx < 256` / named constant `LIMIT = 256`) establish proven in-bounds access before indexing `arr[idx]`. `omega run --both` reports native exit 0 and interpreter exit 0 agreeing for all nine places.
+- **Establishment:** Fixed-size 256-element array `[u64; 256]` literal construction and static entry precondition `requires idx < 256` (or record constraint `where idx < 256` / named constant `LIMIT = 256`) establish proven in-bounds access before indexing `arr[idx]`. The native/Psi comparison reports native exit 0 and interpreter exit 0 agreeing for all nine places.
 - **Identity and lifetime:** The independent element values are conserved across all value transfers and transitions. Accessing element `arr[142]` yields `142u64`, verified by transition guard `elem == 142` transitioning to `done()` with exit code 0.
 - **Composition:** Machine calls, pattern match joins, and state transitions preserve exact preconditions and actual values without narrowing or corruption. Each `invalid/main.omg` differs from its positive twin in only the bound carrying the fact and its explanatory comment:
   - `local`: `arr` and `idx` are copied into local variables before indexing.
@@ -51,10 +51,10 @@ Full 8-layer specification and lowering evidence:
   - `target_body`: target-scoped machine bodies for all four hosted targets (`linux_x86_64`, `linux_arm64`, `windows_x86_64`, `macos_arm64`) perform the read.
   In each place, weakening the bound to `idx <= 256` (or `LIMIT = 257`) causes compile-time bounds verification to strictly fail closed.
 - **Soundness boundaries:** All nine reject twins under `<place>/invalid/` reject during compile-time verification (`omega --check`) with `error: cannot prove index ... is within length 256`, confirming that out-of-bounds indexing is strictly prevented across all nine places.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Source constructs lower into canonical `PSITERM\0` target-neutral representations, erasing mathematical bounds while emitting verified array projection operations with statically validated length claims. Both Terminal Psi interpretation and native execution agree (`omega run --both` reports exit 0).
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Source constructs lower into canonical `PSITERM\0` target-neutral representations, erasing mathematical bounds while emitting verified array projection operations with statically validated length claims. Both Terminal Psi interpretation and native execution agree (the native/Psi comparison reports exit 0).
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Target realization joins Build companion rows (`ProgramEntry`) across the four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Target layout plans validate 2048-byte contiguous memory layout (`256 * 8` bytes, 8-byte aligned), while calling plans assign stack homes or indirect destination pointers (`sret`/by-ref) appropriate for 2048-byte aggregate values.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects scaled-index addressing modes (e.g. `[base + idx * 8]` on `x86_64` and `[base, idx, lsl #3]` on `arm64`). Activation frames allocate disjoint stack storage for the 2048-byte array honoring the `StatePlan` ceiling.
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Direct PE/ELF/Mach-O images are emitted with valid machine-state footprint evidence, executing natively and agreeing with Terminal Psi (`omega run --both` reports `native exit 0` and `interp exit: 0`) across all hosted targets.
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Direct PE/ELF/Mach-O images are emitted with valid machine-state footprint evidence, executing natively and agreeing with Terminal Psi (the native/Psi comparison reports `native exit 0` and `interp exit: 0`) across all hosted targets.
 
 Remaining open under LAYOUT-PLANS: dynamically sized slice views `@[u64]`, multidimensional array indexing layout plans, and non-power-of-two element counts exceeding register spills.
 

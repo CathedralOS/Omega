@@ -1202,8 +1202,8 @@ pub(crate) mod seeded_continuation {
         for row in &base.authored_service_reach_rows {
             if source
                 .authored_service_reach_rows
-                .iter()
-                .find(|next| next.owner == row.owner)
+                .owned_by(row.owner)
+                .next()
                 != Some(row)
             {
                 return Err(Diagnostic::error(
@@ -2118,12 +2118,25 @@ pub(crate) fn close_typed_cohort(
         cohort,
         false,
     )?;
-    let mut owners: Option<crate::expressions::operand_owners::CohortOperandOwners> = None;
+    // Each pass below that reads operand owners gets a table built from the
+    // program as it is where the pass reads them. Construction destinations
+    // and qualification casts build theirs inside the pass, after their own
+    // writes. The owner walk reads nearly every typed-trees field, each of
+    // these passes writes some of them, and typed trees keep no revision, so
+    // a table built for an earlier pass answers later queries wrongly. On
+    // popcount, one table built before constructor preparation and reused by
+    // the later passes answered 12,784 expression queries in each of them
+    // with no owner where a fresh walk found one, and a missing owner drops
+    // the deferred refusal that owner should carry.
+    let collect_owners = |program: &TypedTrees| {
+        crate::expressions::operand_owners::CohortOperandOwners::collect(program, cohort)
+    };
+    // This pass builds its table at its first deferral, if it has one.
     crate::types::type_reference::normalize_const_argument_carriers_in_cohort(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
         cohort,
-        &mut owners,
+        &mut None,
     )?;
     normalize_domain_constraints(
         lowerer.source_trees,
@@ -2138,14 +2151,12 @@ pub(crate) fn close_typed_cohort(
         lowerer.source_trees,
         &lowerer.typed_trees,
     )?;
-    let owners_ref = owners.get_or_insert_with(|| {
-        crate::expressions::operand_owners::CohortOperandOwners::collect(&lowerer.typed_trees, cohort)
-    });
+    let owners = collect_owners(&lowerer.typed_trees);
     crate::declarations::constructor_applications::prepare_in_cohort(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
         cohort,
-        owners_ref,
+        &owners,
     )?;
     typed_trees::data_applications::prepare_from(
         &mut lowerer.typed_trees,
@@ -2156,13 +2167,11 @@ pub(crate) fn close_typed_cohort(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
         cohort,
-        owners_ref,
     )?;
     crate::expressions::qualification_casts::normalize_qualification_casts_in_cohort(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
         cohort,
-        owners_ref,
         &cast_destinations,
     )?;
     // Finish any remaining unannotated constants whose initializer type was
@@ -2180,7 +2189,6 @@ pub(crate) fn close_typed_cohort(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
         cohort,
-        owners_ref,
     )?;
     if !(cohort.generic_application_origins > 0
         && cohort.generic_application_origins
@@ -2195,11 +2203,12 @@ pub(crate) fn close_typed_cohort(
     {
         validate_computed_arguments(lowerer.source_trees)?;
     }
+    let owners = collect_owners(&lowerer.typed_trees);
     crate::expressions::equality_preparation::prepare_in_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
         cohort.conformances,
-        owners_ref,
+        &owners,
     )?;
     crate::declarations::items::provider_defaults::finalize_provider_default_calls_in_cohort(
         &mut lowerer.typed_trees,
@@ -2221,10 +2230,11 @@ pub(crate) fn close_typed_cohort(
         !(static_contexts_walked_program || applied_signatures_walk_program),
     )?);
     crate::expressions::runtime_callables::admit_types(&lowerer.typed_trees, &callable_admission)?;
+    let owners = collect_owners(&lowerer.typed_trees);
     crate::declarations::constructor_applications::retain_projection_types_in_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
-        owners_ref,
+        &owners,
     )?;
     crate::types::type_reference::direct::check_fixed_array_extent_carriers(
         &lowerer.typed_trees,
@@ -2232,10 +2242,11 @@ pub(crate) fn close_typed_cohort(
     )?;
     // Constructor and cast preparation may finish a callee's retained type.
     // Bind those values before attributing any still-unserved call request.
+    let owners = collect_owners(&lowerer.typed_trees);
     crate::types::typing_queries::defer_unbound_calls_in_cohort(
         &mut lowerer.typed_trees,
         cohort,
-        owners_ref,
+        &owners,
     )?;
     crate::types::undeclared_type_names::defer_undeclared_type_names_in_cohort(
         lowerer.source_trees,
@@ -2322,13 +2333,15 @@ fn lower_authored_service_reach_row(
 pub(crate) fn append_authored_service_reach_rows(
     target: &mut TypedTrees,
     source: &SymbolResolvedTrees,
-    retained: &[crate::source_resolved::signature::AuthoredServiceReachRow],
+    retained: &source_symbol_table::owner_rows::OwnerSortedRows<
+        crate::source_resolved::signature::AuthoredServiceReachRow,
+    >,
 ) {
     target.authored_service_reach_rows.extend(
         source
             .authored_service_reach_rows
             .iter()
-            .filter(|row| !retained.iter().any(|retained| retained.owner == row.owner))
+            .filter(|row| retained.owned_by(row.owner).next().is_none())
             .map(lower_authored_service_reach_row),
     );
 }

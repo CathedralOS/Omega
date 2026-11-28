@@ -268,18 +268,23 @@ impl<'a> Storage<'a> {
                         self.foreign(concerns, "atomic operand differs from its resident type")
                     );
                 }
-                match operation.result {
-                    terminal_psi::OperationResult::Scalar(result)
+                match (&operation.result, event.single_attempt_custody()) {
+                    (terminal_psi::OperationResult::Scalar(result), None)
                         if event.observes_resident()
                             && result.scalar_type == cell.scalar_type() => {}
-                    terminal_psi::OperationResult::Unit if !event.observes_resident() => {}
+                    (terminal_psi::OperationResult::Unit, None) if !event.observes_resident() => {}
+                    (terminal_psi::OperationResult::Structural(result), Some(custody))
+                        if terminal_psi::types::atomic_once_result_is_plain(result, custody)
+                            && terminal_psi::types::atomic_once_outcome_cases(
+                                self.declaration(result.structural_type, concerns)?,
+                                cell.scalar_type(),
+                                custody,
+                            )
+                            .is_some() =>
+                    {
+                        rows.push((fresh()?, Stored::Established));
+                    }
                     _ => return Err(self.foreign(concerns, "atomic result differs from its event")),
-                }
-                if matches!(
-                    event,
-                    terminal_psi::AtomicAccessEvent::CompareExchangeOnce { .. }
-                ) {
-                    return Err(self.unsupported(concerns, "single-attempt atomic outcome custody"));
                 }
                 if !matches!(
                     event,

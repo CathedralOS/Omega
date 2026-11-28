@@ -36,7 +36,7 @@ with `JournaledSource`, so the join keeps the union of both selections. The
 target implementation place selects `X86Observe` or `ArmObserve` per target
 through Build.
 
-Run each positive with `omega run --both <place>/main.omg` and each twin with
+Run each positive with `mbx xtask sample-gate --filter samples/cli/facts/dynamic_selected_reach/<place>` and each twin with
 `omega --check <place>/invalid/main.omg`.
 
 This row follows the ratified

@@ -26,7 +26,7 @@ accompanied by `<place>/invalid/` reject twins:
 
 Every positive place (and root `main.omg`) binds `ProgramEntry` for all four
 hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`)
-and declares `Expected exit: 0`. `omega run --both` reports Terminal Psi
+and declares `Expected exit: 0`. The native/Psi comparison reports Terminal Psi
 interpreter and native execution agreement (`native exit 0` and `interp exit: 0`):
 
 ```sh
@@ -88,7 +88,7 @@ fixture cannot drift apart.
 | both |  | `built`, `exit:0`, `interpreter-exit:0`, `interpreter:agrees` |
 
 Direct runs with the same pair's CLI (opt_level 1, stdin closed, macOS arm64):
-the root and all nine places exit 0 through `omega run --both` (`native exit
+the root and all nine places exit 0 through the native/Psi comparison (`native exit
 0`, `interp exit: 0`), and the nine twins exit 1 with the pinned ``may overflow
 `u64` `` fragment. Earlier sweeps with the coordinator's shared generation
 pairs (`9d9ba4fb625`, `595562a958b`) and the shared
@@ -118,10 +118,10 @@ Full 8-layer specification and lowering evidence:
   - `target_body`: match join dispatch is executed across target-scoped machine bodies for all four hosted targets (`linux_x86_64`, `linux_arm64`, `windows_x86_64`, `macos_arm64`).
   In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in weakening the `High` variant payload gate to `val <= 61` (widening the joined interval to `[20, 61]`), proving that `60u64 - joined` strictly fails closed at compile time when any arm allows underflow.
 - **Soundness boundaries:** All nine reject twins under `<place>/invalid/` reject during compile-time verification (`omega --check`) with `error: exact arithmetic in machine <machine> state <state> local \`diff1\` may overflow \`u64\`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation)` (the pinned ``may overflow `u64` `` fragment; the owner names move with the place — `run`/`entry` for local, field, parameter, call result, match join and const name, `step` for a nested machine, `runner` for another machine, `exercise` for another target body), confirming that the arithmetic proof engine soundly detects that when `joined` can be 61, `60u64 - joined` may underflow `u64`.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Multi-variant sum types and exhaustive match joins lower into canonical target-neutral `PSITERM\0` representation, preserving interval arithmetic certificates and control-flow join structures. Both Terminal Psi interpretation and native execution agree (`omega run --both` reports exit 0).
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Multi-variant sum types and exhaustive match joins lower into canonical target-neutral `PSITERM\0` representation, preserving interval arithmetic certificates and control-flow join structures. Both Terminal Psi interpretation and native execution agree (the native/Psi comparison reports exit 0).
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Target realization joins Build companion rows (`ProgramEntry`) across the four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Layout geometry for `Mode` allocates an 8-byte discriminant tag plus 8-byte payload slot (16 bytes total, 8-byte alignment), and calling plans assign register homes for scalar values across calling conventions.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA instructions (`x86_64` and `arm64`) for discriminant comparison, branch jumps, and 64-bit subtractions (`sub`). Disjoint activation stack frames and register homes are allocated with entry prologues and restoration epilogues honoring the `StatePlan` frame ceiling.
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Direct PE/ELF/Mach-O images are emitted with valid machine-state footprint evidence, executing natively and agreeing with Terminal Psi (`omega run --both` reports `native exit 0` and `interp exit: 0`) across all hosted targets.
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Direct PE/ELF/Mach-O images are emitted with valid machine-state footprint evidence, executing natively and agreeing with Terminal Psi (the native/Psi comparison reports `native exit 0` and `interp exit: 0`) across all hosted targets.
 
 Remaining open under `CANONICALIZE-SCALAR-RANGE-CONTRACTS` / `MATCH-SELECTIVE-LOWERING`: non-exhaustive pattern coverage inference with unreachable default traps, multi-payload tuple-variant destructuring joins, and arbitrary disjoint interval-set unions. This row closes only the exhaustive three-variant case join whose arms share one interval gate.
 

@@ -73,7 +73,8 @@ pub struct SymbolResolvedTrees {
     pub service_reaches:
         crate::source_tables::ServiceReachTable<crate::trait_definition::TraitRequirement>,
     pub service_reach_rows: crate::source_tables::ServiceReachRowTable,
-    pub authored_service_reach_rows: Vec<signature::AuthoredServiceReachRow>,
+    pub authored_service_reach_rows:
+        source_symbol_table::owner_rows::OwnerSortedRows<signature::AuthoredServiceReachRow>,
     pub semantic_domains: crate::source_tables::SemanticDomainTable,
     pub external_bindings: crate::source_tables::ExternalBindingTable,
     pub evidence_forwardings: Vec<statement::EvidenceForwarding>,
@@ -117,7 +118,7 @@ impl SymbolResolvedTrees {
             symbols,
             service_reaches: crate::source_tables::ServiceReachTable::default(),
             service_reach_rows: crate::source_tables::ServiceReachRowTable::default(),
-            authored_service_reach_rows: Vec::new(),
+            authored_service_reach_rows: Default::default(),
             semantic_domains: crate::source_tables::SemanticDomainTable::default(),
             external_bindings: crate::source_tables::ExternalBindingTable::default(),
             evidence_forwardings: Vec::new(),

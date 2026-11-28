@@ -105,6 +105,33 @@ pub(super) fn assign_expression_symbols(
     );
 }
 
+/*
+    A foundation declaration applied in a formula, `|proof|::Box::<S>`, is
+    named through the import alias like any type, so an applied member or
+    argument the binder rules left unresolved is read as the fixed core
+    declaration its spelling selects, when it selects one.
+*/
+fn fixed_core_static_symbols(
+    symbols: &SymbolTable,
+    argument: &mut crate::source_resolved::expression::StaticMachineArgument,
+) {
+    if !argument.symbol.is_valid()
+        && !argument.type_reference.is_valid()
+        && let [name] = argument.path.as_ref()
+        && let Some(symbol) = symbols
+            .lookup_source_type(name.as_str(), name.source_span())
+            .unique()
+        && symbols.fixed_core_declaration_for_symbol(symbol).is_some()
+    {
+        argument.symbol = symbol;
+    }
+    if let Some(application) = &mut argument.application {
+        for nested in &mut application.arguments {
+            fixed_core_static_symbols(symbols, nested);
+        }
+    }
+}
+
 fn assign_expression_symbols_in_role(
     expressions: &mut ExpressionTable,
     child_type_references: &mut crate::source_resolved::types::TypeReferenceArena,
@@ -272,6 +299,51 @@ fn assign_expression_symbols_in_role(
         }
         ExpressionNode::Member(member) => recurse!(member.receiver),
         ExpressionNode::Borrow(inner) => recurse!(inner.target),
+        // A foundation type applied in a formula, `|proof|::Box::<S>` or
+        // `|proof|::Squash::<W>`, names the type its static arguments form;
+        // a proposition written as one of those arguments is resolved here
+        // like the formula around it.
+        ExpressionNode::Name(path)
+            if path.static_application.is_valid()
+                && expressions.static_member(path.static_application).is_some() =>
+        {
+            let mut member = expressions
+                .static_member(path.static_application)
+                .cloned()
+                .expect("the guard found the applied member");
+            assign_static_argument_symbols(
+                symbols,
+                owner_symbol,
+                local_type_parameters,
+                &mut member,
+                true,
+            );
+            fixed_core_static_symbols(symbols, &mut member);
+            let mut written = Vec::new();
+            let mut pending = vec![&member];
+            while let Some(argument) = pending.pop() {
+                if argument.type_reference.is_valid()
+                    && let crate::source_resolved::types::TypeReference::ConstExpression(constant) =
+                        child_type_references.get(argument.type_reference)
+                {
+                    written.push(constant.expression);
+                }
+                if let Some(application) = &argument.application {
+                    pending.extend(application.arguments.iter());
+                }
+            }
+            for argument in written {
+                recurse!(argument);
+            }
+            let symbol = member.symbol;
+            *expressions
+                .static_member_mut(path.static_application)
+                .expect("the applied member belongs to this table") = member;
+            if let ExpressionNode::Name(path) = expressions.expression_mut(expression) {
+                path.head_symbol = symbol;
+                path.symbol = symbol;
+            }
+        }
         ExpressionNode::Name(path) => {
             let members = expressions.name_path_members(path.members);
             let (head_symbol, symbol) = if let [name] = members {
@@ -515,6 +587,7 @@ mod tests {
             ("Strict", FixedCoreDeclaration::Strict),
             ("Squash", FixedCoreDeclaration::Squash),
             ("Identity", FixedCoreDeclaration::Identity),
+            ("Box", FixedCoreDeclaration::Box),
         ] {
             assert_eq!(
                 lookup(&format!("|logic|::{member}")),

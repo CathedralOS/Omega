@@ -6,6 +6,10 @@ mod memberships;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use terminal_codec::{TerminalArtifactView, TerminalExecutionIdentity, TerminalExecutionView};
 use terminal_psi::TerminalPsiIdentity;
+use terminal_semantics::synchronization::{
+    NormalEffects, PrivateWaitFailure, ProgressScope, SelectedCall, SpinWait, component_normal_effects,
+    component_spin_wait, private_wait_failure,
+};
 
 use crate::{
     AdmittedProviderSelections, ProviderInstallationSelection, admit_provider_installation,
@@ -19,8 +23,17 @@ pub struct AdmittedComponentProvider {
     provider_boundary: BoundaryMachineId,
     candidate: MachineId,
     selection: AdmittedProviderSelections,
+    progress: ImportProgress,
     input_memberships: memberships::InputMemberships,
     result_memberships: memberships::Memberships,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ImportProgress {
+    Closed,
+    Waiting(SpinWait),
+    Effects(std::sync::Arc<NormalEffects>),
+    Unresolved,
 }
 
 impl AdmittedComponentProvider {
@@ -41,6 +54,18 @@ impl AdmittedComponentProvider {
     }
     pub const fn selection(&self) -> &AdmittedProviderSelections {
         &self.selection
+    }
+
+    /// A nested invocation may rely on its caller only when the receiving
+    /// judgment checked the exact projected input obligation.
+    pub fn invocation_scope(&self) -> ProgressScope {
+        match self.progress {
+            ImportProgress::Waiting(_) => ProgressScope::OpenInterface,
+            ImportProgress::Effects(ref effects) if effects.requires_progress() => {
+                ProgressScope::OpenInterface
+            }
+            _ => ProgressScope::Executable,
+        }
     }
 
     pub fn input_membership(
@@ -74,13 +99,15 @@ pub fn admit_component_provider<'receiver>(
     let receiver = receiver.into();
     let receiving = receiver
         .module()
-        .interfaces.boundary_machines
+        .interfaces
+        .boundary_machines
         .iter()
         .find(|row| row.id == receiving_boundary)
         .ok_or("component import names no receiving boundary")?;
     let supplying = provider
         .module()
-        .interfaces.boundary_machines
+        .interfaces
+        .boundary_machines
         .iter()
         .find(|row| row.id == selected.boundary)
         .ok_or("component export names no producing boundary")?;
@@ -143,7 +170,73 @@ pub fn admit_component_provider<'receiver>(
         provider_boundary: selected.boundary,
         candidate: selected.candidate,
         selection,
+        progress: if let Some(wait) = component_spin_wait(
+            receiver.module(),
+            receiving,
+            provider.module(),
+            selected.candidate,
+        ) {
+            ImportProgress::Waiting(wait)
+        } else if let Some(effects) = component_normal_effects(
+            receiver.module(),
+            receiving,
+            provider.module(),
+            selected.candidate,
+        ) {
+            ImportProgress::Effects(std::sync::Arc::new(effects))
+        } else if private_wait_failure(
+            provider.module(),
+            selected.candidate,
+            ProgressScope::Executable,
+            |_| None,
+        )
+        .is_some()
+        {
+            ImportProgress::Unresolved
+        } else {
+            ImportProgress::Closed
+        },
         input_memberships,
         result_memberships,
+    })
+}
+
+/// Check the entry with its receiving scope and the actual installed provider bodies.
+/// Only a selection admitted for this receiver can describe one of its calls.
+/// Missing, opaque and unrecognized suppliers leave that call unknown.
+pub fn invocation_progress_failure<'a, 'receiver>(
+    receiver: impl Into<TerminalExecutionView<'receiver>>,
+    entry: MachineId,
+    scope: ProgressScope,
+    installed: impl IntoIterator<Item = &'a AdmittedComponentProvider>,
+    local: impl Fn(BoundaryMachineId) -> Option<MachineId>,
+) -> Option<PrivateWaitFailure> {
+    let receiver = receiver.into();
+    let identity = receiver.custody_identity();
+    let mut imports: Vec<_> = installed
+        .into_iter()
+        .filter(|supplier| supplier.receiver() == &identity)
+        .collect();
+    imports.sort_unstable_by_key(|supplier| supplier.receiving_boundary);
+    private_wait_failure(receiver.module(), entry, scope, |slot| {
+        let first = imports.partition_point(|supplier| supplier.receiving_boundary < slot);
+        let Some(supplier) = imports
+            .get(first)
+            .filter(|supplier| supplier.receiving_boundary == slot)
+        else {
+            return local(slot).map(SelectedCall::Local);
+        };
+        if imports
+            .get(first + 1)
+            .is_some_and(|other| other.receiving_boundary == slot)
+        {
+            return None;
+        }
+        match &supplier.progress {
+            ImportProgress::Closed => None,
+            ImportProgress::Waiting(wait) => Some(SelectedCall::ImportedWait(wait.clone())),
+            ImportProgress::Effects(effects) => Some(SelectedCall::ImportedEffects(effects.clone())),
+            ImportProgress::Unresolved => Some(SelectedCall::UnresolvedImport),
+        }
     })
 }

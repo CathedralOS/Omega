@@ -18,7 +18,6 @@ public Writer satisfies Lending {
         machine bad() -> u64 { crash Trap; }
     }
 }
-machine component_entry() {}
 
 public boundary trait Reading {
     machine read(left: @Word, right: @Word, token: @Token, same_token: @Token, original: address, member: address) -> u64

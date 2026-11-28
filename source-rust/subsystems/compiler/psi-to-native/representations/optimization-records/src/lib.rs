@@ -13,11 +13,8 @@ mod identities;
 pub use budget::{InvalidOptimizationWorkBudget, OptimizationWorkBudget, OptimizationWorkUsage};
 pub use identities::{
     AcceptedObligationFactIdentity, CanonicalIdentityEncoder, NativeOptimizationProjectionIdentity,
-    OptimizationIdentityBundleIdentity, OptimizationUnitIdentity, OptimizationValidatorIdentity,
-    OptimizedAbstractPlanProjectionIdentity, OptimizedBoundaryOccurrenceIdentity,
-    OptimizedOperatorOccurrenceIdentity, PostAllocationOptimizationManifestIdentity,
-    PreAllocationOptimizationCompletionIdentity, PrePhysicalOptimizationManifestIdentity,
-    SelectedLoweringOptimizationCompletionIdentity,
+    OptimizationUnitIdentity, OptimizationValidatorIdentity, OptimizedBoundaryOccurrenceIdentity,
+    OptimizedOperatorOccurrenceIdentity,
 };
 pub use optimization_selections::{
     Optimization, OptimizationCatalogDescriptor, OptimizationExecutionPhase,

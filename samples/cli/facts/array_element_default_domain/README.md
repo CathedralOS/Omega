@@ -25,7 +25,7 @@ The runtime checks follow that operation; they supply no proof premise.
 | other_machine | An ordinary forwarding machine returns the owner. |
 | target_body | Build selects the checked named provider for all four hosted targets. |
 
-Each positive expects exit zero from `omega run --both <place>/main.omg`.
+Each positive expects exit zero from the native/Psi comparison.
 The four observations are 0, 15, 16 and 8, mapping to `0x40`, `0x4F`, `0x50`
 and `0x48`. The other match branch reverses that order. A wrong element,
 offset, selected branch or forwarded owner traps. Every invalid twin removes

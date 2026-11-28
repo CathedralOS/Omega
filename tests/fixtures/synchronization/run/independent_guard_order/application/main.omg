@@ -1,0 +1,7 @@
+use {signals}/main.omg as locks;
+
+machine main() reaches |locks|::Protect crashes none {
+    let mutable first: |locks|::Lock;
+    let mutable second: |locks|::Lock;
+    |locks|::Protect::pair(@first, @second);
+}

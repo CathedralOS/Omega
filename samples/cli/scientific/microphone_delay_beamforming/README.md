@@ -45,10 +45,10 @@ contains beamforming, microphone or acoustic direction scoring.
 ## Commands (from repository root)
 
 ```
-OMEGA_LIBRARY_ROOT="$PWD/source/library" /absolute/path/to/omega packages update --project samples/cli/independent/microphone_delay_beamforming --target linux_x86_64
+OMEGA_LIBRARY_ROOT="$PWD/source/library" /absolute/path/to/omega packages update --project samples/cli/scientific/microphone_delay_beamforming --target linux_x86_64
 # Review pending package decisions through the ordinary documented workflow.
-OMEGA_LIBRARY_ROOT="$PWD/source/library" /absolute/path/to/omega --check samples/cli/independent/microphone_delay_beamforming/main.omg
-OMEGA_LIBRARY_ROOT="$PWD/source/library" /absolute/path/to/omega run --both --keep samples/cli/independent/microphone_delay_beamforming/main.omg < samples/cli/independent/microphone_delay_beamforming/data/east.stdin
+OMEGA_LIBRARY_ROOT="$PWD/source/library" /absolute/path/to/omega --check samples/cli/scientific/microphone_delay_beamforming/main.omg
+OMEGA_LIBRARY_ROOT="$PWD/source/library" /absolute/path/to/omega run --keep samples/cli/scientific/microphone_delay_beamforming/main.omg < samples/cli/scientific/microphone_delay_beamforming/data/east.stdin
 ```
 
 `controls/bounds/main.omg` is a separate complete intended-invalid source with
@@ -79,7 +79,7 @@ avoid the compiler defect.
 
 The fixture matrix covers ten valid variants and eight runtime refusals. The
 separate complete bounds source must reject for its authored index-eight rule.
-`omega run --both` compares termination and the exact stdout and stderr bytes from
+The comparison checks termination and the exact stdout and stderr bytes from
 both engines. The ordinary harness checks native
 stdout and interpreted exit agreement; the qualification packet also includes
 an independently authored consumer of the public admitted Terminal runtime,

@@ -86,7 +86,8 @@ impl ProcessExitObservation {
     }
 }
 
-fn trap_presentation(profile: TargetProfile) -> Option<ProcessExitObservation> {
+/// The host status produced by this target's intentional trap instruction.
+pub fn trap_presentation(profile: TargetProfile) -> Option<ProcessExitObservation> {
     match profile {
         TargetProfile::MacosArm64 | TargetProfile::LinuxArm64 => {
             Some(ProcessExitObservation::Signaled(5)) // BRK -> SIGTRAP

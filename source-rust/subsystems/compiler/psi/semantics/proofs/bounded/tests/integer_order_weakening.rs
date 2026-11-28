@@ -58,3 +58,47 @@ fn boolean_and_mixed_carrier_equalities_do_not_establish_integer_order() {
         );
     }
 }
+
+#[test]
+fn mathematical_strict_order_weakens_across_carriers_only_at_its_own_endpoints() {
+    use semantic_vocabulary::IntegerMathTerm;
+    let math = |id, bits| IntegerMathTerm::MathValue {
+        source_type: IntegerType::new(IntegerSign::Signed, bits).unwrap(),
+        value: ValueId::new(id).unwrap(),
+    };
+    let left = math(1, 16);
+    let right = math(2, 32);
+    let ctx = context(
+        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 16).unwrap()),
+        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap()),
+    );
+    let premise = Proposition::IntegerMathLessThan(left.clone(), right.clone());
+    for (expected, accepted) in [
+        (
+            Proposition::IntegerMathLessOrEqual(left.clone(), right.clone()),
+            true,
+        ),
+        (
+            Proposition::IntegerMathLessOrEqual(right.clone(), left.clone()),
+            false,
+        ),
+        (
+            Proposition::IntegerMathLessOrEqual(left, math(3, 16)),
+            false,
+        ),
+    ] {
+        let proof = ProofNode {
+            conclusion: expected.clone(),
+            rule: ProofRule::IntegerOrderWeakening {
+                relation: Box::new(ProofNode {
+                    conclusion: premise.clone(),
+                    rule: ProofRule::Assumption { index: 0 },
+                }),
+            },
+        };
+        assert_eq!(
+            check_certificate(&ctx, &expected, std::slice::from_ref(&premise), &[], &proof).is_ok(),
+            accepted
+        );
+    }
+}

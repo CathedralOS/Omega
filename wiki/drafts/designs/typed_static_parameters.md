@@ -132,7 +132,7 @@ accepted and now always runs through the requirement.
 
 ## Acceptance
 
-- Each row of the source table compiles in its new spelling under `--both`,
+- Each row of the source table compiles in its new spelling for native and interpreted tests,
   and each retired spelling rejects with a diagnostic that prints the
   replacement.
 - `run<clear>` rejects and `run<(clear satisfies A::clear)>` is accepted; the

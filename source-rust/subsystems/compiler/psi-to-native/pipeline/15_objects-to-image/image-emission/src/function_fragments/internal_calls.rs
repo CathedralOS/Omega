@@ -128,11 +128,11 @@ pub(super) fn place_calls(
         .iter()
         .map(|plan| {
             let site = match plan.owner {
-                target_operations::CallSiteOwner::Operation(operation) => {
+                target_vocabulary::CallSiteOwner::Operation(operation) => {
                     machine_code::SemanticCodeSite::Operation(operation)
                 }
-                target_operations::CallSiteOwner::InvokeNoNormal(edge)
-                | target_operations::CallSiteOwner::CleanupAction { edge, .. } => {
+                target_vocabulary::CallSiteOwner::InvokeNoNormal(edge)
+                | target_vocabulary::CallSiteOwner::CleanupAction { edge, .. } => {
                     machine_code::SemanticCodeSite::Edge(edge)
                 }
                 _ => return Err(Error::Mismatch("Unit call has no attributed span")),

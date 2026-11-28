@@ -118,7 +118,7 @@ macro_rules! optimization_vocabulary {
 }
 
 optimization_vocabulary! {
-    56;
+    58;
     ControlFlowCleanup = 1 => {
         case: "ControlFlowCleanup",
         phase: Psi
@@ -342,6 +342,14 @@ optimization_vocabulary! {
     X86ScaledIndexedLoad = 56 => {
         case: "X86ScaledIndexedLoad",
         phase: TargetOperations
+    },
+    SelectedAcyclicCallInliningV1 = 57 => {
+        case: "SelectedAcyclicCallInliningV1",
+        phase: SelectedLowering
+    },
+    SelectedPackedVectorPromotionV1 = 58 => {
+        case: "SelectedPackedVectorPromotionV1",
+        phase: SelectedLowering
     },
 }
 

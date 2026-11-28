@@ -159,6 +159,12 @@ pub enum Justification {
     /// operation and exact unchanged arguments have the same Boolean
     /// denotation."
     CallCongruence { invocation: InvocationId },
+    /// One clause of a sibling member's own written contract, by position,
+    /// on the normal continuation of that invocation (`RealizedGuarantee`).
+    RealizationGuarantee {
+        invocation: InvocationId,
+        clause: u32,
+    },
     /// The condition of a `Conditional` terminator, holding on its true edge
     /// (`holds`) or failing on its false edge, available on that edge.
     /// `wiki/spec/language/expressions.md`: "Caller preconditions, branch

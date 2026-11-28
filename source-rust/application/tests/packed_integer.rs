@@ -5,7 +5,35 @@ mod support;
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::fs;
 
+/// Packed register promotion and call inlining are opt-in Stage 06 rewrites.
+/// Every packed program must agree on both engines without them, and with
+/// them where the host's native target implements them (x86-64 only).
+const SELECTIONS: &[&[&str]] = if cfg!(target_arch = "x86_64") {
+    &[
+        &[],
+        &[
+            "SelectedAcyclicCallInliningV1",
+            "SelectedPackedVectorPromotionV1",
+        ],
+    ]
+} else {
+    &[&[], &["SelectedAcyclicCallInliningV1"]]
+};
+
+fn assert_silent_return_under_each_selection(source: &str) {
+    for selected in SELECTIONS {
+        observations::assert_silent_return(
+            || selected_project_source(source, selected),
+            &["build.omg"],
+        );
+    }
+}
+
 fn project_source(source: &str) -> TemporaryDirectory {
+    selected_project_source(source, &[])
+}
+
+fn selected_project_source(source: &str, selected: &[&str]) -> TemporaryDirectory {
     let root = support::repository_root();
     let fixture = root.join("source-rust/application/tests/fixtures/simd/positive/wrapping_add");
     let scratch = TemporaryDirectory::create("packed-integer", false).unwrap();
@@ -15,19 +43,26 @@ fn project_source(source: &str) -> TemporaryDirectory {
         .join("source/library/system")
         .to_string_lossy()
         .replace('\\', "/");
-    fs::write(
-        scratch.path().join("build.omg"),
-        build.replace("../../../../../../../source/library/system", &library),
-    )
-    .unwrap();
+    let enabled: String = selected
+        .iter()
+        .map(|name| {
+            format!(
+                "    Optimizations::enable(@mutable builder.optimizations, Optimization::{name});\n"
+            )
+        })
+        .collect();
+    let build = build
+        .replace("../../../../../../../source/library/system", &library)
+        .replacen("    Build::bind(", &format!("{enabled}    Build::bind("), 1);
+    fs::write(scratch.path().join("build.omg"), build).unwrap();
     scratch
 }
 
-fn project(short_input: bool) -> TemporaryDirectory {
+fn fixture_source(short_input: bool) -> String {
     let root = support::repository_root();
     let fixture = root.join("source-rust/application/tests/fixtures/simd/positive/wrapping_add");
     let source = fs::read_to_string(fixture.join("main.omg")).unwrap();
-    let source = if short_input {
+    if short_input {
         let short = source
             .replace("left: [i16; 8]", "left: [i16; 7]")
             .replace("5i16, -6i16];", "5i16];");
@@ -35,13 +70,16 @@ fn project(short_input: bool) -> TemporaryDirectory {
         short
     } else {
         source
-    };
-    project_source(&source)
+    }
+}
+
+fn project(short_input: bool) -> TemporaryDirectory {
+    project_source(&fixture_source(short_input))
 }
 
 #[test]
 fn dependent_additions_wrap_each_lane() {
-    observations::assert_silent_return(|| project(false), &["build.omg"]);
+    assert_silent_return_under_each_selection(&fixture_source(false));
 }
 
 #[test]
@@ -69,7 +107,7 @@ public machine main() crashes Trap {
     machine wrong() { crash Trap; }
 }
 "#;
-    observations::assert_silent_return(|| project_source(source), &["build.omg"]);
+    assert_silent_return_under_each_selection(source);
 }
 
 /// A packed sum computed in a helper machine survives when the helper is
@@ -101,7 +139,7 @@ public machine main() crashes Trap {
     machine wrong() { crash Trap; }
 }
 "#;
-    observations::assert_silent_return(|| project_source(source), &["build.omg"]);
+    assert_silent_return_under_each_selection(source);
 }
 
 /// Windows of a view cast to `@[u8; 16]` load as lanes, on Psi and in native
@@ -124,6 +162,40 @@ public machine main() crashes Trap {
     let data: [u8; 40] = [0u8, 1u8, 2u8, 3u8, 4u8, 5u8, 6u8, 7u8, 8u8, 9u8, 10u8, 11u8, 12u8, 13u8, 14u8, 15u8, 16u8, 17u8, 18u8, 19u8, 20u8, 21u8, 22u8, 23u8, 24u8, 25u8, 26u8, 27u8, 28u8, 29u8, 30u8, 31u8, 32u8, 33u8, 34u8, 35u8, 36u8, 37u8, 38u8, 39u8];
     let w: u64 = sum(@data as @[u8]);
     transition w == 69u64 { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}
+"#;
+    assert_silent_return_under_each_selection(source);
+}
+
+/// Lanes loaded from windows of shared views add and store into a window of
+/// a mutable view, the shape of PNG's Up filter, on Psi and in native code.
+#[test]
+fn u8x16_stores_into_a_window_of_a_mutable_view() {
+    let source = r#"
+use {system}/simd/simd.omg as simd;
+use {system}/simd/u8x16.omg as u8x16;
+
+machine up(out: @mutable [u8], raw: @[u8], prior: @[u8]) requires out.length >= 20 && raw.length >= 20 && prior.length >= 20 {
+    let x: @[u8; 16] = @raw[2..18] as @[u8; 16];
+    let y: @[u8; 16] = @prior[2..18] as @[u8; 16];
+    let a: |simd|::Lanes<u8, 16> = |u8x16|::load(x);
+    let b: |simd|::Lanes<u8, 16> = |u8x16|::load(y);
+    let s: |simd|::Lanes<u8, 16> = |u8x16|::wrapping_add(@a, @b);
+    let lane: @mutable [u8; 16] = @mutable out[4..20] as @mutable [u8; 16];
+    |u8x16|::store(lane, @s);
+}
+
+public machine main() crashes Trap {
+    let raw: [u8; 20] = [0u8, 1u8, 2u8, 3u8, 4u8, 5u8, 6u8, 7u8, 8u8, 9u8, 10u8, 11u8, 12u8, 13u8, 14u8, 15u8, 16u8, 17u8, 18u8, 19u8];
+    let prior: [u8; 20] = [250u8, 250u8, 250u8, 250u8, 250u8, 250u8, 250u8, 250u8, 250u8, 250u8, 250u8, 250u8, 250u8, 250u8, 250u8, 250u8, 250u8, 250u8, 250u8, 250u8];
+    let mutable out: [u8; 20] = [7u8, 7u8, 7u8, 7u8, 7u8, 7u8, 7u8, 7u8, 7u8, 7u8, 7u8, 7u8, 7u8, 7u8, 7u8, 7u8, 7u8, 7u8, 7u8, 7u8];
+    up(@mutable out[..], @raw[..], @prior[..]);
+    transition out[3] == 7u8 && out[4] == 252u8 && out[9] == 1u8 && out[19] == 11u8 {
+        true -> done(),
+        false -> wrong()
+    }
     machine done() {}
     machine wrong() { crash Trap; }
 }
@@ -185,13 +257,12 @@ public machine main() crashes Trap {
     machine wrong() { crash Trap; }
 }
 "#;
-    observations::assert_silent_return(|| project_source(source), &["build.omg"]);
+    assert_silent_return_under_each_selection(source);
 }
 
 #[test]
 fn loading_eight_lanes_requires_eight_elements() {
-    let (output, report) =
-        observations::run(&project(true), &["run", "--engine", "psi"], &["build.omg"]);
+    let (output, report) = observations::run(&project(true), &["run"], &["build.omg"]);
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains("expects an array with 8 elements but the supplied array has 7"),
@@ -394,7 +465,7 @@ public machine main() crashes Trap {{
             r3 = i16_array(&rows[3]),
             verdict = verdicts.join(" && "),
         );
-        observations::assert_silent_return(|| project_source(&source), &["build.omg"]);
+        assert_silent_return_under_each_selection(&source);
     }
 }
 
@@ -445,11 +516,7 @@ use {omega}/language/core/assembly_packed_integer.omg as packed;
 
 public machine main() {}
 "#;
-    let (output, report) = observations::run(
-        &project_source(source),
-        &["run", "--engine", "psi"],
-        &["build.omg"],
-    );
+    let (output, report) = observations::run(&project_source(source), &["run"], &["build.omg"]);
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains("holds the checked asm instruction contracts"),

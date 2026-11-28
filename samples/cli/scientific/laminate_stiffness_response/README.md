@@ -59,8 +59,7 @@ status and exits match exactly. Verification never rewrites the oracle.
 The application independently compares all 81 computed storage values with the
 frozen reference at absolute tolerance 1e-8 before reporting. A mismatch exits 4.
 The public SDK sponsor captures Terminal stdout and verifies every reported
-value against the same frozen oracle as native execution. The CLI's `--both`
-route separately compares termination. Report conversion is explicitly Trapping,
+value against the same frozen oracle as native execution. The recorded comparison separately checked termination. Report conversion is explicitly Trapping,
 with a separate bounded signed-decimal range check.
 
 Existing samples compared: `collections/matrix_multiply` only multiplies two
@@ -77,12 +76,11 @@ From repository root, with a current-main `omega` binary and matching
 `OMEGA_LIBRARY_ROOT=.../source/library`:
 
 ```sh
-omega packages update --project samples/cli/independent/laminate_stiffness_response --target linux_x86_64
+omega packages update --project samples/cli/scientific/laminate_stiffness_response --target linux_x86_64
 # Review the generated package decisions; acceptance is a separate action.
-omega --check samples/cli/independent/laminate_stiffness_response/main.omg
-omega run --engine native --keep samples/cli/scientific/laminate_stiffness_response/main.omg < samples/cli/scientific/laminate_stiffness_response/data/mode_0.stdin
-omega run --engine psi --keep samples/cli/scientific/laminate_stiffness_response/main.omg < samples/cli/scientific/laminate_stiffness_response/data/mode_0.stdin
-omega --check samples/cli/independent/laminate_stiffness_response/controls/bounds/main.omg
+omega --check samples/cli/scientific/laminate_stiffness_response/main.omg
+omega run --keep samples/cli/scientific/laminate_stiffness_response/main.omg < samples/cli/scientific/laminate_stiffness_response/data/mode_0.stdin
+omega --check samples/cli/scientific/laminate_stiffness_response/controls/bounds/main.omg
 ```
 
 The bounds control is a separate complete application intentionally writing

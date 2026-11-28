@@ -27,18 +27,19 @@ machine main() {}
 "#;
 
 fn build(product: &str, configuration: &str) -> (bool, String) {
-    let package = project::stage(
-        "group-settings",
-        &[
+    // An unregistered directory under the root is ordinary product source,
+    // so the `kit` package is staged only for a Build that registers it.
+    let mut files = vec![("main.omg", product), ("build.omg", configuration)];
+    if configuration.contains(r#"location: "kit""#) {
+        files.extend([
             (
                 "kit/build.omg",
                 r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "kit" }; }"#,
             ),
             ("kit/main.omg", "public machine version() -> u32 { 1u32 }"),
-            ("main.omg", product),
-            ("build.omg", configuration),
-        ],
-    );
+        ]);
+    }
+    let package = project::stage("group-settings", &files);
     let result = project::omega(
         package.path(),
         &["build", "--target", "linux_x86_64", "build.omg"],
@@ -134,4 +135,37 @@ machine build(builder: @mutable BuildPlan) {
         output.contains("test group registration repeats the same requirement"),
         "{output}"
     );
+}
+
+#[test]
+fn run_stops_before_the_entry_when_a_group_requires_a_native_test() {
+    let configuration = r#"use main.omg as app;
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "required_native" };
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    let group: TestGroup = builder.tests.group::<|app|::Checks::live>();
+    TestGroup::engine(group, linux_x86_64, TestEngine::Native, TestEnginePolicy::Required);
+}"#;
+    let package = project::stage(
+        "run-required-native-test",
+        &[("main.omg", PRODUCT), ("build.omg", configuration)],
+    );
+    let (success, output) = project::status(&project::omega(
+        package.path(),
+        &[
+            "run",
+            "--target",
+            "linux_x86_64",
+            "--outputs",
+            "observations",
+            "build.omg",
+        ],
+    ));
+    assert!(!success, "{output}");
+    assert!(
+        output.contains("use `omega build` for required native test execution"),
+        "{output}"
+    );
+    assert!(output.contains("passed on Psi interpreter"), "{output}");
+    assert!(!package.path().join("observations").exists());
 }

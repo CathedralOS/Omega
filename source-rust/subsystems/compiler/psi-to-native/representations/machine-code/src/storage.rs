@@ -18,11 +18,9 @@ pub use frames::{
     FunctionFragmentFrameApplication, FunctionNonAuthoritativeCalleeSaveStorage,
     FunctionTargetFrameLayout, FunctionTargetFrameProtocolEncoding, LocalStorageFrameSlot,
     NonAuthoritativeCalleeSaveSlot, NonAuthoritativeCalleeSaveSlotId,
-    NonAuthoritativeCalleeSaveStorageIdentity, NonAuthoritativeCalleeSaveStoragePlan,
-    NonAuthoritativeCalleeSaveStoragePolicy, OutgoingAbiFrameArea, ReturnAddressFrameCustody,
-    StackProbePlan, TargetFrameLayoutPlan, TargetFrameLayoutPolicy,
-    TargetFrameProtocolEncodingIdentity, TargetFrameProtocolEncodingPlan,
-    TargetFrameProtocolEncodingPolicy, target_frame_protocol_encoding_identity,
+    NonAuthoritativeCalleeSaveStoragePlan, NonAuthoritativeCalleeSaveStoragePolicy,
+    OutgoingAbiFrameArea, ReturnAddressFrameCustody, StackProbePlan, TargetFrameLayoutPlan,
+    TargetFrameLayoutPolicy, TargetFrameProtocolEncodingPlan, TargetFrameProtocolEncodingPolicy,
 };
 
 pub mod frame_layout {
@@ -30,9 +28,9 @@ pub mod frame_layout {
         CalleeSaveFrameSlot, FrameUnwindPlan, FrameUnwindRestore,
         FunctionNonAuthoritativeCalleeSaveStorage, FunctionTargetFrameLayout,
         LocalStorageFrameSlot, NonAuthoritativeCalleeSaveSlot, NonAuthoritativeCalleeSaveSlotId,
-        NonAuthoritativeCalleeSaveStorageIdentity, NonAuthoritativeCalleeSaveStoragePlan,
-        NonAuthoritativeCalleeSaveStoragePolicy, OutgoingAbiFrameArea, ReturnAddressFrameCustody,
-        StackProbePlan, TargetFrameLayoutPlan, TargetFrameLayoutPolicy,
+        NonAuthoritativeCalleeSaveStoragePlan, NonAuthoritativeCalleeSaveStoragePolicy,
+        OutgoingAbiFrameArea, ReturnAddressFrameCustody, StackProbePlan, TargetFrameLayoutPlan,
+        TargetFrameLayoutPolicy,
     };
 }
 

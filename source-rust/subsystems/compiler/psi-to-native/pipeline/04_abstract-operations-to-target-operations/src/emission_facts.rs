@@ -20,7 +20,7 @@ pub(crate) fn project(
             functions: plan.functions.iter().map(function).collect(),
         },
         OptimizedProgramProjection {
-            identity: optimized.projection(),
+            selection: optimized.selections().identity(),
             terminal: optimized.unit().psi,
             final_unit: optimized.unit().identity,
         },

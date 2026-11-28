@@ -57,12 +57,12 @@ From the repository root, using a compiler built from this exact base:
 ```sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
 OMEGA=/absolute/path/to/verified/omega
-SAMPLE=samples/cli/independent/dimensional_stack_audit
+SAMPLE=samples/cli/scientific/dimensional_stack_audit
 "$OMEGA" update --project "$SAMPLE" --target linux_x86_64
 # Read the pending review and accept only the required documented package plan.
 # Resume only if that acceptance was authorized; a denial is a blocker.
 "$OMEGA" --check --target linux_x86_64 "$SAMPLE/main.omg"
-"$OMEGA" run --both "$SAMPLE/main.omg" < "$SAMPLE/data/profile_3.stdin"
+"$OMEGA" run "$SAMPLE/main.omg" < "$SAMPLE/data/profile_3.stdin"
 "$OMEGA" update --project "$SAMPLE/controls/invalid_contract" --target linux_x86_64
 # Review its local plan independently if requested.
 ```
@@ -75,7 +75,7 @@ its literal -1 violates nonnegative_tolerance's `requires value >= 0`.
 Its expected diagnostic is pinned separately; unrelated rejection is not a pass.
 
 `ORACLE_FREEZE.md` records its immutable digest; validation refuses changed oracle
-inputs. Numerical absolute and relative tolerances are zero. `omega run --both` compares
+inputs. Numerical absolute and relative tolerances are zero. The comparison checks
 termination and the exact stdout and stderr bytes from
 both engines. Its limitation is reported
 explicitly.

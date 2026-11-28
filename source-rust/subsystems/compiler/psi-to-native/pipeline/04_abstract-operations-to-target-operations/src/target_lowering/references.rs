@@ -2086,9 +2086,9 @@ pub(crate) fn establish(
     Ok(())
 }
 
-/// `view as @[T; N]` forms a shared reference whose native value addresses
-/// the view's payload. The reference borrows the view, so the view stays the
-/// root of its custody.
+/// `view as @[T; N]` forms a shared or mutable reference whose native value
+/// addresses the view's payload, so a write through it lands in that payload.
+/// The reference borrows the view, so the view stays the root of its custody.
 pub(crate) fn establish_fixed_array_view(
     operation: &AbstractOperation,
     site: &mut RowSite<'_>,
@@ -2123,7 +2123,10 @@ pub(crate) fn establish_fixed_array_view(
         .is_some_and(|leaf| leaf.shape.is_view_descriptor());
     if !fixed
         || !view
-        || source.access != StructuralAccess::SharedBorrow
+        || !matches!(
+            source.access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        )
         || result.multiplicity != StructuralMultiplicity::Affine
         || live.structural_homes.contains_key(&result.place)
         || live

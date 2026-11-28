@@ -7,7 +7,7 @@ Specification Reference: [Ownership](wiki/spec/terminal-psi/ownership.md), [Loan
 
 This fact row demonstrates that an unconsumed nominal resource with an affine drop contract (`machine drop_resource(resource: @mutable Resource) requires resource.valid == 1u64`) triggers deterministic scope-exit cleanup (`DiscardRoot` / `InvokeNominal`) across all nine standard places. The resource state satisfies the cleanup precondition (`resource.valid == 1u64`), allowing the cleanup action to be verified and statically discharged at compile time while writing `resource.valid` into caller-visible `Counter` state (`dropped.value == 1u64`) and preserving the computed value bound `result <= 50u64` so that exact subtraction `50u64 - result` succeeds and exits with code 0.
 
-Every positive place and the root witness bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declare `Expected exit: 0`, and carry an authored `expected_native_exit.txt` containing `0`. Both engines (`omega run --both`) agree on exit code 0.
+Every positive place and the root witness bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declare `Expected exit: 0`, and carry an authored `expected_native_exit.txt` containing `0`. Both engines agree on exit code 0.
 
 ## Places
 
@@ -26,7 +26,7 @@ Every positive place and the root witness bind `ProgramEntry` across all four ho
 
 ## Execution
 
-Run each positive place with `omega run --both`:
+Run each positive place with `mbx xtask sample-gate --filter samples/cli/facts/affine_discard_root_cleanup`:
 
 ```sh
 mbx xtask sample-gate --filter samples/cli/facts/affine_discard_root_cleanup
@@ -63,10 +63,10 @@ Full 8-layer specification and lowering evidence:
 - **Identity and lifetime:** The nominal resource retains unique ownership throughout its scope. At scope exit or across terminal machine transfers, affine cleanup disposes the resource by borrowing `@mutable Resource` for `drop_resource` and retiring its storage without leaking unconsumed linear/affine obligations.
 - **Composition:** Affine discard cleanup composes across all 9 standard places: local variable scope exit (`local`), nested record field drop (`field`), machine parameter cleanup upon return (`parameter`), function call return value binding (`call_result`), match arm convergence join (`match_join`), named constant initialization (`const_name`), state transition arrival and state scope exit (`other_state`), forwarding machine delegation (`other_machine`), and target-scoped body candidates (`target_body`). Each `<place>/invalid/main.omg` differs solely in supplying `valid: 0u64`, violating the drop clause.
 - **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins fail closed at compile time with `cannot prove automatic cleanup requires at selected edge ...: res does not establish drop_resource clause \`resource.valid == 1\``. The compiler soundly refuses any program where an unconsumed affine resource cannot prove its drop precondition at every exit edge.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Source drop declarations lower into target-neutral Terminal Psi (`PSITERM\0`) with explicit affine cleanup actions (`DiscardRoot`, `DiscardResidual`, and `InvokeNominal`). Erasure cleanly separates proof annotations while preserving `proof-term-tags`. Both Terminal Psi interpreter and native execution agree identically (`omega run --both`) on exit code 0.
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Source drop declarations lower into target-neutral Terminal Psi (`PSITERM\0`) with explicit affine cleanup actions (`DiscardRoot`, `DiscardResidual`, and `InvokeNominal`). Erasure cleanly separates proof annotations while preserving `proof-term-tags`. Both Terminal Psi interpreter and native execution agree identically on exit code 0.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Companion build rows bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Target layout planning assigns 16 bytes for `Resource` (two 8-byte `u64` fields at 8-byte alignment) and 16 bytes for `Holder`. In `CallPlan` and `StatePlan`, resource references pass as mutable pointers in ABI registers (`rcx`/`rdi`/`x0`), and drop invocations follow standard calling plans.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA instructions, emitting calls to `drop_resource` before function return or state transition. Disjoint activation frames allocate spill and scratch slots for mutable references while composing worst-case stack usage (WCSU) and bounded activation claims (`committed <= bound`).
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic displacements resolve, basic blocks relax with offset reflow around synthesized drop epilogues, transitive machine-state footprint evidence validates, and direct PE/ELF/Mach-O images execute with exit code 0 across `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` in full differential agreement with Terminal Psi (`omega run --both`).
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic displacements resolve, basic blocks relax with offset reflow around synthesized drop epilogues, transitive machine-state footprint evidence validates, and direct PE/ELF/Mach-O images execute with exit code 0 across `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` in full differential agreement with Terminal Psi.
 
 ## Discrimination: which obligation class this fact belongs to
 

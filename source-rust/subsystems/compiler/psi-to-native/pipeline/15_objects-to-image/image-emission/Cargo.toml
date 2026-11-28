@@ -24,11 +24,9 @@ post-allocation-machine = { path = "../../../representations/post-allocation-mac
 runtime-abi = { path = "../../../targets/runtime-abi" }
 arena = { path = "../../../../../../foundation/arena" }
 program-entry-contracts = { path = "../../../representations/program-entry-contracts" }
-legalized-operations = { path = "../../../representations/target-operations/legalized-operations" }
 selected-instructions = { path = "../../../representations/selected-instructions" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
-abstract-operations = { path = "../../../representations/abstract-operations" }
-optimization-unit-semantics = { path = "../../../representations/abstract-operations/optimization-unit-semantics" }
+operation-operands = { path = "../../../representations/operation-operands" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
 image = { path = "../image" }
 image-elf = { path = "../image-elf" }
@@ -39,7 +37,6 @@ target = { path = "../../../targets/target" }
 machine-code = { path = "../../../representations/machine-code" }
 function-identity = { path = "../../../representations/function-identity" }
 installation-conditions = { path = "../../../verification/installation-admission/conditions" }
-target-operations = { path = "../../../representations/target-operations" }
 target-aarch64 = { path = "../../../targets/target-aarch64" }
 target-x86_64 = { path = "../../../targets/target-x86_64" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
@@ -47,6 +44,7 @@ terminal-psi = { path = "../../../../psi" }
 terminal-semantics = { path = "../../../../psi/semantics" }
 
 [dev-dependencies]
+abstract-operations = { path = "../../../representations/abstract-operations" }
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }
 entry-planning = { path = "../../09_post-allocation-machine-to-framed-machine/entry-planning" }
 frame-planning = { package = "post-allocation-machine-to-framed-machine", path = "../../09_post-allocation-machine-to-framed-machine" }

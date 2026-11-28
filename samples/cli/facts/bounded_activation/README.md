@@ -15,7 +15,7 @@ not an existing-program regression. No baseline engine executed.
 
 On base `c1e25ff99985dab2f06b6b858586cac478da0c2c`, with
 `C:\tmp\tgt-c1e2\debug\omega.exe` and stdin closed,
-`omega run --both samples/cli/facts/bounded_activation/local/main.omg` exited
+the native/Psi comparison exited
 200 before either engine ran:
 
 ```text
@@ -74,10 +74,10 @@ measurements. Perturbing a single token in the root oracle (`observed == 37u8` -
 | **Identity and lifetime** | `ActivationClaim::bytes(@mutable live)` ties the mutable slice loan `@mutable [u8]` to the linear `ActivationClaim` owner (`live` or `holder.claim`), requiring all slice accesses (`write_read(bytes)`) to complete before `ActivationClaim::release(live)` retires the claim. |
 | **Composition** | Across all nine standard transport places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`), the linear `ActivationClaim` and its `@mutable [u8]` view compose through record fields, state hops, cross-machine calls, and target bodies. |
 | **Soundness boundaries** | Each `<place>/invalid/main.omg` attempts `ActivationClaim::release(...)` while `bytes` is still borrowed and used afterward, failing closed in source checking with `local borrow \`bytes\` is still active`; `escape`, `wrong_activation`, and `release_order` reject escaping claims, wrong activation release, and non-LIFO release. An admitted claim keeps its caller home across a suspending nominal cleanup of a different carrier. An unselected admission still has no storage role and cannot cross. |
-| **Checked-to-Terminal Psi lowering (`Psi 06–08`)** | `Activation::try_claim`, `ActivationClaim::bytes`, and `ActivationClaim::release` lower into canonical `PSITERM\0` bounded-activation operations and execute in the Terminal Psi interpreter (`omega run --both`). |
+| **Checked-to-Terminal Psi lowering (`Psi 06–08`)** | `Activation::try_claim`, `ActivationClaim::bytes`, and `ActivationClaim::release` lower into canonical `PSITERM\0` bounded-activation operations and execute in the Terminal Psi interpreter. |
 | **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)** | `ProgramEntry` settles for `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`; fixed-bound activation storage and slice descriptor calling plans validate without any external provider. |
 | **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)** | Backend lowering reserves the static bound in the activation frame, composes worst-case stack usage (WCSU) and page probes (`page_bound`), and zero-initializes committed bytes before exposing `@mutable [u8]`. |
-| **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)** | Native PE/ELF/Mach-O images emit and execute on `windows_x86_64` and `linux_x86_64` with exit code `0`, agreeing with Terminal Psi (`omega run --both`). |
+| **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)** | Native PE/ELF/Mach-O images emit and execute on `windows_x86_64` and `linux_x86_64` with exit code `0`, agreeing with Terminal Psi. |
 
 The cleanup crossing keeps that same fact and changes only the hook from a pure leaf to
 a boundary-reaching machine. On `26348267c99` that crossing was refused during Terminal

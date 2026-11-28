@@ -12,7 +12,7 @@ fn fixture_path(tier: &str) -> std::path::PathBuf {
 }
 
 #[test]
-fn copied_size_and_alignment_queries_agree_in_both_engines() {
+fn copied_size_and_alignment_queries_agree_when_interpreted_and_built() {
     program::assert_fixture_silent_return(&fixture_path("run"));
 }
 

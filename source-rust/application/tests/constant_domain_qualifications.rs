@@ -3,8 +3,8 @@
 //! value holds only the elements' fields, so materialization rebuilds each
 //! qualified element as `value as +D`, and the cast reader owes that domain's
 //! ordinary issuer and predicate checks. A domain anyone may issue survives
-//! the constant in both engines; one whose plan names an issuer is refused
-//! at the constant, while the same `make()` called directly still runs.
+//! the constant. A domain whose plan names an issuer is refused at the
+//! constant, while the same `make()` called directly still runs.
 
 #[path = "support/program.rs"]
 mod program;

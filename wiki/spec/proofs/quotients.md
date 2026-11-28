@@ -220,6 +220,40 @@ witness, and derivation identity remain distinct. Nonconstructive existence unde
 selected axioms need not yield an executable witness. Outcome, substitution,
 scope, erasure, and trust rules follow [proof contracts](contracts.md).
 
+### Cauchy sequences and the Real quotient
+
+Core represents a rational sequence by its state and a statically selected
+sampling machine. The declarations below abbreviate the core paths for `Nat` and `Rat`.
+
+```omega
+data Sampler<S> = machine(state: S, n: Nat) -> Rat
+    reaches none crashes none terminates;
+
+data Sequence<S, const At: Sampler<S>> {
+    state: S;
+}
+```
+
+The sample at index `n` is `At(s.state, n)`. Each selection must admit a
+[mathematical denotation](../language/evaluation.md#invocation-admission)
+on all its inputs. For a constant sequence, the state is a rational `q` and
+the named machine `repeat(q, n)` returns `q`. The same selection works for
+every `q`. For an arbitrary mathematical function `f: Nat -> Rat` supplied
+to a theorem, the state is `f` itself. Core's proof-side sampling machine
+`apply(f, n)` returns the mathematical value `f(n)`. Here `apply` occupies
+the static machine slot and `f` occupies the ordinary generic field.
+[Mathematical function types](mathematical_bindings.md#universes-and-mathematical-function-types)
+
+To project a sequence into `Real`, establish regularity for those exact
+samples. For positive indices `m` and `n`, the distance between the samples must be at most
+`1/m + 1/n`. Thus the quotient carrier consists of regular sequences over
+the admissible state types and sampler selections. The relation compares
+the two sequences' samples for convergence together. Its left and right
+state types and machines may differ. Both representatives project into one
+`Real` type, and quotient soundness takes a proof of convergence together
+to an identity between their projections. The ordinary universe, carrier
+and equivalence-law checks apply.
+
 ## Formation and representation
 
 Each closed quotient application selects one closed `MereEquivalence<C, R>` conformance.

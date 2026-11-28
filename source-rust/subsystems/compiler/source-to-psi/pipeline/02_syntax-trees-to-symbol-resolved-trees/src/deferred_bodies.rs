@@ -724,32 +724,30 @@ impl DeferredResolvedFrontier {
         let predecessor = self.trees.clone();
         let frontier = predecessor.authored_selection_extension_frontier();
         let syntax_frontier = self.syntax.root_item_handles().len();
-        if self.equation_sources.is_some() {
-            loop {
-                let mut provisional = self.seed_body_lowerer()?;
-                provisional.const_resolution_mode = ConstResolutionMode::ArgumentSelection;
-                provisional.structural_type_equations_pending = true;
-                append_generated_declarations(&mut provisional, &self.syntax, syntax_frontier)?;
-                lower_selected_bodies(&mut provisional, &self.syntax, &pending, selected)?;
-                super::finish_resolution(&mut provisional, &self.syntax, selected)?;
-                let selection = provisional.take_constant_selection()?;
-                let links = provisional.equation_sources.take().unwrap_or_default();
-                let before = self.syntax.root_item_handles().len();
-                machine_equations::complete(
-                    Arc::make_mut(&mut self.syntax),
-                    &provisional.symbol_resolved_trees,
-                    &links,
-                    &selection,
-                )?;
-                if self.syntax.root_item_handles().len() == before {
-                    break;
-                }
-            }
-        }
-        let mut lowerer = self.seed_body_lowerer()?;
-        append_generated_declarations(&mut lowerer, &self.syntax, syntax_frontier)?;
-        lower_selected_bodies(&mut lowerer, &self.syntax, &pending, selected)?;
-        super::finish_resolution(&mut lowerer, &self.syntax, selected)?;
+        let seed = || -> Result<Lowerer, Vec<Diagnostic>> {
+            let mut lowerer = Lowerer::new(self.sources.clone(), self.bindings.clone());
+            lowerer.seed_resolved_base(Arc::clone(&self.trees))?;
+            lowerer.supplied_operand_owners = self.supplied_operand_owners.clone();
+            lowerer.declaration_inputs = self.declaration_inputs.clone();
+            lowerer.constant_selection = Some(self.selection.clone());
+            lowerer.hoist_counter = self.hoist_counter;
+            lowerer.const_resolution_mode = self.const_resolution_mode;
+            lowerer.structural_type_equations_pending = self.structural_type_equations_pending;
+            lowerer.equation_sources = self.equation_sources.clone();
+            Ok(lowerer)
+        };
+        let run = |lowerer: &mut Lowerer, syntax: &SyntaxTrees| -> Result<(), Vec<Diagnostic>> {
+            append_generated_declarations(lowerer, syntax, syntax_frontier)?;
+            lower_selected_bodies(lowerer, syntax, &pending, selected)?;
+            super::finish_resolution(lowerer, syntax, selected)
+        };
+        let mut lowerer = if self.equation_sources.is_some() {
+            machine_equations::resolve_completing_calls(&mut self.syntax, seed, run)?
+        } else {
+            let mut lowerer = seed()?;
+            run(&mut lowerer, &self.syntax)?;
+            lowerer
+        };
         let hoist_counter = lowerer.hoist_counter;
         self.supplied_operand_owners = take(&mut lowerer.supplied_operand_owners);
         self.declaration_inputs = take(&mut lowerer.declaration_inputs);
@@ -775,19 +773,6 @@ impl DeferredResolvedFrontier {
             frontier,
             selected: selected.to_vec(),
         })
-    }
-
-    fn seed_body_lowerer(&self) -> Result<Lowerer, Vec<Diagnostic>> {
-        let mut lowerer = Lowerer::new(self.sources.clone(), self.bindings.clone());
-        lowerer.seed_resolved_base(Arc::clone(&self.trees))?;
-        lowerer.supplied_operand_owners = self.supplied_operand_owners.clone();
-        lowerer.declaration_inputs = self.declaration_inputs.clone();
-        lowerer.constant_selection = Some(self.selection.clone());
-        lowerer.hoist_counter = self.hoist_counter;
-        lowerer.const_resolution_mode = self.const_resolution_mode;
-        lowerer.structural_type_equations_pending = self.structural_type_equations_pending;
-        lowerer.equation_sources = self.equation_sources.clone();
-        Ok(lowerer)
     }
 }
 

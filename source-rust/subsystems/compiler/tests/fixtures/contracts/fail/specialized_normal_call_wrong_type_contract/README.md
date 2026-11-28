@@ -2,6 +2,6 @@
 
 Only the ensured application changes from `choose<u32>` to `choose<u64>`;
 the actual call and runtime oracle remain unchanged. Both frozen R23 and R24
-refuse this exact ensures. R24's matching positive executes in both engines.
+refuse this exact ensures. R24's matching positive passes both Psi interpretation and the compiled executable check.
 
 [Positive and retained evidence](../../../../../../../../tests/fixtures/pass/contracts/runtime_specialized_normal_call_contract_exit/README.md).

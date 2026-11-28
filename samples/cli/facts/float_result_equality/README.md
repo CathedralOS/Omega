@@ -68,7 +68,7 @@ Governing contracts are [invocation contracts](../../../../wiki/spec/language/st
 [Build-owned target selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection).
 
 Every positive and [the root](main.omg) bind all four hosted targets and declare
-exit zero. Run a place with `omega run --both <place>/main.omg`.
+exit zero. Run a place with `mbx xtask sample-gate --filter samples/cli/facts/float_result_equality/<place>`.
 
 At fixed published base `db92349b9c2e`,
 [the original baseline](https://github.com/CathedralOS/Omega/actions/runs/41765895038)

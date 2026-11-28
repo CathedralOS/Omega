@@ -3474,18 +3474,19 @@ pub(crate) mod identity_context {
             ExpressionNode::SavedSubject(saved) => {
                 match_dispatch::normalize_saved_subject(program, saved, context)
             }
-            ExpressionNode::Atomic(atomic) => compound(
-                IndexForm::Atomic,
-                [
-                    normalize_index_expression(program, atomic.value, context),
-                    normalize_index_expression(program, atomic.result, context),
-                    atom(Label::Ordering, &format!("{:?}", atomic.ordering)),
-                    atom(
-                        Label::ResultCustody,
-                        &format!("{:?}", atomic.result_custody),
-                    ),
-                ],
-            ),
+            ExpressionNode::Atomic(atomic) => {
+                let mut parts = atomic
+                    .inputs()
+                    .chain(std::iter::once(atomic.result))
+                    .map(|input| normalize_index_expression(program, input, context))
+                    .collect::<Vec<_>>();
+                parts.push(atom(Label::Ordering, &format!("{:?}", atomic.ordering)));
+                parts.push(atom(
+                    Label::ResultCustody,
+                    &format!("{:?}", atomic.result_custody),
+                ));
+                compound(IndexForm::Atomic, parts)
+            }
             ExpressionNode::Cast(cast) => compound(
                 IndexForm::Cast,
                 [
@@ -5693,6 +5694,7 @@ pub(crate) mod package_policy_reading_tests {
                     crate::source_state::expression::TableCastExpression {
                         value,
                         target_type: target,
+                        recast_storage_type: Default::default(),
                         result_type: crate::source_state::types::TypeReferenceHandle::invalid(),
                         target_label: arena::HandleSpan::empty(),
                         domain: ArithmeticDomain::Wrapping,
@@ -5811,6 +5813,7 @@ pub(crate) mod package_policy_reading_tests {
             let (value, result) = (fixture.name("LIMIT"), fixture.name("WIDTH"));
             let atomic = fixture.expression(ExpressionNode::Atomic(TableAtomicExpression {
                 value,
+                exchange_operands: None,
                 result,
                 ordering: AtomicOrderingPlan::Load(MemoryOrdering::Receive),
                 result_custody: AtomicExpressionResultCustody::Scalar,

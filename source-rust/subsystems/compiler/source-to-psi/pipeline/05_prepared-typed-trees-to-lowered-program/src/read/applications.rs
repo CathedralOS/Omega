@@ -1,5 +1,5 @@
 //! Retained generic applications share one complete binder tuple, regardless
-//! of whether the declaration combines types, scalar consts or schema consts.
+//! of whether the declaration combines types, value consts or schema consts.
 
 use super::Program;
 use crate::body::ValueType;
@@ -7,6 +7,16 @@ use crate::source_state::trait_definition::AppliedTraitScope;
 use semantic_vocabulary::{MachineId, ScalarTerm};
 use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
+
+/// Rigid values in a generic call are drawn from the enclosing declaration.
+#[derive(Debug)]
+pub(super) enum ValueArgument {
+    Scalar(ScalarTerm),
+    Structural {
+        formal: SymbolHandle,
+        carrier: ValueType,
+    },
+}
 
 #[derive(Debug)]
 pub(super) struct ApplicationArguments<'source> {
@@ -17,7 +27,7 @@ pub(super) struct ApplicationArguments<'source> {
         SymbolHandle,
         crate::source_state::types::TypeReferenceHandle,
     )>,
-    pub(super) values: Vec<ScalarTerm>,
+    pub(super) values: Vec<ValueArgument>,
     pub(super) proofs: Vec<crate::body::ProofSupply>,
     pub(super) const_sources: Vec<(
         SymbolHandle,
@@ -202,6 +212,68 @@ impl<'source> Program<'source> {
         })
     }
 
+    fn application_value(
+        &mut self,
+        id: MachineId,
+        caller: SymbolHandle,
+        parameter: SymbolHandle,
+        type_reference: crate::source_state::types::TypeReferenceHandle,
+        reference: Option<crate::source_state::types::TypeReferenceHandle>,
+    ) -> Checked<ValueArgument> {
+        let typed = self.typed;
+        let unavailable = |reason| crate::read::unavailable(id, reason);
+        let carrier = self.value_type(id, type_reference)?;
+        let Some(scalar_type) = carrier.scalar() else {
+            let formal = match reference {
+                None => parameter,
+                Some(reference) => typed
+                    .type_reference_table
+                    .type_reference(reference)
+                    .as_named_symbol()
+                    .ok_or_else(|| {
+                        unavailable("structural static argument has no supplying formal")
+                    })?,
+            };
+            let supplied = typed
+                .declaration_type_parameters(caller)
+                .iter()
+                .find(|actual| actual.symbol == formal)
+                .and_then(|actual| match actual.kind {
+                    crate::source_state::data::TypeParameterKind::Const { type_reference }
+                    | crate::source_state::data::TypeParameterKind::Value { type_reference } => {
+                        Some(type_reference)
+                    }
+                    _ => None,
+                })
+                .ok_or_else(|| {
+                    unavailable("structural static argument is outside the caller's telescope")
+                })?;
+            if typed.normalized_type_identity(supplied)
+                != typed.normalized_type_identity(type_reference)
+                || !crate::source_state::canonical_const_carrier_is_supported(typed, type_reference)
+            {
+                return Err(unavailable(
+                    "structural static argument has another carrier",
+                ));
+            }
+            return Ok(ValueArgument::Structural { formal, carrier });
+        };
+        Ok(ValueArgument::Scalar(if let Some(reference) = reference {
+            self.bound_scalar_value(id, scalar_type, reference, true)?
+        } else {
+            let input = self
+                .const_scope
+                .iter()
+                .find(|input| {
+                    input.symbol == parameter
+                        && input.owner == id
+                        && input.scalar_type == scalar_type
+                })
+                .ok_or_else(|| unavailable("inherited scalar Const lost its exact caller input"))?;
+            semantic_vocabulary::ScalarTerm::value(input.value, scalar_type)
+        }))
+    }
+
     /// Authenticate the whole tuple once, then read each argument by its binder kind.
     /// Types select a checking instance; scalar consts become its explicit inputs.
     /// The checking frame supplies values; the lexical caller authenticates the source tuple.
@@ -381,23 +453,13 @@ impl<'source> Program<'source> {
                 if let Some(reference) = reference {
                     const_sources.push((parameter.symbol, reference));
                 }
-                let scalar_type = self.scalar_type(id, type_reference)?;
-                values.push(if let Some(reference) = reference {
-                    self.bound_scalar_value(id, scalar_type, reference, true)?
-                } else {
-                    let input = self
-                        .const_scope
-                        .iter()
-                        .find(|input| {
-                            input.symbol == parameter.symbol
-                                && input.owner == id
-                                && input.scalar_type == scalar_type
-                        })
-                        .ok_or_else(|| {
-                            unavailable("inherited scalar Const lost its exact caller input")
-                        })?;
-                    semantic_vocabulary::ScalarTerm::value(input.value, scalar_type)
-                });
+                values.push(self.application_value(
+                    id,
+                    caller,
+                    parameter.symbol,
+                    type_reference,
+                    reference,
+                )?);
             }
         }
         Ok(ApplicationArguments {

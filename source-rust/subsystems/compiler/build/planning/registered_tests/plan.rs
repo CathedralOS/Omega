@@ -2,8 +2,8 @@
 //! Execution consumes the same checked product used to report its bindings.
 use super::{
     Artifact, CompileRequest, CompletedProduct, Diagnostic, EngineError,
-    InstallationEnvironmentAssumption, ProductStage, Program,
-    RegisteredTests, Run, TargetProfile, TestExecution, run_test,
+    InstallationEnvironmentAssumption, ProductStage, Program, RegisteredTests, Run, TargetProfile,
+    TestExecution, run_test,
 };
 use provider_admission::IsolatedExecutionGrant;
 use source_compiler::registered_tests::{TestEnginePolicy, TestRoot};
@@ -25,7 +25,7 @@ struct PreparedProduct {
 
 pub(super) struct Engines {
     pub(super) psi: Destination,
-    pub(super) native: Destination,
+    pub(super) native: Option<Destination>,
 }
 
 #[derive(Clone, Copy)]
@@ -92,14 +92,22 @@ impl PlannedTest {
             policy: root.engines.psi,
             unavailable: missing_adapter,
         };
-        let native = Destination {
-            policy: root.engines.native,
-            unavailable: if TargetProfile::host_if_supported() == Some(target) {
-                missing_adapter
-            } else {
-                Some("its target does not execute on this host")
-            },
+        let native = match (request, root.engines.native) {
+            (TestExecution::Interpret, TestEnginePolicy::Required) => Some(Destination {
+                policy: TestEnginePolicy::Required,
+                unavailable: Some("use `omega build` for required native test execution"),
+            }),
+            (TestExecution::Interpret, _) => None,
+            (_, policy) => Some(Destination {
+                policy,
+                unavailable: if TargetProfile::host_if_supported() == Some(target) {
+                    missing_adapter
+                } else {
+                    Some("its target does not execute on this host")
+                },
+            }),
         };
+        let compile_native = native.is_some_and(Destination::scheduled);
         let prepare = || {
             if !root.inputs.private_filesystem
                 && (!root.inputs.files.is_empty() || !root.expected.files.is_empty())
@@ -121,7 +129,7 @@ impl PlannedTest {
                 runtime_consent: stage.runtime_consent(target)?,
                 target: native_target,
             };
-            let request = match native.scheduled() {
+            let request = match compile_native {
                 true => CompileRequest::Native {
                     program,
                     entry_memory: &[],
@@ -133,7 +141,7 @@ impl PlannedTest {
             };
             let result = compiler::compile(request, Default::default())
                 .map_err(compiler::stage_validators::NativeValidationError::into_diagnostics)?;
-            let report = match (native.scheduled(), result.artifact) {
+            let report = match (compile_native, result.artifact) {
                 (true, Artifact::Native(product)) | (false, Artifact::Runtime(product)) => product,
                 _ => {
                     return Err(vec![Diagnostic::error(
@@ -168,9 +176,14 @@ impl PlannedTest {
                 diagnostics::join_messages(errors)
             ),
             Ok(product) => format!(
-                "{label}: Psi interpreter {}; native {}; {}",
+                "{label}: Psi interpreter {}{}; {}",
                 self.engines.psi.describe(self.request),
-                self.engines.native.describe(self.request),
+                self.engines
+                    .native
+                    .map_or_else(String::new, |destination| format!(
+                        "; native {}",
+                        destination.describe(self.request)
+                    )),
                 product.bindings
             ),
         }

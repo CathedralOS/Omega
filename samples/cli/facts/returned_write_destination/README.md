@@ -22,7 +22,7 @@ The nine places are:
 
 ## Execution
 
-Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and declares `Expected exit: 0`. `omega run --both` reports Terminal Psi interpreter and native execution agreement (`interp exit: 0` and `native exit 0`):
+Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and declares `Expected exit: 0`. The native/Psi comparison reports Terminal Psi interpreter and native execution agreement (`interp exit: 0` and `native exit 0`):
 
 ```sh
 mbx xtask sample-gate --filter samples/cli/facts/returned_write_destination
@@ -58,10 +58,10 @@ Each place has an `invalid/` reject twin (and corresponding `controls/read_desti
 2. **Identity and lifetime:** The returned `@write` loan preserves exact backing storage identity (`value`) across call boundaries and selection joins while maintaining disjointness from neighboring storage (`neighbor == 19`). Borrow rules forbid accessing the loaned backing storage (`value`) until the returned `@write` loan finishes, and write-only semantics strictly prohibit observing or reading the referent while the destination loan is active.
 3. **Composition:** Returned `@write` destination loans compose across all 9 places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`) into the consuming write `destination = 42` and subsequent verification of caller storage (`value == 42 && neighbor == 19`). Each place's positive `<place>/main.omg` vs. its reject twin `<place>/invalid/main.omg` differs only in attempting to read the write-only destination (`destination = destination`), cleanly isolating the exact loan discipline under test without caller guard divergence.
 4. **Soundness boundaries:** All 9 reject twins (`<place>/invalid/main.omg` and `<place>/controls/read_destination/main.omg`) fail closed during typechecking with exit code 1 and diagnostic: `error: machine `main` state `entry` reads write-only parameter `destination`; `@write` permits replacement or exact `@write` forwarding, never observation`. Reading uninitialized or write-only destinations, conflicting concurrent borrows, and alias leakage are strictly caught at source checking before backend emission.
-5. **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Returned `@write` destination loans and definite-initialization proofs lower into canonical `PSITERM\0` pointer returns and stores. Borrow restoration windows (`reborrow restored call uses`) track active loans across call sites and joins while compile-time write-only checks are preserved in typing and erased for execution. The Terminal Psi interpreter executes every positive place in complete agreement with native execution (`omega run --both`).
+5. **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Returned `@write` destination loans and definite-initialization proofs lower into canonical `PSITERM\0` pointer returns and stores. Borrow restoration windows (`reborrow restored call uses`) track active loans across call sites and joins while compile-time write-only checks are preserved in typing and erased for execution. The Terminal Psi interpreter executes every positive place in complete agreement with native execution.
 6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` settles uniformly across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Scalar types (`i32`, `u64`) and reference pointers (`@write T`) evaluate target layout geometry (`size_of` 8-byte pointer, 4-byte `i32`). `CallPlan` and `StatePlan` allocate `@write` destination pointer arguments and returns into standard ABI parameter/return registers according to target calling conventions.
 7. **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA instructions (`x86_64` and `arm64`) for pointer passing, address calculation, indirect store (`mov [rdi], 42` or `str w0, [x1]`), and subsequent direct loads of caller storage (`value`, `neighbor`). Lowering assigns register homes and disjoint activation stack-frame slots for caller locals, inserting standard entry prologues and epilogues honoring `StatePlan` frame ceilings.
-8. **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack displacements for caller variables resolve in final binary instruction encodings, basic blocks relax with offset reflow, machine-state footprint evidence validates transitive usage, and direct native PE/ELF/Mach-O emission produces functioning executables in complete agreement with Terminal Psi (`omega run --both` exit 0) across platforms.
+8. **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack displacements for caller variables resolve in final binary instruction encodings, basic blocks relax with offset reflow, machine-state footprint evidence validates transitive usage, and direct native PE/ELF/Mach-O emission produces functioning executables in complete agreement with Terminal Psi (exit 0) across platforms.
 
 ## Build-owned target-body migration
 
@@ -79,7 +79,7 @@ implementations. #1361 (`b7d254d952a`) counts named-implementation rows and
 still requires each selected implementation to supply a checked body, so this
 migration needs no compiler change. Observed with the optimized producer at
 `11bdd2fe41f` on macOS x86-64: all nine positives and the root exit 0 under
-`omega run --both` (native and Terminal Psi agree), and the nine twins plus
+the native/Psi comparison (native and Terminal Psi agree), and the nine twins plus
 the `target_body` read control reject because `main` reads write-only
 parameter `destination` (`@write` permits replacement or exact forwarding,
 never observation). The other hosted targets keep their authored rows,

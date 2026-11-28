@@ -13,8 +13,7 @@ both empty and populated producer results preserve the captured answer 31.
 
 ```text
 omega packages update --project samples/cli/basics/sum_normal_cleanup
-omega run --engine native samples/cli/basics/sum_normal_cleanup/main.omg
-omega run --engine psi samples/cli/basics/sum_normal_cleanup/main.omg
+omega run samples/cli/basics/sum_normal_cleanup/main.omg
 ```
 
 This valid program challenges the shared cleanup-control boundary for

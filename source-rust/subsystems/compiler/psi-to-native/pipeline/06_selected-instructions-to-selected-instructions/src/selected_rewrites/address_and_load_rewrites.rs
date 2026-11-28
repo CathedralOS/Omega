@@ -276,9 +276,7 @@ pub(crate) mod address_fold {
     use crate::selected_rewrites::rewrites::sealed;
     use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
     use register_environment::ValidatedTargetRegisterEnvironment;
-    use selected_instructions::{
-        AddressFoldIdentity, SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
-    };
+    use selected_instructions::{SelectedFunction, SelectedInstructionId, SelectedInstructionPlan};
     use semantic_vocabulary::WorkScheduleIdentity;
     use std::sync::Arc;
 
@@ -288,15 +286,6 @@ pub(crate) mod address_fold {
         function_index: usize,
         access: SelectedInstructionId,
     });
-
-    rewrite_receipt_identity!(
-        address_fold_identity,
-        AddressFoldIdentity,
-        AddressFoldReceipt,
-        b"omega.terminal-address-fold.v2\0",
-        "address-fold",
-        access,
-    );
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum AddressFoldError {
@@ -1294,24 +1283,10 @@ pub(crate) mod load_forwarding {
         load: SelectedInstructionId,
         proposed: SelectedInstructionPlan,
     ) -> Result<ValidatedStoredLoadForwarding, StoredLoadForwardingError> {
-        let mut canonical = b"omega.stored-load-forwarding.v2".to_vec();
-        canonical.extend_from_slice(&source.optimization_unit_identity().bytes());
-        crate::selected_rewrites::codec_bytes::push_encoded(
-            &mut canonical,
-            source.work_schedule_identity().marker().to_le_bytes(),
-        );
-        crate::selected_rewrites::codec_bytes::push_encoded(
-            &mut canonical,
-            (function_index as u64).to_le_bytes(),
-        );
-        crate::selected_rewrites::codec_bytes::push_encoded(&mut canonical, load.0.to_le_bytes());
         Ok(sealed!(ValidatedStoredLoadForwarding,
             StoredLoadForwardingReceipt,
             source,
             proposed,
-            identity: selected_instructions::StoredLoadForwardingIdentity::from_canonical_bytes(
-                &canonical
-            ),
             function_index: function_index,
             load: load
         ))
@@ -1321,9 +1296,7 @@ pub(crate) mod load_forwarding {
     use crate::selected_rewrites::rewrites::sealed;
     use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
     use register_environment::ValidatedTargetRegisterEnvironment;
-    use selected_instructions::{
-        SelectedInstructionId, SelectedInstructionPlan, StoredLoadForwardingIdentity,
-    };
+    use selected_instructions::{SelectedInstructionId, SelectedInstructionPlan};
     use semantic_vocabulary::WorkScheduleIdentity;
     use std::sync::Arc;
 
@@ -1331,7 +1304,6 @@ pub(crate) mod load_forwarding {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct StoredLoadForwardingReceipt {
-        identity: StoredLoadForwardingIdentity,
         function_index: usize,
         load: SelectedInstructionId,
         source_selected: Arc<SelectedInstructionPlan>,
@@ -1342,7 +1314,6 @@ pub(crate) mod load_forwarding {
 
     impl StoredLoadForwardingReceipt {
         receipt_accessor_rows!(ref StoredLoadForwardingReceipt {
-            identity: StoredLoadForwardingIdentity,
             function_index: usize,
             load: SelectedInstructionId,
         });

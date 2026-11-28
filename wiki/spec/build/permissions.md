@@ -48,9 +48,11 @@ ordinary production must not silently invent such a request.
 An OS, loader, registry, or deployment system selects and enforces its own
 admission policy. Neither a binary nor its build script can authorize itself,
 select the receiver's policy, or enforce rules on its host.
-`omega run` combines production with a host execution request; production grants
-no host permission. [Build-time authority](execution.md#restricted-build-requests)
-is a separate concern because the build actually executes on the build host.
+`omega run` interprets source and saved Psi with the same
+[default Product grants](command_line.md#runtime-directory-mappings).
+Live networking and program launch each require an explicit caller grant.
+Declared reach identifies operations the Product may request. The caller separately
+authorizes [Build-time operations](execution.md#restricted-build-requests) on the build host.
 
 [Build-level exclusions](behavior_exclusions.md) may independently forbid exact
 abstract services or physical terminal classes. Physical exclusions consume the

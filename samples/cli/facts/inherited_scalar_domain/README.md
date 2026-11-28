@@ -31,10 +31,10 @@ predicate. `const HELD: u64 in Nested::Inherited = 3` exits 0. Initializer
   also carries `1`, and `5 - 1` is `4`.
 - Soundness: the bound is the domain predicate, not a caller guard after the
   qualifier is erased.
-- Psi through native: `omega run --both` requires Terminal and native
+- Psi through native: the native/Psi comparison requires Terminal and native
   agreement on exit 0. This host executes `linux_x86_64`.
 
-This host executed all nine places with `omega run --both`: native and
+This host executed all nine places with the native/Psi comparison: native and
 Terminal Psi both exited 0. Each initializer-`9` twin rejected.
 
 Still open on the parent item: one general predicate representation through

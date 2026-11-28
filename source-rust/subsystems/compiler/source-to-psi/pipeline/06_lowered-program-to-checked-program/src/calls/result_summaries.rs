@@ -435,7 +435,7 @@ fn summarize(
         id,
         &mut scratch,
         inhabitation,
-        None,
+        crate::minted::ClaimRows::Deferred,
         |mut machine, scratch| machine.replay_joins(scratch, unreached, activity),
     )?;
     // The identities the summary's rows take once it is added: its published

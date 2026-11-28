@@ -10,9 +10,11 @@ blocking because the filesystem calls can wait for the host.
 From this directory, run the engines separately on the same host.
 
 ```sh
-omega run --engine native build.omg
-omega run --engine psi build.omg
+omega run build.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/systems/file_journal` from the repository root.
 
 Success exits **7**. The journal creates `/tmp/omega_journal_dir`, writes the
 17 bytes `omega fs journal\n`, checks their size and reads them back, renames

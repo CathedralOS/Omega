@@ -1073,7 +1073,6 @@ pub(crate) mod fixed_view_copy {
 
             use crate::allocation::{
                 FixedViewCopyPlan, FixedViewCopyReceipt, MaterializedFixedViewCopies,
-                fixed_view_copy_identity,
             };
 
             pub(crate) fn seal_copies(
@@ -1081,7 +1080,6 @@ pub(crate) mod fixed_view_copy {
                 plan: FixedViewCopyPlan,
             ) -> MaterializedFixedViewCopies {
                 let receipt = FixedViewCopyReceipt {
-                    identity: fixed_view_copy_identity(&plan),
                     register_environment: plan.register_environment,
                     allocator_availability: plan.allocator_availability,
                     optimization_unit: selected.optimization_unit(),
@@ -1263,11 +1261,9 @@ pub(crate) mod fixed_view_copy {
     use register_homes::AllocatorAvailabilityIdentity;
     pub use register_homes::{
         FixedViewCopy, FixedViewCopyDestination, FixedViewCopyPlan, FixedViewCopyPolicy,
-        fixed_view_copy_identity,
     };
 
     use crate::allocation::ValidatedFixedPrecoloredSplitRequirements;
-    use selected_instructions::FixedViewCopyIdentity;
 
     pub(crate) fn materialize_fixed_view_copies(
         selected: &SelectedProgram,
@@ -1302,7 +1298,6 @@ pub(crate) mod fixed_view_copy {
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct FixedViewCopyReceipt {
-        pub(crate) identity: FixedViewCopyIdentity,
         pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
         pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
         pub(crate) optimization_unit: optimization_core::OptimizationUnitIdentity,
@@ -1315,7 +1310,6 @@ pub(crate) mod fixed_view_copy {
 
     impl FixedViewCopyReceipt {
         receipt_accessor_rows!(FixedViewCopyReceipt {
-            identity: FixedViewCopyIdentity,
             optimization_unit: optimization_core::OptimizationUnitIdentity,
             work_schedule: semantic_vocabulary::WorkScheduleIdentity,
             policy: FixedViewCopyPolicy,
@@ -1410,13 +1404,13 @@ pub(super) use crate::allocation::pressure_rematerialization_recovery as pressur
 pub(crate) use fixed_view_copy::materialize_fixed_view_copies;
 pub use fixed_view_copy::{
     FixedViewCopy, FixedViewCopyDestination, FixedViewCopyPlan, FixedViewCopyPolicy,
-    MaterializedFixedViewCopies, fixed_view_copy_identity,
+    MaterializedFixedViewCopies,
 };
 pub(crate) use fixed_view_copy::{FixedViewCopyError, FixedViewCopyReceipt};
 pub(crate) use pressure_rematerialization::{
     FunctionPressureRematerialization, PressureRematerializationAction,
     PressureRematerializationPlan, PressureRematerializationReceipt,
-    PressureRematerializationRewrite, pressure_rematerialization_identity,
+    PressureRematerializationRewrite,
 };
 pub use pressure_rematerialization::{
     PressureRematerializationError, PressureRematerializationPolicy,

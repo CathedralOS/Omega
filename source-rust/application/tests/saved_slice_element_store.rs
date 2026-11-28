@@ -79,7 +79,7 @@ fn reopen_with(
 fn a_saved_copy_between_two_slices_reopens_without_its_source() {
     let scratch = TemporaryDirectory::create("saved-slice-element-store", false).unwrap();
     let artifact = saved_artifact(scratch.path());
-    let reopened = project::omega(
+    let reopened = project::observe(
         artifact.parent().unwrap(),
         &["psi", "inspect", "--artifact", "rooms.psi"],
     );
@@ -92,10 +92,9 @@ fn the_copied_room_runs_natively_and_in_psi() {
         .join("source-rust/application/tests/fixtures/ownership/run/slice_element_store");
     let scratch = TemporaryDirectory::create("slice-element-store-run", false).unwrap();
     std::fs::copy(project.join("main.omg"), scratch.path().join("main.omg")).unwrap();
-    for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-        let ran = project::omega(scratch.path(), &["run", "--engine", engine, "main.omg"]);
-        let ran = report(&ran);
-        assert!(ran.lines().any(|line| line == receipt), "{ran}");
+    for command in ["run", "build"] {
+        let ran = project::observe(scratch.path(), &[command, "main.omg"]);
+        assert!(ran.status.success(), "{}", report(&ran));
     }
 }
 

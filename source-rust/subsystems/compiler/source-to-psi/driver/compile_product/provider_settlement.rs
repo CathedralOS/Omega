@@ -474,6 +474,7 @@ pub(super) fn predict_default_layouts(
         let mut chosen: Vec<ProviderSelection> = Vec::new();
         loop {
             let mut scope = FixedLayoutTargetScope {
+                checks_subject: false,
                 target: target.to_owned(),
                 facts: None,
                 entry_declarations: roots.to_vec(),

@@ -4,9 +4,8 @@ use machine_code::FrameProtocolStepSpan;
 use register_environment::ValidatedTargetRegisterEnvironment;
 
 pub use machine_code::{
-    FrameProtocolByteSpan, FunctionTargetFrameProtocolEncoding,
-    TargetFrameProtocolEncodingIdentity, TargetFrameProtocolEncodingPlan,
-    TargetFrameProtocolEncodingPolicy, target_frame_protocol_encoding_identity,
+    FrameProtocolByteSpan, FunctionTargetFrameProtocolEncoding, TargetFrameProtocolEncodingPlan,
+    TargetFrameProtocolEncodingPolicy,
 };
 
 use frame_admission::frame_layout::{
@@ -16,13 +15,13 @@ pub use frame_admission::frame_protocol::{
     FrameProtocolCodec, TargetFrameProtocolEncodingError, frame_protocol_codec,
 };
 
-/// Reconstruct the prologue and epilogue from the admitted frame. Only the
-/// digest of the exact submitted protocol passes to later audit stages.
+/// Reconstruct the prologue and epilogue from the admitted frame. Later
+/// audit stages share the exact submitted protocol and compare it.
 pub fn validate_target_frame_protocol_encoding(
     frame: &ValidatedTargetFrameLayout,
     environment: &ValidatedTargetRegisterEnvironment,
     candidate: &TargetFrameProtocolEncodingPlan,
-) -> Result<TargetFrameProtocolEncodingIdentity, TargetFrameProtocolEncodingError> {
+) -> Result<(), TargetFrameProtocolEncodingError> {
     if !frame.has_plan(&candidate.frame_layout)
         || candidate.register_environment != environment.identity()
         || candidate.physical_register_model != environment.physical().identity()
@@ -30,8 +29,7 @@ pub fn validate_target_frame_protocol_encoding(
     {
         return Err(TargetFrameProtocolEncodingError::RootMismatch);
     }
-    validate_bytes(frame, environment, candidate)?;
-    Ok(target_frame_protocol_encoding_identity(candidate))
+    validate_bytes(frame, environment, candidate)
 }
 
 fn encode_frame_function(

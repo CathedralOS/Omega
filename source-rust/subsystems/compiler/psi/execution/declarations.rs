@@ -10,5 +10,5 @@ pub struct ExecutionDeclarations {
     pub suspension_call_plan_count: u32,
     pub suspension_call_sites: Vec<TerminalSuspensionCallSite>,
     pub suspension_call_plans: Vec<TerminalSuspensionCallPlan>,
-    pub task_activation_demands: TerminalTaskActivationDemands,
+    pub task_activation_demands: Vec<TerminalTaskActivationDemand>,
 }

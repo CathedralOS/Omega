@@ -85,10 +85,15 @@ impl<'source> LoweredRosterClosure<'source> {
     /// `lower_roster` produces for the same roster.
     pub fn complete(self) -> crate::LoweredSourcePublication {
         let publication = terminal_codec::TerminalPublication::Portable;
+        let purpose = if self.roster.inspection_root.is_some() {
+            terminal_check_tables::RootPurpose::Inspection
+        } else {
+            terminal_check_tables::RootPurpose::Execution
+        };
         crate::compilation::bind_source(
             self.owner.clone(),
             publication,
-            self.prepared.complete(),
+            self.prepared.complete(purpose),
             Some(self.roster),
         )
     }

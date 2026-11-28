@@ -33,7 +33,7 @@ Repeat for `quadrature_rotation`. Check `invalid_alias/main.omg` separately and
 require its intended loan diagnostic. Genuine Terminal qualification must use
 the normal prepared native report's retained artifact and runtime provisions,
 and compare captured stdout, stderr and external exit status with the same
-expectations. CLI `--both` termination agreement alone does not establish those
+expectations. Agreement on termination alone does not establish those
 stream observations. The owned validator performs both direct native execution
 and genuine buffered Terminal execution from each normal compilation report:
 

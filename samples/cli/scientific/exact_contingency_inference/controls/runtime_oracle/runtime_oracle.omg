@@ -4,8 +4,8 @@ use {omega}/language/core/process_authority.omg;
 use {omega}/language/core/process_exit.omg;
 use {system}/console.omg;
 // Numeric execution control frozen from the independent Cartesian oracle before execution.
-// The real application remains stdin-driven; this opcode also checks Terminal's calculations,
-// since the shipped --both route compares termination rather than stdout.
+// The real application remains stdin-driven; this opcode checks Terminal's calculations
+// independently of the observed termination.
 machine snapshot(model: @|tables|::Model, expected: @|tables|::Inference) -> bool {
     let actual: |tables|::Inference = |inference|::analyze(model);
     actual.status == expected.status && actual.count == expected.count &&

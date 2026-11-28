@@ -91,7 +91,7 @@ Replay caution: `omega run --target <name>` reaches
 `ExecutionOutcome::TargetOnly`, so it publishes the product and neither
 executes nor interprets it. A `compiled for target ... OK` line is therefore
 not an execution or agreement observation, and a probe that reads one as
-agreement measures nothing; execute through `omega run --both <root.omg>` with
+agreement measures nothing; execute through the native/Psi comparison with
 no `--target` (host target), or run the published image on its own target. The
 scratch copy adds a `macos_x86_64::ProgramEntry` binding — and, for the target
 body place, the matching `macos_x86_64 machine forward` body — because the four
@@ -131,7 +131,7 @@ landed on a later integration base; this record keeps the two apart.
   reject twins, corpus filter, sample gate) were taken on that producer.
 - **Fresh post-rebase checks:** after rebasing onto the integration base below,
   the exercised checks were re-run: the host leg root plus nine places with
-  bare `--both`, the nine reject twins, the discrimination probe, and the
+  bare native/Psi comparison, the nine reject twins, the discrimination probe, and the
   filtered corpus pass. Where the integration base carries newer compiler
   commits than the full-measurement producer, those checks and the named delta
   below are the applicability argument, and the results stay bound to the
@@ -248,7 +248,7 @@ discharge instead, which is a different obligation.
 
 ## Pinned Fixtures
 
-Re-measured on macOS arm64: root and nine places `omega run --both` exit 0
+Re-measured on macOS arm64: root and nine places the native/Psi comparison exit 0
 (`native exit 0`, `interp exit: 0`), and the nine twins reject at exit 1 with
 `cannot prove ensures contract ...` under the authored fragment (shared
 opt-level-1 producer at base `9ff26a870215`).

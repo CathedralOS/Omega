@@ -1,6 +1,7 @@
 //! Independent validation of current function-relative layouts.
 
 pub mod geometry;
+pub mod relaxation;
 mod validation;
 use geometry::declared_size_matches;
 use isa_aarch64::Aarch64SelectedFormEncodingError;

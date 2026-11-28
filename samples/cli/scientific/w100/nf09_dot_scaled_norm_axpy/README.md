@@ -32,12 +32,8 @@ CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx build -p omega </dev/null
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
 target/debug/omega --check samples/cli/scientific/w100/nf09_dot_scaled_norm_axpy/ordinary/main.omg </dev/null
 target/debug/omega run samples/cli/scientific/w100/nf09_dot_scaled_norm_axpy/ordinary/main.omg </dev/null
-target/debug/omega run --engine native samples/cli/scientific/w100/nf09_dot_scaled_norm_axpy/ordinary/main.omg </dev/null
-target/debug/omega run --engine psi samples/cli/scientific/w100/nf09_dot_scaled_norm_axpy/ordinary/main.omg </dev/null
 target/debug/omega --check samples/cli/scientific/w100/nf09_dot_scaled_norm_axpy/scaled/main.omg </dev/null
 target/debug/omega run samples/cli/scientific/w100/nf09_dot_scaled_norm_axpy/scaled/main.omg </dev/null
-target/debug/omega run --engine native samples/cli/scientific/w100/nf09_dot_scaled_norm_axpy/scaled/main.omg </dev/null
-target/debug/omega run --engine psi samples/cli/scientific/w100/nf09_dot_scaled_norm_axpy/scaled/main.omg </dev/null
 target/debug/omega --check samples/cli/scientific/w100/nf09_dot_scaled_norm_axpy/invalid_alias/main.omg </dev/null
 ```
 
@@ -46,7 +42,7 @@ them. Both applications import core `float_operations` so comparisons select
 the exact source requirements/providers. IEEE comparison is not structural
 proof equality.
 
-A completed `omega run --both` comparison checks termination, stdout and stderr. The
+A completed the native/Psi comparison checks termination, stdout and stderr. The
 validation route also needs expected stream bytes to verify the numerical results. A requested
 review, denial or custody hold remains
 a refusal, not permission to accept policy or reuse old locks.

@@ -1,6 +1,6 @@
 # Record storage geometry
 
-Run `omega run --both samples/cli/layouts/record_geometry/main.omg`.
+Run `mbx xtask sample-gate --filter samples/cli/probes/record_geometry`.
 Expected exit: 0 in native and Terminal execution. Any wrong geometry traps.
 
 The record occupies 16 bytes with alignment 8 on the four authored hosted

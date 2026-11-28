@@ -11,7 +11,7 @@ mod program;
 mod support;
 
 #[test]
-fn a_mutable_byte_view_lends_to_a_shared_view_parameter_on_both_engines() {
+fn a_mutable_byte_view_lends_to_a_shared_view_parameter_when_interpreted_and_built() {
     program::assert_fixture_silent_return(
         &support::repository_root()
             .join("source-rust/application/tests/fixtures/views/run/mutable_slice_shared_argument"),

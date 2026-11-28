@@ -7,9 +7,12 @@ with the ANSI cursor-home sequence `ESC [ H` and use `Clock.sleep(70)` for pacin
 After completing the sample's package review, run from the repository root:
 
 ```sh
-omega run --engine native samples/cli/rendering/mandelbrot_zoom/main.omg
-omega run --engine psi --psi-work-budget 100000000 samples/cli/rendering/mandelbrot_zoom/main.omg
+omega run samples/cli/rendering/mandelbrot_zoom/main.omg
+omega run --psi-work-budget 100000000 samples/cli/rendering/mandelbrot_zoom/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/rendering/mandelbrot_zoom` from the repository root.
 
 Press Enter at the final prompt. A POSIX shell can redirect stdin from
 `/dev/null` for unattended execution. The named entry and explicit state
@@ -31,6 +34,4 @@ binary64 implementation of the authored algorithm; its SHA-256 is:
 ```
 
 This digest includes every cursor-home sequence, the banner, image frames,
-success message, prompt, and LF line endings. The CLI's native exit and
-interpreter status reports are on stderr; a successful command status alone
-does not establish that interpretation ran.
+success message, prompt, and LF line endings. The CLI reports the interpreted program’s termination on stderr.

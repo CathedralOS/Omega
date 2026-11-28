@@ -90,19 +90,18 @@ select the matching `source/library` when reusing a binary:
 ```sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
 OMEGA=/absolute/path/to/omega
-SAMPLE=samples/cli/independent/stratified_partitioning
+SAMPLE=samples/cli/scientific/stratified_partitioning
 "$OMEGA" update --project "$SAMPLE" --target linux_x86_64
 # Read and accept the generated review, then resume if requested.
 "$OMEGA" update --resume --project "$SAMPLE"
 "$OMEGA" --check --target linux_x86_64 "$SAMPLE/main.omg"
 "$OMEGA" --target linux_x86_64 "$SAMPLE/main.omg"
-"$OMEGA" run --both --keep "$SAMPLE/main.omg" < "$SAMPLE/data/balanced.stdin"
+"$OMEGA" run --keep "$SAMPLE/main.omg" < "$SAMPLE/data/balanced.stdin"
 "$OMEGA" --check --target linux_x86_64 "$SAMPLE/invalid/control.omg"
 ```
 
-`run --both` uses the current host and exercises native and Terminal interpretation
-where supported and must report any declined comparison accurately. `run --target`
-produces target artifacts without executing them, so omit that flag for host runs.
+the native/Psi comparison uses the current host and exercises native and Terminal interpretation
+where supported and must report any declined comparison accurately. `omega --target <name> main.omg` produces the native target artifact.
 Host-specific Windows, Linux ARM64 and macOS ARM64 entry bindings are included, but
 only a tested host can claim runtime acceptance. Generated products and validation
 records belong in `build/`; they are not source dependencies. The handoff records

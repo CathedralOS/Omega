@@ -42,17 +42,17 @@ pub(super) fn capture(
 
 /// Find the declared file among the selected sources of the receiving program.
 /// A named package can supply its Product to an interpreted Build; the receiver
-/// checks that file again in its Build scope. Keep its owner, bytes, origin and
-/// location fixed across that transition.
+/// checks that file again in its Build scope. A package's Build chooses among
+/// its own files, which it reads in its Build scope, and its consumer's Product
+/// receives that choice over the same files in Product scope. Keep its owner,
+/// bytes, origin and location fixed across either transition.
 pub(super) fn receiving_file<'a>(
     files: &'a crate::source_inputs::SourceMap,
     original: &source_admission::SourceFile,
     scope: source_provenance::DependencyScope,
 ) -> Option<&'a source_admission::SourceFile> {
-    use source_provenance::DependencyScope;
     let mut expected = original.clone();
-    if scope == DependencyScope::Build
-        && original.dependency_scope == DependencyScope::Product
+    if original.dependency_scope != scope
         && (original.package_identity.is_some() || original.origin.is_toolchain())
     {
         expected.dependency_scope = scope;

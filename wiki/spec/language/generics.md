@@ -887,6 +887,12 @@ machine. Recursive proof-only data may use machine binders as family indices;
 finite-layout data rejects those binders, and a binder is not a stored field type.
 The selected argument must satisfy the full callable contract.
 
+A proof family can pair an ordinary field `state: S` with a static callable
+parameter `const At: Sampler<S>`. For the core rational sequence, `At`
+identifies the machine and each sequence value supplies its own state. A
+proof-side application can instantiate `S` with a mathematical function
+type. See [Cauchy sequences and the Real quotient](../proofs/quotients.md#cauchy-sequences-and-the-real-quotient).
+
 A proof carrier's telescope is its complete ordered static-parameter list.
 Relations choose whether left/right representatives have independent packs or
 one shared pack; carrier parameters have no global relational role.

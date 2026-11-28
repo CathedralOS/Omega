@@ -81,11 +81,9 @@ pub(crate) fn settle<'execution>(
                 {
                     return Err(refuse("import has another target calling policy".into()));
                 }
-                let physical = crate::normalized_foreign_terminal_mechanism(
-                    import.locator(),
-                    &entry,
-                )
-                .map_err(refuse)?;
+                let physical =
+                    crate::normalized_foreign_terminal_mechanism(import.locator(), &entry, None)
+                        .map_err(refuse)?;
                 (
                     NormalizedForeignCallMechanism::BuildImport {
                         stack: contract.caller_stack(execution).map_err(refuse)?,

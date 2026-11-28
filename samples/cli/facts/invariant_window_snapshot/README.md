@@ -51,7 +51,7 @@ producer `cf36a5e96fcb69e7fc28963e0d56fe48b915b828`, SHA-256
   independently established predicate for the exact value considered.
 - **Psi 06–08:** ordinary source checking and Terminal lowering retain the
   reads, restoration stores and call requirements. Actual interpreter execution
-  agrees with native execution under `omega run --both`.
+  agrees with native execution under the native/Psi comparison.
 - **Omega 00–02:** four hosted Build entries, ordinary field layouts and scalar
   call plans carry the values. The selected-body place uses one named provider
   selected explicitly for all four targets.

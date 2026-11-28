@@ -55,11 +55,11 @@ From the repository root, with a verified compiler at `$OMEGA` and matching
 `OMEGA_LIBRARY_ROOT=source/library` (use absolute paths when needed):
 
 ```sh
-$OMEGA update --project samples/cli/independent/terrain_contour_tracing --target linux_x86_64
+$OMEGA update --project samples/cli/scientific/terrain_contour_tracing --target linux_x86_64
 # Read the generated review and explicitly accept its intended rows before --resume.
-$OMEGA --check --target linux_x86_64 samples/cli/independent/terrain_contour_tracing/main.omg
-$OMEGA --target linux_x86_64 samples/cli/independent/terrain_contour_tracing/main.omg
-printf '10000020000\n' | $OMEGA run --both --keep samples/cli/independent/terrain_contour_tracing/main.omg
+$OMEGA --check --target linux_x86_64 samples/cli/scientific/terrain_contour_tracing/main.omg
+$OMEGA --target linux_x86_64 samples/cli/scientific/terrain_contour_tracing/main.omg
+printf '10000020000\n' | $OMEGA run --keep samples/cli/scientific/terrain_contour_tracing/main.omg
 ```
 
 The separate complete `controls/intended_invalid` project deliberately reads
@@ -87,7 +87,7 @@ Recorded outcome on main base `33e34fd97e763f4725c6290f0a0d6ea1ec829224`:
 - Automatic approval rejected the scoped acceptance request for broad system
   external supplies and FilesystemHost scope. Acceptance was not retried;
   the review remains entirely pending and no accepted lock exists.
-- Native compile: exit 1, unaccepted entry binding. `run --both --keep` with
+- Native compile: exit 1, unaccepted entry binding. The native/Psi comparison with
   finite hill input: exit 200 at the same compile refusal. No native executable,
   contour output, or Terminal interpretation was produced. The 48 runtime
   fixture checks are pending, not passing.

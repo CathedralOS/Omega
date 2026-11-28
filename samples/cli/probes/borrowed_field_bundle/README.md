@@ -10,6 +10,8 @@ changes its marker to 42.
 After ordinary package review, run:
 
 ```sh
-omega run --engine native samples/cli/collections/borrowed_field_bundle/main.omg
-omega run --engine psi samples/cli/collections/borrowed_field_bundle/main.omg
+omega run samples/cli/collections/borrowed_field_bundle/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/probes/borrowed_field_bundle` from the repository root.

@@ -6,7 +6,7 @@ The nine places carry the same returned Packet through a local, field, parameter
 
 Before repair, the minimal three-case wildcard structural return refuses Terminal production with DuplicateContentPartitionProducerCoordinate; two explicit returning arms compile. Stage04 planned a fresh result for each wildcard-covered variant. The source-arm plan must be retained once, without merging independently authored calls.
 
-Run each positive with omega run --both main.omg. All nine positives execute with exit 0 in both engines on macOS arm64; all nine invalid controls reject for the unchanged subtraction's arithmetic safety obligation. The public CLI also runs the nine sample programs and rejects their twins. Windows native execution of the original filesystem customer is separately deferred to a Windows host.
+Run each positive with `omega run main.omg`. The earlier macOS arm64 qualification separately observed exit 0 for all nine compiled programs and their interpreted Psi; all nine invalid controls reject for the unchanged subtraction's arithmetic safety obligation. The public CLI also runs the nine sample programs and rejects their twins. Windows native execution of the original filesystem customer is separately deferred to a Windows host.
 
 Establishment and soundness use the declared case payload bound; identity,
 lifetime and composition preserve that same bound to subtraction. Psi lowering

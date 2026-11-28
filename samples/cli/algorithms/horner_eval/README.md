@@ -1,9 +1,11 @@
 # Horner evaluation
 
 ```sh
-omega run --engine native samples/cli/algorithms/horner_eval/main.omg
-omega run --engine psi samples/cli/algorithms/horner_eval/main.omg
+omega run samples/cli/algorithms/horner_eval/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/algorithms/horner_eval` from the repository root.
 
 The program evaluates `x⁴ + 2x³ + 3x² + 4x + 5` at `x = 2`, checks the result
 57, prints its success messages and exits 70 after Enter or EOF. Coefficients

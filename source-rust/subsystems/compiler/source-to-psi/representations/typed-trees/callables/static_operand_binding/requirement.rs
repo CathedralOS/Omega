@@ -106,6 +106,7 @@ pub fn prepare_requirement_in_scope(
             supplying_owner,
         )?);
     }
+    Operand::require_nominal_callbacks(program, &parameters, &operands, supplying_owner)?;
     Operand::require_static_records(program, &parameters, &operands, supplying_owner)?;
     bind(program, application, &operands)?;
     let table = &mut program.expression_table;

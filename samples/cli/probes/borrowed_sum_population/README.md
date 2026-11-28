@@ -9,8 +9,7 @@ From the repository root, with the compiler available as `omega`:
 
 ```text
 omega packages update --project samples/cli/basics/borrowed_sum_population
-omega run --engine native samples/cli/basics/borrowed_sum_population/main.omg
-omega run --engine psi samples/cli/basics/borrowed_sum_population/main.omg
+omega run samples/cli/basics/borrowed_sum_population/main.omg
 ```
 
 The old sum's tag is unknown, so assignment selects its nominal payload cleanup

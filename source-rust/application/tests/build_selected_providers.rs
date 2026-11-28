@@ -1,7 +1,6 @@
 /*
 
-End-to-end CLI check that a provider a Build selects runs on both engines
-on each selected application engine.
+Exercise the provider selected by the Build in the interpreter and in a compiled executable.
 
 `Build::select_provider<Service, Native>(builder, target)` chooses which
 implementation answers a boundary requirement on one target
@@ -12,7 +11,7 @@ provenance row per canonical plan row, so the call runs the selected machine.
 
 The control's entry traps unless `Service::go(3)` returns 4. Its twins keep
 the entry and change only the provider: an inline body runs the same way, and
-a provider that returns its input unchanged makes both engines trap at the
+a provider that returns its input unchanged traps in both programs at the
 entry's own check rather than being refused before execution.
 
 */
@@ -64,21 +63,30 @@ Native satisfies Service {{
     )
 }
 
-fn run_fixture(engine: &str, name: &str, product: &str, build: &str) -> (ExitStatus, String) {
-    let scratch = project::stage(name, &[("main.omg", product), ("build.omg", build)]);
-    let output = project::omega(
-        scratch.path(),
-        &[
-            "run",
-            "--engine",
-            engine,
-            "build.omg",
-            "--build-input",
-            "build.omg",
-            "--build-input",
-            "main.omg",
-        ],
-    );
+#[derive(Clone, Copy)]
+enum Invocation {
+    Interpret,
+    BuildAndRun,
+}
+
+fn run_fixture(
+    invocation: Invocation,
+    name: &str,
+    source: &str,
+    build: &str,
+) -> (ExitStatus, String) {
+    let scratch = project::stage(name, &[("main.omg", source), ("build.omg", build)]);
+    let inputs = [
+        "build.omg",
+        "--build-input",
+        "build.omg",
+        "--build-input",
+        "main.omg",
+    ];
+    let output = match invocation {
+        Invocation::Interpret => project::omega(scratch.path(), &[&["run"][..], &inputs].concat()),
+        Invocation::BuildAndRun => project::build_and_run(scratch.path(), &inputs),
+    };
     let report = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
@@ -87,16 +95,14 @@ fn run_fixture(engine: &str, name: &str, product: &str, build: &str) -> (ExitSta
     (output.status, report)
 }
 
-fn assert_normal_return(engine: &str, (status, report): (ExitStatus, String)) {
-    let expected = if engine == "native" {
-        "native exit 0"
-    } else {
-        "Psi exit 0"
-    };
-    assert!(
-        status.success() && report.lines().any(|line| line == expected),
-        "{report}"
-    );
+fn assert_normal_return(invocation: Invocation, (status, report): (ExitStatus, String)) {
+    assert!(status.success(), "{report}");
+    match invocation {
+        Invocation::Interpret => {
+            assert!(report.lines().any(|line| line == "Psi exit 0"), "{report}")
+        }
+        Invocation::BuildAndRun => assert!(report.is_empty(), "{report}"),
+    }
 }
 
 #[test]
@@ -128,14 +134,18 @@ machine build(builder: @mutable BuildPlan) {{
     Build::bind(builder, {target}::ProgramEntry, |app|::entry);
 }}"#
     );
-    for engine in ["native", "psi"] {
+    for invocation in [Invocation::Interpret, Invocation::BuildAndRun] {
         assert_normal_return(
-            engine,
-            run_fixture(engine, "uncalled_requirement", program, &build),
+            invocation,
+            run_fixture(invocation, "uncalled_requirement", program, &build),
         );
 
-        let wrong = build.replace("|app|::Copy<|app|::Tag, |app|::Word, u32>", "|app|::Copy<|app|::Word, |app|::Tag, u32>");
-        let (status, report) = run_fixture(engine, "wrong_uncalled_requirement", program, &wrong);
+        let wrong = build.replace(
+            "|app|::Copy<|app|::Tag, |app|::Word, u32>",
+            "|app|::Copy<|app|::Word, |app|::Tag, u32>",
+        );
+        let (status, report) =
+            run_fixture(invocation, "wrong_uncalled_requirement", program, &wrong);
         assert!(
             !status.success() && report.contains("does not satisfy"),
             "{report}"
@@ -144,38 +154,41 @@ machine build(builder: @mutable BuildPlan) {{
 }
 
 #[test]
-fn a_selected_referenced_provider_runs_on_both_engines() {
-    for engine in ["native", "psi"] {
+fn a_selected_referenced_provider_is_interpreted_and_compiled() {
+    for invocation in [Invocation::Interpret, Invocation::BuildAndRun] {
         assert_normal_return(
-            engine,
-            run_fixture(engine, "referenced", &referenced("value + 1"), BUILD),
+            invocation,
+            run_fixture(invocation, "referenced", &referenced("value + 1"), BUILD),
         );
     }
 }
 
 #[test]
-fn a_selected_inline_provider_runs_on_both_engines() {
+fn a_selected_inline_provider_is_interpreted_and_compiled() {
     let inline = format!(
         "{REQUIREMENT}Native satisfies Service {{
     machine go(value: u32) -> u32 {CONTRACT} {{ value + 1 }}
 }}
 {ENTRY}"
     );
-    for engine in ["native", "psi"] {
-        assert_normal_return(engine, run_fixture(engine, "inline", &inline, BUILD));
+    for invocation in [Invocation::Interpret, Invocation::BuildAndRun] {
+        assert_normal_return(
+            invocation,
+            run_fixture(invocation, "inline", &inline, BUILD),
+        );
     }
 }
 
 #[test]
 fn a_selected_provider_with_another_answer_traps_at_the_entry_check() {
-    for engine in ["native", "psi"] {
-        let (status, report) = run_fixture(engine, "wrong-answer", &referenced("value"), BUILD);
+    for invocation in [Invocation::Interpret, Invocation::BuildAndRun] {
+        let (status, report) = run_fixture(invocation, "wrong-answer", &referenced("value"), BUILD);
         assert!(!status.success(), "{report}");
         assert!(!report.contains("no product route yet"), "{report}");
-        if engine == "psi" {
-            assert!(report.contains("Psi crash: Trap"), "{report}");
+        match invocation {
+            Invocation::Interpret => assert!(report.contains("Psi crash: Trap"), "{report}"),
+            Invocation::BuildAndRun => assert!(report.is_empty(), "{report}"),
         }
-        assert!(!report.contains("native exit 0"), "{report}");
     }
 }
 
@@ -185,10 +198,10 @@ fn a_checked_provider_calls_each_callback_with_its_original_arguments() {
         support::repository_root().join("samples/cli/facts/dynamic_trait_dispatch/target_body");
     let program = std::fs::read_to_string(sample.join("main.omg")).unwrap();
     let build = std::fs::read_to_string(sample.join("build.omg")).unwrap();
-    for engine in ["native", "psi"] {
+    for invocation in [Invocation::Interpret, Invocation::BuildAndRun] {
         assert_normal_return(
-            engine,
-            run_fixture(engine, "callback-arguments", &program, &build),
+            invocation,
+            run_fixture(invocation, "callback-arguments", &program, &build),
         );
     }
 }
@@ -224,20 +237,31 @@ machine build(builder: @mutable BuildPlan) {{
     Build::bind(builder, {target}::ProgramEntry, |app|::entry);
 }}"#
     );
-    for engine in ["native", "psi"] {
-        assert_normal_return(engine, run_fixture(engine, "qualified", program, &build));
+    for invocation in [Invocation::Interpret, Invocation::BuildAndRun] {
+        assert_normal_return(
+            invocation,
+            run_fixture(invocation, "qualified", program, &build),
+        );
 
         let wrong_provider = build.replace("Tag::Right>, Second", "Tag::Right>, First");
-        let (status, report) =
-            run_fixture(engine, "wrong_qualified_provider", program, &wrong_provider);
+        let (status, report) = run_fixture(
+            invocation,
+            "wrong_qualified_provider",
+            program,
+            &wrong_provider,
+        );
         assert!(
             !status.success() && report.contains("does not satisfy"),
             "{report}"
         );
 
         let wrong_carrier = build.replace("Tag in Tag::Right", "Other in Tag::Right");
-        let (status, report) =
-            run_fixture(engine, "wrong_qualified_carrier", program, &wrong_carrier);
+        let (status, report) = run_fixture(
+            invocation,
+            "wrong_qualified_carrier",
+            program,
+            &wrong_carrier,
+        );
         assert!(
             !status.success() && report.contains("does not qualify"),
             "{report}"
@@ -276,13 +300,13 @@ machine build(builder: @mutable BuildPlan) {{
     Build::bind(builder, {target}::ProgramEntry, |app|::entry);
 }}"#
     );
-    for engine in ["native", "psi"] {
+    for invocation in [Invocation::Interpret, Invocation::BuildAndRun] {
         assert_normal_return(
-            engine,
-            run_fixture(engine, "aliased_slots", program, &build),
+            invocation,
+            run_fixture(invocation, "aliased_slots", program, &build),
         );
         let erased = build.replace("|app|::WordPacket", "|app|::CopyPacket<|app|::Ticket>");
-        let (status, report) = run_fixture(engine, "invalid_alias_actual", program, &erased);
+        let (status, report) = run_fixture(invocation, "invalid_alias_actual", program, &erased);
         assert!(!status.success() && report.contains("copy"), "{report}");
     }
 }
@@ -314,11 +338,14 @@ machine choose<T>(builder: @mutable BuildPlan) {{
     Build::select_provider::<|app|::Reading<T>, |app|::Words>(builder, {target});
 }}"#
     );
-    for engine in ["native", "psi"] {
-        assert_normal_return(engine, run_fixture(engine, "helper_alias", product, &build));
+    for invocation in [Invocation::Interpret, Invocation::BuildAndRun] {
+        assert_normal_return(
+            invocation,
+            run_fixture(invocation, "helper_alias", product, &build),
+        );
 
         let invalid = build.replace("Word<u64>", "Word<Ticket>");
-        let (status, report) = run_fixture(engine, "helper_alias_bound", product, &invalid);
+        let (status, report) = run_fixture(invocation, "helper_alias_bound", product, &invalid);
         assert!(
             !status.success() && report.contains("requires `[copy]`"),
             "{report}"
@@ -357,7 +384,7 @@ public WordLayout satisfies |layout|::FixedLayout<Word> {
 machine storage_probe() {}
 "#;
     let target = host.target_name();
-    for engine in ["native", "psi"] {
+    for invocation in [Invocation::Interpret, Invocation::BuildAndRun] {
         for (name, placement, value, storage, reason) in [
             (
                 "plain_resident_storage",
@@ -398,7 +425,7 @@ machine build(builder: @mutable BuildPlan) {{
     Build::bind(builder, {target}::ProgramEntry, |app|::storage_probe);
 }}"#
             );
-            let (status, report) = run_fixture(engine, name, program, &build);
+            let (status, report) = run_fixture(invocation, name, program, &build);
             assert!(!status.success() && report.contains(reason), "{report}");
         }
     }
@@ -432,10 +459,10 @@ machine build(builder: @mutable BuildPlan) {{
     Build::bind(builder, {target}::ProgramEntry, |app|::storage_probe);
 }}"#
     );
-    for engine in ["native", "psi"] {
-        let (status, report) = run_fixture(engine, "matching_resident_index", &program, &build);
+    for invocation in [Invocation::Interpret, Invocation::BuildAndRun] {
+        let (status, report) = run_fixture(invocation, "matching_resident_index", &program, &build);
         if status.success() {
-            assert_normal_return(engine, (status, report));
+            assert_normal_return(invocation, (status, report));
         } else {
             assert!(report.contains("resident placement needs evaluated layout, access policy, live content and the selected resource profile for this grant"), "{report}");
         }

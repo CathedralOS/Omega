@@ -15,14 +15,13 @@ use crate::NativeSelectedProviderPlanDigest;
 use crate::OptimizedBoundaryOccurrence;
 use crate::PhysicalChildParent;
 use crate::PhysicalRelocationDisposition;
-use crate::physical::derivation::evidence::boundary_physical_child_parts;
+use crate::physical::derivation::evidence::PhysicalChildPlacement;
 use crate::physical::derivation::evidence::span;
 use crate::physical::derivation::evidence::text_relocation_overlaps;
 use crate::physical::derivation::settlement_identity::hosted_builtin_settlement_identity;
 use crate::physical::native_byte_span;
 use machine_code::BoundaryExecutionRecord;
 use machine_code::InternalUnitScalarArgumentSourceRecord;
-use optimization_core::NativeOptimizationProjectionIdentity;
 use semantic_vocabulary::IntegerSign;
 use semantic_vocabulary::IntegerType;
 use semantic_vocabulary::IntegerValue;
@@ -238,10 +237,10 @@ fn bind_scalar_form(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn derive_hosted_builtin_child(
+pub(super) fn derive_hosted_builtin_child(
     builtin: &HostedBuiltinSettlement,
     occurrence: &OptimizedBoundaryOccurrence,
-    projection: NativeOptimizationProjectionIdentity,
+    placement: PhysicalChildPlacement,
     requirement_identity: &str,
     selected_plan_digest: NativeSelectedProviderPlanDigest,
     target: NativeTarget,
@@ -304,10 +303,9 @@ pub(crate) fn derive_hosted_builtin_child(
     }
     let machine_span = native_byte_span(settlement.code_offset, settlement.byte_count);
     let object_span = native_byte_span(installed.text_offset, settlement.byte_count);
-    let final_image_span = object_span;
     let machine_bytes = span(function.bytes(object), machine_span)?;
     let object_bytes = span(object.text_bytes(), object_span)?;
-    let final_image_bytes = span(image, final_image_span)?;
+    let final_image_bytes = span(image, object_span)?;
     if machine_bytes != object_bytes
         || object_bytes != final_image_bytes
         || expected.is_some_and(|expected| {
@@ -361,19 +359,14 @@ pub(crate) fn derive_hosted_builtin_child(
             role,
             identity: parent_identity,
         });
-    Ok(boundary_physical_child_parts(
+    placement.seal_boundary(
         parent,
-        projection,
         NativePhysicalOccurrence::Boundary(occurrence.identity()),
         machine_span,
         object_span,
-        final_image_span,
-        machine_bytes,
         object_bytes,
-        final_image_bytes,
         PhysicalRelocationDisposition::DirectInstructionBytes,
     )
-    .into())
 }
 
 #[cfg(test)]

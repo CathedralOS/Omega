@@ -4,13 +4,15 @@ Roll 60 deterministic xorshift32 dice, tally the six faces, and render their
 frequencies as a labeled bar chart. From the repository root:
 
 ```text
-mbx run -p omega -- run --engine native samples/cli/games/dice_histogram/main.omg
-mbx run -p omega -- run --engine psi samples/cli/games/dice_histogram/main.omg
+mbx run -p omega -- run samples/cli/games/dice_histogram/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/games/dice_histogram` from the repository root.
 
 Use Cargo if `mbx` is unavailable. Complete the ordinary
 [package review](../../../../omega-rust/omega/application/README.md#command-surface)
-when requested. Leave `--target` off `run` to execute on the matching host.
+when requested. `run` interprets for the host target by default.
 Enter or EOF closes the native program.
 
 The seed is 1. The six face counts must be `8, 13, 6, 11, 11, 11`, totaling
@@ -31,8 +33,7 @@ to preserve them:
 The banner is `dice_histogram: 60 xorshift32 dice rolls tallied into a labeled bar chart`.
 After the six rows, print `done: all 6 face frequencies charted (exit 0)`
 and `[press Enter to close]`, each on its own line. Native execution exits 0;
-the checked interpreter also exits 0. The CLI reports `native exit 0` and
-`interp exit: 0` on stderr. A banner, a single `#`, or exit 0
+the checked interpreter also exits 0. The CLI reports `Psi exit 0` on stderr. A banner, a single `#`, or exit 0
 alone does not establish the chart's correctness.
 
 The entry receives an explicit `main: @mutable Main` context and forwards it to

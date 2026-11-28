@@ -391,14 +391,12 @@ and 59 controls reject their expected fragments.
 
 Every positive place binds `ProgramEntry` for all four hosted targets
 (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) in its
-`build.omg` and declares `Expected exit: 0`. `omega run --both` reports Terminal
+`build.omg` and declares `Expected exit: 0`. The native/Psi comparison reports Terminal
 Psi interpreter and native execution agreement:
 
 ```sh
-target/debug/omega run --engine native samples/cli/facts/abstract_signature_call/<place>/main.omg < /dev/null
-target/debug/omega run --engine psi samples/cli/facts/abstract_signature_call/<place>/main.omg < /dev/null
-target/debug/omega run --engine native samples/cli/facts/abstract_signature_call/<place>/invalid/main.omg < /dev/null
-target/debug/omega run --engine psi samples/cli/facts/abstract_signature_call/<place>/invalid/main.omg < /dev/null
+target/debug/omega run samples/cli/facts/abstract_signature_call/<place>/main.omg < /dev/null
+target/debug/omega run samples/cli/facts/abstract_signature_call/<place>/invalid/main.omg < /dev/null
 ```
 
 Measured at base `c1c6bc8cb8ec886f645976a82e496d4191937339` on macOS arm64
@@ -406,7 +404,7 @@ Measured at base `c1c6bc8cb8ec886f645976a82e496d4191937339` on macOS arm64
 (`omega --build-profile` reports `opt_level: 1`).
 
 - All nine positives report `native exit 0` with `interp exit: 0` through
-  `omega run --both` (18 of 18 engine runs exit 0).
+  the native/Psi comparison (18 of 18 engine runs exit 0).
 - All nine twins exit 200 at compile time naming the row's own premise — the
   `premise(kept)` violation with `the instantiated fact is structurally false`
   — from `main` state `entry` (local, field, call result, match join, const
@@ -494,7 +492,7 @@ fact, so the refusal names both the instantiation and the specialized body.
    `bad()` trap.
 8. **Form encoding, branch relaxation, relocations, and native image emission
    (`Omega 07–09` + emission):** the emitted host image executes and agrees with
-   Terminal Psi (`omega run --both`), and the twins reject before emission.
+   Terminal Psi, and the twins reject before emission.
 
 ## Fixed-base constant-production observations
 
@@ -504,7 +502,7 @@ CLI SHA-256 is
 and the corpus runner is
 `27c25a0d0901cab630aeec55f3dea9d107d121215cc620ea9745b956b292f975`.
 Their generation record binds the compiler, library, Cargo, and toolchain
-inputs; both report opt-level 1. The focused corpus `--both` observation covers
+inputs; both report opt-level 1. The focused native/Psi corpus observation covers
 21 positive fixtures (the prior nine, this production's root and nine places,
 and two composition controls): each native and Terminal run exits 0 and the
 engines agree. Its initial verdict is additions to the Intel host golden,
@@ -589,7 +587,7 @@ Reject fragments are `structurally false` and `premise<T>(kept)`.
 On Linux x86_64 at base `3caadfad789f1e6521a06ccb3ebdf043f7733da5`, before the
 repair, the local positive refused with `actual T, required T` on the
 machine-parameter requirement `Observe`. After the repair, all nine positives
-report native exit 0 and interpreter exit 0 from `omega run --both`, and all
+report native exit 0 and interpreter exit 0 from the native/Psi comparison, and all
 nine twins reject the premise. Windows, macOS, and QEMU were not run.
 
 - **Establishment:** `premise<T>(kept)` is an obligation of the abstract
@@ -630,7 +628,7 @@ targets keep their authored rows, unexecuted here.
 
 Validation at base `90f3fe11ae75eb63246767979fe483cfe0c312f8` with an optimized
 exact-source `omega` (release profile): all nine positive places pass
-`omega run --both` on Linux x86-64 (native exit 0, Terminal Psi exit 0), and all
+the native/Psi comparison on Linux x86-64 (native exit 0, Terminal Psi exit 0), and all
 nine twins reject with `structurally false` and `premise(kept)`. The place needed
 no compiler change; the work is the rename from the `target_body` migration input
 to `other_target` and its corpus pins. The corpus-outcome rows for the two

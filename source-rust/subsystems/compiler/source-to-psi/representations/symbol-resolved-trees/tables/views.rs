@@ -50,19 +50,21 @@ impl SymbolResolvedTrees {
             .find(|definition| definition.symbol == symbol)
     }
 
+    /// The first data definition declared with `symbol`, read through the
+    /// position index the resolved program rebuilds whenever its data
+    /// definitions change.
     pub fn data_definition_by_symbol(&self, symbol: SymbolHandle) -> Option<&DataDefinition> {
-        self.data_definitions
-            .iter()
-            .find(|definition| definition.symbol == symbol)
+        let position = self
+            .resolution_indexes
+            .data_definition_position(&self.data_definitions, symbol)?;
+        Some(&self.data_definitions[position as usize])
     }
 
     pub fn authored_service_reach_rows_for(
         &self,
         owner: symbols::SymbolHandle,
     ) -> impl Iterator<Item = &signature::AuthoredServiceReachRow> {
-        self.authored_service_reach_rows
-            .iter()
-            .filter(move |row| row.owner == owner)
+        self.authored_service_reach_rows.owned_by(owner)
     }
 
     pub fn data_members(&self, span: HandleSpan<data::DataMember>) -> &[data::DataMember] {

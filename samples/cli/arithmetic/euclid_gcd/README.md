@@ -58,6 +58,6 @@ already recorded for this project at `f600f8400b7`, re-witnessed at
 The migrated source is verified on Windows x86-64 at `b80e3d12bdd` with an
 optimized dev compiler after local package review. EOF and Enter produce all
 138 stdout bytes, empty program stderr, and exit 12. The published image emits
-the prompt before input and waits for Enter. `omega run --both` also reports
+the prompt before input and waits for Enter. The native/Psi comparison also reports
 native and Terminal exit 12; its comparison checks exits. The former
 `samples_compile` Rust test target no longer exists.

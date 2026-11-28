@@ -51,6 +51,12 @@ pub mod calls {
             pub installation_bound: bool,
         }
 
+        impl source_symbol_table::owner_rows::OwnedRow for AuthoredServiceReachRow {
+            fn row_owner(&self) -> SymbolHandle {
+                self.owner
+            }
+        }
+
         #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
         pub struct StateSignature {
             pub symbol: SymbolHandle,

@@ -129,8 +129,9 @@ share a build across those checks. Layer fixtures can run directly.
    revision + sha256 of the artifact) and a `READY` marker. With a warm MBX
    action cache it compiles in ~1-2 minutes; the pool queue dominates the
    wall time.
-3. Every slot uses the published binary instead of building: program runs via
-   `<gen>/omega run --both ...`.
+3. Every slot uses the published binary instead of building: interpret with
+   `<gen>/omega run <entry.omg>`. For a native check, compile the same entry
+   with the generation and launch the emitted executable on its target host.
 4. Check whether the producer inputs relevant to the next sample differ
    between G and its worktree. If they do, build the executable that sample
    needs. Re-point the generation

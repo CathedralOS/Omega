@@ -265,7 +265,7 @@ fn settle_boundary<'request>(
         admitted.push(AdmittedBoundarySettlement {
             boundary: boundary.id,
             execution: crate::AdmittedBoundaryExecution::Provider(evidence),
-            realization: realization.clone(),
+            realization,
         });
     }
     Ok((admitted, evidence))
@@ -328,6 +328,21 @@ fn selected_plan_from_exact_evidence<'facts>(
         })
 }
 
+fn matches_same_stack_selection(
+    same_stack: &provider_stack_contribution::AdmittedSameStackContribution,
+    plan: &ProviderPlan,
+    report_identity: u64,
+    identities: &terminal_psi::TerminalIdentityTable,
+    requirement: &str,
+) -> bool {
+    same_stack.provider_plan_report_identity() == report_identity
+        && same_stack.provider_plan_commitment()
+            == provider_stack_contribution::SameStackProviderPlanCommitment::from_digest(
+                *plan.identity_digest().as_bytes(),
+            )
+        && identities.index_of(requirement) == Some(same_stack.requirement_identity())
+}
+
 #[allow(clippy::too_many_arguments)]
 fn rejoin_component_call(
     call: &crate::ComponentCallFacts<'_>,
@@ -343,10 +358,6 @@ fn rejoin_component_call(
 ) -> Result<target_operations::NormalizedForeignCallBinding, Vec<Diagnostic>> {
     let selection = call.selection();
     let application = call.application();
-    let selected_commitment =
-        provider_stack_contribution::SameStackProviderPlanCommitment::from_digest(
-            *selected_plan.identity_digest().as_bytes(),
-        );
     if authority.subject() != selection.provider()
         || authority.entry() != selection.candidate()
         || authority.review().terminal_artifact_identity()
@@ -365,9 +376,13 @@ fn rejoin_component_call(
                 &application.commitment,
             )
         || application.recomputed_commitment().ok() != Some(application.commitment)
-        || same_stack.provider_plan_report_identity() != selected_plan.report_fingerprint()
-        || same_stack.provider_plan_commitment() != selected_commitment
-        || identities.index_of(requirement) != Some(same_stack.requirement_identity())
+        || !matches_same_stack_selection(
+            same_stack,
+            selected_plan,
+            selected_plan.report_fingerprint(),
+            identities,
+            requirement,
+        )
     {
         return Err(vec![Diagnostic::error(format!(
             "component realization for `{requirement}` lost its exact artifact, selected plan, ABI application or same-stack custody",
@@ -396,14 +411,13 @@ fn rejoin_normalized_foreign_call(
     target: target::NativeTarget,
     abi: &semantic_vocabulary::CallingAbiIdentity,
 ) -> Result<NormalizedForeignCallBinding, Vec<Diagnostic>> {
-    let selected_commitment =
-        provider_stack_contribution::SameStackProviderPlanCommitment::from_digest(
-            *selected_plan.identity_digest().as_bytes(),
-        );
-    if same_stack.provider_plan_report_identity() != provider_plan_report_identity
-        || same_stack.provider_plan_commitment() != selected_commitment
-        || identities.index_of(requirement) != Some(same_stack.requirement_identity())
-    {
+    if !matches_same_stack_selection(
+        same_stack,
+        selected_plan,
+        provider_plan_report_identity,
+        identities,
+        requirement,
+    ) {
         return Err(vec![Diagnostic::error(format!(
             "normalized foreign realization for `{requirement}` does not carry same-stack custody for the exact selected provider row"
         ))]);
@@ -430,50 +444,45 @@ fn rejoin_normalized_foreign_call(
         ))]);
     };
     let application = external_calling_application(external, selected_plan, abi)?;
-    if let (Some(boundary_entry_plan), selected, retained) = (
-        Some(application.plan.plan()),
-        &selected_row.binding,
-        &external.binding,
-    ) {
-        let table = match (selected, retained) {
-            (
-                build_providers::plans::ProviderBinding::VtableField { field, .. },
-                calling_conventions::ExternalBindingKind::VtableField {
-                    field: retained,
-                    byte_offset,
-                },
-            ) if field == retained => Some((*byte_offset, false)),
-            (
-                build_providers::plans::ProviderBinding::TableFunction { field, .. },
-                calling_conventions::ExternalBindingKind::TableFunction {
-                    field: retained,
-                    byte_offset,
-                },
-            ) if field == retained => Some((*byte_offset, true)),
-            _ => None,
-        };
-        if let Some((byte_offset, dispatch_only)) = table {
-            let profile = target::TargetProfile::from_canonical_target_name(&selected_plan.target)
-                .map_err(|error| vec![error])?;
-            if profile.native_target() != target {
-                return Err(vec![Diagnostic::error(
-                    "table call names a different native target",
-                )]);
-            }
-            return Ok(NormalizedForeignCallBinding {
-                boundary_entry_plan: boundary_entry_plan.clone(),
-                mechanism: target_operations::NormalizedForeignCallMechanism::Table {
-                    target: profile,
-                    byte_offset,
-                    table_operand: application
-                        .call_projection()
-                        .and_then(|projection| projection.operand_for_formal(0))
-                        .map_err(|error| vec![Diagnostic::error(error)])?,
-                    dispatch_only,
-                    source: target_operations::TableBindingSource::Provider(same_stack.clone()),
-                },
-            });
+    let boundary_entry_plan = application.plan.plan();
+    let table = match (&selected_row.binding, &external.binding) {
+        (
+            build_providers::plans::ProviderBinding::VtableField { field, .. },
+            calling_conventions::ExternalBindingKind::VtableField {
+                field: retained,
+                byte_offset,
+            },
+        ) if field == retained => Some((*byte_offset, false)),
+        (
+            build_providers::plans::ProviderBinding::TableFunction { field, .. },
+            calling_conventions::ExternalBindingKind::TableFunction {
+                field: retained,
+                byte_offset,
+            },
+        ) if field == retained => Some((*byte_offset, true)),
+        _ => None,
+    };
+    if let Some((byte_offset, dispatch_only)) = table {
+        let profile = target::TargetProfile::from_canonical_target_name(&selected_plan.target)
+            .map_err(|error| vec![error])?;
+        if profile.native_target() != target {
+            return Err(vec![Diagnostic::error(
+                "table call names a different native target",
+            )]);
         }
+        return Ok(NormalizedForeignCallBinding {
+            boundary_entry_plan: boundary_entry_plan.clone(),
+            mechanism: target_operations::NormalizedForeignCallMechanism::Table {
+                target: profile,
+                byte_offset,
+                table_operand: application
+                    .call_projection()
+                    .and_then(|projection| projection.operand_for_formal(0))
+                    .map_err(|error| vec![Diagnostic::error(error)])?,
+                dispatch_only,
+                source: target_operations::TableBindingSource::Provider(same_stack.clone()),
+            },
+        });
     }
     let (
         build_providers::plans::ProviderBinding::Import {
@@ -482,12 +491,7 @@ fn rejoin_normalized_foreign_call(
         calling_conventions::ExternalBindingKind::Import {
             locator: retained_locator,
         },
-        Some(boundary_entry_plan),
-    ) = (
-        &selected_row.binding,
-        &external.binding,
-        Some(application.plan.plan()),
-    )
+    ) = (&selected_row.binding, &external.binding)
     else {
         return Err(vec![Diagnostic::error(format!(
             "normalized foreign realization for `{requirement}` does not rejoin an evaluated import row with a calling plan"
@@ -585,15 +589,8 @@ fn rejoin_system_call(
             "does not retain the target's syscall calling policy",
         ));
     }
-    let signature = CallSignature {
-        parameters: entry
-            .call
-            .parameters
-            .iter()
-            .map(|parameter| parameter.shape)
-            .collect(),
-        result: entry.call.result.as_ref().map(|result| result.shape),
-    };
+    let signature =
+        CallSignature::of_placements(&entry.call.parameters, entry.call.result.as_ref());
     let expected = calling_conventions::evaluate_call_plan(policy, &signature)
         .map_err(|_| invalid("has an unsupported syscall signature"))?;
     if entry.call != expected {

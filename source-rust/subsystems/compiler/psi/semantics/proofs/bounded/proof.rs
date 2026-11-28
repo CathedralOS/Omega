@@ -1530,21 +1530,21 @@ pub(crate) mod integer_order_rules {
         relation: &Proposition,
         conclusion: &Proposition,
     ) -> Result<(), ProofError> {
-        let (Proposition::Equal(left, right) | Proposition::LessThan(left, right)) = relation
-        else {
-            return Err(ProofError::RulePremiseMismatch("integer order weakening"));
+        let expected = match relation {
+            Proposition::Equal(left, right) | Proposition::LessThan(left, right)
+                if matches!(left.scalar_type(), ScalarType::Integer(_))
+                    && left.scalar_type() == right.scalar_type() =>
+            {
+                Proposition::LessOrEqual(left.clone(), right.clone())
+            }
+            Proposition::IntegerMathLessThan(left, right) => {
+                Proposition::IntegerMathLessOrEqual(left.clone(), right.clone())
+            }
+            _ => return Err(ProofError::RulePremiseMismatch("integer order weakening")),
         };
-        if !matches!(left.scalar_type(), ScalarType::Integer(_))
-            || left.scalar_type() != right.scalar_type()
-        {
-            return Err(ProofError::RulePremiseMismatch("integer order weakening"));
-        }
-        propositions_match_under_integer_math_normalization(
-            &Proposition::LessOrEqual(left.clone(), right.clone()),
-            conclusion,
-        )
-        .then_some(())
-        .ok_or(ProofError::IntegerOrderConclusionMismatch)
+        propositions_match_under_integer_math_normalization(&expected, conclusion)
+            .then_some(())
+            .ok_or(ProofError::IntegerOrderConclusionMismatch)
     }
 
     pub(super) fn check_integer_order_weakening(

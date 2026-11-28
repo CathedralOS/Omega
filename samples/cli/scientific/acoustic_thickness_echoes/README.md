@@ -66,13 +66,12 @@ then identifies a double layer-1 and triple layer-2 path plus an unmatched echo.
 From the repository root with a compiler built from the same source revision:
 
 ```
-omega packages update --project samples/cli/independent/acoustic_thickness_echoes --target linux_x86_64
+omega packages update --project samples/cli/scientific/acoustic_thickness_echoes --target linux_x86_64
 # Read and accept each requested package review decision, then:
-omega packages update --resume --project samples/cli/independent/acoustic_thickness_echoes
-omega --check --target linux_x86_64 samples/cli/independent/acoustic_thickness_echoes/main.omg
-omega run --keep samples/cli/independent/acoustic_thickness_echoes/main.omg < samples/cli/independent/acoustic_thickness_echoes/data/separated.stdin
-omega run --engine native --keep samples/cli/scientific/acoustic_thickness_echoes/main.omg < samples/cli/scientific/acoustic_thickness_echoes/data/separated.stdin
-omega run --engine psi --keep samples/cli/scientific/acoustic_thickness_echoes/main.omg < samples/cli/scientific/acoustic_thickness_echoes/data/separated.stdin
+omega packages update --resume --project samples/cli/scientific/acoustic_thickness_echoes
+omega --check --target linux_x86_64 samples/cli/scientific/acoustic_thickness_echoes/main.omg
+omega run --keep samples/cli/scientific/acoustic_thickness_echoes/main.omg < samples/cli/scientific/acoustic_thickness_echoes/data/separated.stdin
+omega run --keep samples/cli/scientific/acoustic_thickness_echoes/main.omg < samples/cli/scientific/acoustic_thickness_echoes/data/separated.stdin
 ```
 
 `build.omg` binds the exact entry for Linux x86_64, Windows x86_64 and macOS

@@ -72,7 +72,7 @@ reject.
   original array/record addresses and preserve the two-field element stride.
 - **Instruction and frame realization:** stores target the selected caller
   element and field, leaving adjacent padding and the other element intact.
-- **Encoding and execution:** acceptance requires `omega run --both` exit 0
+- **Encoding and execution:** acceptance requires the native/Psi comparison exit 0
   through the public package-review route, with the authored caller readback.
   Actual producer/target observations are retained in the claim and qualification
   records; target bindings alone do not establish matching-host execution.

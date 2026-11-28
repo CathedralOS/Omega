@@ -6,16 +6,16 @@
 
 | Place | Positive Status | Rejection Twin Diagnostic |
 |---|---|---|
-| root (`main.omg`) | passes `omega run --both` exit 0 | N/A |
-| `local` | passes `omega run --both` exit 0 | `cannot prove requires contract for call verify_shifted` from `compute_local` |
-| `field` | passes `omega run --both` exit 0 | `cannot prove requires contract for call verify_shifted` from `compute_field` (`container.shifted`) |
-| `parameter` | passes `omega run --both` exit 0 | `cannot prove requires contract for call verify_parameter` from `compute_param` |
-| `call_result` | passes `omega run --both` exit 0 | `cannot prove ensures contract for exit from shift_right` at statement 0 |
-| `match_join` | passes `omega run --both` exit 0 | `cannot prove ensures contract for exit from choose_shifted` at statement 0 |
-| `const_name` | passes `omega run --both` exit 0 | `cannot prove requires contract for call verify_shifted` from `compute_const` |
-| `other_state` | passes `omega run --both` exit 0 | `cannot prove requires contract for call step` from `verify_state` |
-| `other_machine` | passes `omega run --both` exit 0 | `cannot prove requires contract for call forward` from `compute_forward` |
-| `target_body` | passes `omega run --both` exit 0 | `cannot prove requires contract for call verify_shifted` from `verify_target` |
+| root (`main.omg`) | passes the native/Psi comparison exit 0 | N/A |
+| `local` | passes the native/Psi comparison exit 0 | `cannot prove requires contract for call verify_shifted` from `compute_local` |
+| `field` | passes the native/Psi comparison exit 0 | `cannot prove requires contract for call verify_shifted` from `compute_field` (`container.shifted`) |
+| `parameter` | passes the native/Psi comparison exit 0 | `cannot prove requires contract for call verify_parameter` from `compute_param` |
+| `call_result` | passes the native/Psi comparison exit 0 | `cannot prove ensures contract for exit from shift_right` at statement 0 |
+| `match_join` | passes the native/Psi comparison exit 0 | `cannot prove ensures contract for exit from choose_shifted` at statement 0 |
+| `const_name` | passes the native/Psi comparison exit 0 | `cannot prove requires contract for call verify_shifted` from `compute_const` |
+| `other_state` | passes the native/Psi comparison exit 0 | `cannot prove requires contract for call step` from `verify_state` |
+| `other_machine` | passes the native/Psi comparison exit 0 | `cannot prove requires contract for call forward` from `compute_forward` |
+| `target_body` | passes the native/Psi comparison exit 0 | `cannot prove requires contract for call verify_shifted` from `verify_target` |
 
 Every positive place and the root `main.omg` bind `ProgramEntry` for
 `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, declare
@@ -29,7 +29,7 @@ const value (`VAL = 100i8` becomes `104i8`) or the four target-body `let val: i8
 initializers — plus the header comments naming the place, the invalid intent and the expected
 diagnostic.
 
-- `omega run --both` over the root and the nine places: 10/10 report `native exit 0` and
+- the native/Psi comparison over the root and the nine places: 10/10 report `native exit 0` and
   `interp exit: 0`.
 - `omega --check` over the nine twins: 9/9 exit 1 with their authored
   `cannot prove requires contract ...` / `cannot prove ensures contract ...` fragment, and the corpus
@@ -49,7 +49,7 @@ diagnostic.
   (`shift == 2u32`) establishes the exact shifted interval `[25, 25]`
   (`shifted >= 25i8 && shifted <= 25i8`), which discharges the consuming exact 8-bit subtraction
   `shifted - 25i8` in `verify_shifted` without a post-hoc caller equality guard, across all nine
-  places, with exact agreement between Terminal Psi and native execution (`omega run --both` exit 0).
+  places, with exact agreement between Terminal Psi and native execution (exit 0).
 - **Establishment:** Performing an 8-bit signed arithmetic right shift `val >> shift` with bounded
   non-negative input (`val >= 100i8 && val <= 100i8`) and exact shift count `shift == 2u32` establishes
   exact shifted interval bounds `[25, 25]` (`shifted >= 25i8 && shifted <= 25i8`). This interval proves
@@ -71,7 +71,7 @@ diagnostic.
 - **Checked-to-Terminal Psi lowering (`Psi 06-08`):** Target-neutral Terminal Psi (`PSITERM\0`) receives
   arithmetic right shift operations (`Shr` on signed 8-bit carrier `i8`) with shift-count validity
   certificates and range bounds intact. Erased proof obligations and verified intervals lower without
-  loss into executable nodes that execute in the Terminal Psi interpreter (`omega run --both`).
+  loss into executable nodes that execute in the Terminal Psi interpreter.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00-02`):** Signed 8-bit integers
   (`i8`) settle into 1-byte layouts (`size_of = 1`, `align_of = 1`). Standard calling conventions place
   parameters in 8-bit register lanes (`CL`/`DL` on Windows `x86_64`, `DIL`/`SIL` on Linux `x86_64`,

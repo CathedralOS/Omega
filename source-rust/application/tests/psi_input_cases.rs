@@ -46,14 +46,7 @@ fn directory_cases_keep_finite_binary_streams_and_guest_termination_in_name_orde
     let directory = scratch.path().join("observations");
     let execution = batch(
         scratch.path(),
-        &[
-            "--engine",
-            "psi",
-            "--target",
-            "linux_x86_64",
-            "--inputs",
-            "inputs",
-        ],
+        &["--target", "linux_x86_64", "--inputs", "inputs"],
         &directory,
     );
     assert!(
@@ -69,7 +62,7 @@ fn directory_cases_keep_finite_binary_streams_and_guest_termination_in_name_orde
         assert!(
             before_cases
                 .lines()
-                .any(|line| line.contains(&label) && line.contains("passed on Psi interpreter")),
+                .any(|line| line.contains(&label) && line.ends_with(": passed on Psi interpreter")),
             "{report}"
         );
     }
@@ -102,8 +95,6 @@ fn explicit_cases_record_each_exhausted_allowance_in_argument_order() {
     let execution = batch(
         scratch.path(),
         &[
-            "--engine",
-            "psi",
             "--target",
             "linux_x86_64",
             "--psi-work-budget",
@@ -139,38 +130,28 @@ fn explicit_cases_record_each_exhausted_allowance_in_argument_order() {
     any(target_arch = "x86_64", target_arch = "aarch64")
 ))]
 #[test]
-fn native_batch_reports_each_status_and_keeps_the_binary_streams_separate() {
+fn compiled_program_preserves_binary_input_and_separate_streams_for_each_process() {
+    use std::io::Write;
+
     let scratch = project();
-    let directory = scratch.path().join("observations");
-    let execution = batch(
-        scratch.path(),
-        &[
-            "--engine",
-            "native",
-            "--input",
-            "inputs/z.stdin",
-            "--input",
-            "inputs/a.stdin",
-        ],
-        &directory,
-    );
-    assert!(
-        execution.status.success(),
-        "{}",
-        String::from_utf8_lossy(&execution.stderr)
-    );
-    assert_eq!(
-        fs::read_to_string(directory.join("results.tsv")).unwrap(),
-        "case\tnative\nz\t0\na\t0\n",
-    );
-    for (name, bytes) in [("z", &b"Z\0"[..]), ("a", b"\xffB")] {
-        assert_eq!(
-            fs::read(directory.join(format!("{name}.stdout"))).unwrap(),
-            bytes
-        );
-        assert_eq!(
-            fs::read(directory.join(format!("{name}.stderr"))).unwrap(),
-            b"!"
-        );
+    let compiled = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .current_dir(scratch.path())
+        .args(["build", "--build-dir", "compiled", "build.omg"])
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    assert!(compiled.status.success(), "{compiled:?}");
+    for bytes in [b"Z\0", b"\xffB"] {
+        let mut child = Command::new(scratch.path().join("compiled/omega-program"))
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child.stdin.take().unwrap().write_all(bytes).unwrap();
+        let observed = child.wait_with_output().unwrap();
+        assert_eq!(observed.status.code(), Some(0), "{observed:?}");
+        assert_eq!(observed.stdout, bytes);
+        assert_eq!(observed.stderr, b"!");
     }
 }

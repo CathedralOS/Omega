@@ -23,6 +23,8 @@ The dependency coverage checks that program on Linux and emits it for Windows.
 mod project;
 mod support;
 
+use platform_custody::temporary_directory::TemporaryDirectory;
+
 const PRODUCT: &str = "\
 public boundary trait Host {
     machine tick() reaches none crashes none;
@@ -222,21 +224,18 @@ fn a_program_receives_the_system_packages_native_bindings() {
     omega_check(&directory, "linux_x86_64").expect("the console program must compile");
 }
 
-/// The same Console program cross-compiles for Windows ARM64: system selects its
-/// shared Windows console adapter there, reached through MSVCRT imports placed
-/// by AAPCS64. No ARM64 host runs it here.
-#[test]
-fn windows_arm64_console_emits_with_its_authored_imports() {
+fn compile_windows_console(target: &str, machine: u16) -> TemporaryDirectory {
     let directory = support::repository_root()
         .join("tests/fixtures/providers/run/default_console_provider_reached");
+    let build = project::stage("windows-console", &[]);
     let output = project::omega(
         &directory,
         &[
-            "run",
-            "--engine",
-            "native",
+            "build",
             "--target",
-            "windows_arm64",
+            target,
+            "--build-dir",
+            build.path().to_str().unwrap(),
             "--build-input",
             "build.omg",
             "--build-input",
@@ -244,47 +243,57 @@ fn windows_arm64_console_emits_with_its_authored_imports() {
             "build.omg",
         ],
     );
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(output.status.success(), "{stderr}");
-    assert!(
-        stderr.contains("compiled for target `windows_arm64`"),
-        "{stderr}"
-    );
+    assert!(output.status.success(), "{output:?}");
+    let image = std::fs::read(build.path().join("omega-program.exe")).unwrap();
+    assert!(image.starts_with(b"MZ"), "{target}");
+    let pe = u32::from_le_bytes(image[0x3c..0x40].try_into().unwrap()) as usize;
+    assert_eq!(&image[pe..pe + 4], b"PE\0\0", "{target}");
+    assert_eq!(&image[pe + 4..pe + 6], &machine.to_le_bytes(), "{target}");
+    for import in [b"msvcrt.dll\0".as_slice(), b"_write\0"] {
+        assert!(
+            image.windows(import.len()).any(|bytes| bytes == import),
+            "{target}: missing import {import:?}"
+        );
+    }
+    build
+}
+
+/// The system selects its shared Windows console adapter on ARM64, reached
+/// through MSVCRT imports placed by AAPCS64.
+#[test]
+fn windows_arm64_console_emits_with_its_authored_imports() {
+    compile_windows_console("windows_arm64", 0xaa64);
 }
 
 #[test]
 fn windows_console_emits_with_its_authored_imports() {
-    let directory = support::repository_root()
-        .join("tests/fixtures/providers/run/default_console_provider_reached");
-    let hosted = cfg!(all(target_os = "windows", target_arch = "x86_64"));
-    let engines = if hosted {
-        &["native", "psi"][..]
-    } else {
-        &["native"][..]
-    };
-    for engine in engines {
-        let mut arguments = vec!["run", "--engine", *engine];
-        if !hosted {
-            arguments.extend(["--target", "windows_x86_64"]);
-        }
-        arguments.extend(["--build-input", "build.omg", "--build-input", "main.omg"]);
-        arguments.push("build.omg");
-        let output = project::omega(&directory, &arguments);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(output.status.success(), "{stderr}");
-        if hosted {
-            assert_eq!(output.stdout, b"K\n");
-            let expected = if *engine == "native" {
-                "native exit 0"
-            } else {
-                "Psi exit 0"
-            };
-            assert!(stderr.lines().any(|line| line == expected), "{stderr}");
-        } else {
-            assert!(
-                stderr.contains("compiled for target `windows_x86_64`"),
-                "{stderr}"
-            );
-        }
+    let build = compile_windows_console("windows_x86_64", 0x8664);
+    if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
+        let compiled = std::process::Command::new(build.path().join("omega-program.exe"))
+            .output()
+            .unwrap();
+        assert!(compiled.status.success(), "{compiled:?}");
+        assert_eq!(compiled.stdout, b"K\n");
+        let directory = support::repository_root()
+            .join("tests/fixtures/providers/run/default_console_provider_reached");
+        let interpreted = project::omega(
+            &directory,
+            &[
+                "run",
+                "--build-input",
+                "build.omg",
+                "--build-input",
+                "main.omg",
+                "build.omg",
+            ],
+        );
+        assert!(interpreted.status.success(), "{interpreted:?}");
+        assert_eq!(interpreted.stdout, b"K\n");
+        assert!(
+            String::from_utf8_lossy(&interpreted.stderr)
+                .lines()
+                .any(|line| line == "Psi exit 0"),
+            "{interpreted:?}"
+        );
     }
 }

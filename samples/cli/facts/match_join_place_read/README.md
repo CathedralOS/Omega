@@ -38,7 +38,7 @@ unsupported field claim.
 
 Every positive place binds `ProgramEntry` for all four hosted targets
 (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and declares
-`Expected exit: 0`. `omega run --both` reports Terminal Psi interpreter and
+`Expected exit: 0`. The native/Psi comparison reports Terminal Psi interpreter and
 native execution agreement (`native exit 0` and `interp exit: 0`):
 
 ```sh
@@ -98,7 +98,7 @@ cannot drift apart.
 | both |  | `built`, `exit:0`, `interpreter-exit:0`, `interpreter:agrees` |
 
 Direct runs with the same pair's CLI (opt_level 1, stdin closed, macOS arm64):
-all nine places exit 0 through `omega run --both` (`native exit 0`, `interp
+all nine places exit 0 through the native/Psi comparison (`native exit 0`, `interp
 exit: 0`), and the nine twins exit 1 with the pinned ``cannot prove requires
 contract for call read_field`` and `place.other == 17` fragments. Earlier
 sweeps with the coordinator's shared generation pairs (`9d9ba4fb625`,
@@ -147,7 +147,7 @@ the record above is the measurement that supersedes them.
    evaluation, the borrowed join, the recorded selected place, and the
    projection read lower without loss into canonical target-neutral Terminal
    Psi (`PSITERM\0`); the Terminal Psi interpreter executes all nine positive
-   places in complete agreement with native execution (`omega run --both`).
+   places in complete agreement with native execution.
 6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):**
    Target realization joins Build companion rows (`ProgramEntry`, `ProviderPlan`,
    `CompilerBuiltinExecution`) across all four hosted targets. `Pair` layout
@@ -164,7 +164,7 @@ the record above is the measurement that supersedes them.
    (`Omega 07–09` + emission):** Final encoding resolves symbolic displacements,
    lays out blocks with short/near branch relaxation, binds relocations, and
    emits direct PE/ELF/Mach-O images that execute with exit code 0 and agree
-   with Terminal Psi (`omega run --both`) on this host.
+   with Terminal Psi on this host.
 
 Remaining open scope: the parent item's broader borrowed-join acceptance
 (write-only joins, case/reference/descriptor-bearing referents, runtime-sized

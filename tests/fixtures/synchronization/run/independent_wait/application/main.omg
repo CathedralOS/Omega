@@ -1,0 +1,7 @@
+use {signals}/main.omg as signals;
+
+machine main() reaches |signals|::Wait crashes none {
+    let mutable signal: |signals|::Signal;
+    signal.word.store(0, Publish);
+    |signals|::Wait::until_clear(@signal);
+}

@@ -4,7 +4,7 @@
 independent const captures. The application checks `7 * 10 + 8 = 78` and
 crashes if a selected value is outside the checked range or the result differs.
 
-Run `omega run --both samples/cli/generics/captured_map_result/main.omg`.
+Run `mbx xtask sample-gate --filter samples/cli/probes/captured_map_result`.
 Expected exit: 0. Expected stdout: `78` followed by a newline.
 Use an empty bounded stdin file. Output uses the ordinary Console provider and
 its checked stdout adapter; Source risk disclosure does not grant host authority.

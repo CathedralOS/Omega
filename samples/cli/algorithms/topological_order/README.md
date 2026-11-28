@@ -24,5 +24,5 @@ An intended-invalid control in `../invalid_topological_order/` marks node `8` (v
 After ordinary package review on macOS arm64:
 
 ```sh
-build/dev-target/debug/omega run --both samples/cli/algorithms/topological_order/main.omg < /dev/null
+build/dev-target/debug/omega run samples/cli/algorithms/topological_order/main.omg < /dev/null
 ```

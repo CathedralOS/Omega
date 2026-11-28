@@ -65,7 +65,7 @@ The chained two-tag reference control retains independent sibling backings.
   Terminal Psi. Matching-host execution establishes only that host's row;
   bindings and cross-compilation do not qualify another host.
 
-Acceptance: `omega run --both <place>/main.omg`, exit 0 in both engines, and
+Acceptance: the native/Psi comparison, exit 0 in both engines, and
 the corresponding `<place>/invalid/main.omg` rejected for the active loan.
 
 This row does not close the parent's other host/authority gates, domain access

@@ -43,8 +43,8 @@ energy; it is the energy lost by shrinkage, rather than squared residual energy.
 From repository root, using the documented environment setup:
 
 ```
-omega packages update --project samples/cli/independent/wavelet_transient_denoising --target linux_x86_64
-omega run samples/cli/independent/wavelet_transient_denoising/main.omg < samples/cli/independent/wavelet_transient_denoising/input.txt
+omega packages update --project samples/cli/scientific/wavelet_transient_denoising --target linux_x86_64
+omega run samples/cli/scientific/wavelet_transient_denoising/main.omg < samples/cli/scientific/wavelet_transient_denoising/input.txt
 CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx build -p wavelet-transient-validation
 ```
 

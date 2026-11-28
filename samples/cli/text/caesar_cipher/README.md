@@ -6,9 +6,11 @@ stores the result in a UTF-8 buffer, and prints `KHOOR`.
 After completing the sample's package review, run from the repository root:
 
 ```sh
-omega run --engine native samples/cli/text/caesar_cipher/main.omg < /dev/null
-omega run --engine psi samples/cli/text/caesar_cipher/main.omg < /dev/null
+omega run samples/cli/text/caesar_cipher/main.omg < /dev/null
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/text/caesar_cipher` from the repository root.
 
 In PowerShell, run the same command without the redirection and press Enter at
 the final prompt. The named entry and its state arguments run natively and in
@@ -23,8 +25,7 @@ PASS: ciphertext starts with 'K' -- shift applied correctly (exit 0)
 ```
 
 The introductory banner also contains `KHOOR`; correct execution requires the
-standalone ciphertext line as well. The CLI reports `native exit 0` and
-`interp exit: 0` separately on stderr.
+standalone ciphertext line as well. The CLI reports `Psi exit 0` on stderr.
 
 The compiler must reconstruct the byte-read range from the unchanged literal
 contents (`69..79`) before proving that the shifted result preserves the output

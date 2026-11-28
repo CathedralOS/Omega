@@ -1,6 +1,6 @@
 # Access views over original RAM
 
-Expected exit: 0 from `omega run --both main.omg` after ordinary package
+Expected exit: 0 from the native/Psi comparison after ordinary package
 preparation. The program borrows initialized RAM through `Access::view_mut`,
 writes a nonzero-offset accessor in a helper state, reads another accessor,
 then observes the original RAM after the loan ends. A returned reference selects

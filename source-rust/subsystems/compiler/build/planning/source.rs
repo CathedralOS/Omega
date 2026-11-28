@@ -354,7 +354,18 @@ pub fn prepare(
         },
         &mut timings,
     )
-    .map_err(|failure| locate_failure(failure, &assembled.parsed.files, inputs))?;
+    .map_err(|failure| {
+        let failure = locate_failure(failure, &assembled.parsed.files, inputs);
+        // The check-only subject types the Build's files again under a
+        // provisional owner, so its refusals name those copies.
+        match check_only_subject
+            .as_ref()
+            .and_then(|subject| subject.program.symbols.source_map())
+        {
+            Some(copies) => locate_failure(failure, &copies, inputs),
+            None => failure,
+        }
+    })?;
     let mut file_imports = std::mem::take(&mut preparations.file_imports);
     file_imports.observe_build(&assembled.parsed, &interval.program);
     let mut declaration_usage = std::mem::take(&mut preparations.declaration_usage);

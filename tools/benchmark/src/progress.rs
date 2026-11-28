@@ -15,21 +15,19 @@ use std::process::{Command, Stdio};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 pub const SCHEMA: &str = "omega-progress-record/1";
-pub const BENCHMARK_SET: &str = "omega-progress-set/4";
+pub const BENCHMARK_SET: &str = "omega-progress-set/5";
 
 /// `{build}` is replaced by a fresh empty build directory for each run.
-/// `clean` names a directory removed before each run so `omega run` cannot
-/// reuse the previous run's products. `accept` names a project whose package
-/// review is settled once, untimed, before its runs (see `accept_review`).
+/// A native entry is compiled once before measuring its executable. Projects
+/// with dependencies settle their package review before measurement.
 struct Workload {
     name: &'static str,
     arguments: &'static [&'static str],
-    clean: Option<&'static str>,
+    native_entry: Option<&'static str>,
     accept: Option<&'static str>,
 }
 
 const SQUARE_SUM: &str = "samples/cli/arithmetic/wrapping_square_sum/main.omg";
-const SQUARE_SUM_BUILD: &str = "samples/cli/arithmetic/wrapping_square_sum/build";
 
 const WORKLOADS: &[Workload] = &[
     Workload {
@@ -40,7 +38,7 @@ const WORKLOADS: &[Workload] = &[
             "{build}",
             "tools/benchmark/workloads/one_line/main.omg",
         ],
-        clean: None,
+        native_entry: None,
         accept: None,
     },
     Workload {
@@ -51,7 +49,7 @@ const WORKLOADS: &[Workload] = &[
             "{build}",
             "tools/benchmark/tests/fixtures/arithmetic/pass/addr_algebra/main.omg",
         ],
-        clean: None,
+        native_entry: None,
         accept: None,
     },
     Workload {
@@ -62,7 +60,7 @@ const WORKLOADS: &[Workload] = &[
             "{build}",
             "samples/cli/arithmetic/prime_counter/main.omg",
         ],
-        clean: None,
+        native_entry: None,
         accept: Some("samples/cli/arithmetic/prime_counter"),
     },
     Workload {
@@ -73,27 +71,20 @@ const WORKLOADS: &[Workload] = &[
             "{build}",
             "tools/benchmark/tests/fixtures/proofs/pass/runtime_inductive_gauss_sum_exit/main.omg",
         ],
-        clean: None,
+        native_entry: None,
         accept: Some("tools/benchmark/tests/fixtures/proofs/pass/runtime_inductive_gauss_sum_exit"),
     },
     Workload {
-        name: "native_run",
-        arguments: &["run", "--engine", "native", SQUARE_SUM],
-        clean: Some(SQUARE_SUM_BUILD),
+        name: "compiled_square_sum",
+        arguments: &[],
+        native_entry: Some(SQUARE_SUM),
         accept: None,
     },
     Workload {
         name: "psi_run",
         // The full sum uses 28,000,022 units on work schedule 1.
-        arguments: &[
-            "run",
-            "--engine",
-            "psi",
-            "--psi-work-budget",
-            "32000000",
-            SQUARE_SUM,
-        ],
-        clean: Some(SQUARE_SUM_BUILD),
+        arguments: &["run", "--psi-work-budget", "32000000", SQUARE_SUM],
+        native_entry: None,
         accept: None,
     },
 ];
@@ -160,6 +151,39 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
                 json!({"project": project, "wall_s": started.elapsed().as_secs_f64()}),
             );
         }
+        let subject = if let Some(entry) = workload.native_entry {
+            let build = scratch.join("native-build");
+            fs::create_dir_all(&scratch).map_err(|error| error.to_string())?;
+            fs::create_dir(&build).map_err(|error| format!("{}: {error}", build.display()))?;
+            let report = build.join("compile.txt");
+            let args = vec![
+                "--build-dir".into(),
+                build.display().to_string(),
+                "--report-file".into(),
+                report.display().to_string(),
+                entry.into(),
+            ];
+            let (timing, output) =
+                capture(&omega, &args, &BTreeMap::new(), &root, &[], 30 * 60 * 1000)?;
+            if !output.status.success() {
+                return Err(format!(
+                    "compile {entry}: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                ));
+            }
+            let text = fs::read_to_string(&report).map_err(|error| error.to_string())?;
+            let artifact = crate::experiment::published_executable(&text, &root, &build)?;
+            preparations.insert(
+                workload.name,
+                json!({
+                    "arguments": args, "wall_s": timing.process_wall_ns as f64 / 1e9,
+                    "artifact_sha256": file_digest(&artifact)?,
+                }),
+            );
+            artifact
+        } else {
+            omega.clone()
+        };
         // One warmup fills the file cache, then alternating A/A runs of the same
         // binary estimate the host's noise before the measured runs.
         let plan = std::iter::once("warmup")
@@ -170,10 +194,9 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
         for (index, phase) in plan.enumerate() {
             let row = measure(
                 &root,
-                &omega,
+                &subject,
                 workload.name,
                 workload.arguments,
-                workload.clean,
                 phase,
                 index,
                 &scratch,
@@ -382,13 +405,12 @@ fn accept_review(omega: &Path, root: &Path, project: &str, target: &str) -> Resu
 }
 
 /// One process row. `template` may name `{build}`, replaced by a fresh empty
-/// build directory; `clean` is removed under `root` before the run.
+/// build directory.
 pub(crate) fn measure(
     root: &Path,
-    omega: &Path,
+    subject: &Path,
     name: &str,
     template: &[&str],
-    clean: Option<&str>,
     phase: &str,
     index: usize,
     scratch: &Path,
@@ -396,9 +418,6 @@ pub(crate) fn measure(
     let build = scratch.join(format!("{name}-{index}"));
     let _ = fs::remove_dir_all(&build);
     fs::create_dir_all(&build).map_err(|error| error.to_string())?;
-    if let Some(clean) = clean {
-        let _ = fs::remove_dir_all(root.join(clean));
-    }
     let arguments: Vec<String> = template
         .iter()
         .map(|argument| argument.replace("{build}", &build.display().to_string()))
@@ -421,12 +440,12 @@ pub(crate) fn measure(
                 "-o".to_owned(),
                 counters.display().to_string(),
                 "--".to_owned(),
-                omega.display().to_string(),
+                subject.display().to_string(),
             ];
             wrapped.extend(arguments);
             (perf.as_path(), wrapped)
         }
-        None => (omega, arguments),
+        None => (subject, arguments),
     };
     let load_average_start = load_average();
     // Empty stdin is the null device: omega must never wait on an open console.

@@ -41,14 +41,12 @@ landed local plus twin came from the item's pin commit `037fe3b9a8b`.
 
 Every positive place binds `ProgramEntry` for all four hosted targets
 (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) in its
-`build.omg` and declares `Expected exit: 0`. `omega run --both` reports Terminal
+`build.omg` and declares `Expected exit: 0`. The native/Psi comparison reports Terminal
 Psi interpreter and native execution agreement:
 
 ```sh
-target/debug/omega run --engine native samples/cli/facts/generic_comparison_body/<place>/main.omg < /dev/null
-target/debug/omega run --engine psi samples/cli/facts/generic_comparison_body/<place>/main.omg < /dev/null
-target/debug/omega run --engine native samples/cli/facts/generic_comparison_body/<place>/invalid/main.omg < /dev/null
-target/debug/omega run --engine psi samples/cli/facts/generic_comparison_body/<place>/invalid/main.omg < /dev/null
+target/debug/omega run samples/cli/facts/generic_comparison_body/<place>/main.omg < /dev/null
+target/debug/omega run samples/cli/facts/generic_comparison_body/<place>/invalid/main.omg < /dev/null
 ```
 
 Measured at base `c1c6bc8cb8ec886f645976a82e496d4191937339` on macOS arm64
@@ -56,7 +54,7 @@ Measured at base `c1c6bc8cb8ec886f645976a82e496d4191937339` on macOS arm64
 (`omega --build-profile` reports `opt_level: 1`).
 
 - All nine positives report `native exit 0` with `interp exit: 0` through
-  `omega run --both` (18 of 18 engine runs exit 0).
+  the native/Psi comparison (18 of 18 engine runs exit 0).
 - All nine twins exit 200 at compile time with the row's own obligation —
   `cannot prove requires contract for call hold ... direct == false` — from
   `main` state `entry` (local, field, parameter, call result, match join,
@@ -134,7 +132,7 @@ twin, only `same`'s body changes from `false` to `true` (one line; verified by
    entry machine and its helpers, with the true arm routed to the `bad()` trap.
 8. **Form encoding, branch relaxation, relocations, and native image emission
    (`Omega 07–09` + emission):** the emitted host image executes and agrees with
-   Terminal Psi (`omega run --both`), and the twins reject before emission.
+   Terminal Psi, and the twins reject before emission.
 
 ## What remains open
 

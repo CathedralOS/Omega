@@ -18,7 +18,7 @@ machine build(builder: @mutable BuildPlan) {
 
 fn assert_psi_runs(name: &str, source: &str) {
     let scratch = project::stage(name, &[("main.omg", source), ("build.omg", BUILD)]);
-    let output = project::omega(scratch.path(), &["run", "--engine", "psi", "build.omg"]);
+    let output = project::omega(scratch.path(), &["run", "build.omg"]);
     let report = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
@@ -30,7 +30,7 @@ fn assert_psi_runs(name: &str, source: &str) {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn both_engines_replay_eof_for_the_darwin_console_descriptor() {
+fn interpreted_and_built_programs_replay_eof_for_the_darwin_console_descriptor() {
     use std::process::{Command, Stdio};
 
     let library = support::repository_root().join("source/library");
@@ -65,17 +65,16 @@ machine main() reaches |process_exit|::ProcessExit + |process_authority|::Standa
             ("build.omg", &build),
         ],
     );
-    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-            .args(["run", "--engine", engine, "build.omg"])
-            .current_dir(scratch.path())
-            .env("OMEGA_LIBRARY_ROOT", &library)
-            .stdin(Stdio::null())
-            .output()
-            .expect("run the finite input");
+    for command in ["run", "build"] {
+        let output = project::observe_command(
+            Command::new(env!("CARGO_BIN_EXE_omega"))
+                .args([command, "build.omg"])
+                .current_dir(scratch.path())
+                .env("OMEGA_LIBRARY_ROOT", &library)
+                .stdin(Stdio::null()),
+        );
         let report = String::from_utf8_lossy(&output.stderr);
         assert!(output.status.success(), "{report}");
-        assert!(report.lines().any(|line| line == expected), "{report}");
         assert!(output.stdout.is_empty(), "{output:?}");
     }
 }

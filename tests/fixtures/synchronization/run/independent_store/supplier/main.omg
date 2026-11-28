@@ -1,0 +1,20 @@
+public data Signal { word: AtomicU32; sibling: AtomicU32; }
+public boundary trait SignalUpdate {
+   machine apply(first: @Signal, second: @Signal, unrelated: u32, input: u32) reaches none crashes none;
+}
+machine set_word(signal: @Signal, input: u32) {
+   signal.word.store(input, Publish);
+}
+public machine write_pair(first: @Signal, second: @Signal, input: u32) {
+   set_word(first, input);
+   set_word(second, 1);
+}
+public OrderedWrites satisfies SignalUpdate {
+   machine apply(first: @Signal, second: @Signal, unrelated: u32, input: u32) { write_pair(first, second, input); }
+}
+public WrongField satisfies SignalUpdate {
+   machine apply(first: @Signal, second: @Signal, unrelated: u32, input: u32) { first.sibling.store(0, Publish); }
+}
+public NoWrites satisfies SignalUpdate {
+   machine apply(first: @Signal, second: @Signal, unrelated: u32, input: u32) {}
+}

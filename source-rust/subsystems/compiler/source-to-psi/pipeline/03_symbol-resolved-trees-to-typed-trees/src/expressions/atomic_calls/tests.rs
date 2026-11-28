@@ -62,7 +62,11 @@ fn selected_cells_check_ordering_and_keep_the_event_and_its_result() {
         ("store(1, Receive)", "atomic store"),
         (
             "compare_exchange(0, 1, NoOrdering, Publish)",
-            "failure ordering",
+            "compare_exchange failure ordering",
+        ),
+        (
+            "try_exchange(0, 1, NoOrdering, Publish)",
+            "try_exchange failure ordering",
         ),
     ] {
         let invocation = if member.starts_with("store") {
@@ -82,8 +86,10 @@ fn selected_cells_check_ordering_and_keep_the_event_and_its_result() {
             let read: u32 = cell.load(Receive);
             let prior: u32 = cell.fetch_add(1, GlobalOrder);
             let swapped: u32 = cell.swap(1, NoOrdering);
-            let compared: u32 = cell.compare_exchange(0, 1, Receive, NoOrdering);
+            let compared: AtomicCompareExchangeOutcome<u32> = cell.compare_exchange(0, 1, Receive, NoOrdering);
             let once: AtomicCompareExchangeOnceOutcome<u32> = cell.compare_exchange_once(0, 1, Receive, NoOrdering);
+            let attempt: AtomicTryExchangeOutcome<u32> = cell.try_exchange(0, 1, Receive, NoOrdering);
+            let attempt_once: AtomicTryExchangeOnceOutcome<u32> = cell.try_exchange_once(0, 1, Receive, NoOrdering);
         }",
     )
     .unwrap();
@@ -95,15 +101,18 @@ fn selected_cells_check_ordering_and_keep_the_event_and_its_result() {
             _ => None,
         })
         .collect::<Vec<_>>();
-    assert_eq!(operations.len(), 6);
+    assert_eq!(operations.len(), 8);
     for event in operations {
         assert!(event.result_custody.is_valid_for(event.ordering));
         if matches!(
             event.ordering,
-            AtomicOrderingPlan::CompareExchangeOnce { .. }
+            AtomicOrderingPlan::CompareExchange { .. } | AtomicOrderingPlan::CompareExchangeOnce { .. }
         ) {
-            let once = typed.atomic_once_operands(event).unwrap();
-            assert_eq!(once.operands.len(), 2);
+            let [expected, replacement] = typed.atomic_exchange_operands(event).unwrap();
+            for (operand, value) in [(expected, 0), (replacement, 1)] {
+                assert!(matches!(typed.expression_table.expression(operand), TypedNode::Integer(literal)
+                    if literal.magnitude_u128() == Some(value)));
+            }
         }
         assert_eq!(
             event.result.is_valid(),
@@ -111,7 +120,6 @@ fn selected_cells_check_ordering_and_keep_the_event_and_its_result() {
                 event.ordering,
                 AtomicOrderingPlan::ReadModifyWrite(_)
                     | AtomicOrderingPlan::Swap(_)
-                    | AtomicOrderingPlan::CompareExchange { .. }
             )
         );
     }

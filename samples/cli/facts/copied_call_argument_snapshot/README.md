@@ -43,7 +43,7 @@ call-result control also runs through native and Terminal execution; it retains 
 supplier without inventing an address. The image-backed descriptor control now also executes
 in both engines; its former sequence-cleanup refusal is retained in the baseline evidence.
 
-Host acceptance is `omega run --both <place>/descriptor/main.omg` with native
+Host acceptance is `mbx xtask sample-gate --filter samples/cli/facts/copied_call_argument_snapshot/<place>/descriptor` with native
 and Terminal exit 0, plus each twin rejecting `receive`'s 7 obligation.
 Windows native execution is owner-deferred to a Windows host. Linux native
 execution is unverified; declaring four hosted entries does not execute them.
@@ -448,7 +448,7 @@ remain required; this does not establish full RUNTIME-VALUE-GENERICS acceptance.
 - Identity and lifetime: the copied first operand is detached; `overwrite` changes its original home, not that copy. Descriptor copies retain their exact backing permissions independently of that home; byte-field observations retain custody of their containing record.
 - Composition: all nine places consume the same snapshot through `seven`, checked result equality and exact subtraction. Twins change the source to 9, not a caller guard.
 - Soundness: ordinary exclusive access authorizes the overwrite; operand facts grant no loan or disposal authority. Unknown/missing captures participate conservatively.
-- Checked-to-Terminal Psi and native realization: every positive binds all four hosted targets and declares exit 0. Acceptance requires observed native exit 0 and interpreter exit 0 through `omega run --both`; flags alone establish no other-host execution.
+- Checked-to-Terminal Psi and native realization: every positive binds all four hosted targets and declares exit 0. Acceptance requires observed native exit 0 and interpreter exit 0 through the native/Psi comparison; flags alone establish no other-host execution.
 - Provider/layout/ABI: the descriptor rows pass shared-reference and byte-view records through ordinary field layout and call/return placements, including its call-result place. It does not establish every aggregate ABI or target lane.
 - Instruction/frame/encoding/image realization: host execution exercises ordinary indirect loads, argument staging, frame homes, calls and direct Mach-O emission. No claim is made for unexecuted targets, concurrency, or unrelated instruction paths.
 - Remaining scope: these witnesses establish scalar, shared-reference and shared byte-view operand snapshots. Inline image sources also preserve the untouched sibling through the ordinary stored-call relation; computed image/input results and binding-preserving effects are also covered; this does not establish every computed or opaque output relation. The rest of both parent outcomes, including general computed/cyclic composition, remains open.

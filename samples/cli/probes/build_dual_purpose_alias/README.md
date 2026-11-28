@@ -11,7 +11,7 @@ The dependency seals its source template as the required output
 directory. The receiver declares the finished package. Removing either the
 seed or the generated file breaks the consuming import.
 
-Run `omega run --engine psi build.omg` or `omega run --engine native build.omg`.
+Run `omega run build.omg`.
 The [negative cases](../build_dual_purpose_alias_controls/) check that a Product
 registration cannot supply the executing Build and that the dependency's
 declared name cannot stand in for the registered alias.

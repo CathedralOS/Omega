@@ -786,7 +786,7 @@ mod tests {
         let typed = TypedTrees::default();
         let mut program = Program::new(&typed, false);
         let id = MachineId::new(1).unwrap();
-        let element = program.records.push(RecordType {
+        let element_type = RecordType {
             identity: "u8".into(),
             shape: StorageShape::PrimitiveScalar {
                 scalar_type: ScalarType::Integer(
@@ -799,9 +799,10 @@ mod tests {
             requires: Vec::new(),
             authored_layout: false,
             erased: Vec::new(),
-        });
+        };
+        let element = program.push_record_row(element_type, Default::default());
         let mut array = |length| {
-            ValueType::record(program.records.push(RecordType {
+            let array_type = RecordType {
                 shape: StorageShape::FixedArray {
                     element,
                     qualification: Qualification::NONE,
@@ -813,7 +814,8 @@ mod tests {
                 requires: Vec::new(),
                 authored_layout: false,
                 erased: Vec::new(),
-            }))
+            };
+            ValueType::record(program.push_record_row(array_type, Default::default()))
         };
         let three = array(ArrayExtent::Literal(3));
         let four = array(ArrayExtent::Literal(4));

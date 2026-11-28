@@ -1,0 +1,11 @@
+use {omega}/build/dependency.omg;
+use main.omg as app;
+use {signals}/main.omg as signals;
+
+machine build(build: @mutable BuildPlan) {
+    build.product = BuildProduct::Application { name: "viewer" };
+    let dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../supplier" });
+    _ = |dependency|::add(build, dependency);
+    Build::select_provider::<|signals|::Clear, |signals|::ChosenWord>(build, CompositionMode::Independent);
+    Build::bind(build, linux_x86_64::ProgramEntry, |app|::main);
+}

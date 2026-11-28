@@ -42,7 +42,7 @@ its exact policy application.
 The November 6 runs below executed all ten original corpus positives with native
 and Psi exit 0. Each also ran the projects for another machine and the
 selected implementation through ordinary CLI package admission and
-`omega run --both`, with both engines exiting 0. The programs, Builds and expected
+the native/Psi comparison, with both engines exiting 0. The programs, Builds and expected
 results were frozen before execution and were unchanged between these producer
 revisions.
 

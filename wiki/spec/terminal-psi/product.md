@@ -180,7 +180,7 @@ assertion that it was checked does not authorize execution by itself.
 | --- | --- |
 | Trusted producer's exact artifact, interpreted | Reuse checked judgments; prepare execution and enforce concrete operation checks. |
 | Trusted producer's exact artifact, native | Reuse checked judgments for optimization and lowering under the selected installation contracts. |
-| Untrusted artifact, interpreted | Available only through a containment-audited interpreter and host bindings. Until that route is established, execution requires host authorization of producer trust. |
+| Untrusted artifact, interpreted | Admit for contained interpretation through a containment-audited interpreter and host bindings. [Standalone interpretation](../build/embedding.md#standalone-interpretation) uses this route for saved Psi. |
 | Untrusted artifact, native | Refuse. This contract provides no guarded native lowering route. |
 | Untrusted bytes, inspection | Bounded canonical decoding and structural validation; no execution or installation authority. |
 

@@ -33,13 +33,15 @@ and explicitly requested validators.
   - `address_and_load_rewrites.rs`: displacement address folding and byte-exact stored-load forwarding.
   - `copy_and_extension_rewrites.rs`: direct-call copied operand folding, same-block copy removal, and redundant carrier-extension removal.
   - `branch_and_compare_rewrites.rs`: compile-time constant boolean materialization, constant branch folding, and dead/redundant/equivalent compare elimination.
-  - `literal_fold_rewrites.rs`: selected-lowering pair-rule catalog and incoming literal folding.
+  - `literal_fold_rewrites.rs`: selected-lowering rule catalog and incoming literal folding.
+  - `structural_rewrites.rs`: the selected-lowering whole-program rewrites that run before the
+    pair rules, their kept run and its validator.
+  - `call_inlining.rs`: `SelectedAcyclicCallInliningV1`, acyclic internal-call inlining.
+  - `vector_promotion.rs`: `SelectedPackedVectorPromotionV1`, packed register promotion.
 */
 
 use selected_instruction_analyses as analyses;
 use selected_instruction_analyses::work_accounting;
-
-use selected_instruction_analyses::codec_bytes;
 
 mod selected_input {
     use crate::selected_rewrites::{
@@ -87,9 +89,14 @@ pub use selected_instruction_analyses::ValidatedSelectedAnalysis;
 mod rewrites;
 mod address_and_load_rewrites;
 mod branch_and_compare_rewrites;
+mod call_inlining;
 mod copy_and_extension_rewrites;
 mod literal_fold_rewrites;
 mod selected_optimization;
+mod structural_rewrites;
+mod vector_promotion;
+
+pub use structural_rewrites::{StructuralRewriteError, StructuralRewriteValidationError};
 
 pub use selected_optimization::optimization_output::{
     SelectedInstructionOptimizationError, SelectedInstructionOptimizationOutput,
@@ -116,12 +123,12 @@ pub(crate) use analyses::{
 pub(crate) use rewrites::{
     AddressFoldError, ConstantBooleanError, ConstantBranchError, CopiedCallOperandError,
     CopyRemovalError, DeadCompareError, EquivalentCompareError, LiteralFoldPolicy,
-    PairResultDisposition, PairUnitDefRelation, PreAllocationPolicy,
-    PreAllocationTransformationIdentity, RedundantCompareError, RedundantExtensionError,
-    SELECTED_STAGE_RULE_CATALOG, SelectedInstructionPairRule, SelectedLoweringRuleCatalogError,
-    SelectedStageRuleRows, resolve_pre_allocation_rules, resolve_selected_lowering_rules,
-    run_pre_allocation_optimizations, run_selected_lowering_optimizations,
-    validate_pre_allocation_optimization_custody, validate_selected_lowering_optimization_custody,
+    PairResultDisposition, PairUnitDefRelation, PreAllocationPolicy, RedundantCompareError,
+    RedundantExtensionError, SELECTED_STAGE_RULE_CATALOG, SelectedInstructionPairRule,
+    SelectedLoweringRuleCatalogError, SelectedStageRuleRows, resolve_pre_allocation_rules,
+    resolve_selected_lowering_rules, run_pre_allocation_optimizations,
+    run_selected_lowering_optimizations, validate_pre_allocation_optimization_custody,
+    validate_selected_lowering_optimization_custody,
 };
 pub(crate) use rewrites::{
     FunctionLiteralFold, LiteralFoldAction, LiteralFoldError, LiteralFoldPlan,
@@ -135,7 +142,7 @@ pub(crate) use rewrites::{
     ValidatedRedundantCompare, ValidatedRedundantExtension,
 };
 pub use rewrites::{
-    LiteralFoldIdentity, OptimizedLiteralFoldCustodyError, OptimizedPreAllocationCustodyError,
+    OptimizedLiteralFoldCustodyError, OptimizedPreAllocationCustodyError,
     StagedPreAllocationOptimizationCustodyReceipt, StagedPreAllocationOptimizationRun,
     StagedSelectedLoweringOptimizationCustodyReceipt, StagedSelectedLoweringOptimizationRun,
     ValidatedLiteralFold,

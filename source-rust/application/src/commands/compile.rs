@@ -426,6 +426,7 @@ fn compile_subject(
                 }
                 print!("{}", outcome.publications);
                 report.push_str(&outcome.publications);
+                report.push_str(&outcome.process_evidence);
                 for row in outcome.rows {
                     println!("{row}");
                     writeln!(report, "{row}").unwrap();
@@ -506,6 +507,7 @@ struct TargetReport {
     summary: String,
     show_summary: bool,
     publications: String,
+    process_evidence: String,
     test_roster: Vec<String>,
     rows: Vec<StageValidationRow>,
 }
@@ -593,6 +595,7 @@ fn compile_target(
         .map_err(output_error)?
         .flatten();
     let mut publications = String::new();
+    let mut process_evidence = String::new();
     let mut portable = None;
     let mut advisories = Vec::new();
     let mut test_roster = Vec::new();
@@ -696,6 +699,16 @@ fn compile_target(
             ));
         };
         test_roster = tests.execute()?;
+        // Publication consumes the program. Retain its process-exit capability
+        // with the report so artifact tests can distinguish return from exit(0).
+        let can_exit = arguments.report_file.as_ref().and_then(|_| {
+            product.retained_native_program().map(|program| {
+                program
+                    .psi_artifact()
+                    .semantic_module()
+                    .can_end_the_process()
+            })
+        });
         let published = product
             .publish(&arguments.root_path, directory)
             .map_err(output_error)?;
@@ -710,21 +723,40 @@ fn compile_target(
         if let Some(receipt) = rollback {
             writeln!(publications, "optimizer rollback: {receipt}").unwrap();
         }
-        if let Some(path) = published.checked_native_package_path() {
+        let executable = published
+            .checked_native_executable_path()
+            .ok_or_else(|| output_error("native publication produced no executable"))?;
+        published
+            .validate_component_process_inputs(executable)
+            .map_err(output_error)?;
+        if arguments.report_file.is_some() {
+            let admission = match can_exit {
+                Some(false) => "process-exit-excluded",
+                Some(true) => "process-exit-possible",
+                None => "process-exit-unknown",
+            };
+            let trap = project_build::observations::trap_presentation(profile)
+                .map_or_else(|| "unknown".into(), |status| status.describe());
+            writeln!(process_evidence, "{admission}\ntrap-presentation: {trap}").unwrap();
+        }
+        if let Some(package) = published.checked_native_package_path() {
             writeln!(
                 publications,
                 "published macOS package to {}",
-                path.display()
+                package.display()
+            )
+            .unwrap();
+            writeln!(
+                process_evidence,
+                "published native output to {}",
+                executable.display()
             )
             .unwrap();
         } else {
-            let path = published
-                .checked_native_executable_path()
-                .ok_or_else(|| output_error("native publication produced no executable"))?;
             writeln!(
                 publications,
                 "published native output to {}",
-                path.display()
+                executable.display()
             )
             .unwrap();
         }
@@ -784,6 +816,7 @@ fn compile_target(
         summary,
         show_summary,
         publications,
+        process_evidence,
         test_roster,
         rows,
     })

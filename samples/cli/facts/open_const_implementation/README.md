@@ -147,8 +147,7 @@ completed-call controls. The reject family was renamed from the legacy
 the rename touched no fixture byte, verdict, timing, stamp or diagnostic line.
 
 Measured on macOS arm64 with the `factsr1` shared opt-level 1 producer (built at
-`9ff26a870215d1a351e830cacd1255a852e3dd1e`): the root and all nine places run
-`omega run --both` with native exit 0 and Terminal exit 0 (10/10 agree), and all
+`9ff26a870215d1a351e830cacd1255a852e3dd1e`): the root and all nine places were compared with native exit 0 and Terminal exit 0 (10/10 agree), and all
 nine `<place>/invalid` twins exit 1 at checking with the verbatim diagnostic
 "generic machine `selected` cannot bind `Implementation` to conformance
 `Selected`: expected a complete `Reading` implementation with the instantiated

@@ -50,7 +50,7 @@ impl Coverage {
 
 #[derive(Clone)]
 pub(super) struct Execution<'m> {
-    pub stack: Vec<Frame<'m>>,
+    pub stack: Vec<Rc<Frame<'m>>>,
     pub memory: Storage,
     pub coverage: Coverage,
 }
@@ -68,11 +68,8 @@ impl Execution<'_> {
                 fork: coverage.clone(),
                 returned: vec![arm],
             };
-            selected
-                .stack
-                .last_mut()
-                .expect("a fork has a frame")
-                .selected_arm = Some(arm);
+            Rc::make_mut(selected.stack.last_mut().expect("a fork has a frame")).selected_arm =
+                Some(arm);
             queue(selected);
         }
     }
@@ -102,15 +99,20 @@ impl Execution<'_> {
             }
         }
         for (frame, incoming) in self.stack.iter_mut().zip(other.stack) {
+            // Siblings suspend the same caller until they return or bind a result.
+            if Rc::ptr_eq(frame, &incoming) {
+                continue;
+            }
+            let frame = Rc::make_mut(frame);
             frame.bindings.join(&incoming.bindings, &mut arrivals);
-            if let (Some(captured), Some(other)) = (&mut frame.arrival, incoming.arrival) {
+            if let (Some(captured), Some(other)) = (&mut frame.arrival, &incoming.arrival) {
                 captured.bindings.join(&other.bindings, &mut arrivals);
             }
         }
         self.memory.join(&other.memory, arrivals);
         if let Some(active) = self.stack.last_mut() {
             for (formal, value) in formals {
-                active
+                Rc::make_mut(active)
                     .bindings
                     .places
                     .insert(formal, self.memory.allocate(value));

@@ -8,6 +8,7 @@ use crate::source_state::TypedTrees;
 use lowered_source_publication::{LoweredSourcePublication, PublicationSource};
 use lowered_source_publication_issuer::LOWERING;
 use symbols::SymbolHandle;
+use terminal_check_tables::RootPurpose;
 use terminal_check_tables::compilation::{GenericForms, PreparedCompilation, TerminalCompilation};
 
 type WitnessRow<'source> = (
@@ -87,7 +88,7 @@ pub fn prepare_compilation(
     compilation: crate::Compilation<'_>,
     publication: terminal_codec::TerminalPublication,
 ) -> Result<LoweredCompilationWithSource, Vec<diagnostics::Diagnostic>> {
-    Ok(prepare_closure(typed, compilation, publication)?.complete())
+    Ok(prepare_closure(typed, compilation, publication)?.complete(RootPurpose::Execution))
 }
 
 /// One compilation lowered as far as its closure: the closure is read,
@@ -118,6 +119,31 @@ fn collect_callee_summaries(
     prepared: &crate::publication::PreparedProgram<'_>,
     summaries: &mut crate::CalleeSummaries,
 ) {
+    // A conformance witness checks the actual bodies of every selected
+    // destructor and its callees to establish that automatic cleanup returns.
+    // An ordinary call summary carries no such evidence.
+    let module = &prepared.program.module;
+    let mut pending: Vec<_> = module
+        .types
+        .structural_types
+        .iter()
+        .filter_map(|ty| {
+            ty.nominal_cleanup
+                .as_ref()
+                .map(|cleanup| cleanup.cleanup_machine)
+        })
+        .collect();
+    let mut visited = std::collections::BTreeSet::new();
+    while let Some(id) = pending.pop() {
+        if visited.insert(id)
+            && let Some(machine) = module.machine(id)
+        {
+            if let Some(&symbol) = prepared.program.machines.get(id) {
+                summaries.0.insert(symbol, None);
+            }
+            pending.extend(machine.module_invocations().map(|call| call.inputs.callee));
+        }
+    }
     if prepared.has_type_alternative {
         return;
     }
@@ -170,7 +196,7 @@ impl<'source> PreparedClosure<'source> {
     /// Prepare the mathematical signature and every conformance witness the
     /// closure and its generic forms owe, including the rows those witnesses
     /// discover in turn.
-    pub(crate) fn complete(self) -> LoweredCompilationWithSource {
+    pub(crate) fn complete(self, root_purpose: RootPurpose) -> LoweredCompilationWithSource {
         let read = match self.reading {
             ClosureReading::Unformed(program) => {
                 return LoweredCompilationWithSource {
@@ -239,6 +265,7 @@ impl<'source> PreparedClosure<'source> {
         LoweredCompilationWithSource {
             source,
             program: TerminalCompilation::Prepared(PreparedCompilation {
+                root_purpose,
                 closure,
                 further,
                 arrivals,

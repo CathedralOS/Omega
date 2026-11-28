@@ -207,11 +207,10 @@ the kernel and checks that tampering is refused. Its valid and invalid inputs
 differ only in the caller's lower bound. Results, inferred contracts, knowledge
 IDs and proof trees match at 1, 2, 4 and 8 workers.
 
-The scalar and borrowed-root source copies each ran with `omega run --both`
+The scalar and borrowed-root source copies each ran both natively and under the interpreter
 at one and eight workers on Windows x86_64. All four invocations returned native
-exit 0 and Psi exit 0. Standard input was closed. An initial spelling with
-`run --both --offline` was refused by the option parser; execution evidence uses
-the supported spelling without that option. The kept programs and their oracles
+exit 0 and Psi exit 0. Standard input was closed. An initial comparison attempt with the offline flag failed argument parsing.
+The recorded invocations omitted that option. The kept programs and their oracles
 were not edited, and this change adds no `.omg` files.
 
 Scoped commands, with development opt-level 1 and the host budget above:

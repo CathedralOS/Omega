@@ -73,10 +73,12 @@ different cloud executor.
    exact-source smoke receipt when its inputs are unchanged. Workflow prose and
    unrelated Python tooling require their own focused checks, no Rust build. With a compiler of recorded provenance, run a small
    package-free fixture through normal package preparation and execution.
-   `tests/fixtures/pass/calls/runtime_static_entry_context_exit` has an authored
-   exit of 0 and observes its state mutation. On Linux, use `omega packages update
-   --project <fixture> --target linux_x86_64`, then `omega run --both
-   <fixture>/main.omg`. Bound both commands and require native/interpreter 0.
+   The running `parenthesized_guard` fixture in
+   `source-rust/application/tests/fixtures/transitions/run/` exercises a guarded
+   transition and exits 0. Interpret it with `omega run <fixture>/main.omg`.
+   For the native check, compile the same file into a temporary build directory
+   and launch the emitted executable on its target host. Bound both runs and
+   require exit 0.
    Use the actual target on another host. Normal acceptance of a fully checked
    package with no authority choices is distinct from approving authority;
    never add blanket approvals. Preserve pre-existing lockfiles, and clean up

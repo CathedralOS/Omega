@@ -21,6 +21,11 @@ state machines:
 IR, artifact, interpreter and CLI subsystem are **Psi**. **Terminal Psi** names
 only the internal compiler stage/representation. Keep internal paths and wire
 identifiers intact; do not export that stage label into help, reports or guides.
+`omega run app.omg` always lowers the selected Product to Psi and interprets
+its entry. `--target` selects the environment for that interpretation. To
+verify a native executable, build it and launch the published executable
+on its target host. [CLI contract](wiki/spec/build/embedding.md#standalone-interpretation)
+
 For execution results, write "native/Psi agreement" or "Psi exit 0".
 
 **Words this file uses.** You will copy the vocabulary you read into what you
@@ -331,8 +336,15 @@ and [the compiler ownership map](source-rust/README.md#where-code-belongs):
 `mbx` ([Mr Boxington](https://github.com/jdx/mr-boxington)) is **mandatory** for
 all Rust builds, Clippy checks, and test runs. Direct `cargo build`, `cargo test`,
 `cargo clippy`, or `cargo run` fallback is forbidden. Use the qualified
-checksum-capable adapter pinned in `tools/mbx-version`. If it is missing or
-unqualified, install or update it before building (from the checkout root):
+checksum-capable adapter pinned in `tools/mbx-version`.
+
+For a Linux cloud baseline on current main, run
+`bash tools/cloud_baseline.sh <command> [args...]`. It fetches main and uses
+that revision's mbx in a separate checkout. For images older than the launcher,
+use the [cloud startup command](wiki/development/testing.md#run-a-linux-cloud-baseline-on-current-main).
+
+If mbx is missing or unqualified for the current checkout, install or update it
+from the checkout root:
 
 - **Linux / macOS / Cloud containers:**
   ```bash

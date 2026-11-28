@@ -1,0 +1,17 @@
+// FAIL CANARY -- the Build registers `helper` as `support`, waits for it,
+// then calls `|configure|::configure`. The compiler checks the imports a
+// Build needs before it runs; registering or preparing a dependency cannot
+// make its code callable by this Build, so the import has no source.
+use {omega}/build/dependency.omg;
+use {support}/configure/configure.omg;
+
+machine build(builder: @mutable BuildPlan)
+suspends
+{
+    builder.product = BuildProduct::Application { name: "build_calls_self_registered_dependency" };
+    let mutable support_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "helper" });
+    |dependency|::with_alias(@mutable support_dependency, "support");
+    let support_registration: DependencyRegistration = Build::build_dependency(builder, support_dependency);
+    suspend Build::prepare_dependency(builder, support_registration);
+    |configure|::configure(builder);
+}

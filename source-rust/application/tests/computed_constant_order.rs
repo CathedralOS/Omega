@@ -39,7 +39,7 @@ fn expected(case: &str) -> String {
     std::fs::read_to_string(path).unwrap().trim_end().to_owned()
 }
 
-fn runs_in_both_engines(case: &str) {
+fn runs_when_interpreted_and_built(case: &str) {
     program::assert_silent_return(&fixture("run", case));
 }
 
@@ -57,18 +57,18 @@ fn twin_is_refused(run: &str, fail: &str, line: (&str, &str), position: &str) {
 }
 
 #[test]
-fn an_extent_call_that_reads_a_computed_constant_runs_in_both_engines() {
-    runs_in_both_engines("extent_call_reads_constant");
+fn an_extent_call_that_reads_a_computed_constant_runs_when_interpreted_and_built() {
+    runs_when_interpreted_and_built("extent_call_reads_constant");
 }
 
 #[test]
-fn a_constant_computed_through_a_const_argument_call_runs_in_both_engines() {
-    runs_in_both_engines("constant_through_const_argument");
+fn a_constant_computed_through_a_const_argument_call_runs_when_interpreted_and_built() {
+    runs_when_interpreted_and_built("constant_through_const_argument");
 }
 
 #[test]
-fn a_chain_of_arguments_and_constants_runs_in_both_engines() {
-    runs_in_both_engines("const_argument_constant_chain");
+fn a_chain_of_arguments_and_constants_runs_when_interpreted_and_built() {
+    runs_when_interpreted_and_built("const_argument_constant_chain");
 }
 
 #[test]

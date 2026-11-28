@@ -570,6 +570,11 @@ fn tag_tables() -> Vec<TagTable> {
         table("debug-subject-tags", &["DebugSubject"], |reader| {
             debug_refusal(debug_map::decode_subject(reader))
         }),
+        table(
+            "certificate-declaration-kind-tags",
+            &["declaration kind"],
+            read::<_, certificate::DeclKind>,
+        ),
         table("certificate-term-tags", &["MathematicalTerm"], |reader| {
             refusal(certificate::decode_term(reader, &[]))
         }),

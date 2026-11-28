@@ -1,10 +1,12 @@
 //! Tests selection for sum rows the target plan already stores.
 //!
 //! Each scenario builds the target row directly, prepares it with stage 04's
-//! fixture builders and runs selection, including vector promotion's copy and
-//! dead-store cleanup. The row carries the tag, offset, layout, pointer chase,
-//! and referent-region size that stage 02 records. The expected text pins the
-//! selected opcodes, tags, sizes and memory accesses for that geometry.
+//! fixture builders and runs selection. Selection no longer removes copies and
+//! dead stores: that cleanup is part of the opt-in Stage 06 rewrite
+//! `SelectedPackedVectorPromotionV1`. The row carries the tag, offset, layout,
+//! pointer chase, and referent-region size that stage 02 records. The expected
+//! text pins the selected opcodes, tags, sizes and memory accesses for that
+//! geometry.
 
 use abstract_operations::{
     AbstractOperation, AbstractOperationPlan, AbstractStructuralCaseSuccessor,

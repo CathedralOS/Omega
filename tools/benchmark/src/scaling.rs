@@ -92,7 +92,6 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
                 &omega,
                 &format!("n{size}"),
                 &template,
-                None,
                 "run",
                 index,
                 &scratch,

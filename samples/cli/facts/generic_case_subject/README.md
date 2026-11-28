@@ -18,7 +18,7 @@ Each of `local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`
 `other_state`, `other_machine`, and `target_body` carries the same sum to a
 numeric result operation. All projects bind the four hosted targets. The
 runtime oracle requires numeric payload 17, Boolean payload true, and empty
-numeric result 0. `omega run --both <place>/main.omg` requires native and
+numeric result 0. The native/Psi comparison requires native and
 Terminal execution agreement. Runtime comparisons check the result; they do
 not establish the payload's static type for the preceding return operation.
 

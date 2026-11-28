@@ -5,6 +5,10 @@ This directory contains retained fact samples and is subject to the repository's
 testing instructions when repairing a sample. Shared dependency packages are
 described below.
 
+For a native/Psi comparison, run `mbx xtask sample-gate --filter samples/cli/facts/<name>`
+from the repository root, replacing `<name>` with the sample directory. To interpret
+a single positive place, use `omega run <place>/main.omg` from that sample.
+
 ## Dependency packages
 
 Named decision: `fact-sample-dependency-packages`, ratified 2026-11-13.

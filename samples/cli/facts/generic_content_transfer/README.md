@@ -28,7 +28,7 @@ prerequisite of **BUMP-ALLOCATOR-CANARY**: copied contracts keep their own proof
 context and formal parameters. This counted model does not grant access to
 storage, establish vacancy or implement initialization.
 
-Run `omega run --both <place>/main.omg` for `local`, `field`, `parameter`,
+Run `mbx xtask sample-gate --filter samples/cli/facts/generic_content_transfer/<place>` for `local`, `field`, `parameter`,
 `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, and
 `target_body`. Each declares exit 0 and four hosted `ProgramEntry` bindings. Its
 `invalid/main.omg` changes only the transfer body: it drops the original region

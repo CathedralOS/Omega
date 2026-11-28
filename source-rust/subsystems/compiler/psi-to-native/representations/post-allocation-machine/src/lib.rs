@@ -32,8 +32,7 @@ pub use instructions::{
 };
 pub use operands::{PhysicalOperandFootprint, QualifiedPhysicalRead};
 
-use optimization_core::PostAllocationOptimizationManifestIdentity;
-use register_homes::RegisterHomeIdentity;
+use register_homes::{PostAllocationOptimizationManifest, RegisterHomePlan};
 use register_model::{
     PhysicalRegisterModelIdentity, RegisterConstraintCatalogIdentity,
     TargetRegisterEnvironmentIdentity,
@@ -47,8 +46,8 @@ pub struct PostAllocationMachinePlan {
     /// The final selected program this plan assigns machine choices to. Its
     /// functions are the same shared rows the physical program keeps.
     pub selected: Arc<SelectedInstructionPlan>,
-    pub homes: RegisterHomeIdentity,
-    pub post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
+    pub homes: Arc<RegisterHomePlan>,
+    pub post_allocation_manifest: Arc<PostAllocationOptimizationManifest>,
     pub target: NativeTarget,
     pub register_environment: TargetRegisterEnvironmentIdentity,
     pub physical_register_model: PhysicalRegisterModelIdentity,

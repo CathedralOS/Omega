@@ -7,4 +7,4 @@ The loan keeps the owner's address and qualification. Membership does not
 require another native representation, and lending storage does not extract
 or reissue its contents.
 
-Run `omega run --both samples/cli/memory/qualified_state_loan/main.omg`.
+Run `mbx xtask sample-gate --filter samples/cli/probes/qualified_state_loan`.

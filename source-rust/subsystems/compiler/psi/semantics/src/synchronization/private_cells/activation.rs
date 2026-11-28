@@ -1,11 +1,12 @@
 //! Bind a machine's formals to their actual storage and evaluate the checked
 //! operations that can affect the private cells or the control leading to a wait.
 
-use super::super::facts::Facts;
+use super::super::facts::BranchFacts;
 use super::super::progress::ScalarFact;
-use super::super::spin::{CellUpdate, constant};
+use super::super::spin::{AtomicWordUpdate, constant};
 use super::storage::{Location, Storage, Stored};
 use crate::entry_values::TerminalScalarValue as Scalar;
+use crate::synchronization::progress::condition::Assumption;
 use semantic_vocabulary::{BlockId, EdgeId, PlaceId, ValueId};
 use std::cell::OnceCell;
 use std::rc::Rc;
@@ -15,10 +16,13 @@ use terminal_psi::{
     TerminalMachine, TerminalModule, ValueDeclaration,
 };
 
-#[derive(Clone, Default)]
-pub(super) struct Bindings {
-    pub(super) places: Facts<PlaceId, Location>,
-    pub(super) values: Facts<ValueId, ScalarFact>,
+#[derive(Clone)]
+pub(super) struct Bindings<'m> {
+    pub(super) module: &'m TerminalModule,
+    pub(super) machine: &'m TerminalMachine,
+    pub(super) places: BranchFacts<PlaceId, Location>,
+    pub(super) values: BranchFacts<ValueId, ScalarFact>,
+    pub(super) predicates: BranchFacts<ValueId, Assumption>,
 }
 
 pub(super) enum ScalarArguments<'a> {
@@ -26,16 +30,30 @@ pub(super) enum ScalarArguments<'a> {
     Payload(Vec<Option<ScalarFact>>),
 }
 
-impl Bindings {
+impl<'m> Bindings<'m> {
+    pub(super) fn new(module: &'m TerminalModule, machine: &'m TerminalMachine) -> Self {
+        Self {
+            module,
+            machine,
+            places: BranchFacts::default(),
+            values: BranchFacts::default(),
+            predicates: BranchFacts::default(),
+        }
+    }
+
+    pub(super) fn predicate(&self, value: ValueId) -> Option<Assumption> {
+        self.predicates
+            .get(&value)
+            .copied()
+            .or_else(|| Assumption::boolean(*self.values.get(&value)?))
+    }
+
     pub(super) fn join(&mut self, other: &Self, arrivals: &mut super::storage::Arrivals<'_>) {
         self.values.retain_equal(&other.values);
-        self.places.retain(|key, place| {
-            if let Some(incoming) = other.places.get(key) {
-                arrivals.place(place, incoming);
-                true
-            } else {
-                false
-            }
+        self.predicates.retain_equal(&other.predicates);
+        self.places.intersect(&other.places, |place, incoming| {
+            arrivals.place(place, incoming);
+            true
         });
     }
 
@@ -54,12 +72,17 @@ impl Bindings {
         if places.len() != actuals.len() || formals.len() != count {
             return None;
         }
-        let mut bindings = Self::default();
+        let mut bindings = Self::new(self.module, self.machine);
         for (index, formal) in formals.iter().enumerate() {
             let value = match &arguments {
                 ScalarArguments::Values(values) => self.values.get(&values[index]).copied(),
                 ScalarArguments::Payload(fields) => fields[index],
             };
+            if let ScalarArguments::Values(values) = &arguments
+                && let Some(test) = self.predicates.get(&values[index])
+            {
+                bindings.predicates.insert(formal.id, *test);
+            }
             if let Some(value) = value {
                 bindings.values.insert(formal.id, value);
             }
@@ -68,7 +91,7 @@ impl Bindings {
             if formal.access != actual.access {
                 return None;
             }
-            if let Some(loc) = memory.locate(&self.places, actual.place, &actual.path) {
+            if let Some(loc) = memory.locate(self, actual.place, &actual.path) {
                 let loc = if actual.access == StructuralAccess::Owned {
                     memory.allocate(memory.get(&loc))
                 } else {
@@ -92,7 +115,7 @@ fn field_location(
     path: &[StructuralPathSegment],
     field: Option<semantic_vocabulary::StructuralFieldId>,
 ) -> Option<Location> {
-    let base = memory.locate(&bindings.places, root, path)?;
+    let base = memory.locate(bindings, root, path)?;
     let Some(field) = field else {
         return Some(base);
     };
@@ -127,7 +150,7 @@ impl Destination {
 #[derive(Clone)]
 pub(super) struct Arrival<'m> {
     pub(super) edge: EdgeId,
-    pub(super) bindings: Bindings,
+    pub(super) bindings: Bindings<'m>,
     pub(super) cleanup: &'m [TerminalAffineCleanupAction],
     block: &'m Block,
 }
@@ -140,8 +163,8 @@ pub(super) struct Frame<'m> {
     pub(super) cleanup_cursor: usize,
     pub(super) selected_arm: Option<usize>,
     pub(super) arrival: Option<Arrival<'m>>,
-    visited: Facts<BlockId, ()>,
-    pub(super) bindings: Bindings,
+    visited: BranchFacts<BlockId, ()>,
+    pub(super) bindings: Bindings<'m>,
     scalar_types: Rc<OnceCell<crate::MachineScalarIndex<'m>>>,
     pub(super) return_to: Destination,
 }
@@ -149,9 +172,10 @@ pub(super) struct Frame<'m> {
 impl<'m> Frame<'m> {
     pub(super) fn enter(
         machine: &'m TerminalMachine,
-        bindings: Bindings,
+        mut bindings: Bindings<'m>,
         return_to: Destination,
     ) -> Option<Self> {
+        bindings.machine = machine;
         Some(Self {
             machine,
             block: machine.block(&machine.entry)?,
@@ -159,7 +183,7 @@ impl<'m> Frame<'m> {
             cleanup_cursor: 0,
             selected_arm: None,
             arrival: None,
-            visited: Facts::default(),
+            visited: BranchFacts::default(),
             bindings,
             return_to,
             scalar_types: Rc::default(),
@@ -178,6 +202,12 @@ impl<'m> Frame<'m> {
                 .insert(op.result.scalar()?.id, ScalarFact::Literal(value));
             return Some(());
         }
+        if let Some(result) = op.result.scalar()
+            && let Some(test) =
+                Assumption::of_operation(&op.kind, &bindings.values, &bindings.predicates)
+        {
+            bindings.predicates.insert(result.id, test);
+        }
         match &op.kind {
             OperationKind::EstablishZeroedStructural {}
             | OperationKind::EstablishStructuralLocal {} => {
@@ -186,8 +216,8 @@ impl<'m> Frame<'m> {
                         .structural_type(op.result.structural()?.structural_type)?
                         .shape;
                     match shape.cases().first() {
-                        Some(first) => Stored::Zero.select_case(first.id),
-                        None => Stored::Zero,
+                        Some(first) => Stored::ZERO.select_case(first.id),
+                        None => Stored::ZERO,
                     }
                 } else {
                     Stored::Unknown
@@ -201,14 +231,14 @@ impl<'m> Frame<'m> {
                 storage: None,
             } => {
                 let contents = memory
-                    .locate(&bindings.places, source.place, &source.path)
+                    .locate(bindings, source.place, &source.path)
                     .map_or(Stored::Unknown, Stored::Reference);
                 bindings
                     .places
                     .insert(op.result.structural()?.place, memory.allocate(contents));
             }
             OperationKind::ReleaseReference { source, path } => {
-                if let Some(slot) = memory.locate(&bindings.places, *source, path)
+                if let Some(slot) = memory.locate(bindings, *source, path)
                     && matches!(memory.get(&slot), Stored::Reference(_))
                 {
                     memory.set(&slot, Stored::Unknown);
@@ -223,7 +253,7 @@ impl<'m> Frame<'m> {
                 bindings.places.insert(result.place, value);
             }
             OperationKind::StructuralCaseMembership { source, path, case } => {
-                let target = memory.locate(&bindings.places, *source, path);
+                let target = memory.locate(bindings, *source, path);
                 let contents = target.as_ref().map_or(Stored::Unknown, |v| memory.get(v));
                 let tags = contents.tags();
                 let membership = match tags {
@@ -242,7 +272,7 @@ impl<'m> Frame<'m> {
             OperationKind::StructuralLeafCopy { source, path } => {
                 // Copying an input of unknown value still creates the checked
                 // result. Its possible cases can be visited independently.
-                let location = memory.locate(&bindings.places, *source, path);
+                let location = memory.locate(bindings, *source, path);
                 let value = location.as_ref().map_or(Stored::Unknown, |v| memory.get(v));
                 match &op.result {
                     terminal_psi::OperationResult::Structural(result) => {
@@ -258,7 +288,7 @@ impl<'m> Frame<'m> {
                 }
             }
             OperationKind::MoveStructuralValue { source } => {
-                let location = memory.locate(&bindings.places, source.place, &source.path)?;
+                let location = memory.locate(bindings, source.place, &source.path)?;
                 let moved = memory.allocate(memory.get(&location));
                 bindings.places.insert(op.result.structural()?.place, moved);
             }
@@ -269,7 +299,7 @@ impl<'m> Frame<'m> {
                 value,
                 ..
             } => {
-                let source = memory.locate(&bindings.places, value.place, &value.path)?;
+                let source = memory.locate(bindings, value.place, &value.path)?;
                 let dest = field_location(
                     module,
                     self.machine,
@@ -326,53 +356,45 @@ impl<'m> Frame<'m> {
                 event,
                 resident_obligation: None,
             } => {
-                let location = memory.locate(&bindings.places, *place, path)?;
-                let observed = if event.observes_resident() {
-                    let result = op.result.scalar()?;
-                    let prior = memory.get(&location).scalar(result.scalar_type);
-                    if let Some(value) = prior {
-                        bindings.values.insert(result.id, value);
-                    }
-                    prior
-                } else {
-                    None
-                };
-                let next = match event {
-                    AtomicAccessEvent::Load { .. } => return Some(()),
-                    AtomicAccessEvent::Store { value, .. }
-                    | AtomicAccessEvent::Swap { value, .. } => {
-                        bindings.values.get(value).copied().into()
-                    }
-                    AtomicAccessEvent::CompareExchange {
-                        expected,
-                        replacement,
-                        ..
-                    } => {
-                        let expect = bindings.values.get(expected).copied();
-                        let proposal = bindings.values.get(replacement).copied();
-                        match (expect, proposal) {
-                            (Some(expected), _) if observed == Some(expected) => proposal.into(),
-                            (Some(expected), _) if proposal == Some(expected) => return Some(()),
-                            (
-                                Some(ScalarFact::Literal(expected)),
-                                Some(ScalarFact::Literal(replacement)),
-                            ) => memory
-                                .get(&location)
-                                .after_update(CellUpdate::CompareExchange {
-                                    expected,
-                                    replacement,
-                                }),
-                            (Some(ScalarFact::Literal(_)), _)
-                                if matches!(observed, Some(ScalarFact::Literal(_))) =>
-                            {
-                                return Some(());
-                            }
-                            _ => Stored::Unknown,
-                        }
-                    }
-                    _ => return None,
-                };
-                memory.set(&location, next);
+                let location = memory.locate(bindings, *place, path)?;
+                if let AtomicAccessEvent::CompareExchangeOnce {
+                    expected,
+                    replacement,
+                    custody,
+                    ..
+                } = event
+                {
+                    let result = op.result.structural()?;
+                    let declared = module.structural_type(result.structural_type)?;
+                    let home = super::atomic_attempt::evaluate(
+                        memory,
+                        location,
+                        declared,
+                        result,
+                        *custody,
+                        bindings.values.get(expected).copied(),
+                        bindings.values.get(replacement).copied(),
+                    )?;
+                    bindings.places.insert(result.place, home);
+                    return Some(());
+                }
+                if let AtomicAccessEvent::Store { value, .. } = event {
+                    memory.set(&location, bindings.values.get(value).copied().into());
+                    return Some(());
+                }
+                let result = op.result.scalar()?;
+                let prior = memory.get(&location);
+                if !location.includes_shared()
+                    && let Some(value) = prior.scalar(result.scalar_type)
+                {
+                    bindings.values.insert(result.id, value);
+                }
+                let update = AtomicWordUpdate::from_observation(event, Some)?;
+                if let Some(next) = prior.after_observation(result.scalar_type, update, |id| {
+                    bindings.values.get(&id).copied()
+                }) {
+                    memory.set(&location, next);
+                }
             }
             _ => {
                 let result = op.result.scalar()?;
@@ -437,11 +459,13 @@ impl<'m> Frame<'m> {
         }
         for formal in &block.parameters {
             self.bindings.values.remove(&formal.id);
+            self.bindings.predicates.remove(&formal.id);
         }
         for formal in &block.structural_parameters {
             self.bindings.places.remove(&formal.place);
         }
         self.bindings.values.extend(binding.values);
+        self.bindings.predicates.extend(binding.predicates);
         self.bindings.places.extend(binding.places);
         self.block = block;
         self.position = 0;

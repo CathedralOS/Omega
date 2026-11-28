@@ -19,7 +19,7 @@ must hold again after a field store, or the later exact use must reject.
 | other_machine | [other_machine/main.omg](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
 | target_body | [target_body/main.omg](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
-Each positive binds the four hosted targets. `omega run --both` requires
+Each positive binds the four hosted targets. The native/Psi comparison requires
 native and Terminal Psi agreement on exit 0. Each twin changes only the
 preserving write of `3` to `9`.
 

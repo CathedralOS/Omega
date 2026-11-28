@@ -64,18 +64,17 @@ with its matching `source/library` (set `OMEGA_LIBRARY_ROOT` to that absolute pa
 Here `omega` names that compiler and `S` is this sample directory:
 
 ```sh
-S=samples/cli/independent/age_structured_population
+S=samples/cli/scientific/age_structured_population
 omega packages update --project "$S" --target linux_x86_64
 # Review the exact generated pending decisions before accepting and resuming.
 omega --check "$S/main.omg"
 omega --build-dir "$S/build" "$S/main.omg"
-omega run --engine native --keep "$S/main.omg" < "$S/fixtures/births.input"
-omega run --engine psi --keep "$S/main.omg" < "$S/fixtures/births.input"
+omega run --keep "$S/main.omg" < "$S/fixtures/births.input"
 omega --check "$S/controls/invalid_rate_type/invalid.omg"
 ```
 
-Native runs compare exact bytes with the frozen output oracle. The CLI replays the same input
-in Psi and compares termination, stdout and stderr with
+Native runs compare exact bytes with the frozen output oracle. The recorded comparison replayed the same input
+in Psi and compared termination, stdout and stderr with
 the native run. Startup oracle checks make exit
 agreement also attest 17 independently frozen transitions (all three cohorts and
 births/deaths/migration/before/after values). An internal oracle disagreement exits 4,

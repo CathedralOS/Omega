@@ -38,14 +38,13 @@ gap competition, ambiguity, stable ties, coordinate recovery and traceback.
 From the repository root, use the current compiler binary as `omega`:
 
 ```sh
-omega packages update --project samples/cli/independent/bounded_sequence_alignment --target linux_x86_64
+omega packages update --project samples/cli/scientific/bounded_sequence_alignment --target linux_x86_64
 # Review the generated package proposal; accept only the documented decisions.
-omega packages update --resume --project samples/cli/independent/bounded_sequence_alignment
-omega --check samples/cli/independent/bounded_sequence_alignment/main.omg
-omega samples/cli/independent/bounded_sequence_alignment/main.omg
-omega run --engine native --keep samples/cli/scientific/bounded_sequence_alignment/main.omg < samples/cli/scientific/bounded_sequence_alignment/data/gap.stdin
-omega run --engine psi --keep samples/cli/scientific/bounded_sequence_alignment/main.omg < samples/cli/scientific/bounded_sequence_alignment/data/gap.stdin
-omega --check samples/cli/independent/bounded_sequence_alignment/invalid/out_of_bounds.omg
+omega packages update --resume --project samples/cli/scientific/bounded_sequence_alignment
+omega --check samples/cli/scientific/bounded_sequence_alignment/main.omg
+omega samples/cli/scientific/bounded_sequence_alignment/main.omg
+omega run --keep samples/cli/scientific/bounded_sequence_alignment/main.omg < samples/cli/scientific/bounded_sequence_alignment/data/gap.stdin
+omega --check samples/cli/scientific/bounded_sequence_alignment/invalid/out_of_bounds.omg
 ```
 
 `data/oracle.json`, `data/expected.json`, `data/short_expected.json`, and the gap
@@ -58,7 +57,7 @@ independently sums all traceback column scores. The variants cover both gap
 directions, internal mismatch, N ambiguity, competing maxima, earliest ties,
 lowercase, and capacity.
 
-Terminal comparison must report actual agreement, not DECLINED. The CLI compares both engines’
+Terminal comparison must report actual agreement, not DECLINED. The recorded comparison checked both engines’
 termination and output. The sample checks the result
 against its expected output separately. Generated
 products and execution evidence belong in ignored `build/`. Reference Python is

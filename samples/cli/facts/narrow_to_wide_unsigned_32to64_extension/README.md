@@ -7,7 +7,7 @@ Specification Reference: [Numeric values](wiki/spec/language/numeric_values.md),
 
 This fact row demonstrates that zero-extending a bounded 32-bit unsigned `u32` value (`narrow >= 70000u32 && narrow <= 90000u32`) to `u64` (`narrow as u64`) preserves the exact interval (`wide >= 70000u64 && wide <= 90000u64`) across all nine standard places. The compiler statically derives that zero-extension across the upper-32 boundary into 64 bits preserves non-negativity and bounds, verifying that `wide` falls strictly within `[70000, 90000]`, which directly discharges exact downstream 64-bit subtractions `90000u64 - wide` and `wide - 70000u64` without underflow or overflow across both Terminal Psi and native targets.
 
-Every positive place and the root witness bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declare `Expected exit: 0`, and carry an authored `expected_native_exit.txt` containing `0`. Both engines (`omega run --both`) agree on exit code 0.
+Every positive place and the root witness bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declare `Expected exit: 0`, and carry an authored `expected_native_exit.txt` containing `0`. Both engines agree on exit code 0.
 
 ## Places
 
@@ -26,7 +26,7 @@ Every positive place and the root witness bind `ProgramEntry` across all four ho
 
 ## Execution
 
-Run each positive place with `omega run --both`:
+Run each positive place with `mbx xtask sample-gate --filter samples/cli/facts/narrow_to_wide_unsigned_32to64_extension`:
 
 ```sh
 mbx xtask sample-gate --filter samples/cli/facts/narrow_to_wide_unsigned_32to64_extension
@@ -63,10 +63,10 @@ Full 8-layer specification and lowering evidence:
 - **Identity and lifetime:** The zero-extended scalar transitions from a 4-byte stored width representation (`u32`) to an 8-byte stored width representation (`u64`) with upper 32 bits statically guaranteed zero, maintaining 64-bit unsigned integer value identity across expression evaluations, local variable assignments, parameter passing, and state transitions.
 - **Composition:** Zero-extension bound preservation composes through all 9 standard places: local variable assignment (`local`), struct field wrapping (`field`), machine parameter passing (`parameter`), function call return value postcondition (`call_result`), match branch convergence join (`match_join`), named constant operand binding (`const_name`), state transition arrival (`other_state`), forwarding machine delegation (`other_machine`), and target-scoped body candidates (`target_body`). Each `<place>/invalid/main.omg` differs solely in widening the upper bound to `90001u32` (`90001u64`), causing exact subtraction `90000u64 - wide` to fail closed.
 - **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins fail closed at compile time with `exact arithmetic in machine ... may overflow `u64`` because `90000u64 - 90001u64` violates the unsigned non-negative range invariant for exact subtraction. The compiler soundly refuses any program where zero-extended bounds cannot guarantee non-negative outcomes for exact subtraction.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Zero-extension cast expressions (`as u64`) and integer range certificates lower cleanly into canonical Terminal Psi (`PSITERM\0`). The narrow range `[70000, 90000]` is preserved in the Terminal Psi integer certificate through intermediate optimization passes, and the Terminal Psi interpreter agrees with native execution on exit code 0 (`omega run --both`).
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Zero-extension cast expressions (`as u64`) and integer range certificates lower cleanly into canonical Terminal Psi (`PSITERM\0`). The narrow range `[70000, 90000]` is preserved in the Terminal Psi integer certificate through intermediate optimization passes, and the Terminal Psi interpreter agrees with native execution on exit code 0.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Companion build rows bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Target layout planning evaluates `size_of<u32>() == 4`, `align_of<u32>() == 4`, `size_of<u64>() == 8`, `align_of<u64>() == 8`, and `size_of<NarrowCarrier>() == 4`. In `CallPlan` and `StatePlan`, 32-bit values pass in 32-bit register/stack lanes and widen to 64-bit general-purpose registers (`rcx`/`rdi`/`x0`).
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects unsigned 32-to-64-bit zero-extension across the upper-32 boundary: 32-bit register moves (`mov r32, r/m32` implicitly zeroing bits 32..63 of the 64-bit register) on x86_64 and unsigned word extension (`uxtw x, w` or 32-bit `w` register write zeroing bits 32..63 of `x`) on arm64 architectures. Exact subtraction selects 64-bit `sub`. Disjoint activation frames allocate standard stack slots, honoring worst-case stack usage (WCSU) and bounded activation claims (`committed <= bound`).
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic displacements resolve, basic blocks relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O images execute with exit code 0 across `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` in full differential agreement with Terminal Psi (`omega run --both`).
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic displacements resolve, basic blocks relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O images execute with exit code 0 across `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` in full differential agreement with Terminal Psi.
 
 ## What remains open
 

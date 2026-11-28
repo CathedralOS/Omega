@@ -1,0 +1,13 @@
+machine require_order(low: i8, high: i32) requires low < high {}
+machine require_weak(low: i8, high: i32) requires low <= high {}
+machine chain(low: i8, middle: u16, high: i32)
+requires low < middle && middle <= high
+{
+    require_order(low, high);
+    require_weak(low, high);
+}
+machine main() crashes Trap {
+    chain(2i8, 3u16, 3i32);
+    transition { _ -> done() }
+    machine done() {}
+}

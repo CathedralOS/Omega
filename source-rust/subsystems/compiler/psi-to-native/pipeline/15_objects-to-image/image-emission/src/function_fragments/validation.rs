@@ -2,9 +2,9 @@
 //!
 //! Every read checks the object against its current producer chain: the
 //! resolved machine program, its contracts and the facts the driver carried.
-//! Comparing the object with what stage 02 lowered needs stage 02's output,
-//! which only a compile that requested a correspondence audit keeps; without
-//! it those comparisons do not run, and the mandatory current checks still do
+//! Comparing the object with what stages 02 and 04 lowered belongs to the
+//! `TargetOperationCorrespondence` validator in published-object verification,
+//! which reads the outputs a compile retains only when it requested an audit
 //! (wiki/spec/build/command_line.md "Independent stage validators").
 
 mod stack {
@@ -126,7 +126,7 @@ mod stack {
                 callee: MachineId::new(2).unwrap(),
                 block: SelectedBlockId(0),
                 instruction: SelectedInstructionId(3),
-                owner: target_operations::CallSiteOwner::Operation(OperationId::new(3).unwrap()),
+                owner: target_vocabulary::CallSiteOwner::Operation(OperationId::new(3).unwrap()),
                 call_function_offset: opcode,
                 call_section_offset: opcode,
                 call_byte_count: next - opcode,
@@ -211,7 +211,7 @@ mod stack {
                 assert!(check(stack, &[changed]).is_err());
                 changed = row;
                 changed.owner =
-                    target_operations::CallSiteOwner::Operation(OperationId::new(9).unwrap());
+                    target_vocabulary::CallSiteOwner::Operation(OperationId::new(9).unwrap());
                 assert!(check(stack, &[changed]).is_err());
                 changed = row;
                 changed.text_offset += 1;
@@ -346,7 +346,6 @@ fn validate_original(
     artifact: &ObjectArtifact,
 ) -> Result<(), Error> {
     let source = replay.fragment_source();
-    let original = replay.target_source();
     object_file::validate_optimized_relocation_free_object_container(source)
         .map_err(Error::Source)?;
     if artifact.emission_input.as_ref()
@@ -365,9 +364,6 @@ fn validate_original(
             ))?
             .physical,
     )?;
-    if let Some(original) = original {
-        source::retained_source_validation::establish_geometry(replay, original)?;
-    }
     if source.emission_facts().physical.termination.is_err() {
         return Err(Error::Mismatch(
             "privileged termination obligation differs from original",
@@ -401,31 +397,6 @@ fn validate_original(
         return Err(Error::Mismatch(
             "temporary stack plan differs from retained instructions",
         ));
-    }
-    if let Some(original) = original {
-        for function in artifact.functions() {
-            let (_, targeted) = source::retained_source_validation::audited_function(
-                source,
-                original,
-                function.machine,
-            )?;
-            let parameter_matches = match (&function.parameter_abi, source::parameter_abi(targeted))
-            {
-                (None, None) => true,
-                (Some(actual), Some((plan, parameters, _))) => {
-                    actual.call_plan == *plan && actual.parameters == parameters
-                }
-                _ => false,
-            };
-            if function.scalar_abi != targeted.scalar_abi
-                || function.mixed_structural_scalar_abi != targeted.mixed_structural_scalar_abi
-                || !parameter_matches
-            {
-                return Err(Error::Mismatch(
-                    "shared object function differs from retained original",
-                ));
-            }
-        }
     }
     Ok(())
 }
@@ -572,8 +543,8 @@ fn validate(
         };
         let parameter_abi_matches = |published: Option<(
             &calling_conventions::CallPlan,
-            &[target_operations::ScalarAbiValue],
-            &[target_operations::TargetStructuralParameter],
+            &[target_vocabulary::ScalarAbiValue],
+            &[target_vocabulary::TargetStructuralParameter],
         )>| match (&function.parameter_abi, published) {
             (None, None) => true,
             (Some(actual), Some((call_plan, parameters, _))) => {
@@ -626,7 +597,7 @@ fn validate(
         {
             let unit = matches!(
                 abstracted.result,
-                abstract_operations::AbstractFunctionResult::Unit
+                operation_operands::values::AbstractFunctionResult::Unit
             );
             let frame = source::frame(source, placed.machine)?;
             let calls = source::stack_calls(

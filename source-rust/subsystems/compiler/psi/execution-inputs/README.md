@@ -9,6 +9,8 @@ An interpreter run and a native compilation can start from the same published Ps
 | Borrowed entry memory | [Check entry memory](entry-memory/entry_memory.rs) against the selected row and its admitted target layout. |
 | Scalar applications | [Check scalar observations](scalar-applications/scalar_applications.rs), prerequisites and entry or ABI scope against the same provider and layout selections. |
 
+An independently compiled provider can retry on an atomic cell owned by the caller. Component admission matches the field declarations across the two artifacts. The native executable or interpreter invocation checks the wait against the caller’s actual storage and entry contract. It reports a permanent deadlock when every retry must block, or asks for a progress proof when the initial value could block. A separately published provider can leave progress on an incoming borrow to its caller. [Component admission](providers/component.rs)
+
 The [Build scalar evaluator](../../build/build-time/scalars/execution.rs) runs a program’s requested scalar calculations and records the results. The scalar checks above bind each result to the application it serves.
 
 The host supplies these inputs when it requests [native code or an interpreter runtime](../../compiler.rs). Their portable declarations are recorded in the [Psi program](../psi.rs).

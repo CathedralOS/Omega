@@ -94,7 +94,7 @@ expresses.
 
 ## Acceptance
 
-- A must-accept corpus passes on both checkers under `--both` with no cited
+- A must-accept corpus passes on both checkers in the native and interpreted tests with no cited
   lemma: transitivity chains of length 2, 8 and 64; equality substitution
   through a projection; `a < b` used as `a + 1 <= b`; mixed signed and
   unsigned subjects; add, subtract, multiply, shift and cast representability

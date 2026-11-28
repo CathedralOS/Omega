@@ -5,13 +5,15 @@ area. The entry receives an explicit `main: @mutable Main` context and forwards
 it to each nested machine. From the repository root:
 
 ```text
-mbx run -p omega -- run --engine native samples/cli/rendering/bouncing_ball_2d/main.omg
-mbx run -p omega -- run --engine psi samples/cli/rendering/bouncing_ball_2d/main.omg
+mbx run -p omega -- run samples/cli/rendering/bouncing_ball_2d/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/rendering/bouncing_ball_2d` from the repository root.
 
 Use Cargo if `mbx` is unavailable. Complete the ordinary
 [package review](../../../../omega-rust/omega/application/README.md#command-surface)
-when requested. Leave `--target` off `run` to execute on the matching host.
+when requested. `run` interprets for the host target by default.
 Enter or EOF closes the native program.
 
 The native stdout oracle begins with this line:

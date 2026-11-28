@@ -6,9 +6,11 @@ changes implementation between calls, and checks both edits, the untouched
 middle record and exact 64-bit identifiers. Expected exit: 0; a mismatch traps.
 
 ```sh
-omega run --engine native samples/cli/collections/runtime_selected_record_edit/main.omg
-omega run --engine psi samples/cli/collections/runtime_selected_record_edit/main.omg
+omega run samples/cli/collections/runtime_selected_record_edit/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/probes/runtime_selected_record_edit` from the repository root.
 
 The program runs with exit 0 natively and in Terminal interpretation on Intel
 macOS. The returned references retain the original array backing. Anonymous

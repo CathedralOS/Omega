@@ -103,14 +103,14 @@ package's own `Base + 4` element to `Base + 3`.
 Baseline: producer `gen-4f87c9e08b1` (revision
 `4f87c9e08b1a7217960f7f69c440a9d2f09d278d`, opt-level 1, macOS x86_64). The
 root, all nine places and the package production exited 200 under
-`omega run --both`: "const argument `Required` has no static value with its
+the native/Psi comparison: "const argument `Required` has no static value with its
 exact declared carrier". All ten twins and the three controls exited 1 with
 that same diagnostic, which is not evidence that the fact is enforced. Sources
 were frozen before the compiler was edited.
 
 Repaired: an optimized (opt-level 1) producer built from this change on base
 `11bdd2fe41ffb9faa4829046d0399795d90a655b`, macOS x86_64 host. Under
-`omega run --both` the root, all nine places and the package production exit
+the native/Psi comparison the root, all nine places and the package production exit
 0 natively and in Terminal Psi (11/11 agree). All ten twins and the
 `other_element_mismatch` control reject with "generic machine `selected`
 cannot bind `Implementation` to conformance `Selected`: expected a complete

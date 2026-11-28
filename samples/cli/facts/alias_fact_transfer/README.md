@@ -8,7 +8,7 @@ witnesses use canonical `requires`, `domain`, `where`, and established flow fact
 Every positive place (and the root `main.omg`) binds `ProgramEntry` for all four hosted targets
 (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declares `Expected exit: 0`,
 and carries an authored `expected_native_exit.txt` containing `0` beside its entry. Both engines
-(`omega run --both`) agree: Terminal Psi and native execution report exit 0.
+(the native/Psi comparison) agree: Terminal Psi and native execution report exit 0.
 
 ## Places
 
@@ -29,7 +29,7 @@ and carries an authored `expected_native_exit.txt` containing `0` beside its ent
 
 Every positive place has an authored native exit oracle of zero and exercises an interior
 case (`health: 42`) and the minimum boundary case (`health: 1`). A wrong result crashes `Trap`.
-Run with `omega run --both`:
+Run with `mbx xtask sample-gate --filter samples/cli/facts/alias_fact_transfer`:
 
 ```sh
 mbx xtask sample-gate --filter samples/cli/facts/alias_fact_transfer
@@ -60,10 +60,10 @@ Full 8-layer specification and lowering evidence:
 - **Identity and lifetime:** The domain fact `Player::Alive` remains attached to the exact value version across alias creation and storage transport: local copy (`local`), record field projection (`field`), explicit parameter passing (`parameter`), completed call result (`call_result`), match convergence join (`match_join`), named const bound equality (`const_name`), state parameter transition (`other_state`), forwarding machine call (`other_machine`), and target-scoped body candidates (`target_body`). No mutation, alias clobbering, or invalidating write intervenes between fact establishment and consumption.
 - **Composition:** The aliased `Player` copy preserves `player in Player::Alive` and satisfies `Main::inspect(copy)`'s precondition across all nine places. Calls substitute exact actuals, match joins retain the domain fact justified on all predecessor paths, and state transitions prove arrival obligations on incoming edges. Each `<place>/main.omg` vs. `<place>/invalid/main.omg` differs only in omitting the entry contract `requires main.player in Player::Alive`, so the alias receives an unproved player and fails closed.
 - **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins fail closed with `cannot prove requires contract for call inspect` (or `call arrived` / `call consume`) naming that place's unproved alias operand. The checker strictly refuses to transfer unproved domain facts to aliases, preventing invalid programs from reaching Terminal Psi or native code emission.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Checked domain predicates (`Player::Alive`) and contracts erase cleanly after verification while the underlying `Player` data structures, alias copies, and machine calls lower without loss into canonical target-neutral Terminal Psi (`PSITERM\0`). The resulting programs execute identically in the Terminal Psi interpreter (`omega run --both`), observing exact health values 42 and 1.
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Checked domain predicates (`Player::Alive`) and contracts erase cleanly after verification while the underlying `Player` data structures, alias copies, and machine calls lower without loss into canonical target-neutral Terminal Psi (`PSITERM\0`). The resulting programs execute identically in the Terminal Psi interpreter, observing exact health values 42 and 1.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Companion build rows bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Concrete layout geometry for `Player` (4 bytes, 4-byte alignment) and `Main` (8 bytes, 4-byte alignment) records resolves offset and size plans. `CallPlan` and `StatePlan` place scalar `health: i32` and `Player` copy arguments in target ABI registers (`rcx`/`rdx` on Windows, `rdi`/`rsi` on Linux, `x0`/`x1` on ARM64) and manage indirect mutator references (`@mutable Main`).
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA instructions for 32-bit integer moves and comparisons, assigns register homes and disjoint stack-frame activation storage, and inserts entry prologues and multi-return epilogues.
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements and entry call targets resolve, basic blocks and branch offsets relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O emission agrees with Terminal Psi (`omega run --both` exit 0) across `windows_x86_64` and `macos_arm64`.
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements and entry call targets resolve, basic blocks and branch offsets relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O emission agrees with Terminal Psi (exit 0) across `windows_x86_64` and `macos_arm64`.
 
 ## What remains open
 
@@ -79,6 +79,6 @@ The operation, inputs, contracts and exit oracle are unchanged. The entry
 wrapper and each implementation check a target tag through a second selected
 requirement (17 for x86-64, 29 for AArch64), so a wrong Build row traps.
 Observed with the optimized producer at `11bdd2fe41f` on macOS x86-64: the
-migrated positive exits 0 under `omega run --both` (native and Terminal Psi
+migrated positive exits 0 under the native/Psi comparison (native and Terminal Psi
 agree), and the twin rejects because `X86InspectTarget::inspect_target` cannot prove `player in Player::Alive` for its call to `inspect`. No compiler change was needed. The other hosted
 targets were not executed here.

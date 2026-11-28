@@ -5,7 +5,7 @@
 | Requested artifact | Input | Work |
 | --- | --- | --- |
 | Psi | Stage source | Check the source and return its published Psi. |
-| Interpreter runtime | Stage source or authorized Psi, target and entry memory | Admit the selected entry and providers for the Psi engine. |
+| Interpreter runtime | Stage source or authorized Psi, target and entry memory | Admit the selected entry and providers for the Psi interpreter. |
 | Native image | Stage source and target | Publish Psi in memory and lower it for the target. |
 | Native image | Authorized Psi and target | Lower the supplied Psi for the target. |
 

@@ -1,6 +1,6 @@
 # Outputs and drivers triage receipts
 
-Packet complete. Each claim in the [outputs-and-drivers boundary note](../../boundaries/outputs_and_drivers.md) has a receipt below. None shows a compiler accepting a program it should refuse or publishing different bytes than it produced. One claim reproduces from source alone: when the Omega-written typer's type table is full, four callers keep the absent type 0 without rejecting (H17.2c). It stays open because its fixture runs through the `omega` binary, which this review did not build. Several survey statements are stale: publication reads back its bytes (H8), and the compiled-review cache and the `--both` stream gap were removed or fixed. This packet changes no code.
+Packet complete. Each claim in the [outputs-and-drivers boundary note](../../boundaries/outputs_and_drivers.md) has a receipt below. None shows a compiler accepting a program it should refuse or publishing different bytes than it produced. One claim reproduces from source alone: when the Omega-written typer's type table is full, four callers keep the absent type 0 without rejecting (H17.2c). It stays open because its fixture runs through the `omega` binary, which this review did not build. Several survey statements are stale: publication reads back its bytes (H8), and the compiled-review cache and the historical CLI comparison’s stream gap were removed or fixed. This packet changes no code.
 
 Evidence baseline: `24ad2700685e6cc6062026c87ed5fd24ed415265`. The source was read at the branch head `a0152d26`. Between the two, only `tools/xtask/src/samples.rs` among the cited files changed: [#5407](https://github.com/CathedralOS/Omega/pull/5407) rewrote the review-decision editor and added the samples ledger. Line numbers in `tools/xtask/src/samples.rs` are therefore at `a0152d26`. The survey read `4f3c255d0559`. Path shorthands follow the boundary note: `app/`, `cmp/`, `build/`, `pm/`, `int/`, `drv/`, `S2P/`, `con/`. A claim is named by handoff, item and bullet: H3.3b is the second bullet of item 3 ("What is checked") of H3. Joined ledgers: [CLI](../01-cli-foundation.md) (cited as 01:row), [Build and packages](../06-15-build-packages.md) (06-15:row), [interpreter](../14-interpreter.md), [tools](../16-tools.md), [samples and sweep](../16-samples-and-sweep.md), [Omega source](../17-omega-source.md).
 
@@ -117,7 +117,7 @@ Outcomes: **Fixed** (a merged change removed the problem), **Intended** (code an
 | --- | --- | --- | --- |
 | H10.1, request, `execute`, `prepare`, `execute_installed`. | `app/execution/compilation.rs:196-237`; `int/host/retained-image/execution.rs:23-48`; `int/host/src/execution.rs:185-225` | Present as described. | Intended |
 | H10.2a–b, plain `CanonicalTerminalArtifact`; no proof check. | `int/host/src/execution.rs:233-234` | Same gap as H3.2. | Feature gap (tracked in `psi_claim_admission.md`) |
-| H10.2c, host filesystem, services and clock. | `app/execution/compilation.rs:211-234` | 01:190: the ordinary run deliberately requests them. | Duplicate (01:190) |
+| H10.2c, host filesystem, services and clock. | `app/execution/compilation.rs:211-234` | 01:190: the surveyed run requested them. | Duplicate (01:190) |
 | H10.3a–c, entry, provision, target, provider and layout checks; image identity check. | `int/host/src/execution.rs:235-316`; `int/host/retained-image/execution.rs:67-74` | Present as described. | Intended |
 | H10.3d, `execute_installed` skips the entry-machine check without provisions. | `int/host/src/execution/hosted_invocation.rs:31-41` | The check compares the provisions' entry with `program.entry_installed(&installation)`. Without provisions there is no second entry claim; the entry comes from the installation, and `establish_host_entry` then builds the arrival. | Intended |
 | H10.4a, code layouts travel from the image into the interpreter. | `int/host/retained-image/execution.rs:75-93` | Descriptive. | Intended |
@@ -125,16 +125,16 @@ Outcomes: **Fixed** (a merged change removed the problem), **Intended** (code an
 
 ## H11. Native and Psi runs back to the CLI
 
-| Claim | Current code | Contract, fixture or trace | Outcome |
+| Claim | Code at triage revision | Contract, fixture or trace | Outcome |
 | --- | --- | --- | --- |
 | H11.1, native output, RAM, frames and exit; Psi observation. | `app/execution/mod.rs` | Present. | Intended |
-| H11.2a–b, only status and RAM compared; no stdout or stderr comparison. | `app/execution/mod.rs:75`, `:331-332`, `:558-559`, `:626-627` | [#5188](https://github.com/CathedralOS/Omega/pull/5188) compares stdout and stderr byte for byte once termination agrees. | Fixed (#5188) |
-| H11.3a, Unix low byte; declines when the Psi status does not fit. | `app/execution/process_exit.rs:56-67`; `app/execution/mod.rs:701-716` | 01:194–195. | Duplicate (01:194–195) |
-| H11.3b, crash compared only for `CrashCause::Trap`. | `app/execution/process_exit.rs:69-104` | Other causes return `None`, which declines the comparison. Every hosted target has a trap presentation; the Windows ARM64 value is not yet observed on a host (comment at `:97-98`), tracked by `TASKS.md` **WINDOWS-ARM64-TARGET**. | Intended |
+| H11.2a–b, only status and RAM compared; no stdout or stderr comparison. | `app/execution/mod.rs:75`, `:331-332`, `:558-559`, `:626-627` | [#5188](https://github.com/CathedralOS/Omega/pull/5188) compared stdout and stderr byte for byte once terminations agreed. | Fixed (#5188) |
+| H11.3a, Unix low byte; declined when the Psi status did not fit. | `app/execution/process_exit.rs:56-67`; `app/execution/mod.rs:701-716` | 01:194–195. | Duplicate (01:194–195) |
+| H11.3b, crash compared only for `CrashCause::Trap`. | `app/execution/process_exit.rs:69-104` | Other causes returned `None`, which declined the comparison. Every hosted target had a trap presentation. The Windows ARM64 value had yet to be observed on a host (comment at `:97-98`), tracked by `TASKS.md` **WINDOWS-ARM64-TARGET**. | Intended |
 | H11.3c, entry RAM byte-equal. | `app/execution/mod.rs` | Present. | Intended |
 | H11.3d, stdin replay only after a `"runtime-standard-input"` refusal. | `app/execution/mod.rs:50-57`, `:258-264` | The refusal is the typed preflight error `MissingProvision { capability }`, raised before execution. The module comment explains that reading stdin eagerly would hang programs that never read it. | Intended |
-| H11.3e, both engines receive the same artifact. | — | Descriptive limit of a differential check. | Intended |
-| H11.4, Psi `ExternalCompletion` code unclamped in the Psi-only path. | `app/commands/run.rs` | 01:193. | Duplicate (01:193) |
+| H11.3e, both executions used the same artifact. | — | Descriptive limit of a differential check. | Intended |
+| H11.4, the interpreted path returned the `ExternalCompletion` code unclamped. | `app/commands/run.rs` | 01:193. | Duplicate (01:193) |
 
 ## H12. Compiler review to the lock
 
@@ -187,15 +187,15 @@ Outcomes: **Fixed** (a merged change removed the problem), **Intended** (code an
 
 ## H21. Repository tools reading CLI output
 
-| Claim | Current code | Contract, fixture or trace | Outcome |
+| Claim | Code at triage revision | Contract, fixture or trace | Outcome |
 | --- | --- | --- | --- |
-| H21.1a, sample-gate parses `native exit ` and `interp exit: `. | `tools/xtask/src/samples.rs:794-810`; `app/commands/run.rs:140-170` | Present. | Intended |
+| H21.1a, sample-gate parsed `native exit ` and `interp exit: `. | `tools/xtask/src/samples.rs:794-810`; `app/commands/run.rs:140-170` | Present. | Intended |
 | H21.1b, omega-bench requires one `published native output to ` line. | `tools/benchmark/src/experiment.rs:484`; `tools/benchmark/src/records.rs:272`; `app/commands/compile.rs:463` | Present. | Intended |
 | H21.1c, sweep picks the stopping stage from error wording. | — | Samples ledger: stage names group diagnostic text for reporting. | Duplicate (16-samples) |
 | H21.1d, producer receipt. | — | Samples ledger row 108 binds changed inputs to the receipts. | Fixed (16-samples, 108) |
-| H21.2a, expected output checked with `stdout.contains` against native stdout only. | `tools/xtask/src/samples.rs:834-840` | The CLI now requires byte-equal Psi and native streams before agreement (H11.2), so native stdout stands for both. | Intended |
-| H21.2b, guest stderr forwarded first; the last match wins. | `app/commands/run.rs:140-152`; `tools/xtask/src/samples.rs:800-828` | On a normal agreement the CLI's own lines come last and win. When the CLI prints no `interp exit:` line, a guest-written pair could be parsed, but the gate then requires the CLI status to equal that exit. On a crash the CLI returns the native status (-1 for a signal), so a guest-written `0` cannot pass. | Intended |
-| H21.2c, a crash agreement fails the sample. | `tools/xtask/src/samples.rs:811-816` | Samples ledger: a crash or missing exit report fails the sample. | Duplicate (16-samples) |
+| H21.2a, expected output checked with `stdout.contains` against native stdout only. | `tools/xtask/src/samples.rs:834-840` | At the triage revision the CLI required byte-equal Psi and native streams before declaring agreement (H11.2), so native stdout represented both. | Intended |
+| H21.2b, guest stderr forwarded first; the last match won. | `app/commands/run.rs:140-152`; `tools/xtask/src/samples.rs:800-828` | On a normal agreement the CLI's own lines came last and won. When the CLI printed no `interp exit:` line, a guest-written pair could be parsed, but the gate then required the CLI status to equal that exit. On a crash the CLI returned the native status (-1 for a signal), so a guest-written `0` could not pass. | Intended |
+| H21.2c, a crash agreement failed the sample. | `tools/xtask/src/samples.rs:811-816` | Samples ledger: a crash or missing exit report failed the sample. | Duplicate (16-samples) |
 | H21.2d, `no-oracle`, `checked` and `not-host-runnable` counted as passes. | `tools/xtask/src/samples.rs:700-779` | Samples ledger row 111: the gate reports them separately from failures. | Duplicate (16-samples, 111) |
 | H21.3a–b, both exit lines, equality and CLI status; negative samples. | `tools/xtask/src/samples.rs:601-657`, `:811-828` | Present. | Intended |
 | H21.3c, `records::validate` does not rehash declared inputs. | — | Tools ledger, benchmark row 169. | Duplicate (16-tools, 169) |

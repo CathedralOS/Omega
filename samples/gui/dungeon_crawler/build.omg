@@ -1,3 +1,4 @@
+use linux.omg;
 use macos.omg;
 use windows.omg;
 use {omega}/build/dependency.omg;
@@ -37,6 +38,8 @@ machine build(builder: @mutable BuildPlan) {
     let engine_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "engine" }));
     Build::bind(builder, windows_x86_64::ProgramEntry, |windows|::entry_start);
     Build::bind(builder, macos_arm64::ProgramEntry, |macos|::entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |linux|::entry_start);
+    Build::bind(builder, linux_arm64::ProgramEntry, |linux|::entry_start);
     Build::bind_native::<|windows|::WindowsDisplaySync::flush>(builder, windows_x86_64, |native|::ForeignBinding::DllImport {
         import: |native|::DllImport::PeByName { library: "dwmapi.dll", export: "DwmFlush" }
     });
@@ -46,5 +49,23 @@ machine build(builder: @mutable BuildPlan) {
     Build::bind_native::<|windows|::WindowsDisplaySync::query_frequency>(builder, windows_x86_64, |native|::ForeignBinding::DllImport {
         import: |native|::DllImport::PeByName { library: "kernel32.dll", export: "QueryPerformanceFrequency" }
     });
+    // Linux x86-64 direct syscalls for X11 Unix socket + monotonic clock.
+    Build::bind_native::<|linux|::LinuxX11Syscall::socket>(builder, linux_x86_64, |native|::ForeignBinding::Syscall { number: 41 });
+    Build::bind_native::<|linux|::LinuxX11Syscall::connect>(builder, linux_x86_64, |native|::ForeignBinding::Syscall { number: 42 });
+    Build::bind_native::<|linux|::LinuxX11Syscall::read>(builder, linux_x86_64, |native|::ForeignBinding::Syscall { number: 0 });
+    Build::bind_native::<|linux|::LinuxX11Syscall::write_small>(builder, linux_x86_64, |native|::ForeignBinding::Syscall { number: 1 });
+    Build::bind_native::<|linux|::LinuxX11Syscall::write_strip>(builder, linux_x86_64, |native|::ForeignBinding::Syscall { number: 1 });
+    Build::bind_native::<|linux|::LinuxX11Syscall::ppoll>(builder, linux_x86_64, |native|::ForeignBinding::Syscall { number: 271 });
+    Build::bind_native::<|linux|::LinuxX11Syscall::close>(builder, linux_x86_64, |native|::ForeignBinding::Syscall { number: 3 });
+    Build::bind_native::<|linux|::LinuxX11Syscall::clock_gettime>(builder, linux_x86_64, |native|::ForeignBinding::Syscall { number: 228 });
+    // Linux arm64 direct syscalls (asm-generic table).
+    Build::bind_native::<|linux|::LinuxX11Syscall::socket>(builder, linux_arm64, |native|::ForeignBinding::Syscall { number: 198 });
+    Build::bind_native::<|linux|::LinuxX11Syscall::connect>(builder, linux_arm64, |native|::ForeignBinding::Syscall { number: 203 });
+    Build::bind_native::<|linux|::LinuxX11Syscall::read>(builder, linux_arm64, |native|::ForeignBinding::Syscall { number: 63 });
+    Build::bind_native::<|linux|::LinuxX11Syscall::write_small>(builder, linux_arm64, |native|::ForeignBinding::Syscall { number: 64 });
+    Build::bind_native::<|linux|::LinuxX11Syscall::write_strip>(builder, linux_arm64, |native|::ForeignBinding::Syscall { number: 64 });
+    Build::bind_native::<|linux|::LinuxX11Syscall::ppoll>(builder, linux_arm64, |native|::ForeignBinding::Syscall { number: 73 });
+    Build::bind_native::<|linux|::LinuxX11Syscall::close>(builder, linux_arm64, |native|::ForeignBinding::Syscall { number: 57 });
+    Build::bind_native::<|linux|::LinuxX11Syscall::clock_gettime>(builder, linux_arm64, |native|::ForeignBinding::Syscall { number: 113 });
     builder.subsystem = Subsystem::Gui;
 }

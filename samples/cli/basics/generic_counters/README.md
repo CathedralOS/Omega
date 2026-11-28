@@ -1,7 +1,8 @@
 # Generic counters
 
 Two invocation-local instances of `Counter<T>` retain independent fields. Static
-machines take explicit borrowed counters: the integer counter records 30 then 12,
+machines borrow each counter to read its fields. Recording returns the next
+counter, which the caller installs in its own storage. The integer counter records 30 then 12,
 yielding value 12 and count 2; the Boolean counter records true, yielding true
 and count 1. The checksum is `12 + 2 + 1 + 1`: process exit **16**, without
 printing. Only the observed scalars pass explicitly to the nested final machine;
@@ -47,17 +48,15 @@ mbx run -p omega -- run samples/cli/basics/generic_counters/main.omg
 if ($LASTEXITCODE -ne 16) { throw 'Expected exit 16' }
 ```
 
-`run` compiles, publishes, and executes the receipt-bound artifact without
-guessing its filename. Expect empty stdout and `native exit 16` on stderr.
-Do not add `--target` to this execution command: an explicit target makes
-`run` compile-only. These commands describe each host's route, not a claim that
-all hosted targets have passed. The static/local version exits 16 in both
+Expect empty stdout and `Psi exit 16` on the CLI’s stderr. The static/local version exits 16 in both
 native and checked interpretation on macOS ARM64:
 
 ```sh
-omega run --engine native samples/cli/basics/generic_counters/main.omg
-omega run --engine psi samples/cli/basics/generic_counters/main.omg
+omega run samples/cli/basics/generic_counters/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/basics/generic_counters` from the repository root.
 
 Windows x86-64 is verified at `b80e3d12bdd` with an optimized dev compiler:
 after local package review, EOF and finite Enter each produce empty stdout,

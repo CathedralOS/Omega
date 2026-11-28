@@ -55,13 +55,10 @@ pub fn validate_descriptor_result_regions(
                 }
                 let mut advertised = false;
                 for region in regions.iter().filter(|region| region.path == leaf.path) {
-                    let terminal_psi::TerminalDynamicReferenceOrigin::Parameter {
-                        argument_index,
-                    } = region.origin
+                    let terminal_psi::TerminalDynamicReferenceOrigin::Parameter { argument_index } =
+                        region.origin
                     else {
-                        return Err(
-                            "dynamic literal view has no shared input-region contract",
-                        );
+                        return Err("dynamic literal view has no shared input-region contract");
                     };
                     if region.access != StructuralAccess::SharedBorrow {
                         return Err("dynamic literal view exceeds its public access");
@@ -117,12 +114,8 @@ pub fn validate_descriptor_result_regions(
                 parameter.structural_type,
                 &actual,
                 &allowed,
-            ) && !inline_view_is_covered(
-                types,
-                parameter.structural_type,
-                &actual,
-                &allowed,
-            ) {
+            ) && !inline_view_is_covered(types, parameter.structural_type, &actual, &allowed)
+            {
                 return Err("dynamic row returned view exceeds its public input regions");
             }
         }
@@ -256,7 +249,9 @@ pub fn reference_result_contents(
                             })
                         }))
             {
-                return Err("indexed generic contents require a copyable element with a known backing");
+                return Err(
+                    "indexed generic contents require a copyable element with a known backing",
+                );
             }
             let path = contents_path(types, parameter.structural_type, &query.steps)?;
             let requested = if declaration.is_copyable() {
@@ -298,8 +293,7 @@ fn reference_sources_for_leaves(
             return Err("reference result leaf changed constructor");
         };
         let mut matching = slots.iter().filter(|slot| {
-            descriptor_path(types, result.structural_type, &slot.path).as_ref()
-                == Some(&leaf.path)
+            descriptor_path(types, result.structural_type, &slot.path).as_ref() == Some(&leaf.path)
         });
         let slot = matching
             .next()
@@ -312,14 +306,14 @@ fn reference_sources_for_leaves(
             if let DescriptorStoredOrigin::Provider(provider) = origin {
                 // The producing call supplies this reference. Its input loans travel
                 // separately in the provider's replayed lifetime dependencies.
-                if provider.invocations.is_empty()
-                    || provider.projection != Projection::new(&[])
-                {
+                if provider.invocations.is_empty() || provider.projection != Projection::new(&[]) {
                     return Err("returned provider reference has no exact admitted formation");
                 }
                 sources.push(terminal_psi::StructuralReferenceOrigin::Invocation {
                     carrier_type: leaf.structural_type,
-                    path: vec![ReferenceOriginProjection::Exact(StructuralPathSegment::Referent)],
+                    path: vec![ReferenceOriginProjection::Exact(
+                        StructuralPathSegment::Referent,
+                    )],
                     extent: ReferenceOriginExtent::Projected,
                     access,
                 });
@@ -338,9 +332,7 @@ fn reference_sources_for_leaves(
                 | DescriptorStoredOrigin::IncomingContents { projection, .. }
                     if projection.indirect || projection.window.is_some() =>
                 {
-                    return Err(
-                        "reference result needs a static retained input projection",
-                    );
+                    return Err("reference result needs a static retained input projection");
                 }
                 DescriptorStoredOrigin::Parameter { projection, .. }
                 | DescriptorStoredOrigin::IncomingContents { projection, .. }
@@ -354,13 +346,10 @@ fn reference_sources_for_leaves(
                     ReferenceOriginExtent::Projected
                 }
                 _ => {
-                    return Err(
-                        "reference result backing needs its actual admitted producer",
-                    );
+                    return Err("reference result backing needs its actual admitted producer");
                 }
             };
-            let (position, mut path) =
-                descriptor_input_origin_path(types, parameters, origin)?;
+            let (position, mut path) = descriptor_input_origin_path(types, parameters, origin)?;
             if path.iter().any(|step| {
                 !matches!(
                     step,
@@ -434,17 +423,6 @@ fn reference_sources_for_leaves(
         }
         sources.sort();
         sources.dedup();
-        let first = sources
-            .first()
-            .and_then(|source| source.parameter())
-            .map(|source| source.place);
-        if sources
-            .iter()
-            .filter_map(|source| source.parameter())
-            .any(|source| Some(source.place) != first)
-        {
-            return Err("reference result has alternatives from different input roots");
-        }
         mappings.push(terminal_psi::StructuralReferenceResultSource {
             path: leaf.path,
             sources,
@@ -567,12 +545,8 @@ fn contents_path(
             DescriptorContentsStep::Element { element, .. } => {
                 let collection = descriptor_location_type(types, root, &exact)
                     .ok_or("returned view contents have no typed collection")?;
-                if super::collection_element_type(types.iter(), collection)
-                    != Some(*element)
-                {
-                    return Err(
-                        "returned view contents disagree with the input element type",
-                    );
+                if super::collection_element_type(types.iter(), collection) != Some(*element) {
+                    return Err("returned view contents disagree with the input element type");
                 }
                 path.extend(
                     descriptor_path(types, root, &exact)

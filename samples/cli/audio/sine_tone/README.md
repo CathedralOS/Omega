@@ -23,13 +23,13 @@ Run from this directory on Windows, Linux, or macOS:
 
 ```sh
 omega packages update --project .   # then complete the review it requests
-omega run main.omg
+omega --build-dir build main.omg
 ```
 
-`run` with an explicit non-host target compiles without executing; invoke the
-kept `build dir`/`omega-program` binary from this directory on that platform
-(e.g. `omega run --target linux_x86_64 --keep main.omg` on Windows, then run
-the ELF under WSL).
+Launch the published executable from this directory to write the WAV and hear it
+on the host speaker. To cross-compile, use
+`omega --target linux_x86_64 --build-dir build main.omg` and launch the ELF on Linux.
+
 Expected exit: `0` after printing `played sine_tone.wav`; `1` on a write
 error, `2` on a playback failure (the WAV is still written). Verify with `python ../verify_wav.py sine_tone.wav --expect sine_tone` — expect
 `channels=1 sampwidth=1 rate=8000 frames=8000` and an estimate near 440 Hz.

@@ -74,12 +74,11 @@ through the documented package workflow. A denied acceptance is a blocker and
 must not be retried or bypassed. Then:
 
 ```
-omega --check --target linux_x86_64 samples/cli/independent/heat_exchanger_balances/main.omg
-omega --target linux_x86_64 samples/cli/independent/heat_exchanger_balances/main.omg
-omega run --engine native samples/cli/scientific/heat_exchanger_balances/main.omg < samples/cli/scientific/heat_exchanger_balances/data/unequal_hot_larger.txt
-omega run --engine psi samples/cli/scientific/heat_exchanger_balances/main.omg < samples/cli/scientific/heat_exchanger_balances/data/unequal_hot_larger.txt
-omega --check samples/cli/independent/heat_exchanger_balances/controls/out_of_bounds/main.omg
+omega --check --target linux_x86_64 samples/cli/scientific/heat_exchanger_balances/main.omg
+omega --target linux_x86_64 samples/cli/scientific/heat_exchanger_balances/main.omg
+omega run samples/cli/scientific/heat_exchanger_balances/main.omg < samples/cli/scientific/heat_exchanger_balances/data/unequal_hot_larger.txt
+omega --check samples/cli/scientific/heat_exchanger_balances/controls/out_of_bounds/main.omg
 ```
 
-`omega run --both` compares termination and the exact stdout and stderr bytes from
+The comparison checks termination and the exact stdout and stderr bytes from
 both engines. Build products and validation logs belong in ignored `build/`.

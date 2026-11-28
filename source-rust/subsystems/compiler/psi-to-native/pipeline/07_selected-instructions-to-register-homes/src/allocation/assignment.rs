@@ -56,22 +56,14 @@ macro_rules! admitted_stage_accessors {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PostHomeCustodyReceipt<Source> {
     source: Source,
-    homes: register_homes::RegisterHomeIdentity,
-    post_allocation_manifest: optimization_core::PostAllocationOptimizationManifestIdentity,
     function_count: usize,
     assignment_count: usize,
 }
 
 impl<Source> PostHomeCustodyReceipt<Source> {
-    pub(crate) fn new(
-        source: Source,
-        homes: crate::allocation::RegisterHomeReceipt,
-        post_allocation_manifest: optimization_core::PostAllocationOptimizationManifestIdentity,
-    ) -> Self {
+    pub(crate) fn new(source: Source, homes: crate::allocation::RegisterHomeReceipt) -> Self {
         Self {
             source,
-            homes: homes.identity(),
-            post_allocation_manifest,
             function_count: homes.function_count(),
             assignment_count: homes.assignment_count(),
         }
@@ -81,8 +73,6 @@ impl<Source> PostHomeCustodyReceipt<Source> {
         source: &Source,
     });
     receipt_accessor_rows!(ref PostHomeCustodyReceipt {
-        homes: register_homes::RegisterHomeIdentity,
-        post_allocation_manifest: optimization_core::PostAllocationOptimizationManifestIdentity,
         function_count: usize,
         assignment_count: usize,
     });
@@ -109,7 +99,7 @@ pub(crate) mod baseline {
         ) -> Result<StagedOptimizedRegisterHomes, OptimizedRegisterHomeCustodyError> {
             let upstream = legality.custody();
             let manifest = project_post_allocation_optimization_manifest(
-                upstream.manifest(),
+                upstream.core(),
                 legality.record(),
                 &[],
                 legality.ranges(),
@@ -117,7 +107,7 @@ pub(crate) mod baseline {
                 &homes,
             )
             .map_err(OptimizedRegisterHomeCustodyError::Manifest)?;
-            let custody = custody_receipt(upstream, homes.receipt(), manifest.record().identity);
+            let custody = custody_receipt(upstream, homes.receipt());
             Ok(StagedOptimizedRegisterHomes {
                 legality,
                 homes,
@@ -144,24 +134,19 @@ pub(crate) mod baseline {
             let source = reanalysis.custody();
             let _environment = reanalysis.register_environment();
             let manifest = project_post_allocation_optimization_manifest(
-                source.source().manifest(),
+                source.source().core(),
                 reanalysis
                     .transformation_stage()
                     .source_legality_stage()
                     .record(),
-                &[PostAllocationSelectedTransformation::FixedViewCopy(
-                    source.source().transformation(),
-                )],
+                &[PostAllocationSelectedTransformation::FixedViewCopy],
                 reanalysis.ranges(),
                 reanalysis.legality(),
                 &homes,
             )
             .map_err(OptimizedPostCopyRegisterHomeCustodyError::Manifest)?;
-            let custody = crate::allocation::assignment::PostHomeCustodyReceipt::new(
-                source,
-                homes.receipt(),
-                manifest.record().identity,
-            );
+            let custody =
+                crate::allocation::assignment::PostHomeCustodyReceipt::new(source, homes.receipt());
             Ok(StagedOptimizedRegisterHomesAfterFixedViewCopies {
                 reanalysis,
                 homes,
@@ -172,7 +157,6 @@ pub(crate) mod baseline {
     }
     pub(crate) mod custody {
         use crate::allocation::RegisterHomeReceipt;
-        use optimization_core::PostAllocationOptimizationManifestIdentity;
 
         use selected_instruction_analyses::StagedOptimizedAllocationLegalityCustodyReceipt;
 
@@ -181,13 +165,10 @@ pub(crate) mod baseline {
         pub(crate) fn custody_receipt(
             upstream: StagedOptimizedAllocationLegalityCustodyReceipt,
             homes: RegisterHomeReceipt,
-            manifest: PostAllocationOptimizationManifestIdentity,
         ) -> StagedOptimizedRegisterHomeCustodyReceipt {
             StagedOptimizedRegisterHomeCustodyReceipt {
                 core: upstream.core(),
                 allocator_availability: upstream.allocator_availability(),
-                homes: homes.identity(),
-                post_allocation_manifest: manifest,
                 function_count: homes.function_count(),
                 assignment_count: homes.assignment_count(),
             }
@@ -196,17 +177,14 @@ pub(crate) mod baseline {
 
     use crate::allocation::StagedOptimizedSelectedReanalysisCustodyReceipt;
     use crate::allocation::{
-        AssignedRegisterHomes, RegisterHomeError, RegisterHomeIdentity,
-        ValidatedPostAllocationOptimizationManifest,
+        AssignedRegisterHomes, RegisterHomeError, ValidatedPostAllocationOptimizationManifest,
     };
     use crate::allocation::{
         MaterializedFixedViewCopies, OptimizedSelectedReanalysisError,
         StagedOptimizedSelectedReanalysis,
     };
     use optimization_core::{
-        OptimizationIdentityBundleIdentity, OptimizationUnitIdentity,
-        OptimizedAbstractPlanProjectionIdentity, PostAllocationOptimizationManifestIdentity,
-        PrePhysicalOptimizationManifestIdentity,
+        OptimizationSelectionIdentity, OptimizationUnitIdentity, OptimizationWorkBudget,
     };
     use register_homes::{AllocatorAvailabilityIdentity, PostAllocationOptimizationManifestError};
     use selected_instruction_analyses::{
@@ -260,8 +238,6 @@ pub(crate) mod baseline {
     pub struct StagedOptimizedRegisterHomeCustodyReceipt {
         core: StagedOptimizedCustodyCore,
         allocator_availability: AllocatorAvailabilityIdentity,
-        homes: RegisterHomeIdentity,
-        post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
         function_count: usize,
         assignment_count: usize,
     }
@@ -271,8 +247,6 @@ pub(crate) mod baseline {
 
         receipt_accessor_rows!(StagedOptimizedRegisterHomeCustodyReceipt {
             allocator_availability: AllocatorAvailabilityIdentity,
-            homes: RegisterHomeIdentity,
-            post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
             function_count: usize,
             assignment_count: usize,
         });
@@ -346,12 +320,9 @@ pub(super) use crate::allocation::home_assignment;
 pub(crate) mod post_allocation_manifest {
     pub(crate) mod reconstruction {
         use std::collections::BTreeSet;
+        use std::sync::Arc;
 
-        use optimization_core::{
-            PostAllocationOptimizationManifestIdentity,
-            PreAllocationOptimizationCompletionIdentity, PrePhysicalOptimizationManifestIdentity,
-            SelectedLoweringOptimizationCompletionIdentity,
-        };
+        use selected_instructions::{SelectedInstructionPlan, StagedOptimizedCustodyCore};
 
         use crate::allocation::AssignedRegisterHomes;
         use selected_instruction_analyses::{ValidatedAllocationLegality, ValidatedLiveRanges};
@@ -363,27 +334,15 @@ pub(crate) mod post_allocation_manifest {
         };
 
         pub(crate) fn expected_record(
-            pre_physical: PrePhysicalOptimizationManifestIdentity,
-            selected_lowering_completion: Option<SelectedLoweringOptimizationCompletionIdentity>,
-            pre_allocation_completion: Option<PreAllocationOptimizationCompletionIdentity>,
+            upstream: StagedOptimizedCustodyCore,
+            selected_lowering_output: Option<Arc<SelectedInstructionPlan>>,
+            pre_allocation_output: Option<Arc<SelectedInstructionPlan>>,
             selected_transformations: &[PostAllocationSelectedTransformation],
             ranges: &ValidatedLiveRanges,
             legality: &ValidatedAllocationLegality,
             homes: &AssignedRegisterHomes,
         ) -> Result<PostAllocationOptimizationManifest, PostAllocationOptimizationManifestError>
         {
-            let mut unique_transformations = BTreeSet::new();
-            // A rule rewrite's receipt appears once; runtime recovery rows carry
-            // only their kind and may repeat.
-            if selected_transformations.iter().any(|transformation| {
-                transformation.identity_bytes().is_some_and(|identity| {
-                    !unique_transformations.insert((transformation.wire_tag(), identity))
-                })
-            }) {
-                return Err(
-                    PostAllocationOptimizationManifestError::NonCanonicalTransformationLedger,
-                );
-            }
             if legality.plan().selected != ranges.plan().selected
                 || homes.plan().selected != ranges.plan().selected
                 || homes.receipt().register_environment()
@@ -426,20 +385,19 @@ pub(crate) mod post_allocation_manifest {
                 virtual_interferences: count(interference_count)?,
                 fixed_view_transitions: 0,
             };
-            let mut record = PostAllocationOptimizationManifest {
-                identity: PostAllocationOptimizationManifestIdentity::from_canonical_bytes(
-                    b"pending",
-                ),
+            Ok(PostAllocationOptimizationManifest {
                 stage: PostAllocationManifestStage::RegisterHomes,
-                pre_physical,
+                optimization_unit: upstream.optimization_unit,
+                selection: upstream.selection,
+                budget_per_pass: upstream.budget_per_pass,
                 target: ranges.plan().target,
-                selected: std::sync::Arc::clone(&ranges.plan().selected),
-                selected_lowering_completion,
-                pre_allocation_completion,
+                selected: Arc::clone(&ranges.plan().selected),
+                selected_lowering_output,
+                pre_allocation_output,
                 selected_transformations: selected_transformations.to_vec(),
                 register_environment: legality.receipt().register_environment(),
                 allocator_availability: legality.receipt().allocator_availability(),
-                homes: homes.receipt().identity(),
+                homes: homes.shared_plan(),
                 spills: if selected_transformations.iter().any(|transformation| {
                     matches!(
                         transformation,
@@ -454,9 +412,7 @@ pub(crate) mod post_allocation_manifest {
                 emission: PostAllocationUnavailableData::Unavailable,
                 publication: PostAllocationUnavailableData::Unavailable,
                 statistics,
-            };
-            record.identity = record.recomputed_identity();
-            Ok(record)
+            })
         }
 
         fn count(value: usize) -> Result<u64, PostAllocationOptimizationManifestError> {
@@ -465,12 +421,11 @@ pub(crate) mod post_allocation_manifest {
         }
     }
 
-    use optimization_core::PrePhysicalOptimizationManifestIdentity;
-
     use crate::allocation::AssignedRegisterHomes;
     use selected_instruction_analyses::{
         SelectedOptimizationRecord, ValidatedAllocationLegality, ValidatedLiveRanges,
     };
+    use selected_instructions::StagedOptimizedCustodyCore;
 
     pub use register_homes::post_allocation_manifest::{
         PostAllocationManifestStage, PostAllocationOptimizationManifest,
@@ -482,7 +437,7 @@ pub(crate) mod post_allocation_manifest {
     /// the `recovery` rewrites allocation applied, and the final analyses and
     /// homes. Every allocation path projects its manifest here.
     pub(crate) fn project_post_allocation_optimization_manifest(
-        pre_physical: PrePhysicalOptimizationManifestIdentity,
+        upstream: StagedOptimizedCustodyCore,
         history: &SelectedOptimizationRecord,
         recovery: &[PostAllocationSelectedTransformation],
         ranges: &ValidatedLiveRanges,
@@ -491,25 +446,29 @@ pub(crate) mod post_allocation_manifest {
     ) -> Result<ValidatedPostAllocationOptimizationManifest, PostAllocationOptimizationManifestError>
     {
         let record = reconstruction::expected_record(
-            pre_physical,
-            history.selected_lowering_completion,
-            history.pre_allocation_completion,
+            upstream,
+            history.selected_lowering_output.clone(),
+            history.pre_allocation_output.clone(),
             &history.followed_by(recovery),
             ranges,
             legality,
             homes,
         )?;
-        Ok(ValidatedPostAllocationOptimizationManifest { record })
+        Ok(ValidatedPostAllocationOptimizationManifest {
+            record: std::sync::Arc::new(record),
+        })
     }
 
+    /// The manifest allocation published. Later records share this exact
+    /// manifest and compare it, not a digest of it.
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ValidatedPostAllocationOptimizationManifest {
-        record: PostAllocationOptimizationManifest,
+        record: std::sync::Arc<PostAllocationOptimizationManifest>,
     }
 
     impl ValidatedPostAllocationOptimizationManifest {
         receipt_accessor_rows!(borrow ValidatedPostAllocationOptimizationManifest {
-            record: &PostAllocationOptimizationManifest,
+            record: &std::sync::Arc<PostAllocationOptimizationManifest>,
         });
     }
 }
@@ -1610,7 +1569,7 @@ pub(crate) mod runtime_spill {
             RuntimeSpillAllocationError,
         > {
             crate::allocation::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest(
-                base.pre_physical,
+                base.upstream,
                 &base.history,
                 &transformations(&base.prefix, recorded),
                 ranges,
@@ -2362,7 +2321,6 @@ pub(crate) mod runtime_spill {
         ValidatedFixedOccurrences, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
         ValidatedRuntimeSplit,
     };
-    use optimization_core::PrePhysicalOptimizationManifestIdentity;
     pub(crate) use recovery::{
         assign_source_reusing, recover_after_active_resident_rematerialization,
         recover_after_declined_fixed_view_probe, recover_after_fixed_view_copies,
@@ -2376,7 +2334,7 @@ pub(crate) mod runtime_spill {
         SelectedProgramRef, StagedOptimizedAllocationLegality, ValidatedAllocationLegality,
         ValidatedLiveRanges, ValidatedLiveness,
     };
-    use selected_instructions::SelectedInstructionPlan;
+    use selected_instructions::{SelectedInstructionPlan, StagedOptimizedCustodyCore};
 
     #[derive(Debug)]
     pub(crate) struct RuntimeSpillAllocation {
@@ -2397,12 +2355,13 @@ pub(crate) mod runtime_spill {
         ),
     }
 
-    /// What every runtime-spill manifest starts from: the pre-physical
-    /// manifest, the program's Omega 04 history, and the recovery rewrites
-    /// allocation applied before it started spilling.
+    /// What every runtime-spill manifest starts from: the legality stage's
+    /// custody (its unit, selections and budget), the program's Omega 04
+    /// history, and the recovery rewrites allocation applied before it started
+    /// spilling.
     #[derive(Debug)]
     pub(crate) struct RuntimeSpillManifestBase {
-        pub(crate) pre_physical: PrePhysicalOptimizationManifestIdentity,
+        pub(crate) upstream: StagedOptimizedCustodyCore,
         pub(crate) history: SelectedOptimizationRecord,
         pub(crate) prefix: Vec<PostAllocationSelectedTransformation>,
     }
@@ -2436,7 +2395,7 @@ pub(crate) mod runtime_spill {
         pub(crate) fn resolve(&self) -> ResolvedSpillSource<'_> {
             let legality_stage = self.legality_stage();
             let manifest = |prefix| RuntimeSpillManifestBase {
-                pre_physical: legality_stage.custody().manifest(),
+                upstream: legality_stage.custody().core(),
                 history: legality_stage.record().clone(),
                 prefix,
             };
@@ -2457,9 +2416,7 @@ pub(crate) mod runtime_spill {
                     liveness: reanalysis.liveness(),
                     ranges: reanalysis.ranges(),
                     legality: reanalysis.legality(),
-                    manifest: manifest(vec![PostAllocationSelectedTransformation::FixedViewCopy(
-                        reanalysis.custody().source().transformation(),
-                    )]),
+                    manifest: manifest(vec![PostAllocationSelectedTransformation::FixedViewCopy]),
                 },
                 Self::ActiveResidentRematerialization(pressure) => ResolvedSpillSource {
                     legality_stage,
@@ -2468,9 +2425,7 @@ pub(crate) mod runtime_spill {
                     ranges: pressure.ranges(),
                     legality: pressure.legality(),
                     manifest: manifest(vec![
-                        PostAllocationSelectedTransformation::PressureRematerialization(
-                            pressure.custody().rematerialization(),
-                        ),
+                        PostAllocationSelectedTransformation::PressureRematerialization,
                     ]),
                 },
             }

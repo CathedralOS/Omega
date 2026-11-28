@@ -23,8 +23,7 @@ Run each positive place or root with:
 
 ```sh
 mbx xtask sample-gate --filter samples/cli/facts/readonly_byte_literal_subslice
-omega run --engine native samples/cli/facts/readonly_byte_literal_subslice/<place>/main.omg
-omega run --engine psi samples/cli/facts/readonly_byte_literal_subslice/<place>/main.omg
+omega run samples/cli/facts/readonly_byte_literal_subslice/<place>/main.omg
 ```
 
 Each place has an `invalid/` twin that takes a 9-byte subslice (`[2u64..11u64]`), causing the product `90u64` to underflow unsigned exact subtraction `total - 100u64`. Each invalid twin rejects during proof checking with `may overflow \`u64\``. Check each twin with:
@@ -45,17 +44,17 @@ omega --check samples/cli/facts/readonly_byte_literal_subslice/<place>/invalid/m
 - **Identity and lifetime:** The byte literal resides in the immutable read-only image literal pool; its descriptor borrows immutable backing that outlives every function activation. The static read-only byte view descriptor `(ptr, len)` retains its exact byte-pool backing and length `10u64` across all 9 places without storage aliasing or unexpected copy.
 - **Composition:** The read-only byte subslice extent fact composes through all 9 places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`) into the consuming exact arithmetic operation (`total - 100u64`). Each positive place `<place>/main.omg` vs. its reject twin `<place>/invalid/main.omg` differs only in the subslice range (`[2u64..12u64]` of extent 10 vs `[2u64..11u64]` of extent 9).
 - **Soundness boundaries:** All 9 `<place>/invalid/main.omg` reject twins fail closed with compile-time proof diagnostics (`error: exact arithmetic in machine ... may overflow \`u64\``) when the 9-byte subslice length causes `90u64 - 100u64` to underflow unsigned exact arithmetic.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Read-only byte literals and subslice operations lower without semantic loss into canonical target-neutral Terminal Psi (`PSITERM\0`) `ByteSequenceLength` and `ByteSequenceSubslice` entries with explicit proof legs `start <= end` and `end <= length`, while erasing proof-only obligations and executing with full agreement in the Terminal Psi interpreter (`omega run --both`).
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Read-only byte literals and subslice operations lower without semantic loss into canonical target-neutral Terminal Psi (`PSITERM\0`) `ByteSequenceLength` and `ByteSequenceSubslice` entries with explicit proof legs `start <= end` and `end <= length`, while erasing proof-only obligations and executing with full agreement in the Terminal Psi interpreter.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` settles across the four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Target layout plans validate 16-byte `@[u8]` byte view layout geometry (two-word fat pointer: 64-bit base pointer and 64-bit length), and `CallPlan`/`StatePlan` lower byte view carriers across register pairs, stack slots, or indirect `sret` homes.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects RIP/PC-relative byte-pool address materialization (`lea` on x86_64, `adrp`+`add` on ARM64), pointer offset addition, length arithmetic, and integer multiplication and subtraction instructions. Backend assigns register homes and disjoint stack-frame storage, inserting entry prologues and multi-return epilogues.
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Read-only byte literals are placed in the `.rdata` (PE) or `.rodata` (ELF/Mach-O) section, PC-relative relocations and symbolic stack-frame displacements resolve, basic blocks and branches relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O emission agrees with Terminal Psi (`omega run --both` exit 0) across hosted targets including `windows_x86_64` and `macos_arm64`.
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Read-only byte literals are placed in the `.rdata` (PE) or `.rodata` (ELF/Mach-O) section, PC-relative relocations and symbolic stack-frame displacements resolve, basic blocks and branches relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O emission agrees with Terminal Psi (exit 0) across hosted targets including `windows_x86_64` and `macos_arm64`.
 
 ### Verification Evidence
 
 Measured on `macos_arm64` at `75bef93981f9` with the optimized producer
 (`omega --build-profile` reports `opt_level: 1`).
 
-- **Both engines run every place.** `omega run --both` on root and all nine
+- **Both engines run every place.** the native/Psi comparison on root and all nine
   places: ten of ten report `native exit 0` with `interp exit: 0`, so Terminal
   Psi and native execution agree on the authored result.
 - **Oracle discrimination.** The oracle reads the read-only literal's own
@@ -72,7 +71,7 @@ Measured on `macos_arm64` at `75bef93981f9` with the optimized producer
 - The record added exactly nine lines and deleted none, so no sibling lane's
   row moved.
 - **Open.** `windows_x86_64`, `linux_x86_64`, and `linux_arm64` natively
-  *build* under `--both` but have no golden row on this host; the remaining
+  *build* under the native/Psi comparison but have no golden row on this host; the remaining
   open scope is dynamic runtime-indexed byte subslice mutable projections,
   non-literal slice views under content mutation, and inter-package dynamic
   slice provider composition under `CONSERVATION-CONTRACT`.
@@ -84,7 +83,7 @@ Producer: the factsr1 wave's read-only producer, `--build-profile` reporting
 measured tree base `114906953e11e283b8082f03d8da99fbf39dff7e`. No compiler
 repair was needed and no fixture, twin, or golden row was added.
 
-- Root plus nine places, `omega run --both`: ten `native exit 0` rows, each
+- Root plus nine places, the native/Psi comparison: ten `native exit 0` rows, each
   with `interp exit: 0`.
 - All nine `<place>/invalid/main.omg` twins reject at `omega --check` with
   exit 1 and the pinned fragment ``may overflow `u64` ``.

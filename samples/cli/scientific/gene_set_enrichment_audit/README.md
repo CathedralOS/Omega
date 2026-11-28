@@ -56,7 +56,7 @@ Eight invalid runtime fixtures cover admission and parser limits.
 regenerate them from program output. The runner retains actual stdout, stderr,
 command and exit receipts in ignored `build/<route>/`. Terminal route
 acceptance requires explicit native/Terminal exit agreement; a decline is not a
-pass. The CLI compares termination, stdout and stderr between engines. The runner also
+pass. The recorded comparison checked termination, stdout and stderr between engines. The runner also
 checks the forwarded native stdout against the complete oracle on both execution
 routes. Only one Omega
 execution runs at a time.

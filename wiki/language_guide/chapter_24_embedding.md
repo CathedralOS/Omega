@@ -38,15 +38,24 @@ script call -> typed adapter -> native host call
             <- checked result <- host result
 ```
 
-## Running a program either way
+## Interpreting a program
 
-```text
-omega run --engine native main.omg     (the default)
-omega run --engine psi main.omg        (interpreted)
+```sh
+omega run main.omg
 ```
 
-Ordinary Omega code runs under both engines unchanged. To compare a project's
-registered tests, use `omega build --compare-tests build.omg`. For example,
+This command compiles the Product to Psi and interprets its entry. The same
+standalone contract lets you run saved Psi with `omega run app.psi`. The
+Product sees the directory you ran the command from at `/`, read/write.
+To give it only read access to one directory, use
+`omega run --run-directories-readonly ./documents::/input app.psi`. A write
+there returns the filesystem API’s failure. Live networking and program
+launch require their own grants. When running source, its preparing Build
+starts with captured package inputs and private scratch.
+[CLI implementation status](../../source-rust/application/README.md#command-surface)
+
+To build a native executable, use `omega build main.omg` and launch the resulting
+image on its target host. To compare a project's registered tests, use `omega build --compare-tests build.omg`. For example,
 if both executions exit zero but print different answers, the comparison fails.
 If their observations match but the answer is wrong, the runs agree and the test fails.
 See [comparing native and Psi tests](../spec/build/testing.md#comparing-native-and-psi-tests).

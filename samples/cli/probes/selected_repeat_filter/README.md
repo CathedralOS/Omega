@@ -1,6 +1,6 @@
 # Repeat filtering through a selected predicate
 
-Run with `omega run --both main.omg` after normal package review.
+Run with `mbx xtask sample-gate --filter samples/cli/probes/selected_repeat_filter` after normal package review.
 Expected exit: 0.
 
 A generic in-place compactor dispatches through a runtime-selected named

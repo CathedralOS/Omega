@@ -281,8 +281,11 @@ Lending an opaque object gives the guest no field cells. Local scalar and
 atomic stores and subtree replacement under those borrowed homes are refused
 before any detached payload is made; host effects still act on the original
 object. Owned materialized inputs use complete checked contents in the child's
-declaration space. Borrowed materialized storage still needs its own transfer
-carrier.
+declaration space. Borrowed scalar records can lend their original cells for
+the duration of a synchronous component call. A shared reference permits
+atomic stores to a guest-owned atomic field. Two arguments that borrow that
+field observe the same updates, including after a nested call. Host-backed
+atomic storage needs a host operation that preserves atomicity.
 
 `poll_host_computation` returns `HostComputationPending` when a synchronous
 host operation needs executor work before it can return. The invocation, its

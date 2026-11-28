@@ -91,11 +91,11 @@ reject the cast that attempts to add `Extent::Vacant`.
   having target bindings alone does not establish cross-host execution.
 - Selection/frames: simultaneous owned windows, projected field operations and
   aggregate extraction exercise real retained storage and their native homes.
-- Encoding/runtime: `omega run --both` must return 0 on both engines. The middle
+- Encoding/runtime: the native/Psi comparison must return 0 on both engines. The middle
   update and neighbor canaries make incorrect offsets observable.
 
-From a case directory, run `omega run --both build.omg`. From its sibling
-`invalid_<place>/` directory, run `omega run --engine psi build.omg` and check
+From a case directory, run `mbx xtask sample-gate --filter samples/cli/facts/resident_backing`. From its sibling
+`invalid_<place>/` directory, run `omega run build.omg` and check
 that the diagnostic identifies missing `Extent::Vacant` establishment.
 
 Historical Windows x86-64 corpus records show native/Psi agreement at exit 0

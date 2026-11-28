@@ -16,8 +16,7 @@ If update requests review, inspect the generated source findings and
 record each pending decision, then run
 `mbx run -p omega -- packages update --resume --project samples/cli/arithmetic/sensor_min_max`.
 Use Cargo when `mbx` is unavailable. These commands also work in PowerShell;
-select the matching Windows or Linux target during update. Omit `--target`
-from `run` so native execution is requested. Enter or EOF closes the program.
+select the matching Windows or Linux target during update. `omega run` interprets for the host target by default. Enter or EOF closes the program.
 
 The required stdout is exactly these three LF-terminated lines, with exit 33:
 

@@ -75,7 +75,7 @@ At producer `d999ceec45bc92e27807d7bef1a736f358587090` (optimized dev/test,
 Windows x86_64), pinned qualification observed all nine places, the root, five
 other productions and the returned-Boolean rung run with native exit 0 and
 Terminal exit 0. All sixteen source artifacts encode/decode; all sixteen exact
-`program.oterm` products retained by `run --both --keep` independently decode.
+`program.oterm` products retained by the native/Psi comparison independently decode.
 Their native images, identity files and comparison streams are retained with
 hashes. All sixteen negative controls reject their intended obligation.
 The focused corpus checks 39 fixtures: 16 checked and 23 rejected, with zero
@@ -85,7 +85,7 @@ golden changes. Two other diagnostic differences already reproduce on the
 fetched baseline and are excluded from the scoped golden record.
 
 ```text
-omega run --both --keep samples/cli/facts/body_bearing_comparison/<place>/main.omg
+omega run --keep samples/cli/facts/body_bearing_comparison/<place>/main.omg
 omega --check samples/cli/facts/body_bearing_comparison/<place>/invalid/main.omg
 omega psi inspect --machine main --output field.psi samples/cli/facts/body_bearing_comparison/field/main.omg
 omega psi inspect --artifact field.psi

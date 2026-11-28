@@ -51,7 +51,7 @@ case that was listed all leave the case owed.
 ## Places
 
 All projects bind `ProgramEntry` for the four hosted targets, declare
-`Expected exit: 0` and are run with `omega run --both`, which requires the
+`Expected exit: 0` and are run with `mbx xtask sample-gate --filter samples/cli/facts/contract_excluded_case`, which requires the
 Terminal Psi interpreter and the native image to agree. `main` reads `7` and
 `9` through `extract_int` and `true` and `false` through `extract_flag`, so an
 extractor that returns a constant, the wrong payload, or the other case's

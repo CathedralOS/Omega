@@ -136,7 +136,7 @@ fn a_provider_applied_to_another_tag_than_its_slot_is_rejected() {
     assert!(!compiled);
     assert!(
         stderr.contains(
-            "provider `FirstReading` does not satisfy the selected application of `Reading`"
+            "provider `|app|::FirstReading` does not satisfy the selected application of `|app|::Reading`"
         ),
         "{stderr}"
     );
@@ -150,7 +150,9 @@ fn an_application_with_the_wrong_number_of_arguments_is_rejected() {
     );
     assert!(!compiled);
     assert!(
-        stderr.contains("`Reading` takes 1 static argument(s) and this provider choice gives it 2"),
+        stderr.contains(
+            "`|app|::Reading` takes 1 static argument(s) and this provider choice gives it 2"
+        ),
         "{stderr}"
     );
 }

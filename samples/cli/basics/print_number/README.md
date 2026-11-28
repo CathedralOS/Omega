@@ -14,4 +14,4 @@ and must print a standalone `150` line and exit 0. The closing banner also
 contains `150`; that banner alone does not verify the computation. Press Enter
 at the final prompt, or supply EOF for a noninteractive run.
 
-Add `--both` after `run` to execute the native and checked-interpreter routes.
+Compare the compiled program with its interpreted result using `mbx xtask sample-gate --filter samples/cli/basics/print_number`.

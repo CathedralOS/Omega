@@ -9,7 +9,7 @@ identical unqualified model executed successfully.
 
 Each place starts with 48 units, splits 16, reconstructs a strategy with 32
 units remaining and observes both the residual and allocated lengths. Run
-`omega run --both samples/cli/facts/qualified_field_capacity/<place>/main.omg`.
+`mbx xtask sample-gate --filter samples/cli/facts/qualified_field_capacity/<place>`.
 The nine places are `local`, `field`, `parameter`, `call_result`, `match_join`,
 `const_name`, `other_state`, `other_machine`, and `target_body`. Every
 `invalid/main.omg` differs only by retaining the original remaining count
@@ -29,7 +29,7 @@ and the run reported `9 fixtures ({'built': 9})`, `executed 9 (exit codes {'0':
 not reject, so the missing piece was the durable native row rather than a
 compiler refusal.
 
-The `--both` golden already carried this fact's nine agreement rows
+The native/Psi comparison golden already carried this fact's nine agreement rows
 (`interpreter:agrees`), so native-versus-interpreter agreement was recorded
 before this row; what this record adds is the native leg its own acceptance
 names. Only `target_body` is target-scoped and its `macos_arm64` body performs

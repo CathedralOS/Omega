@@ -1,17 +1,6 @@
-// Atomic cells: `AtomicU32` field with value-method operations —
-// `store`, `fetch_add`, `compare_exchange` — each spelling the
-// ordering (`NoOrdering`, `ReceivePublish`, `Receive`). `fetch_add`
-// returns the PRIOR value; `compare_exchange` returns the observed
-// prior either way. The cell compares directly against a scalar.
-//
-//   * `main.counter.store(10, NoOrdering)` — plain store.
-//   * `fetch_add(5, NoOrdering)` → prior 10, cell 15.
-//   * `compare_exchange(15, 99, ReceivePublish, Receive)` → prior 15,
-//     cell 99.
-//   * `hits` records the reached arm.
-//
-// Compile-checked only: no standard-library dependency, no ProcessExit
-// provider.
+// A successful exchange installs 99. On mismatch its result carries the
+// value observed by the instruction.
+use {omega}/language/core/layout.omg;
 
 data Main {
     counter: AtomicU32;
@@ -21,15 +10,21 @@ data Main {
 machine Main::main(main: @mutable Main) {
     main.hits = 0;
     main.counter.store(10, NoOrdering);
-    let old1: u32 in Wrapping = main.counter.fetch_add(5, NoOrdering);
-    transition old1 == 10 && main.counter == 15 {
+    let prior: u32 = main.counter.fetch_add(5, NoOrdering);
+    transition prior == 10 && main.counter.load(Receive) == 15 {
         true -> second(main),
         _ -> fail(main)
     }
     machine second(main: @mutable Main) {
-        let prior: u32 in Wrapping =
+        let outcome: |layout|::AtomicCompareExchangeOutcome<u32> =
             main.counter.compare_exchange(15, 99, ReceivePublish, Receive);
-        transition prior == 15 && main.counter == 99 {
+        transition outcome {
+            |layout|::AtomicCompareExchangeOutcome::Exchanged -> verify(main),
+            |layout|::AtomicCompareExchangeOutcome::Mismatched { observed } -> fail(main)
+        }
+    }
+    machine verify(main: @mutable Main) {
+        transition main.counter.load(Receive) == 99 {
             true -> pass(main),
             _ -> fail(main)
         }

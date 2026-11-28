@@ -10,12 +10,10 @@ All records remain non-authoritative representation data whose invariants and
 unwind rosters (`FrameUnwindPlan`) are independently replayed by the backend.
 */
 
-use calling_conventions::frame_unwind::{FrameProtocolEffect, FrameProtocolStep};
+use calling_conventions::frame_unwind::FrameProtocolStep;
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use post_allocation_machine::PostAllocationMachinePlan;
-use register_homes::{
-    AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedUnitRequirement,
-};
+use register_homes::{AllocatedCalleeSavedRequirements, AllocatedCalleeSavedUnitRequirement};
 use register_model::{
     FrameAbiPreservationConvention, PhysicalRegisterModelIdentity,
     PreservationStorageCatalogIdentity, PreservationStorageGroupId, RegisterUnitId, RegisterViewId,
@@ -27,9 +25,6 @@ use std::sync::Arc;
 use target::NativeTarget;
 
 use crate::FunctionFragmentEmissionPlan;
-
-register_homes::identity_newtype! { pub struct NonAuthoritativeCalleeSaveStorageIdentity([u8; 32]); }
-register_homes::identity_newtype! { pub struct TargetFrameProtocolEncodingIdentity([u8; 32]); }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NonAuthoritativeCalleeSaveStoragePolicy {
@@ -61,7 +56,7 @@ pub struct FunctionNonAuthoritativeCalleeSaveStorage {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NonAuthoritativeCalleeSaveStoragePlan {
-    pub callee_saved_requirements: AllocatedCalleeSavedRequirementIdentity,
+    pub callee_saved_requirements: AllocatedCalleeSavedRequirements,
     pub register_environment: TargetRegisterEnvironmentIdentity,
     pub physical_register_model: PhysicalRegisterModelIdentity,
     pub preservation_storage_catalog: PreservationStorageCatalogIdentity,
@@ -176,8 +171,8 @@ impl FunctionTargetFrameLayout {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetFrameLayoutPlan {
     pub post_allocation_machine: Arc<PostAllocationMachinePlan>,
-    pub callee_saved_requirements: AllocatedCalleeSavedRequirementIdentity,
-    pub callee_save_storage: NonAuthoritativeCalleeSaveStorageIdentity,
+    pub callee_saved_requirements: AllocatedCalleeSavedRequirements,
+    pub callee_save_storage: Arc<NonAuthoritativeCalleeSaveStoragePlan>,
     pub register_environment: TargetRegisterEnvironmentIdentity,
     pub physical_register_model: PhysicalRegisterModelIdentity,
     pub target: NativeTarget,
@@ -260,56 +255,6 @@ pub struct FunctionAppliedFrameProtocol {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionFragmentFrameApplication {
-    pub frame_protocol: TargetFrameProtocolEncodingIdentity,
     pub functions: Vec<FunctionAppliedFrameProtocol>,
     pub fragments: FunctionFragmentEmissionPlan,
-}
-
-pub fn target_frame_protocol_encoding_identity(
-    plan: &TargetFrameProtocolEncodingPlan,
-) -> TargetFrameProtocolEncodingIdentity {
-    let mut hasher =
-        crate::digest_encoder::DomainDigestEncoder::new(b"omega.target-frame-protocol-encoding.v2");
-    hasher.raw(&plan.register_environment.bytes());
-    hasher.raw(&plan.physical_register_model.bytes());
-    hasher.raw(&plan.target.identity_bytes());
-    hasher.byte(match plan.policy {
-        TargetFrameProtocolEncodingPolicy::CanonicalFixedFrameV1 => 0,
-    });
-    hasher.u64(plan.functions.len() as u64);
-    for function in &plan.functions {
-        hasher.raw(&function.machine.get().to_le_bytes());
-        hasher.raw(&function.prologue.offset.to_le_bytes());
-        hasher.raw(&function.prologue.length.to_le_bytes());
-        hasher.raw(&function.epilogue.offset.to_le_bytes());
-        hasher.raw(&function.epilogue.length.to_le_bytes());
-        for span in [function.prologue_steps, function.epilogue_steps] {
-            hasher.raw(&span.offset.to_le_bytes());
-            hasher.raw(&span.length.to_le_bytes());
-        }
-    }
-    hasher.u64(plan.bytes.len() as u64);
-    hasher.raw(&plan.bytes);
-    hasher.u64(plan.steps.len() as u64);
-    for step in &plan.steps {
-        hasher.raw(&step.end_offset.to_le_bytes());
-        match step.effect {
-            FrameProtocolEffect::AdjustStack { bytes } => {
-                hasher.byte(0);
-                hasher.raw(&bytes.to_le_bytes());
-            }
-            FrameProtocolEffect::Register {
-                register,
-                frame_offset_bytes,
-            } => {
-                hasher.byte(1);
-                let (class, index) = register.wire_class_index();
-                hasher.byte(class);
-                hasher.byte(index);
-                hasher.raw(&frame_offset_bytes.to_le_bytes());
-            }
-            FrameProtocolEffect::Unchanged => hasher.byte(2),
-        }
-    }
-    TargetFrameProtocolEncodingIdentity::from_bytes(hasher.finish())
 }

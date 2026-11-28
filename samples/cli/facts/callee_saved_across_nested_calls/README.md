@@ -49,12 +49,12 @@ This row establishes that a bounded scalar value held live across sequential int
 - **Identity and lifetime:** The scalar `saved: u64` value resides in an assigned non-volatile register or activation spill slot during execution of `step_one` and `step_two`. Because `step_one` and `step_two` execute interior calls to `clobber` that touch caller-saved registers, the callee's register allocator saves and restores non-volatile registers (such as `RBX`, `R12`-`R15` on `x86_64` or `X19`-`X28` on `AArch64`) using entry prologues and restoration epilogues, preserving `saved`'s bit-exact identity and lifetime across both call boundaries without memory corruption or clobbering.
 - **Composition:** The preserved live-across-call scalar value composes through all nine standard program places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`), feeding into the exact subtraction `70u64 - saved` and subsequent subtraction of call results `remaining - (r1 + r2) == 0`. Every place and its reject twin differ solely in the initial bound or value of `saved` (`40u64` vs. `71u64`), keeping the call structure and subtraction operations identical.
 - **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins fail closed at compile time: setting `saved = 71u64` violates the subtraction precondition (`70u64 - saved` would underflow `u64`), causing the compiler's range check and integer proof checker to reject with `error: exact arithmetic in machine ... may overflow `u64`` (`exact subtraction underflow`). Static verification enforces that unproved subtraction obligations cannot be admitted or executed.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Sequential machine calls lower into discrete Terminal Psi basic blocks with explicit `Call` instructions and live variable continuation environments (`PSITERM\0`). The live value `saved` is tracked across block boundaries in the continuation's live set, preserving proof obligation tags and integer certificates (`integer_certificates`) into the Terminal Psi interpreter, which evaluates the sequential calls and subtraction in exact agreement with native execution (`omega run --both`, exit 0).
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Sequential machine calls lower into discrete Terminal Psi basic blocks with explicit `Call` instructions and live variable continuation environments (`PSITERM\0`). The live value `saved` is tracked across block boundaries in the continuation's live set, preserving proof obligation tags and integer certificates (`integer_certificates`) into the Terminal Psi interpreter, which evaluates the sequential calls and subtraction in exact agreement with native execution (exit 0).
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Companion build bindings join `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Standard calling conventions (`CallPlan`) assign parameter and return registers (`rcx`/`rax` on Windows x86_64, `rdi`/`rax` on Linux x86_64, `x0` on AArch64). Primitive `u64` scalars (`size_of = 8`, `align_of = 8`) and `SavedHolder` records validate.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** The backend register allocator assigns homes for `saved` and intermediate values. Because `saved` is live across two sequential calls, the allocator places it either in a callee-saved non-volatile register or in a dedicated stack spill slot in the activation frame. In `step_one` and `step_two`, interior call pressure triggers callee-saved register usage; the frame realization pass emits matching entry push/sub/store sequences and exit restoration load/add/pop sequences that preserve callee-saved registers across both calls.
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Relocation fixups resolve symbolic stack-frame displacements and function addresses, basic blocks and branch offsets reflow across prologue/epilogue insertion, transitive machine-state footprint evidence is validated (`actual_transitive_footprint ⊆ permitted_transitive_use`), and direct PE/ELF/Mach-O images are emitted, achieving native execution agreement with Terminal Psi (`omega run --both`, exit 0) across all hosted targets including `windows_x86_64` and `macos_arm64`.
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Relocation fixups resolve symbolic stack-frame displacements and function addresses, basic blocks and branch offsets reflow across prologue/epilogue insertion, transitive machine-state footprint evidence is validated (`actual_transitive_footprint ⊆ permitted_transitive_use`), and direct PE/ELF/Mach-O images are emitted, achieving native execution agreement with Terminal Psi (exit 0) across all hosted targets including `windows_x86_64` and `macos_arm64`.
 
-The row is verified by `samples/cli/facts/callee_saved_across_nested_calls` where every positive records native exit 0 and Terminal Psi execution agreement (`omega run --both`), and every invalid twin rejects with `may overflow `u64``.
+The row is verified by `samples/cli/facts/callee_saved_across_nested_calls` where every positive records native exit 0 and Terminal Psi execution agreement, and every invalid twin rejects with `may overflow `u64``.
 
 ## Measured evidence
 
@@ -63,7 +63,7 @@ Host: macOS arm64 (`darwin`/`arm64`). Base revision: `964b471b6cbf3f10b718089af3
 
 | Command | Result |
 | --- | --- |
-| `omega run --both` on root and all nine places (10 projects) | 10/10 `native exit 0` with `interp exit: 0` |
+| the native/Psi comparison on root and all nine places (10 projects) | 10/10 `native exit 0` with `interp exit: 0` |
 | `omega --check <place>/invalid/main.omg` (9 twins) | 9/9 reject with `may overflow `u64`` |
 | `sample_native_gate --programs-only --facts --filter callee_saved_across_nested_calls` | 10/10 meet the documented oracle, 0 unscored |
 | `sample_native_gate --facts --filter <nine>/invalid` | 9/9 intended-invalid controls match their authored rejection |
@@ -76,7 +76,7 @@ macOS arm64. Commands and numbers:
 
 | Command | Result |
 | --- | --- |
-| `omega run --both` on root and all nine places (10 projects) | 10/10 `native exit 0` with `interp exit: 0` |
+| the native/Psi comparison on root and all nine places (10 projects) | 10/10 `native exit 0` with `interp exit: 0` |
 | `omega --check <place>/invalid/main.omg` (9 twins) | 9/9 reject, exit 1, `may overflow `u64`` |
 |  | 9/9 reject, exit 1, `may overflow `u64`` |
 

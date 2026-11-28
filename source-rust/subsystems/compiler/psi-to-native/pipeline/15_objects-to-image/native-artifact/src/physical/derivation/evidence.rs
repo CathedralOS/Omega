@@ -103,6 +103,7 @@ pub(crate) fn derive_physical_evidence(
         target,
         object,
         object,
+        0,
         image,
         final_image_symbol_digest,
         selected_provider_plans,
@@ -120,6 +121,7 @@ fn derive_object_physical_evidence(
     target: NativeTarget,
     object: &image_emission::ObjectArtifact,
     linked_object: &image_emission::ObjectArtifact,
+    image_text_offset: usize,
     image: &[u8],
     final_image_symbol_digest: [u8; 32],
     selected_provider_plans: &[NativeSelectedProviderPlan],
@@ -276,6 +278,10 @@ fn derive_object_physical_evidence(
             )
         })
         .collect::<BTreeMap<_, _>>();
+    let placement = PhysicalChildPlacement {
+        projection: projection.identity(),
+        image_text_offset,
+    };
     let mut children = Vec::new();
     let mut consumed_port_effects = BTreeSet::new();
     for occurrence in projection.boundary_occurrences() {
@@ -336,7 +342,7 @@ fn derive_object_physical_evidence(
                     children.push(derive_hosted_builtin_child(
                         builtin,
                         occurrence,
-                        projection.identity(),
+                        placement,
                         requirement,
                         selected_plan.plan_digest(),
                         target,
@@ -349,7 +355,7 @@ fn derive_object_physical_evidence(
                     object,
                     image,
                     occurrence,
-                    projection.identity(),
+                    placement,
                     requirement,
                     selected_plan,
                     provider_executions,
@@ -370,7 +376,7 @@ fn derive_object_physical_evidence(
                 let Some(child) = derive_normalized_foreign_child(
                     &result_geometry,
                     occurrence,
-                    projection.identity(),
+                    placement,
                     requirement,
                     selected_plan,
                     native_bindings,
@@ -400,7 +406,7 @@ fn derive_object_physical_evidence(
                     object,
                     image,
                     occurrence,
-                    projection.identity(),
+                    placement,
                     requirement,
                     selected_plan.ok_or("native binding cannot supply a checked internal call")?,
                     target,
@@ -480,23 +486,15 @@ fn derive_object_physical_evidence(
         };
         let parent = PhysicalChildParent::OperatorApplicationCoverage(**reference);
         let physical_occurrence = NativePhysicalOccurrence::Operator(occurrence.identity());
-        children.push(
-            seal_physical_child_parts(
-                parent,
-                projection.identity(),
-                physical_occurrence,
-                vec![span.machine],
-                vec![span.object],
-                vec![span.final_image],
-                [
-                    span.machine_bytes_digest,
-                    span.object_bytes_digest,
-                    span.final_image_bytes_digest,
-                ],
-                span.relocation,
-            )
-            .into(),
-        );
+        children.push(placement.seal(
+            parent,
+            physical_occurrence,
+            vec![span.machine],
+            vec![span.object],
+            span.object_bytes_digest,
+            span.final_image_bytes_digest,
+            span.relocation,
+        )?);
     }
     children.sort_by_key(|child| child.occurrence());
     validate_exact_physical_children(&projection, &children)?;
@@ -529,6 +527,7 @@ fn derive_object_physical_evidence(
             target,
             &private.body,
             linked_object,
+            private.text_offset,
             final_text,
             final_image_symbol_digest,
             selected_provider_plans,
@@ -538,10 +537,12 @@ fn derive_object_physical_evidence(
             Some(source.coverage()),
             originals,
         )?;
-        let NativePhysicalEvidenceDerivation::Complete(mut body_evidence) = derived else {
+        let NativePhysicalEvidenceDerivation::Complete(body_evidence) = derived else {
             return Ok(derived);
         };
-        relocate_final_spans(&mut body_evidence, private.text_offset)?;
+        if !body_evidence.private_functions.is_empty() {
+            return Err("private object physical evidence contains a nested composition");
+        }
         evidence
             .private_functions
             .push(super::super::PrivatePhysicalEvidence {
@@ -562,38 +563,6 @@ fn derive_object_physical_evidence(
         evidence.identity = digest.finish();
     }
     Ok(NativePhysicalEvidenceDerivation::Complete(evidence))
-}
-
-pub(super) fn relocate_final_spans(
-    evidence: &mut crate::physical::NativePhysicalEvidence,
-    text_offset: usize,
-) -> Result<(), &'static str> {
-    if !evidence.private_functions.is_empty() {
-        return Err("private object physical evidence contains a nested composition");
-    }
-    for child in &mut evidence.children {
-        for span in &mut child.final_image_spans {
-            span.offset = span
-                .offset
-                .checked_add(text_offset)
-                .ok_or("private physical image span overflow")?;
-        }
-        child.identity = physical_child_identity(
-            &child.parent,
-            child.projection,
-            child.occurrence,
-            &child.machine_spans,
-            &child.object_spans,
-            &child.final_image_spans,
-            child.machine_bytes_digest,
-            child.object_bytes_digest,
-            child.final_image_bytes_digest,
-            &child.relocation,
-        );
-    }
-    evidence.identity =
-        physical_evidence_identity(evidence.projection.identity(), &evidence.children);
-    Ok(())
 }
 
 #[derive(Clone, Copy)]
@@ -976,77 +945,83 @@ fn validate_physical_child_spans(child: &NativePhysicalChild) -> Result<(), &'st
     Ok(())
 }
 
-pub(crate) fn boundary_physical_child_parts(
-    parent: PhysicalChildParent,
-    projection: NativeOptimizationProjectionIdentity,
-    occurrence: NativePhysicalOccurrence,
-    machine_span: NativeByteSpan,
-    object_span: NativeByteSpan,
-    final_image_span: NativeByteSpan,
-    machine_bytes: &[u8],
-    object_bytes: &[u8],
-    final_image_bytes: &[u8],
-    relocation: PhysicalRelocationDisposition,
-) -> NativePhysicalChildParts {
-    let machine_bytes_digest = crate::digest_encoder::content_identity(machine_bytes);
-    let object_bytes_digest = crate::digest_encoder::content_identity(object_bytes);
-    let final_image_bytes_digest = crate::digest_encoder::content_identity(final_image_bytes);
-    seal_physical_child_parts(
-        parent,
-        projection,
-        occurrence,
-        vec![machine_span],
-        vec![object_span],
-        vec![final_image_span],
-        [
+/// The audit reads bytes in the object's own text slice. Its published child
+/// names those bytes at their linked offset in the containing image.
+#[derive(Clone, Copy)]
+pub(super) struct PhysicalChildPlacement {
+    pub(super) projection: NativeOptimizationProjectionIdentity,
+    pub(super) image_text_offset: usize,
+}
+
+impl PhysicalChildPlacement {
+    pub(super) fn seal_boundary(
+        self,
+        parent: PhysicalChildParent,
+        occurrence: NativePhysicalOccurrence,
+        machine_span: NativeByteSpan,
+        object_span: NativeByteSpan,
+        unchanged_bytes: &[u8],
+        relocation: PhysicalRelocationDisposition,
+    ) -> Result<NativePhysicalChild, &'static str> {
+        let digest = crate::digest_encoder::content_identity(unchanged_bytes);
+        self.seal(
+            parent,
+            occurrence,
+            vec![machine_span],
+            vec![object_span],
+            digest,
+            digest,
+            relocation,
+        )
+    }
+
+    pub(super) fn seal(
+        self,
+        parent: PhysicalChildParent,
+        occurrence: NativePhysicalOccurrence,
+        machine_spans: Vec<NativeByteSpan>,
+        object_spans: Vec<NativeByteSpan>,
+        object_bytes_digest: [u8; 32],
+        final_image_bytes_digest: [u8; 32],
+        relocation: PhysicalRelocationDisposition,
+    ) -> Result<NativePhysicalChild, &'static str> {
+        let final_image_spans = object_spans
+            .iter()
+            .map(|span| {
+                let offset = self
+                    .image_text_offset
+                    .checked_add(span.offset())
+                    .ok_or("private physical image span overflow")?;
+                Ok(crate::physical::native_byte_span(offset, span.byte_count()))
+            })
+            .collect::<Result<Vec<_>, &'static str>>()?;
+        // Every derivation compares the original machine bytes with the object bytes.
+        let machine_bytes_digest = object_bytes_digest;
+        let identity = physical_child_identity(
+            &parent,
+            self.projection,
+            occurrence,
+            &machine_spans,
+            &object_spans,
+            &final_image_spans,
             machine_bytes_digest,
             object_bytes_digest,
             final_image_bytes_digest,
-        ],
-        relocation,
-    )
-}
-
-/// Builds a physical child and computes its identity over exactly the spans,
-/// byte digests and relocation it retains.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn seal_physical_child_parts(
-    parent: PhysicalChildParent,
-    projection: NativeOptimizationProjectionIdentity,
-    occurrence: NativePhysicalOccurrence,
-    machine_spans: Vec<NativeByteSpan>,
-    object_spans: Vec<NativeByteSpan>,
-    final_image_spans: Vec<NativeByteSpan>,
-    [
-        machine_bytes_digest,
-        object_bytes_digest,
-        final_image_bytes_digest,
-    ]: [[u8; 32]; 3],
-    relocation: PhysicalRelocationDisposition,
-) -> NativePhysicalChildParts {
-    let identity = physical_child_identity(
-        &parent,
-        projection,
-        occurrence,
-        &machine_spans,
-        &object_spans,
-        &final_image_spans,
-        machine_bytes_digest,
-        object_bytes_digest,
-        final_image_bytes_digest,
-        &relocation,
-    );
-    NativePhysicalChildParts {
-        parent,
-        projection,
-        occurrence,
-        machine_spans,
-        object_spans,
-        final_image_spans,
-        machine_bytes_digest,
-        object_bytes_digest,
-        final_image_bytes_digest,
-        relocation,
-        identity,
+            &relocation,
+        );
+        Ok(NativePhysicalChildParts {
+            parent,
+            projection: self.projection,
+            occurrence,
+            machine_spans,
+            object_spans,
+            final_image_spans,
+            machine_bytes_digest,
+            object_bytes_digest,
+            final_image_bytes_digest,
+            relocation,
+            identity,
+        }
+        .into())
     }
 }

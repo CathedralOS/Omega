@@ -98,11 +98,11 @@ Run from the repository root with one compiler/build/execution at a time:
 ```
 source /workspace/cloud-setup/activate.sh
 mbx build --release -p omega
-./target/release/omega packages update --project samples/cli/independent/rail_limited_amplifier --target linux_x86_64
+./target/release/omega packages update --project samples/cli/scientific/rail_limited_amplifier --target linux_x86_64
 # Read the generated package review, accept only the reviewed decision rows, then:
-./target/release/omega packages update --project samples/cli/independent/rail_limited_amplifier --resume
-./target/release/omega --check samples/cli/independent/rail_limited_amplifier/main.omg
-./target/release/omega run --both --keep samples/cli/independent/rail_limited_amplifier/main.omg < samples/cli/independent/rail_limited_amplifier/data/rail_recovery.in
+./target/release/omega packages update --project samples/cli/scientific/rail_limited_amplifier --resume
+./target/release/omega --check samples/cli/scientific/rail_limited_amplifier/main.omg
+./target/release/omega run --keep samples/cli/scientific/rail_limited_amplifier/main.omg < samples/cli/scientific/rail_limited_amplifier/data/rail_recovery.in
 ```
 
 Package acceptance is local and excluded from the candidate; a consuming executor
@@ -114,7 +114,7 @@ per-command sandbox escalation; that is independent of package acceptance.
 The private `validation/terminal.rs` driver calls the existing complete accepted
 project compilation operation, executes its produced admitted Terminal artifact with
 finite fixture input and captures stdout/stderr/status, then publishes that same
-native artifact. It uses neither a tree interpreter nor a synthetic exit. The CLI compares
+native artifact. It uses neither a tree interpreter nor a synthetic exit. The recorded comparison checked
 termination and both output streams. This driver checks the Psi trace
 against its own oracle. Generated artifacts belong under ignored `build/`; a transfer bundle carries
 evidence separately.

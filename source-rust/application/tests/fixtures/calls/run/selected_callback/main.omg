@@ -1,0 +1,34 @@
+data Repetitions [copy] { case Once; case Twice; }
+data Step<T> = machine(value: T) -> T reaches none crashes none;
+
+boundary trait Dispatch {
+    machine apply<T, const Worker: Step<T>, const Count: Repetitions>(input: T) -> T
+    reaches none crashes none;
+}
+
+LocalDispatcher satisfies Dispatch {
+    machine apply<T, const Action: Step<T>, const Count: Repetitions>(input: T) -> T
+    reaches none crashes none {
+        match Count {
+            Repetitions::Once -> Action(input),
+            Repetitions::Twice -> Action(Action(input))
+        }
+    }
+}
+
+machine invert(value: bool) -> bool reaches none crashes none { !value }
+machine keep(value: bool) -> bool reaches none crashes none { value }
+
+machine dispatch<T, const Worker: Step<T>, const Count: Repetitions>(input: T) -> T
+reaches Dispatch invokes Dispatch crashes none {
+    Dispatch::apply::<T, Worker, Count>(input)
+}
+
+machine main() reaches Dispatch invokes Dispatch crashes Trap {
+    let once: bool = dispatch::<bool, invert, Repetitions::Once>(false);
+    let twice: bool = dispatch::<bool, invert, Repetitions::Twice>(false);
+    let unchanged: bool = dispatch::<bool, keep, Repetitions::Once>(false);
+    transition once && !twice && !unchanged { true -> done(), false -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

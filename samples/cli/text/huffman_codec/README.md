@@ -28,6 +28,8 @@ refusal now lands.
 After completing the sample's package review, run from the repository root:
 
 ```sh
-omega run --engine native samples/cli/text/huffman_codec/main.omg < /dev/null
-omega run --engine psi samples/cli/text/huffman_codec/main.omg < /dev/null
+omega run samples/cli/text/huffman_codec/main.omg < /dev/null
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/text/huffman_codec` from the repository root.

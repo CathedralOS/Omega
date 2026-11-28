@@ -70,7 +70,7 @@ fn knowledge_index_matches_hypotheses_and_connected_across_straight_line_and_edg
     };
     use terminal_check_tables::edges::{Destination, EdgeRow};
     use terminal_check_tables::values::{Justification, KnowledgeRow, ValueOrigin, ValueRow};
-    use terminal_check_tables::{MachineTables, ProgramPoint};
+    use terminal_check_tables::{Construct, MachineTables, ProgramPoint};
     use terminal_psi::{
         Block, MachineContract, Operation, OperationKind, OperationResult, TerminalMachine,
         Terminator,
@@ -207,7 +207,13 @@ fn knowledge_index_matches_hypotheses_and_connected_across_straight_line_and_edg
         let expected_full =
             crate::hypotheses(&graph, &tables, lowered.id, id::<ObligationId>(1), point).unwrap();
         let actual_full = knowledge
-            .full(&graph, &tables, lowered.id, id::<ObligationId>(1), point)
+            .full(
+                &graph,
+                &tables,
+                lowered.id,
+                Construct::Obligation(id::<ObligationId>(1)),
+                point,
+            )
             .unwrap();
         assert_eq!(actual_full.assumption_rows, expected_full.assumption_rows);
         assert_eq!(actual_full.axiom_rows, expected_full.axiom_rows);
@@ -221,7 +227,7 @@ fn knowledge_index_matches_hypotheses_and_connected_across_straight_line_and_edg
                     &graph,
                     &tables,
                     lowered.id,
-                    id::<ObligationId>(1),
+                    Construct::Obligation(id::<ObligationId>(1)),
                     point,
                     &goal,
                 )

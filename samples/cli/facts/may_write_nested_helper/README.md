@@ -71,10 +71,10 @@ contract, while retaining this nine-place mutation-summary fact.
 2. **Identity and lifetime.** The bound names the other mutable input. Writing the chosen input invalidates only that input. The reject twin writes the other input and retires the bound.
 3. **Composition.** `relay` calls `choose`, `overwrite` writes through that nested result, and `add` evaluates that write as an operand. The preserved bound is then used by a local, field, parameter, call result, match join, const bound, state arrival, forwarding machine, or target body.
 4. **Soundness boundaries.** The summary is a may-write footprint. It does not grant a loan, a move, or a linear claim. The overlapping candidate cannot keep the stale index bound.
-5. **Checked-to-Terminal Psi lowering.** The nested choice, operand write, and proved index lower into Terminal Psi and execute with the interpreter on `omega run --both`.
+5. **Checked-to-Terminal Psi lowering.** The nested choice, operand write, and proved index lower into Terminal Psi and execute with the interpreter on the native/Psi comparison.
 6. **Provider settlement, layout geometry, and calling plans.** Each positive binds `ProgramEntry` on all four hosted targets. Four Build rows select the same ordinary `NestedProbe` implementation, preserving both public input bounds. Its returned byte carries no reference relation across the requirement. The two `u64` inputs and fixed byte array retain their ordinary value and reference lanes.
 7. **Instruction selection, register homes, and activation frames.** Native execution stores `9` through the chosen referent and reloads the other input as the index.
-8. **Form encoding, branches, relocations, and native images.** `omega run --both` agrees on exit `0` for every positive place.
+8. **Form encoding, branches, relocations, and native images.** the native/Psi comparison agrees on exit `0` for every positive place.
 
 ## Validation
 

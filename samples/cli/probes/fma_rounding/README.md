@@ -8,8 +8,10 @@ exits 0 when both precisions satisfy those checks and a second fused call
 preserves the first result.
 
 ```sh
-omega run --engine native samples/cli/probes/fma_rounding/build.omg < /dev/null
-omega run --engine psi samples/cli/probes/fma_rounding/build.omg < /dev/null
+omega run samples/cli/probes/fma_rounding/build.omg < /dev/null
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/probes/fma_rounding` from the repository root.
 
 The x86-64 build explicitly selects `X86DeploymentFeatures::AvxFma3`.

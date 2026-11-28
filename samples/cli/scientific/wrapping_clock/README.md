@@ -106,11 +106,11 @@ inspect its generated review, edit the exact pending decisions to `accept`, then
 run `omega packages update --resume`. Repository policy keeps `omega.lock` host-local:
 
 ```
-OMEGA_LIBRARY_ROOT="$PWD/source/library" "$OMEGA_BIN" update --project samples/cli/independent/wrapping_clock --target linux_x86_64
+OMEGA_LIBRARY_ROOT="$PWD/source/library" "$OMEGA_BIN" update --project samples/cli/scientific/wrapping_clock --target linux_x86_64
 # Inspect build/package-manager/review-linux_x86_64.txt and accept the reviewed rows.
-OMEGA_LIBRARY_ROOT="$PWD/source/library" "$OMEGA_BIN" update --resume --project samples/cli/independent/wrapping_clock
-OMEGA_LIBRARY_ROOT="$PWD/source/library" "$OMEGA_BIN" --check samples/cli/independent/wrapping_clock/main.omg
-OMEGA_LIBRARY_ROOT="$PWD/source/library" "$OMEGA_BIN" run --both --keep samples/cli/independent/wrapping_clock/main.omg < samples/cli/independent/wrapping_clock/data/wrap_drift.stdin
+OMEGA_LIBRARY_ROOT="$PWD/source/library" "$OMEGA_BIN" update --resume --project samples/cli/scientific/wrapping_clock
+OMEGA_LIBRARY_ROOT="$PWD/source/library" "$OMEGA_BIN" --check samples/cli/scientific/wrapping_clock/main.omg
+OMEGA_LIBRARY_ROOT="$PWD/source/library" "$OMEGA_BIN" run --keep samples/cli/scientific/wrapping_clock/main.omg < samples/cli/scientific/wrapping_clock/data/wrap_drift.stdin
 ```
 
 Validation serializes check, each native/Terminal comparison, and the complete
@@ -120,6 +120,6 @@ from treating an intentionally rejected control as a runnable sample. Generated 
 stay in ignored `build/`. `build/validation.json` records actual commands,
 compiler/base/source hashes, resource facts, exits and oracle comparison.
 The harness requires Terminal agreement explicitly, not merely a native exit.
-EOF replay by `run --both` gives both engines identical input. The entrypoint is
+EOF replay by the native/Psi comparison gives both engines identical input. The entrypoint is
 bound explicitly for supported hosted targets; execution here validates Linux
 x86_64 only. Other targets are declared, not claimed as tested.

@@ -68,7 +68,7 @@ Delete this record when the implementation and acceptance are complete.
 ## Acceptance
 
 - `stamp<NoState, WallClock>` and `stamp<NoState, RealClock>` are the same
-  application, pass `--both`, and publish `TimeObservation` reach.
+  application, pass native and interpreted tests, and publish `TimeObservation` reach.
 - `stamp<SimClock, Simulated>` publishes empty reach under the same parent.
 - A view through a transitive ordinary parent is accepted.
 - `WallClock` and `SteadyClock` passed to one generic give two applications

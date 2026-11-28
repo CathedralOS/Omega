@@ -20,7 +20,7 @@ machine](other_state/main.omg), [another machine](other_machine/main.omg), and [
 body](target_body/main.omg).
 
 Each program binds all four hosted targets and expects exit zero. Run a place
-with `omega run --both <place>/main.omg`; check its twin with `omega --check`.
+with the native/Psi comparison; check its twin with `omega --check`.
 The query boundary has an ordinary checked provider, so both engines can execute
 without an OS foreign binding. No caller guard reconstructs a missing result fact.
 
@@ -59,4 +59,4 @@ unfinished under the parent task.
 
 ## Build-owned target-body migration
 
-The `target_body` place and its twins carry no source target prefix. `BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected by explicit target-keyed Build rows. The operation, inputs, contracts and exit oracle are unchanged. The entry wrapper and each implementation check a tag (17 for x86-64, 29 for AArch64), so a wrong Build row traps. The requirement and its implementations publish `invokes Query` for the boundary call their bodies make. Observed on macOS x86-64 with optimized producers for base 4f87c9e08b1 and for the #1378 head: the migrated positive exits 0 under `omega run --both` (native and Terminal Psi agree) and every twin and control in the place still rejects with its authored fragment. No compiler change was needed. The other hosted targets keep their authored rows, unexecuted here.
+The `target_body` place and its twins carry no source target prefix. `BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected by explicit target-keyed Build rows. The operation, inputs, contracts and exit oracle are unchanged. The entry wrapper and each implementation check a tag (17 for x86-64, 29 for AArch64), so a wrong Build row traps. The requirement and its implementations publish `invokes Query` for the boundary call their bodies make. Observed on macOS x86-64 with optimized producers for base 4f87c9e08b1 and for the #1378 head: the migrated positive exits 0 under the native/Psi comparison (native and Terminal Psi agree) and every twin and control in the place still rejects with its authored fragment. No compiler change was needed. The other hosted targets keep their authored rows, unexecuted here.

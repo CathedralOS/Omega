@@ -634,91 +634,26 @@ machine build(builder: @mutable BuildPlan) {
     );
 }
 
+/// A Build cannot call code from a dependency it registers itself. The
+/// compiler checks the imports the Build needs before it runs, and preparing
+/// the dependency later cannot supply one
+/// (wiki/spec/build/scoped_execution.md, "Checked Build stages"). The fixture
+/// registers `helper` as `support`, waits for it, then calls its `configure`,
+/// so planning refuses that import before any dependency is prepared.
 #[test]
-fn dependent_continuation_runs_after_its_package_was_prepared() {
-    use build_execution::host::requests::BuildDependencyPreparation;
-    use build_execution::{CompileFailure, TerminalBuildActivation};
-    use package_compilation::source_imports::ProductQueryDependency;
-    use package_manager::resolution::source::{
-        AcquiredBuildSource, AcquiredSourceSelection, BuildSourceAcquisitions,
-    };
-    use project_build::PlanningServices;
-
-    struct Helper<'a> {
-        root: &'a AcquiredBuildSource,
-        acquisitions: BuildSourceAcquisitions<'a>,
-        prepared: usize,
-    }
-
-    impl PlanningServices for Helper<'_> {
-        fn prepare_dependency(
-            &mut self,
-            activation: &TerminalBuildActivation,
-            request: &BuildDependencyPreparation,
-        ) -> Result<ProductQueryDependency, CompileFailure> {
-            let selected = self
-                .acquisitions
-                .acquire_issued(
-                    self.root,
-                    activation.requests(),
-                    request.purpose,
-                    request.request_ordinal,
-                )
-                .unwrap();
-            let AcquiredSourceSelection::Source(child) = selected else {
-                panic!("the helper is a local package")
-            };
-            let entry = prepare(
-                PlanningRequest {
-                    root: &child.entry_path(),
-                    sources: PlanningSources::Captured(child.source_capture()),
-                    execution: BuildExecutionInputs {
-                        dependency_activation: true,
-                        ..Default::default()
-                    },
-                    artifact_only: false,
-                },
-                Default::default(),
-                Default::default(),
-            )?;
-            let mut returned = interpret(entry, &mut ())?;
-            let declared = child.declare_build(returned.returned()).unwrap();
-            let subject = declared.identity();
-            let ExecutedSourceResolution::Complete(graph) = declared.resolve().unwrap() else {
-                panic!("the helper declares no dependencies")
-            };
-            let inputs = graph
-                .join_source_result(subject, &mut returned.source_result()?)
-                .unwrap();
-            let product = returned.open_product(Some(&inputs))?;
-            self.prepared += 1;
-            Ok(ProductQueryDependency {
-                max_reach: Default::default(),
-                alias: "support".into(),
-                child_build_source: product.evaluated().base_source_consumption_commitment,
-                inputs,
-                generated: None,
-            })
-        }
-
-        fn declared_source(
-            &mut self,
-            activation: &TerminalBuildActivation,
-        ) -> Result<Option<package_compilation::PackageCompilationInputs>, CompileFailure> {
-            Ok(Some(self.root.declared_source_inputs(activation).unwrap()))
-        }
-    }
-
+fn a_build_cannot_call_a_dependency_it_registers_itself() {
     configure_library();
-    let path = fixture_repository::root().join(
-        "tests/fixtures/build/fail/product_entry_query_foreign_helper_private_entry/main.omg",
-    );
-    let project = begin_local_project_preparation(&path, &[TargetProfile::LinuxX64], true).unwrap();
-    let mut acquisitions = project.source_acquisitions().unwrap();
-    let root = acquisitions
-        .retain_root(project.acquire_root().unwrap())
-        .unwrap();
-    let entry = prepare(
+    let fixture = fixture_repository::root()
+        .join("tests/fixtures/build/fail/build_calls_self_registered_dependency");
+    let build = std::fs::read_to_string(fixture.join("build.omg")).unwrap();
+    let project = begin_local_project_preparation(
+        &fixture.join("main.omg"),
+        &[TargetProfile::LinuxX64],
+        true,
+    )
+    .unwrap();
+    let root = project.acquire_root().unwrap();
+    let diagnostics = prepare(
         PlanningRequest {
             root: &root.entry_path(),
             sources: PlanningSources::Captured(root.source_capture()),
@@ -728,21 +663,17 @@ fn dependent_continuation_runs_after_its_package_was_prepared() {
         Default::default(),
         Default::default(),
     )
-    .unwrap();
-    let mut services = Helper {
-        root: &root,
-        acquisitions,
-        prepared: 0,
-    };
-    let refusal = interpret(entry, &mut services)
-        .err()
-        .expect("the second stage needs a Product query service");
-    assert_eq!(services.prepared, 1);
-    let diagnostics = refusal.into_diagnostics();
+    .err()
+    .expect("a self-registered dependency's import must refuse before the Build runs")
+    .into_diagnostics();
     assert!(
-        diagnostics
-            .iter()
-            .any(|d| d.message.contains("without a granted query service")),
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message
+                == "Build import `{support}/configure/configure.omg as configure` has no supplied source"
+                && diagnostic
+                    .source_span
+                    .is_some_and(|span| Some(span.span.start) == build.find("{support}"))
+        }),
         "{diagnostics:?}"
     );
 }

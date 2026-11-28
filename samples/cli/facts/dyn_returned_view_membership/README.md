@@ -73,7 +73,7 @@ Requirements:
   descriptor contents are observable as 2 or 3.
 - Composition: the join executes both arms across the two rows; the field
   place keeps its marker beside the view.
-- Psi 06-08: `--both` runs the Terminal interpreter on every positive.
+- Psi 06-08: the native/Psi comparison runs the Terminal interpreter on every positive.
 - Omega 00-09: the returned descriptor uses the two-word result placement and
   executes natively on macOS x86-64.
 

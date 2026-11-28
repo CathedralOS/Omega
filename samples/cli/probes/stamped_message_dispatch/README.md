@@ -11,9 +11,11 @@ of 23.
 Run from the repository root:
 
 ```sh
-omega run --engine native samples/cli/collections/stamped_message_dispatch/main.omg
-omega run --engine psi samples/cli/collections/stamped_message_dispatch/main.omg
+omega run samples/cli/collections/stamped_message_dispatch/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/probes/stamped_message_dispatch` from the repository root.
 
 Both authored branches run through native and Terminal execution. Case
 selection preserves the common metadata and selected payload without extending

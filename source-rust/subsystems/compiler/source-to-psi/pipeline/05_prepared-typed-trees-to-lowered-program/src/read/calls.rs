@@ -528,10 +528,7 @@ impl<'t> Program<'t> {
         {
             return Err(unserved("named member belongs to another implementation"));
         }
-        let machine = self
-            .typed
-            .machine_by_symbol(capture.instance)
-            .ok_or_else(|| unserved("named capture lost its actual machine"))?;
+        let machine = self.required_machine(id, capture.instance, "captured instance")?;
         let Some([entry]) = self.typed.machine_states(machine).as_array() else {
             return Err(unserved("named capture without one actual entry"));
         };
@@ -947,9 +944,7 @@ impl<'t> Program<'t> {
                 return unserved("private placement requires its sealed core machine");
             }
             if self.publication != terminal_codec::TerminalPublication::LayoutPolicyInvocation {
-                let Some(&caller) = self.symbols.get(id) else {
-                    return unserved("private placement has no source caller");
-                };
+                let caller = self.machine_symbol(id)?;
                 self.exact_toolchain_sources()
                     .map_err(str::to_owned)
                     .and_then(|sources| {
@@ -1565,12 +1560,7 @@ impl<'t> Program<'t> {
         let readiness = match readiness {
             Some(requirement) => {
                 let typed = self.typed;
-                let lexical_owner = *self.symbols.get(id).ok_or_else(|| {
-                    refuse_at(
-                        id,
-                        Unserved::Call("Build provider readiness without its selecting machine"),
-                    )
-                })?;
+                let lexical_owner = self.machine_symbol(id)?;
                 let scope = typed
                     .build_provider_requirement_scope(requirement, lexical_owner)
                     .map_err(|reason| refuse_at(id, Unserved::Call(reason)))?;
@@ -1789,7 +1779,15 @@ impl<'t> Program<'t> {
     ) -> Checked<Expression> {
         let (callee, dispatch, operand, operand_owner, value_arguments, static_record) = selection;
         let unserved = |what| Err(refuse_at(id, Unserved::Call(what)));
-        let (required, _) = self.requirement_signature(
+        let machine = self.machine_symbol(callee)?;
+        // The requirement's clauses name rows of the selected body's
+        // implementation, such as the `equals` a law is about.
+        let conformance = self
+            .typed
+            .owned_conformance_realization(machine)
+            .map(|(conformance, _)| conformance.symbol);
+        let outer = std::mem::replace(&mut self.witness_conformance, conformance);
+        let required = self.requirement_signature(
             id,
             required_source,
             if required_source.type_parameters.is_empty() {
@@ -1797,13 +1795,9 @@ impl<'t> Program<'t> {
             } else {
                 &value_arguments
             },
-        )?;
-        let machine = *self.symbols.get(callee).ok_or_else(|| {
-            refuse_at(
-                id,
-                Unserved::Call("selected body lost its exact source declaration"),
-            )
-        })?;
+        );
+        self.witness_conformance = outer;
+        let (required, _) = required?;
         let supplied = self
             .signatures
             .get(callee)
@@ -1916,10 +1910,7 @@ impl<'t> Program<'t> {
                 );
             }
         };
-        let machine = self
-            .typed
-            .machine_by_symbol(body)
-            .ok_or_else(|| refuse_at(id, Unserved::Call("named call lost its actual body")))?;
+        let machine = self.required_machine(id, body, "named call target")?;
         let Some([entry]) = self.typed.machine_states(machine).as_array() else {
             return Err(refuse_at(
                 id,
@@ -1933,12 +1924,7 @@ impl<'t> Program<'t> {
             realization_machine: body,
             realization_state: entry.symbol,
         };
-        let lexical_owner = *self.symbols.get(id).ok_or_else(|| {
-            refuse_at(
-                id,
-                Unserved::Call("named member lost its actual source caller"),
-            )
-        })?;
+        let lexical_owner = self.machine_symbol(id)?;
         let (operand, supplier) = self
             .typed
             .source_call_selected_operand(lexical_owner, call)
@@ -2232,6 +2218,7 @@ impl<'t> Program<'t> {
                             TypeParameterKind::Type
                                 | TypeParameterKind::Const { .. }
                                 | TypeParameterKind::Value { .. }
+                                | TypeParameterKind::Machine { .. }
                         )
                     })
             {
@@ -2275,12 +2262,7 @@ impl<'t> Program<'t> {
             ));
         }
         self.direct_selection(id, call.target, call.selection, call.binding)?;
-        let caller = self.symbols.get(id).copied().ok_or_else(|| {
-            refuse_at(
-                id,
-                Unserved::Call("generic application has no source caller"),
-            )
-        })?;
+        let caller = self.machine_symbol(id)?;
         let arguments = self.application_arguments(
             id,
             caller,
@@ -2289,6 +2271,7 @@ impl<'t> Program<'t> {
             call.authored_arguments,
         )?;
         let callee = if let Some((owner, requirement)) = boundary {
+            self.require_ordinary_boundary_call(id, requirement.symbol)?;
             self.visible_to(id, target)?;
             self.declared_service(id, owner)?;
             self.require_closed_callable(id, requirement, "boundary requirement")?;
@@ -2328,7 +2311,7 @@ impl<'t> Program<'t> {
             if arguments
                 .values
                 .iter()
-                .all(|term| !matches!(term, semantic_vocabulary::ScalarTerm::Value { .. }))
+                .all(|term| matches!(term, super::applications::ValueArgument::Scalar(value) if !matches!(value, semantic_vocabulary::ScalarTerm::Value { .. })))
             {
                 return Ok(None);
             }
@@ -2377,12 +2360,35 @@ impl<'t> Program<'t> {
         &self,
         id: MachineId,
         slots: &[Slot],
-        values: &[semantic_vocabulary::ScalarTerm],
+        values: &[super::applications::ValueArgument],
         source: SourceOrigin,
     ) -> Checked<Vec<Expression>> {
         use semantic_vocabulary::ScalarTerm;
         let mut operands = Vec::with_capacity(values.len());
-        for value in values {
+        for argument in values {
+            let value = match argument {
+                super::applications::ValueArgument::Scalar(value) => value,
+                super::applications::ValueArgument::Structural { formal, carrier } => {
+                    let index = slots
+                        .iter()
+                        .position(|slot| slot.symbol == *formal && slot.value_type == *carrier)
+                        .ok_or_else(|| {
+                            refuse_at(
+                                id,
+                                Unserved::Call(
+                                    "structural static argument has no matching caller slot",
+                                ),
+                            )
+                        })?;
+                    operands.push(Expression {
+                        call_context: None,
+                        kind: ExpressionKind::Slot(index),
+                        result: Some(*carrier),
+                        source,
+                    });
+                    continue;
+                }
+            };
             let scalar_type = value.scalar_type();
             let kind = match value {
                 ScalarTerm::Value { id: value, .. } => {
@@ -2435,6 +2441,7 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
     ) -> Checked<CallBinding<'t>> {
         let invocation = self.static_invocation(call);
+        self.requirement_callbacks(id, invocation.target, invocation.application)?;
         if let Some(application) = self.theorem_application(id, slots, call, invocation, source)? {
             return Ok(CallBinding::Generic(application));
         }
@@ -2504,9 +2511,7 @@ impl<'t> Program<'t> {
                 )?;
                 Vec::new()
             } else {
-                let caller = self.symbols.get(id).copied().ok_or_else(|| {
-                    refuse_at(id, Unserved::Call("packed operation has no source caller"))
-                })?;
+                let caller = self.machine_symbol(id)?;
                 let application = self.application_arguments(
                     id,
                     caller,
@@ -2524,7 +2529,17 @@ impl<'t> Program<'t> {
                         Unserved::Call("packed operation received unexpected generic arguments"),
                     ));
                 }
-                application.values
+                application
+                    .values
+                    .into_iter()
+                    .map(|argument| match argument {
+                        super::applications::ValueArgument::Scalar(term) => Ok(term),
+                        super::applications::ValueArgument::Structural { .. } => Err(refuse_at(
+                            id,
+                            Unserved::Call("packed operation immediate must be a scalar"),
+                        )),
+                    })
+                    .collect::<Checked<Vec<_>>>()?
             };
             let expr = self.packed_integer(
                 id,
@@ -2546,7 +2561,7 @@ impl<'t> Program<'t> {
         )?;
         let (authored, binding) =
             self.static_machine_target(id, invocation.target, invocation.binder)?;
-        let caller = self.symbols.get(id).copied().unwrap_or_default();
+        let caller = self.machine_symbol(id)?;
         let member = self
             .typed
             .source_conformance_call_member(caller, call)
@@ -2645,11 +2660,7 @@ impl<'t> Program<'t> {
                 ));
             }
             let application = table.static_machine_application(invocation.application);
-            let caller = self
-                .symbols
-                .get(id)
-                .copied()
-                .ok_or_else(|| unavailable("logical application has no exact source caller"))?;
+            let caller = self.machine_symbol(id)?;
             if (caller != application.lexical_owner
                 && self
                     .typed
@@ -3047,11 +3058,7 @@ impl<'t> Program<'t> {
         } else {
             self.requirement(requirement, &value_arguments)?
         };
-        let owner = self
-            .symbols
-            .get(id)
-            .copied()
-            .ok_or_else(|| unserved("static callback has no caller"))?;
+        let owner = self.machine_symbol(id)?;
         let parameters = self.typed.declaration_type_parameters(owner);
         let mut parameter = record.as_ref().map_or(target, |(receiver, _, _)| *receiver);
         while parameter.is_valid()

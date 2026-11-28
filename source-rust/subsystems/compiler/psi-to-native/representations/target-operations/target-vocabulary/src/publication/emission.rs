@@ -1,5 +1,5 @@
 //! Provenance and semantic obligations carried out of native planning.
-use optimization_core::{OptimizationUnitIdentity, OptimizedAbstractPlanProjectionIdentity};
+use optimization_core::{OptimizationSelectionIdentity, OptimizationUnitIdentity};
 use semantic_vocabulary::{MachineId, OperationId, PlaceId, StructuralTypeId};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -98,7 +98,7 @@ pub enum RamSource {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OptimizedProgramProjection {
-    pub identity: OptimizedAbstractPlanProjectionIdentity,
+    pub selection: OptimizationSelectionIdentity,
     pub terminal: terminal_psi::TerminalPsiIdentity,
     pub final_unit: OptimizationUnitIdentity,
 }

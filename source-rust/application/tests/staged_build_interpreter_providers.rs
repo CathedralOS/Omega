@@ -118,29 +118,28 @@ machine build(builder: @mutable BuildPlan) {{
     sandbox
 }
 
-fn run(project: &TemporaryDirectory, engine: &str) -> (Output, String) {
-    let outputs = project.path().join(engine);
-    let output = project::omega(
-        &project.path().join("app"),
-        &[
-            "run",
-            "--engine",
-            engine,
-            "--outputs",
-            outputs.to_str().unwrap(),
-            "--build-input",
-            "build.omg",
-            "--build-input",
-            "configure.omg",
-            "--optional-build-input",
-            "product.omg",
-            "--optional-build-input",
-            "main.omg",
-            "--optional-build-input",
-            "backings.omg",
-            "build.omg",
-        ],
-    );
+const BUILD_INPUTS: &[&str] = &[
+    "--build-input",
+    "build.omg",
+    "--build-input",
+    "configure.omg",
+    "--optional-build-input",
+    "product.omg",
+    "--optional-build-input",
+    "main.omg",
+    "--optional-build-input",
+    "backings.omg",
+    "build.omg",
+];
+
+fn run(project: &TemporaryDirectory) -> (Output, String) {
+    let outputs = project.path().join("psi");
+    let arguments = [
+        &["run", "--outputs", outputs.to_str().unwrap()][..],
+        BUILD_INPUTS,
+    ]
+    .concat();
+    let output = project::omega(&project.path().join("app"), &arguments);
     let report = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
@@ -166,23 +165,23 @@ fn changing_only_the_interpreter_selection_changes_the_final_product() {
                 "",
                 ProductEntries::Separate,
             );
-            for engine in ["native", "psi"] {
-                let (output, report) = run(&fixture, engine);
-                assert!(output.status.success(), "{provider} {engine}: {report}");
-                let termination =
-                    fs::read_to_string(fixture.path().join(engine).join("termination.tsv"))
-                        .unwrap();
-                if engine == "psi" {
-                    assert_eq!(termination.trim_end(), psi_termination, "{provider}");
-                } else {
-                    let columns: Vec<_> = termination.trim_end().split('\t').collect();
-                    let expected = if native_trap {
-                        matches!(columns.as_slice(), ["native", _, _, "trap", _])
-                    } else {
-                        matches!(columns.as_slice(), ["native", "exit", "0", _, _])
-                    };
-                    assert!(expected, "{provider}: {termination}");
-                }
+            let (output, report) = run(&fixture);
+            assert!(output.status.success(), "{provider}: {report}");
+            let termination =
+                fs::read_to_string(fixture.path().join("psi/termination.tsv")).unwrap();
+            assert_eq!(termination.trim_end(), psi_termination, "{provider}");
+
+            let compiled = project::build_and_run(&fixture.path().join("app"), BUILD_INPUTS);
+            if native_trap {
+                let status =
+                    project_build::observations::ProcessExitObservation::observe(&compiled.status);
+                assert_eq!(
+                    status.matches_crash_presentation(terminal_psi::CrashCause::Trap),
+                    Some(true),
+                    "{compiled:?}"
+                );
+            } else {
+                assert!(compiled.status.success(), "{compiled:?}");
             }
         }
     }
@@ -198,7 +197,7 @@ fn a_successor_with_an_unmapped_service_cannot_begin_execution() {
         poison,
         ProductEntries::Separate,
     );
-    let (output, report) = run(&fixture, "psi");
+    let (output, report) = run(&fixture);
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains("before entry; no interpreter provider or host binding was supplied"),
@@ -216,7 +215,7 @@ fn a_successor_with_an_unmapped_service_cannot_begin_execution() {
         poison,
         ProductEntries::Separate,
     );
-    let (output, report) = run(&admitted, "psi");
+    let (output, report) = run(&admitted);
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains("requires a PackageBinding this activation issued"),
@@ -242,7 +241,7 @@ fn the_selected_build_provider_must_have_its_imports_before_entry() {
             ProductEntries::Separate,
         );
         fs::write(fixture.path().join("app/backings.omg"), &backings).unwrap();
-        let (output, report) = run(&fixture, "psi");
+        let (output, report) = run(&fixture);
         assert!(!output.status.success(), "{provider}: {report}");
         assert!(report.contains(refusal), "{provider}: {report}");
     }
@@ -257,7 +256,7 @@ fn a_shared_product_entry_cannot_use_the_builds_meter_dependency() {
         "",
         ProductEntries::SharedWithBuild,
     );
-    let (output, report) = run(&fixture, "psi");
+    let (output, report) = run(&fixture);
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains("dependency `meter` is unavailable in the product scope"),

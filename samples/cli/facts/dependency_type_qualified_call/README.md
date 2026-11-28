@@ -50,17 +50,16 @@ The repair has two parts. `assign_name_symbol` now keeps a chain that names ever
 
 ## Execution
 
-Every positive binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) in its `build.omg` and declares `Expected exit: 0`. `omega run --both` reports Terminal Psi interpreter and native execution agreement:
+Every positive binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) in its `build.omg` and declares `Expected exit: 0`. The native/Psi comparison reports Terminal Psi interpreter and native execution agreement:
 
 ```sh
-omega run --engine native samples/cli/facts/dependency_type_qualified_call/<place>/main.omg < /dev/null
-omega run --engine psi samples/cli/facts/dependency_type_qualified_call/<place>/main.omg < /dev/null
+omega run samples/cli/facts/dependency_type_qualified_call/<place>/main.omg < /dev/null
 omega --check samples/cli/facts/dependency_type_qualified_call/<place>/invalid/main.omg < /dev/null
 ```
 
 Measured on Windows x86-64 with an optimized producer built from `2f167b2a795` plus this change (`opt_level: 1`):
 
-- All twelve positives report `native exit 0` and `interp exit: 0` through `omega run --both`.
+- All twelve positives report `native exit 0` and `interp exit: 0` through the native/Psi comparison.
 - Eleven twins exit at compile time with ``cannot prove requires contract for call <callee> from <caller>: left.value > 0``: `describe` from `main` in `local`, `field`, `call_result`, `match_join`, `const_name` and `by_value`, `add` from `main` in `operator_token`, `describe` from `check` and from `X86Observe::observe` in the nested-machine and target-body places, and `observe` and `relay` from `main` in the two places whose forwarding machines carry the premise. The `private_helper` twin exits with ``selects private machine `ops::Wrapped::describe::describe` ``.
 - The unmodified base producer fails all twelve positives and all twelve twins with the diagnostic above, so none of the twenty-four meets its oracle at base.
 

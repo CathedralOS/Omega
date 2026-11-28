@@ -18,9 +18,11 @@ success exits 70 and a failed check exits 71–80.
 To check all five conversions in both engines, run this from the repository root.
 
 ```sh
-omega run --engine native samples/cli/basics/unit_converter/build.omg
-omega run --engine psi samples/cli/basics/unit_converter/build.omg
+omega run samples/cli/basics/unit_converter/build.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/basics/unit_converter` from the repository root.
 
 Press Enter at the final prompt. On Linux x86-64, the program prints
 `PASS: all five conversions landed in tolerance (exit 70)` and both engines

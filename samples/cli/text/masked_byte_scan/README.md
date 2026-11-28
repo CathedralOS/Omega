@@ -7,7 +7,7 @@ The parser accepts upper/lowercase hex and rejects invalid digits, odd lengths,
 and insufficient output space; it may leave a successfully decoded prefix on
 failure. Empty input parses to zero bytes.
 
-`omega run --both samples/cli/text/masked_byte_scan/main.omg` must exit 0 on
+the native/Psi comparison must exit 0 on
 both engines. The program checks parsed values/masks, match positions, unchanged
 output sentinels, capacity truncation, empty input and parser failures. This is a
 language pressure program for signature scanning, not a Squalr port substitute.

@@ -8,7 +8,7 @@ not inspect or depend on the evidence.
 
 Run `omega packages update --project samples/cli/erased_array_evidence --target linux_x86_64`,
 complete this checkout's package review, then run
-`omega run --both samples/cli/erased_array_evidence/main.omg`.
+`mbx xtask sample-gate --filter samples/cli/probes/erased_array_evidence`.
 
 The `sources` mode checks the related positive and invalid fixtures; `inspection`
 observes their retained evidence and separate runtime signatures.

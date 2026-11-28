@@ -12,7 +12,7 @@ fn fixture_path(tier: &str) -> std::path::PathBuf {
 }
 
 #[test]
-fn lifetime_callback_contracts_run_in_both_engines() {
+fn lifetime_callback_contracts_run_when_interpreted_and_built() {
     program::assert_fixture_silent_return(&fixture_path("run"));
 }
 

@@ -797,8 +797,10 @@ impl Program<'_> {
     /// route reads. So the reading holds both to what the reading of an
     /// application serves (`source_records::source_application`):
     ///
-    /// - the header binds types and constants with copyable, address-free
-    ///   carriers, with no bound, lifetime, cleanup or quotient;
+    /// - type parameters may require stored multiplicities; each application
+    ///   checks the supplied type against them. Constant carriers must be
+    ///   copyable and address-free. Lifetimes, conformance bounds, cleanup
+    ///   and quotients have separate formation rules;
     ///   a declared predicate has its own generic formation check;
     /// - each member is an ordinary runtime field or payload field, and its
     ///   type is built from builtin scalars, the header's own type
@@ -830,21 +832,21 @@ impl Program<'_> {
         }
         let parameters = typed.data_type_parameters(data);
         for parameter in parameters {
-            let served = parameter.bounds == crate::source_state::data::DataProperties::default()
-                && match parameter.kind {
-                    TypeParameterKind::Type => true,
-                    TypeParameterKind::Const { type_reference }
-                    | TypeParameterKind::Value { type_reference } => {
-                        crate::source_state::canonical_const_carrier_is_supported(
+            let served = match parameter.kind {
+                TypeParameterKind::Type => true,
+                TypeParameterKind::Const { type_reference }
+                | TypeParameterKind::Value { type_reference } => {
+                    parameter.bounds == crate::source_state::data::DataProperties::default()
+                        && crate::source_state::canonical_const_carrier_is_supported(
                             typed,
                             type_reference,
                         )
-                    }
-                    _ => false,
-                };
+                }
+                _ => false,
+            };
             if !served {
                 return Err(unserved(
-                    "generic data with a bounded parameter or unsupported canonical const carrier",
+                    "generic data with an unsupported parameter kind or const carrier",
                 ));
             }
         }
@@ -942,8 +944,14 @@ impl Program<'_> {
                 self.template_type(entry, declaration, parameters, *element_type, depth + 1)
             }
             TypeReferenceNode::Constrained { .. } => {
-                // Keep the qualification's formation checks. Reading only its
-                // underlying type would accept a domain on the wrong carrier.
+                // Checking a qualified field can form a record over a rigid
+                // binder. That record belongs to the declaration's check form.
+                if !self.is_generic_check_form() && !self.reading_schema {
+                    if !self.generic_templates.contains(&declaration) {
+                        self.generic_templates.push(declaration);
+                    }
+                    return Ok(());
+                }
                 self.value_type(entry, reference).map(|_| ())
             }
             TypeReferenceNode::Generic {
@@ -1026,7 +1034,6 @@ impl Program<'_> {
     ) -> Checked<()> {
         use crate::source_state::data::TypeParameterKind;
         let diagnostic = MachineId::new(1).expect("1 is nonzero");
-        self.subject_data_template(diagnostic, declared)?;
         let parameters = self.typed.data_type_parameters(declared);
         // `data Index<Limit: u32> requires value < Limit` holds for every
         // `Limit`, so the predicate is formed with each `const` or value
@@ -1078,7 +1085,10 @@ impl Program<'_> {
             .extend(parameters.iter().map(|parameter| parameter.symbol));
         self.source_scope = std::sync::Arc::new(source);
         self.admitted_declarations.include(declared.symbol);
-        self.record_at(diagnostic, declared.predicate_subject_type)?;
+        self.subject_data_template(diagnostic, declared)?;
+        if !declared.requires_facts.is_empty() {
+            self.record_at(diagnostic, declared.predicate_subject_type)?;
+        }
         Ok(())
     }
 

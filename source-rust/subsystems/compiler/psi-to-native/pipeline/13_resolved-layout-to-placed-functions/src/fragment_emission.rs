@@ -1,320 +1,207 @@
+//! Project resolved instructions and their fixups directly into framed function coordinates.
 use machine_code::fragment_origins::{
     FragmentFunctionOrigin, FragmentInstructionOrigin, FragmentOrigins,
 };
-/*
-We project a validated function-relative realization's resolved machine layout
-into unplaced function fragments.
 
-The resolved program supplies the frame, register environment and encoded instructions.
-Original allocation and layout inputs accompany it only for explicit verification.
-`stage_optimized_function_fragment_emission` projects each function's fragment
-bytes, block and instruction spans, semantic control provenance, and
-function-relative fixup coordinates (`emit_resolved_function_fragments`).
-`validate_optimized_function_fragment_emission` independently replays the source
-realization and checks fragment bytes, spans, control provenance, and fixup
-shifts against the retained resolved layout without constructing a replacement
-fragment plan.
-*/
-
-use crate::function_realization::{
-    FunctionRelativeOptimizationRealizationError, StagedFixedFrameFunctionRelativeRealization,
-    ValidatedFunctionRelativeOptimizationRealizationManifest,
-    validate_fixed_frame_function_relative_realization,
-};
 #[cfg(test)]
 use machine_code::FunctionFragmentSuccessorProvenance;
 use machine_code::{
-    FunctionFragment, FunctionFragmentBlockSpan, FunctionFragmentBranchEvidence,
-    FunctionFragmentConditionalBranchEvidence, FunctionFragmentEmissionPlan,
+    FunctionFragment, FunctionFragmentBlockSpan, FunctionFragmentEmissionPlan,
     FunctionFragmentInstructionSpan, FunctionFragmentInternalMachineFixup,
-    FunctionFragmentInternalMachineFixupKind, FunctionFragmentInternalMachineFixupState,
-    FunctionFragmentNormalizedForeignCallFixup, FunctionFragmentNormalizedForeignCallFixupKind,
-    FunctionFragmentNormalizedForeignCallFixupState, ResolvedBranchEvidence, ResolvedMachineLayout,
-    ResolvedMachineProgram, ResolvedSelectedBlockLayout, ResolvedSelectedFormRow,
-    ResolvedSelectedFunctionLayout, SelectedFormInternalMachineFixupKind,
-    SelectedFormInternalMachineFixupState, SelectedFormNormalizedForeignCallFixupKind,
-    SelectedFormNormalizedForeignCallFixupState,
+    FunctionFragmentInternalMachineFixupState, FunctionFragmentNormalizedForeignCallFixup,
+    FunctionFragmentNormalizedForeignCallFixupState, ResolvedMachineLayout, ResolvedMachineProgram,
+    ResolvedSelectedBlockLayout, ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout,
+    SelectedFormInternalMachineFixupState, SelectedFormNormalizedForeignCallFixupState,
 };
 #[cfg(test)]
 use selected_instructions::{
     SelectedFunction, SelectedInstruction, SelectedInstructionKind, SelectedSuccessor,
     SelectedTerminator,
 };
-use semantic_vocabulary::MachineId;
 use std::sync::Arc;
-
-pub fn stage_optimized_function_fragment_emission(
-    source: StagedOptimizedFunctionFragmentEmissionSource,
-) -> Result<StagedOptimizedFunctionFragmentEmission, FunctionFragmentEmissionError> {
-    let fragments = compute(&source)?;
-    Ok(StagedOptimizedFunctionFragmentEmission {
-        frame_input: FragmentFrameInput::from_layout(source.program()),
-        source,
-        fragments: Arc::new(fragments),
-    })
-}
-
-pub(crate) fn validate_optimized_function_fragment_emission(
-    staged: &StagedOptimizedFunctionFragmentEmission,
-) -> Result<(), FunctionFragmentEmissionError> {
-    validate_source(&staged.source)?;
-    if staged.frame_input != FragmentFrameInput::from_layout(staged.source.program()) {
-        return Err(FunctionFragmentEmissionError::ArtifactMismatch);
-    }
-    check_roots(&staged.source, &staged.fragments)?;
-    validate_resolved_function_fragments(staged.source.program(), &staged.fragments)?;
-    Ok(())
-}
-
-/// The fields carried from resolved layout into frame application and object readback.
-#[derive(Debug, PartialEq, Eq)]
-pub(super) struct FragmentFrameInput {
-    pub controls: Arc<[machine_code::EncodedControlIndex]>,
-    pub bindings: machine_code::import_code::EncodedBodyBindings,
-    pub environment: register_environment::ValidatedTargetRegisterEnvironment,
-    pub instruction_effects: Arc<[machine_code::placed_body::PlacedInstructionEffects]>,
-    pub layout: Arc<ResolvedMachineLayout>,
-    pub frame: Arc<machine_code::TargetFrameLayoutPlan>,
-    pub protocol: Arc<machine_code::TargetFrameProtocolEncodingPlan>,
-    pub allocation: Arc<register_homes::AllocationPublicationFacts>,
-}
-
-impl FragmentFrameInput {
-    fn from_layout(program: &ResolvedMachineProgram) -> Self {
-        Self {
-            controls: Arc::clone(&program.control_alternatives),
-            bindings: program.bindings.clone(),
-            environment: program.context.environment.clone(),
-            instruction_effects: program.exit_requirements.placed_instruction_effects(),
-            layout: Arc::clone(&program.layout),
-            frame: Arc::clone(&program.frame),
-            protocol: Arc::clone(&program.protocol),
-            allocation: Arc::clone(&program.context.publication),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct StagedOptimizedFunctionFragmentEmission {
-    pub(super) frame_input: FragmentFrameInput,
-    source: StagedOptimizedFunctionFragmentEmissionSource, // Retained current program and replay source inputs.
-    fragments: Arc<FunctionFragmentEmissionPlan>, // Unplaced function fragments projected from layout.
-}
-
-impl StagedOptimizedFunctionFragmentEmission {
-    pub const fn source(&self) -> &StagedOptimizedFunctionFragmentEmissionSource {
-        &self.source
-    }
-
-    pub fn fragments(&self) -> &FunctionFragmentEmissionPlan {
-        &self.fragments
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FunctionFragmentEmissionError {
-    Source(FunctionRelativeOptimizationRealizationError),
-    SourceKindMismatch,
-    MissingFunction(MachineId),
-    MissingBlock(selected_instructions::SelectedBlockId),
-    MissingInstruction(selected_instructions::SelectedInstructionId),
-    OffsetOverflow,
-    RootMismatch,
-    ArtifactMismatch,
-}
-
-diagnostics::failed_display!(
-    FunctionFragmentEmissionError,
-    "optimized function-fragment emission failed"
-);
-
-impl std::error::Error for FunctionFragmentEmissionError {}
-
-impl From<ResolvedFragmentEmissionError> for FunctionFragmentEmissionError {
-    fn from(error: ResolvedFragmentEmissionError) -> Self {
-        use ResolvedFragmentEmissionError as Source;
-        match error {
-            Source::MissingFunction(value) => Self::MissingFunction(value),
-            Source::MissingBlock(value) => Self::MissingBlock(value),
-            Source::MissingInstruction(value) => Self::MissingInstruction(value),
-            Source::OffsetOverflow => Self::OffsetOverflow,
-            Source::RootMismatch => Self::RootMismatch,
-            Source::ArtifactMismatch => Self::ArtifactMismatch,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct StagedOptimizedFunctionFragmentEmissionSource {
-    realization: StagedFixedFrameFunctionRelativeRealization,
-}
-
-impl StagedOptimizedFunctionFragmentEmissionSource {
-    pub(crate) fn new(realization: StagedFixedFrameFunctionRelativeRealization) -> Self {
-        Self { realization }
-    }
-
-    pub fn program(&self) -> &ResolvedMachineProgram {
-        self.realization.program()
-    }
-
-    pub fn register_environment(
-        &self,
-    ) -> &register_environment::ValidatedTargetRegisterEnvironment {
-        &self.program().context.environment
-    }
-
-    pub fn frame_layout(&self) -> &machine_code::TargetFrameLayoutPlan {
-        &self.realization.program().frame
-    }
-
-    pub fn function_relative_manifest(
-        &self,
-    ) -> &ValidatedFunctionRelativeOptimizationRealizationManifest {
-        self.realization.manifest()
-    }
-
-    pub fn post_allocation_manifest(&self) -> &register_homes::AllocationPublicationFacts {
-        &self.program().context.publication
-    }
-
-    pub fn relaxed_layout(&self) -> &placement::SettledFunctionLayout {
-        self.realization.relaxed_layout()
-    }
-
-    /// Check the placed frame and exits against requirements reconstructed by the auditor.
-    pub fn verify_frame_requirements(
-        &self,
-        requirements: &register_homes::AllocatedCalleeSavedRequirements,
-    ) -> Result<(), FunctionFragmentEmissionError> {
-        validate_source(self)?;
-        crate::function_realization::check_published_realization(&self.realization, requirements)
-            .map_err(FunctionFragmentEmissionError::Source)?;
-        Ok(())
-    }
-}
-
-fn validate_source(
-    source: &StagedOptimizedFunctionFragmentEmissionSource,
-) -> Result<(), FunctionFragmentEmissionError> {
-    validate_fixed_frame_function_relative_realization(&source.realization)
-        .map_err(FunctionFragmentEmissionError::Source)?;
-    Ok(())
-}
-
-fn compute(
-    source: &StagedOptimizedFunctionFragmentEmissionSource,
-) -> Result<FunctionFragmentEmissionPlan, FunctionFragmentEmissionError> {
-    let fragments = emit_resolved_function_fragments(source.program())?;
-    check_roots(source, &fragments)?;
-    Ok(fragments)
-}
-
-/// The realization, its allocation facts and the fragments must all describe
-/// the same selected program and resolved layout.
-fn check_roots(
-    source: &StagedOptimizedFunctionFragmentEmissionSource,
-    fragments: &FunctionFragmentEmissionPlan,
-) -> Result<(), FunctionFragmentEmissionError> {
-    let realization = source.function_relative_manifest().record();
-    if source.post_allocation_manifest().record().selected != fragments.selected
-        || realization.selected != fragments.selected
-        || realization.resolved_layout != source.program().layout
-    {
-        return Err(FunctionFragmentEmissionError::RootMismatch);
-    }
-    Ok(())
-}
 
 pub(crate) use machine_code::fragment_origins::ResolvedFragmentEmissionError;
 
-pub(crate) fn emit_resolved_function_fragments(
+use crate::FunctionTextLayoutError;
+use crate::frame_application::{FrameWriter, FunctionFragmentFrameApplicationError as FrameError};
+use crate::relative_branches::FunctionFrameBranchOrigins;
+
+impl From<ResolvedFragmentEmissionError> for FunctionTextLayoutError {
+    fn from(error: ResolvedFragmentEmissionError) -> Self {
+        Self::Fragment(error)
+    }
+}
+
+impl From<FrameError> for FunctionTextLayoutError {
+    fn from(error: FrameError) -> Self {
+        Self::Frame(error)
+    }
+}
+
+pub(super) struct FramedFunctions {
+    pub application: machine_code::FunctionFragmentFrameApplication,
+    pub unframed: Option<FunctionFragmentEmissionPlan>,
+    pub branches: Vec<FunctionFrameBranchOrigins>,
+}
+
+pub(super) fn emit_functions(
     program: &ResolvedMachineProgram,
-) -> Result<FunctionFragmentEmissionPlan, ResolvedFragmentEmissionError> {
+    retain_original: bool,
+    check_branches: bool,
+) -> Result<FramedFunctions, FunctionTextLayoutError> {
     let selected = &program.fragment_origins;
     let layout = &program.layout;
-    if selected.target != layout.target || layout.machine.selected != selected.selected {
-        return Err(ResolvedFragmentEmissionError::RootMismatch);
+    if selected.target != layout.target
+        || layout.machine.selected != selected.selected
+        || selected.functions.len() != layout.functions.len()
+        || program.context.publication.record().selected != selected.selected
+        || program.context.machine.plan.selected != selected.selected
+    {
+        return Err(ResolvedFragmentEmissionError::RootMismatch.into());
+    }
+    let protocol = &program.protocol;
+    if selected.target != protocol.target {
+        return Err(FrameError::RootMismatch.into());
+    }
+    if selected.functions.len() != protocol.functions.len()
+        || selected.functions.len() != program.control_alternatives.len()
+    {
+        return Err(FrameError::FunctionRosterMismatch.into());
     }
     let mut fragments = FunctionFragmentEmissionPlan {
         psi: selected.psi,
         work_schedule: selected.work_schedule,
-        selected: Arc::clone(&layout.machine.selected),
+        selected: Arc::clone(&selected.selected),
         target: selected.target,
         entry: selected.entry,
-        functions: Vec::new(),
+        functions: Vec::with_capacity(selected.functions.len()),
     };
-    if selected.functions.len() != layout.functions.len() {
-        return Err(ResolvedFragmentEmissionError::RootMismatch);
-    }
-    for function in selected.functions.iter() {
+    let mut unframed = retain_original.then(|| fragments.clone());
+    let mut branches = Vec::new();
+    let mut frames = Vec::with_capacity(selected.functions.len());
+    for (function, controls) in selected
+        .functions
+        .iter()
+        .zip(&program.control_alternatives[..])
+    {
         let resolved = layout.function(function.machine).ok_or(
             ResolvedFragmentEmissionError::MissingFunction(function.machine),
         )?;
-        fragments
-            .functions
-            .push(emit_ordinary_function(function, resolved)?);
+        let row = crate::frame_application::unique_protocol(protocol, function.machine)?;
+        let prologue = row
+            .prologue
+            .bytes(&protocol.bytes)
+            .ok_or(FrameError::InvalidProtocolSpan(function.machine))?;
+        let epilogue = row
+            .epilogue
+            .bytes(&protocol.bytes)
+            .ok_or(FrameError::InvalidProtocolSpan(function.machine))?;
+        let writer = FrameWriter::new(function.machine, resolved.byte_count, prologue, epilogue)?;
+        let (mut fragment, mut frame) = emit_function(function, resolved, writer)?;
+        if check_branches {
+            branches.push(crate::frame_application::branch_origins(
+                &fragment, controls,
+            ));
+        }
+        if let Some(original) = &mut unframed {
+            let writer = FrameWriter::new(function.machine, resolved.byte_count, &[], &[])?;
+            original
+                .functions
+                .push(emit_function(function, resolved, writer)?.0);
+        }
+        crate::frame_application::patch_branches(
+            &mut fragment,
+            &mut frame.epilogues,
+            selected.target.architecture,
+            controls,
+        )?;
+        fragments.functions.push(fragment);
+        frames.push(frame);
     }
-    Ok(fragments)
+    if protocol.functions.iter().any(|row| {
+        !selected
+            .functions
+            .iter()
+            .any(|function| function.machine == row.machine)
+    }) {
+        return Err(FrameError::FunctionRosterMismatch.into());
+    }
+    Ok(FramedFunctions {
+        application: machine_code::FunctionFragmentFrameApplication {
+            fragments,
+            functions: frames,
+        },
+        unframed,
+        branches,
+    })
 }
 
-fn emit_ordinary_function(
+pub(super) fn emit_function(
     selected: &FragmentFunctionOrigin,
     resolved: &ResolvedSelectedFunctionLayout,
-) -> Result<FunctionFragment, ResolvedFragmentEmissionError> {
-    let mut bytes = Vec::new();
+    mut writer: FrameWriter<'_>,
+) -> Result<(FunctionFragment, machine_code::FunctionAppliedFrameProtocol), FunctionTextLayoutError>
+{
     let mut blocks = Vec::with_capacity(resolved.blocks.len());
-    for resolved_block in &resolved.blocks {
-        blocks.push(emit_block(selected, resolved_block, &mut bytes)?);
+    for block in &resolved.blocks {
+        blocks.push(emit_block(selected, block, &mut writer)?);
     }
-    let byte_count =
-        u64::try_from(bytes.len()).map_err(|_| ResolvedFragmentEmissionError::OffsetOverflow)?;
-    if byte_count != resolved.byte_count {
-        return Err(ResolvedFragmentEmissionError::RootMismatch);
+    if writer.source_offset != resolved.byte_count {
+        return Err(ResolvedFragmentEmissionError::RootMismatch.into());
     }
-    Ok(FunctionFragment {
-        machine: selected.machine,
-        attachment: selected.attachment,
-        provenance: selected.provenance.clone(),
-        byte_count,
-        bytes,
-        blocks,
-    })
+    Ok((
+        FunctionFragment {
+            machine: selected.machine,
+            attachment: selected.attachment,
+            provenance: selected.provenance.clone(),
+            byte_count: writer.bytes.len() as u64,
+            bytes: writer.bytes,
+            blocks,
+        },
+        writer.frame,
+    ))
 }
 
 fn emit_block(
     selected: &FragmentFunctionOrigin,
     resolved: &ResolvedSelectedBlockLayout,
-    bytes: &mut Vec<u8>,
-) -> Result<FunctionFragmentBlockSpan, ResolvedFragmentEmissionError> {
-    let block_start =
-        u64::try_from(bytes.len()).map_err(|_| ResolvedFragmentEmissionError::OffsetOverflow)?;
-    if block_start != resolved.offset {
-        return Err(ResolvedFragmentEmissionError::RootMismatch);
+    writer: &mut FrameWriter<'_>,
+) -> Result<FunctionFragmentBlockSpan, FunctionTextLayoutError> {
+    if writer.source_offset != resolved.offset {
+        return Err(ResolvedFragmentEmissionError::RootMismatch.into());
     }
+    let block_start = writer.bytes.len() as u64;
     let selected_block = selected
         .block(resolved.block)
         .ok_or(ResolvedFragmentEmissionError::MissingBlock(resolved.block))?;
     let mut instructions = Vec::with_capacity(resolved.instructions.len());
     let mut selected_instructions = selected_block.instructions.iter();
-    for row in &resolved.instructions {
-        let selected_instruction = selected_instructions.next().ok_or(
+    for (index, row) in resolved.instructions.iter().enumerate() {
+        let instruction = selected_instructions.next().ok_or(
             ResolvedFragmentEmissionError::MissingInstruction(row.instruction),
         )?;
-        instructions.push(emit_instruction(selected_instruction, row, bytes)?);
+        if writer.source_offset != row.offset {
+            return Err(ResolvedFragmentEmissionError::RootMismatch.into());
+        }
+        let control = instruction.control.as_ref().map_err(Clone::clone)?;
+        let offset = writer.write(
+            resolved.block,
+            row.instruction,
+            control,
+            &row.bytes,
+            index + 1 == resolved.instructions.len(),
+        )?;
+        instructions.push(emit_instruction(instruction, row, offset)?);
     }
-    if selected_instructions.next().is_some() {
-        return Err(ResolvedFragmentEmissionError::RootMismatch);
-    }
-    let block_end =
-        u64::try_from(bytes.len()).map_err(|_| ResolvedFragmentEmissionError::OffsetOverflow)?;
-    if block_end.checked_sub(block_start) != Some(resolved.byte_count) {
-        return Err(ResolvedFragmentEmissionError::RootMismatch);
+    if selected_instructions.next().is_some()
+        || writer.source_offset.checked_sub(resolved.offset) != Some(resolved.byte_count)
+    {
+        return Err(ResolvedFragmentEmissionError::RootMismatch.into());
     }
     Ok(FunctionFragmentBlockSpan {
         block: resolved.block,
-        offset: resolved.offset,
-        byte_count: resolved.byte_count,
+        offset: block_start,
+        byte_count: writer.bytes.len() as u64 - block_start,
         instructions,
     })
 }
@@ -322,52 +209,25 @@ fn emit_block(
 fn emit_instruction(
     instruction: &FragmentInstructionOrigin,
     row: &ResolvedSelectedFormRow,
-    bytes: &mut Vec<u8>,
+    offset: u64,
 ) -> Result<FunctionFragmentInstructionSpan, ResolvedFragmentEmissionError> {
-    let row_offset =
-        u64::try_from(bytes.len()).map_err(|_| ResolvedFragmentEmissionError::OffsetOverflow)?;
-    if row_offset != row.offset {
-        return Err(ResolvedFragmentEmissionError::RootMismatch);
-    }
     if instruction.id != row.instruction {
         return Err(ResolvedFragmentEmissionError::MissingInstruction(
             row.instruction,
         ));
     }
     let control = instruction.control.clone()?;
-    let internal_machine_fixup = translate_fixup(row, instruction)?;
+    let internal_machine_fixup = translate_fixup(row, instruction, offset)?;
     let import_free = instruction.import_free.clone()?;
-    let normalized_foreign_call_fixup = translate_foreign_fixup(row, instruction, import_free)?;
-    let image_address_fixup = translate_byte_literal_fixup(row, instruction)?;
-    bytes.extend_from_slice(&row.bytes);
+    let normalized_foreign_call_fixup =
+        translate_foreign_fixup(row, instruction, import_free, offset)?;
+    let image_address_fixup = translate_byte_literal_fixup(row, instruction, offset)?;
     Ok(FunctionFragmentInstructionSpan {
         instruction: row.instruction,
         alternative: row.alternative,
-        offset: row.offset,
+        offset,
         bytes: row.bytes.clone(),
-        branch: row.branch.as_deref().map(|branch| {
-            let branch = match branch {
-                ResolvedBranchEvidence::Conditional(branch) => branch,
-                ResolvedBranchEvidence::Jump(jump) => {
-                    return Box::new(FunctionFragmentBranchEvidence::Jump(jump.clone()));
-                }
-            };
-            Box::new(FunctionFragmentBranchEvidence::Conditional(
-                FunctionFragmentConditionalBranchEvidence {
-                    predicate: branch.predicate,
-                    source_block: branch.source_block,
-                    when_taken_edge: branch.when_taken_edge,
-                    when_taken_block: branch.when_taken_block,
-                    when_taken_offset: branch.when_taken_offset,
-                    when_fallthrough_edge: branch.when_fallthrough_edge,
-                    when_fallthrough_block: branch.when_fallthrough_block,
-                    when_fallthrough_offset: branch.when_fallthrough_offset,
-                    byte_displacement: branch.byte_displacement,
-                    decoded_register_reads: branch.decoded_register_reads.clone(),
-                    decoded_effects: branch.decoded_effects.clone(),
-                },
-            ))
-        }),
+        branch: row.branch.clone(),
         internal_machine_fixup: internal_machine_fixup.map(Box::new),
         normalized_foreign_call_fixup: normalized_foreign_call_fixup.map(Box::new),
         image_address_fixup: image_address_fixup.map(Box::new),
@@ -379,6 +239,7 @@ fn emit_instruction(
 fn translate_byte_literal_fixup(
     row: &ResolvedSelectedFormRow,
     instruction: &FragmentInstructionOrigin,
+    offset: u64,
 ) -> Result<Option<machine_code::FunctionFragmentImageAddressFixup>, ResolvedFragmentEmissionError>
 {
     let reference = instruction.image_reference;
@@ -389,7 +250,7 @@ fn translate_byte_literal_fixup(
                 reference,
                 fields: fixup
                     .fields
-                    .shifted(row.offset)
+                    .shifted(offset)
                     .ok_or(ResolvedFragmentEmissionError::OffsetOverflow)?,
             }))
         }
@@ -400,6 +261,7 @@ fn translate_byte_literal_fixup(
 fn translate_fixup(
     row: &ResolvedSelectedFormRow,
     instruction: &FragmentInstructionOrigin,
+    offset: u64,
 ) -> Result<Option<FunctionFragmentInternalMachineFixup>, ResolvedFragmentEmissionError> {
     let Some(fixup) = row.internal_machine_fixup() else {
         if instruction.callee.is_some() {
@@ -416,9 +278,9 @@ fn translate_fixup(
     {
         return Err(ResolvedFragmentEmissionError::RootMismatch);
     }
-    let translate = |offset: u16| {
-        row.offset
-            .checked_add(u64::from(offset))
+    let translate = |field: u16| {
+        offset
+            .checked_add(u64::from(field))
             .ok_or(ResolvedFragmentEmissionError::OffsetOverflow)
     };
     Ok(Some(FunctionFragmentInternalMachineFixup {
@@ -437,6 +299,7 @@ fn translate_foreign_fixup(
     row: &ResolvedSelectedFormRow,
     instruction: &FragmentInstructionOrigin,
     import_free: bool,
+    offset: u64,
 ) -> Result<Option<FunctionFragmentNormalizedForeignCallFixup>, ResolvedFragmentEmissionError> {
     if import_free {
         if row.normalized_foreign_call_fixup.is_some()
@@ -464,16 +327,13 @@ fn translate_foreign_fixup(
     {
         return Err(ResolvedFragmentEmissionError::RootMismatch);
     }
-    let translate = |offset: u16| {
-        row.offset
-            .checked_add(u64::from(offset))
+    let translate = |field: u16| {
+        offset
+            .checked_add(u64::from(field))
             .ok_or(ResolvedFragmentEmissionError::OffsetOverflow)
     };
     Ok(Some(FunctionFragmentNormalizedForeignCallFixup {
-        kind: match fixup.kind {
-            SelectedFormNormalizedForeignCallFixupKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1 => FunctionFragmentNormalizedForeignCallFixupKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1,
-            SelectedFormNormalizedForeignCallFixupKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1 => FunctionFragmentNormalizedForeignCallFixupKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1,
-        },
+        kind: fixup.kind,
         state: FunctionFragmentNormalizedForeignCallFixupState::UnresolvedImportFieldV1,
         boundary,
         ordinal,
@@ -720,62 +580,19 @@ fn check_instruction_span(
         )?,
         _ => return Err(ResolvedFragmentEmissionError::ArtifactMismatch),
     }
-    match (row.branch.as_deref(), span.branch.as_deref()) {
-        (None, None) => {}
-        (
-            Some(ResolvedBranchEvidence::Conditional(source)),
-            Some(FunctionFragmentBranchEvidence::Conditional(actual)),
-        ) => {
-            require(
-                source.predicate == actual.predicate
-                    && actual.source_block == source.source_block
-                    && actual.when_taken_edge == source.when_taken_edge
-                    && actual.when_taken_block == source.when_taken_block
-                    && actual.when_taken_offset == source.when_taken_offset
-                    && actual.when_fallthrough_edge == source.when_fallthrough_edge
-                    && actual.when_fallthrough_block == source.when_fallthrough_block
-                    && actual.when_fallthrough_offset == source.when_fallthrough_offset
-                    && actual.byte_displacement == source.byte_displacement
-                    && actual.decoded_register_reads == source.decoded_register_reads
-                    && actual.decoded_effects == source.decoded_effects,
-            )?;
-        }
-        (
-            Some(ResolvedBranchEvidence::Jump(source)),
-            Some(FunctionFragmentBranchEvidence::Jump(actual)),
-        ) => {
-            require(
-                actual.source_block == source.source_block
-                    && actual.target_edge == source.target_edge
-                    && actual.target_block == source.target_block
-                    && actual.target_offset == source.target_offset
-                    && actual.byte_displacement == source.byte_displacement
-                    && actual.decoded_effects == source.decoded_effects,
-            )?;
-        }
-        _ => return Err(ResolvedFragmentEmissionError::ArtifactMismatch),
-    }
-    match (&row.internal_machine_fixup, &span.internal_machine_fixup, selected.callee) {
-        (
-            Some(source),
-            Some(actual),
-            Some(callee),
-        ) => require(
+    require(row.branch == span.branch)?;
+    match (
+        &row.internal_machine_fixup,
+        &span.internal_machine_fixup,
+        selected.callee,
+    ) {
+        (Some(source), Some(actual), Some(callee)) => require(
             row.branch.is_none()
                 && source.callee == callee
                 && actual.callee == callee
                 && source.state == SelectedFormInternalMachineFixupState::UnresolvedZeroFieldV1
                 && actual.state == FunctionFragmentInternalMachineFixupState::UnresolvedZeroFieldV1
-                && matches!(
-                    (source.kind, actual.kind),
-                    (
-                        SelectedFormInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1,
-                        FunctionFragmentInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1,
-                    ) | (
-                        SelectedFormInternalMachineFixupKind::Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1,
-                        FunctionFragmentInternalMachineFixupKind::Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1,
-                    )
-                )
+                && source.kind == actual.kind
                 && Some(actual.opcode_function_offset)
                     == row.offset.checked_add(u64::from(source.opcode_row_offset))
                 && Some(actual.patch_function_offset)
@@ -806,6 +623,7 @@ mod tests {
         super::translate_fixup(
             row,
             &encoding_admission::fragment_origins::prepare_fixup_origin(instruction),
+            row.offset,
         )
     }
     fn translate_foreign_fixup(
@@ -820,6 +638,7 @@ mod tests {
             row,
             &encoding_admission::fragment_origins::prepare_fixup_origin(instruction),
             import_free,
+            row.offset,
         )
     }
 
@@ -903,8 +722,7 @@ mod tests {
             })),
             image_address_fixup: None,
         };
-        let mut bytes = vec![0; row.offset as usize];
-        let mut span = super::emit_instruction(&origin, &row, &mut bytes).unwrap();
+        let mut span = super::emit_instruction(&origin, &row, row.offset).unwrap();
         super::check_instruction_span(&origin, &row, &span).unwrap();
         let original = span.normalized_foreign_call_fixup.clone();
         span.normalized_foreign_call_fixup.as_mut().unwrap().ordinal += 1;
@@ -1052,16 +870,18 @@ mod tests {
     fn emit_ordinary_function(
         selected: &SelectedFunction,
         layout: &ResolvedSelectedFunctionLayout,
-    ) -> Result<machine_code::FunctionFragment, ResolvedFragmentEmissionError> {
+    ) -> Result<machine_code::FunctionFragment, crate::FunctionTextLayoutError> {
         let current = post_allocation_machine::PhysicalFunction {
             contracts: std::sync::Arc::clone(&selected.contracts),
             entry_block: selected.entry_block,
             blocks: selected.blocks.clone(),
         };
-        super::emit_ordinary_function(
+        super::emit_function(
             &encoding_admission::fragment_origins::prepare_function_origin(&current),
             layout,
+            super::FrameWriter::new(layout.machine, layout.byte_count, &[], &[])?,
         )
+        .map(|(fragment, _)| fragment)
     }
 
     fn fixture(instruction_count: u32) -> (SelectedFunction, ResolvedSelectedFunctionLayout) {
@@ -1200,9 +1020,8 @@ mod tests {
         let (selected, mut layout) = fixture(3);
         let missing = SelectedInstructionId(17);
         layout.blocks[0].instructions[1].instruction = missing;
-        assert_eq!(
-            emit_ordinary_function(&selected, &layout),
-            Err(ResolvedFragmentEmissionError::MissingInstruction(missing))
+        assert!(
+            matches!(emit_ordinary_function(&selected, &layout), Err(crate::FunctionTextLayoutError::Fragment(crate::FunctionFragmentEmissionError::MissingInstruction(id))) if id == missing)
         );
     }
 

@@ -49,7 +49,7 @@ Linux ARM64 remains unmeasured until a matching host runs the row.
 
 Matching-host evidence for this row: optimized Mac producer `2cffebee3b86`
 passed all nine pinned positives and rejects plus the root and nine ordinary
-public `run --both` routes. Hosted run
+the native/Psi comparison routes. Hosted run
 [40201214950](https://github.com/CathedralOS/Omega/actions/runs/40201214950)
 built producer `ffb3227a24d6` on Linux x86-64 and Windows x64: each host passed
 nine positives with native/Terminal exit zero and agreement, and nine exact

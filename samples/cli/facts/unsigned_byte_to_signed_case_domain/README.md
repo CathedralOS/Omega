@@ -36,7 +36,7 @@ construction rather than an unused invalid generic producer.
 
 Every positive project binds ProgramEntry for linux_x86_64, linux_arm64,
 macos_arm64 and windows_x86_64 and declares exit 0. Run a witness with
-`omega run --both <place>/main.omg`; run its twin with `omega --check
+`mbx xtask sample-gate --filter samples/cli/facts/unsigned_byte_to_signed_case_domain/<place>`; run its twin with `omega --check
 <place>/invalid/main.omg`.
 
 Local execution evidence and the exact optimized producer are retained in the

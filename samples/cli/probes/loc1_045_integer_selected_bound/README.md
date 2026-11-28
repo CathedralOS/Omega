@@ -17,9 +17,10 @@ The build binds all four hosted entries. After normal package review:
 
 ```sh
 omega packages update --project samples/cli/probes/loc1_045_integer_selected_bound --target macos_arm64
-omega run --engine native samples/cli/probes/loc1_045_integer_selected_bound/main.omg
-omega run --engine psi samples/cli/probes/loc1_045_integer_selected_bound/main.omg
+omega run samples/cli/probes/loc1_045_integer_selected_bound/main.omg
 ```
 
-The command above demonstrates native and Terminal execution on macOS ARM64;
-actual native execution evidence is the host that ran it.
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/probes/loc1_045_integer_selected_bound` from the repository root.
+
+Earlier macOS ARM64 qualification covered both interpretation and the published executable.

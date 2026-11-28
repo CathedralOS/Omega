@@ -419,7 +419,8 @@ pub fn prepare_execution_plan(
     callable_invocations: &crate::preparation::PreparedCallableInvocations,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     types: &crate::preparation::native_geometry::ModuleTypes,
-    pre_physical: optimization_core::PrePhysicalOptimizationManifestIdentity,
+    selection: optimization_core::OptimizationSelectionIdentity,
+    budget_per_pass: optimization_core::OptimizationWorkBudget,
 ) -> Result<legalized_operations::PreparedExecutionPlan, LegalizationError> {
     crate::preparation::installed_interrupts::authorize_target(
         target,
@@ -445,7 +446,7 @@ pub fn prepare_execution_plan(
     let plan = LegalizedOperationPlan {
         execution: Some(
             callable_invocations
-                .for_target(target, evidence, pre_physical)
+                .for_target(target, evidence, selection, budget_per_pass)
                 .map_err(|cause| LegalizationError::CallablePublication { cause })?,
         ),
         psi: target.psi,
@@ -565,7 +566,6 @@ pub fn verify_execution_plan(
 ) -> Result<(), LegalizationError> {
     let abstract_plan = optimized.plan();
     let unit = optimized.unit();
-    let pre_physical = optimized.pre_physical_manifest();
     let origins = crate::preparation::BoundaryOriginFacts::from_lowering(lowering);
     let installed_interrupts = lowering.installed_interrupts();
     let closed_module = lowering.closed_module();
@@ -608,7 +608,8 @@ pub fn verify_execution_plan(
             psi: unit.psi,
             optimization_unit: unit.identity,
             work_schedule: unit.work_schedule,
-            pre_physical,
+            selection: optimized.selections().identity(),
+            budget_per_pass: optimized.budget_per_pass(),
             entry: unit.entry,
         },
         std::sync::Arc::new(main),

@@ -20,5 +20,4 @@ square and then multiplication by three. This uses independently checked
 certificates, not an exemption from Exact arithmetic's intermediate overflow
 obligations. The initial rectangle does not execute the circle arm.
 
-Omit `--target` for execution: an explicitly selected target uses the CLI's
-compile-only route.
+`omega run` interprets for the host target by default.

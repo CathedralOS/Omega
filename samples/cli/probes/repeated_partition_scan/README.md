@@ -7,12 +7,14 @@ both surrounding sentinels. Expected native and Terminal exit: 0.
 
 ```sh
 omega packages update --project samples/cli/collections/repeated_partition_scan --target macos_arm64 --offline --dangerously-accept-all
-omega run --engine native samples/cli/collections/repeated_partition_scan/main.omg
-omega run --engine psi samples/cli/collections/repeated_partition_scan/main.omg
+omega run samples/cli/collections/repeated_partition_scan/main.omg
 ```
 
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/probes/repeated_partition_scan` from the repository root.
+
 This exercises repeat filtering over caller-provided storage, not allocation
-or the complete Squalr application. The command above runs with native exit 0
-and Terminal exit 0 on macOS ARM64. Bounds survive element mutation without
+or the complete Squalr application. The earlier macOS ARM64 comparison recorded exit 0
+for both the published executable and the interpreter. Bounds survive element mutation without
 confusing the slice descriptor with its contents; replacing a descriptor or
 its scalar bound still invalidates the affected facts.

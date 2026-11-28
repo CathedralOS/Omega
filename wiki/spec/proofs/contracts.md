@@ -112,8 +112,15 @@ evidence. For raw floats, write `a == b` for IEEE comparison and
 same-format bits. IEEE equality accepts positive and negative zero even though
 their signs differ. A NaN has the same bits as itself and compares unequal to
 itself under IEEE equality. See [float equality and source identity](../terminal-psi/mathematical_values.md#float-equality-and-source-identity).
-Same-carrier integer equality can support both directions. Cross-carrier
-numerical equality requires its own typed relation.
+
+For operands `x` and `y` of the same builtin computational integer type
+`T`, a proof that builtin `x == y` is true establishes
+`|proof|::Identity::<T>(x, y)`. Conversely, that identity establishes that
+the same comparison is true. This covers `i<N>` and `u<N>` at every admitted
+width and the unbounded types `i` and `u`. The comparison still produces a
+Boolean. For example, `7i == 7u` is true, but the operands have different
+types and cannot form the two subjects of one such identity.
+[Integer equality certificates](../terminal-psi/integer_certificates.md#same-type-integer-identity)
 
 Compiler-synthesized structural equality is proof-transparent through its
 ordinary checked body: a true record comparison yields each selected field
@@ -196,11 +203,12 @@ integer quotient, not rational `/`. Floats project to
 [FloatMeaning](../terminal-psi/mathematical_values.md#floatmeaning), preserving
 signed zero, infinity, and NaN rather than pretending every float is rational.
 
-`Real` is a proof-side abstraction over ordinary mathematical data and
-equivalence/quotient machinery, not a runtime primitive or float mode. General
-relation expressions and typed index telescopes precede evidence-bearing
-quotients. Approximation theorems must explicitly connect Real specifications
-to executable float implementations.
+Core constructs proof-side `Real` from regular rational sequences. Each
+sequence supplies its state and a named sampling machine. Projection checks
+regularity, and convergence together identifies the resulting reals under
+the [Cauchy quotient](quotients.md#cauchy-sequences-and-the-real-quotient).
+Approximation theorems must explicitly connect Real specifications to
+executable float implementations.
 
 ### Total arithmetic
 

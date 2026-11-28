@@ -81,11 +81,8 @@ cargo run -p omega -- run samples/cli/basics/number_guess/main.omg
 if ($LASTEXITCODE -ne 70) { throw 'Expected exit 70' }
 ```
 
-`run` compiles, publishes, and executes the receipt-bound artifact; do not guess
-an executable filename. It captures the program's output and closes its stdin,
-so the final pause completes on EOF. Expect the stdout above and
-`native exit 70` on stderr. Do not add `--target` to this execution command:
-an explicit target makes `run` compile-only.
+The interpreter buffers the program output. With finite input ending at EOF,
+the final pause completes. Expect the stdout above and `Psi exit 70` on the CLI’s stderr.
 
 The ordinary review/resume/run route passed on macOS ARM64 at `ba57b10d5e`.
 On Linux x86-64 the compiler-library regression (below, filtered to this
@@ -99,6 +96,5 @@ recorded on the board (attempted at `b53c7ea26032`). Windows x86-64 is verified
 at `b80e3d12bdd` with an optimized dev compiler after local package review:
 EOF and Enter produce all 133 stdout bytes, empty program stderr, and exit 70.
 The published image prints the prompt before input and waits for Enter.
-The combined CLI route also reports native and Terminal exit 70; its comparison
-checks exits. Ordinary Linux coverage stays in
+The earlier native and interpreted runs both exited 70. Ordinary Linux coverage stays in
 [SAMPLE-CORPUS](../../../../TASKS.md).

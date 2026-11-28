@@ -19,7 +19,6 @@ mod selection_access_lifecycles;
 mod selection_call_abi;
 #[path = "selection/edge_transfers.rs"]
 mod selection_edge_transfers;
-mod selection_inlining;
 #[path = "selection/inputs.rs"]
 mod selection_inputs;
 #[path = "selection/interrupts.rs"]
@@ -30,7 +29,6 @@ mod selection_scalar_graph;
 mod selection_shared_parameters;
 #[path = "selection/structural.rs"]
 mod selection_structural;
-mod selection_vector_promotion;
 #[path = "selection/views_and_bytes.rs"]
 mod selection_views_and_bytes;
 

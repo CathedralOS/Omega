@@ -70,16 +70,16 @@ index bounds, independently of runtime input rejection.
 From the repository root, using an exact verified compiler binary `OMEGA`:
 
 ```sh
-"$OMEGA" update --project samples/cli/independent/watershed_spill_analysis --target linux_x86_64
+"$OMEGA" update --project samples/cli/scientific/watershed_spill_analysis --target linux_x86_64
 # Read the generated build/package-manager/review-linux_x86_64.txt, accept the required program entry binding,
 # then resume the reviewed proposal. See repository package-review documentation.
-"$OMEGA" update --resume --project samples/cli/independent/watershed_spill_analysis
-"$OMEGA" --check samples/cli/independent/watershed_spill_analysis/main.omg
-"$OMEGA" run --both --keep samples/cli/independent/watershed_spill_analysis/main.omg < samples/cli/independent/watershed_spill_analysis/fixtures/bowl.txt
+"$OMEGA" update --resume --project samples/cli/scientific/watershed_spill_analysis
+"$OMEGA" --check samples/cli/scientific/watershed_spill_analysis/main.omg
+"$OMEGA" run --keep samples/cli/scientific/watershed_spill_analysis/main.omg < samples/cli/scientific/watershed_spill_analysis/fixtures/bowl.txt
 ```
 
 `build/validation/` holds captured commands, statuses, stdout/stderr and hashes.
-`omega run --both` compares termination and the exact stdout and stderr bytes from
+The comparison checks termination and the exact stdout and stderr bytes from
 both engines. The validation runner separately checks emitted native
 stdout byte-for-byte against the frozen oracle and requires actual Terminal
 agreement rather than a declined comparison. It retains compiler-produced

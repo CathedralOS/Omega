@@ -15,8 +15,10 @@ register-model = { path = "../../targets/register-model" }
 selected-instructions = { path = "../../representations/selected-instructions" }
 target = { path = "../../targets/target" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
+target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
 terminal-psi = { path = "../../../psi" }
 selected-instruction-analyses = { path = "analyses" }
 
 [dev-dependencies]
-target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
+calling-conventions = { path = "../../targets/calling-conventions" }
+operation-operands = { path = "../../representations/operation-operands" }

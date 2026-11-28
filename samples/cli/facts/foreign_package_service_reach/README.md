@@ -64,6 +64,6 @@ playback consumers (`AudioPlayback`) and `samples/gui/windowed_calculator`.
   are inferred.
 - Omega 03–09: the native image calls the same import and exits 0.
 
-Acceptance is `omega run --both <place>/main.omg` with both exits 0 on each
+Acceptance is `mbx xtask sample-gate --filter samples/cli/facts/foreign_package_service_reach/<place>` with both exits 0 on each
 matching host, plus each twin's rejection. Linux x86_64 is observed; Windows,
 macOS ARM64 and Linux ARM64 execution remain unverified.

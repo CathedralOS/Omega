@@ -10,7 +10,7 @@ templates. Each sibling seals its output and selects its own directory for the
 receiving Build. The seed is a dependency of the three Builds and stays out
 of the application.
 
-Run `omega run --engine psi build.omg` or `omega run --engine native build.omg`.
+Run `omega run build.omg`.
 To check both target profiles, run `omega --check --target linux_x86_64 --target macos_arm64 build.omg`.
 
 The [negative cases](../build_sibling_checks_controls/) cover a malformed

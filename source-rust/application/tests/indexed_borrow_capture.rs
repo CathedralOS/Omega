@@ -12,7 +12,7 @@ fn fixture(tier: &str) -> std::path::PathBuf {
 }
 
 #[test]
-fn indexed_borrows_keep_their_original_bytes_in_both_engines() {
+fn indexed_borrows_keep_their_original_bytes_when_interpreted_and_built() {
     program::assert_fixture_silent_return(&fixture("run"));
 }
 

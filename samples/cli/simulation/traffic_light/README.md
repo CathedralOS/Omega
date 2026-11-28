@@ -6,9 +6,11 @@ dispatch in transitions, and accumulated scalar state across multiple machine
 calls. Runs to exit **70**.
 
 ```sh
-omega run --engine native samples/cli/simulation/traffic_light/main.omg < samples/cli/simulation/traffic_light/input.txt
-omega run --engine psi samples/cli/simulation/traffic_light/main.omg < samples/cli/simulation/traffic_light/input.txt
+omega run samples/cli/simulation/traffic_light/main.omg < samples/cli/simulation/traffic_light/input.txt
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/simulation/traffic_light` from the repository root.
 
 The machine starts in `Red` (zero-initialized) and calls `advance(main)` four
 times. After Red→Green→Yellow→Red→Green the advance count is 4 and the phase

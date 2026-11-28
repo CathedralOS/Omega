@@ -17,7 +17,7 @@ elided, folded away, or written to a descriptor instead of its referent.
 
 ## Half (ii) — violating the construct's own licence refuses
 
-Probe B: fail twin (`write: false`), `omega run --both`:
+Probe B: fail twin (`write: false`), the native/Psi comparison:
 
     error: placed write application: the placement plan does not permit this operation
 
@@ -62,6 +62,6 @@ observed value, which traps both engines (native SIGTRAP, interpreted Trap).
 ## Oracle strength
 
 The fail side is an accepted-publication refusal, not an execution fact
-(`omega run --both` never produces an exit code for it). The twins are
+(the native/Psi comparison never produces an exit code for it). The twins are
 therefore scored by their authored `expected.txt` fragments, which match the
 observed diagnostic exactly on all nine places.

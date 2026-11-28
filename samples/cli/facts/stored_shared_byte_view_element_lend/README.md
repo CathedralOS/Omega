@@ -67,7 +67,7 @@ the checker refuses ``cannot prove requires contract`` at the call that lends it
 boundary first).
 
 On Windows x86_64, with the optimized producer built from `83ae4b83d7b` plus this change,
-all nine positives report native exit 0 and interpreter exit 0 from `omega run --both`,
+all nine positives report native exit 0 and interpreter exit 0 from the native/Psi comparison,
 `traits/runtime_dyn_byte_array_result` now agrees, and all nine twins reject with the
 pinned fragment. The same tree with the change reverted, built separately and optimized,
 ran all nine positives natively with exit 0 and the Terminal interpreter declined each with

@@ -70,7 +70,7 @@ depend on it.
 ## Acceptance
 
 - Float, FMA, directed-rounding, special-value and conversion fixtures keep
-  their documented behavior under `omega run --both`.
+  their documented behavior when interpreted and when compiled for their targets.
 - Fused and unfused arithmetic and each rounding mode stay distinct operations.
 - Reports identify each realization with its ISA-feature and floating-control
   admissions.

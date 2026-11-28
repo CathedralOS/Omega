@@ -85,7 +85,7 @@ exit 0 on Windows x86-64. The complete
 still stops at 11 existing lowered-form checker refusals about reference use
 without exact live backing in `windows_x64_scalar_parameters`.
 Separate baseline and candidate compilers reported all 11 identical diagnostic
-messages and source locations with `--both --verbose`, each exiting 200.
+messages and source locations during the verbose interpreted and native comparison, each exiting 200.
 These measurements do not establish successful Console application execution
 or a whole-compilation speedup.
 

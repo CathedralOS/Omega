@@ -48,8 +48,8 @@ From the repository root, use the normal package workflow, inspecting any
 actual pending authority decision before accepting it:
 
 ```sh
-omega packages update --project samples/cli/independent/molecular_pair_distribution --target linux_x86_64
-omega run --keep samples/cli/independent/molecular_pair_distribution/main.omg < samples/cli/independent/molecular_pair_distribution/input.txt
+omega packages update --project samples/cli/scientific/molecular_pair_distribution --target linux_x86_64
+omega run --keep samples/cli/scientific/molecular_pair_distribution/main.omg < samples/cli/scientific/molecular_pair_distribution/input.txt
 ```
 
 Separate Decimal shell integration uses a 100-digit pi; its results and stdin

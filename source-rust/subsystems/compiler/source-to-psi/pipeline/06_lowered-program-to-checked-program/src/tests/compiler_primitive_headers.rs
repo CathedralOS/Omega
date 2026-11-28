@@ -272,13 +272,34 @@ fn observed_program(text: &str) -> Vec<Result<crate::RouteVerdict, crate::Compil
     judge_observed(&observed_typed(text))
 }
 
-fn execute_observed(accepted: Box<crate::AcceptedClosure>) {
+fn execute_observed(accepted: Box<crate::AcceptedClosure>, target: Option<&str>) {
     let publication = accepted
         .publish_invocation()
         .expect("ordinary receiving validation");
-    let program =
-        terminal_interpreter::TerminalProgram::borrow(publication.artifact.view()).unwrap();
-    let mut instance = program.instantiate(Default::default()).unwrap();
+    let code = publication.artifact.view();
+    let program = terminal_interpreter::TerminalProgram::borrow(code).unwrap();
+    let supplies = target.map(|name| {
+        let context = terminal_interpreter::terminal_target_context(code, name);
+        program
+            .admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {
+                target_machines: Some(&context),
+                entry: None,
+                installation: None,
+                host_imports: &[],
+                external_completions: &[],
+                target_layouts: None,
+                native_code_layouts: None,
+                x86_flags: None,
+                memory_ordering: None,
+            })
+            .unwrap()
+    });
+    let mut instance = program
+        .instantiate(terminal_interpreter::TerminalInstantiation {
+            installation: supplies.as_ref(),
+            ..Default::default()
+        })
+        .unwrap();
     assert_eq!(
         instance
             .invoke(&mut terminal_work::WorkMeter::with_budget(100_000))
@@ -358,7 +379,7 @@ machine main() crashes Trap {
                     terminal_psi::OperationKind::PackedIntegerBinary { .. }
                 ))
         );
-        execute_observed(accepted);
+        execute_observed(accepted, Some("linux_x86_64"));
     }
 }
 
@@ -432,7 +453,7 @@ machine main() crashes Trap {
                 .iter()
                 .all(|(_, count)| *count == 0)
         {
-            execute_observed(accepted);
+            execute_observed(accepted, Some("linux_x86_64"));
             executed += 1;
         } else {
             assert!(matches!(
@@ -473,7 +494,7 @@ machine main() crashes Trap {
             operation.kind,
             terminal_psi::OperationKind::ByteSequencePredicate { .. }
         )));
-        execute_observed(accepted);
+        execute_observed(accepted, None);
     }
 }
 
@@ -654,7 +675,7 @@ machine main() crashes Trap {
         Ok(crate::RouteVerdict::Accepted(accepted)) => accepted,
         other => panic!("the same write over an ASCII UTF-8 array must check: {other:?}"),
     };
-    execute_observed(accepted);
+    execute_observed(accepted, None);
     match negative.remove(0) {
         Ok(crate::RouteVerdict::Rejected {
             formations,
@@ -732,7 +753,7 @@ machine main() crashes Trap {
                 assert!(result.qualification_establishments.is_empty());
             }
         }
-        execute_observed(accepted);
+        execute_observed(accepted, None);
     }
     let partial = program.replace(
         "(bytes as -Utf8)[..] as +Utf8",
@@ -830,7 +851,7 @@ fn bounded_concat_keeps_its_original_room_a1_execution_oracle() {
             .all(|verdict| matches!(verdict, Ok(crate::RouteVerdict::Accepted(_)))),
         "{verdicts:?}"
     );
-    execute_observed(accepted);
+    execute_observed(accepted, None);
 }
 
 #[test]
@@ -855,7 +876,7 @@ machine main() crashes Trap {
         Ok(crate::RouteVerdict::Accepted(accepted)) => accepted,
         other => panic!("an indexed store must preserve the proved byte bound: {other:?}"),
     };
-    execute_observed(accepted);
+    execute_observed(accepted, None);
     for negative in [
         positive.replace("index < 2, value <= 127u8", "index < 2"),
         positive.replace(

@@ -50,8 +50,8 @@ installation binding (`BoundFunctionBody`), encoding (`EncodedMachineProgram`), 
 `product-publication` installs it as a `CompletedProduct`. For an interpreter run the driver stops after
 stage 02 (`driver/mod.rs:39`) and returns an `AdmittedRuntimeProgram`; `terminal_runtime::execute`
 (`source-rust/subsystems/interpreter/host/src/execution.rs:179`) runs the artifact in `terminal-interpreter`
-and returns a `TerminalRuntimeObservation`. `omega run --both` runs both routes and compares their exit
-status (`application/src/execution/mod.rs:608`). Build and compile-time calls use the interpreter directly
+and returns a `TerminalRuntimeObservation`. At the survey revision, the CLI could compare the two exit
+statuses (`application/src/execution/mod.rs:608`). Today, [`omega run` interprets Psi](../../../../wiki/spec/build/embedding.md#standalone-interpretation). Build and compile-time calls use the interpreter directly
 through `TerminalProgram::instantiate_compiler_evaluation` (`interpreter/embedding/program.rs:3526`).
 
 `source/` is Omega code, not Cargo crates (area 17). It holds a second, smaller compiler written in Omega
@@ -270,7 +270,7 @@ crate that defines the type is in brackets.
 +----------------------------------------------------------------------------+
    |  TerminalRuntimeObservation (TerminalExecutionResult) [terminal-runtime,
    v                                                       terminal-interpreter]
- exit status (omega run; --both compares it with the native image's)
+ exit status (omega run)
 ```
 
 ## 3. Areas

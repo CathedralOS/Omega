@@ -35,7 +35,8 @@ pub struct TypedTrees {
         crate::source_state::trait_definition::RetainedTraitScope,
     >,
     pub service_reach_rows: crate::source_tables::ServiceReachRowTable,
-    pub authored_service_reach_rows: arena::RetainedRows<signature::AuthoredServiceReachRow>,
+    pub authored_service_reach_rows:
+        source_symbol_table::owner_rows::OwnerSortedRows<signature::AuthoredServiceReachRow>,
     pub semantic_domains: crate::source_tables::SemanticDomainTable,
     pub applied_domain_applications: domain::AppliedDomainApplications,
     pub applied_data_cleanup_selections: Vec<domain::AppliedDataCleanupSelection>,
@@ -63,8 +64,9 @@ pub struct TypedTrees {
     pub evidence_forwardings: Vec<EvidenceForwarding>,
     pub proof_output_calls: Vec<ProofOutputCall>,
     pub declaration_indexes: declaration_index::DeclarationIndexes,
-    pub ranking_expression_custody:
-        arena::RetainedRows<crate::source_state::ranking::RankingExpressionCustody>,
+    pub ranking_expression_custody: source_symbol_table::owner_rows::OwnerSortedRows<
+        crate::source_state::ranking::RankingExpressionCustody,
+    >,
     pub pending_const_range_endpoints:
         std::collections::HashSet<crate::source_state::expression::ExpressionHandle>,
     pub constant_recipes: arena::RootedArena<constant_recipes::RetainedConstantRecipe>,

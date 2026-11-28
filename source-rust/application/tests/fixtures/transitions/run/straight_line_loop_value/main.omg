@@ -1,6 +1,6 @@
 // A loop whose body is a chain of sub-expressions, each of which the source
 // compiler gives its own block. Native code folds the chain into one block;
-// both engines must still produce the same value.
+// the interpreter and built executable must still produce the same value.
 machine mix(reps: u64) -> u64 {
     transition { _ -> step(reps, 0, 0 as +Wrapping) }
 

@@ -89,7 +89,7 @@ The complete invalid control uses `invalid.omg` so ordinary valid-sample discove
 does not classify an intentional rejection as a valid application.
 
 Native reports and captured outputs live under ignored `build/validation`.
-The CLI compares termination and both output streams. This validator also checks the
+The recorded comparison checked termination and both output streams. This validator also checks the
 native report's full numerical output and requires an explicit comparison agreement. A
 Terminal decline is recorded as unsupported,
 never counted as a passing comparison. Only Linux x86-64 is bound and validated.

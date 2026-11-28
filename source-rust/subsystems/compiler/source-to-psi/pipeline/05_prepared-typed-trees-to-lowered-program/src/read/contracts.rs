@@ -561,6 +561,62 @@ impl Program<'_> {
             )
     }
 
+    /*
+        `|proof|::Squash::<P>` is the strict proposition that `P` holds, and
+        `|proof|::Box::<S>` the relevant type of the strict `S`
+        (`wiki/spec/proofs/mathematical_bindings.md#importing-the-mathematical-foundation`).
+        Each takes the one static argument it is applied to; a proposition
+        written there is read as a clause.
+    */
+    fn foundation_type_clause(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        member: &crate::source_state::expression::StaticMachineArgument,
+    ) -> Checked<Proposition> {
+        let typed = self.typed;
+        let unserved = |what| refuse_at(id, Unserved::Contract(what));
+        let fixed = typed
+            .symbols
+            .fixed_core_declaration_for_symbol(member.symbol);
+        if let Some(
+            fixed @ (symbols::FixedCoreDeclaration::Box | symbols::FixedCoreDeclaration::Squash),
+        ) = fixed
+        {
+            let Some([argument]) = member
+                .application
+                .as_ref()
+                .map(|application| application.arguments.as_ref())
+            else {
+                return Err(unserved(
+                    "foundation type applied to other than one argument",
+                ));
+            };
+            let inner = Box::new(self.foundation_type_clause(id, scope, argument)?);
+            return Ok(match fixed {
+                symbols::FixedCoreDeclaration::Box => Proposition::Boxed(inner),
+                _ => Proposition::Squash(inner),
+            });
+        }
+        if member.type_reference.is_valid()
+            && let TypeReferenceNode::ConstExpression(expression) = typed
+                .type_reference_table
+                .type_reference(member.type_reference)
+        {
+            if let ExpressionNode::Call(call) = typed.expression_table.expression(*expression)
+                && typed
+                    .proposition_definition_by_symbol(call.target_symbol)
+                    .is_some()
+            {
+                return self.named_proposition_call(id, scope, call);
+            }
+            return self.clause(id, scope, *expression);
+        }
+        Err(unserved(
+            "foundation type argument that is not a proposition",
+        ))
+    }
+
     fn read_clause(
         &mut self,
         id: MachineId,
@@ -610,6 +666,24 @@ impl Program<'_> {
                     premise: Box::new(self.clause(id, scope, unary.operand)?),
                     conclusion: Box::new(Proposition::Falsehood),
                 });
+            }
+            ExpressionNode::Name(path)
+                if path.static_application.is_valid()
+                    && matches!(
+                        typed.symbols.fixed_core_declaration_for_symbol(path.symbol),
+                        Some(
+                            symbols::FixedCoreDeclaration::Box
+                                | symbols::FixedCoreDeclaration::Squash
+                        )
+                    ) =>
+            {
+                let member = typed
+                    .expression_table
+                    .static_member(path.static_application)
+                    .ok_or_else(|| {
+                        refuse_at(id, Unserved::Contract("foundation type without its member"))
+                    })?;
+                return self.foundation_type_clause(id, scope, member);
             }
             // A clause that is one Boolean value reads it as an operand is
             // read: `requires $flag` over `flag: @bool` reads the referent,
@@ -1151,43 +1225,30 @@ impl Program<'_> {
         let parameter_in_scope = typed.symbols.get(subject).kind
             == symbols::SymbolKind::TypeParameter
             && self.scope.iter().any(|(binder, _)| *binder == subject);
-        let supplied_type = if written_type.is_none()
-            && !parameter_in_scope
-            && let Some(supplier) = self.clause_supplier
-        {
-            // The requirement was written over a binder and its prepared copy
-            // names the supplied type. Match the same retained call occurrence
-            // in the requirement signature before applying its binder.
-            let lexical = typed.symbols.get(supplier).parent;
-            let required = typed
-                .static_record_bound_requirement(lexical, supplier, owner)
-                .map_err(|_| unavailable("Identity lost its supplying requirement scope"))?;
-            required.is_some_and(|required| {
+        // A requirement written over a binder has a prepared copy that names
+        // the supplied type. The binder is the one the same retained call
+        // occurrence writes in the requirement's own signature.
+        let written_binder =
+            |declaration: &crate::source_state::trait_definition::TraitDefinition| {
                 let template = typed
                     .closed_requirement_application(owner)
                     .map_or(owner, |closed| closed.template);
-                let Some(original) = typed
-                    .trait_machine_signature_by_symbol(required.application.declaration, template)
-                else {
-                    return false;
-                };
-                let Some(contracts) = typed.signature_contracts.span(original.contracts) else {
-                    return false;
-                };
+                let original = typed.trait_machine_signature_by_symbol(declaration, template)?;
+                let contracts = typed.signature_contracts.span(original.contracts)?;
                 let mut pending = Vec::new();
                 for contract in contracts {
-                    let Some(facts) = typed.proof_facts.span(contract.facts) else {
-                        return false;
-                    };
                     pending.extend(
-                        facts
+                        typed
+                            .proof_facts
+                            .span(contract.facts)?
                             .iter()
                             .filter_map(|fact| fact.as_expression().copied()),
                     );
                 }
                 while let Some(handle) = pending.pop() {
+                    // An absent optional child has no expression to search.
                     if !expressions.expression_is_valid(handle) {
-                        return false;
+                        continue;
                     }
                     let node = expressions.expression(handle);
                     if let ExpressionNode::Call(written) = node
@@ -1198,31 +1259,136 @@ impl Program<'_> {
                         && typed.symbols.get(binder.symbol).kind
                             == symbols::SymbolKind::TypeParameter
                     {
-                        let supplied = required
-                            .application
-                            .parameter_argument(typed, binder.symbol);
-                        return typed.contains_type_reference(supplied)
-                            && matches!(typed.type_reference_table.type_reference(supplied),
-                                TypeReferenceNode::Named { symbol, .. } if *symbol == subject);
+                        return Some(binder.symbol);
                     }
                     typed.expression_children(node, |child| pending.push(child));
                 }
-                false
+                None
+            };
+        let names_subject = |supplied: crate::source_state::types::TypeReferenceHandle| {
+            typed.contains_type_reference(supplied)
+                && matches!(typed.type_reference_table.type_reference(supplied),
+                    TypeReferenceNode::Named { symbol, .. } if *symbol == subject)
+        };
+        let supplied_type = if written_type.is_none()
+            && !parameter_in_scope
+            && let Some(supplier) = self.clause_supplier
+        {
+            let lexical = typed.symbols.get(supplier).parent;
+            let required = typed
+                .static_record_bound_requirement(lexical, supplier, owner)
+                .map_err(|_| unavailable("Identity lost its supplying requirement scope"))?;
+            required.is_some_and(|required| {
+                written_binder(required.application.declaration).is_some_and(|binder| {
+                    names_subject(required.application.parameter_argument(typed, binder))
+                })
             })
+        } else if written_type.is_none()
+            && !parameter_in_scope
+            && let Some(conformance) = self.witness_conformance
+            && let Some(conformance) = typed.conformance_by_symbol(conformance)
+        {
+            let declaring = typed
+                .closed_requirement_application(owner)
+                .map_or(typed.symbols.get(owner).parent, |closed| {
+                    closed.declaring_trait
+                });
+            // A requirement's clause read for a member of an implementation:
+            // `Identity::<T>` in `EqualImpliesIdentity<T>` is `Identity::<N>`
+            // for `NByV satisfies EqualImpliesIdentity<N>`.
+            typed
+                .trait_definition_by_symbol(declaring)
+                .and_then(written_binder)
+                .is_some_and(|binder| {
+                    crate::source_state::trait_definition::AppliedTraitScope::from_conformance(
+                        typed,
+                        conformance,
+                    )
+                    .and_then(|root| root.declaring_scope(typed, declaring))
+                    .is_some_and(|scope| names_subject(scope.parameter_argument(typed, binder)))
+                })
         } else {
             false
         };
+        // A copy of a machine generic over `T` writes the subject where its
+        // template wrote `Identity::<T>` with the same call occurrence, and
+        // the copy's specialization binds `T` to the subject.
+        let specialized_type = written_type.is_none()
+            && !parameter_in_scope
+            && !supplied_type
+            && [owner, typed.symbols.get(owner).parent]
+                .into_iter()
+                .filter_map(|instance| typed.machine_instantiation(instance).ok().flatten())
+                .any(|instantiation| {
+                    let mut pending = Vec::new();
+                    let template = instantiation.template();
+                    let declarations = typed
+                        .machine_by_symbol(template)
+                        .into_iter()
+                        .flat_map(|machine| {
+                            typed.machine_states(machine).iter().map(move |state| (machine, state))
+                        })
+                        .chain(typed.machine_states_named(template));
+                    for (machine, state) in declarations {
+                        for contracts in [machine.contracts, state.contracts] {
+                            for contract in typed.signature_contracts.span_or_empty(contracts) {
+                                pending.extend(
+                                    typed
+                                        .proof_facts
+                                        .span_or_empty(contract.facts)
+                                        .iter()
+                                        .filter_map(|fact| fact.as_expression().copied()),
+                                );
+                            }
+                        }
+                    }
+                    let mut binder = None;
+                    while let Some(handle) = pending.pop() {
+                        if !expressions.expression_is_valid(handle) {
+                            continue;
+                        }
+                        let node = expressions.expression(handle);
+                        if let ExpressionNode::Call(written) = node
+                            && written.authored_call_selection == Some(selection)
+                            && let [written] = written.machine_arguments.as_ref()
+                            && typed.symbols.symbols().nodes().is_valid(written.symbol)
+                            && typed.symbols.get(written.symbol).kind
+                                == symbols::SymbolKind::TypeParameter
+                        {
+                            binder = Some(written.symbol);
+                            break;
+                        }
+                        typed.expression_children(node, |child| pending.push(child));
+                    }
+                    binder.is_some_and(|binder| {
+                        expressions
+                            .static_machine_application_bindings(
+                                instantiation.binding_application(),
+                            )
+                            .iter()
+                            .any(|binding| {
+                                binding.parameter == binder
+                                    && matches!(binding.value,
+                                        crate::source_state::static_applications::StaticMachineBindingValue::Type(
+                                            supplied,
+                                        ) if names_subject(supplied))
+                            })
+                    })
+                });
         if !attached_call
-            || written_type.map_or(!(parameter_in_scope || supplied_type), |row| {
-                let typed_source = row.source_span();
-                !within_call(typed_source)
-                    || typed_source.span.start < call_source.span.end
-                    || row
-                        .target()
-                        .as_resolved()
-                        .map(|selected| selected.selected_symbol())
-                        != Some(subject)
-            })
+            || written_type.map_or(
+                !(parameter_in_scope || supplied_type || specialized_type),
+                |row| {
+                    let typed_source = row.source_span();
+                    !within_call(typed_source)
+                        || typed_source.span.start < call_source.span.end
+                        || row
+                            .target()
+                            .as_resolved()
+                            .map(|selected| selected.selected_symbol())
+                            != Some(subject)
+                },
+            )
         {
             return Err(unavailable(
                 "Identity lost the source selection for its written type",

@@ -39,7 +39,7 @@ places the signed 32-bit case tag at byte zero as `ValueShape::integer(4, 4)`),
 so `size_of`/`align_of` are the tag's observable footprint: the width is the
 floor under total size and the alignment is the tag alignment floor.
 
-Measured on `macos_arm64` with the opt-level-1 compiler, `omega run --both`:
+Measured on `macos_arm64` with the opt-level-1 compiler, the native/Psi comparison:
 
 | probe | cases | payload | `size_of` | `align_of` | native | interp |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -104,7 +104,7 @@ that does not occur.
 
 Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hosted
 targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) in its `build.omg`
-and declares `Expected exit: 0`. `omega run --both` reports Terminal Psi interpreter
+and declares `Expected exit: 0`. The native/Psi comparison reports Terminal Psi interpreter
 and native execution agreement:
 
 ```sh
@@ -132,7 +132,7 @@ Checking fails closed at compile time with:
 exact arithmetic in machine ... return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation)
 ```
 
-| Place | `omega run --both` | Reject twin diagnostic |
+| Place | the native/Psi comparison | Reject twin diagnostic |
 | --- | --- | --- |
 | `local` | native 0 / interp 0 | `exact arithmetic in machine \`eval\` state \`inspect\` return value may overflow \`u64\`` |
 | `field` | native 0 / interp 0 | `exact arithmetic in machine \`eval\` state \`inspect\` return value may overflow \`u64\`` |
@@ -150,7 +150,7 @@ exact arithmetic in machine ... return value may overflow `u64`: the operands ar
 - **Identity and lifetime**: Multi-variant tagged case representations preserve active variant discriminant and payload bound invariants across value copies, carrier struct fields, parameter passing, return values, branch joins, named constants, state transitions, helper machines, and target-scoped bodies without semantic degradation.
 - **Composition**: Destructuring `Packet::Bounded { payload }` introduces the static assumption `payload <= 64u64` into the match arm environment, discharging the non-negative range proof obligation for unsigned subtraction `64u64 - payload` under postcondition `ensures result <= 64u64`.
 - **Soundness boundaries**: In every reject twin, widening the payload bound to `payload <= 80u64` causes the static checker to refuse compilation under decision 17 (exact arithmetic proof obligation), proving that unsafe underflows are caught before executable generation.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`)**: The sum constructor, discriminant tag matching, and layout geometry intrinsics lower cleanly into target-neutral Terminal Psi (`PSITERM\0`) and execute identically in the Terminal Psi interpreter (`omega run --both`).
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`)**: The sum constructor, discriminant tag matching, and layout geometry intrinsics lower cleanly into target-neutral Terminal Psi (`PSITERM\0`) and execute identically in the Terminal Psi interpreter.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)**: Backend provider planning joins target-specific layout plans (`size_of` = 16, `align_of` = 8) with the compiler-owned conventional tag-prefixed representation: a 4-byte discriminant tag at offset 0 with tag alignment 4, over an 8-byte payload aligned to 8, across all four hosted ABI calling plans. The measured tag geometry above is this layer's evidence.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend code generation emits target ISA instructions (`sub`, conditional branches, and discriminant checks), allocating register homes and activation stack slots without live-variable spilling corrupting variant discriminants.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Direct PE/ELF/Mach-O image generation resolves entry symbols, basic block branches, and image relocations, producing native binaries that agree with Terminal Psi on exit 0 across all hosted targets.

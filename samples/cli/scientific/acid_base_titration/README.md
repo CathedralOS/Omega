@@ -43,8 +43,8 @@ operation, so equivalent spellings of domain endpoints behave identically.
 Run from the repository root with a recorded optimized compiler:
 
 ```
-omega packages update --project samples/cli/independent/acid_base_titration --target linux_x86_64
-omega run samples/cli/independent/acid_base_titration/main.omg < samples/cli/independent/acid_base_titration/data/curve.txt
+omega packages update --project samples/cli/scientific/acid_base_titration --target linux_x86_64
+omega run samples/cli/scientific/acid_base_titration/main.omg < samples/cli/scientific/acid_base_titration/data/curve.txt
 ```
 
 Normal package review remains required; accepting package source declarations

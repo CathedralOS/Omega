@@ -3,8 +3,7 @@
 Rule 90 starts with the centre cell alive and renders 32 generations of a
 64-cell grid. `expected_stdout.txt` records the complete output, computed from
 the independent rule `next[i] = left XOR right` with dead cells outside the grid.
-`input.txt` supplies Enter at the final prompt. Run with `omega run --both
-main.omg`; both engines must exit zero and produce that output.
+`input.txt` supplies Enter at the final prompt. Run with `mbx xtask sample-gate --filter samples/cli/simulation/cellular_automaton`; both engines must exit zero and produce that output.
 
 This sample exercises `CANONICALIZE-SCALAR-RANGE-CONTRACTS`: the two grids retain
 their original per-element bounds, and `gen`, `rp`, `window`, `cell`, `nv`, `x`

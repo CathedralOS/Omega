@@ -82,19 +82,15 @@ and explicit admission before running either route. The original accepted record
 and this correction do not authorize that consumer; no new admission is performed
 by these validation scripts.
 
-For CLI host execution and termination comparison, omit `--target`:
+For an interpreted run using the host target:
 
 ```sh
-"$CLI" run --both --keep "$APP/main.omg" < "$APP/data/compatible/input.txt"
+"$CLI" run --keep "$APP/main.omg" < "$APP/data/compatible/input.txt"
 ```
 
-An explicit target makes `run` compile-only, even with `--both`. The corrected
-host command replays finite stdin independently to native and Terminal execution,
-but CLI stdout/stderr contain the native program streams. `interp exit: N`
-reports Terminal termination agreement only. The host-comparison verifier checks
-native stdout against the oracle and requires that positive Terminal exit report;
-`DECLINED`, missing agreement, divergence and interpretation failures cannot pass.
-The CLI also compares both output streams. The verifier reads the forwarded native bytes.
+The earlier validation replayed finite stdin for the compiled image and the interpreter.
+It compared termination and both output streams and checked the compiled image’s stdout
+against the oracle. A missing or declined comparison failed validation.
 
 Exact direct Terminal streams use the supported public SDK route below. Build
 one Omega CLI, retain its successful Cargo JSON, and link the private sponsor to

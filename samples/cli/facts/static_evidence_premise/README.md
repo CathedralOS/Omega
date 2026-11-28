@@ -22,12 +22,11 @@ The same sentence is copied through local, field, parameter, call result, match 
 | other_machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | a forwarding machine `relay` transports the subject to `observe` |
 | target_body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | each of the four target bodies (`observe` for `linux_x86_64`, `linux_arm64`, `macos_arm64`, `windows_x86_64`) performs the call |
 
-Each positive place binds `ProgramEntry` for all four hosted targets and declares `Expected exit: 0`, carries `expected_native_exit.txt` = 0 and `expected_interpreter_exit.txt` = 0, and passes `omega run --both` — Terminal Psi and native execution agreeing:
+Each positive place binds `ProgramEntry` for all four hosted targets and declares `Expected exit: 0`, carries `expected_native_exit.txt` = 0 and `expected_interpreter_exit.txt` = 0, and passes the native/Psi comparison — Terminal Psi and native execution agreeing:
 
 ```sh
 mbx xtask sample-gate --filter samples/cli/facts/static_evidence_premise/local
-omega run --engine native samples/cli/facts/static_evidence_premise/<place>/main.omg
-omega run --engine psi samples/cli/facts/static_evidence_premise/<place>/main.omg
+omega run samples/cli/facts/static_evidence_premise/<place>/main.omg
 ```
 
 ## Reject twins
@@ -61,14 +60,14 @@ The sample and the fixtures cannot drift apart.
 - **Identity and lifetime:** The subject `kept: bool`, the evidence argument (`YesKept`/`NoKept`), and the recorded result `direct: bool` stay bound to the exact call across value copies, record fields, parameters, call results, match joins, constants, state transitions, machine forwarding, and target-scoped bodies.
 - **Composition:** The recorded evidence composes through all nine places into the consuming call `hold(direct)` (`requires direct == true`). `<place>/main.omg` vs `<place>/invalid/main.omg` differ only in the evidence argument's realization (`YesKept` vs `NoKept`).
 - **Soundness boundaries:** All nine twins fail closed during compile-time verification with `structurally false` on `Proof.holds(kept)`; a supplied witness (`NoKept`) does not discharge the Boolean premise, and the refusal names the premise rather than accepting an unproved call.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** The selected realization, the recorded evidence read and the consuming call lower without semantic loss into target-neutral Terminal Psi; the Terminal interpreter agrees with native execution on all nine places (`omega run --both`).
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** The selected realization, the recorded evidence read and the consuming call lower without semantic loss into target-neutral Terminal Psi; the Terminal interpreter agrees with native execution on all nine places.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Each place settles `ProgramEntry` across the four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and lowers the `bool` carriers, trait-realization selection and machine plans according to target ABIs.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** The evidence read and the consuming call select target instructions, assign register homes and disjoint stack-frame storage for the `bool` carriers, and insert entry prologues and multi-return epilogues.
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Instruction forms and symbolic displacements encode, branches relax with offset reflow, and direct PE/ELF/Mach-O emission executes with exit 0 agreeing with Terminal Psi (`omega run --both`) across the hosted targets.
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Instruction forms and symbolic displacements encode, branches relax with offset reflow, and direct PE/ELF/Mach-O emission executes with exit 0 agreeing with Terminal Psi across the hosted targets.
 
 ### Verification Evidence
 
-- Measured 2026-10-22 on macOS arm64 at `9d9ba4fb625` with the shared generation producer (`build/swarm/factsr1/producers/gen-9d9ba4fb625/omega`, sha256 `5a2fde4a3a91`): all nine positive places run `omega run --both` — nine of nine report `native exit 0` and `interp exit: 0`; all nine `invalid/` twins reject at compile time with `machine ... value call to project violates required fact Proof.holds(kept): the instantiated fact is structurally false`, nine of nine (see the table above for the per-place machine/state).
+- Measured 2026-10-22 on macOS arm64 at `9d9ba4fb625` with the shared generation producer (`build/swarm/factsr1/producers/gen-9d9ba4fb625/omega`, sha256 `5a2fde4a3a91`): all nine places were compared — nine of nine report `native exit 0` and `interp exit: 0`; all nine `invalid/` twins reject at compile time with `machine ... value call to project violates required fact Proof.holds(kept): the instantiated fact is structurally false`, nine of nine (see the table above for the per-place machine/state).
 - The eighteen pinned fixtures reproduce that behavior under the corpus gate (check leg `checked` with `check-target:macos_arm64`, native leg `built` with `exit:0`, both leg `built` with `exit:0 interpreter-exit:0 interpreter:agrees`).
 
 ## Open items
@@ -77,4 +76,4 @@ The sample and the fixtures cannot drift apart.
 
 ## Build-owned target-body migration
 
-The `target_body` place and its twins carry no source target prefix. `BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected by explicit target-keyed Build rows. The operation, inputs, contracts and exit oracle are unchanged. The entry wrapper and each implementation check a tag (17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed on macOS x86-64 with optimized producers for base 4f87c9e08b1 and for the #1378 head: the migrated positive exits 0 under `omega run --both` (native and Terminal Psi agree) and every twin and control in the place still rejects with its authored fragment. No compiler change was needed. The other hosted targets keep their authored rows, unexecuted here.
+The `target_body` place and its twins carry no source target prefix. `BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected by explicit target-keyed Build rows. The operation, inputs, contracts and exit oracle are unchanged. The entry wrapper and each implementation check a tag (17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed on macOS x86-64 with optimized producers for base 4f87c9e08b1 and for the #1378 head: the migrated positive exits 0 under the native/Psi comparison (native and Terminal Psi agree) and every twin and control in the place still rejects with its authored fragment. No compiler change was needed. The other hosted targets keep their authored rows, unexecuted here.

@@ -4,8 +4,7 @@
 
 #[path = "support/declared_exit.rs"]
 mod declared_exit;
-#[path = "support/project.rs"]
-mod project;
+use declared_exit::project;
 mod support;
 
 use platform_custody::temporary_directory::TemporaryDirectory;
@@ -34,7 +33,7 @@ fn invoke(tier: &str, arguments: &[&str]) -> (Output, String) {
 }
 
 #[test]
-fn every_shift_policy_pair_and_total_bitwise_operation_runs_in_both_engines() {
+fn every_shift_policy_pair_and_total_bitwise_operation_runs_when_interpreted_and_built() {
     declared_exit::assert_declared_exit(&fixture("run"), "main.omg");
 }
 

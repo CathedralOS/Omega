@@ -42,7 +42,7 @@ runtime observation covers `linux_x86_64`, `linux_arm64` or `windows_x86_64` yet
 Verified on Intel macOS (`macos_x86_64`) with a compiler built from
 `6e8f4d98f4ad813beba1d27d890b395df6adbede`, `opt_level` 1, binary digest
 `bdecc2229b060553`: with this host's `macos_x86_64::ProgramEntry` added to a
-scratch copy, bare `omega run --both <place>/main.omg` reports `native exit 0`
+scratch copy, bare native/Psi comparison reports `native exit 0`
 and `interp exit: 0` for the anchor and all nine places, and `omega --check
 <place>/invalid/main.omg` rejects each of the nine weakened-domain twins with
 `exact arithmetic in machine `cut` state `entry` terminal expression may
@@ -53,11 +53,10 @@ is declared only for targets `linux_arm64`, `linux_x86_64`, `macos_arm64`,
 `windows_x86_64`).
 
 The scratch copy exists only because the authored places bind the four hosted
-targets: an unmodified `omega run --both` selects `macos_x86_64` and refuses
+targets: an unmodified the native/Psi comparison selects `macos_x86_64` and refuses
 `selected target macos_x86_64 has no bound required root slot` before execution.
 
-A supplied `--target` performs compile-publication only. `omega run --both
---target <name>` neither interprets nor executes — `ExecutionOutcome::TargetOnly`
+A supplied `--target` performs compile-publication only. The native/Psi comparison neither interprets nor executes — `ExecutionOutcome::TargetOnly`
 returns before both — so its exit 0 is not an engine observation and must not be
 read as one; `build/swarm/probe_fact.sh` reports such runs as `AGREES` and is
 therefore not a runtime check. Real observations need the bare form on a copy
@@ -91,10 +90,10 @@ Owning task: **BUMP-ALLOCATOR-CANARY** ([TASKS.md](../../../../TASKS.md), P1). T
 - **Identity and lifetime:** `Region` carries exact `base: address` and `length: u64` fields; layout geometry and domain facts remain tied to the exact type/carrier and scalar subjects across owned moves, record-field projections (`Envelope.region`), and `[copy]` constant substitution without losing `Bounded` domain membership across all 9 places.
 - **Composition:** `cut` and `forward` compose and substitute the actual `Region in Bounded` through all 9 places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`) into the consuming exact address addition (`whole.base + requested`) proved directly from `requested < whole.length`; `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in the geometry/domain bound (`embed(region.base) <= address::Bound` instead of `embed(base) + embed(length) <= address::Bound`), leaving addition unproved without any caller guard difference.
 - **Soundness boundaries:** All 9 `<place>/invalid/main.omg` reject twins fail closed when the geometry/domain bound is weakened or exceeded, rejecting at compile time with `exact arithmetic in machine ... may overflow \`address\``; `no_wrap` is a mathematical `let` definition (`core::Strict<0>`) erased before runtime; proof preserves mathematical integrity while preventing out-of-bounds address synthesis without manufacturing storage custody or `Granted` authority.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** `Region` lowers as a two-field structural aggregate (`address`, `u64`), layout geometry queries and domain bounds (`no_wrap`, `Strict<0>`) lower into canonical target-neutral `PSITERM\0` with mathematical and proof-only bindings erased while preserving runtime carrier representations and exact address arithmetic operations, executing identically in the Terminal Psi interpreter (`omega run --both`).
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** `Region` lowers as a two-field structural aggregate (`address`, `u64`), layout geometry queries and domain bounds (`no_wrap`, `Strict<0>`) lower into canonical target-neutral `PSITERM\0` with mathematical and proof-only bindings erased while preserving runtime carrier representations and exact address arithmetic operations, executing identically in the Terminal Psi interpreter.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Companion build bindings (`ProgramEntry`) settle across the four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), target layout plans (`size_of`/`align_of`, field/bit offsets for `Region.base` and `Region.length`, `IntegerAt` stored widths) evaluate and validate without reopening source, and `CallPlan`/`StatePlan` lower aggregates and scalar carriers across target registers and stack slots.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA instructions (`x86_64`/`arm64`) materializing layout constants and exact address addition (`base + requested`), assigns register homes and disjoint stack-frame activation storage, composes bounded activation claims, and inserts machine entry prologues and epilogues honoring the `StatePlan`.
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements resolve, basic blocks and branches relax with offset reflow after prologue/epilogue insertion, transitive machine-state footprint evidence validates, and direct PE/ELF/Mach-O emission executes and agrees with Terminal Psi (`omega run --both` exit 0) across all hosted targets, including `windows_x86_64`, `linux_x86_64`, and `macos_arm64`.
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements resolve, basic blocks and branches relax with offset reflow after prologue/epilogue insertion, transitive machine-state footprint evidence validates, and direct PE/ELF/Mach-O emission executes and agrees with Terminal Psi (exit 0) across all hosted targets, including `windows_x86_64`, `linux_x86_64`, and `macos_arm64`.
 
 The match repair retains predicate-qualified ownership sources and intersects
 the actual incoming membership rosters at the join. Distinct-source and nested

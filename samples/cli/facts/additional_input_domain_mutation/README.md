@@ -35,7 +35,7 @@ reject `overwrite`'s input requirement. The separate
 protects a stored `Holder.cell: Cell in Before`: that default still requires
 restoration on normal return.
 
-Acceptance for each positive is `omega run --both <place>/main.omg`, exit 0.
+Acceptance for each positive is the native/Psi comparison, exit 0.
 Build binds all four hosted targets; native observations are host-specific.
 The match place calls both selector values and checks distinct nonzero neighbor
 fields after the same write. Choosing one arm twice or overwriting the neighbor

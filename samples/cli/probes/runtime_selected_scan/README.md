@@ -9,9 +9,11 @@ scans return `None`; a subwindow result denotes that window's matching element.
 After ordinary package preparation:
 
 ```sh
-omega run --engine native samples/cli/collections/runtime_selected_scan/main.omg
-omega run --engine psi samples/cli/collections/runtime_selected_scan/main.omg
+omega run samples/cli/collections/runtime_selected_scan/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/probes/runtime_selected_scan` from the repository root.
 
 Expected native and Terminal exit: 0. The program checks each result and traps
 on a mismatch. Static selection, copied payloads, or private-implementation

@@ -14,12 +14,11 @@ omega packages update --project samples/gui/image_viewer --target macos_arm64 --
 # If review is required, inspect the reported file and decide its pending rows.
 omega packages update --resume --project samples/gui/image_viewer --offline
 cd samples/gui/image_viewer
-omega run --keep main.omg
+omega --build-dir build main.omg
 ```
 
-Run `--resume` only when an update requests review. The run command omits
-`--target` so it executes on the host. Its retained `.app` can also be run
-from this directory using the reported inner executable:
+Run `--resume` only when an update requests review. Launch the published bundle’s
+inner executable from this directory so it can find the supplied images.
 
 ```sh
 /path/reported/by/omega/image_viewer.app/Contents/MacOS/image_viewer

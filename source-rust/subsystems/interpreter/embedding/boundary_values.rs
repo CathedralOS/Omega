@@ -457,7 +457,8 @@ pub(crate) mod errors {
     use terminal_work::WorkMeterError;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
-    pub enum TerminalInterpretError {        UnsuppliedErasedEntryInputs {
+    pub enum TerminalInterpretError {
+        UnsuppliedErasedEntryInputs {
             machine: MachineId,
             reason: &'static str,
         },
@@ -702,6 +703,7 @@ pub(crate) mod errors {
 
     #[derive(Debug)]
     pub enum TerminalArtifactInterpretError {
+        Synchronization(psi_provider_selections::PrivateWaitFailure),
         ArtifactDecode(terminal_codec::CanonicalTerminalArtifactError),
         SemanticDecode(terminal_codec::CodecError),
         Execution(TerminalInterpretError),
@@ -709,6 +711,9 @@ pub(crate) mod errors {
 
     impl std::fmt::Display for TerminalArtifactInterpretError {
         fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            if let Self::Synchronization(failure) = self {
+                return failure.fmt(formatter);
+            }
             write!(formatter, "{self:?}")
         }
     }
@@ -1589,8 +1594,13 @@ pub(crate) mod values {
                             Ok::<_, TerminalInterpretError>(())
                         };
                         let mut add_fields = |fields: &[StructuralFieldDeclaration]| {
-                            for field in fields.iter().rev().filter(|field| !field.relevance.is_erased()) {
-                                if let StructuralFieldType::Structural(identity) = field.field_type {
+                            for field in fields
+                                .iter()
+                                .rev()
+                                .filter(|field| !field.relevance.is_erased())
+                            {
+                                if let StructuralFieldType::Structural(identity) = field.field_type
+                                {
                                     child(identity)?;
                                 } else if !Self::is_plain_leaf(&field.field_type) {
                                     return Err(malformed());
@@ -2079,7 +2089,8 @@ pub(crate) mod values {
                 Arc::get_mut(&mut program)
                     .unwrap()
                     .fixture_module_mut()
-                    .types.structural_types = declarations;
+                    .types
+                    .structural_types = declarations;
                 let mut execution =
                     crate::engine::execution::TerminalExecution::start_with_program(
                         program,
@@ -2613,6 +2624,26 @@ pub(crate) mod values {
                 opaque_identity: value.opaque_identity,
                 path: value.path.clone(),
             }
+        }
+    }
+
+    pub(crate) fn scalar_from_view(
+        target: semantic_vocabulary::ScalarType,
+        viewed: terminal_semantics::ScalarViewValue,
+    ) -> Result<TerminalScalarValue, crate::boundary::errors::TerminalInterpretError> {
+        use semantic_vocabulary::ScalarType;
+        use terminal_semantics::ScalarViewValue;
+        match (target, viewed) {
+            (ScalarType::Boolean, ScalarViewValue::Boolean(value)) => {
+                Ok(TerminalScalarValue::Boolean(value))
+            }
+            (ScalarType::Integer(scalar_type), ScalarViewValue::Integer(value)) => {
+                Ok(TerminalScalarValue::Integer { scalar_type, value })
+            }
+            (ScalarType::IeeeFloat(_), ScalarViewValue::IeeeFloat(value)) => {
+                Ok(TerminalScalarValue::IeeeFloat(value))
+            }
+            _ => Err(crate::boundary::errors::malformed()),
         }
     }
 
