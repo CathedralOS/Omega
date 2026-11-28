@@ -4988,6 +4988,9 @@ pub(crate) mod structural_storage {
             pub leaves: Vec<StorageLeaf>,
             pub requires_erased_establishment: bool,
             pub requires_atomic_storage: bool,
+            // Component calls can lend the actual cell. Snapshot and replacement paths
+            // still exclude shared atomic leaves from their ordinary scalar contents.
+            lend_atomic_cells: bool,
             // Read-only selection retains the actual backing root and the
             // logical prefix crossed to reach it. Capture must not replay a
             // stored-length index as inline storage beneath the outer record.
@@ -5108,18 +5111,46 @@ pub(crate) mod structural_storage {
             replacement: Option<&[TerminalBoundaryStorageValue]>,
             prefix: &[Path],
         ) -> Result<StorageDescription, TerminalInterpretError> {
-            let mut leaves = StorageDescription::default();
-            collect(
-                execution,
-                referent.structural_type,
-                &StructuralRuntimePlace::from(referent),
-                access,
-                replacement,
-                None,
-                &mut prefix.to_vec(),
-                &mut leaves,
-            )?;
-            Ok(leaves)
+            let mut description = StorageDescription::default();
+            description.collect(execution, referent, access, replacement, prefix)?;
+            Ok(description)
+        }
+
+        /// A loan keeps the original backing. Include shared atomic leaves so
+        /// checked atomic events in the borrower can observe that same cell.
+        pub(crate) fn describe_loan(
+            execution: &TerminalExecution,
+            referent: &TerminalStructuralValue,
+            access: StructuralAccess,
+        ) -> Result<StorageDescription, TerminalInterpretError> {
+            let mut description = StorageDescription {
+                lend_atomic_cells: true,
+                ..Default::default()
+            };
+            description.collect(execution, referent, access, None, &[])?;
+            Ok(description)
+        }
+
+        impl StorageDescription {
+            fn collect(
+                &mut self,
+                execution: &TerminalExecution,
+                referent: &TerminalStructuralValue,
+                access: StructuralAccess,
+                replacement: Option<&[TerminalBoundaryStorageValue]>,
+                prefix: &[Path],
+            ) -> Result<(), TerminalInterpretError> {
+                collect(
+                    execution,
+                    referent.structural_type,
+                    &StructuralRuntimePlace::from(referent),
+                    access,
+                    replacement,
+                    None,
+                    &mut prefix.to_vec(),
+                    self,
+                )
+            }
         }
 
         pub(crate) fn select(
@@ -5180,7 +5211,7 @@ pub(crate) mod structural_storage {
                 }),
                 StructuralTypeShape::AtomicCell(cell) => {
                     leaves.requires_atomic_storage = true;
-                    if access == StructuralAccess::MutableBorrow {
+                    if leaves.lend_atomic_cells || access == StructuralAccess::MutableBorrow {
                         leaves.leaves.push(StorageLeaf {
                             path: path.clone(),
                             kind: StorageLeafKind::Scalar {
@@ -5439,7 +5470,8 @@ pub(crate) mod structural_storage {
                     StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_)
                 );
                 leaves.requires_atomic_storage |= atomic;
-                if atomic && access != StructuralAccess::MutableBorrow {
+                if atomic && !leaves.lend_atomic_cells && access != StructuralAccess::MutableBorrow
+                {
                     continue;
                 }
                 path.push(Path::Field(field.id));

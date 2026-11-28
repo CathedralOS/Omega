@@ -192,6 +192,7 @@ impl Program<'_> {
         let mut published = IdTable::default();
         let mut calls = IdTable::default();
         for (id, symbol) in self.symbols.iter() {
+            // A field borrow: the loop pushes into `declared_envelope_policies`.
             let signature = self
                 .signatures
                 .get(id)
@@ -801,14 +802,8 @@ impl Program<'_> {
             .get(id)
             .and_then(Option::as_ref)
             .ok_or_else(|| unavailable(id, "abstract requirement lost its source policy"))?;
-        let signature = self
-            .signatures
-            .get(id)
-            .ok_or_else(|| unavailable(id, "abstract requirement lost its source header"))?;
-        let declaration = *self
-            .symbols
-            .get(id)
-            .ok_or_else(|| unavailable(id, "abstract requirement lost its source declaration"))?;
+        let signature = self.machine_signature(id)?;
+        let declaration = self.machine_symbol(id)?;
         let abstract_types = signature
             .parameters
             .iter()
@@ -1889,10 +1884,7 @@ impl<'t> Program<'t> {
 
         let typed = self.typed;
         let unserved = |what| refuse_at(owner, Unserved::Declaration(what));
-        let symbol = *self
-            .symbols
-            .get(owner)
-            .ok_or_else(|| unserved("a callback application lost its owner"))?;
+        let symbol = self.machine_symbol(owner)?;
         let Some(instantiation) = typed.machine_instantiation(symbol).map_err(unserved)? else {
             return Ok(Vec::new());
         };

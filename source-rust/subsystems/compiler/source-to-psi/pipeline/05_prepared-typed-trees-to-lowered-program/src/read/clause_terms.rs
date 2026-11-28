@@ -1383,6 +1383,7 @@ impl Program<'_> {
         // A row of the implementation being read, named by its requirement,
         // is the same abstract operation as its trait's requirement.
         let sibling = match table.expression(expression) {
+            ExpressionNode::Call(call) if call.static_requirement_dispatch.is_some() => true,
             ExpressionNode::Call(call) if !call.receiver.is_valid() && bodyless.is_none() => self
                 .contract_operator_owner(id, scope)
                 .ok()
@@ -1641,12 +1642,15 @@ impl Program<'_> {
                     // evidence implementation. Typing calls that row's
                     // member; the clause names the row, exactly as
                     // `Implementation::equals(..)` would.
-                    let sibling = (!call.receiver.is_valid())
-                        .then(|| {
-                            self.sibling_row(owner, target, call.authored_call_selection)
-                                .or_else(|| self.witness_conformance_row(target))
-                        })
-                        .flatten();
+                    let sibling = match &call.static_requirement_dispatch {
+                        Some(dispatch) => Some(self.dispatched_row(id, dispatch)?),
+                        None => (!call.receiver.is_valid())
+                            .then(|| {
+                                self.sibling_row(owner, target, call.authored_call_selection)
+                                    .or_else(|| self.witness_conformance_row(target))
+                            })
+                            .flatten(),
+                    };
                     if let Some((requirement, _)) = sibling {
                         target = requirement;
                     }
@@ -1655,7 +1659,25 @@ impl Program<'_> {
                             expression, call,
                         ),
                     );
-                    if invocation.unsupported
+                    // A copied requirement call keeps its selected row as
+                    // its dispatch, which `dispatched_row` already read.
+                    let unsupported = match call.static_requirement_dispatch {
+                        Some(_) => {
+                            call.runtime_call.is_some()
+                                || call.build_selection.is_valid()
+                                || call.quotient_operation.is_some()
+                                || call.private_layout_operation.is_some()
+                                || call.installed_interrupt_operation.is_some()
+                                || call.layout_query.is_some()
+                                || call.native_code_layout.is_some()
+                                || call.requirement_application.is_valid()
+                                || call.exact_coercion_target.is_valid()
+                                || call.static_machine_parameter.is_valid()
+                                || !call.evidence_arguments.is_empty()
+                        }
+                        None => invocation.unsupported,
+                    };
+                    if unsupported
                         || call.operational_acknowledgement.acknowledges_suspend
                         || call.operational_acknowledgement.acknowledges_block
                     {
@@ -1663,12 +1685,16 @@ impl Program<'_> {
                             "clause application has another dispatch or effect",
                         ));
                     }
-                    self.direct_selection(
-                        id,
-                        target,
-                        call.authored_call_selection,
-                        call.authored_call_binding,
-                    )?;
+                    // The author selected the parameter's placeholder, which
+                    // the dispatch replaced by the row it selects.
+                    if call.static_requirement_dispatch.is_none() {
+                        self.direct_selection(
+                            id,
+                            target,
+                            call.authored_call_selection,
+                            call.authored_call_binding,
+                        )?;
+                    }
                     let receiver = table.name_path_node(call.receiver).map(|name| name.symbol);
                     if call.receiver.is_valid() && receiver.is_none() {
                         return Err(unavailable(
@@ -2368,6 +2394,35 @@ impl Program<'_> {
                     && row.requirement == selected
             })
             .map(|row| (row.requirement, conformance.symbol))
+    }
+
+    /// The requirement and implementation a copied clause names when it
+    /// called a requirement through an implementation parameter, such as
+    /// `E::equals` in a machine generic over `E satisfies Equatable<T>`
+    /// copied for `CoinByBoth`. Specialization keeps the selected row as the
+    /// call's dispatch; the clause names that row, exactly as
+    /// `CoinByBoth::equals(..)` would.
+    fn dispatched_row(
+        &self,
+        id: MachineId,
+        dispatch: &crate::source_state::StaticRequirementDispatch,
+    ) -> Checked<(SymbolHandle, SymbolHandle)> {
+        let (conformance, row) = self
+            .typed
+            .owned_conformance_realization(dispatch.realization_machine)
+            .ok_or_else(|| {
+                refuse_at(
+                    id,
+                    Unserved::Contract("clause dispatch names no implementation row"),
+                )
+            })?;
+        if row.requirement != dispatch.requirement {
+            return Err(refuse_at(
+                id,
+                Unserved::Contract("clause dispatch names another requirement than its row"),
+            ));
+        }
+        Ok((row.requirement, conformance.symbol))
     }
 
     /// The requirement and implementation when a requirement's clause,

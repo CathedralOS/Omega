@@ -62,6 +62,14 @@ enum RequirementValues<'a> {
     Rigid,
 }
 
+/// The refusal of an identity that holds no reserved machine row.
+fn missing_row(id: MachineId) -> terminal_check_tables::Refusal {
+    refuse_at(
+        id,
+        Unserved::Machine("machine identity has no reserved row"),
+    )
+}
+
 /// A refusal of what `declaration` writes between `<` and `>`, by the rule
 /// it broke and the declaration's name.
 fn refuse_parameters(
@@ -546,6 +554,27 @@ impl<'t> Program<'t> {
         }
     }
 
+    /// The typed-tree machine whose row `reserve_row` reserved at `id`.
+    ///
+    /// Only the row tables know which identities hold a row: a diagnostic
+    /// identity taken from `next_identity`, or a row `abandon_row` removed,
+    /// holds none. The reader refuses such an identity here rather than at
+    /// each lookup.
+    pub(crate) fn machine_symbol(&self, id: MachineId) -> Checked<SymbolHandle> {
+        self.symbols.get(id).copied().ok_or_else(|| missing_row(id))
+    }
+
+    /// The signature in `id`'s reserved row: the placeholder until
+    /// `complete_row` fills it (`row_is_read`), the read signature after.
+    pub(crate) fn machine_signature(&self, id: MachineId) -> Checked<&crate::body::Signature> {
+        self.signatures.get(id).ok_or_else(|| missing_row(id))
+    }
+
+    /// The source names `complete_row` recorded in `id`'s reserved row.
+    pub(crate) fn machine_names(&self, id: MachineId) -> Checked<&MachineNames> {
+        self.names.get(id).ok_or_else(|| missing_row(id))
+    }
+
     /// Whether `id` names a machine whose signature has been read.
     pub(crate) fn row_is_read(&self, id: MachineId) -> bool {
         !self.unread_rows.contains(&id)
@@ -985,13 +1014,7 @@ impl<'t> Program<'t> {
         // machine, so this walk cannot itself follow a cycle.
         let mut ancestor = Some(caller);
         while let Some(current) = ancestor {
-            let source = self.symbols.get(current).ok_or_else(|| {
-                refuse_at(
-                    caller,
-                    Unserved::Call("type application has no exact caller"),
-                )
-            })?;
-            if *source == symbol
+            if self.machine_symbol(current)? == symbol
                 && !self.scopes.get(current).is_some_and(|scope| {
                     let enclosing: Vec<_> = scope.iter().map(|(_, value)| *value).collect();
                     self.same_type_arguments(&enclosing, &arguments)

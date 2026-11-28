@@ -1,0 +1,12 @@
+public data Signal { value: AtomicU32; }
+
+public boundary trait Publisher {
+    machine publish(signal: @Signal, observer: @Signal) -> u32 reaches none crashes none;
+}
+
+public SignalPublisher satisfies Publisher {
+    machine publish(signal: @Signal, observer: @Signal) -> u32 {
+        signal.value.store(17, Publish);
+        observer.value.load(Receive)
+    }
+}
