@@ -5,7 +5,9 @@
 //! selects its host realizations and stops before optimization and native
 //! code. The interpreter then runs the contained artifact under an invocation
 //! account, output ceilings and a live-wait ceiling, with no native provider,
-//! native services or components. Standard input is supplied as for source.
+//! native services or components. Standard input is supplied as for source,
+//! and the working directory is mounted read/write at `/` unless explicit run
+//! directory mappings replace it.
 
 use build_model::accounting::BuildEvaluationSponsor;
 use build_model::contracts::{
@@ -29,6 +31,34 @@ pub(crate) const CONTAINED_LIVE_PAYLOAD_BYTES: u64 = 256 << 20;
 /// Total time a contained guest may spend in live clock waits.
 pub(crate) const CONTAINED_LIVE_WAIT_NANOSECONDS: u64 = 60_000_000_000;
 
+/// The standalone Product grant (`wiki/spec/build/command_line.md#runtime-directory-mappings`):
+/// the caller's working directory read/write at `/`, unless explicit run
+/// directory mappings replace it. Mapped directories confine every path
+/// beneath their retained handles; a host without that namespace gets
+/// standard streams alone.
+fn filesystem(
+    mut directories: platform_custody::directory_mappings::DirectoryMappings,
+) -> Result<TerminalFilesystemDelegation, TerminalRuntimeError> {
+    if directories.is_empty() {
+        if !cfg!(target_os = "linux") {
+            return Ok(TerminalFilesystemDelegation::StandardStreamsOnly);
+        }
+        let unavailable = |error: std::io::Error| TerminalRuntimeError::MissingProvision {
+            capability: "working directory mount",
+            reason: error.to_string(),
+        };
+        let cwd = std::env::current_dir().map_err(unavailable)?;
+        directories
+            .grant(
+                &cwd,
+                "/",
+                platform_custody::directory_mappings::DirectoryAccess::ReadWrite,
+            )
+            .map_err(unavailable)?;
+    }
+    Ok(TerminalFilesystemDelegation::Mapped(directories))
+}
+
 pub(super) fn execute(
     contained: &psi_authorization::ContainedTerminalArtifact,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
@@ -38,11 +68,7 @@ pub(super) fn execute(
     psi_work_budget: u64,
     directories: platform_custody::directory_mappings::DirectoryMappings,
 ) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
-    if !directories.is_empty() {
-        return Err(TerminalRuntimeError::InvalidProvision(
-            "saved Psi run without producer trust has no filesystem binding yet",
-        ));
-    }
+    let filesystem = filesystem(directories)?;
     let refused =
         |_| TerminalRuntimeError::InvalidProvision("contained run limits are not admissible");
     let measurement = EvaluationMeasurementIdentity::TerminalPsi {
@@ -71,7 +97,7 @@ pub(super) fn execute(
         entry: None,
         native_provider: None,
         native_services: TerminalNativeServiceDelegation::Unprovided,
-        filesystem: TerminalFilesystemDelegation::StandardStreamsOnly,
+        filesystem,
         x86_flags: None,
         memory_ordering: terminal_runtime::TerminalMemoryOrderingEnvironment::private_sequential(
             target,
