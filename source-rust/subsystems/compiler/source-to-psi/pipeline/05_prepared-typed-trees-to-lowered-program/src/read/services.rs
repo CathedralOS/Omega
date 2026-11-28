@@ -277,13 +277,13 @@ impl Program<'_> {
             }
             let body = terminal_check_tables::row(bodies, id, id, Construct::Machine)?;
             let uses = CallCollector::for_body(id, signature, body, &self.records)?;
-            if uses.iter().any(|call| call.static_binding.is_some())
+            if uses.sites.iter().any(|call| call.static_binding.is_some())
                 && let Some(instance) = self.typed.machine_instantiation(*symbol)
                     .map_err(|reason| unavailable(id, reason))?
             {
                 let bindings = self.typed.expression_table
                     .static_machine_application_bindings(instance.binding_application());
-                for position in uses.iter().filter_map(|call| call.static_binding) {
+                for position in uses.sites.iter().filter_map(|call| call.static_binding) {
                     let Some(bound) = bindings.get(position as usize)
                         .and_then(|binding| self.typed.retained_static_machine_contract(binding.parameter))
                     else { continue };
@@ -314,7 +314,8 @@ impl Program<'_> {
             for (id, uses) in calls.iter() {
                 let mut reached = empty();
                 let mut reached_known = KnownAxes::ALL;
-                for invocation in uses {
+                reached.service_reach.clone_from(&uses.services);
+                for invocation in &uses.sites {
                     if let Some(required) = invocation.required_contract {
                         reached_known.intersect(self.declaration_axes(
                             id,
@@ -571,6 +572,7 @@ impl Program<'_> {
                     .ok_or_else(|| unavailable(id, "progress subject has no invocation row"))?;
                 if local_termination.get(id) != Some(&true)
                     || !uses
+                        .sites
                         .iter()
                         .all(|invocation| call_terminates(self, invocation, &local_termination))
                 {
@@ -612,6 +614,7 @@ impl Program<'_> {
             ) && calls
                 .get(id)
                 .ok_or_else(|| unavailable(id, "termination subject has no invocations"))?
+                .sites
                 .iter()
                 .any(|invocation| !call_terminates(self, invocation, &local_termination))
             {
@@ -1060,9 +1063,15 @@ struct Use<'a> {
     arguments: &'a [Expression],
 }
 
+#[derive(Default)]
+struct BodyCalls<'a> {
+    services: Vec<ServiceReachId>,
+    sites: Vec<Use<'a>>,
+}
+
 struct CallCollector<'a, 'r> {
     records: &'r IdTable<semantic_vocabulary::StructuralTypeId, RecordType>,
-    sites: Vec<Use<'a>>,
+    calls: BodyCalls<'a>,
     // Which caller parameters supplied the value now in each slot: one, or
     // each formal a `match` joined there. Empty when another value may be
     // there.
@@ -1075,10 +1084,10 @@ impl<'a, 'r> CallCollector<'a, 'r> {
         signature: &Signature,
         body: &'a Body,
         records: &'r IdTable<semantic_vocabulary::StructuralTypeId, RecordType>,
-    ) -> Checked<Vec<Use<'a>>> {
+    ) -> Checked<BodyCalls<'a>> {
         let mut collector = Self {
             records,
-            sites: Vec::new(),
+            calls: BodyCalls::default(),
             parameters: vec![Vec::new(); body.slots.len()],
         };
         for (slot, ty) in signature.parameters.iter().enumerate() {
@@ -1133,7 +1142,7 @@ impl<'a, 'r> CallCollector<'a, 'r> {
                 _ => {}
             }
         }
-        Ok(collector.sites)
+        Ok(collector.calls)
     }
 
     /// The caller's formals `expression` may be, or none when some value it
@@ -1194,22 +1203,22 @@ impl<'a, 'r> CallCollector<'a, 'r> {
     }
 }
 
-fn collect_statement<'a>(statement: &'a Statement, calls: &mut CallCollector<'a, '_>) {
+fn collect_statement<'a>(statement: &'a Statement, collector: &mut CallCollector<'a, '_>) {
     match statement {
         Statement::Observe { value, .. }
         | Statement::Bind { value, .. }
         | Statement::Evaluate {
             expression: value, ..
         }
-        | Statement::Decompose { subject: value } => collect_expression(value, calls),
+        | Statement::Decompose { subject: value } => collect_expression(value, collector),
         Statement::Store {
             destination, value, ..
         } => {
-            collect_expression(destination, calls);
-            collect_expression(value, calls);
+            collect_expression(destination, collector);
+            collect_expression(value, collector);
         }
         // Capturing an existing reference aliases its already evaluated
-        // binding; its initializer's calls were charged at that earlier Bind.
+        // binding; its initializer's collector were charged at that earlier Bind.
         Statement::CaptureReference { .. } => {}
         Statement::Witness { .. }
         | Statement::AssemblyAdjacent { .. }
@@ -1220,41 +1229,41 @@ fn collect_statement<'a>(statement: &'a Statement, calls: &mut CallCollector<'a,
             default,
             ..
         } => {
-            collect_expression(subject, calls);
+            collect_expression(subject, collector);
             for (selector, target, _) in arms {
                 if let Some(condition) = selector.condition.as_deref() {
-                    collect_expression(condition, calls);
+                    collect_expression(condition, collector);
                 }
-                collect_target(target, calls);
+                collect_target(target, collector);
             }
             if let Some((target, _)) = default {
-                collect_target(target, calls);
+                collect_target(target, collector);
             }
         }
         Statement::Arm { guard, target, .. } => {
             if let Some(guard) = guard.condition() {
-                collect_expression(guard, calls);
+                collect_expression(guard, collector);
             }
-            collect_target(target, calls);
+            collect_target(target, collector);
         }
     }
 }
-fn collect_target<'a>(target: &'a Target, calls: &mut CallCollector<'a, '_>) {
+fn collect_target<'a>(target: &'a Target, collector: &mut CallCollector<'a, '_>) {
     if let Target::Value(value) | Target::AssemblyReturn(_, value) = target {
-        collect_expression(value, calls);
+        collect_expression(value, collector);
     }
 }
-fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<'a, '_>) {
+fn collect_expression<'a>(expression: &'a Expression, collector: &mut CallCollector<'a, '_>) {
     match &expression.kind {
         E::TheoremApplication { .. } | E::Applied { .. } => {}
         E::Block {
             statements, value, ..
         } => {
             for statement in statements {
-                collect_statement(statement, calls);
+                collect_statement(statement, collector);
             }
             if let Some(value) = value {
-                collect_expression(value, calls);
+                collect_expression(value, collector);
             }
         }
         E::Call {
@@ -1265,20 +1274,20 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<
             ..
         } => {
             let selected_parameters = if let CallTarget::Selected { callable, .. } = callee {
-                let parameters = calls.parameters(callable);
-                collect_expression(callable, calls);
+                let parameters = collector.parameters(callable);
+                collect_expression(callable, collector);
                 parameters
             } else {
                 Vec::new()
             };
             let mut parameter_arguments = Vec::new();
             for (position, argument) in arguments.iter().enumerate() {
-                for parameter in calls.parameters(argument) {
+                for parameter in collector.parameters(argument) {
                     parameter_arguments.push((position, parameter));
                 }
-                collect_expression(argument, calls);
+                collect_expression(argument, collector);
             }
-            calls.sites.push(Use {
+            collector.calls.sites.push(Use {
                 static_binding: *static_reach_binding,
                 selected_parameters,
                 parameter_arguments,
@@ -1286,6 +1295,12 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<
                 required_contract: *required_contract,
                 arguments,
             });
+        }
+        E::NativeBorrow {
+            services, operand, ..
+        } => {
+            union_services(&mut collector.calls.services, services);
+            collect_expression(operand, collector);
         }
         E::OwnedTemporary { value: base, .. }
         | E::Field { base, .. }
@@ -1301,20 +1316,20 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<
         | E::BitwiseNot(base)
         | E::Cast(base)
         | E::Requalify(base)
-        | E::Referent(base) => collect_expression(base, calls),
+        | E::Referent(base) => collect_expression(base, collector),
         E::Borrow { place, access, .. } => {
-            collect_expression(place, calls);
+            collect_expression(place, collector);
             // An exclusive borrower can replace the callback before its next read.
             if access.is_exclusive()
                 && let Some(slot) = CallCollector::slot(place)
-                && let Some(binding) = calls.parameters.get_mut(slot)
+                && let Some(binding) = collector.parameters.get_mut(slot)
             {
                 binding.clear();
             }
         }
         E::Record { fields, .. } | E::Case { fields, .. } => {
             for (_, field) in fields {
-                collect_expression(field, calls);
+                collect_expression(field, collector);
             }
         }
         E::Match {
@@ -1323,15 +1338,15 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<
             default,
             ..
         } => {
-            collect_expression(subject, calls);
+            collect_expression(subject, collector);
             for (selector, arm) in arms {
                 if let Some(pattern) = selector.test() {
-                    collect_expression(pattern, calls);
+                    collect_expression(pattern, collector);
                 }
-                collect_expression(arm, calls);
+                collect_expression(arm, collector);
             }
             if let Some(default) = default {
-                collect_expression(default, calls);
+                collect_expression(default, collector);
             }
         }
         E::TestMembership {
@@ -1341,33 +1356,33 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<
         }
         | E::Strict { left, right, .. }
         | E::ShortCircuit { left, right, .. } => {
-            collect_expression(left, calls);
-            collect_expression(right, calls);
+            collect_expression(left, collector);
+            collect_expression(right, collector);
         }
         E::PackedInteger {
             operands: elements, ..
         }
         | E::Array { elements } => {
             for element in elements {
-                collect_expression(element, calls);
+                collect_expression(element, collector);
             }
         }
         E::CollectionSubslice { base, start, end } => {
-            collect_expression(base, calls);
+            collect_expression(base, collector);
             if let Some(start) = start {
-                collect_expression(start, calls);
+                collect_expression(start, collector);
             }
             if let Some(end) = end {
-                collect_expression(end, calls);
+                collect_expression(end, collector);
             }
         }
         E::Index { base, index } | E::ByteElement { base, index, .. } => {
-            collect_expression(base, calls);
-            collect_expression(index, calls);
+            collect_expression(base, collector);
+            collect_expression(index, collector);
         }
         E::Atomic(operation) => {
             for operand in operation.inputs() {
-                collect_expression(operand, calls);
+                collect_expression(operand, collector);
             }
         }
         E::SavedSubject(_)

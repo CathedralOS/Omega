@@ -13,6 +13,7 @@ pub(crate) fn native_optimization_budget() -> OptimizationWorkBudget {
 }
 
 pub(crate) struct NativeCompileRequest<'request> {
+    pub(crate) policy_source: super::inputs::published_application::ProductPolicySource,
     pub(crate) suppliers: &'request super::inputs::components::VerifiedSuppliers,
     /// Retain original stage inputs for explicitly requested correspondence audits.
     pub retain_native_stage_inputs: bool,

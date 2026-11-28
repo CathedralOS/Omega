@@ -892,6 +892,7 @@ pub mod normalized_foreign {
                     instruction: SelectedInstructionId(1),
                     invocation_site: operation.into(),
                     call: target_vocabulary::LegalizedNormalizedForeignCall {
+                        suspension_crossing: None,
                         boundary,
                         provider_execution:
                             target_vocabulary::ExternalExecutionBinding::NativeBinding(

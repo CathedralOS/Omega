@@ -206,6 +206,64 @@ pub(crate) mod byte_sequences {
                 }
             }
 
+            pub(crate) fn exclusive_reborrow(
+                &self,
+                execution: &TerminalExecution<'_>,
+                referent: &TerminalStructuralValue,
+            ) -> Result<Self, TerminalInterpretError> {
+                match self {
+                    Self::Immutable(bytes) => {
+                        let Some(window) = bytes.original_array() else {
+                            // An owned bounded buffer retains a live home even
+                            // when its shared read descriptor holds a snapshot.
+                            if execution
+                                .structural_declaration(referent.structural_type)?
+                                .shape
+                                .is_bounded_owned_byte_sequence()
+                                && bytes.descriptor_home().is_some_and(|home| {
+                                    bytes.matches_bound_descriptor_home(home, referent)
+                                })
+                            {
+                                return execution.lend_original_byte_owner(referent);
+                            }
+                            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                                "upgrade_mutability requires writable backing for the byte window",
+                            ));
+                        };
+                        let end = window
+                            .offset
+                            .checked_add(window.length)
+                            .ok_or(malformed())?;
+                        if bytes.len() != window.length
+                            || end > execution.stored_byte_array_length(&window.array)?
+                        {
+                            return Err(malformed());
+                        }
+                        let exclusive = Self::MutableArray {
+                            array: window.array.clone(),
+                            array_type: window.array_type,
+                            offset: u64::try_from(window.offset).map_err(|_| malformed())?,
+                            length: u64::try_from(window.length).map_err(|_| malformed())?,
+                            referent: referent.clone(),
+                            descriptor_home: None,
+                        };
+                        exclusive.validate_mutable_referent(execution, referent)?;
+                        Ok(exclusive)
+                    }
+                    Self::Representation(_) => {
+                        Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                            "upgrade_mutability requires a writable byte descriptor",
+                        ))
+                    }
+                    Self::MutableArray { .. }
+                    | Self::MutableField { .. }
+                    | Self::MutableOwner { .. } => {
+                        self.validate_mutable_referent(execution, referent)?;
+                        Ok(self.clone())
+                    }
+                }
+            }
+
             pub(crate) fn validate_presented_referent(
                 &self,
                 execution: &TerminalExecution,
@@ -4008,6 +4066,19 @@ pub(crate) mod element_views {
                 .ok_or(malformed())?;
                 execution.resident_element_storage(collection, position, suffix, scalar, !writing)
             }
+        }
+
+        pub(crate) fn exclusive_reborrow(&self) -> Result<Self, TerminalInterpretError> {
+            if self.access != StructuralAccess::SharedBorrow
+                || !matches!(self.backing, ElementViewBacking::Structural { .. })
+            {
+                return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "upgrade_mutability requires an array with writable elements",
+                ));
+            }
+            let mut exclusive = self.clone();
+            exclusive.access = StructuralAccess::MutableBorrow;
+            Ok(exclusive)
         }
 
         pub(crate) fn subslice(
