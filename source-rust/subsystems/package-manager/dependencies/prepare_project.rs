@@ -91,23 +91,36 @@ impl PreparedLocalProject {
         &self,
         profile: TargetProfile,
     ) -> Result<Option<AcceptedDeployment<'_>>, String> {
-        let row = self
-            .targets
-            .iter()
-            .find(|row| row.profile == profile)
-            .ok_or_else(|| format!("project was not prepared for {}", profile.target_name()))?;
-        let Some(section) = row.accepted.as_ref().map_err(ToString::to_string)? else {
-            return Ok(None);
-        };
-        super::accepted_compilation_identity::require_current_acceptance(
-            &self.source_closure.for_exact_target(profile),
-            section,
-            super::compiler_input_identity()?,
-        )?;
-        Ok(Some(AcceptedDeployment {
-            root: self.root_package(),
-            section,
-        }))
+        self.deployment_validator()(profile)
+    }
+
+    /// All accepted sections in one post-Build target loop share a fresh compiler
+    /// identity. Unlocked and missing sections need no library capture.
+    pub(crate) fn deployment_validator<'project>(
+        &'project self,
+    ) -> impl FnMut(TargetProfile) -> Result<Option<AcceptedDeployment<'project>>, String> {
+        let mut compiler = None;
+        move |profile| {
+            let row = self
+                .targets
+                .iter()
+                .find(|row| row.profile == profile)
+                .ok_or_else(|| format!("project was not prepared for {}", profile.target_name()))?;
+            let Some(section) = row.accepted.as_ref().map_err(ToString::to_string)? else {
+                return Ok(None);
+            };
+            super::accepted_compilation_identity::require_current_acceptance(
+                &self.source_closure.for_exact_target(profile),
+                section,
+                compiler
+                    .get_or_insert_with(super::compiler_input_identity)
+                    .clone()?,
+            )?;
+            Ok(Some(AcceptedDeployment {
+                root: self.root_package(),
+                section,
+            }))
+        }
     }
 }
 

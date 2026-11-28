@@ -857,15 +857,14 @@ fn open_products_with(
         // Source acquisition uses the lock's exact pins. Both ordinary checking and
         // --check --verify start from captured source, without installing recorded trust
         // admissions or a restricted-Build checkpoint. Runtime consent is a separate decision.
+        let mut accepted_deployment = project.deployment_validator();
         let decisions: Vec<_> = profiles
             .iter()
             .copied()
             .map(|target| {
                 (
                     target,
-                    project
-                        .accepted_deployment(target)
-                        .map_err(|reason| vec![Diagnostic::error(reason)]),
+                    accepted_deployment(target).map_err(|reason| vec![Diagnostic::error(reason)]),
                 )
             })
             .collect();

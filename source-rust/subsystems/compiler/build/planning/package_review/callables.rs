@@ -196,19 +196,15 @@ impl PolicySource<'_> {
     ) -> Result<Option<PackagePolicyCallable>, Vec<Diagnostic>> {
         let exact_sources = self.sources().exact_toolchain_sources();
         let mut reviewed = None;
-        for elaboration in self.accepted().generic_callable_forms(declaration) {
-            let module = &elaboration.module;
+        for form in self.accepted().generic_callable_forms(declaration) {
+            let module = &form.module;
             let Some(TargetMachineCallable::Machine(entry)) = module.entry else {
                 return Err(unavailable("the generic declaration's checked entry"));
             };
-            if elaboration.machines.get(entry) != Some(&declaration) {
+            if form.entry_owner != Some(declaration) {
                 return Err(unavailable("the generic check form's exact source owner"));
             }
-            if elaboration
-                .static_reach_summaries
-                .iter()
-                .any(|row| row.machine == entry && !row.term.parameters.is_empty())
-            {
+            if form.entry_has_static_reach_parameters {
                 return Err(unavailable(
                     "the generic callable's static reach projections",
                 ));
@@ -220,9 +216,8 @@ impl PolicySource<'_> {
                 exact_sources,
                 source_provenance::DependencyScope::Product,
             )?;
-            let rigid_value_parameters = *elaboration
-                .value_parameters
-                .get(entry)
+            let rigid_value_parameters = form
+                .entry_value_parameters
                 .ok_or_else(|| unavailable("the generic callable's checked value telescope"))?;
             let row = self.callable(
                 &CallableInventory {
