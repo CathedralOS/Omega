@@ -200,6 +200,29 @@ fn run_parts_must_return_both_owned_subsequences() {
 }
 
 #[test]
+fn partition_calls_require_live_custody_on_each_consumed_run() {
+    let run = "|run|::Run<WordPlacement, Word>";
+    let live = format!("{run} in |run|::Run::Live<WordPlacement, Word>");
+    let split = format!(
+        "machine carry(input: {run}) -> |run|::RunParts<WordPlacement, Word> {{ |run|::split::<WordPlacement, Word>(input, 0) }}"
+    );
+    let merge = |left: &str, right: &str| {
+        format!(
+            "machine carry(left: {left}, right: {right}) -> {live} {{ |run|::merge::<WordPlacement, Word>(left, right) }}"
+        )
+    };
+    for declaration in [split, merge(run, &live), merge(&live, run)] {
+        let (output, report) = inspect(&declaration);
+        assert!(!output.status.success(), "{report}");
+        assert!(
+            report.contains("the parameter it is passed for declares")
+                && report.contains("Run::Live"),
+            "{report}"
+        );
+    }
+}
+
+#[test]
 fn a_bodyless_lookalike_cannot_partition_a_run() {
     let live = "|run|::Run<P,T> in |run|::Run::Live<P,T>";
     for (name, parameters, result) in [

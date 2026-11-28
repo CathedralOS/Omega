@@ -4181,6 +4181,7 @@ mod declaration_invocations {
                     Some(
                         language_core::sealed_intrinsics::SealedIntrinsic::CompilerPrimitive(
                             language_core::sealed_intrinsics::CompilerPrimitive::NativeBorrow(_)
+                                | language_core::sealed_intrinsics::CompilerPrimitive::RunPartition(_)
                         )
                     )
                 )
@@ -4188,8 +4189,8 @@ mod declaration_invocations {
                 return Ok(None);
             }
             self.compiler_primitive_schema(machine.symbol)
-                .map_err(|_| "invalid native borrow declaration")?
-                .ok_or("native borrow has no checked declaration")?;
+                .map_err(|_| "invalid sealed bodyless declaration")?
+                .ok_or("sealed bodyless call has no checked declaration")?;
             self.bodyless_machine_signature_for(machine, target)
                 .map(Some)
         }

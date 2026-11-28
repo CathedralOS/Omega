@@ -3936,10 +3936,21 @@ impl<'t> Program<'t> {
         } else {
             self.requirement_const_inputs(id, requirement)?
         };
+        // A free machine owns its effects and application. Its entry owns the
+        // reserved result in its clauses, just as for a machine with a body.
+        let clause_owner = match self.typed.machine_by_symbol(requirement.symbol) {
+            Some(machine) if machine.has_bodyless_signature() => {
+                let Some([entry]) = self.typed.machine_states(machine).as_array() else {
+                    return unserved("bodyless machine contract without its unique entry");
+                };
+                entry.symbol
+            }
+            _ => requirement.symbol,
+        };
         let outer = std::mem::replace(&mut self.const_scope, inputs);
         let read = self.contract(
             id,
-            requirement.symbol,
+            clause_owner,
             requirement.parameters,
             requirement.return_type,
             requirement.contracts,

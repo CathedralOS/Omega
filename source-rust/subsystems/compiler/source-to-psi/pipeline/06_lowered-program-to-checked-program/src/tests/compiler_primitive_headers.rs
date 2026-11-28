@@ -47,11 +47,8 @@ fn typed_at(
     crate::typing::lower_symbol_resolved_trees(&resolved).map_err(|error| vec![error])
 }
 
-#[test]
-fn run_partition_schemas_bind_live_memberships_to_their_original_inputs() {
+fn run_partition_trees(product: &str) -> crate::source_state::TypedTrees {
     use super::build_purpose::frontier_with_core;
-    use crate::source_state::domain::ProofFact;
-    use language_core::sealed_intrinsics::RunPartitionOperation;
     macro_rules! core_file {
         ($path:literal) => {
             (
@@ -65,8 +62,8 @@ fn run_partition_schemas_bind_live_memberships_to_their_original_inputs() {
             )
         };
     }
-    let mut program = frontier_with_core(
-        "use {omega}/language/core/run.omg; machine main() {}",
+    frontier_with_core(
+        product,
         "machine builder() {}",
         source_provenance::DependencyScope::Product,
         &[
@@ -81,7 +78,14 @@ fn run_partition_schemas_bind_live_memberships_to_their_original_inputs() {
             core_file!("option.omg"),
             core_file!("reflect/reflect.omg"),
         ],
-    );
+    )
+}
+
+#[test]
+fn run_partition_schemas_bind_live_memberships_to_their_original_inputs() {
+    use crate::source_state::domain::ProofFact;
+    use language_core::sealed_intrinsics::RunPartitionOperation;
+    let mut program = run_partition_trees("use {omega}/language/core/run.omg; machine main() {}");
     for (operation, name, number_of_inputs) in [
         (RunPartitionOperation::Split, "split", 1),
         (RunPartitionOperation::Merge, "merge", 2),
@@ -134,6 +138,84 @@ fn run_partition_schemas_bind_live_memberships_to_their_original_inputs() {
             *program.proof_facts.get_mut(inputs[1]) = second;
         }
     }
+}
+
+#[test]
+fn partition_calls_prepare_their_original_live_inputs_and_the_whole_result() {
+    let prepared = crate::prepare_fixture(run_partition_trees(
+        r#"
+use {omega}/language/core/run.omg as run;
+use {omega}/language/core/layout.omg as layout;
+use {omega}/language/core/access/access.omg as access;
+use {omega}/language/core/reflect/reflect.omg as reflect;
+data Word { value: u64; }
+domain Word::Placed access WordAccess;
+data Placed = Word in Word::Placed;
+WordAccess satisfies |layout|::AccessPolicy {
+    machine plan(schema: |reflect|::TypeSchema) -> |layout|::AccessPlan reaches none crashes none terminates {
+        |access|::new_plan(@schema, |layout|::Issuance::Unrestricted)
+    }
+}
+machine carry(r: |run|::Run<Placed, Word> in |run|::Run::Live<Placed, Word>, cut: u64)
+    -> |run|::Run<Placed, Word> in |run|::Run::Live<Placed, Word>
+requires cut <= r.count {
+    let parts: |run|::RunParts<Placed, Word> = |run|::split::<Placed, Word>(r, cut);
+    |run|::merge::<Placed, Word>(parts.left, parts.right)
+}
+machine main() {}
+"#,
+    ));
+    let typed = prepared.trees();
+    let machine = |name| super::build_purpose::symbol(typed, name);
+    let application = |declaration| {
+        typed
+            .expression_table
+            .static_machine_applications()
+            .find(|(_, row)| row.binding_declaration == declaration)
+            .expect("closed call to the real declaration")
+            .0
+    };
+    let split = machine("split");
+    let merge = machine("merge");
+    let split_call = application(split);
+    let merge_call = application(merge);
+    let signature = |call, declaration| {
+        typed
+            .bodyless_callable_signature(call, declaration)
+            .expect("registered declaration")
+            .expect("applied source signature")
+    };
+    let splitter = signature(split_call, split);
+    let merger = signature(merge_call, merge);
+    let run = typed.normalized_type_identity(merger.return_type);
+    let carry = typed.machine_by_symbol(machine("carry")).unwrap();
+    let entry = typed.machine_states(carry).first().unwrap();
+    assert_eq!(
+        run,
+        typed.normalized_type_identity(typed.state_parameters(entry)[0].type_reference)
+    );
+    for (header, live_inputs) in [(splitter, 1), (merger, 2)] {
+        assert!(header.type_parameters.is_empty());
+        assert!(!header.contracts.is_empty());
+        for formal in typed
+            .state_signature_parameters(header)
+            .iter()
+            .take(live_inputs)
+        {
+            assert_eq!(typed.normalized_type_identity(formal.type_reference), run);
+        }
+    }
+    assert_ne!(typed.normalized_type_identity(splitter.return_type), run);
+    assert!(
+        typed
+            .bodyless_callable_signature(split_call, merge)
+            .is_err()
+    );
+    assert!(
+        typed
+            .bodyless_callable_signature(merge_call, split)
+            .is_err()
+    );
 }
 
 #[test]
