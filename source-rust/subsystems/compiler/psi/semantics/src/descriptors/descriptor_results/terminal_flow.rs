@@ -978,7 +978,7 @@ fn adapt_flow(
                         &mut step,
                         operation.id,
                         result?,
-                        origin.observed_sources().map(|(at, source)| (at, *source)),
+                        origin.observed_sources(),
                         origin.exact,
                         origin.parameters.clone(),
                         origin.opaque,
