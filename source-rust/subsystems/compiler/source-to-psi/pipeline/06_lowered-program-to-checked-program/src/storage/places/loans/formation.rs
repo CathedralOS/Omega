@@ -41,45 +41,34 @@ impl<'a> Storage<'a> {
                 (source, access, Some((referent, storage.as_ref())))
             }
             OperationKind::UpgradeMutability { source } => {
-                let descriptor = self.argument(source, concerns)?;
-                let Shape::Typed(ty) = self.shape(&descriptor, concerns)? else {
-                    return Err(self.foreign(
+                let destination = &self.declaration(result.structural_type, concerns)?.shape;
+                let input = terminal_semantics::mutability_upgrade_source(
+                    self.lowered,
+                    self.types,
+                    source,
+                    destination,
+                )
+                .ok_or_else(|| {
+                    self.foreign(
                         concerns,
-                        "mutability upgrade requires a shared reference descriptor",
-                    ));
-                };
-                let StructuralTypeShape::Reference {
-                    referent,
-                    access: StructuralAccess::SharedBorrow,
-                } = self.declaration(ty, concerns)?.shape
-                else {
-                    return Err(
-                        self.foreign(concerns, "mutability upgrade requires a shared reference")
-                    );
-                };
-                if source.access != StructuralAccess::SharedBorrow
-                    || self.declaration(result.structural_type, concerns)?.shape
-                        != (StructuralTypeShape::Reference {
-                            referent,
-                            access: StructuralAccess::MutableBorrow,
-                        })
-                {
-                    return Err(self.foreign(
-                        concerns,
-                        "mutability upgrade must preserve the referent type",
-                    ));
-                }
+                        "mutability upgrade must preserve the shared referent or view geometry",
+                    )
+                })?;
+                // A sized descriptor lends its referent. A view already spans
+                // its exact window; the ordinary view-payload loan retains it.
                 let mut actual = source.clone();
+                let referent = match input.shape {
+                    StructuralTypeShape::Reference { referent, .. } => {
                 actual
                     .path
                     .push(terminal_psi::StructuralPathSegment::Referent);
+                        Some((referent, None))
+                    }
+                    _ => None,
+                };
                 actual.access = StructuralAccess::MutableBorrow;
                 upgraded = actual;
-                (
-                    &upgraded,
-                    StructuralAccess::MutableBorrow,
-                    Some((referent, None)),
-                )
+                (&upgraded, StructuralAccess::MutableBorrow, referent)
             }
             OperationKind::EstablishElementView { source, .. }
             | OperationKind::EstablishMutableElementView { source, .. } => {

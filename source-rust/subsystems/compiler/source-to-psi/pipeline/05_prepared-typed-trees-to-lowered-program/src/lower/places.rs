@@ -3329,7 +3329,19 @@ impl<'a> Lowering<'a> {
                             ExecutionSite::Operation(operation),
                             expression.source,
                         )?;
-                        let captured = self.step(at.place, Step::Referent { owner: at.record })?;
+                        let captured = match self.record_type(at.record)?.shape {
+                            StorageShape::Reference { .. } => {
+                                self.step(at.place, Step::Referent { owner: at.record })?
+                            }
+                            StorageShape::ByteSequence(_) | StorageShape::ElementView { .. } => {
+                                at.place
+                            }
+                            _ => {
+                                return Err(self.internal(
+                                    "upgrade operand has no reference or view descriptor",
+                                ));
+                            }
+                        };
                         let lender = if self.borrowed_roots.contains(&at.root) {
                             Lender::Incoming
                         } else {
@@ -5071,7 +5083,6 @@ impl<'a> Lowering<'a> {
     ) -> Evaluation<Value> {
         let (root, steps) = if let Some(element) = first_element {
             let at = continuing!(self.located(place));
-            self.measured_view(&at, source)?;
             let zero = Expression {
                 call_context: None,
                 source,
@@ -5084,9 +5095,10 @@ impl<'a> Lowering<'a> {
             (at.root, path)
         } else {
             let (root, steps, _, _) = continuing!(self.capture_place(place));
-            self.measure_indexed_views(root, &steps, source)?;
             (root, steps)
         };
+        // The bound belongs to the finished path, after evaluating its selectors.
+        self.measure_indexed_views(root, &steps, source)?;
         let operation = self.operation_identity(source);
         let path = self.storage_path(&steps, ExecutionSite::Operation(operation), source)?;
         let argument = StructuralArgument {

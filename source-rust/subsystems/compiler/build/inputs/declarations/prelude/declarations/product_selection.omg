@@ -72,6 +72,8 @@ public machine build_exclusion_physical_code(authority: PhysicalAuthorityClass) 
         PhysicalAuthorityClass::InterruptEntry -> 11u64,
         PhysicalAuthorityClass::RootMemoryAccess -> 12u64,
         PhysicalAuthorityClass::ProcessInput -> 13u64,
+        PhysicalAuthorityClass::HostNetworkStack -> 14u64,
+        PhysicalAuthorityClass::OffMachineNetworkTransmit -> 15u64,
     }
 }
 // This conversion is ordinary checked source, preserving the exact enum's

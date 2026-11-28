@@ -16,7 +16,7 @@ use crate::source_state::{
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
-use super::demanded_values::{DemandedValues, RoundProgram};
+use super::demanded_values::{DemandedValues, JudgedCall, RoundDemand, RoundProgram};
 use super::{FixedLayoutTargetScope, PlannedCall, PreparedBuildMachineProgram};
 use crate::compile_time_invocations::{BuildTimeValue, InvocationTarget, SourceCompletionAccounting};
 
@@ -288,44 +288,46 @@ impl DemandedValues for Layouts<'_> {
         true
     }
 
+    fn call_program<'round>(
+        &self,
+        round: &'round RoundProgram,
+    ) -> &'round PreparedBuildMachineProgram {
+        round.layout_policies()
+    }
+
     /// Each demand calls its policy once for its own target. A plan an
     /// earlier round installed needs no call.
-    fn plan_round(
-        &mut self,
-        values: &[usize],
-        round: &RoundProgram,
-        typed: &TypedTrees,
-    ) -> Vec<PlannedCall> {
-        values
-            .iter()
-            .filter_map(|&value| {
-                let demand = &self.demands[value];
-                let scope = &self.scopes[demand.scope];
-                if let Some(plan) = typed.plan_laid_layout_for_type(demand.storage.application)
-                    && plan
-                        .geometry_for_target(typed, Some(&scope.target))
-                        .is_some()
-                {
-                    return None;
-                }
-                let facts = scope.facts.as_ref()?;
-                layout_call(
-                    typed,
-                    round.layout_policies(),
-                    demand.requester,
-                    demand.storage,
-                    facts,
-                )
-                .ok()
-                .map(|call| call.plan)
-            })
-            .collect()
+    fn plan_round(&mut self, values: &mut [RoundDemand], round: &RoundProgram, typed: &TypedTrees) {
+        for ready in values {
+            let demand = &self.demands[ready.value];
+            let scope = &self.scopes[demand.scope];
+            if let Some(plan) = typed.plan_laid_layout_for_type(demand.storage.application)
+                && plan
+                    .geometry_for_target(typed, Some(&scope.target))
+                    .is_some()
+            {
+                continue;
+            }
+            let Some(facts) = scope.facts.as_ref() else {
+                continue;
+            };
+            ready.call = layout_call(
+                typed,
+                self.call_program(round),
+                demand.requester,
+                demand.storage,
+                facts,
+            )
+            .ok()
+            .map(|call| call.plan);
+        }
     }
 
     fn evaluate(
         &mut self,
         value: usize,
         round: &RoundProgram,
+        judged: Option<JudgedCall<'_>>,
         typed: &mut TypedTrees,
         accounting: &mut SourceCompletionAccounting,
     ) -> Result<(), Vec<Diagnostic>> {
@@ -345,7 +347,8 @@ impl DemandedValues for Layouts<'_> {
         // result of the same round cannot change it.
         evaluate_application(
             typed,
-            round.layout_policies(),
+            self.call_program(round),
+            judged,
             demand.requester,
             demand.storage,
             scope,
@@ -421,6 +424,7 @@ fn layout_call<'typed>(
 fn evaluate_application(
     typed: &mut TypedTrees,
     program: &PreparedBuildMachineProgram,
+    judged: Option<JudgedCall<'_>>,
     requester: SymbolHandle,
     storage: crate::source_state::layout_storage::LayoutStorageArguments,
     scope: &FixedLayoutTargetScope,
@@ -438,7 +442,7 @@ fn evaluate_application(
         retired,
     } = layout_call(typed, program, requester, storage, facts)?;
     let entry = program
-        .prepare_planned(&plan)
+        .demand_entry(&plan, judged)
         .map_err(|errors| diagnostics::join_messages(&errors))?;
     // The accepted call can use a captured body. Store the policy declaration
     // that the captured body implements in the published layout.

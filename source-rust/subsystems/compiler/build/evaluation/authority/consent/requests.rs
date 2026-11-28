@@ -63,6 +63,19 @@ impl BuildNetworkPeer {
         self.address
     }
 
+    /// A fixed UDP socket always uses the host stack. Only a destination confined
+    /// to loopback proves that this provider cannot transmit off the machine.
+    pub fn physical_authority(self) -> &'static [semantic_vocabulary::TerminalAuthorityClass] {
+        use semantic_vocabulary::TerminalAuthorityClass::{
+            HostNetworkStack, OffMachineNetworkTransmit,
+        };
+        if self.address.ip().to_canonical().is_loopback() {
+            &[HostNetworkStack]
+        } else {
+            &[HostNetworkStack, OffMachineNetworkTransmit]
+        }
+    }
+
     pub const fn max_datagram_bytes(self) -> u16 {
         self.max_datagram_bytes
     }

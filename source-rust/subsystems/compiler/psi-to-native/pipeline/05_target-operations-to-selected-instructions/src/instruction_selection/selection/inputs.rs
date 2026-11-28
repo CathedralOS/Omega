@@ -2342,6 +2342,7 @@ pub(crate) mod established_view_input {
                     I::ByteSequenceSubslice { result, .. }
                     | I::ElementViewSubslice { result, .. }
                     | I::EstablishElementView { result, .. }
+                    | I::UpgradeMutability { result, .. }
                     | I::StructuralLeafCopy { result, .. } => result,
                     _ => return None,
                 };
@@ -2395,6 +2396,13 @@ pub(crate) mod established_view_input {
                             copied::shared_projection(function, row)?;
                             return initial;
                         }
+                    }
+                    I::UpgradeMutability { source, .. } => {
+                        if access != A::MutableBorrow {
+                            return None;
+                        }
+                        projected_source_access(function, source, A::SharedBorrow, remaining)?;
+                        return initial;
                     }
                     I::ByteSequenceSubslice { source, .. }
                     | I::ElementViewSubslice { source, .. } => {
@@ -6075,6 +6083,19 @@ pub(crate) mod storage_origin_input {
                     }
                     I::EstablishElementView { source: parent, .. } => {
                         collect_calls(geometry, parent, visited, calls)?;
+                    }
+                    I::UpgradeMutability { source, result, .. }
+                        if function
+                            .geometry()
+                            .declaration(result.structural_type)
+                            .is_ok_and(|ty| ty.shape.is_view_descriptor()) =>
+                    {
+                        collect_calls(
+                            geometry,
+                            &rebased(source, &coordinate.path),
+                            visited,
+                            calls,
+                        )?;
                     }
                     I::BorrowAt { .. } => {
                         let (result, _, codec) =

@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 306`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 307`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -4089,6 +4089,7 @@ pub(crate) use wire::{Reader, Writer, decode_canonical};
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
 // Marker 308 distinguishes nominal preconditions on exact formals from normal results.
+// Marker 307 adds the terminal storage-alignment projection on scalar reads.
 // Marker 306 adds native reference formation and checked mutability-upgrade origins.
 // Marker 305 records the supplier's exported provider records separately from local selections.
 // Marker 304 appends the optional assembly exit constraint to each block.

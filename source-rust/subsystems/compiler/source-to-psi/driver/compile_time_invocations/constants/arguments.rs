@@ -24,11 +24,11 @@ use crate::source_state::types::{FixedArrayLength, TypeReferenceHandle, TypeRefe
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
-use super::super::demanded_values::{DemandedValues, RoundProgram};
+use super::super::demanded_values::{DemandedValues, JudgedCall, RoundDemand, RoundProgram};
 use super::super::typed_invocation::TypedInvocationDeclaration;
 use super::{decoded, insert};
 use crate::compile_time_invocations::{
-    InvocationTarget, PlannedCall, PreparedBuildMachineProgram, SourceCompletionAccounting,
+    InvocationTarget, PreparedBuildMachineProgram, SourceCompletionAccounting,
 };
 
 /// One value required by a type and still written as an expression.
@@ -446,21 +446,22 @@ impl DemandedValues for Arguments {
     /// the round's own program, so this kind names none to it.
     fn plan_round(
         &mut self,
-        values: &[usize],
+        values: &mut [RoundDemand],
         round: &RoundProgram,
         _program: &TypedTrees,
-    ) -> Vec<PlannedCall> {
+    ) {
         self.round = None;
         if values.len() < 2 {
-            return Vec::new();
+            return;
         }
         let mut probe = TypedTrees::clone(round.source());
         let mut entries = Vec::with_capacity(values.len());
-        for &value in values {
+        for demand in values {
+            let value = demand.value;
             // A failed entry can leave part of a declaration in the copy, so
             // every argument of the round is then judged alone.
             let Ok(symbol) = entry(&mut probe, &self.jobs[value]) else {
-                return Vec::new();
+                return;
             };
             entries.push((value, symbol));
         }
@@ -477,7 +478,6 @@ impl DemandedValues for Arguments {
             program,
             entries,
         });
-        Vec::new()
     }
 
     fn reaches(&mut self, program: &TypedTrees, value: usize, reached: &[SymbolHandle]) {
@@ -515,6 +515,7 @@ impl DemandedValues for Arguments {
         &mut self,
         value: usize,
         round: &RoundProgram,
+        _judged: Option<JudgedCall<'_>>,
         program: &mut TypedTrees,
         accounting: &mut SourceCompletionAccounting,
     ) -> Result<(), Vec<Diagnostic>> {

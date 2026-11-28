@@ -63,6 +63,10 @@ For each explicitly exported provider member, the receiver compares these
 rows with the checked boundary of the same requirement. Moving a premise to a
 different input changes the public contract even when both inputs have the same type.
 
+Marker 307 adds the terminal alignment observation to scalar-read paths. Readers
+check the marker before decoding the module. Rebuild earlier artifacts for this
+format.
+
 Marker 306 adds typed native address borrows (operation 145), mutability
 upgrades (146), and upgraded parameter origins (reference source tag 3).
 The reader rejects earlier markers before reading the payload.
@@ -825,6 +829,9 @@ spelling is noncanonical and rejects rather than selecting another dialect.
 Tag `6` is `Extent`, has no payload, and ends the path by observing the
 selected readable byte/element descriptor's current `u64` count. A scalar or
 fixed-array leaf cannot supply a live descriptor extent.
+Tag `7` is `Alignment`. It has no payload and ends a path at addressable storage.
+It returns the live location's guaranteed alignment as a `u64`. Indirection and
+the selection of the first element of a nonempty slice are explicit path steps.
 The path is nonempty. Dynamic indices keep their own fixed-integer
 carriers, excluding addresses; they do not become static geometry. The exact
 root declaration and each selected member or element determine the leaf type.
@@ -1166,7 +1173,7 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 143 | PackedIntegerUnary | selector byte, optional shift count, source structural argument |
 | 144 | ElementViewFixedArray | source structural argument naming a shared element or byte view + length value id + `u64` extent + obligation id; affine shared reference to `[T; extent]` result, immediately after the view's length measurement |
 | 145 | BorrowAt | address value id; affine shared or mutable reference result specifies referent type and access |
-| 146 | UpgradeMutability | structural argument selecting the input shared reference; affine mutable result preserves its referent, extent and lifetime |
+| 146 | UpgradeMutability | structural argument selecting the input shared reference or typed view; the affine mutable result preserves its referent or exact view geometry, extent and lifetime |
 
 Tag 142 selects wrapping 16-bit addition (0), wrapping 16-bit subtraction
 (1), a two-input shuffle (2), wrapping 16-byte unsigned addition (3),
@@ -3112,6 +3119,7 @@ sites, then counted call plans.
 | 1 | Machine | machine id |
 | 2 | Boundary | boundary machine id |
 | 5 | Dynamic | `u32` interface + `u32` slot |
+| 6 | Callable | callee value id + callable contract id |
 
 <!-- suspension-place-tags -->
 

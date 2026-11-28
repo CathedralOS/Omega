@@ -62,6 +62,13 @@ machine build(plan: @mutable BuildPlan) {{
             .unwrap()
     }
 
+    fn assert_psi_returns(&self) {
+        let interpreted = self.interpreted();
+        assert!(interpreted.status.success(), "{}", report(&interpreted));
+        let observed = fs::read_to_string(self.0.path().join("observed/termination.tsv")).unwrap();
+        assert_eq!(observed.trim_end(), "psi\treturn");
+    }
+
     fn assert_native_returns(&self) {
         let result = project::build_and_run_command(&mut self.command(&["build", "build.omg"]));
         assert!(
@@ -136,10 +143,7 @@ fn native_references_read_and_write_an_owned_byte_at_its_exposed_address() {
 fn an_upgrade_reborrows_the_same_owned_byte_natively_and_in_psi() {
     let program = Program::new(UPGRADED_BYTE, &[UPGRADE]);
     program.assert_native_returns();
-    let interpreted = program.interpreted();
-    assert!(interpreted.status.success(), "{}", report(&interpreted));
-    let observed = fs::read_to_string(program.0.path().join("observed/termination.tsv")).unwrap();
-    assert_eq!(observed.trim_end(), "psi\treturn");
+    program.assert_psi_returns();
 }
 
 fn reading_address(binding: &str, op: &str) -> String {
@@ -726,5 +730,62 @@ machine main() {{
                 "{message}"
             );
         }
+    }
+}
+
+#[test]
+fn upgrading_a_bounded_window_preserves_its_extent_offset_and_owner() {
+    assert_upgraded_window("u8", 71, 83);
+}
+
+#[test]
+fn upgrading_a_word_window_preserves_its_elements_and_stride() {
+    assert_upgraded_window("u32", 65538, 131075);
+}
+
+fn assert_upgraded_window(element: &str, first: u32, second: u32) {
+    for change in [
+        format!(
+            "let shared: @[{element}] = @items[1..3];\n    let writable: @mutable [{element}] = |native|::upgrade_mutability::<[{element}]>(shared);\n    mark(writable);"
+        ),
+        String::from("forward(@items[1..3]);"),
+        format!(
+            "let writable: @mutable [{element}] = upgraded(@items[1..3]);\n    mark(writable);"
+        ),
+    ] {
+        let source = format!(
+            r#"
+machine upgraded(shared: @[{element}]) -> @mutable [{element}] {{
+    |native|::upgrade_mutability::<[{element}]>(shared)
+}}
+machine forward(shared: @[{element}]) crashes Trap {{
+    let writable: @mutable [{element}] = |native|::upgrade_mutability::<[{element}]>(shared);
+    mark(writable);
+}}
+machine mark(window: @mutable [{element}]) crashes Trap {{
+    transition window.length == 2u64 {{ true -> store(window), false -> wrong() }}
+    machine store(window: @mutable [{element}])
+    requires window.length == 2u64
+    {{
+        window[0u64] = {first}{element};
+        window[1u64] = {second}{element};
+    }}
+    machine wrong() crashes Trap {{ crash Trap; }}
+}}
+machine main() crashes Trap {{
+    let mutable items: [{element}; 4] = [11{element}, 23{element}, 47{element}, 59{element}];
+    {change}
+    transition items[0u64] == 11{element} && items[1u64] == {first}{element}
+        && items[2u64] == {second}{element} && items[3u64] == 59{element} {{
+        true -> done(), false -> wrong()
+    }}
+    machine done() {{}}
+    machine wrong() crashes Trap {{ crash Trap; }}
+}}
+"#
+        );
+        let program = Program::new(&source, &[UPGRADE]);
+        program.assert_native_returns();
+        program.assert_psi_returns();
     }
 }

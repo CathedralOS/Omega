@@ -69,15 +69,6 @@ impl OwnedPsiProvider {
         )
         .and_then(|component| component.with_executable_artifact(image.shared_artifact()))
         .map_err(|reason| reason.to_string())?;
-        // This route installs a closed supplier. An unhandled import, custody
-        // claim or platform obligation is a load error, not deferred work.
-        if !(checked.imports().is_empty()
-            && checked.obligations().is_empty()
-            && checked.custody().is_empty()
-            && checked.outgoing().is_empty())
-        {
-            return Err("provider needs import, authority, resource or custody admission".into());
-        }
         let left = receiver.artifact().semantic_module();
         let expected = left.service_schema(declaration, application)?;
         let right = checked.module();
@@ -97,6 +88,15 @@ impl OwnedPsiProvider {
         let actual = right.service_schema(export.schema_declaration, export.schema_application)?;
         if actual.surface != expected.surface {
             return Err("exported and requested operation record contracts differ".into());
+        }
+        // Admit demands only for an actual export of the requested record.
+        // This route does not install suppliers with unmet dependencies.
+        if !(checked.imports().is_empty()
+            && checked.obligations().is_empty()
+            && checked.custody().is_empty()
+            && checked.outgoing().is_empty())
+        {
+            return Err("provider needs import, authority, resource or custody admission".into());
         }
         let program = TerminalProgram::retain_authorized(&image);
         let mut members = Vec::with_capacity(export.members.len());

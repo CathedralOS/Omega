@@ -44,6 +44,11 @@ impl PackagePolicyBaseline {
             return Err("this package policy version cannot record provider application grants");
         }
         self.terminal_permissions.validate_canonical_structure()?;
+        if self.schema_version < crate::encoding::BASELINE_WITH_NETWORK_AUTHORITY
+            && self.terminal_permissions.has_network_authority()
+        {
+            return Err("this package policy version cannot record physical network authority");
+        }
         self.representation.validate_canonical_structure()?;
         self.boundary_applications.validate_canonical_structure(
             self.package,
