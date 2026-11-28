@@ -49,6 +49,8 @@ pub use call_observations::{ObservedTerminalCall, TerminalCallObservation};
 pub use suspension::TerminalSuspension;
 #[path = "embedding/program.rs"]
 mod embedding;
+#[path = "instructions/activation.rs"]
+mod activation;
 #[path = "instructions/calls.rs"]
 mod engine_calls;
 #[path = "memory/custody.rs"]

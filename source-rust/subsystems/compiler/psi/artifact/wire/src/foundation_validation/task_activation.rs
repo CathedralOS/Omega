@@ -24,16 +24,33 @@ pub(crate) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
         identity(row.normalized_identity)?;
         value(row.value_type)
     };
+    let mut owned_preparations = BTreeSet::new();
     for demand in demands {
-        for index in [
-            demand.requirement_callable_identity,
-            demand.requirement_owner_path,
-            demand.authored_requirement_identity,
-            demand.machine_callable_identity,
-            demand.entry,
-        ] {
-            identity(index)?;
+        match &demand.origin {
+            TerminalActivationOrigin::TaskRuntime(runtime) => {
+                for index in [runtime.requirement_callable_identity, runtime.requirement_owner_path, runtime.authored_requirement_identity] {
+                    identity(index)?;
+                }
+            }
+            TerminalActivationOrigin::Caller(selection) => {
+                if !owned_preparations.insert(selection.preparation) {
+                    return malformed("one prepare application has more than one activation plan");
+                }
+                let selected = selection.selected_body(module).and_then(|body| body.declaration.as_ref())
+                    .ok_or(CodecError::MalformedStructuralFoundation("prepared entry differs from the selected machine argument"))?;
+                if selected.callable != demand.machine_callable_identity || selected.state.identity() != demand.entry {
+                    return malformed("prepared entry differs from the activation frame");
+                }
+                if selected.result_type != demand.signature_outcome.normalized_identity
+                    || selected.parameter_types.iter().copied().ne(demand.signature_arguments.iter().map(|argument| argument.normalized_identity))
+                    || selected.published_may_suspend != demand.may_suspend
+                    || selected.published_may_block != demand.may_block {
+                    return malformed("prepared activation signature differs from its selected body");
+                }
+            }
         }
+        identity(demand.machine_callable_identity)?;
+        identity(demand.entry)?;
         if demand.report_fingerprint == 0
             || demand.entry_report_fingerprint == 0
             || demand.contract_report_fingerprint == 0

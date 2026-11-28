@@ -1854,6 +1854,7 @@ pub(crate) mod program {
         /// The declaration-dependent part of every primitive store, prepared
         /// for the whole program the first time one runs.
         primitive_stores: std::sync::OnceLock<Vec<PreparedPrimitiveStore>>,
+        pub(crate) park_sites: crate::activation::ParkSites,
         /// Which declared types hold claims, prepared for this exact view the
         /// first time an owned value's claims are checked.
         claim_roster: std::sync::OnceLock<
@@ -1947,6 +1948,7 @@ pub(crate) mod program {
                 scalar_geometry,
                 memberships: std::sync::OnceLock::new(),
                 primitive_stores: std::sync::OnceLock::new(),
+                park_sites: Default::default(),
                 claim_roster: std::sync::OnceLock::new(),
             }
         }

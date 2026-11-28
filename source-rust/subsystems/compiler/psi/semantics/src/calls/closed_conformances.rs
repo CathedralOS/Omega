@@ -268,6 +268,10 @@ pub fn validate_boundary_callable(
     if let terminal_psi::CheckedBoundaryExecution::OwnedActivation(operation) = checked.execution {
         match operation {
             language_core::sealed_intrinsics::ActivationOperation::Park => super::owned_activation::validate_park(module, boundary)?,
+            language_core::sealed_intrinsics::ActivationOperation::Prepare => {
+                super::owned_activation::validate_prepared_entry(module, boundary)?;
+                return Err("prepare needs its checked backing and custody contract");
+            }
         }
     }
     if checked.execution == terminal_psi::CheckedBoundaryExecution::LayoutTargetFacts {
