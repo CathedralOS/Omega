@@ -4,7 +4,7 @@
 use crate::TypedTrees;
 use crate::data::{DataDefinition, DataField};
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use symbols::SymbolHandle;
 
 impl TypedTrees {
@@ -35,7 +35,7 @@ impl TypedTrees {
 
 #[derive(Default)]
 struct StorageCheck {
-    active: HashSet<SymbolHandle>,
+    active: Vec<SymbolHandle>,
     complete: HashMap<(SymbolHandle, Vec<bool>), bool>,
 }
 
@@ -97,11 +97,12 @@ impl StorageCheck {
         if let Some(unsized_storage) = self.complete.get(&key) {
             return *unsized_storage;
         }
-        if !self.active.insert(symbol) {
+        if self.active.contains(&symbol) {
             // A cycle along inline field edges has no finite representation.
             // A borrowed/referenced edge never recurses into its target.
             return true;
         }
+        self.active.push(symbol);
         let bindings: Vec<_> = program
             .data_type_parameters(data)
             .iter()
@@ -111,7 +112,7 @@ impl StorageCheck {
         let unsized_storage = program
             .stored_data_fields(data)
             .any(|field| self.unsized_type(program, field.type_reference, &bindings));
-        self.active.remove(&symbol);
+        self.active.pop();
         self.complete.insert(key, unsized_storage);
         unsized_storage
     }

@@ -469,6 +469,15 @@ fn a_network_review_binds_one_endpoint_and_one_payload_limit() {
     assert_ne!(accepted, review(&request("[fe80::1%4]:8080", 512)));
     assert_ne!(accepted, review(&request("[fe80::1%3]:8081", 512)));
     assert_ne!(accepted, review(&request(endpoint, 513)));
+    for loopback in ["127.0.0.2:8080", "[::1]:8080", "[::ffff:127.0.0.2]:8080"] {
+        let local = review(&request(loopback, 512));
+        assert!(local.contains("host_network_stack"));
+        assert!(!local.contains("off_machine_network_transmit"));
+    }
+    assert!(
+        accepted.contains("host_network_stack")
+            && accepted.contains("off_machine_network_transmit")
+    );
     policy.restricted_build_requests.push((&original).into());
     assert_eq!(
         recover(&policy),
@@ -489,4 +498,23 @@ fn a_network_review_binds_one_endpoint_and_one_payload_limit() {
         .find(|row| row.kind() == PackagePolicyRowKind::RestrictedBuildRequest)
         .unwrap();
     assert_eq!(row.canonical_text(), accepted);
+
+    let edited = text.replace(
+        "tag off_machine_network_transmit 15",
+        "tag process_input 13",
+    );
+    assert_ne!(edited, text);
+    assert!(PackagePolicyBaseline::recover_text_with_usage(&edited, Default::default()).is_err());
+    policy.schema_version = crate::encoding::BASELINE_WITH_NETWORK_REQUESTS;
+    assert_eq!(recover(&policy), Ok(policy.clone()));
+    let historical = policy
+        .acceptance_rows_with_limits(Default::default())
+        .unwrap()
+        .0;
+    let old_row = historical
+        .iter()
+        .find(|row| row.kind() == PackagePolicyRowKind::RestrictedBuildRequest)
+        .unwrap();
+    assert!(!old_row.canonical_text().contains("physical_authority"));
+    assert_ne!(old_row.canonical_text(), accepted);
 }

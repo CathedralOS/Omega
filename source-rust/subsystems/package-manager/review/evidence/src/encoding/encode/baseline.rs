@@ -98,7 +98,9 @@ pub(in crate::encoding) fn policy(
         applications,
     )?;
     encoder.field("restricted_build_requests", |encoder| {
-        encoder.sequence(&value.restricted_build_requests, request)
+        encoder.sequence(&value.restricted_build_requests, |encoder, row| {
+            request(encoder, row, value.schema_version)
+        })
     })?;
     encoder.field("service_audits", |encoder| {
         encoder.sequence(&value.service_audits, encode_service)
@@ -355,6 +357,7 @@ pub(super) fn operation(operation: &PackagePolicyRestrictedBuildOperation) -> (&
 pub(super) fn request(
     encoder: &mut Encoder,
     request: &PackagePolicyRestrictedBuildRequest,
+    schema: u16,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field("operation", |encoder| {
         let (name, tag) = operation(&request.operation);
@@ -391,6 +394,11 @@ pub(super) fn request(
     if let PackagePolicyRestrictedBuildOperation::SendDatagram { peer } = &request.operation {
         encoder.string_field("peer", &peer.address().to_string())?;
         encoder.u32_field("max_datagram_bytes", u32::from(peer.max_datagram_bytes()))?;
+        if schema >= crate::encoding::BASELINE_WITH_NETWORK_AUTHORITY {
+            encoder.field("physical_authority", |encoder| {
+                terminal_permissions::physical_classes(encoder, peer.physical_authority())
+            })?;
+        }
     }
     encoder.sequence_field("read_grants", &request.read_grants, grant)?;
     encoder.sequence_field("write_grants", &request.write_grants, grant)?;

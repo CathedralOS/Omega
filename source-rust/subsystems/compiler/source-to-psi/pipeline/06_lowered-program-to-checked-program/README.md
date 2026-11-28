@@ -389,7 +389,10 @@ identity-implies-comparison law. Each row's proposition
 is in `MachineTables::propositions`. The kernel gets a row for an obligation
 only when the row's point dominates the obligation's. Requires and guarantees
 go in as assumptions and result equations as semantic axioms, which is how
-the kernel's definition rules cite them.
+the kernel's definition rules cite them. A formed goal's structural observations
+supply their intrinsic bounds after those rows. Proof replay reconstructs the
+same bounds from the consumer's selected locations after checking access and
+index obligations.
 
 ## Clauses over mathematical integers
 
@@ -545,9 +548,9 @@ call. The ownership walk reconstructs those claims
 (`MachineAffine::verify_claims` in Psi semantics). In a judged closure it
 runs once per machine, after inference has finished editing the module.
 `examine` ([verdict.rs](src/verdict.rs)) builds one `ModuleAnalyses` over the
-settled module. The affine check (`affine_plan`) walks each machine once for
-its reference ends and once more with claims (`verify_with_claims`), and that
-second walk answers both the verified cleanup schedule and the claim rows. The machine checks share
+settled module. The affine check (`affine_plan`) plans reference ends only for
+machines with last-use candidates. It verifies every machine’s cleanup schedule
+and claim rows with `verify_with_claims`. The machine checks share
 the same analyses, and `follow_the_lowered_form` reads the claim rows the
 affine check received. Inference (result summaries, input conditions,
 crash routes) replays a machine on a copy of its tables while the module is
