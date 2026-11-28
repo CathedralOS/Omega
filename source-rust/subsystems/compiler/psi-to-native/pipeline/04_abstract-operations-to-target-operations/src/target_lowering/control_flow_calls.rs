@@ -1296,7 +1296,9 @@ pub(crate) mod calls {
                     .filter(|_| declaration.access != StructuralAccess::Owned)
                     .map(|_| declaration.structural_type);
                 if let Some((_, stored)) = opened {
-                    if declaration.access == StructuralAccess::Owned && declaration.structural_type != *stored {
+                    if declaration.access == StructuralAccess::Owned
+                        && declaration.structural_type != *stored
+                    {
                         return Err(LoweringError::unsupported_control_flow(function.machine));
                     }
                     // An owned carrier keeps its normal move. Only a borrowed
