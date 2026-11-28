@@ -78,7 +78,7 @@ pub(super) fn same_storage_version(
                                 arg.access != StructuralAccess::Owned
                                     && formal.access == arg.access
                                     && if opened.witnesses.contains(&formal.structural_type) {
-                                        opening::subject_field(module, opened, arg).is_some()
+                                        opening::subject_reference(module, opened, arg).is_some()
                                     } else {
                                         separate_primitive_input(
                                             module,

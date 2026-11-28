@@ -17,13 +17,17 @@ pub(crate) fn local_mutable_field_homes(
     source: PlaceId,
     path: &[StructuralPathSegment],
 ) -> Option<Vec<(PlaceId, Vec<StructuralPathSegment>)>> {
-    let (record, field, StructuralAccess::MutableBorrow) =
-        fields::hidden_reference_field(module, machine, source, path)?
-    else {
-        return None;
-    };
-    let types = &module.types.structural_types;
     let root = machine.structural_place_type(source)?;
+    let member = fields::hidden_reference_field(module, root, path)?;
+    if member.access != StructuralAccess::MutableBorrow
+        || member
+            .path
+            .iter()
+            .any(|step| step.runtime_index().is_some())
+    {
+        return None;
+    }
+    let types = &module.types.structural_types;
     let checked = check_package_sites(module).ok()?;
     let slot = descriptor_location(types, source, root, path, None)?;
     let homes = references.local_reference_homes(machine.id, at, &slot)?;
@@ -36,23 +40,27 @@ pub(crate) fn local_mutable_field_homes(
             if operation
                 .result
                 .structural()
-                .is_none_or(|r| r.structural_type != record)
+                .is_none_or(|r| r.structural_type != member.record)
             {
                 continue;
             }
             let concrete = checked
-                .field_type(machine.id, operation.id, field.id)?
+                .field_type(machine.id, operation.id, member.field)?
                 .as_structural()?;
+            let concrete_reference =
+                crate::inline_descriptor_type(types.iter(), concrete, member.path)?;
             let arg = fields
                 .iter()
-                .find(|member| member.field == field.id)?
+                .find(|initializer| initializer.field == member.field)?
                 .value
                 .as_structural()?;
+            let mut input_path = arg.path.clone();
+            input_path.extend_from_slice(member.path);
             let input = descriptor_location(
                 types,
                 arg.place,
                 machine.structural_place_type(arg.place)?,
-                &arg.path,
+                &input_path,
                 None,
             )?;
             let cut = (block.id, u32::try_from(ordinal).ok()?);
@@ -64,7 +72,7 @@ pub(crate) fn local_mutable_field_homes(
                     types.iter(),
                     machine.structural_place_type(captured.0)?,
                     &captured.1,
-                    concrete,
+                    concrete_reference.id,
                 ) {
                     pending.remove(captured);
                 }
