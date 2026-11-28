@@ -192,6 +192,7 @@ pub(crate) struct ReferenceStorage {
     pub(crate) placed: Option<target_operations::TargetAccessInterpretation>,
 }
 
+#[path = "references/package_fields.rs"]
 mod package_fields;
 pub(crate) use package_fields::OpenedReferenceField;
 
