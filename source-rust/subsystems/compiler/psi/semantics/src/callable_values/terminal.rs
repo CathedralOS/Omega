@@ -317,6 +317,25 @@ fn project_callable_values<'m>(
                         }
                     }
                 }
+                if let O::StructuralScalarFieldStore {
+                    destination,
+                    path,
+                    field,
+                    ..
+                } = &operation.kind
+                    && let Some(actual) = packages.stored_field_type(machine.id, operation.id)
+                {
+                    let root = machine
+                        .structural_place_type(*destination)
+                        .ok_or("package callable store lost its destination type")?;
+                    body.package_sites.stored_field(
+                        &module.types.structural_types,
+                        position,
+                        (*destination, root),
+                        (path, *field),
+                        actual,
+                    )?;
+                }
                 if let O::CallMachine {
                     structural_arguments,
                     ..
