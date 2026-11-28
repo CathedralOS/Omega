@@ -63,7 +63,7 @@ pub struct CheckedPackageSites {
     repacked_fields: BTreeMap<(MachineId, OperationId, StructuralFieldId), OperationId>,
     projected_fields: BTreeMap<Site, StructuralFieldId>,
     descriptors: BTreeMap<Site, (u32, CallableContractId)>,
-    borrowed_arguments: BTreeMap<(MachineId, OperationId, usize), StructuralTypeId>,
+    arguments: BTreeMap<(MachineId, OperationId, usize), (StructuralTypeId, StructuralAccess)>,
 }
 
 impl CheckedPackageSites {
@@ -275,9 +275,21 @@ impl CheckedPackageSites {
         operation: OperationId,
         index: usize,
     ) -> Option<StructuralTypeId> {
-        self.borrowed_arguments
+        let &(ty, access) = self.arguments.get(&(machine, operation, index))?;
+        (access != StructuralAccess::Owned).then_some(ty)
+    }
+
+    /// The argument authenticated by this opening. An owned argument has to
+    /// be the complete projected owner of the same live package.
+    pub fn invocation_argument(
+        &self,
+        machine: MachineId,
+        operation: OperationId,
+        index: usize,
+    ) -> Option<StructuralTypeId> {
+        self.arguments
             .get(&(machine, operation, index))
-            .copied()
+            .map(|row| row.0)
     }
 
     pub fn invocation_contract(
