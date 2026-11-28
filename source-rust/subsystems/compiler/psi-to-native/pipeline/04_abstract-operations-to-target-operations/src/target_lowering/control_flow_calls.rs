@@ -1920,7 +1920,7 @@ pub(crate) mod calls {
                 {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
-                let signature = prepare_function_signature(callee, target, types)?;
+                let signature = prepare_function_signature(callee, target, types, None)?;
                 let mut arguments = Vec::new();
                 for (parameter, destination) in callee
                     .structural_parameters

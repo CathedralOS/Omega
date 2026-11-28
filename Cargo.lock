@@ -412,6 +412,7 @@ name = "calling-conventions"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "language-core",
  "layout-planning",
  "layout-plans",
  "runtime-abi",
@@ -1523,9 +1524,12 @@ dependencies = [
  "diagnostics",
  "function-identity",
  "native-execution-reach",
+ "operation-operands",
  "provider-correspondence",
  "psi-target-layouts",
+ "register-environment",
  "semantic-vocabulary",
+ "target",
  "target-bound-program",
  "terminal-codec",
  "terminal-psi",
@@ -3273,6 +3277,7 @@ dependencies = [
  "direct-boundary-bindings",
  "native-execution-reach",
  "native-intrinsics",
+ "operation-operands",
  "program-entry-contracts",
  "provider-correspondence",
  "psi-authorization",

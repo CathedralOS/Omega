@@ -6,6 +6,7 @@ pub fn for_emission(
     installations: &installation_admission::PlannedInstallationResources,
     semantic: &target_vocabulary::publication::EmissionProgramFacts,
 ) -> Result<physical_program::PhysicalEmissionFacts, &'static str> {
+    super::assembly_returns::validate(frame)?;
     let program = &frame.instructions;
     let layout = frame.frame.plan();
     let stack = crate::stack_demand::plan_physical_stack_program(frame)?;

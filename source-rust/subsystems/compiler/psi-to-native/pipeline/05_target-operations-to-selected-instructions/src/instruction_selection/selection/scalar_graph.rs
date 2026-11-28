@@ -2729,6 +2729,12 @@ pub(crate) mod control {
                                 super::value_provenance(value),
                             )?;
                             output
+                        } else if builder.instructions.last().is_some_and(|instruction| {
+                            matches!(instruction.kind, SelectedInstructionKind::MaterializeI64 { .. })
+                                && matches!(instruction.operands.as_slice(), [definition] if definition.virtual_register == input)
+                        }) {
+                            // This literal can be materialized directly in the required return register.
+                            input
                         } else {
                             builder.copy(input, value, site, value_type)?
                         };
@@ -7238,6 +7244,13 @@ pub(crate) fn select_function(
         transport: structural::Transport::default(),
     };
     structural::indirect_results::entry(source, environment, &mut builder)?;
+    if let Some(abi) = input.plan().function_abi(source.machine) {
+        builder.required_values.extend(
+            abi.assembly_register_versions
+                .iter()
+                .map(|version| version.value),
+        );
+    }
     structural::entry(function, source, environment, &mut builder)?;
     for (index, parameter) in source.parameters.iter().enumerate() {
         if scalar_stack_placement(&parameter.placement).is_some() {

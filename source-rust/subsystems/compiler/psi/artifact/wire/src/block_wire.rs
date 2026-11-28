@@ -4,6 +4,9 @@ Canonical wire encoding and decoding for `TerminalMachine` control-flow blocks (
 terminator edges.
 */
 
+pub(crate) mod assembly_exit;
+use assembly_exit::AssemblyExit;
+
 pub(crate) mod atomic_operations {
     use super::super::CodecError;
     use super::super::wire::{Reader, Writer};
@@ -959,6 +962,7 @@ wire_record! {
         structural_parameters: List<StructuralParameter>,
         operations: List<OperationRow>,
         terminator: TerminatorField,
+        assembly_exit: Optional<AssemblyExit>,
     }
 }
 

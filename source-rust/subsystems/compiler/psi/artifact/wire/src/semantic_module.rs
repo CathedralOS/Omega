@@ -3991,6 +3991,7 @@ pub(crate) mod entry_tests {
             content_partition_compositions: Vec::new(),
             entry: block,
             blocks: vec![Block {
+                assembly_exit: None,
                 id: block,
                 parameters: Vec::new(),
                 erased_scalar_formals: Vec::new(),
@@ -4078,6 +4079,7 @@ pub(crate) use wire::{Reader, Writer, decode_canonical};
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
 // Marker 305 adds the terminal storage-alignment projection on scalar reads.
+// Marker 304 appends the optional assembly exit constraint to each block.
 // Marker 303 makes task activation storage refer to the ordinary program declarations.
 // Marker 302 adds each theorem application's sum arguments after its scalar
 // subjects.
