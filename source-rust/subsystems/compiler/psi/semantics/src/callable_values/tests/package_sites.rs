@@ -870,103 +870,6 @@ fn package_sites_keep_a_fixed_reader_index_across_a_scalar_output_write() {
     }));
 }
 
-fn callback_field_assignment() -> TerminalModule {
-    let mut program = readers();
-    let StructuralTypeShape::Record { fields, .. } =
-        &mut program.types.structural_types.last_mut().unwrap().shape
-    else {
-        unreachable!()
-    };
-    fields.push(declaration(
-        3,
-        StructuralFieldType::Scalar(ScalarType::Callable(callable(1))),
-    ));
-    let machine = &mut program.machines[0];
-    for position in 0..2 {
-        machine
-            .parameter_order
-            .push(BoundaryParameterKind::Structural);
-        machine.structural_places.push(StructuralPlaceDeclaration {
-            id: place(u64::from(position) + 1),
-            kind: StructuralPlaceKind::Parameter { position },
-        });
-    }
-    let operations = &mut program.machines[0].blocks[0].operations;
-    let O::PrimitiveScalarRead { path, .. } = &mut operations[0].kind else {
-        unreachable!()
-    };
-    *path = vec![StructuralPathSegment::Field(TerminalIdentityIndex(3))];
-    operations[1] = Operation::unsuspended(
-        operation_id(2),
-        OperationResult::Unit,
-        O::StructuralScalarFieldStore {
-            destination: place(1),
-            path: vec![],
-            field: field(2),
-            value: value(1).id,
-            range_obligation: None,
-        },
-    );
-    let sites = &mut program.execution.packages.sites;
-    sites[0].event = TerminalPackageEvent::Project {
-        opening: 0,
-        field: field(3),
-    };
-    sites[1].event = TerminalPackageEvent::Store {
-        opening: 0,
-        field: field(2),
-    };
-    program
-}
-
-#[test]
-fn stored_callback_keeps_the_destination_packages_current_witness() {
-    let mut program = callback_field_assignment();
-    assert_eq!(
-        check_package_sites(&program)
-            .unwrap()
-            .stored_field_type(machine_id(1), operation_id(2)),
-        Some(&StructuralFieldType::Scalar(ScalarType::Callable(
-            callable(2)
-        )))
-    );
-
-    assert!(check_package_sites(&program).unwrap().admits_descriptor(
-        &program,
-        machine_id(1),
-        operation_id(2),
-        callable(4)
-    ));
-
-    let mut crossed = program.clone();
-    let read = &mut crossed.machines[0].blocks[0].operations[0];
-    let O::PrimitiveScalarRead { source, .. } = &mut read.kind else {
-        unreachable!()
-    };
-    *source = place(2);
-    let OperationResult::Scalar(result) = &mut read.result else {
-        unreachable!()
-    };
-    result.scalar_type = ScalarType::Callable(callable(3));
-    crossed.execution.packages.sites[0].event = TerminalPackageEvent::Project {
-        opening: 1,
-        field: field(3),
-    };
-    assert!(check_package_sites(&crossed).is_err());
-
-    let mut wrong_target = program.clone();
-    let O::StructuralScalarFieldStore { destination, .. } =
-        &mut wrong_target.machines[0].blocks[0].operations[1].kind
-    else {
-        unreachable!()
-    };
-    *destination = place(2);
-    assert!(check_package_sites(&wrong_target).is_err());
-
-    program.execution.packages.sites.pop();
-    assert!(check_package_sites(&program).is_err());
-}
-
 #[test]
 fn a_saved_callback_survives_a_field_write_that_preserves_its_package_witness() {
     let mut program = callback_field_assignment();
@@ -1103,4 +1006,101 @@ fn a_saved_callback_at_a_join_requires_both_paths_to_keep_the_same_package() {
         check_package_sites(&program).is_err(),
         "a whole-package write on either path expires the saved callback"
     );
+}
+
+fn callback_field_assignment() -> TerminalModule {
+    let mut program = readers();
+    let StructuralTypeShape::Record { fields, .. } =
+        &mut program.types.structural_types.last_mut().unwrap().shape
+    else {
+        unreachable!()
+    };
+    fields.push(declaration(
+        3,
+        StructuralFieldType::Scalar(ScalarType::Callable(callable(1))),
+    ));
+    let machine = &mut program.machines[0];
+    for position in 0..2 {
+        machine
+            .parameter_order
+            .push(BoundaryParameterKind::Structural);
+        machine.structural_places.push(StructuralPlaceDeclaration {
+            id: place(u64::from(position) + 1),
+            kind: StructuralPlaceKind::Parameter { position },
+        });
+    }
+    let operations = &mut program.machines[0].blocks[0].operations;
+    let O::PrimitiveScalarRead { path, .. } = &mut operations[0].kind else {
+        unreachable!()
+    };
+    *path = vec![StructuralPathSegment::Field(TerminalIdentityIndex(3))];
+    operations[1] = Operation::unsuspended(
+        operation_id(2),
+        OperationResult::Unit,
+        O::StructuralScalarFieldStore {
+            destination: place(1),
+            path: vec![],
+            field: field(2),
+            value: value(1).id,
+            range_obligation: None,
+        },
+    );
+    let sites = &mut program.execution.packages.sites;
+    sites[0].event = TerminalPackageEvent::Project {
+        opening: 0,
+        field: field(3),
+    };
+    sites[1].event = TerminalPackageEvent::Store {
+        opening: 0,
+        field: field(2),
+    };
+    program
+}
+
+#[test]
+fn stored_callback_keeps_the_destination_packages_current_witness() {
+    let mut program = callback_field_assignment();
+    assert_eq!(
+        check_package_sites(&program)
+            .unwrap()
+            .stored_field_type(machine_id(1), operation_id(2)),
+        Some(&StructuralFieldType::Scalar(ScalarType::Callable(
+            callable(2)
+        )))
+    );
+
+    assert!(check_package_sites(&program).unwrap().admits_descriptor(
+        &program,
+        machine_id(1),
+        operation_id(2),
+        callable(4)
+    ));
+
+    let mut crossed = program.clone();
+    let read = &mut crossed.machines[0].blocks[0].operations[0];
+    let O::PrimitiveScalarRead { source, .. } = &mut read.kind else {
+        unreachable!()
+    };
+    *source = place(2);
+    let OperationResult::Scalar(result) = &mut read.result else {
+        unreachable!()
+    };
+    result.scalar_type = ScalarType::Callable(callable(3));
+    crossed.execution.packages.sites[0].event = TerminalPackageEvent::Project {
+        opening: 1,
+        field: field(3),
+    };
+    assert!(check_package_sites(&crossed).is_err());
+
+    let mut wrong_target = program.clone();
+    let O::StructuralScalarFieldStore { destination, .. } =
+        &mut wrong_target.machines[0].blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    *destination = place(2);
+    assert!(check_package_sites(&wrong_target).is_err());
+
+    program.execution.packages.sites.pop();
+    assert!(check_package_sites(&program).is_err());
 }
