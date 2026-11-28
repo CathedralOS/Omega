@@ -630,3 +630,93 @@ machine use_it(a: Other, b: Other) {
         other => panic!("expected the call to be refused, got {other:?}"),
     }
 }
+
+/// `data` and a comparison over its fields that ensures `result ==
+/// (compared)`, with the law of `kind`. The law's body calls the comparison,
+/// so the comparison's own guarantee is known of that call.
+fn field_law(data: &str, compared: &str, kind: &str) -> String {
+    let law = if kind == "IdentityImpliesEqual" {
+        "machine equal_of_identity(left: Coin, right: Coin)
+    requires |proof|::Identity::<Coin>(left, right)
+    ensures equals(@left, @right) {
+        let same: bool = equals(@left, @right);
+    }"
+    } else {
+        "machine identity_of_equal(left: Coin, right: Coin)
+    requires equals(@left, @right)
+    ensures |proof|::Identity::<Coin>(left, right) {
+        let same: bool = equals(@left, @right);
+    }"
+    };
+    format!(
+        "use {{omega}}/language/core/foundation.omg as proof;
+data Coin {{ {data} }}
+CoinByValue satisfies {kind}<Coin> {{
+    machine equals(left: @Coin, right: @Coin) -> bool reaches none crashes none terminates
+    ensures result == ({compared}) {{
+        {compared}
+    }}
+    {law}
+}}
+"
+    )
+}
+
+/// contracts.md, "Equality bridges and comparison facts": "a proof that
+/// builtin `x == y` is true establishes `|proof|::Identity::<T>(x, y)`."
+#[test]
+fn a_true_field_comparison_proves_the_record_s_identity() {
+    accepted(&field_law(
+        "value: i32;",
+        "left.value == right.value",
+        "EqualImpliesIdentity",
+    ));
+    accepted(&field_law(
+        "value: u8;",
+        "left.value == right.value",
+        "EqualImpliesIdentity",
+    ));
+}
+
+/// "Conversely, that identity establishes that the same comparison is true."
+#[test]
+fn the_record_s_identity_proves_its_field_comparison_true() {
+    accepted(&field_law(
+        "value: i32;",
+        "left.value == right.value",
+        "IdentityImpliesEqual",
+    ));
+}
+
+#[test]
+fn a_comparison_of_some_fields_proves_no_identity() {
+    let owed = unproved(&field_law(
+        "value: i32; year: i32;",
+        "left.value == right.value",
+        "EqualImpliesIdentity",
+    ));
+    assert!(!owed.is_empty(), "{owed:?}");
+}
+
+#[test]
+fn another_integer_relation_proves_no_identity() {
+    for compared in [
+        "left.value != right.value",
+        "left.value <= right.value",
+        "left.value == left.value",
+    ] {
+        let owed = unproved(&field_law("value: i32;", compared, "EqualImpliesIdentity"));
+        assert!(!owed.is_empty(), "{compared}: {owed:?}");
+    }
+}
+
+/// IEEE `==` is not raw identity: `0.0 == -0.0` and `NaN != NaN`.
+#[test]
+fn an_ieee_field_comparison_proves_no_identity() {
+    let verdict = checked(&field_law(
+        "value: f64;",
+        "left.value == right.value",
+        "EqualImpliesIdentity",
+    ));
+    assert!(!matches!(verdict, Ok(Verdict::Accepted)), "{verdict:?}");
+}
