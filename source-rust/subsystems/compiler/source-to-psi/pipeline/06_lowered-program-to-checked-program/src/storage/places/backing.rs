@@ -824,7 +824,7 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<Option<Backing>> {
         use terminal_semantics::descriptor_results::DescriptorSourceOrigin;
-        let Some((_, _, descriptor)) = self.reference_parent(subject, concerns)? else {
+        let Ok(Some((_, _, descriptor))) = self.reference_parent(subject, concerns) else {
             return Ok(None);
         };
         let Some(origins) = references.symbolic_source_origins(self.machine, at, &descriptor)
@@ -921,11 +921,6 @@ impl<'a> Storage<'a> {
             before.min(self.block(block)?.operations.len()),
             self.machine,
         )?;
-        if let Some(backing) =
-            self.native_referent_backing(references, place, (block, before), concerns)?
-        {
-            return Ok(Some(backing));
-        }
         let split = place
             .segments
             .iter()
@@ -949,11 +944,15 @@ impl<'a> Storage<'a> {
                 "reference backing has no complete descriptor coordinate",
             )
         })?;
-        let Some(addresses) = references
-            .captured_storage_family_if_active(self.machine, (block, before), &location)
-            .map_err(|detail| self.unsupported(concerns, detail))?
-        else {
-            return Ok(None);
+        let addresses = match references.captured_storage_family_if_active(self.machine, (block, before), &location) {
+            Ok(Some(addresses)) if addresses.iter().any(|source| matches!(source, DescriptorCallOrigin::NativeAddress { .. })) => {
+                return self.native_referent_backing(references, place, (block, before), concerns)?
+                    .map(Some).ok_or_else(|| self.unsupported(concerns, "native reference has no current typed referent"));
+            }
+            Ok(Some(addresses)) => addresses,
+            Ok(None) => return Ok(None),
+            Err(detail) => return self.native_referent_backing(references, place, (block, before), concerns)?
+                .map(Some).ok_or_else(|| self.unsupported(concerns, detail)),
         };
         let owner = if borrowed_arrival && !place.segments.contains(&Segment::Referent) {
             match self.root_kind(place.root, concerns)? {

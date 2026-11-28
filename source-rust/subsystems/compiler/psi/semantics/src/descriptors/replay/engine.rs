@@ -1005,6 +1005,23 @@ impl<'a> Replay<'a> {
             return Ok(None);
         }
         for origin in &origins {
+            if let DescriptorCallOrigin::NativeAddress { machine: owner, place, carrier, projection, .. } = origin {
+                let owner = self.machine(*owner).ok_or("native reference formation lost its machine")?;
+                if owner.place_types.get(place) != Some(carrier) {
+                    return Err("native reference formation lost its typed descriptor");
+                }
+                let StructuralTypeShape::Reference { referent, .. } =
+                    self.type_index.find(*carrier).ok_or("native reference type is absent")?.shape else {
+                        return Err("native formation does not have reference type");
+                    };
+                let path = projection.validate_captured_storage_address(|at| owner.flow.contains_key(&at))?
+                    .ok_or("native reference has an unresolved captured window")?;
+                if crate::runtime_read_projection_tip(&*self.type_index, referent, &path).is_none()
+                    && crate::runtime_structural_field(&*self.type_index, referent, &path).is_none() {
+                    return Err("native reference projection does not follow its pointee type");
+                }
+                continue;
+            }
             let DescriptorCallOrigin::Argument { source, projection } = origin else {
                 return Err("captured storage family has no original storage source");
             };
@@ -1222,7 +1239,7 @@ impl<'a> Replay<'a> {
             {
                 BTreeSet::from([Origin::Storage(location)])
             }
-            StorageResolution::Projected(origin) if matches!(&origin, DescriptorCallOrigin::Argument { projection, .. } if projection.has_captured_reference_crossing() == Ok(false)) => {
+            StorageResolution::Projected(origin) if matches!(&origin, DescriptorCallOrigin::NativeAddress { .. }) || matches!(&origin, DescriptorCallOrigin::Argument { projection, .. } if projection.has_captured_reference_crossing() == Ok(false)) => {
                 BTreeSet::from([Origin::Backing(origin)])
             }
             StorageResolution::Alternatives(origins) => origins
@@ -1293,6 +1310,17 @@ impl<'a> Replay<'a> {
             }
             _ => return None,
         };
+        if let DescriptorCallOrigin::NativeAddress { .. } = origin {
+            let mut projected = origin;
+            let DescriptorCallOrigin::NativeAddress { projection, .. } = &mut projected else {
+                unreachable!();
+            };
+            *projection = projection.then(&Projection::new(suffix));
+            return Some(match unavailable {
+                Some(reason) => StorageResolution::OpaqueProjection(projected, reason),
+                None => StorageResolution::Projected(projected),
+            });
+        }
         let DescriptorCallOrigin::Argument { source, projection } = origin else {
             return None;
         };
@@ -1599,7 +1627,7 @@ impl<'a> Replay<'a> {
                             | Origin::Incoming(_)
                             | Origin::IncomingContents(_, _)
                             | Origin::Backing(
-                                DescriptorCallOrigin::Argument { .. } | DescriptorCallOrigin::Empty
+                                DescriptorCallOrigin::Argument { .. } | DescriptorCallOrigin::NativeAddress { .. } | DescriptorCallOrigin::Empty
                             )
                             | Origin::CapturedStorage(_)
                     )
@@ -1615,6 +1643,16 @@ impl<'a> Replay<'a> {
                     let mut next_entry = None;
                     let mut target = match origin {
                         Origin::Backing(DescriptorCallOrigin::Empty) => continue,
+                        Origin::Backing(origin @ DescriptorCallOrigin::NativeAddress { .. }) => {
+                            let full = machine.location_path_indexed(&self.type_index, &current, None)?;
+                            let prefix_path = machine.location_path_indexed(&self.type_index, &prefix, None)?;
+                            let [StructuralPathSegment::Referent, suffix @ ..] = full.get(prefix_path.len()..)? else {
+                                return None;
+                            };
+                            projected.push(self.append_storage_capture(machine, state,
+                                &StorageResolution::Projected(origin.clone()), suffix, depth, expansions.clone())?);
+                            continue;
+                        }
                         Origin::Backing(DescriptorCallOrigin::Argument {
                             source,
                             projection,
@@ -1631,6 +1669,12 @@ impl<'a> Replay<'a> {
                                 return None;
                             }
                             let suffix = &full[prefix_path.len() + 1..];
+                            if projection.is_native_enclosing_storage() {
+                                projected.push(StorageResolution::Projected(DescriptorCallOrigin::Argument {
+                                    source: *source, projection: projection.clone(),
+                                }));
+                                continue;
+                            }
                             let root_type = *machine.place_types.get(source)?;
                             // A fixed-array reference to an incoming view's window
                             // names that window of the view's payload, which

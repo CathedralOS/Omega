@@ -169,6 +169,11 @@ pub(super) enum BorrowedResource {
     ViewPayload,
 }
 
+pub(super) enum ExternalReferent {
+    Provider,
+    Native,
+}
+
 #[derive(Debug, Clone)]
 enum LoanRegion {
     Storage(Backing),
@@ -588,30 +593,39 @@ impl<'a> Storage<'a> {
         at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
         concerns: Construct,
     ) -> Checked<Option<(semantic_vocabulary::StructuralTypeId, StructuralAccess)>> {
-        let Ok(Some((
-            access @ (StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
-            referent,
-            descriptor,
-        ))) = self.reference_parent(raw, concerns)
-        else {
+        Ok(self.external_referent(references, raw, at, concerns)?.and_then(|(referent, access, source)|
+            matches!(source, ExternalReferent::Provider).then_some((referent, access))))
+    }
+
+    /// A provider permission or a typed native formation can establish an initialized
+    /// referent. An ordinary alternative in the same join still needs its own proof.
+    pub(super) fn external_referent(
+        &self,
+        references: &mut super::DescriptorAnalysis<'a>,
+        raw: &super::Lineage,
+        at: DescriptorPosition,
+        concerns: Construct,
+    ) -> Checked<Option<(semantic_vocabulary::StructuralTypeId, StructuralAccess, ExternalReferent)>> {
+        use terminal_semantics::descriptor_results::{DescriptorCallOrigin, DescriptorSourceOrigin};
+        let Ok(Some((access @ (StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
+            referent, descriptor))) = self.reference_parent(raw, concerns) else {
             return Ok(None);
         };
-        if !references
-            .symbolic_source_origins(self.machine, at, &descriptor)
-            .is_some_and(|origins| {
-                !origins.is_empty()
-                    && origins.iter().all(|origin| {
-                        matches!(
-                        origin,
-                        terminal_semantics::descriptor_results::DescriptorSourceOrigin::Provider(_)
-                    )
-                    })
-            })
-        {
+        let Some(origins) = references.symbolic_source_origins(self.machine, at, &descriptor) else {
             return Ok(None);
+        };
+        if origins.is_empty() { return Ok(None); }
+        if origins.iter().all(|source| matches!(source, DescriptorSourceOrigin::Provider(_))) {
+            self.provider_permission(references, at, &descriptor, access, concerns)?;
+            return Ok(Some((referent, access, ExternalReferent::Provider)));
         }
-        self.provider_permission(references, at, &descriptor, access, concerns)?;
-        Ok(Some((referent, access)))
+        let native = |source: &DescriptorSourceOrigin| matches!(source,
+            DescriptorSourceOrigin::Backing(DescriptorCallOrigin::NativeAddress { .. }));
+        let bounds = |source: &DescriptorSourceOrigin| matches!(source,
+            DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument { projection, .. })
+                if projection.is_native_enclosing_storage());
+        Ok((origins.iter().any(native) && origins.iter().all(|source| native(source) || bounds(source)))
+            .then_some((referent, access, ExternalReferent::Native)))
     }
 
     fn provider_permission(
