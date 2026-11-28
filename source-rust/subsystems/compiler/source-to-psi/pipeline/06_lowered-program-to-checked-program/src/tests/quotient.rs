@@ -1317,3 +1317,159 @@ fn a_lifted_operation_may_respect_the_relation_at_every_index() {
     );
     assert_eq!(unproved(&judged(&source)).machine, "succ_respects");
 }
+
+#[test]
+fn a_quotient_of_dependently_typed_states_keeps_its_universe() {
+    use proof_admission::{
+        Budget, Context, Declaration, Level, MathematicalCertificate, QuotientFamily, Sort, Term,
+        TermArena, check_signature, check_type, quotient_scheme, verify_mathematical_certificate,
+    };
+
+    let mut arena = TermArena::new();
+    let small = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));
+    let large = arena.insert(Term::Sort(Sort::Type(Level::Constant(1))));
+    let two = arena.insert(Term::Two);
+    let zero = arena.insert(Term::TwoZero);
+    let one = arena.insert(Term::TwoOne);
+    let bound = arena.insert(Term::Variable(0));
+    let outer = arena.insert(Term::Variable(1));
+
+    // The state type determines both the reader's domain and the stored value:
+    // (S : Type 0, read : S -> Two, state : S).
+    let reader = arena.insert(Term::Pi {
+        domain: bound,
+        codomain: two,
+    });
+    let payload = arena.insert(Term::Sigma {
+        domain: reader,
+        codomain: outer,
+    });
+    let carrier = arena.insert(Term::Sigma {
+        domain: small,
+        codomain: payload,
+    });
+    let mut sample = |subject| {
+        let pair = arena.insert(Term::Snd { pair: subject });
+        let function = arena.insert(Term::Fst { pair });
+        let argument = arena.insert(Term::Snd { pair });
+        arena.insert(Term::Apply { function, argument })
+    };
+    let left = sample(outer);
+    let right = sample(bound);
+    let same = arena.insert(Term::Id {
+        ty: two,
+        left,
+        right,
+    });
+    let rhs = arena.insert(Term::Lambda {
+        domain: carrier,
+        body: same,
+    });
+    let relation = arena.insert(Term::Lambda {
+        domain: carrier,
+        body: rhs,
+    });
+    let family = QuotientFamily {
+        levels: [Level::Constant(1), Level::Constant(0)],
+        carrier,
+        relation,
+    };
+    let mut declarations = quotient_scheme(&mut arena);
+    let quotient = family.quotient(&mut arena);
+    let named = arena.insert(Term::Constant {
+        declaration: declarations.len() as u32,
+        levels: Vec::new(),
+    });
+    declarations.push(Declaration::definition(0, large, quotient));
+    let mut budget = Budget::new(proof_admission::DEFAULT_CONVERSION_STEPS);
+    let signature = check_signature(&mut arena, &declarations, &mut budget).unwrap();
+    let context = Context::empty().with_signature(signature);
+    check_type(&mut arena, &context, carrier, large, &mut budget).unwrap();
+    assert!(matches!(
+        check_type(&mut arena, &context, carrier, small, &mut budget),
+        Err(proof_admission::CoreError::TypeMismatch { .. })
+    ));
+
+    // One reader returns its bit. The other applies its function state to zero.
+    let identity = arena.insert(Term::Lambda {
+        domain: two,
+        body: bound,
+    });
+    let function_type = arena.insert(Term::Pi {
+        domain: two,
+        codomain: two,
+    });
+    let applied = arena.insert(Term::Apply {
+        function: bound,
+        argument: zero,
+    });
+    let apply = arena.insert(Term::Lambda {
+        domain: function_type,
+        body: applied,
+    });
+    let mut pack = |ty, reader, state| {
+        let payload = arena.insert(Term::Pair {
+            first: reader,
+            second: state,
+        });
+        arena.insert(Term::Pair {
+            first: ty,
+            second: payload,
+        })
+    };
+    let direct = pack(two, identity, zero);
+    let computed = pack(function_type, apply, identity);
+    let different = pack(two, identity, one);
+    let invalid = pack(function_type, apply, zero);
+    assert!(matches!(
+        check_type(&mut arena, &context, invalid, carrier, &mut budget),
+        Err(proof_admission::argument_error_pair_pattern!())
+    ));
+    let left = family.project(&mut arena, direct);
+    let right = family.project(&mut arena, computed);
+    let (selected, [a, b]) =
+        crate::laws::projected_representatives(&mut arena, context.signature(), named, left, right)
+            .unwrap();
+    let agreement = arena.insert(Term::Refl {
+        ty: two,
+        value: zero,
+    });
+    let term = selected.sound(&mut arena, a, b, agreement);
+    let expected = arena.insert(Term::Id {
+        ty: named,
+        left,
+        right,
+    });
+    let proof = MathematicalCertificate::with_signature(declarations, Vec::new(), term, expected);
+    verify_mathematical_certificate(&mut arena, &proof, &mut budget).unwrap();
+    assert_eq!(
+        proof_admission::certificate_assumption_closure(&arena, &proof),
+        [
+            proof_admission::QUOTIENT,
+            proof_admission::QUOTIENT_PROJECT,
+            proof_admission::QUOTIENT_SOUND,
+        ]
+        .into()
+    );
+
+    let other = selected.project(&mut arena, different);
+    let false_goal = arena.insert(Term::Id {
+        ty: named,
+        left,
+        right: other,
+    });
+    let false_proof = selected.sound(&mut arena, direct, different, agreement);
+    assert!(matches!(
+        check_type(&mut arena, &context, false_proof, false_goal, &mut budget),
+        Err(proof_admission::argument_error_pair_pattern!())
+    ));
+    let lowered = QuotientFamily {
+        levels: [Level::Constant(0), Level::Constant(0)],
+        ..family
+    };
+    let wrong = lowered.project(&mut arena, computed);
+    assert!(
+        crate::laws::projected_representatives(&mut arena, context.signature(), named, left, wrong)
+            .is_none()
+    );
+}
