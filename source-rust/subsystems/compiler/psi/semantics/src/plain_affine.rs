@@ -4778,6 +4778,7 @@ impl<'a> Analysis<'a> {
                         references,
                         root,
                         path,
+                        None,
                     )
                     .ok_or_else(unresolved)?;
                     return Ok(WindowBacking::Alternatives(homes));
