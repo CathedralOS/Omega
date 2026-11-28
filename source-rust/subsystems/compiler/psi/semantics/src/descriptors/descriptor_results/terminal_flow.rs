@@ -312,11 +312,11 @@ fn adapt_flow(
     {
         return None;
     }
-    let location = |root, path: &[StructuralPathSegment], field| {
+    let location = |place_types: &BTreeMap<PlaceId, StructuralTypeId>, root, path: &[StructuralPathSegment], field| {
         descriptor_location(
             &module.types.structural_types,
             root,
-            *graph.place_types.get(&root)?,
+            *place_types.get(&root)?,
             path,
             field,
         )
@@ -378,7 +378,7 @@ fn adapt_flow(
                 _ => None,
             };
             if let Some((destination, path, field, source)) = scalar_store
-                && let Some(destination) = location(destination, path, field)
+                && let Some(destination) = location(&graph.place_types, destination, path, field)
             {
                 step.scalar_value_stores.push((destination.clone(), source));
                 if let Some(value) = scalar_expressions.expression(source) {
@@ -421,7 +421,7 @@ fn adapt_flow(
                 }
             }
             if let OperationKind::PrimitiveScalarRead { source, path } = &operation.kind
-                && let Some(location) = location(*source, path, None)
+                && let Some(location) = location(&graph.place_types, *source, path, None)
                 && let Some(result) = operation.result.scalar_ref()
             {
                 graph
@@ -449,7 +449,7 @@ fn adapt_flow(
                         ..
                     } => (
                         projection.root,
-                        location(projection.root, projection.path, projection.field),
+                        location(&graph.place_types, projection.root, projection.path, projection.field),
                     ),
                     StructuralStorageUse::Canonical { root, path } => (
                         root,
@@ -873,14 +873,14 @@ fn adapt_flow(
                 OperationKind::DecomposeStructuralValue { subject } => {
                     // Observe every contained descriptor through the
                     // event; no value is consumed or newly derived.
-                    step.replace_value_inputs([location(
+                    step.replace_value_inputs([location(&graph.place_types,
                         subject.place,
                         &subject.path,
                         None,
                     )?]);
                 }
                 OperationKind::ReleaseReference { source, path } => {
-                    let source = location(*source, path, None)?;
+                    let source = location(&graph.place_types, *source, path, None)?;
                     step.replace_value_inputs([source.clone()]);
                     step.definitions.push(source);
                 }
@@ -1150,11 +1150,11 @@ fn adapt_flow(
                     let destination = DescriptorLocation::whole(result?.place);
                     let source = match &operation.kind {
                         OperationKind::StructuralLeafCopy { source, path } => {
-                            location(*source, path, None)
+                            location(&graph.place_types, *source, path, None)
                         }
                         OperationKind::MoveStructuralValue { source }
                         | OperationKind::TransformContent { source, .. } => {
-                            location(source.place, &source.path, None)
+                            location(&graph.place_types, source.place, &source.path, None)
                         }
                         OperationKind::StructuralCaseLeafCopy { source, path } => {
                             crate::descriptors::descriptor_lifetimes::canonical_descriptor_location(
@@ -1218,7 +1218,7 @@ fn adapt_flow(
                     field,
                     ..
                 } => {
-                    if let Some(source) = location(*source, path, Some(*field)) {
+                    if let Some(source) = location(&graph.place_types, *source, path, Some(*field)) {
                         step.replace_value_inputs([source]);
                     } else {
                         step.may_escape = true;
@@ -1252,7 +1252,7 @@ fn adapt_flow(
                             true,
                         )?,
                     );
-                    if let Some(source) = location(*source, path, *field) {
+                    if let Some(source) = location(&graph.place_types, *source, path, *field) {
                         let destination = DescriptorLocation::whole(result.place);
                         step.replace_value_inputs([source.clone()]);
                         step.definitions.push(source.clone());
@@ -1296,8 +1296,8 @@ fn adapt_flow(
                         )?,
                     );
                     if let (Some(destination), Some(source)) = (
-                        location(*destination, path, *field),
-                        location(value.place, &value.path, None),
+                        location(&graph.place_types, *destination, path, *field),
+                        location(&graph.place_types, value.place, &value.path, None),
                     ) {
                         step.definitions.push(destination.clone());
                         step.copy_value(source, destination.clone());
@@ -1359,13 +1359,13 @@ fn adapt_flow(
                 }
                 OperationKind::EstablishPrimitiveLocal { value, .. } => {
                     step.scalar_value_stores
-                        .push((location(result?.place, &[], None)?, *value));
+                        .push((location(&graph.place_types, result?.place, &[], None)?, *value));
                     if let Some(value) = scalar_expressions.expression(*value) {
                         graph
                             .scalar_payload_writes
                             .entry(position)
                             .or_default()
-                            .push((location(result?.place, &[], None)?, value));
+                            .push((location(&graph.place_types, result?.place, &[], None)?, value));
                     }
                 }
                 OperationKind::EstablishScalarArray { elements } => {
@@ -1383,13 +1383,13 @@ fn adapt_flow(
                                 u64::try_from(ordinal).ok()?,
                             )?;
                             step.scalar_value_stores
-                                .push((location(result.place, &path, None)?, *value));
+                                .push((location(&graph.place_types, result.place, &path, None)?, *value));
                             if let Some(value) = scalar_expressions.expression(*value) {
                                 graph
                                     .scalar_payload_writes
                                     .entry(position)
                                     .or_default()
-                                    .push((location(result.place, &path, None)?, value));
+                                    .push((location(&graph.place_types, result.place, &path, None)?, value));
                             }
                         }
                     }
@@ -1445,13 +1445,13 @@ fn adapt_flow(
                                 path: vec![DescriptorPathSegment::FixedIndex(index)],
                             }
                         } else {
-                            location(
+                            location(&graph.place_types,
                                 result.place,
                                 &[StructuralPathSegment::FixedIndex(index)],
                                 None,
                             )?
                         };
-                        let source = location(source.place, &source.path, None)?;
+                        let source = location(&graph.place_types, source.place, &source.path, None)?;
                         step.copy_value(source, destination);
                     }
                 }
@@ -1509,9 +1509,9 @@ fn adapt_flow(
                                     field_ordinal,
                                     field.field,
                                 )?;
-                                location(result?.place, &path, None)?
+                                location(&graph.place_types, result?.place, &path, None)?
                             }
-                            _ => location(result?.place, &[], Some(field.field))?,
+                            _ => location(&graph.place_types, result?.place, &[], Some(field.field))?,
                         };
                         if let RecordFieldValue::Scalar { value, .. } = &field.value {
                             step.scalar_value_stores.push((destination.clone(), *value));
@@ -1524,7 +1524,7 @@ fn adapt_flow(
                             }
                         }
                         if let Some(source) = field.value.as_structural() {
-                            if let Some(source) = location(source.place, &source.path, None)
+                            if let Some(source) = location(&graph.place_types, source.place, &source.path, None)
                             {
                                 step.copy_value(source, destination);
                             } else {
@@ -1881,7 +1881,7 @@ fn adapt_flow(
                             ready.fields.first()?.id,
                         )?;
                         graph.originations.entry(position).or_default().push((
-                            location(result.place, &path, None)?,
+                            location(&graph.place_types, result.place, &path, None)?,
                             DescriptorCallOrigin::AccessFormation {
                                 machine: machine.id,
                                 operation: operation.id,
@@ -2076,7 +2076,7 @@ fn adapt_flow(
                         );
                     }
                     let source = if let Some(source) =
-                        location(argument.place, &argument.path, None)
+                        location(&graph.place_types, argument.place, &argument.path, None)
                     {
                         DescriptorFlowSource::Location(source)
                     } else {
@@ -2109,7 +2109,7 @@ fn adapt_flow(
                             .iter()
                             .position(|step| step.runtime_index().is_some())
                     {
-                        let descriptor = location(argument.place, &argument.path[..index], None)
+                        let descriptor = location(&graph.place_types, argument.place, &argument.path[..index], None)
                             .ok_or("descriptor arrival indexed source has no exact descriptor prefix")?;
                         binding.captured_storage = Some((
                             descriptor,
@@ -2282,7 +2282,7 @@ fn adapt_flow(
                     }
                 }
                 for argument in structural_arguments {
-                    if let Some(source) = location(argument.place, &argument.path, None) {
+                    if let Some(source) = location(&graph.place_types, argument.place, &argument.path, None) {
                         step.inputs.push((Some(source), None));
                     } else {
                         step.inputs
@@ -2398,7 +2398,7 @@ fn adapt_flow(
                 *failure_detail =
                     Some("descriptor terminator cleanup has no exact disposal location");
                 edge.definitions
-                    .push(location(action.place(), action.path(), None)?);
+                    .push(location(&graph.place_types, action.place(), action.path(), None)?);
             }
             edge.definitions.sort();
             edge.definitions.dedup();
@@ -2412,7 +2412,7 @@ fn adapt_flow(
         {
             *failure_detail =
                 Some("descriptor case terminator has no checked subject projection");
-            let subject = match location(*source, path, None) {
+            let subject = match location(&graph.place_types, *source, path, None) {
                 Some(location) => DescriptorFlowSource::Location(location),
                 None => DescriptorFlowSource::Contents(
                     super::contents::descriptor_contents_query_with(
