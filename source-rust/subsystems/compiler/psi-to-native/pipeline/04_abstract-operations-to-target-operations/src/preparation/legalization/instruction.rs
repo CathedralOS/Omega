@@ -241,10 +241,8 @@ pub(crate) fn project(
             source,
             case,
             field,
-            storage_scalar,
             ..
         } => Kind::StructuralScalarFieldRead {
-            storage_scalar: *storage_scalar,
             source: source.clone(),
             case: *case,
             field: *field,

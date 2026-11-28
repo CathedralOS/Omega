@@ -3275,7 +3275,6 @@ pub(crate) mod primitive_local_input {
                 source: argument,
                 field,
                 case: None,
-                ..
             } => {
                 let root = projected_read_root(source, argument.place)?;
                 scalar_field_codec(root, &argument.path, *field, source.geometry())
@@ -3302,7 +3301,6 @@ pub(crate) mod primitive_local_input {
                 source: argument,
                 field,
                 case: None,
-                ..
             } => {
                 let root = projected_read_root(source, argument.place)?;
                 scalar_field_fragments(root, &argument.path, *field, source.geometry())
@@ -3457,12 +3455,21 @@ pub(crate) mod primitive_local_input {
                 source: place,
                 path,
                 indices,
+                storage_scalar,
             } => {
+                let loaded = scalar.as_checking();
+                if *storage_scalar != loaded && !matches!(
+                    (*storage_scalar, loaded),
+                    (semantic_vocabulary::ScalarType::Callable(_), semantic_vocabulary::ScalarType::Callable(_))
+                ) {
+                    return None;
+                }
+
                 crate::instruction_selection::selection::scalar_call_abi::scalar_shape(scalar)?;
                 if let Some((_, _, actual, _)) = local(source, *place) {
                     return (path.is_empty()
                         && indices.is_empty()
-                        && actual == scalar.as_checking())
+                        && actual == *storage_scalar)
                     .then_some((*place, 0, Vec::new()));
                 }
                 source.structural.as_ref()?;
@@ -3485,7 +3492,7 @@ pub(crate) mod primitive_local_input {
                 let geometry = primitive_read_geometry(
                     structural_type,
                     path,
-                    scalar.as_checking(),
+                    *storage_scalar,
                     source.geometry(),
                 )?;
                 crate::instruction_selection::structural_inputs::runtime_indices_match(
@@ -3497,23 +3504,8 @@ pub(crate) mod primitive_local_input {
             Instruction::StructuralScalarFieldRead {
                 source: argument,
                 field,
-                storage_scalar,
                 ..
             } => {
-                // Opening a callable field changes its checking contract; the descriptor in
-                // storage is still one target code pointer. Other scalar types are invariant.
-                let loaded = scalar.as_checking();
-                if *storage_scalar != loaded
-                    && !matches!(
-                        (*storage_scalar, loaded),
-                        (
-                            semantic_vocabulary::ScalarType::Callable(_),
-                            semantic_vocabulary::ScalarType::Callable(_)
-                        )
-                    )
-                {
-                    return None;
-                }
                 let signature = source.structural.as_ref()?;
                 let structural_type = if let Some(parameter) =
                     read_parameter(source, argument.place)
@@ -3568,14 +3560,14 @@ pub(crate) mod primitive_local_input {
                         path,
                         *case,
                         *field,
-                        *storage_scalar,
+                        scalar.as_checking(),
                         source.geometry(),
                     )?,
                     _ => field_read(
                         structural_type,
                         path,
                         *field,
-                        *storage_scalar,
+                        scalar.as_checking(),
                         source.geometry(),
                     )?,
                 };

@@ -880,6 +880,7 @@ mod machine {
                     | OperationKind::PrimitiveScalarRead { .. } => super::primitive_storage::lower(
                         operation,
                         machine,
+                        packages,
                         structural_types,
                         value_types,
                     ),
@@ -1260,7 +1261,6 @@ mod machine {
                         structural_scalar_fields::lower(
                             operation,
                             machine,
-                            packages,
                             structural_types,
                             module,
                             value_types,

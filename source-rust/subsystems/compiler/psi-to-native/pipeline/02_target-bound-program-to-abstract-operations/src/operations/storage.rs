@@ -1004,6 +1004,7 @@ pub(crate) mod primitive_storage {
     pub(crate) fn lower(
         operation: &Operation,
         machine: &TerminalMachine,
+        packages: &terminal_semantics::packages::CheckedPackageSites,
         types: &[StructuralTypeDeclaration],
         values: &BTreeMap<ValueId, ScalarType>,
     ) -> Result<AbstractOperation, LoweringError> {
@@ -1044,13 +1045,19 @@ pub(crate) mod primitive_storage {
                             .map(|parameter| parameter.structural_type)
                     })
                     .ok_or_else(invalid)?;
-                if super::primitive_projection::read_leaf_type(types, identity, path, |index| {
+                let storage_scalar = super::primitive_projection::read_leaf_type(types, identity, path, |index| {
                     values.get(&index).copied()
-                }) != Some(result.scalar_type)
-                {
+                }).ok_or_else(invalid)?;
+                let expected = match packages.projected_field(machine.id, operation.id) {
+                    Some(field) => packages.field_type(machine.id, operation.id, field)
+                        .and_then(terminal_psi::StructuralFieldType::scalar_type).ok_or_else(invalid)?,
+                    None => storage_scalar,
+                };
+                if expected != result.scalar_type {
                     return Err(invalid());
                 }
                 Ok(AbstractOperation::PrimitiveScalarRead {
+                    storage_scalar,
                     psi_operation: operation.id,
                     source,
                     path: path.clone(),
@@ -1469,7 +1476,6 @@ pub(crate) mod structural_scalar_fields {
     pub(crate) fn lower(
         operation: &Operation,
         machine: &TerminalMachine,
-        packages: &terminal_semantics::packages::CheckedPackageSites,
         structural_types: &[StructuralTypeDeclaration],
         module: &terminal_psi::TerminalModule,
         value_types: &BTreeMap<semantic_vocabulary::ValueId, ScalarType>,
@@ -1497,15 +1503,7 @@ pub(crate) mod structural_scalar_fields {
                 source,
                 path,
                 field,
-            } => lower_scalar_read(
-                operation,
-                machine,
-                structural_types,
-                *source,
-                path,
-                *field,
-                packages.field_type(machine.id, operation.id, *field),
-            ),
+            } => lower_scalar_read(operation, machine, structural_types, *source, path, *field),
             _ => unreachable!("structural scalar-field router is exhaustive"),
         }
     }
@@ -1726,7 +1724,6 @@ pub(crate) mod structural_scalar_fields {
         source: PlaceId,
         path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
         field: StructuralFieldId,
-        instantiated: Option<&StructuralFieldType>,
     ) -> Result<AbstractOperation, LoweringError> {
         let invalid = || LoweringError::InvalidScalarStructuralField(operation.id);
         let (structural_type, access) =
@@ -1759,16 +1756,12 @@ pub(crate) mod structural_scalar_fields {
         {
             return Err(invalid());
         }
-        let declared = observed_scalar_field(structural_types, observed_root, path, field)
-            .ok_or_else(invalid)?;
-        let opened_scalar = instantiated
-            .map(|ty| ty.scalar_type().ok_or_else(invalid))
-            .transpose()?;
-        if opened_scalar.unwrap_or(declared) != result.scalar_type {
+        if observed_scalar_field(structural_types, observed_root, path, field)
+            != Some(result.scalar_type)
+        {
             return Err(invalid());
         }
         Ok(AbstractOperation::StructuralScalarFieldRead {
-            opened_scalar,
             psi_operation: operation.id,
             result: result.into(),
             source,

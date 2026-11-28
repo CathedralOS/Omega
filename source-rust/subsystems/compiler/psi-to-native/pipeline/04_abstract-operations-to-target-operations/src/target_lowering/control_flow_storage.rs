@@ -3018,7 +3018,6 @@ pub(crate) mod primitive_storage {
                 source,
                 path,
                 field,
-                opened_scalar,
             } => {
                 let (psi_operation, result, place, field) =
                     (*psi_operation, *result, *source, *field);
@@ -3109,11 +3108,7 @@ pub(crate) mod primitive_storage {
                 {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
-                let storage_scalar = declaration
-                    .field_type
-                    .scalar_type()
-                    .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-                if opened_scalar.unwrap_or(storage_scalar) != result.scalar_type {
+                if declaration.field_type.scalar_type() != Some(result.scalar_type) {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 let (carrier_path, case) = match path.split_last() {
@@ -3137,7 +3132,6 @@ pub(crate) mod primitive_storage {
                     psi_operation,
                     TargetUnitOperation::StructuralScalarFieldRead {
                         psi_operation,
-                        storage_scalar,
                         result,
                         source: terminal_psi::StructuralArgument {
                             place,
@@ -3261,6 +3255,7 @@ pub(crate) mod primitive_storage {
                 )
             }
             AbstractOperation::PrimitiveScalarRead {
+                storage_scalar,
                 psi_operation,
                 result,
                 source,
@@ -3288,7 +3283,7 @@ pub(crate) mod primitive_storage {
                 };
                 let projection = primitive_read_projection(identity, path, types)
                     .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-                if projection.scalar != result.scalar_type {
+                if projection.scalar != *storage_scalar {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 let runs = projection.selector_runs();
@@ -3302,6 +3297,7 @@ pub(crate) mod primitive_storage {
                 (
                     *psi_operation,
                     TargetUnitOperation::PrimitiveScalarRead {
+                        storage_scalar: *storage_scalar,
                         psi_operation: *psi_operation,
                         result: *result,
                         source: *source,

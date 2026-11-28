@@ -718,13 +718,13 @@ pub enum LegalizedScalarInstructionKind {    InstallStaticInterrupt {
         value: operation_operands::values::AbstractResult,
     },
     PrimitiveScalarRead {
+        /// Type of the stored scalar before a dependent callable field is opened.
+        storage_scalar: semantic_vocabulary::ScalarType,
         source: semantic_vocabulary::PlaceId,
         path: Vec<terminal_psi::StructuralPathSegment>,
         indices: Vec<LegalizedRuntimeIndexOperand>,
     },
     StructuralScalarFieldRead {
-        /// Type of the field in the stored record, before any package opening.
-        storage_scalar: semantic_vocabulary::ScalarType,
         source: terminal_psi::StructuralArgument,
         case: Option<semantic_vocabulary::StructuralCaseId>,
         field: semantic_vocabulary::StructuralFieldId,

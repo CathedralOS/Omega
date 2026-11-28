@@ -195,6 +195,8 @@ define_abstract_operations! {
         value: AbstractResult,
     },
     PrimitiveScalarRead {
+        /// Type of the stored scalar before a dependent callable field is opened.
+        storage_scalar: semantic_vocabulary::ScalarType,
         psi_operation: OperationId,
         result: AbstractResult,
         source: PlaceId,
@@ -551,8 +553,6 @@ define_abstract_operations! {
         value: bool,
     },
     StructuralScalarFieldRead {
-        /// The callable contract specialized to this stable opening, when present.
-        opened_scalar: Option<semantic_vocabulary::ScalarType>,
         psi_operation: OperationId,
         result: AbstractResult,
         source: PlaceId,
