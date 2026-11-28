@@ -30,6 +30,7 @@ struct PreparedSelection {
     identity: NormalizedTypeIdentity,
     application: TypeReferenceHandle,
     ordinal: usize,
+    evidence: bool,
     is_public: bool,
     selection: Selection,
 }
@@ -124,6 +125,7 @@ fn prepare_selections(
             identity,
             application,
             ordinal,
+            evidence,
             is_public: conformance.is_public,
             selection,
         });
@@ -159,12 +161,14 @@ pub(crate) fn prepare_in_cohort(
         .iter()
         .skip(conformance_frontier)
         .any(|conformance| {
-            program.symbols.sealed_intrinsic(conformance.trait_symbol)
-                == Some(SealedIntrinsic::EqualityProtocol)
-                && matches!(
-                    conformance.rows.as_slice(),
-                    [row] if row.source == ConformanceRowSource::Synthesized
-                )
+            matches!(
+                program.symbols.sealed_intrinsic(conformance.trait_symbol),
+                Some(SealedIntrinsic::EqualityProtocol | SealedIntrinsic::EqualityEvidence)
+            ) && conformance.rows.iter().any(|row| {
+                row.source == ConformanceRowSource::Synthesized
+                    && program.symbols.sealed_intrinsic(row.declaring_trait)
+                        == Some(SealedIntrinsic::EqualityProtocol)
+            })
         });
     if sites.is_empty() && !has_new_synthesized {
         return Ok(());
@@ -173,7 +177,13 @@ pub(crate) fn prepare_in_cohort(
     let synthesized = family
         .iter()
         .filter(|entry| entry.ordinal >= conformance_frontier && entry.selection.synthesized)
-        .map(|entry| (entry.application, entry.selection.conformance))
+        .map(|entry| {
+            (
+                entry.application,
+                entry.selection.conformance,
+                entry.evidence,
+            )
+        })
         .collect::<Vec<_>>();
     if synthesized.is_empty() && sites.is_empty() {
         return Ok(());
@@ -183,9 +193,16 @@ pub(crate) fn prepare_in_cohort(
         program,
         family: &family,
     };
-    for (application, conformance) in synthesized {
+    for (application, conformance, evidence) in synthesized {
         let site = preparation.declaration_site(conformance);
-        preparation.validate(application, site, &mut Vec::new())?;
+        if let Some(path) = preparation.validate(application, site, evidence, &mut Vec::new())? {
+            return Err(Diagnostic::error(format!(
+                "`{}` cannot synthesize its law for `{}`: field `{path}` compares IEEE floats, whose `==` is not identity, so write `equals` and the law yourself",
+                preparation.program.symbols.display_path(conformance, "::"),
+                preparation.program.display_type_reference(application),
+            ))
+            .with_source_span(site));
+        }
     }
     for (handle, binary) in sites {
         let mut site = preparation.program.expression_table.source_span(handle);
@@ -525,12 +542,16 @@ impl Preparation<'_> {
         }
     }
 
+    /// Validate the selected structural comparison. A synthesized proof law
+    /// also needs identity evidence for every field the comparison inlines.
+    /// Return the path to a float field that cannot supply that evidence.
     fn validate(
-        &mut self,
+        &self,
         application: TypeReferenceHandle,
         site: source_text::SourceSpan,
+        evidence: bool,
         visiting: &mut Vec<NormalizedTypeIdentity>,
-    ) -> Result<(), Diagnostic> {
+    ) -> Result<Option<String>, Diagnostic> {
         let identity = self.program.package_qualified_type_identity(application);
         if visiting.contains(&identity) {
             return Err(Diagnostic::error(
@@ -541,19 +562,29 @@ impl Preparation<'_> {
             Diagnostic::error("structural equality needs its complete closed data application")
         })?;
         self.require_ordinary_equality(application)?;
-        let owner = data.name.as_str().to_owned();
-        let members = self.program.data_members(data);
-        let mut fields = Vec::with_capacity(members.len());
-        for member in members {
-            match member {
-                DataMember::Field(field) => fields.push(field.clone()),
-                DataMember::Variant(variant) => {
-                    fields.extend(self.program.data_payload_fields(variant).iter().cloned())
-                }
-            }
-        }
+        let owner = data.name.as_str();
         visiting.push(identity);
+        let fields = self
+            .program
+            .data_members(data)
+            .iter()
+            .flat_map(|member| match member {
+                DataMember::Field(field) => std::slice::from_ref(field).into(),
+                DataMember::Variant(variant) => self.program.data_payload_fields(variant),
+            });
         for field in fields {
+            let reference = self
+                .program
+                .type_reference_table
+                .unconstrained_type_reference(field.type_reference);
+            if evidence
+                && matches!(
+                    self.program.primitive_type_reference(reference),
+                    Some(symbols::PrimitiveType::F32 | symbols::PrimitiveType::F64)
+                )
+            {
+                return Ok(Some(field.name.to_string()));
+            }
             if self.is_primitive(field.type_reference)
                 || self.is_text(field.type_reference)
                 || self.is_implicit(field.type_reference)
@@ -570,11 +601,15 @@ impl Preparation<'_> {
                 })?;
             if selected.synthesized {
                 let site = self.declaration_site(selected.conformance);
-                self.validate(field.type_reference, site, visiting)?;
+                if let Some(inner) =
+                    self.validate(field.type_reference, site, evidence, visiting)?
+                {
+                    return Ok(Some(format!("{}.{inner}", field.name)));
+                }
             }
         }
         visiting.pop();
-        Ok(())
+        Ok(None)
     }
 
     fn compare(
