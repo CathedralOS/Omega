@@ -206,6 +206,42 @@ pub(crate) mod byte_sequences {
                 }
             }
 
+            /// The input descriptor may have a fresh identity. Derive the
+            /// writable window from its recorded original array, then attach
+            /// the new descriptor to that exact window.
+            pub(crate) fn exclusive_view_descriptor(
+                &self,
+                execution: &TerminalExecution<'_>,
+                destination: &TerminalStructuralValue,
+            ) -> Result<Self, TerminalInterpretError> {
+                let Self::Immutable(bytes) = self else {
+                    return Err(malformed());
+                };
+                let window = bytes.original_array().ok_or(
+                    TerminalInterpretError::UnsupportedSemanticVariant(
+                        "upgrade_mutability requires the byte view's writable original storage",
+                    ),
+                )?;
+                let mut referent = TerminalStructuralValue::minted(
+                    window.array.referent.opaque_identity,
+                    destination.structural_type,
+                    Vec::new(),
+                );
+                let start = u64::try_from(window.offset).map_err(|_| malformed())?;
+                let end = start
+                    .checked_add(u64::try_from(window.length).map_err(|_| malformed())?)
+                    .ok_or(malformed())?;
+                referent.path.clone_from(&window.array.referent.path);
+                referent
+                    .path
+                    .push(StructuralPathSegment::FixedRange { start, end });
+                let exclusive = self
+                    .exclusive_reborrow(execution, &referent)?
+                    .with_descriptor_home(destination.clone());
+                exclusive.validate_mutable_referent(execution, destination)?;
+                Ok(exclusive)
+            }
+
             pub(crate) fn exclusive_reborrow(
                 &self,
                 execution: &TerminalExecution<'_>,

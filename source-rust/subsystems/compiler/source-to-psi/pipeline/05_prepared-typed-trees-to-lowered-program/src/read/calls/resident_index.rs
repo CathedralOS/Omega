@@ -8,7 +8,7 @@ use super::{
 impl Program<'_> {
     /// Read the canonical qualified type P and the resident value type T under
     /// the source frames that supplied them to initialization, extraction or a view.
-    pub(super) fn resident_index(
+    pub(in crate::read) fn resident_index(
         &mut self,
         id: MachineId,
         source: SourceOrigin,
@@ -17,26 +17,14 @@ impl Program<'_> {
     ) -> Checked<Qualification> {
         let typed = self.typed;
         let unavailable = |reason| refuse_at(id, Unserved::Call(reason));
-        let placed = self.local_type(id, placement)?;
+        let placed = self.qualified_storage_placement(id, source, placement)?;
         let value = self.local_type(id, schema)?;
-        if matches!(placed, crate::body::ValueType::Rigid(_))
-            || matches!(value, crate::body::ValueType::Rigid(_))
-        {
+        if matches!(value, crate::body::ValueType::Rigid(_)) {
             return Err(unavailable(
                 "resident placement needs a closed type index and value",
             ));
         }
         let domains = placed.qualification().domains;
-        if domains.is_empty() {
-            return Err(crate::reject(
-                id,
-                source,
-                format!(
-                    "resident placement index `{}` must name a domain-qualified type",
-                    typed.display_type_reference_with_constraints(placement)
-                ),
-            ));
-        }
         // Record coordinates can differ between an imported type and the
         // same type inside a domain alias. Compare their source indices under
         // the frames that supplied them. Peel only outer qualifications:
@@ -74,12 +62,41 @@ impl Program<'_> {
                 id,
                 source,
                 format!(
-                    "resident placement index `{}` does not qualify the supplied value type `{}`",
+                    "storage placement index `{}` does not qualify the supplied value type `{}`",
                     typed.display_type_reference_with_constraints(placement),
                     typed.display_type_reference_with_constraints(supplied_reference)
                 ),
             ));
         }
         Ok(placed.qualification())
+    }
+
+    /// Even before the element type is known, an actual placement must
+    /// carry a domain. This check establishes no membership on a value.
+    pub(in crate::read) fn qualified_storage_placement(
+        &mut self,
+        id: MachineId,
+        source: SourceOrigin,
+        placement: TypeReferenceHandle,
+    ) -> Checked<crate::body::ValueType> {
+        let placed = self.local_type(id, placement)?;
+        if matches!(placed, crate::body::ValueType::Rigid(_)) {
+            return Err(refuse_at(
+                id,
+                Unserved::Call("resident placement needs a closed type index and value"),
+            ));
+        }
+        if placed.qualification().domains.is_empty() {
+            return Err(crate::reject(
+                id,
+                source,
+                format!(
+                    "storage placement index `{}` must name a domain-qualified type",
+                    self.typed
+                        .display_type_reference_with_constraints(placement),
+                ),
+            ));
+        }
+        Ok(placed)
     }
 }

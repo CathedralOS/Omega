@@ -3,7 +3,10 @@
 //! This forms types and selections; the lowered checker still judges fields,
 //! argument admission, generic eligibility and declaration requirements.
 
+mod operand_types;
 mod package;
+
+use operand_types::unify;
 
 use crate::declaration_selection::AuthoredDeclarationSelectionKind;
 use crate::source_state::expression::{
@@ -1280,107 +1283,6 @@ fn infer_operand_bindings(
     if let Some(actual) = actual {
         unify(program, formal, actual, parameters, inferred)?;
     }
-    Ok(())
-}
-
-fn unify(
-    program: &mut TypedTrees,
-    formal: TypeReferenceHandle,
-    actual: TypeReferenceHandle,
-    parameters: &[crate::source_state::data::TypeParameter],
-    inferred: &mut [Option<TypeReferenceHandle>],
-) -> Result<(), Diagnostic> {
-    let formal_node = program.type_reference_table.type_reference(formal).clone();
-    let actual_node = program.type_reference_table.type_reference(actual).clone();
-    match (formal_node, actual_node) {
-        (TypeReferenceNode::Named { symbol, .. }, _)
-            if parameters.iter().any(|p| p.symbol == symbol) =>
-        {
-            bind(program, symbol, actual, parameters, inferred)?;
-        }
-        (
-            TypeReferenceNode::Generic {
-                base_symbol: formal,
-                arguments: left,
-                ..
-            },
-            TypeReferenceNode::Generic {
-                base_symbol: actual,
-                arguments: right,
-                ..
-            },
-        ) if formal == actual => {
-            let left = program
-                .type_reference_table
-                .type_reference_handles(left)
-                .to_vec();
-            let right = program
-                .type_reference_table
-                .type_reference_handles(right)
-                .to_vec();
-            if left.len() == right.len() {
-                for (left, right) in left.into_iter().zip(right) {
-                    unify(program, left, right, parameters, inferred)?;
-                }
-            }
-        }
-        (
-            TypeReferenceNode::FixedArray {
-                element_type: left,
-                length: FixedArrayLength::ConstParameter { symbol, .. },
-            },
-            TypeReferenceNode::FixedArray {
-                element_type: right,
-                ..
-            },
-        ) => {
-            if let Some(length) = program.closed_fixed_array_length(actual) {
-                let argument = integer_argument(program, length);
-                bind(program, symbol, argument, parameters, inferred)?;
-            }
-            unify(program, left, right, parameters, inferred)?;
-        }
-        (
-            TypeReferenceNode::FixedArray {
-                element_type: left, ..
-            },
-            TypeReferenceNode::FixedArray {
-                element_type: right,
-                ..
-            },
-        )
-        | (
-            TypeReferenceNode::Reference { referee: left, .. },
-            TypeReferenceNode::Reference { referee: right, .. },
-        ) => {
-            unify(program, left, right, parameters, inferred)?;
-        }
-        _ => {}
-    }
-    Ok(())
-}
-
-fn bind(
-    program: &TypedTrees,
-    symbol: SymbolHandle,
-    actual: TypeReferenceHandle,
-    parameters: &[crate::source_state::data::TypeParameter],
-    inferred: &mut [Option<TypeReferenceHandle>],
-) -> Result<(), Diagnostic> {
-    let Some(position) = parameters
-        .iter()
-        .position(|parameter| parameter.symbol == symbol)
-    else {
-        return Ok(());
-    };
-    if let Some(previous) = inferred[position]
-        && program.normalized_type_identity(previous) != program.normalized_type_identity(actual)
-    {
-        return Err(Diagnostic::error(
-            "constructor or call arguments determine conflicting generic arguments",
-        ));
-    }
-    inferred[position] = Some(actual);
     Ok(())
 }
 

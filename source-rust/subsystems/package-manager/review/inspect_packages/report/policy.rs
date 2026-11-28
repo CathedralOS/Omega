@@ -106,33 +106,7 @@ pub(super) fn render(
         )?;
         contracts(output, operator.contracts())?;
     }
-    writeln!(
-        output,
-        "  dangerous-authority {} (recorded compiler classifications; not a claim of exercised authority)",
-        policy.dangerous_capabilities().len()
-    )?;
-    for danger in policy.dangerous_capabilities() {
-        writeln!(
-            output,
-            "    {:?} {}",
-            danger.class(),
-            names.service(danger.service())
-        )?;
-    }
-    writeln!(
-        output,
-        "  dangerous-authority-slack {}",
-        policy.slack_uses().len()
-    )?;
-    for slack in policy.slack_uses() {
-        writeln!(
-            output,
-            "    {:?} {} declared but absent from checked reach of {}",
-            slack.class(),
-            names.service(slack.service()),
-            names.name(slack.callable())
-        )?;
-    }
+    critical_authority(output, &names, policy)?;
     writeln!(
         output,
         "  external-supplies {} (opaque executable assumptions)",
@@ -211,6 +185,56 @@ pub(super) fn render(
         for line in text.lines() {
             writeln!(output, "  {line}")?;
         }
+    }
+    Ok(())
+}
+
+fn critical_authority(
+    output: &mut Output,
+    names: &Names<'_>,
+    policy: &PackagePolicyBaseline,
+) -> fmt::Result {
+    writeln!(
+        output,
+        "  dangerous-authority {} (recorded compiler classifications; not a claim of exercised authority)",
+        policy.dangerous_capabilities().len()
+    )?;
+    let mut exposed_by: std::collections::BTreeMap<_, std::collections::BTreeSet<_>> = policy
+        .dangerous_capabilities()
+        .iter()
+        .map(|danger| (danger.service(), Default::default()))
+        .collect();
+    for callable in policy.callables().callables() {
+        for service in callable.exposed_services() {
+            if let Some(owners) = exposed_by.get_mut(service) {
+                owners.insert(callable.identity());
+            }
+        }
+    }
+    for danger in policy.dangerous_capabilities() {
+        writeln!(
+            output,
+            "    {:?} {}",
+            danger.class(),
+            names.service(danger.service())
+        )?;
+        for owner in &exposed_by[danger.service()] {
+            writeln!(output, "      exposed by {}", names.name(owner))?;
+        }
+    }
+    writeln!(
+        output,
+        "  dangerous-authority-slack {}",
+        policy.slack_uses().len()
+    )?;
+    for slack in policy.slack_uses() {
+        writeln!(
+            output,
+            "    {:?} {} declared but absent from checked reach of {}",
+            slack.class(),
+            names.service(slack.service()),
+            names.name(slack.callable())
+        )?;
     }
     Ok(())
 }

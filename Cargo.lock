@@ -220,6 +220,7 @@ dependencies = [
  "build-model",
  "build-output",
  "filesystem-authority",
+ "semantic-vocabulary",
  "target",
 ]
 

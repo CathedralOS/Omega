@@ -14,10 +14,18 @@ use semantic_vocabulary::TerminalAuthorityClass;
 
 impl PackagePolicyTerminalPermissions {
     pub fn canonical_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
+        if self.has_network_authority() {
+            return Encoder::policy_bytes(
+                TERMINAL_PERMISSION_POLICY_MAGIC,
+                PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION,
+                self,
+                policy,
+            );
+        }
         Encoder::versioned_policy_bytes(
             TERMINAL_PERMISSION_POLICY_MAGIC,
             crate::encoding::TERMINAL_POLICY_WITH_NOMINAL_SERVICES,
-            PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION,
+            crate::encoding::TERMINAL_POLICY_WITH_APPLIED_SERVICES,
             self,
             policy,
         )
@@ -53,29 +61,34 @@ pub(super) fn permission(
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field_by("requirement", &permission.requirement, encode_nominal)?;
     encoder.field("permitted", |encoder| {
-        encoder.sequence(permission.permitted.classes(), |encoder, class| {
-            let name = match class {
-                TerminalAuthorityClass::FilesystemContentRead => "filesystem_content_read",
-                TerminalAuthorityClass::FilesystemContentWrite => "filesystem_content_write",
-                TerminalAuthorityClass::FilesystemMetadataQuery => "filesystem_metadata_query",
-                TerminalAuthorityClass::DirectoryEnumeration => "directory_enumeration",
-                TerminalAuthorityClass::FilesystemNamespaceMutation => {
-                    "filesystem_namespace_mutation"
-                }
-                TerminalAuthorityClass::FilesystemMetadataMutation => {
-                    "filesystem_metadata_mutation"
-                }
-                TerminalAuthorityClass::ProcessOutput => "process_output",
-                TerminalAuthorityClass::ProcessTermination => "process_termination",
-                TerminalAuthorityClass::MachineControl => "machine_control",
-                TerminalAuthorityClass::PortIo => "port_io",
-                TerminalAuthorityClass::InterruptControl => "interrupt_control",
-                TerminalAuthorityClass::InterruptEntry => "interrupt_entry",
-                TerminalAuthorityClass::RootMemoryAccess => "root_memory_access",
-                TerminalAuthorityClass::ProcessInput => "process_input",
-            };
-            encoder.tag(name, class.canonical_tag());
-            Ok(())
-        })
+        physical_classes(encoder, permission.permitted.classes())
+    })
+}
+
+pub(super) fn physical_classes(
+    encoder: &mut Encoder,
+    classes: &[TerminalAuthorityClass],
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.sequence(classes, |encoder, class| {
+        let name = match class {
+            TerminalAuthorityClass::FilesystemContentRead => "filesystem_content_read",
+            TerminalAuthorityClass::FilesystemContentWrite => "filesystem_content_write",
+            TerminalAuthorityClass::FilesystemMetadataQuery => "filesystem_metadata_query",
+            TerminalAuthorityClass::DirectoryEnumeration => "directory_enumeration",
+            TerminalAuthorityClass::FilesystemNamespaceMutation => "filesystem_namespace_mutation",
+            TerminalAuthorityClass::FilesystemMetadataMutation => "filesystem_metadata_mutation",
+            TerminalAuthorityClass::ProcessOutput => "process_output",
+            TerminalAuthorityClass::ProcessTermination => "process_termination",
+            TerminalAuthorityClass::MachineControl => "machine_control",
+            TerminalAuthorityClass::PortIo => "port_io",
+            TerminalAuthorityClass::InterruptControl => "interrupt_control",
+            TerminalAuthorityClass::InterruptEntry => "interrupt_entry",
+            TerminalAuthorityClass::RootMemoryAccess => "root_memory_access",
+            TerminalAuthorityClass::ProcessInput => "process_input",
+            TerminalAuthorityClass::HostNetworkStack => "host_network_stack",
+            TerminalAuthorityClass::OffMachineNetworkTransmit => "off_machine_network_transmit",
+        };
+        encoder.tag(name, class.canonical_tag());
+        Ok(())
     })
 }

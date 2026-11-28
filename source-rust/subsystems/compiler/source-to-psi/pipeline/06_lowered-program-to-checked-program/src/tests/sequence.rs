@@ -302,3 +302,54 @@ ensures |proof|::Identity::<N>(sample(pack(f), n), apply(f, n)) {}",
         "{verdicts:?}"
     );
 }
+
+#[test]
+fn quantified_sample_evidence_belongs_to_its_exact_sequence() {
+    let source = sequences(
+        REPEAT,
+        "machine observation(s: Sequence<N, repeat>, n: N) -> N { repeat(s.state, n) }
+let zero_samples(s: Sequence<N, repeat>): |proof|::Type<0> =
+    (i: N) -> (j: N) -> |proof|::Identity::<N>(observation(s, j), N::Z);
+machine keep(s: Sequence<N, repeat>, t: Sequence<N, repeat>)
+requires zero_samples(s)
+ensures zero_samples(s) {}
+machine observe(s: Sequence<N, repeat>, n: N)
+ensures |proof|::Identity::<N>(observation(s,n), s.state) {}",
+    );
+    let verdicts = judged(&source);
+    assert!(judged_laws(&verdicts).iter().any(|law| law == "keep"));
+    let wrong = source.replace("ensures zero_samples(s)", "ensures zero_samples(t)");
+    assert!(judged(&wrong).iter().any(|v| matches!(
+        v, RouteVerdict::UnprovedLaws(laws) if laws.iter().any(|law| law.machine == "keep")
+    )));
+}
+
+#[test]
+fn sequence_record_construction_checks_the_exact_sample_domain() {
+    let domain = "machine observe(s: Sequence<N, repeat>, n: N) -> N { repeat(s.state,n) }
+let positive(s: Sequence<N, repeat>): |proof|::Type<0> =
+    (i: N) -> |proof|::Identity::<N>(observe(s,i), N::S { p: N::Z });
+data Admitted requires positive(samples) { samples: Sequence<N, repeat>; }
+machine pack(s: Sequence<N, repeat>, t: Sequence<N, repeat>) -> Admitted
+requires positive(s)
+{ Admitted { samples:s } }
+machine keeps(s: Sequence<N, repeat>, t: Sequence<N, repeat>, n: N)
+requires positive(s)
+ensures |proof|::Identity::<N>(observe(pack(s,t).samples,n), observe(s,n)) {}";
+    let source = sequences(REPEAT, domain);
+    let verdicts = judged(&source);
+    assert!(judged_laws(&verdicts).iter().any(|law| law == "keeps"));
+    for absent in [
+        source.replace("requires positive(s)", ""),
+        source.replace("requires positive(s)", "requires positive(t)"),
+    ] {
+        let verdicts = judged(&absent);
+        assert!(
+            verdicts.iter().any(|v| matches!(
+                v, RouteVerdict::UnprovedLaws(laws)
+                if laws.iter().any(|law| law.statement.contains("domain of `Admitted`"))
+            )),
+            "{verdicts:?}"
+        );
+    }
+}

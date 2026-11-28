@@ -973,6 +973,12 @@ impl Projection {
         if self.native_enclosing_storage {
             return self.clone();
         }
+        if suffix.upgraded_mutability && suffix == &Self::upgraded() {
+            // Upgrading changes the access of this same captured payload.
+            // Preserve its original descriptor, index observations and window.
+            composed.upgraded_mutability = true;
+            return composed;
+        }
         composed.native_enclosing_storage |= suffix.native_enclosing_storage;
         composed.upgraded_mutability |= suffix.upgraded_mutability;
         composed.descriptor = match (
@@ -1082,6 +1088,19 @@ impl Projection {
         }
         composed
     }
+}
+
+#[test]
+fn upgrading_a_view_preserves_its_captured_window_and_its_original_descriptor() {
+    let position = (semantic_vocabulary::BlockId::new(1).unwrap(), 2);
+    let start = ValueId::new(1).unwrap();
+    let end = ValueId::new(2).unwrap();
+    let field = terminal_psi::TerminalIdentityIndex(1);
+    let window =
+        Projection::new(&[StructuralPathSegment::Field(field)]).with_window(start, end, position);
+    let mut expected = window.clone();
+    expected.upgraded_mutability = true;
+    assert_eq!(window.then(&Projection::upgraded()), expected);
 }
 
 #[cfg(test)]

@@ -4,7 +4,7 @@
 //! dependent product over data: a premise for every `n`. A law that requires
 //! it uses it at each value its goal names, and a law it cites may owe a
 //! premise at a value the citing law computes, which the same premise
-//! supplies there. Nothing yet proves such a product as a conclusion.
+//! supplies there. A matching hypothesis can also prove the entire product.
 
 use super::*;
 use crate::laws::UnprovedLaw;
@@ -176,7 +176,7 @@ ensures |proof|::Identity::<N>(double(m), N::S {{ p: m }})
 }
 
 #[test]
-fn a_conclusion_for_every_value_is_not_proved_yet() {
+fn a_conclusion_for_every_value_needs_evidence() {
     // An empty body supplies no evidence for an arbitrary index. See
     // wiki/spec/proofs/mathematical_bindings.md#pointwise-theorem-citations.
     let verdicts = judged(&format!(

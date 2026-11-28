@@ -320,11 +320,9 @@ pub(super) fn project(
     for (ordinal, request) in restricted_build_requests.iter().enumerate() {
         let ordinal = u64::try_from(ordinal)
             .map_err(|_| rejected("restricted build request ordinal overflows"))?;
+        let schema = super::restricted_request_schema(request).min(*schema_version);
         builder.push_versioned(
-            (
-                PackagePolicyRowKind::RestrictedBuildRequest,
-                super::restricted_request_schema(request),
-            ),
+            (PackagePolicyRowKind::RestrictedBuildRequest, schema),
             true,
             true,
             |encoder| {
@@ -333,7 +331,7 @@ pub(super) fn project(
                 encoder.u64(ordinal);
                 Ok(())
             },
-            |encoder| baseline::request(encoder, request),
+            |encoder| baseline::request(encoder, request, schema),
         )?;
     }
     Ok(())

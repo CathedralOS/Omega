@@ -45,8 +45,10 @@ pub struct PackageOpening {
     pub witnesses: Vec<(SymbolHandle, TypeReferenceHandle)>,
 }
 
+/// The type of a field selection inside a particular opening. Its subject and
+/// storage version belong to that opening.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
-pub struct PackageProjection {
+pub struct OpenedPackageField {
     pub expression: ExpressionHandle,
     pub field: SymbolHandle,
     pub opening: PackageOpeningHandle,
@@ -58,7 +60,7 @@ impl crate::TypedTrees {
         self.package_openings.get(handle)
     }
 
-    pub fn package_projection(&self, expression: ExpressionHandle) -> Option<&PackageProjection> {
+    pub fn package_projection(&self, expression: ExpressionHandle) -> Option<&OpenedPackageField> {
         self.package_projections
             .binary_search_by_key(&expression_key(expression), |row| {
                 expression_key(row.expression)
@@ -69,7 +71,7 @@ impl crate::TypedTrees {
 
     pub fn retain_package_projection(
         &mut self,
-        row: PackageProjection,
+        row: OpenedPackageField,
     ) -> Result<(), &'static str> {
         match self
             .package_projections

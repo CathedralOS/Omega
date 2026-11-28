@@ -8,12 +8,12 @@ From this directory, publish the selected Build with the bundled library.
 omega --emit-psi /tmp/linux_x86_64.psi --target linux_x86_64 --build-input build.omg --build-input main.omg build.omg
 ```
 
-The Build compiled 51 source files and published this fixture under semantic format marker 306 and proof-system marker 10. Format 306 records typed native address borrows, mutability upgrades and upgraded parameter origins. Two independent publications produced identical bytes. The compiler executable SHA-256 was `6e07d483d399ba2abfe11d6269e7de0b2661c9266a16d6b4be3acbfe1765c834`. The bundled `source/library` tree is Git object `855dbf4bcc19e3b26f6d722bb4d1f0e3c911cee1`.
+At `41ed93687a04`, the compiler read 51 source files and published this fixture under semantic format marker 307 and proof-system marker 10. Format 307 supports observations of borrowed storage alignment in contracts. Two runs produced identical bytes. The compiler executable SHA-256 was `db4b92e29a7d57e8976104a179dfec49175b2d21fd2bf2c00771b94e1a7cb6c8`. The bundled `source/library` tree is Git object `fc90be67cb3f0f0b40925840ec74ae8398b2d1bb`.
 
 | Input or receipt | Digest |
 | --- | --- |
-| Canonical artifact manifest | `b48b7abccbf342c913ae8980200c9935a08fb28e8ffea4099822cece439926f5` |
-| Saved file SHA-256, 227062 bytes | `ce6f4fc470b9f26d05015c51bf59619570d7d3208f0c5afd9ed9c9fae0536365` |
+| Canonical artifact manifest | `4931d0a9fbb1f7d9f15b821b70ecaef6c71a962452c688039f69eba8956b6441` |
+| Saved file SHA-256, 227062 bytes | `dc87964b1a3fb328e4a1f076c59b403b91912640088f5dc98513e6f006828ad1` |
 | main.omg SHA-256 | `073768333496caabb3c28a753482d2888a9a527b0765f7f12941332eba6c8e58` |
 | build.omg SHA-256 | `95e9fe2fa4d640385511dfecef410202674234e1fd9181a02caaea77cc862e54` |
 | `source/library/system/targets/linux_x86_64/entry.omg` SHA-256 | `da744cd48323520484545a412be9d6334b81d3b55806e056dcf920cda444ac2b` |

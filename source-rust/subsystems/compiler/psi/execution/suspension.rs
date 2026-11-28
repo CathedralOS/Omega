@@ -133,7 +133,14 @@ pub enum TerminalSuspensionValueLoans {
 pub enum TerminalSuspensionCallTarget {
     Machine(MachineId),
     Boundary(BoundaryMachineId),
-    Dynamic { interface: u32, slot: u32 },
+    Dynamic {
+        interface: u32,
+        slot: u32,
+    },
+    Callable {
+        callee: ValueId,
+        contract: semantic_vocabulary::CallableContractId,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -201,6 +208,11 @@ pub fn suspension_frontier_commitment(
             hash.byte(5);
             hash.raw(&interface.to_le_bytes());
             hash.raw(&slot.to_le_bytes());
+        }
+        TerminalSuspensionCallTarget::Callable { callee, contract } => {
+            hash.byte(6);
+            hash.raw(&callee.get().to_le_bytes());
+            hash.raw(&contract.get().to_le_bytes());
         }
     }
     hash.raw(&plan.live_value_count.to_le_bytes());

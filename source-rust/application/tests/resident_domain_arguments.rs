@@ -86,6 +86,178 @@ fn an_owned_run_keeps_its_domain_index_when_transferred() {
 }
 
 #[test]
+fn a_closed_run_requires_the_placement_of_its_own_elements() {
+    for (placement, value, refusal) in [
+        ("Word", "Word", "must name a domain-qualified type"),
+        (
+            "WordPlacement",
+            "u32",
+            "does not qualify the supplied value type `u32`",
+        ),
+    ] {
+        let declaration = format!(
+            "machine carry(input: |run|::Run<{placement}, {value}>) -> |run|::Run<{placement}, {value}> {{ input }}"
+        );
+        let (output, report) = inspect(&declaration);
+        assert!(!output.status.success(), "{report}");
+        assert!(report.contains(refusal), "{report}");
+    }
+}
+
+#[test]
+fn a_generic_forward_keeps_the_run_placement_selected_by_its_caller() {
+    let (output, report) = inspect(
+        r#"
+machine forward<P,T>(input: |run|::Run<P,T>) -> |run|::Run<P,T> { input }
+machine carry(input: |run|::Run<WordPlacement,Word>) -> |run|::Run<WordPlacement,Word> {
+    forward::<WordPlacement,Word>(input)
+}"#,
+    );
+    assert!(output.status.success(), "{report}");
+}
+
+#[test]
+fn another_data_named_run_can_take_unrelated_type_arguments() {
+    let (output, report) = inspect(
+        r#"
+data Run<P,T> { count: u64; }
+machine carry(input: Run<u32,bool>) -> Run<u32,bool> { input }
+"#,
+    );
+    assert!(output.status.success(), "{report}");
+}
+
+#[test]
+fn a_closed_placement_in_a_nested_run_checks_the_supplied_element() {
+    let source = r#"
+data Envelope<P, T> [linear] { run: |run|::Run<P, T>; }
+machine carry(input: Envelope<WordPlacement,Word>) -> Envelope<WordPlacement,Word> { input }
+"#;
+    let (output, report) = inspect(source);
+    assert!(output.status.success(), "{report}");
+    let (output, report) = inspect(&source.replace("WordPlacement,Word", "WordPlacement,u32"));
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("does not qualify the supplied value type `u32`"),
+        "{report}"
+    );
+}
+
+const EMPTY_RUN: &str = r#"machine carry(storage: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant)
+    -> |run|::Run<WordPlacement, Word> in |run|::Run::Live<WordPlacement, Word>
+requires storage.length == 0
+ensures result.count == 0, result.storage.base == storage.base, result.storage.length == storage.length {
+    |run|::empty::<WordPlacement, Word>(storage)
+}"#;
+
+#[test]
+fn an_empty_run_consumes_the_same_authorized_empty_partition() {
+    let (output, report) = inspect(EMPTY_RUN);
+    assert!(output.status.success(), "{report}");
+    for (removed, missing) in [
+        ("|extent|::Extent::Granted & ", "Extent::Granted"),
+        (" & |extent|::Extent::Vacant", "Extent::Vacant"),
+    ] {
+        let (output, report) = inspect(&EMPTY_RUN.replace(removed, ""));
+        assert!(!output.status.success(), "{report}");
+        let (carried, expected) = report
+            .split_once("and the parameter it is passed for declares")
+            .unwrap_or_else(|| panic!("{report}"));
+        assert!(!carried.contains(missing), "{report}");
+        assert!(expected.contains(missing), "{report}");
+    }
+    let (output, report) = inspect(&EMPTY_RUN.replace(
+        "requires storage.length == 0",
+        "requires storage.length == 1",
+    ));
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("cannot prove requires contract") && report.contains("storage.length == 0"),
+        "{report}"
+    );
+}
+
+#[test]
+fn an_empty_live_prefix_preserves_the_original_vacant_capacity() {
+    let (output, report) = inspect(
+        r#"
+data Vacant = |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant;
+data Cells = |run|::Run<WordPlacement, Word> in |run|::Run::Live<WordPlacement, Word>;
+data Buffer [linear] { live: Cells; spare: Vacant; }
+machine carry(storage: Vacant) -> Buffer
+ensures result.live.count == 0, result.live.storage.length == 0,
+    result.live.storage.base == storage.base, result.spare.base == storage.base,
+    result.spare.length == storage.length {
+    let parts: |extent|::VacantExtentParts = |extent|::split_vacant_extent(storage, 0);
+    Buffer { live: |run|::empty::<WordPlacement, Word>(parts.taken), spare: parts.rest }
+}
+"#,
+    );
+    assert!(output.status.success(), "{report}");
+    assert!(report.contains("psi selected_machine=carry"), "{report}");
+}
+
+#[test]
+fn an_empty_run_cannot_use_another_elements_placement() {
+    let (output, report) = inspect(&EMPTY_RUN.replace("WordPlacement, Word", "WordPlacement, u32"));
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("does not qualify the supplied value type `u32`"),
+        "{report}"
+    );
+}
+
+#[test]
+fn a_same_named_constructor_cannot_issue_live_for_matching_fields() {
+    let source = r#"
+machine empty(storage: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant)
+    -> |run|::Run<WordPlacement, Word> in |run|::Run::Live<WordPlacement, Word>
+requires storage.length == 0 {
+    let r: |run|::Run<WordPlacement, Word> = |run|::Run {
+        storage: storage as = |extent|::Extent::Granted - |extent|::Extent::Vacant, count: 0
+    };
+    r as +Live<WordPlacement, Word>
+}
+"#;
+    let source = format!("{DOMAINS}\n{source}\nmachine main() {{}}");
+    let (output, report) = program::invoke(&source, &["--check"]);
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("not one of the domain's establishment routes")
+            && report.contains("in machine `empty`"),
+        "{report}"
+    );
+}
+
+#[test]
+fn an_unqualified_placement_is_invalid_even_when_the_element_is_still_open() {
+    let source = format!(
+        "{DOMAINS}\nmachine carry<T>(r: |run|::Run<Word,T>) -> |run|::Run<Word,T> {{ r }}\nmachine main() {{}}"
+    );
+    let (output, report) = program::invoke(&source, &["--check"]);
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("placement index `Word` must name a domain-qualified type"),
+        "{report}"
+    );
+}
+
+#[test]
+fn a_count_write_cannot_populate_an_empty_live_run() {
+    let source = EMPTY_RUN.replace(
+        "|run|::empty::<WordPlacement, Word>(storage)\n}",
+        "let mutable r: |run|::Run<WordPlacement,Word> in |run|::Run::Live<WordPlacement,Word> = |run|::empty::<WordPlacement,Word>(storage);\n    r.count = 1;\n    r\n}",
+    );
+    let (output, report) = inspect(&source);
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("part of a value that carries `Run::Live`")
+            && report.contains("not one of the domain's establishment routes"),
+        "{report}"
+    );
+}
+
+#[test]
 fn a_resident_view_checks_its_lent_extent_before_asking_for_custody() {
     let declaration = |placement, schema| {
         format!(
