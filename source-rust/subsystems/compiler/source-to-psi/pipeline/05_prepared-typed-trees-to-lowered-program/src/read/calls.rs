@@ -947,9 +947,7 @@ impl<'t> Program<'t> {
                 return unserved("private placement requires its sealed core machine");
             }
             if self.publication != terminal_codec::TerminalPublication::LayoutPolicyInvocation {
-                let Some(&caller) = self.symbols.get(id) else {
-                    return unserved("private placement has no source caller");
-                };
+                let caller = self.machine_symbol(id)?;
                 self.exact_toolchain_sources()
                     .map_err(str::to_owned)
                     .and_then(|sources| {
@@ -1565,12 +1563,7 @@ impl<'t> Program<'t> {
         let readiness = match readiness {
             Some(requirement) => {
                 let typed = self.typed;
-                let lexical_owner = *self.symbols.get(id).ok_or_else(|| {
-                    refuse_at(
-                        id,
-                        Unserved::Call("Build provider readiness without its selecting machine"),
-                    )
-                })?;
+                let lexical_owner = self.machine_symbol(id)?;
                 let scope = typed
                     .build_provider_requirement_scope(requirement, lexical_owner)
                     .map_err(|reason| refuse_at(id, Unserved::Call(reason)))?;
@@ -1789,12 +1782,7 @@ impl<'t> Program<'t> {
     ) -> Checked<Expression> {
         let (callee, dispatch, operand, operand_owner, value_arguments, static_record) = selection;
         let unserved = |what| Err(refuse_at(id, Unserved::Call(what)));
-        let machine = *self.symbols.get(callee).ok_or_else(|| {
-            refuse_at(
-                id,
-                Unserved::Call("selected body lost its exact source declaration"),
-            )
-        })?;
+        let machine = self.machine_symbol(callee)?;
         // The requirement's clauses name rows of the selected body's
         // implementation, such as the `equals` a law is about.
         let conformance = self
@@ -1942,12 +1930,7 @@ impl<'t> Program<'t> {
             realization_machine: body,
             realization_state: entry.symbol,
         };
-        let lexical_owner = *self.symbols.get(id).ok_or_else(|| {
-            refuse_at(
-                id,
-                Unserved::Call("named member lost its actual source caller"),
-            )
-        })?;
+        let lexical_owner = self.machine_symbol(id)?;
         let (operand, supplier) = self
             .typed
             .source_call_selected_operand(lexical_owner, call)
@@ -2285,12 +2268,7 @@ impl<'t> Program<'t> {
             ));
         }
         self.direct_selection(id, call.target, call.selection, call.binding)?;
-        let caller = self.symbols.get(id).copied().ok_or_else(|| {
-            refuse_at(
-                id,
-                Unserved::Call("generic application has no source caller"),
-            )
-        })?;
+        let caller = self.machine_symbol(id)?;
         let arguments = self.application_arguments(
             id,
             caller,
@@ -2539,9 +2517,7 @@ impl<'t> Program<'t> {
                 )?;
                 Vec::new()
             } else {
-                let caller = self.symbols.get(id).copied().ok_or_else(|| {
-                    refuse_at(id, Unserved::Call("packed operation has no source caller"))
-                })?;
+                let caller = self.machine_symbol(id)?;
                 let application = self.application_arguments(
                     id,
                     caller,
@@ -2690,11 +2666,7 @@ impl<'t> Program<'t> {
                 ));
             }
             let application = table.static_machine_application(invocation.application);
-            let caller = self
-                .symbols
-                .get(id)
-                .copied()
-                .ok_or_else(|| unavailable("logical application has no exact source caller"))?;
+            let caller = self.machine_symbol(id)?;
             if (caller != application.lexical_owner
                 && self
                     .typed
@@ -3092,11 +3064,7 @@ impl<'t> Program<'t> {
         } else {
             self.requirement(requirement, &value_arguments)?
         };
-        let owner = self
-            .symbols
-            .get(id)
-            .copied()
-            .ok_or_else(|| unserved("static callback has no caller"))?;
+        let owner = self.machine_symbol(id)?;
         let parameters = self.typed.declaration_type_parameters(owner);
         let mut parameter = record.as_ref().map_or(target, |(receiver, _, _)| *receiver);
         while parameter.is_valid()

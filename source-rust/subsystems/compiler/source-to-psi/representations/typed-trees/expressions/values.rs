@@ -5866,15 +5866,6 @@ mod pattern_components {
 pub mod subtrees {
     use crate::source_state::expression::{ExpressionHandle, ExpressionNode};
 
-    /// The source operands retained by an atomic single-attempt observation.
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct AtomicCarrierAccess {
-        pub operation: access_vocabulary::AtomicAccessOperation,
-        pub place: ExpressionHandle,
-        pub operands: Vec<ExpressionHandle>,
-        pub result: ExpressionHandle,
-    }
-
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     pub struct SubtreeEdges {
         pub saved_sources: bool,
@@ -5906,44 +5897,27 @@ pub mod subtrees {
     }
 
     impl crate::source_state::TypedTrees {
-        pub fn atomic_once_operands(
+        /// The two source operands belong to the same checked exchange. The
+        /// receiver is `atomic.value`; an exchange has no second result binding.
+        pub fn atomic_exchange_operands(
             &self,
             atomic: &crate::source_state::expression::TableAtomicExpression,
-        ) -> Option<AtomicCarrierAccess> {
-            use access_vocabulary::AtomicAccessOperation;
+        ) -> Option<[ExpressionHandle; 2]> {
             use language_core::atomic::AtomicOrderingPlan;
-            let AtomicOrderingPlan::CompareExchangeOnce { success, failure } = atomic.ordering
-            else {
-                return None;
+            let (success, failure) = match atomic.ordering {
+                AtomicOrderingPlan::CompareExchange { success, failure }
+                | AtomicOrderingPlan::CompareExchangeOnce { success, failure } => (success, failure),
+                _ => return None,
             };
-            if !atomic.result_custody.is_valid_for(atomic.ordering)
-                || atomic.result.is_valid()
+            if atomic.result.is_valid()
+                || !atomic.result_custody.has_structural_result()
+                || !atomic.result_custody.is_valid_for(atomic.ordering)
                 || !failure.valid_compare_exchange_failure(success)
+                || !atomic.inputs().all(|input| self.expression_table.expression_is_valid(input))
             {
                 return None;
             }
-            let language_core::atomic::AtomicExpressionResultCustody::CompareExchangeOnce(custody) =
-                atomic.result_custody
-            else {
-                return None;
-            };
-            let operands = atomic.exchange_operands?;
-            if !atomic
-                .inputs()
-                .all(|handle| self.expression_table.expression_is_valid(handle))
-            {
-                return None;
-            }
-            Some(AtomicCarrierAccess {
-                operation: AtomicAccessOperation::single_attempt(
-                    custody.observation,
-                    success,
-                    failure,
-                ),
-                place: atomic.value,
-                operands: operands.to_vec(),
-                result: ExpressionHandle::invalid(),
-            })
+            atomic.exchange_operands
         }
 
         /// Direct source children in operand order. Atomic observation

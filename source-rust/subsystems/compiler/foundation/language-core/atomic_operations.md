@@ -7,7 +7,12 @@ validates placed permissions, resident ownership and specialized requests.
 Keep decisive/single-attempt and observing/non-observing independent. Recognizing an ordering or publishing a core outcome
 type does not accept the source operation, its result ownership, a Terminal
 event or a target realization. An unsupported single-attempt route must reject
-rather than collapse `Uncommitted` into a decisive scalar result.
+while preserving the distinct `Uncommitted` outcome.
+An observing decisive exchange on an unbounded integer cell returns
+`AtomicCompareExchangeOutcome<T>`.
+The lowered exchange returns the word observed by the instruction. Comparing
+that word with the evaluated expected operand constructs `Exchanged` or
+`Mismatched(observed)` without rereading the cell.
 Generic outcomes keep the payload's multiplicity; neither result shape nor
 zero initialization proves an event happened.
 
@@ -21,21 +26,26 @@ and the prior value the instruction observed. A separately
 loaded prior is not a valid swap, fetch or exchange. Target retries still
 count as work when the source has one primitive event.
 
+For a decisive non-observing exchange, a mismatch returns the proposal and a
+commit returns the displaced value. Both cases use already evaluated operands
+from the same physical exchange. The checked result declaration fixes which
+value the caller can receive.
+
 ## Serial producer route
 
-The lowered-form reader decodes the parser's atomic syntax once in
-`prepared-typed-trees-to-lowered-program/src/read/atomics.rs`. A writing operation's result
-placeholder must name the exact local that receives that prior value. The
-reader keeps the place and authored operands apart and uses the existing `AtomicAccessEvent` throughout lowering; it never
-loads the prior value separately. Lowering evaluates the place and
-operands once and emits one `AtomicAccess` with the complete rooted path.
+Typing resolves the selected cell member to an atomic operation. The lowered-form
+reader in `prepared-typed-trees-to-lowered-program/src/read/atomics.rs` checks
+its operands and result. A fetch or swap names the local receiving the prior
+value. An exchange carries its expected and proposed operands and the exact
+core outcome family. Lowering evaluates the place and operands once and emits
+one `AtomicAccess` with the complete rooted path.
 
 The lowered-form checker verifies dedicated atomic storage, exact operand and
 result types, orderings and shared access. A modifying event invalidates its
 exact storage path's facts; it establishes no plain-value equation. Ordinary shared writes and competing exclusive loans stay forbidden.
 This route accepts unbounded builtin atomic loads and stores. Integer cells also
-support fetch operations, swap and both single-attempt exchange families. A
-bounded resident requires a separately checked resident obligation.
+support fetch operations, swap, and both decisive and single-attempt exchange
+families. A bounded resident requires a separately checked resident obligation.
 
 The codec's independent operation verifier
 (`terminal-psi/wire/src/foundation_validation.rs`)

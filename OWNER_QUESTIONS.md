@@ -65,55 +65,36 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-<a id="function-valued-data-field"></a>
-### 1. How does a data declaration hold a mathematical function?
+### 1. May a proof that a same-carrier integer `==` is true supply kernel `Identity` of its operands?
 
-The `Real` quotient's representatives are regular Cauchy sequences of `Rat`,
-so its carrier is data holding a function `|nat|::Nat -> |rat|::Rat` and
-the evidence that the function is regular. The spec says `Real` is built
-"over ordinary mathematical data and equivalence/quotient machinery" and
-that "recursive mathematical data without a finite runtime representation
-remain proof-only; this follows from structure."
-[Mathematical values and quantification](wiki/spec/proofs/contracts.md#mathematical-values-and-quantification)
-Arrow types are dependent Π types, and the spec writes them in the
-parameters of a mathematical `let` and in the bounds of type parameters.
-[Universes and mathematical function types](wiki/spec/proofs/mathematical_bindings.md#universes-and-mathematical-function-types)
-The witness bundle shows data holding a value of a type parameter `A` under a
-`requires` clause, but no example puts an arrow in a data field or passes one
-as a type argument.
-[Witnesses, existence and proof construction](wiki/spec/proofs/mathematical_bindings.md#witnesses-existence-and-proof-construction)
-Today the parser accepts an arrow only in those two `let` and bound
-positions: `data Seq { at: N -> N; }` and `Holder<N -> N>` are both parse
-errors. No authored source holds a function in data. `core/cauchy.omg` takes
-sequences as static machine parameters instead, which a quotient cannot use,
-since its representatives are values.
+A comparison-implies-identity law over integer fields cannot be proved today.
+Take `CoinByValue satisfies EqualImpliesIdentity<Coin>`, whose `equals`
+ensures `result == (left.value == right.value)`. The law's body receives the
+premise `equals(@left, @right)`, the repeated call's congruence with it, and
+that guarantee. The identity prover builds the record's `Identity` from field
+identities in the mathematical kernel. There, `left.value == right.value` is
+an opaque Boolean constant, so its truth never yields
+`Identity::<i32>(left.value, right.value)`. A Boolean comparison is also kept
+from standing in for kernel `Id` when Id formations are received.
+Synthesized bridges over integer fields hit the same limit.
+[Identity prover](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/proofs/equality.rs) ·
+[Id formation receiving](source-rust/subsystems/compiler/psi/artifact/wire/src/identity_formations.rs)
 
-**Recommend that a data field may have a mathematical function type.** The
-carrier is then written
+The language rule is stated. [Equality bridges](wiki/spec/proofs/contracts.md#equality-bridges-and-comparison-facts):
+"Same-carrier integer equality can support both directions."
+[Integer goals and certificates](wiki/spec/terminal-psi/integer_certificates.md#comparison-denotations):
+"Builtin fixed-integer comparisons ... denote the exact mathematical
+relation between the original operands." Neither document gives a
+certificate rule that carries that denotation into kernel `Identity`, and
+[record identity from field identities](wiki/spec/proofs/contracts.md#record-identity-from-field-identities)
+accepts only identity evidence for each field. Checked: those three
+sections, the elementary certificate rules, and the Id formation receiving
+code.
 
-```omega
-data Sequence
-requires regular(at)
-{
-    at: |nat|::Nat -> |rat|::Rat;
-}
-```
-
-with `regular` a `let` over `at`. A value with such a field has no runtime
-representation, so the data is proof-only by structure, as the spec already
-says of infinite recursive data. A field read `s.at(n)` is application, and a
-value is built with a `let` applied to fewer arguments than it takes, as the
-spec already allows (`Sequence { at: sum(x, y) }` with
-`let sum(x: Sequence, y: Sequence, n: |nat|::Nat): |rat|::Rat`). The other
-choice is to keep fields ordinary and allow arrow types as type arguments,
-so the existing witness bundle carries the sequence:
-`Witness<0, 0, |nat|::Nat -> |rat|::Rat, regular>`. That adds no field rule,
-but every ordinary type position then admits arrows. Which should it be?
-
-**Specification text, if adopted.** In mathematical_bindings.md,
-"Universes and mathematical function types", add: "A data field may have a
-mathematical function type. Data with such a field has no runtime
-representation and is proof-only by structure. Reading the field and applying
-it is dependent function application; a value is constructed from a
-mathematical term of that type, such as a `let` applied to fewer arguments
-than it takes."
+Recommendation: yes. Add an elementary rule for a true same-carrier,
+non-address fixed-integer `x == y`. The checker and the receiving verifier
+would both admit a kernel `Identity` of `x` and `y`. The converse would be
+derived the same way. Cross-carrier comparisons, address carriers and IEEE
+`==` stay excluded. Without the rule, such laws stay unprovable over integer
+fields, and synthesis of either direction for records of integers stays
+blocked.

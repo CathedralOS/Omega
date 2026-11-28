@@ -209,7 +209,7 @@ mod native {
     }
 
     pub(crate) struct NativeScopePreparation<'request> {
-        authorization: &'request psi_authorization::AuthorizedTerminalArtifact,
+        authorization: &'request psi_authorization::AdmittedTerminalArtifact,
         selection: &'request NativeExecutionSelection<'request>,
         profile: target::TargetProfile,
         entry: semantic_vocabulary::MachineId,
@@ -220,7 +220,7 @@ mod native {
 
     impl<'request> NativeScopePreparation<'request> {
         pub(crate) fn prepare(
-            authorization: &'request psi_authorization::AuthorizedTerminalArtifact,
+            authorization: &'request psi_authorization::AdmittedTerminalArtifact,
             profile: target::TargetProfile,
             root: terminal_psi::TargetMachineCallable,
             selection: &'request NativeExecutionSelection<'request>,
@@ -415,7 +415,7 @@ mod native {
 
         #[cfg(any(test, feature = "test-support"))]
         pub fn prepare(
-            artifact: &psi_authorization::AuthorizedTerminalArtifact,
+            artifact: &psi_authorization::AdmittedTerminalArtifact,
             profile: target::TargetProfile,
             root: terminal_psi::TargetMachineCallable,
             establishments: &[TerminalAccessViewEstablishment],
@@ -434,7 +434,7 @@ mod native {
 
         #[cfg(any(test, feature = "test-support"))]
         pub fn prepare_with_private_entry_ram(
-            artifact: &psi_authorization::AuthorizedTerminalArtifact,
+            artifact: &psi_authorization::AdmittedTerminalArtifact,
             profile: target::TargetProfile,
             root: terminal_psi::TargetMachineCallable,
             recipes: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
@@ -595,13 +595,14 @@ mod native {
     #[cfg(test)]
     fn authorize_test_artifact(
         artifact: &terminal_codec::CanonicalTerminalArtifact,
-    ) -> psi_authorization::AuthorizedTerminalArtifact {
+    ) -> psi_authorization::AdmittedTerminalArtifact {
         let producer = psi_authorization::HostProducerTrust::accept("controlled native fixture");
         psi_authorization::authorize_terminal_artifact(
             std::sync::Arc::new(artifact.clone()),
             Some(&producer),
         )
         .unwrap()
+        .into()
     }
 
     #[cfg(test)]

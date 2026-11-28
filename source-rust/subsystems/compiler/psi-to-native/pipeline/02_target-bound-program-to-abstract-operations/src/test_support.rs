@@ -15,7 +15,7 @@ use provider_admission::realization_error;
 /// Lower the authorized fixture's default entry for this crate's own tests.
 #[cfg(test)]
 pub(crate) fn lower_default_entry(
-    authorization: &psi_authorization::AuthorizedTerminalArtifact,
+    authorization: &psi_authorization::AdmittedTerminalArtifact,
 ) -> Result<verified_optimization_input::VerifiedPsiOptimizationInput, ArtifactLoweringError> {
     let module = authorization.artifact().semantic_module();
     let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = module.entry else {
@@ -39,7 +39,7 @@ pub(crate) fn lower_default_entry(
 }
 
 pub fn admit_native_realization<'execution>(
-    authorization: &psi_authorization::AuthorizedTerminalArtifact,
+    authorization: &psi_authorization::AdmittedTerminalArtifact,
     request: &NativeAdmissionRequest<'_, 'execution>,
 ) -> Result<AdmittedNativeRealization<'execution>, Vec<Diagnostic>> {
     let input = VerifiedNativeArtifactInput::prepare_with_private_entry_ram(

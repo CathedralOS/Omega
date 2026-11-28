@@ -151,6 +151,12 @@ pub enum Program<'a> {
         program: AuthorizedTerminalArtifact,
         target: NativeTarget<'a>,
     },
+    /// Saved Psi the host admitted only for contained interpretation. It
+    /// supports `CompileRequest::Runtime` alone.
+    ContainedPsi {
+        program: psi_authorization::ContainedTerminalArtifact,
+        target: NativeTarget<'a>,
+    },
 }
 
 pub enum Artifact {
@@ -221,6 +227,12 @@ pub fn compile(
             program,
             entry_memory,
         } => {
+            if matches!(program, Program::ContainedPsi { .. }) {
+                return Err(vec![Diagnostic::error(
+                    "native compilation requires producer trust; a contained program only runs on the interpreter",
+                )]
+                .into());
+            }
             let application = program.application().clone();
             let emitted = program
                 .prepare(
@@ -262,14 +274,14 @@ impl Program<'_> {
 
     fn profile(&self) -> target::TargetProfile {
         match self {
-            Self::Psi { target, .. } => target.profile,
+            Self::Psi { target, .. } | Self::ContainedPsi { target, .. } => target.profile,
             Self::Source { target, .. } | Self::CheckedSource { target, .. } => target.profile,
         }
     }
 
     fn application(&self) -> &target::NativeApplicationMetadata {
         match self {
-            Self::Psi { target, .. } => &target.application,
+            Self::Psi { target, .. } | Self::ContainedPsi { target, .. } => &target.application,
             Self::Source { target, .. } | Self::CheckedSource { target, .. } => {
                 &target.settings.application
             }
@@ -285,6 +297,9 @@ impl Program<'_> {
         match self {
             Self::Psi { program, target } => {
                 native_compiler::prepare_saved_program(program, target)
+            }
+            Self::ContainedPsi { program, target } => {
+                native_compiler::prepare_contained_saved_program(program, target)
             }
             Self::Source {
                 source,

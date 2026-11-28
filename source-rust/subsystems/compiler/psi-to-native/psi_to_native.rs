@@ -12,8 +12,8 @@ pub mod stage_validators;
 
 pub use driver::inputs::components::ComponentSourcePublication;
 pub use driver::inputs::published_application::{
-    SavedProgramTarget, SourceNativeTarget, prepare_saved_program, prepare_source_program,
-    review_source_providers,
+    SavedProgramTarget, SourceNativeTarget, prepare_contained_saved_program, prepare_saved_program,
+    prepare_source_program, review_source_providers,
 };
 pub use host_provider_inputs::{InstalledPackageProviders, TargetProviderInstallation};
 pub use native_artifact::AdmittedRuntimeProgram;

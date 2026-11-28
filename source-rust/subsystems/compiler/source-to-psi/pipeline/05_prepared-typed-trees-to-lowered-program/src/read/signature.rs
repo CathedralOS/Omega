@@ -90,10 +90,7 @@ impl Program<'_> {
     pub(crate) fn satisfaction(&mut self, id: MachineId) -> Checked<Option<Satisfaction>> {
         let typed = self.typed;
         let unserved = |what| refuse_at(id, Unserved::Machine(what));
-        let symbol = *self
-            .symbols
-            .get(id)
-            .ok_or_else(|| unserved("mathematical machine lost its declaration"))?;
+        let symbol = self.machine_symbol(id)?;
         let (machine, _) = self.declaration(id, symbol)?;
         let mut edges = typed.machine_trait_conformances(machine).into_iter();
         let Some(edge) = edges.next() else {
@@ -132,10 +129,7 @@ impl Program<'_> {
             .map_err(|refusal| {
                 self.read_failure_at(refusal, symbol, "the requirement it satisfies")
             })?;
-        let own = self
-            .signatures
-            .get(id)
-            .ok_or_else(|| unserved("mathematical machine lost its signature"))?;
+        let own = self.machine_signature(id)?;
         if own.result.is_some()
             && (!required.ensures.is_empty() || required.has_structural_guarantees())
         {
@@ -857,6 +851,14 @@ fn index(id: MachineId, length: usize) -> Checked<u32> {
 }
 
 impl<'p> Converter<'p, '_> {
+    /// The body `read_bodies` read for `machine`. A row whose signature was
+    /// refused has none, so the reader refuses it here, once.
+    fn body(&self, machine: MachineId) -> Checked<&'p Body> {
+        self.bodies
+            .get(machine)
+            .ok_or_else(|| unserved(machine, "mathematical machine has no read body"))
+    }
+
     fn constant(&mut self, declaration: u32) -> TermHandle {
         self.signature.arena.insert(Term::Constant {
             declaration,
@@ -896,14 +898,8 @@ impl<'p> Converter<'p, '_> {
         if program.self_containing.binary_search(&record).is_err() {
             return self.product(id, record);
         }
-        let declared = program
-            .records
-            .get(record)
-            .ok_or_else(|| unserved(id, "mathematical data lost its record"))?;
-        let source = program
-            .record_sources
-            .get(record)
-            .ok_or_else(|| unserved(id, "mathematical data lost its declaration"))?;
+        let declared = program.record_type(id, record)?;
+        let source = program.record_source(id, record)?;
         // A payload that is itself data being declared further up is a
         // recursion through another declaration: a mutual block, which this
         // reader does not declare.
@@ -1059,10 +1055,7 @@ impl<'p> Converter<'p, '_> {
         let read = (|| {
             let mut members = Vec::with_capacity(records.len());
             for (own, &member) in records.iter().enumerate() {
-                let declared = program
-                    .records
-                    .get(member)
-                    .ok_or_else(|| unserved(id, "mathematical data lost its record"))?;
+                let declared = program.record_type(id, member)?;
                 let mut cases = Vec::with_capacity(declared.cases().len());
                 for case in declared.cases() {
                     let mut fields = Vec::with_capacity(case.fields.len());
@@ -1085,14 +1078,8 @@ impl<'p> Converter<'p, '_> {
         let mut kinds = Vec::with_capacity(declarations.len());
         let mut names = Vec::with_capacity(records.len());
         for (member, &member_record) in records.iter().enumerate() {
-            let declared = program
-                .records
-                .get(member_record)
-                .ok_or_else(|| unserved(id, "mathematical data lost its record"))?;
-            let source = program
-                .record_sources
-                .get(member_record)
-                .ok_or_else(|| unserved(id, "mathematical data lost its declaration"))?;
+            let declared = program.record_type(id, member_record)?;
+            let source = program.record_source(id, member_record)?;
             // A closed application of generic data is named by its type, as
             // one declared on its own is.
             let applied = source
@@ -1114,10 +1101,7 @@ impl<'p> Converter<'p, '_> {
             ));
         }
         for (member, &member_record) in records.iter().enumerate() {
-            let source = program
-                .record_sources
-                .get(member_record)
-                .ok_or_else(|| unserved(id, "mathematical data lost its declaration"))?;
+            let source = program.record_source(id, member_record)?;
             for (case, (symbol, _)) in source.cases.iter().enumerate() {
                 kinds.push((
                     SignatureEntryKind::Constructor {
@@ -1257,11 +1241,7 @@ impl<'p> Converter<'p, '_> {
         id: MachineId,
         record: StructuralTypeId,
     ) -> Checked<(PlainData, Vec<Declaration>)> {
-        let declared = self
-            .program
-            .records
-            .get(record)
-            .ok_or_else(|| unserved(id, "mathematical data lost its record"))?;
+        let declared = self.program.record_type(id, record)?;
         let mut cases = Vec::with_capacity(declared.cases().len());
         for case in declared.cases() {
             let mut fields = Vec::with_capacity(case.fields.len());
@@ -1289,14 +1269,8 @@ impl<'p> Converter<'p, '_> {
         record: StructuralTypeId,
     ) -> Checked<(PlainData, Vec<Declaration>)> {
         let program = self.program;
-        let declared = program
-            .records
-            .get(record)
-            .ok_or_else(|| unserved(id, "mathematical data lost its record"))?;
-        let source = program
-            .record_sources
-            .get(record)
-            .ok_or_else(|| unserved(id, "mathematical data lost its declaration"))?;
+        let declared = program.record_type(id, record)?;
+        let source = program.record_source(id, record)?;
         let (parameters, template) = program
             .generic_template_fields(source.declaration)
             .map_err(|what| unserved(id, what))?;
@@ -1743,10 +1717,7 @@ impl<'p> Converter<'p, '_> {
             defined,
             ..
         } = self.lift_shape(id, lifted)?;
-        let private = program
-            .signatures
-            .get(operation)
-            .ok_or_else(|| unserved(id, "mathematical machine lost its signature"))?;
+        let private = program.machine_signature(operation)?;
         if !private.requires.is_empty() {
             return Err(unserved(
                 id,
@@ -1949,10 +1920,7 @@ impl<'p> Converter<'p, '_> {
                 codomain: ty,
             });
         }
-        let symbol = *program
-            .symbols
-            .get(id)
-            .ok_or_else(|| unserved(id, "mathematical machine lost its declaration"))?;
+        let symbol = program.machine_symbol(id)?;
         index(id, self.signature.declarations.len() + 1)?;
         let name = self.name(symbol);
         Ok(self.push(
@@ -2249,11 +2217,7 @@ impl<'p> Converter<'p, '_> {
                 codomain: statement,
             });
         }
-        let symbol = *self
-            .program
-            .symbols
-            .get(id)
-            .ok_or_else(|| unserved(id, "mathematical machine lost its declaration"))?;
+        let symbol = self.program.machine_symbol(id)?;
         index(id, self.signature.declarations.len() + 1)?;
         let name = format!("{}::respects", self.name(symbol));
         let proof = self.push(
@@ -2301,9 +2265,8 @@ impl<'p> Converter<'p, '_> {
     fn lift_shape(&mut self, id: MachineId, lifted: &LiftedOperation) -> Checked<LiftShape> {
         let program = self.program;
         let operation = self.selected(id, lifted.representative)?;
-        let lost = || unserved(id, "mathematical machine lost its signature");
-        let public = program.signatures.get(id).ok_or_else(lost)?;
-        let private = program.signatures.get(operation).ok_or_else(lost)?;
+        let public = program.machine_signature(id)?;
+        let private = program.machine_signature(operation)?;
         if !public.ensures.is_empty() || public.has_structural_guarantees() {
             return Err(unserved(
                 id,
@@ -2423,7 +2386,6 @@ impl<'p> Converter<'p, '_> {
 
     fn read_lifted(&mut self, id: MachineId, lifted: &LiftedOperation) -> Checked<()> {
         let program = self.program;
-        let lost = || unserved(id, "mathematical machine lost its signature");
         let LiftShape {
             operation,
             formals,
@@ -2435,8 +2397,8 @@ impl<'p> Converter<'p, '_> {
             defined,
             ..
         } = self.lift_shape(id, lifted)?;
-        let public = program.signatures.get(id).ok_or_else(lost)?;
-        let private = program.signatures.get(operation).ok_or_else(lost)?;
+        let public = program.machine_signature(id)?;
+        let private = program.machine_signature(operation)?;
         let name = self.name(lifted.representative);
 
         // The theorems are stated for two representatives of every class
@@ -2500,7 +2462,7 @@ impl<'p> Converter<'p, '_> {
                 right: values[1],
             }),
         };
-        let own = self.name(*program.symbols.get(id).ok_or_else(lost)?);
+        let own = self.name(program.machine_symbol(id)?);
         let congruence = self.selected(id, lifted.congruence)?;
         let &[law] = self.theorem(id, congruence)?.as_slice() else {
             return Err(unserved(
@@ -2789,10 +2751,7 @@ impl<'p> Converter<'p, '_> {
         text: String,
     ) -> Checked<()> {
         let program = self.program;
-        let owner = *program
-            .symbols
-            .get(id)
-            .ok_or_else(|| unserved(id, "mathematical machine lost its declaration"))?;
+        let owner = program.machine_symbol(id)?;
         let mut statement = self.implication(premises, goal);
         for &variable in context.iter().rev() {
             statement = self.signature.arena.insert(Term::Pi {
@@ -3548,14 +3507,8 @@ impl<'p> Converter<'p, '_> {
             .iter()
             .find(|family| family.record == theorem.record)
             .ok_or_else(|| unserved(id, "theorem over indexed data that is not declared"))?;
-        let names = program
-            .names
-            .get(id)
-            .ok_or_else(|| unserved(id, "mathematical machine lost its names"))?;
-        let symbol = *program
-            .symbols
-            .get(id)
-            .ok_or_else(|| unserved(id, "mathematical machine lost its declaration"))?;
+        let names = program.machine_names(id)?;
+        let symbol = program.machine_symbol(id)?;
         let index_domains = source
             .indices
             .iter()
@@ -3775,14 +3728,8 @@ impl<'p> Converter<'p, '_> {
     /// product of their types.
     fn product(&mut self, id: MachineId, record: StructuralTypeId) -> Checked<u32> {
         let program = self.program;
-        let declared = program
-            .records
-            .get(record)
-            .ok_or_else(|| unserved(id, "mathematical data lost its record"))?;
-        let source = program
-            .record_sources
-            .get(record)
-            .ok_or_else(|| unserved(id, "mathematical data lost its declaration"))?;
+        let declared = program.record_type(id, record)?;
+        let source = program.record_source(id, record)?;
         if declared.fields().is_empty() || !declared.cases().is_empty() {
             return Err(unserved(
                 id,
@@ -3938,11 +3885,7 @@ impl<'p> Converter<'p, '_> {
     }
 
     fn formals(&mut self, id: MachineId) -> Checked<Vec<(TermHandle, u32)>> {
-        let signature = self
-            .program
-            .signatures
-            .get(id)
-            .ok_or_else(|| unserved(id, "mathematical machine lost its signature"))?;
+        let signature = self.program.machine_signature(id)?;
         if !signature.erased.is_empty() || !signature.borrowed.is_empty() {
             return Err(unserved(
                 id,
@@ -4012,12 +3955,7 @@ impl<'p> Converter<'p, '_> {
             let read = self.family_laws(id, theorem);
             return self.finish(id, false, read.map(|laws| ((), Read::Laws(laws))));
         }
-        let result = self
-            .program
-            .signatures
-            .get(id)
-            .ok_or_else(|| unserved(id, "mathematical machine lost its signature"))?
-            .result;
+        let result = self.program.machine_signature(id)?.result;
         match result {
             None => self.laws(id).map(|_| ()),
             // A machine that returns a value and states a law is a law. It
@@ -4140,10 +4078,7 @@ impl<'p> Converter<'p, '_> {
 
     fn read_function(&mut self, id: MachineId) -> Checked<u32> {
         let program = self.program;
-        let signature = program
-            .signatures
-            .get(id)
-            .ok_or_else(|| unserved(id, "mathematical machine lost its signature"))?;
+        let signature = program.machine_signature(id)?;
         if signature.has_structural_guarantees() {
             return Err(unserved(
                 id,
@@ -4158,15 +4093,9 @@ impl<'p> Converter<'p, '_> {
                 .ok_or_else(|| unserved(id, "mathematical function without a result"))?,
         )?;
         let count = formals.len();
-        let body = self
-            .bodies
-            .get(id)
-            .ok_or_else(|| unserved(id, "mathematical machine lost its body"))?;
+        let body = self.body(id)?;
         let (aliases, statements) = spine(body);
-        let symbol = *program
-            .symbols
-            .get(id)
-            .ok_or_else(|| unserved(id, "mathematical machine lost its declaration"))?;
+        let symbol = program.machine_symbol(id)?;
         let name = self.name(symbol);
         let open: Vec<_> = (0..count)
             .map(|formal| self.variable((count - 1 - formal) as u32))
@@ -4342,10 +4271,7 @@ impl<'p> Converter<'p, '_> {
         let id = defining.id;
         let formals = defining.formals;
         let count = formals.len();
-        let body = self
-            .bodies
-            .get(id)
-            .ok_or_else(|| unserved(id, "mathematical machine lost its body"))?;
+        let body = self.body(id)?;
         let (aliases, _) = spine(body);
         let data = formals[subject].1;
         let SignatureEntryKind::Data { shape, .. } = &self.signature.entries[data as usize].kind
@@ -4566,10 +4492,7 @@ impl<'p> Converter<'p, '_> {
                     .map(|formal| self.variable((count - 1 - formal) as u32))
                     .collect();
                 let program = self.program;
-                let signature = program
-                    .signatures
-                    .get(machine)
-                    .ok_or_else(|| unserved(machine, "mathematical machine lost its signature"))?;
+                let signature = program.machine_signature(machine)?;
                 let mut premises = Vec::with_capacity(signature.requires.len());
                 for premise in &signature.requires {
                     premises.push(self.equality(machine, premise, &open, None)?);
@@ -4612,7 +4535,6 @@ impl<'p> Converter<'p, '_> {
                 })
             })
             .collect();
-        let bodies = self.bodies;
         let mut branches = Vec::new();
         for member in 0..shape.members() {
             let at = shape.at_member(member).expect("a member of the block");
@@ -4634,9 +4556,7 @@ impl<'p> Converter<'p, '_> {
             let own = &defined[position];
             let count = own.formals.len();
             let rest = own.others.len() as u32;
-            let body = bodies
-                .get(machine)
-                .ok_or_else(|| unserved(machine, "mathematical machine lost its body"))?;
+            let body = self.body(machine)?;
             let (aliases, statements) = spine(body);
             let machine_arms = if machine == id {
                 arms
@@ -4824,10 +4744,7 @@ impl<'p> Converter<'p, '_> {
                     "law of a mutual induction that is not one equality of its own",
                 ));
             }
-            let symbol =
-                *self.program.symbols.get(machine).ok_or_else(|| {
-                    unserved(machine, "mathematical machine lost its declaration")
-                })?;
+            let symbol = self.program.machine_symbol(machine)?;
             mutual[member as usize] = Some(symbol);
         }
         let group = group
@@ -5051,10 +4968,7 @@ impl<'p> Converter<'p, '_> {
         let id = defining.id;
         let formals = defining.formals;
         let count = formals.len();
-        let body = self
-            .bodies
-            .get(id)
-            .ok_or_else(|| unserved(id, "mathematical machine lost its body"))?;
+        let body = self.body(id)?;
         let (fuel, data) = formals[measure];
         let SignatureEntryKind::Data { shape, .. } = &self.signature.entries[data as usize].kind
         else {
@@ -5416,10 +5330,7 @@ impl<'p> Converter<'p, '_> {
         ) else {
             return Err(unserved(id, "fuel without a zero and a successor"));
         };
-        let body = self
-            .bodies
-            .get(id)
-            .ok_or_else(|| unserved(id, "mathematical machine lost its body"))?;
+        let body = self.body(id)?;
         let parameters = defining.callables.len();
         let count = defining.formals.len();
         let all = parameters + count;
@@ -5581,10 +5492,7 @@ impl<'p> Converter<'p, '_> {
         ranked: Option<(usize, u32)>,
         depth: u32,
     ) -> Checked<LawCase> {
-        let body = self
-            .bodies
-            .get(id)
-            .ok_or_else(|| unserved(id, "mathematical machine lost its body"))?;
+        let body = self.body(id)?;
         let (aliases, statements) = spine(body);
         let (dispatch, before) = match statements.split_last() {
             Some((
@@ -6166,11 +6074,7 @@ impl<'p> Converter<'p, '_> {
         });
         let subject = arena.apply_arguments(monus, &[guard.ranked, guard.rest]);
         index(id, self.signature.declarations.len() + 1)?;
-        let symbol = *self
-            .program
-            .symbols
-            .get(id)
-            .ok_or_else(|| unserved(id, "mathematical machine lost its declaration"))?;
+        let symbol = self.program.machine_symbol(id)?;
         let name = format!("{} guarded", self.name(symbol));
         let entry = self.push(
             Declaration::definition(0, function, term),
@@ -6386,10 +6290,7 @@ impl<'p> Converter<'p, '_> {
         recursion: Option<Recursion<'_>>,
         valuing: &Valuing<'_>,
     ) -> Checked<TermHandle> {
-        let body = self
-            .bodies
-            .get(machine)
-            .ok_or_else(|| unserved(machine, "mathematical machine lost its body"))?;
+        let body = self.body(machine)?;
         let (aliases, statements) = spine(body);
         slots.resize(slots.len().max(body.slots.len()), None);
         let Some((last, before)) = statements.split_last() else {
@@ -6652,11 +6553,7 @@ impl<'p> Converter<'p, '_> {
             codomain: function,
         });
         index(machine, self.signature.declarations.len() + 1)?;
-        let symbol = *self
-            .program
-            .symbols
-            .get(machine)
-            .ok_or_else(|| unserved(machine, "mathematical machine lost its declaration"))?;
+        let symbol = self.program.machine_symbol(machine)?;
         let name = format!("{} by cases", self.name(symbol));
         let entry = self.push(
             Declaration::definition(0, function, term),
@@ -6693,10 +6590,7 @@ impl<'p> Converter<'p, '_> {
         scope: &Scope<'_>,
     ) -> Checked<()> {
         let program = self.program;
-        let called = program
-            .signatures
-            .get(callee)
-            .ok_or_else(|| unserved(id, "call lost its machine's signature"))?;
+        let called = program.machine_signature(callee)?;
         if called.requires.is_empty() {
             return Ok(());
         }
@@ -6894,11 +6788,7 @@ impl<'p> Converter<'p, '_> {
                 codomain: statement,
             });
         }
-        let owner = *self
-            .program
-            .symbols
-            .get(valuing.owner)
-            .ok_or_else(|| unserved(id, "mathematical machine lost its declaration"))?;
+        let owner = self.program.machine_symbol(valuing.owner)?;
         if self.signature.laws.iter().any(|law| {
             law.machine == owner
                 && self.signature.arena.structurally_equal(
@@ -7309,10 +7199,7 @@ impl<'p> Converter<'p, '_> {
                         .map(plain);
                 }
                 if self.helper(*callee) {
-                    let body = self
-                        .bodies
-                        .get(*callee)
-                        .ok_or_else(|| unserved(id, "mathematical machine lost its body"))?;
+                    let body = self.body(*callee)?;
                     let (aliases, statements) = spine(body);
                     let Some((
                         Statement::Arm {
@@ -7426,14 +7313,8 @@ impl<'p> Converter<'p, '_> {
 
     fn read_laws(&mut self, id: MachineId) -> Checked<Vec<u32>> {
         let program = self.program;
-        let signature = program
-            .signatures
-            .get(id)
-            .ok_or_else(|| unserved(id, "mathematical machine lost its signature"))?;
-        let names = program
-            .names
-            .get(id)
-            .ok_or_else(|| unserved(id, "mathematical machine lost its names"))?;
+        let signature = program.machine_signature(id)?;
+        let names = program.machine_names(id)?;
         let formals = self.formals(id)?;
         let count = formals.len();
         let open: Vec<_> = (0..count)
@@ -7523,10 +7404,7 @@ impl<'p> Converter<'p, '_> {
                 LawProof::Direct(script)
             }
             None => {
-                let body = self
-                    .bodies
-                    .get(id)
-                    .ok_or_else(|| unserved(id, "mathematical machine lost its body"))?;
+                let body = self.body(id)?;
                 self.script(id, body, &formals)?
             }
         };
@@ -7561,10 +7439,7 @@ impl<'p> Converter<'p, '_> {
             self.result_as = None;
             over_fuel = read?;
         }
-        let symbol = *program
-            .symbols
-            .get(id)
-            .ok_or_else(|| unserved(id, "mathematical machine lost its declaration"))?;
+        let symbol = program.machine_symbol(id)?;
         let formal_names: Vec<String> = template
             .iter()
             .flat_map(|template| &template.callables)
@@ -7906,10 +7781,7 @@ impl<'p> Converter<'p, '_> {
         let Some((machine, _)) = program.symbols.iter().find(|(_, known)| **known == member) else {
             return Ok(());
         };
-        let called = program
-            .signatures
-            .get(machine)
-            .ok_or_else(|| unserved(id, "call lost its machine's signature"))?;
+        let called = program.machine_signature(machine)?;
         if called.requires.is_empty() {
             return Ok(());
         }
@@ -8124,9 +7996,7 @@ impl<'p> Converter<'p, '_> {
                 {
                     let position = self
                         .program
-                        .signatures
-                        .get(id)
-                        .ok_or_else(|| unserved(id, "mathematical machine lost its signature"))?
+                        .machine_signature(id)?
                         .formal_values()
                         .iter()
                         .position(|known| *known == Some(*named));
@@ -8431,11 +8301,7 @@ impl<'p> Converter<'p, '_> {
             .find(|(_, entry)| *entry == data)
             .map(|(record, _)| *record)
             .expect("a declared data entry has its record");
-        let declared = self
-            .program
-            .records
-            .get(record)
-            .ok_or_else(|| unserved(id, "mathematical data lost its record"))?;
+        let declared = self.program.record_type(id, record)?;
         if arms.len() != shape.cases() {
             return Err(unserved(
                 id,
@@ -8820,11 +8686,7 @@ impl<'p> Converter<'p, '_> {
             } => (callee, machines.as_slice(), arguments),
             _ => return Err(unserved(machine, "law body statement other than a call")),
         };
-        let cited = self
-            .program
-            .signatures
-            .get(*callee)
-            .ok_or_else(|| unserved(machine, "citation lost its machine"))?;
+        let cited = self.program.machine_signature(*callee)?;
         if *callee != law
             && cited.result.is_some()
             && !self.states_law(*callee)
@@ -9057,7 +8919,7 @@ impl<'p> Converter<'p, '_> {
             _ => None,
         };
         let enclosing = generic.map(|scope| std::mem::replace(&mut self.callable_scope, scope));
-        let read = self.cite_in_place(law, machine, *callee, &operands, scope, script);
+        let read = self.cite_in_place(law, *callee, &operands, scope, script);
         if let Some(enclosing) = enclosing {
             self.callable_scope = enclosing;
         }
@@ -9102,7 +8964,6 @@ impl<'p> Converter<'p, '_> {
     fn cite_in_place(
         &mut self,
         law: MachineId,
-        machine: MachineId,
         callee: MachineId,
         operands: &[Bound],
         scope: &Scope<'_>,
@@ -9113,10 +8974,7 @@ impl<'p> Converter<'p, '_> {
         // standing for the arguments of this call.
         *self.machines.get_mut(*callee).expect("row read by `laws`") = Read::Reading;
         let mut slots: Vec<_> = operands.iter().copied().map(Some).collect();
-        let body = self
-            .bodies
-            .get(*callee)
-            .ok_or_else(|| unserved(machine, "citation lost its body"))?;
+        let body = self.body(*callee)?;
         let (aliases, statements) = spine(body);
         slots.resize(slots.len().max(body.slots.len()), None);
         if let Err(refusal) = self.locals(*callee, &statements, &mut slots, &aliases) {

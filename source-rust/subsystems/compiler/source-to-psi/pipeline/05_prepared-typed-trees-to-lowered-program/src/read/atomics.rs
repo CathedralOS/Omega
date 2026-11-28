@@ -9,7 +9,8 @@ use crate::source_state::expression::{
 use crate::source_state::statement::{StatementNode, TableLocalData};
 use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 use language_core::atomic::{
-    AtomicCompareExchangeOutcomeIdentity, AtomicExpressionResultCustody, AtomicOrderingPlan,
+    AtomicCompareExchangeOnceResultCustody, AtomicCompareExchangeOutcomeIdentity,
+    AtomicExpressionResultCustody, AtomicOrderingPlan,
 };
 use semantic_vocabulary::{AtomicCellType, IntegerSign, IntegerType, MachineId, ScalarType};
 use symbols::BuiltinTypeAtom;
@@ -211,10 +212,19 @@ impl Program<'_> {
         let StorageShape::Sum(cases) = &self.data_type(machine, record)?.shape else {
             return Err(invalid());
         };
-        if cases
-            .iter()
-            .flat_map(|case| &case.fields)
-            .any(|field| field.value_type != ValueType::plain(resident))
+        let schema = outcome.cases();
+        if cases.len() != schema.len()
+            || !cases.iter().zip(schema).all(|(case, expected)| {
+                case.identity == expected.case.name()
+                    && match (&case.fields[..], expected.payload) {
+                        ([], None) => true,
+                        ([field], Some(payload)) => {
+                            field.identity == payload.field_name()
+                                && field.value_type == ValueType::plain(resident)
+                        }
+                        _ => false,
+                    }
+            })
         {
             return Err(invalid());
         }
@@ -229,45 +239,59 @@ impl Program<'_> {
         expected: Option<ValueType>,
         source: SourceOrigin,
     ) -> Checked<Expression> {
-        if let AtomicOrderingPlan::CompareExchangeOnce { success, failure } = atomic.ordering {
+        if let AtomicExpressionResultCustody::Exchange(identity) = atomic.result_custody {
             let invalid = || {
                 reject(
                     machine,
                     source,
-                    "single-attempt exchange has invalid operands or result custody",
+                    "atomic exchange has invalid operands or result custody",
                 )
             };
-            let access = self
+            let [compare, replace] = self
                 .typed
-                .atomic_once_operands(atomic)
+                .atomic_exchange_operands(atomic)
                 .ok_or_else(invalid)?;
-            let AtomicExpressionResultCustody::CompareExchangeOnce(custody) = atomic.result_custody
-            else {
+            if !atomic.result_custody.is_valid_for(atomic.ordering) {
                 return Err(invalid());
+            }
+            let event = match atomic.ordering {
+                AtomicOrderingPlan::CompareExchange { success, failure } => {
+                    AtomicAccessEvent::CompareExchange {
+                        expected: 0,
+                        replacement: 1,
+                        success,
+                        failure,
+                    }
+                }
+                AtomicOrderingPlan::CompareExchangeOnce { success, failure } => {
+                    AtomicAccessEvent::CompareExchangeOnce {
+                        expected: 0,
+                        replacement: 1,
+                        success,
+                        failure,
+                        custody: AtomicCompareExchangeOnceResultCustody::for_observation(
+                            identity.observation(),
+                        ),
+                    }
+                }
+                _ => return Err(invalid()),
             };
-            let (place, scalar) = self.atomic_place(machine, slots, access.place, true, true)?;
-            let result =
-                self.atomic_outcome(machine, expected, scalar, custody.outcome_identity, source)?;
-            let [compare, replace] = access.operands.as_slice() else {
-                return Err(invalid());
-            };
+            let (place, scalar) = self.atomic_place(machine, slots, atomic.value, true, true)?;
+            let result = self.atomic_outcome(machine, expected, scalar, identity, source)?;
             let operands = vec![
-                self.atomic_operand(machine, slots, *compare, scalar)?,
-                self.atomic_operand(machine, slots, *replace, scalar)?,
+                self.atomic_operand(machine, slots, compare, scalar)?,
+                self.atomic_operand(machine, slots, replace, scalar)?,
             ];
             return Ok(Expression {
                 call_context: None,
-                kind: ExpressionKind::Atomic(crate::body::AtomicOperation::Access {
-                    place: Box::new(place),
-                    event: AtomicAccessEvent::CompareExchangeOnce {
-                        expected: 0,
-                        replacement: 1,
-                        custody,
-                        success,
-                        failure,
+                kind: ExpressionKind::Atomic(crate::body::AtomicOperation::Access(
+                    crate::body::AtomicAccess {
+                        result: atomic.result_custody,
+                        place: Box::new(place),
+                        event,
+                        operands,
                     },
-                    operands,
-                }),
+                )),
                 result: Some(result),
                 source,
             });
@@ -292,11 +316,14 @@ impl Program<'_> {
         let (place, scalar) = self.atomic_place(machine, slots, atomic.value, true, false)?;
         Ok(Expression {
             call_context: None,
-            kind: ExpressionKind::Atomic(crate::body::AtomicOperation::Access {
-                place: Box::new(place),
-                event: AtomicAccessEvent::Load { ordering },
-                operands: Vec::new(),
-            }),
+            kind: ExpressionKind::Atomic(crate::body::AtomicOperation::Access(
+                crate::body::AtomicAccess {
+                    result: atomic.result_custody,
+                    place: Box::new(place),
+                    event: AtomicAccessEvent::Load { ordering },
+                    operands: Vec::new(),
+                },
+            )),
             result: Some(ValueType::plain(scalar)),
             source,
         })
@@ -439,11 +466,14 @@ impl Program<'_> {
         Ok(Statement::Evaluate {
             expression: Expression {
                 call_context: None,
-                kind: ExpressionKind::Atomic(crate::body::AtomicOperation::Access {
-                    place: Box::new(place),
-                    event: AtomicAccessEvent::Store { value: 0, ordering },
-                    operands: vec![operand],
-                }),
+                kind: ExpressionKind::Atomic(crate::body::AtomicOperation::Access(
+                    crate::body::AtomicAccess {
+                        result: atomic.result_custody,
+                        place: Box::new(place),
+                        event: AtomicAccessEvent::Store { value: 0, ordering },
+                        operands: vec![operand],
+                    },
+                )),
                 result: None,
                 source,
             },
@@ -563,11 +593,14 @@ impl Program<'_> {
         let operand = self.atomic_operand(machine, slots, operand, scalar)?;
         let value = Expression {
             call_context: None,
-            kind: ExpressionKind::Atomic(crate::body::AtomicOperation::Access {
-                place: Box::new(place),
-                event,
-                operands: vec![operand],
-            }),
+            kind: ExpressionKind::Atomic(crate::body::AtomicOperation::Access(
+                crate::body::AtomicAccess {
+                    result: atomic.result_custody,
+                    place: Box::new(place),
+                    event,
+                    operands: vec![operand],
+                },
+            )),
             result: Some(declared),
             source,
         };

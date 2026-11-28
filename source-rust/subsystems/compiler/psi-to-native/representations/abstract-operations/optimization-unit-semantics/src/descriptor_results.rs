@@ -9,7 +9,7 @@ results after transformations have mutated the program.
 */
 
 use abstract_operations::{AbstractOperation as O, StructuralCopyPath};
-use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
+use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{MachineId, PlaceId, StructuralPlaceKind};
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
@@ -1030,23 +1030,6 @@ use terminal_psi::TerminalDynamicDispatchCatalog;
 use terminal_semantics::descriptor_lifetimes::canonical_descriptor_location;
 use terminal_semantics::runtime_structural_path_tip;
 
-pub fn abstract_catalog_graph<'function, 'boundary>(
-    functions: impl IntoIterator<Item = &'function AbstractFunction>,
-    boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
-    types: &[StructuralTypeDeclaration],
-    dynamic_dispatch: &TerminalDynamicDispatchCatalog,
-    callables: &terminal_psi::TerminalCallableCatalog,
-) -> Option<Vec<DescriptorMachine>> {
-    abstract_graph_with_slots(
-        functions,
-        boundaries,
-        types,
-        dynamic_dispatch,
-        callables,
-        kernel::DescriptorSlotKind::Views,
-    )
-}
-
 pub fn abstract_reference_catalog_graph<'function, 'boundary>(
     functions: impl IntoIterator<Item = &'function AbstractFunction>,
     boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
@@ -1061,42 +1044,6 @@ pub fn abstract_reference_catalog_graph<'function, 'boundary>(
         dynamic_dispatch,
         callables,
         kernel::DescriptorSlotKind::References,
-    )
-}
-
-pub fn abstract_borrowed_storage_catalog_graph<'function, 'boundary>(
-    functions: impl IntoIterator<Item = &'function AbstractFunction>,
-    boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
-    types: &[StructuralTypeDeclaration],
-    dynamic_dispatch: &TerminalDynamicDispatchCatalog,
-    callables: &terminal_psi::TerminalCallableCatalog,
-) -> Option<Vec<DescriptorMachine>> {
-    abstract_graph_with_slots(
-        functions,
-        boundaries,
-        types,
-        dynamic_dispatch,
-        callables,
-        kernel::DescriptorSlotKind::BorrowedStorage,
-    )
-}
-
-pub fn optimized_borrowed_storage_catalog_graph<'function, 'boundary>(
-    functions: impl IntoIterator<Item = &'function PsiOptimizationFunction>,
-    boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
-    types: &[StructuralTypeDeclaration],
-    dynamic_dispatch: &TerminalDynamicDispatchCatalog,
-    callables: &terminal_psi::TerminalCallableCatalog,
-) -> Option<Vec<DescriptorMachine>> {
-    catalog_graph(
-        functions,
-        boundaries,
-        types,
-        dynamic_dispatch,
-        callables,
-        |_, node| Some(Cow::Borrowed(&node.operation)),
-        kernel::DescriptorSlotKind::BorrowedStorage,
-        |_, _| false,
     )
 }
 
@@ -1150,17 +1097,6 @@ pub fn abstract_reference_catalog_graph_with_boundary_preservation<'function, 'b
         callables,
         operation,
         preserves_boundary,
-    )
-}
-
-pub(crate) fn optimized_graph(unit: &PsiOptimizationUnit) -> Option<Vec<DescriptorMachine>> {
-    optimized_catalog_graph(
-        unit.functions.iter(),
-        &unit.boundary_machines,
-        &unit.structural_types,
-        &unit.dynamic_dispatch,
-        &unit.callables,
-        |_, node| Some(Cow::Borrowed(&node.operation)),
     )
 }
 
@@ -1288,19 +1224,6 @@ fn catalog_graph<'function, 'boundary>(
         return Some(initial);
     }
     build(Some(&initial))
-}
-
-pub fn call_origins(
-    unit: &PsiOptimizationUnit,
-    caller: MachineId,
-    result: PlaceId,
-) -> Option<Vec<kernel::DescriptorCallOrigin>> {
-    kernel::reconstruct_call_origins(
-        &unit.structural_types,
-        &optimized_graph(unit)?,
-        caller,
-        result,
-    )
 }
 
 fn record_escaped_invocation(
@@ -3061,16 +2984,6 @@ pub(crate) fn element_coordinates_preserved<'a>(
     terminal_semantics::collection_view_preserves_coordinates(types, collection.id, element, region)
 }
 
-pub fn captured_scalar_ordering(
-    function: &PsiOptimizationFunction,
-    functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
-) -> terminal_semantics::scalar_ordering::ScalarOrdering {
-    crate::current_ownership::address_joins::range_relations::RangeRelations::new(
-        function, functions,
-    )
-    .into_ordering()
-}
-
 pub(crate) fn scalar_call_guarantees<'function>(
     operation: &O,
     callee: &impl Fn(MachineId) -> Option<&'function PsiOptimizationFunction>,
@@ -3518,7 +3431,7 @@ mod owned_cleanup_graph_tests {
             )],
         );
         let types = types();
-        let graphs = abstract_borrowed_storage_catalog_graph(
+        let graphs = abstract_reference_catalog_graph(
             [&caller, &consumer, &returning],
             [],
             &types,

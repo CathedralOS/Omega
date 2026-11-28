@@ -1,0 +1,14 @@
+use {signals}/main.omg as signals;
+
+machine main() reaches |signals|::Publisher crashes Trap {
+    let mutable signal: |signals|::Signal;
+    signal.value.store(3, Publish);
+    let observed: u32 = |signals|::Publisher::publish(@signal, @signal);
+    let retained: u32 = signal.value.load(Receive);
+    transition observed == 17 { true -> confirm(retained), _ -> wrong() }
+    machine confirm(value: u32) {
+        transition value == 17 { true -> done(), _ -> wrong() }
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

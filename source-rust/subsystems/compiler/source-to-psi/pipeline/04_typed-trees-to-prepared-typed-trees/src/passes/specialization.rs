@@ -775,12 +775,9 @@ fn specialize_application(
         if matches!(parameter.kind, TypeParameterKind::Proof { .. }) {
             continue;
         }
-        operands.push(Operand::read(
-            program,
-            parameter,
-            argument,
-            supplying_owner,
-        )?);
+        let operand =
+            Operand::read_after(program, parameter, argument, supplying_owner, &operands)?;
+        operands.push(operand);
     }
     Operand::require_nominal_callbacks(program, parameters, &operands, supplying_owner)?;
     // Explicit groups keep the original callable's formals and the caller's

@@ -167,32 +167,12 @@ impl PsiOptimizationFunction {
         self.structural_places.iter().find(|row| row.id == place)
     }
 
-    pub fn entry_claim_declared(&self, input: PlaceId) -> bool {
-        self.entry_claim_declarations
-            .iter()
-            .any(|claim| claim.input == input)
-    }
-
-    pub fn content_entry_claim_declared(&self, root: PlaceId) -> bool {
-        self.content_entry_claims
-            .iter()
-            .any(|claim| claim.input.root == root)
-    }
-
     pub fn block_index(&self, id: BlockId) -> Option<usize> {
         self.blocks.binary_search_by_key(&id, |row| row.id).ok()
     }
 
     pub fn block_nodes(&self) -> impl Iterator<Item = &OptimizationNode> + '_ {
         self.blocks.iter().flat_map(|block| &block.nodes)
-    }
-
-    pub fn node_definitions(&self) -> impl Iterator<Item = &ValueDefinition> + '_ {
-        self.block_nodes().flat_map(|node| &node.definitions)
-    }
-
-    pub fn node_uses(&self) -> impl Iterator<Item = &ValueUse> + '_ {
-        self.block_nodes().flat_map(|node| &node.uses)
     }
 
     pub fn block_edges(&self) -> impl Iterator<Item = &OptimizationEdge> + '_ {

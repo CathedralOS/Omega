@@ -7923,10 +7923,11 @@ pub(crate) mod storage_foundations {
         use terminal_semantics::{canonical_static_projection, is_copyable_carrier};
 
         pub(crate) fn validate_move_structural_value(
-            module: &TerminalModule,
+            analyses: &terminal_semantics::ModuleAnalyses<'_>,
             machine: &TerminalMachine,
             operation: &Operation,
         ) -> Result<(), CodecError> {
+            let module = analyses.module();
             let OperationKind::MoveStructuralValue { source } = &operation.kind else {
                 return malformed("owned value transfer dispatch differs");
             };
@@ -7982,7 +7983,22 @@ pub(crate) mod storage_foundations {
             }) {
                 return malformed("owned value transfer loses source memberships");
             }
+            validate_current_source_memberships(analyses, machine, operation)?;
             validate_byte_transfer_qualifications(module, machine, operation)
+        }
+
+        /// A call or store before the transfer can take a domain away from
+        /// its source, so the result may keep only what the source still
+        /// holds there.
+        fn validate_current_source_memberships(
+            analyses: &terminal_semantics::ModuleAnalyses<'_>,
+            machine: &TerminalMachine,
+            operation: &Operation,
+        ) -> Result<(), CodecError> {
+            terminal_semantics::descriptor_results::validate_transfer_source_memberships(
+                analyses, machine, operation,
+            )
+            .map_err(CodecError::MalformedStructuralFoundation)
         }
 
         fn validate_byte_transfer_qualifications(
@@ -7999,10 +8015,11 @@ pub(crate) mod storage_foundations {
         }
 
         pub(crate) fn validate_structural_leaf_copy(
-            module: &TerminalModule,
+            analyses: &terminal_semantics::ModuleAnalyses<'_>,
             machine: &TerminalMachine,
             operation: &Operation,
         ) -> Result<(), CodecError> {
+            let module = analyses.module();
             let (terminal_psi::structural_leaf_copy_pair_pattern!()) = &operation.kind else {
                 unreachable!("dispatched validate_structural_leaf_copy")
             };
@@ -8025,7 +8042,140 @@ pub(crate) mod storage_foundations {
             {
                 return malformed("case leaf copy does not authenticate memberships");
             }
+            validate_current_source_memberships(analyses, machine, operation)?;
             validate_byte_transfer_qualifications(module, machine, operation)
+        }
+
+        #[cfg(test)]
+        mod tests {
+            use super::*;
+            use semantic_vocabulary::{
+                DomainSemanticId, MachineId, OperationId, PlaceId, StructuralDomainId,
+                StructuralPlaceKind, StructuralTypeId,
+            };
+            use terminal_psi::{
+                BoundaryParameterKind, StructuralDomainDeclaration, StructuralOperationResult,
+                StructuralParameterDeclaration, StructuralPlaceDeclaration,
+                StructuralRecordStorage, StructuralTypeDeclaration, TerminalIdentityIndex,
+            };
+
+            /// An owned record parameter that holds `held` and a move of it
+            /// whose result claims one domain only the domain's routes may
+            /// establish.
+            fn routed_move(held: Vec<StructuralDomainId>) -> TerminalModule {
+                let carrier = StructuralTypeId::new(1).unwrap();
+                let routed = StructuralDomainId::new(1).unwrap();
+                let mut module = TerminalModule::declarations();
+                module
+                    .types
+                    .structural_types
+                    .push(StructuralTypeDeclaration {
+                        declaration_identity: Default::default(),
+                        id: carrier,
+                        identity: TerminalIdentityIndex::ABSENT,
+                        quotient_carrier: None,
+                        owns_linear_claim: false,
+                        multiplicity: StructuralMultiplicity::Affine,
+                        no_code_affine_cleanup: true,
+                        descriptor_cleanup: true,
+                        nominal_cleanup: None,
+                        shape: StructuralTypeShape::Record {
+                            fields: Vec::new(),
+                            storage: StructuralRecordStorage::Packed,
+                        },
+                        scalar_restriction: None,
+                        requires: Vec::new(),
+                    });
+                module
+                    .types
+                    .structural_domains
+                    .push(StructuralDomainDeclaration {
+                        required_memberships: Some(Vec::new()),
+                        complete_predicate_theory: false,
+                        predicate: None,
+                        id: routed,
+                        semantic_domain: DomainSemanticId::new(1).unwrap(),
+                        identity: Default::default(),
+                        subject_identity: Default::default(),
+                        carrier,
+                        content_projection: None,
+                        byte_predicate: None,
+                        establishment_routes: Some(Vec::new()),
+                        access_policy: None,
+                    });
+                let mut machine =
+                    crate::semantic_module::entry_tests::unit_machine(MachineId::new(1).unwrap());
+                let (source, moved) = (PlaceId::new(1).unwrap(), PlaceId::new(2).unwrap());
+                let operation = OperationId::new(1).unwrap();
+                machine.structural_places.extend([
+                    StructuralPlaceDeclaration {
+                        id: source,
+                        kind: StructuralPlaceKind::Parameter { position: 0 },
+                    },
+                    StructuralPlaceDeclaration {
+                        id: moved,
+                        kind: StructuralPlaceKind::OperationResult {
+                            producer: operation,
+                            structural_type: carrier,
+                        },
+                    },
+                ]);
+                machine
+                    .structural_parameters
+                    .push(StructuralParameterDeclaration {
+                        place: source,
+                        position: 0,
+                        structural_type: carrier,
+                        multiplicity: StructuralMultiplicity::Affine,
+                        access: StructuralAccess::Owned,
+                        qualifications: held,
+                        projected_qualifications: Vec::new(),
+                        additional_input_qualifications: Vec::new(),
+                    });
+                machine
+                    .parameter_order
+                    .push(BoundaryParameterKind::Structural);
+                machine.blocks[0].operations.push(Operation::unsuspended(
+                    operation,
+                    OperationResult::Structural(StructuralOperationResult {
+                        place: moved,
+                        structural_type: carrier,
+                        multiplicity: StructuralMultiplicity::Affine,
+                        qualifications: vec![routed],
+                        projected_qualifications: Vec::new(),
+                        additional_input_qualifications: Vec::new(),
+                        qualification_establishments: Vec::new(),
+                        claims: Vec::new(),
+                    }),
+                    OperationKind::MoveStructuralValue {
+                        source: terminal_psi::StructuralArgument::whole(
+                            source,
+                            StructuralAccess::Owned,
+                        ),
+                    },
+                ));
+                module.machines.push(machine);
+                module
+            }
+
+            fn validated_move(module: &TerminalModule) -> Result<(), CodecError> {
+                let analyses = terminal_semantics::ModuleAnalyses::new(module).unwrap();
+                let machine = &module.machines[0];
+                validate_move_structural_value(&analyses, machine, &machine.blocks[0].operations[0])
+            }
+
+            // The positive twin's source already holds the routed domain, so
+            // the move keeps it. The negative twin's source never held it,
+            // and a move is not one of the domain's establishment routes.
+            #[test]
+            fn a_move_keeps_only_routed_domains_its_source_currently_holds() {
+                let held = routed_move(vec![StructuralDomainId::new(1).unwrap()]);
+                assert_eq!(validated_move(&held), Ok(()));
+                assert_eq!(
+                    validated_move(&routed_move(Vec::new())),
+                    malformed("value transfer cannot establish unsupplied routed prerequisites")
+                );
+            }
         }
     }
     use self::structural_fields::declared_memberships;
@@ -9957,225 +10107,7 @@ pub(crate) mod target_layouts {
             })
     }
 }
-pub(crate) mod task_activation {
-    use super::structural_type_foundations::{StructuralCatalog, validate_catalog_type_shape};
-    use super::validate_structural_type_graph;
-    use crate::codec_error::{CodecError, malformed};
-    use std::collections::BTreeSet;
-    use terminal_psi::*;
-
-    pub(crate) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
-        let bundle = &module.execution.task_activation_demands;
-        if bundle.demands.is_empty()
-            && bundle.structural_types.is_empty()
-            && bundle.structural_referents.is_empty()
-            && bundle.target_layout_applications.is_empty()
-        {
-            return Ok(());
-        }
-        let identity = |index| {
-            if module.identities.text(index).is_none_or(str::is_empty) {
-                malformed("task activation has an unresolved identity")
-            } else {
-                Ok(())
-            }
-        };
-        let catalog = StructuralCatalog {
-            structural_types: &bundle.structural_types,
-            structural_referents: &bundle.structural_referents,
-        };
-        let mut type_ids = BTreeSet::new();
-        let mut type_names = BTreeSet::new();
-        for (id, name) in bundle
-            .structural_types
-            .iter()
-            .map(|row| (row.id, row.identity))
-            .chain(
-                bundle
-                    .structural_referents
-                    .iter()
-                    .map(|row| (row.id, row.identity)),
-            )
-        {
-            identity(name)?;
-            if !type_ids.insert(id) || !type_names.insert(name) {
-                return malformed("task activation structural catalog repeats an identity");
-            }
-        }
-        for declaration in catalog.structural_types {
-            validate_catalog_type_shape(&catalog, declaration, &[])?;
-        }
-        validate_structural_type_graph(catalog.structural_types)?;
-        let value = |value_type| match value_type {
-            TerminalTaskValueType::Unit | TerminalTaskValueType::Scalar(_) => Ok(()),
-            TerminalTaskValueType::Structural(id)
-                if terminal_psi::find_structural_type(&bundle.structural_types, id).is_some() =>
-            {
-                Ok(())
-            }
-            _ => malformed("task activation value has no storage declaration"),
-        };
-        let resident = |row: &TerminalTaskResidentValue| {
-            identity(row.normalized_identity)?;
-            value(row.value_type)
-        };
-        let mut layouts = BTreeSet::new();
-        for layout in &bundle.target_layout_applications {
-            if !layouts.insert(layout.id)
-                || !terminal_psi::find_structural_type(&bundle.structural_types, layout.record)
-                    .is_some_and(|row| {
-                        matches!(row.shape, StructuralTypeShape::Record {
-                        storage: StructuralRecordStorage::TargetLayout(id), ..
-                    } if id == layout.id)
-                    })
-            {
-                return malformed("task activation layout does not bind one exact record");
-            }
-            let mut targets = BTreeSet::new();
-            for row in &layout.realizations {
-                if row.target.is_empty()
-                    || !targets.insert(&row.target)
-                    || !row.storage.byte_alignment.is_power_of_two()
-                {
-                    return malformed("task activation layout has an invalid target or alignment");
-                }
-            }
-        }
-        for declaration in &bundle.structural_types {
-            if let StructuralTypeShape::Record {
-                storage: StructuralRecordStorage::TargetLayout(id),
-                ..
-            } = declaration.shape
-                && !bundle
-                    .target_layout_applications
-                    .iter()
-                    .any(|layout| layout.id == id && layout.record == declaration.id)
-            {
-                return malformed("task activation record has no target layout alternatives");
-            }
-        }
-        for demand in &bundle.demands {
-            for index in [
-                demand.requirement_callable_identity,
-                demand.requirement_owner_path,
-                demand.authored_requirement_identity,
-                demand.machine_callable_identity,
-                demand.entry,
-            ] {
-                identity(index)?;
-            }
-            if demand.report_fingerprint == 0
-                || demand.entry_report_fingerprint == 0
-                || demand.contract_report_fingerprint == 0
-                || demand.specialization_report_fingerprint == 0
-                || demand.specialization_commitment == [0; 32]
-            {
-                return malformed("task activation has an absent commitment");
-            }
-            for argument in demand
-                .signature_arguments
-                .iter()
-                .chain([&demand.signature_outcome])
-            {
-                identity(argument.normalized_identity)?;
-                value(argument.value_type)?;
-            }
-            let frames = demand
-                .frames
-                .iter()
-                .map(|frame| frame.identity)
-                .collect::<BTreeSet<_>>();
-            if frames.len() != demand.frames.len() || frames.contains(&0) {
-                return malformed("task activation frame roster repeats an identity");
-            }
-            let root = demand
-                .frames
-                .iter()
-                .find(|frame| frame.identity == demand.root_frame)
-                .ok_or(CodecError::MalformedStructuralFoundation(
-                    "task activation root frame is absent",
-                ))?;
-            if root.machine_callable_identity != demand.machine_callable_identity
-                || root.entry != demand.entry
-            {
-                return malformed("task activation root frame differs from its selected entry");
-            }
-            for frame in &demand.frames {
-                identity(frame.machine_callable_identity)?;
-                identity(frame.entry)?;
-                let mut hash = wire::fnv1a::Fnv1a::new();
-                hash.byte(0x57);
-                hash.string_terminated(
-                    module
-                        .identities
-                        .text(frame.machine_callable_identity)
-                        .unwrap_or_default(),
-                );
-                hash.string_terminated(module.identities.text(frame.entry).unwrap_or_default());
-                if frame.identity != hash.finish_or(1) {
-                    return malformed(
-                        "task activation frame identity differs from its callable and entry",
-                    );
-                }
-                let mut states = BTreeSet::new();
-                if frame.states.is_empty() {
-                    return malformed("task activation frame has no resident states");
-                }
-                for state in &frame.states {
-                    identity(state.state)?;
-                    if !states.insert(state.state) {
-                        return malformed("task activation frame repeats a state");
-                    }
-                    for row in state
-                        .resident
-                        .iter()
-                        .chain(state.crossing_arguments.iter().flatten())
-                    {
-                        resident(row)?;
-                    }
-                }
-                if !states.contains(&frame.entry) {
-                    return malformed("task activation frame omits its entry state");
-                }
-                for call in &frame.calls {
-                    if !frames.contains(&call.callee) {
-                        return malformed("task activation call has no callee frame");
-                    }
-                }
-                let mut coordinates = BTreeSet::new();
-                for call in &frame.unresolved_calls {
-                    if !states.contains(&call.state)
-                        || !coordinates.insert((
-                            call.state,
-                            call.statement_index,
-                            call.call_ordinal,
-                        ))
-                    {
-                        return malformed(
-                            "task activation unresolved call has no unique state coordinate",
-                        );
-                    }
-                }
-            }
-            for crossing in &demand.crossings {
-                if crossing.identity == 0 {
-                    return malformed("task activation has a zero crossing identity");
-                }
-                let mut places = BTreeSet::new();
-                for live in &crossing.live_carry {
-                    if live.place == 0
-                        || live.value_type == 0
-                        || !places.insert(live.place)
-                        || live.claims.contains(&0)
-                    {
-                        return malformed("task activation carry has an invalid live identity");
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
-}
+mod task_activation;
 pub(crate) mod unoptimized_behavior {
 
     use crate::codec_error::{CodecError, malformed};
@@ -11174,9 +11106,9 @@ use terminal_psi::{
     AtomicAccessEvent, ByteSequenceCarrier, Operation, OperationKind, OperationResult,
     ReferenceOriginProjection, ScalarDomainDeclaration, StructuralAccess, StructuralArgument,
     StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathQualification, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape, TerminalMachine, TerminalModule, TerminalRootServiceReach, Terminator,
-    ValueDeclaration, call_structural_pair_pattern, field_by_identity, find_structural_case,
+    StructuralPathQualification, StructuralPathSegment, StructuralTypeShape, TerminalMachine,
+    TerminalModule, TerminalRootServiceReach, Terminator, ValueDeclaration,
+    call_structural_pair_pattern, field_by_identity, find_structural_case,
     record_or_mixed_shape_pattern, structural_leaf_copy_pair_pattern,
 };
 use terminal_semantics::descriptor_results::terminal_payload_contract;
@@ -11662,12 +11594,14 @@ fn validate_callable_contracts(module: &TerminalModule) -> Result<(), CodecError
     {
         return malformed("a physical body contract carries an invocation-specific selection");
     }
-    for contract in module
-        .execution
-        .declaration_contracts
-        .iter()
-        .chain(module.machines.iter().map(|machine| &machine.contract))
+    for (contract, application) in module.execution.declaration_contracts.iter()
+        .map(|contract| (contract, None))
+        .chain(module.machines.iter().map(|machine| (
+            &machine.contract, machine.closed_reach_application.as_ref(),
+        )))
     {
+        let [suspension, blocking] =
+            terminal_semantics::calls::operational_dependencies::fixed_ceilings(contract, application);
         if contract
             .declared_service_reach
             .as_ref()
@@ -11680,11 +11614,9 @@ fn validate_callable_contracts(module: &TerminalModule) -> Result<(), CodecError
                 .declared_crash_routes
                 .as_ref()
                 .is_some_and(|row| row != &contract.crash_routes)
-            || contract
-                .declared_suspension
+            || suspension
                 .is_some_and(|allowed| allowed != contract.published_may_suspend)
-            || contract
-                .declared_blocking
+            || blocking
                 .is_some_and(|allowed| allowed != contract.published_may_block)
         {
             return malformed("authored callable effects differ from their published promises");
@@ -12657,7 +12589,7 @@ fn validate_operation_foundation(
             storage_foundations::validate_structural_case_membership(operation)?
         }
         structural_leaf_copy_pair_pattern!() => {
-            storage_foundations::validate_structural_leaf_copy(module, machine, operation)?
+            storage_foundations::validate_structural_leaf_copy(analyses, machine, operation)?
         }
         OperationKind::DecomposeStructuralValue { subject } => {
             if operation.result != OperationResult::Unit
@@ -12672,7 +12604,7 @@ fn validate_operation_foundation(
                 .map_err(CodecError::MalformedStructuralFoundation)?;
         }
         OperationKind::MoveStructuralValue { .. } => {
-            storage_foundations::validate_move_structural_value(module, machine, operation)?
+            storage_foundations::validate_move_structural_value(analyses, machine, operation)?
         }
         OperationKind::TransformContent { .. } => {
             terminal_semantics::content_transformations::validate_shape(module, machine, operation)
@@ -13320,8 +13252,9 @@ fn storage_graph_error(
     })
 }
 
+#[cfg(test)]
 fn validate_structural_type_graph(
-    declarations: &[StructuralTypeDeclaration],
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<(), CodecError> {
     terminal_semantics::storage::type_graph::StorageTypeGraph::new(declarations)
         .and_then(|graph| graph.validate_acyclic())
@@ -13333,7 +13266,7 @@ fn validate_structural_type_graph(
 #[test]
 fn shared_storage_graph_preserves_codec_cycle_rejection() {
     let id = StructuralTypeId::new(29).unwrap();
-    let declaration = StructuralTypeDeclaration {
+    let declaration = terminal_psi::StructuralTypeDeclaration {
         declaration_identity: Default::default(),
         id,
         identity: terminal_psi::TerminalIdentityIndex(1),

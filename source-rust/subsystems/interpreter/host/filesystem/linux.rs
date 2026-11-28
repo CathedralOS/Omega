@@ -92,6 +92,12 @@ impl LinuxFilesystemWrite {
         })
     }
 
+    /// Whether this namespace holds only the standard streams, so no call
+    /// through it reaches a host descriptor.
+    pub(in super::super) fn standard_streams_only(&self) -> bool {
+        self.context.standard_streams_only
+    }
+
     pub(in super::super) fn write(
         &self,
         descriptor: i32,

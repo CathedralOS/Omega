@@ -184,9 +184,7 @@ impl Program<'_> {
             .ok_or_else(|| unserved("quotient operation lost its machine's parameters"))?;
         let representative_id = self.machine(representative)?;
         let parameter_types = self
-            .signatures
-            .get(representative_id)
-            .ok_or_else(|| unserved("quotient representative machine lost its signature"))?
+            .machine_signature(representative_id)?
             .parameters
             .clone();
         // A computed argument is lowered over the machine's formals, each a
@@ -861,11 +859,7 @@ impl Program<'_> {
                 && sig.operational.suspension != Some(true)
                 && sig.operational.blocking != Some(true)
         };
-        let rep_sig = self
-            .signatures
-            .get(rep_id)
-            .ok_or_else(|| unserved("quotient representative machine lost its signature"))?
-            .clone();
+        let rep_sig = self.machine_signature(rep_id)?.clone();
         if !is_pure_terminating(&rep_sig)
             || !rep_sig.erased.is_empty()
             || !rep_sig.borrowed.is_empty()
@@ -874,21 +868,14 @@ impl Program<'_> {
                 "quotient representative operation must be pure, terminating, and value-taking",
             ));
         }
-        let cong_sig = self
-            .signatures
-            .get(cong_id)
-            .ok_or_else(|| unserved("quotient congruence theorem lost its signature"))?
-            .clone();
+        let cong_sig = self.machine_signature(cong_id)?.clone();
         if cong_sig.result.is_some() || !is_pure_terminating(&cong_sig) {
             return Err(unserved(
                 "quotient congruence theorem must be resultless, pure, and terminating",
             ));
         }
         if let Some((_, transport_id)) = transport {
-            let transport_sig = self
-                .signatures
-                .get(transport_id)
-                .ok_or_else(|| unserved("quotient transport theorem lost its signature"))?;
+            let transport_sig = self.machine_signature(transport_id)?;
             if transport_sig.result.is_some() || !is_pure_terminating(transport_sig) {
                 return Err(unserved(
                     "quotient transport theorem must be resultless, pure, and terminating",

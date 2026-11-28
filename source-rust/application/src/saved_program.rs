@@ -30,7 +30,7 @@ pub(crate) fn configured_host_packages() -> Result<Option<ReviewedHostPackages>,
 }
 
 pub(crate) fn installation(
-    program: &AuthorizedTerminalArtifact,
+    program: &psi_authorization::AdmittedTerminalArtifact,
     profile: TargetProfile,
     packages: Option<&ReviewedHostPackages>,
 ) -> Result<TargetProviderInstallation, Vec<Diagnostic>> {
@@ -108,7 +108,7 @@ pub(crate) fn publish(
             .as_ref()
             .map_err(|error| SavedProgramError::Output(error.to_string()))?;
         let product = prepare(
-            program.clone(),
+            program.clone().into(),
             profile,
             packages.as_ref(),
             &[],
@@ -133,7 +133,7 @@ pub(crate) enum ExecutionProduct {
 }
 
 pub(crate) fn prepare(
-    program: AuthorizedTerminalArtifact,
+    program: psi_authorization::AdmittedTerminalArtifact,
     profile: TargetProfile,
     packages: Option<&ReviewedHostPackages>,
     entry_memory: &[psi_entry_memory::PrivateEntryRamInitialization],
@@ -148,7 +148,14 @@ pub(crate) fn prepare(
         behavior_exclusions: &[],
         x86_scalar_fma_provider: None,
     };
-    let program = Program::Psi { program, target };
+    let program = match program {
+        psi_authorization::AdmittedTerminalArtifact::Authorized(program) => {
+            Program::Psi { program, target }
+        }
+        psi_authorization::AdmittedTerminalArtifact::Contained(program) => {
+            Program::ContainedPsi { program, target }
+        }
+    };
     let request = match requested {
         ExecutionProduct::Native => CompileRequest::Native {
             program,

@@ -3,8 +3,8 @@
 
 mod activation;
 mod aggregate;
+mod atomic_attempt;
 mod computed;
-mod condition;
 mod continuation;
 mod control;
 mod effects;
@@ -17,12 +17,24 @@ mod wait;
 
 use super::progress::{PrivateWaitFailure, ProgressFailure, ProgressScope, entry_scalars};
 use super::selected::{SelectedCall, Summaries};
-use super::spin::spin_observation;
+use super::spin::{may_spin, spin_observation};
 use activation::{Bindings, Destination, Frame, ScalarArguments};
 use control::{Execution, Frontier};
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
+use std::rc::Rc;
 use storage::{Location, Storage};
 use terminal_psi::{StructuralAccess, TerminalAffineCleanupAction, TerminalModule, Terminator};
+
+fn may_wait_locally(module: &TerminalModule) -> bool {
+    let has_atomic_storage = module.types.structural_types.iter().any(|ty| {
+        matches!(ty.shape, terminal_psi::StructuralTypeShape::AtomicCell(_))
+            || ty
+                .shape
+                .fields()
+                .any(|field| field.field_type.atomic_cell_type().is_some())
+    });
+    has_atomic_storage && module.machines.iter().any(may_spin)
+}
 
 pub fn private_wait_failure(
     module: &TerminalModule,
@@ -30,18 +42,12 @@ pub fn private_wait_failure(
     scope: ProgressScope,
     boundary: impl Fn(BoundaryMachineId) -> Option<SelectedCall>,
 ) -> Option<PrivateWaitFailure> {
-    let imported_obligations = module.interfaces.boundary_machines.iter().any(|row| {
-        boundary(row.id).is_some_and(|call| call.owes_import_progress())
-    });
-    if !imported_obligations
-        && !module.types.structural_types.iter().any(|ty| {
-            matches!(ty.shape, terminal_psi::StructuralTypeShape::AtomicCell(_))
-                || ty
-                    .shape
-                    .fields()
-                    .any(|field| field.field_type.atomic_cell_type().is_some())
-        })
-    {
+    let imported_obligations = module
+        .interfaces
+        .boundary_machines
+        .iter()
+        .any(|row| boundary(row.id).is_some_and(|call| call.owes_import_progress()));
+    if !imported_obligations && !may_wait_locally(module) {
         return None;
     }
     let selected_entry = module.machine(entry)?;
@@ -93,7 +99,7 @@ pub fn private_wait_failure(
     let entry = Frame::enter(selected_entry, root_bindings, Destination::Unit)?;
     let mut paths = Frontier::default();
     paths.queue(Execution {
-        stack: vec![entry],
+        stack: vec![Rc::new(entry)],
         memory,
         coverage: Default::default(),
     });
@@ -162,6 +168,7 @@ fn advance<'m>(
     let memory = &mut path.memory;
     let stack = &mut path.stack;
     while let Some(frame) = stack.last_mut() {
+        let frame = Rc::make_mut(frame);
         if let Some(op) = frame.block.operations.get(frame.position) {
             let (selected, arguments, structural_arguments) =
                 if let Some(call) = op.declared_invocation() {
@@ -217,8 +224,8 @@ fn advance<'m>(
                         if stack.iter().any(|active| active.machine.id == id) {
                             return None;
                         }
-                        stack.last_mut()?.position += 1;
-                        stack.push(child);
+                        Rc::make_mut(stack.last_mut()?).position += 1;
+                        stack.push(Rc::new(child));
                         continue;
                     }
                 }
@@ -236,7 +243,14 @@ fn advance<'m>(
                         frame.position += 1;
                         return Some(Advance::OpaqueReturn);
                     };
-                    result
+                    result.map(|returned| {
+                        if let Some(dest) = op.result.as_scalar() {
+                            let value = returned
+                                .filter(|fact| fact.ty() == dest.scalar_type)
+                                .unwrap_or_else(|| memory.observation(dest.scalar_type, false));
+                            frame.bindings.values.insert(dest.id, value);
+                        }
+                    })
                 }
                 None | Some(SelectedCall::PendingProvider) => {
                     let call = op.declared_invocation()?;
@@ -270,7 +284,7 @@ fn advance<'m>(
                         frame
                             .bindings
                             .values
-                            .insert(result.id, memory.observation(result.scalar_type));
+                            .insert(result.id, memory.observation(result.scalar_type, pending));
                     }
                     return Some(Advance::Continue);
                 }
@@ -307,7 +321,7 @@ fn advance<'m>(
                 if stack.iter().any(|active| active.machine.id == callee.id) {
                     return None;
                 }
-                stack.push(Frame::enter(callee, args, Destination::Unit)?);
+                stack.push(Rc::new(Frame::enter(callee, args, Destination::Unit)?));
             }
             continue;
         }
@@ -321,13 +335,13 @@ fn advance<'m>(
                 (Destination::Unit, Terminator::ReturnUnit { .. }) => {}
                 (Destination::Scalar(dest), Terminator::Return { value, .. }) => {
                     if let Some(value) = frame.bindings.values.get(value) {
-                        caller.bindings.values.insert(dest, *value);
+                        Rc::make_mut(caller).bindings.values.insert(dest, *value);
                     }
                 }
                 (Destination::Structural(dest), Terminator::ReturnStructural { source, .. }) => {
                     let location = frame.bindings.places.get(source)?;
                     let returned = memory.allocate(memory.get(location));
-                    caller.bindings.places.insert(dest, returned);
+                    Rc::make_mut(caller).bindings.places.insert(dest, returned);
                 }
                 _ => return None,
             }

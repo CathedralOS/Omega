@@ -56,20 +56,22 @@ public data ActivationStorage [copy] {
     case Split;
 }
 
+// The selected worker accepts the job and returns its outcome. Its caller
+// acknowledges the suspension and blocking permitted by this contract.
+public data TaskWorker<Arguments, T> = machine(arguments: Arguments) -> T suspends blocks;
+
 // Provider selection chooses the implementation. Activation admission must
 // still establish caller authority, backing and execution custody.
 public boundary trait TaskRuntime {
-    machine start<T, Arguments, machine Target, const Plan: ActivationStorage>(
+    machine start<T, Arguments, const Target: TaskWorker<Arguments, T>, const Plan: ActivationStorage>(
         arguments: Arguments
     ) -> Task<T>
-    requires machine Target(arguments: Arguments) -> T suspends blocks;
     ensures true reaches none
     crashes Trap crashes Abort;
 
-    machine try_start<T, Arguments, machine Target, const Plan: ActivationStorage>(
+    machine try_start<T, Arguments, const Target: TaskWorker<Arguments, T>, const Plan: ActivationStorage>(
         arguments: Arguments
     ) -> StartOutcome<T, Arguments>
-    requires machine Target(arguments: Arguments) -> T suspends blocks;
     ensures true reaches none
     crashes Trap crashes Abort;
 }
