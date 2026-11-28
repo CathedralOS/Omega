@@ -142,7 +142,7 @@ fn check_record_operations(
     typed: &crate::source_state::TypedTrees,
     mut required: crate::source_state::trait_definition::AppliedTraitScope<'_>,
     receiving_scope: &crate::source_state::SourceTypeScope,
-    argument: TypeReferenceHandle,
+    argument: &crate::source_state::SourceTypeApplication,
 ) -> crate::source_state::static_operand_binding::Served<()> {
     use crate::source_state::static_operand_binding::{require_static_record_schema, unserved};
     let mut outer = Some(receiving_scope);
@@ -155,12 +155,21 @@ fn check_record_operations(
         }
         outer = frame.parent.as_deref();
     }
-    let TypeReferenceNode::Named { symbol, .. } = typed.type_reference_node(argument) else {
+    let TypeReferenceNode::Named { symbol, .. } = typed.type_reference_node(argument.reference)
+    else {
         return Err(unserved(
             "record operation argument needs its exact named value",
         ));
     };
-    require_static_record_schema(typed, &required, *symbol)
+    require_static_record_schema(typed, &required, *symbol)?;
+    if typed.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter
+        && !argument.scope.admits_argument(typed, argument.reference)
+    {
+        return Err(unserved(
+            "record operation argument has an unresolved supplying binder",
+        ));
+    }
+    Ok(())
 }
 
 pub(super) fn source_application(
@@ -407,26 +416,21 @@ fn checked_source_application(
                             .supplied_type_reference(typed, *argument)
                             .map_err(|why| malformed(machine, why))?;
                         use crate::source_state::static_operand_binding::Stop;
-                        check_record_operations(
-                            typed,
-                            required,
-                            &signature_scope(),
-                            supplied.reference,
-                        )
-                        .map_err(|stop| match stop {
-                            Stop::Rejected(reason) => crate::reject(
-                                machine,
-                                crate::SourceOrigin::of(
-                                    typed
-                                        .symbols
-                                        .symbol_source_span(parameter.symbol)
-                                        .unwrap_or_default(),
+                        check_record_operations(typed, required, &signature_scope(), &supplied)
+                            .map_err(|stop| match stop {
+                                Stop::Rejected(reason) => crate::reject(
+                                    machine,
+                                    crate::SourceOrigin::of(
+                                        typed
+                                            .symbols
+                                            .symbol_source_span(parameter.symbol)
+                                            .unwrap_or_default(),
+                                    ),
+                                    reason,
                                 ),
-                                reason,
-                            ),
-                            Stop::Unserved(reason) => super::unavailable(machine, reason),
-                            Stop::Defect(reason) => malformed(machine, reason),
-                        })?;
+                                Stop::Unserved(reason) => super::unavailable(machine, reason),
+                                Stop::Defect(reason) => malformed(machine, reason),
+                            })?;
                         binders.push(parameter.symbol);
                         substitutions.push((parameter.symbol, *argument));
                         continue;
