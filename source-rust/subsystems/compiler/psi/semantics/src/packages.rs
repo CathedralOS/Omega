@@ -460,7 +460,7 @@ fn fields(
     }
 }
 
-fn schema(
+pub(crate) fn schema(
     module: &TerminalModule,
     record: StructuralTypeId,
 ) -> Result<&TerminalPackageSchema, &'static str> {

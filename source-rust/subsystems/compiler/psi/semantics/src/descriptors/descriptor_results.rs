@@ -52,6 +52,7 @@ pub(crate) use contents::{
 };
 pub use payload_history::PayloadMembershipHistory;
 pub(crate) use payload_history::current_selected_payload_contract;
+mod package_fields;
 mod transfer_sources;
 pub(crate) use payload_predicates::terminal_scalar_snapshots;
 pub use payload_predicates::{
