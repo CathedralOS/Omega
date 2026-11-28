@@ -343,12 +343,44 @@ ensures |proof|::Identity::<|nat|::Nat>(
                   apply(generated().state, n), |nat|::four(), n), |nat|::Nat::Zero)
 { same_bound(|nat|::four(), n,n,n); }";
 
+/// Each closed sequence type carries evidence about exactly its own sampler.
+fn regular_record(name: &str, state: &str, sampler: &str) -> String {
+    format!(
+        "machine sample_{name}(s: Sequence<{state}, {sampler}>, n: |nat|::Nat) -> |rat|::Rat {{
+    {sampler}(s.state, n)
+}}
+let positive_{name}(s: Sequence<{state}, {sampler}>): |proof|::Type<0> =
+    (n: |nat|::Nat) -> |proof|::Identity::<|nat|::Nat>(
+        |nat|::saturating_sub(|nat|::one(), sample_denominator(sample_{name}(s,n))), |nat|::Nat::Zero);
+let regular_{name}(s: Sequence<{state}, {sampler}>): |proof|::Type<0> =
+    (i: |nat|::Nat) -> (j: |nat|::Nat) -> |proof|::Identity::<|nat|::Nat>(
+        sample_within(sample_{name}(s, |nat|::Nat::Succ {{ prev:i }}),
+                      sample_{name}(s, |nat|::Nat::Succ {{ prev:j }}),
+                      |nat|::add(|nat|::Nat::Succ {{ prev:i }}, |nat|::Nat::Succ {{ prev:j }}),
+                      |nat|::mul(|nat|::Nat::Succ {{ prev:i }}, |nat|::Nat::Succ {{ prev:j }})),
+        |nat|::Nat::Zero);
+data {name}
+requires |proof|::Squash::<positive_{name}(samples)>, |proof|::Squash::<regular_{name}(samples)>
+{{ samples: Sequence<{state}, {sampler}>; }}
+machine pack_{name}(s: Sequence<{state}, {sampler}>) -> {name}
+requires |proof|::Squash::<positive_{name}(s)>, |proof|::Squash::<regular_{name}(s)>
+{{ {name} {{ samples: s }} }}
+machine denominator_of_{name}(p: {name}) ensures |proof|::Squash::<positive_{name}(p.samples)> {{}}
+machine regularity_of_{name}(p: {name}) ensures |proof|::Squash::<regular_{name}(p.samples)>
+{{}}"
+    )
+}
+
 #[test]
 fn every_law_of_cauchy_is_judged() {
     // `core/cauchy.omg` states what it is for a sequence of rationals to be
     // Cauchy, for any sequence and any modulus: its machines are generic
     // over machines. It is judged with the four files it stands on.
-    let verdicts = judged_cauchy(&format!("use int.omg;\n{CAUCHY}\n{GENERATORS}"));
+    let rational = regular_record("RegularConstant", "|rat|::Rat", "repeat");
+    let function = regular_record("RegularFunction", "RationalFunction", "apply");
+    let verdicts = judged_cauchy(&format!(
+        "use int.omg;\n{CAUCHY}\n{GENERATORS}\nmachine sample_denominator(q: |rat|::Rat) -> |nat|::Nat {{ q.den }}\n{rational}\n{function}"
+    ));
     let judgment = signature(&verdicts);
     for law in &judgment.laws {
         assert!(
@@ -404,6 +436,10 @@ fn every_law_of_cauchy_is_judged() {
         "constant_one_regular",
         "generated_ones_regular",
         "both_converge",
+        "denominator_of_RegularConstant",
+        "regularity_of_RegularConstant",
+        "denominator_of_RegularFunction",
+        "regularity_of_RegularFunction",
     ] {
         checked(name);
     }

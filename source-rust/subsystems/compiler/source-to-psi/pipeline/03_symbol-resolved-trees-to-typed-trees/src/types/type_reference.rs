@@ -2877,11 +2877,15 @@ pub(crate) mod direct {
     ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
         let source = &source_trees.tables.bodies.expressions;
         if let resolved::expression::ExpressionNode::Call(call) = source.expression(expression)
-            && !call.receiver.is_valid()
-            && crate::expressions::proposition::is_proposition_call_target(
-                &source_trees.symbols,
-                call.target_symbol,
-            )
+            && (source_trees
+                .symbols
+                .fixed_core_declaration_for_symbol(call.target_symbol)
+                == Some(symbols::FixedCoreDeclaration::Identity)
+                || (!call.receiver.is_valid()
+                    && crate::expressions::proposition::is_proposition_call_target(
+                        &source_trees.symbols,
+                        call.target_symbol,
+                    )))
         {
             return crate::expressions::expression::lower_expression_handle_from_table_in_fact_position(
                 source_trees,
