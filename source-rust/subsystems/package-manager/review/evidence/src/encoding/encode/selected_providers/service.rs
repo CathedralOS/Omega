@@ -12,6 +12,44 @@ use service_surface::{
 };
 use service_surface::{ServiceMembershipProjection, ServiceSynchronousInvocation};
 
+pub(in crate::encoding) fn encode_membership(
+    encoder: &mut Encoder,
+    membership: &service_surface::ServiceDomainMembership,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.field("path", |encoder| {
+        // Bare projections are the established normal-result format. An
+        // input begins with its source ordinal before the same projections.
+        let input = match membership.subject {
+            service_surface::ServiceMembershipSubject::Input(index) => Some(index),
+            service_surface::ServiceMembershipSubject::NormalResult => None,
+        };
+        let prefix = usize::from(input.is_some());
+        encoder.sequence_by_index(membership.path.len() + prefix, |encoder, ordinal| {
+            if ordinal == 0
+                && let Some(index) = input
+            {
+                encoder.tag("input", 4);
+                return encoder.u32_field("index", index);
+            }
+            match &membership.path[ordinal - prefix] {
+                ServiceMembershipProjection::Field(identity) => {
+                    encoder.tag("field", 1);
+                    encoder.string_field("identity", identity)
+                }
+                ServiceMembershipProjection::Case(identity) => {
+                    encoder.tag("case", 2);
+                    encoder.string_field("identity", identity)
+                }
+                ServiceMembershipProjection::FixedIndex(index) => {
+                    encoder.tag("fixed_index", 3);
+                    encoder.u64_field("index", *index)
+                }
+            }
+        })
+    })?;
+    encoder.string_field("domain", &membership.domain)
+}
+
 pub(in crate::encoding::encode) fn method(
     encoder: &mut Encoder,
     method: &PackagePolicyServiceMethod,
@@ -76,40 +114,7 @@ pub(in crate::encoding::encode) fn method(
         })
     })?;
     encoder.field("domain_memberships", |encoder| {
-        encoder.sequence(&method.domain_memberships, |encoder, membership| {
-            encoder.field("path", |encoder| {
-                // Bare projections are the established normal-result format. An
-                // input begins with its source ordinal before the same projections.
-                let input = match membership.subject {
-                    service_surface::ServiceMembershipSubject::Input(index) => Some(index),
-                    service_surface::ServiceMembershipSubject::NormalResult => None,
-                };
-                let prefix = usize::from(input.is_some());
-                encoder.sequence_by_index(membership.path.len() + prefix, |encoder, ordinal| {
-                    if ordinal == 0
-                        && let Some(index) = input
-                    {
-                        encoder.tag("input", 4);
-                        return encoder.u32_field("index", index);
-                    }
-                    match &membership.path[ordinal - prefix] {
-                        ServiceMembershipProjection::Field(identity) => {
-                            encoder.tag("field", 1);
-                            encoder.string_field("identity", identity)
-                        }
-                        ServiceMembershipProjection::Case(identity) => {
-                            encoder.tag("case", 2);
-                            encoder.string_field("identity", identity)
-                        }
-                        ServiceMembershipProjection::FixedIndex(index) => {
-                            encoder.tag("fixed_index", 3);
-                            encoder.u64_field("index", *index)
-                        }
-                    }
-                })
-            })?;
-            encoder.string_field("domain", &membership.domain)
-        })
+        encoder.sequence(&method.domain_memberships, encode_membership)
     })?;
     encoder.field("result_claims", |encoder| {
         encoder.sequence(&method.result_claims, |encoder, claim| {

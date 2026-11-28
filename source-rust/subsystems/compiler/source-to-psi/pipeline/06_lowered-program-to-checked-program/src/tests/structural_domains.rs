@@ -46,8 +46,11 @@ machine entry() -> u32 { forward(stamp(Ticket { number: 7u32 }) as -Stamped) }
         ("unissued", unissued),
         ("changed after entry", changed_after_entry),
     ] {
-        let elaboration = invocation(&source).unwrap();
-        let received = refused_only_for_execution(&elaboration.module);
+        let closed =
+            terminal_codec::ClosedTerminalModule::new(invocation(&source).unwrap().module).unwrap();
+        let received =
+            terminal_codec::ClosedTerminalModule::from_semantic_bytes(closed.semantic_bytes())
+                .expect_err("the receiver must check the actual input");
         assert!(
             matches!(
                 received,
@@ -57,12 +60,11 @@ machine entry() -> u32 { forward(stamp(Ticket { number: 7u32 }) as -Stamped) }
             ),
             "{name}: {received:?}"
         );
-        let refused = judge(Ok(elaboration)).expect_err(name);
+        let refusal = checked_invocation(&source).expect_err(name);
         assert!(
-            refused
-                .detail
-                .contains("routed membership of its actual input"),
-            "{name}: {refused:?}"
+            matches!(&refusal, crate::CompilationRefusal::Elaboration(error)
+                if error.detail.contains("routed membership of its actual input")),
+            "{name}: {refusal:?}"
         );
     }
 }
@@ -107,12 +109,12 @@ data Ticket { number: u32; }
 domain Ticket::Stamped established by issue;
 machine issue(ticket: Ticket) -> Ticket in Stamped { ticket as +Stamped }
 boundary trait Verifier {
-    machine read(other: Ticket, checked: Ticket) -> u32
+    machine read(other: Ticket, width: u32, checked: Ticket) -> u32
     requires checked in Stamped
     reaches none crashes none;
 }
 machine entry() -> u32 {
-    Verifier::read(Ticket { number: 7u32 }, issue(Ticket { number: 7u32 }) as -Stamped)
+    Verifier::read(Ticket { number: 7u32 }, 4u32, issue(Ticket { number: 7u32 }) as -Stamped)
 }
 "#;
     let elaboration = invocation(source).unwrap();
@@ -122,9 +124,23 @@ machine entry() -> u32 {
     assert_eq!(method.domain_memberships.len(), 1);
     assert_eq!(
         method.domain_memberships[0].subject,
-        service_surface::ServiceMembershipSubject::Input(1)
+        service_surface::ServiceMembershipSubject::Input(2)
     );
     terminal_semantics::validate_boundary_memberships(module, boundary, method).unwrap();
+    // A different component can assign its second ticket another local place ID.
+    let mut provider = boundary.clone();
+    let supplied = semantic_vocabulary::PlaceId::new(50).unwrap();
+    provider.structural_parameters[1].place = supplied;
+    let [terminal_psi::RuntimeDomainMembership::Structural { root, .. }] =
+        provider.membership_requires.as_mut_slice()
+    else {
+        panic!("expected the required record's place")
+    };
+    *root = supplied;
+    assert!(
+        terminal_semantics::same_boundary_memberships(module, boundary, module, &provider).unwrap()
+    );
+
     let mut swapped = boundary.clone();
     let other = swapped.structural_parameters[0].place;
     let [terminal_psi::RuntimeDomainMembership::Structural { root, .. }] =
@@ -485,12 +501,19 @@ machine entry() -> u64 {
     );
 }
 
+/// A call to a named conformer needs both its body and its refinement witness.
+fn checked_invocation(source: &str) -> Result<RouteVerdict, crate::CompilationRefusal> {
+    entryless::whole_subject_result(boundary_calls::compilation_results_of(
+        &boundary_calls::typed(source),
+    ))
+}
+
 fn assert_unsigned_invocation(source: &str, expected: u128) {
     use terminal_interpreter::{
         TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram, TerminalScalarValue,
     };
 
-    let verdict = judge(invocation(source)).unwrap();
+    let verdict = checked_invocation(source).unwrap();
     let RouteVerdict::Accepted(accepted) = verdict else {
         panic!("expected an accepted invocation: {verdict:?}");
     };

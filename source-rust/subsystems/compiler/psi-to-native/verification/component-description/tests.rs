@@ -1,7 +1,5 @@
-//! The provider plan below is a sealed input from the provider-plan writer, which
-//! is not part of the receiving dependency graph. The provider-free component is
-//! built here from an empty Psi program in the current artifact encoding, so a
-//! change to that encoding cannot strand these tests on stale bytes.
+//! Build's writer reproduces the checked-provider fixture. The provider-free
+//! component comes from an empty Psi program in the current artifact encoding.
 use super::*;
 use crate::inventory::derive_component_inventory;
 use crate::records::{
@@ -111,7 +109,7 @@ fn retained_plan_authenticates_the_entire_preimage_and_its_schema() {
         .windows(b"field".len())
         .position(|part| part == b"field")
         .unwrap();
-    // The historical record starts with three ordinary result projections.
+    // The writer's result membership starts with three ordinary projections.
     // Insert the new input selector before them. It takes a public parameter
     // ordinal, unlike field/case/index selectors which continue the path.
     let path_start = field - 8 - 1;

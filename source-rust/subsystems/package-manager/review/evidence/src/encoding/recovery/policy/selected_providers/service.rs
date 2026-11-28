@@ -54,29 +54,7 @@ pub(in crate::encoding::recovery) fn method(
         }),
         has_result: reader.boolean()?,
         result_type_identity: reader.option(Reader::string)?,
-        domain_memberships: reader.sequence(16, |reader| {
-            let mut subject = service_surface::ServiceMembershipSubject::NormalResult;
-            let mut first = true;
-            let steps = reader.sequence(5, |reader| {
-                let step = super::super::tag!(reader => {
-                    1 => Some(ServiceMembershipProjection::Field(reader.string()?)),
-                    2 => Some(ServiceMembershipProjection::Case(reader.string()?)),
-                    3 => Some(ServiceMembershipProjection::FixedIndex(reader.u64()?)),
-                    4 => {
-                        if !first { return Err(Error::InvalidValue); }
-                        subject = service_surface::ServiceMembershipSubject::Input(reader.u32()?);
-                        None
-                    },
-                });
-                first = false;
-                Ok(step)
-            })?;
-            Ok(ServiceDomainMembership {
-                subject,
-                path: steps.into_iter().flatten().collect(),
-                domain: reader.string()?,
-            })
-        })?,
+        domain_memberships: reader.sequence(16, membership)?,
         result_claims: reader.sequence(12, |reader| {
             Ok(ServiceResultClaim {
                 domain: reader.string()?,
@@ -117,6 +95,29 @@ pub(in crate::encoding::recovery) fn method(
     })
 }
 
+fn membership(reader: &mut Reader<'_>) -> Result<ServiceDomainMembership, Error> {
+    use service_surface::ServiceMembershipSubject;
+    let mut subject = ServiceMembershipSubject::NormalResult;
+    let (count, mut path) = reader.sequence_buffer(5)?;
+    for position in 0..count {
+        path.push(super::super::tag!(reader => {
+            1 => ServiceMembershipProjection::Field(reader.string()?),
+            2 => ServiceMembershipProjection::Case(reader.string()?),
+            3 => ServiceMembershipProjection::FixedIndex(reader.u64()?),
+            4 => {
+                if position != 0 { return Err(Error::InvalidValue); }
+                subject = ServiceMembershipSubject::Input(reader.u32()?);
+                continue;
+            },
+        }));
+    }
+    Ok(ServiceDomainMembership {
+        subject,
+        path,
+        domain: reader.string()?,
+    })
+}
+
 pub(in crate::encoding::recovery) fn carry(reader: &mut Reader<'_>) -> Result<CarryPolicy, Error> {
     Ok(CarryPolicy {
         suspension: super::super::tag!(reader => {
@@ -136,4 +137,61 @@ pub(in crate::encoding::recovery) fn carry(reader: &mut Reader<'_>) -> Result<Ca
             1 => CarryAddress::Movable,
         }),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::encoding::encode::{encode_membership, encoder::Encoder};
+    use crate::encoding::recovery::policy::PackagePolicyRecoveryLimits;
+    use service_surface::ServiceMembershipSubject;
+
+    #[test]
+    fn a_reviewed_membership_preserves_result_bytes_and_the_exact_input_ordinal() {
+        let result = ServiceDomainMembership {
+            subject: ServiceMembershipSubject::NormalResult,
+            path: vec![ServiceMembershipProjection::FixedIndex(3)],
+            domain: "Tickets::Issued".into(),
+        };
+        let mut projected = vec![3];
+        projected.extend(3u64.to_le_bytes());
+        let mut domain_bytes = (result.domain.len() as u64).to_le_bytes().to_vec();
+        domain_bytes.extend(result.domain.as_bytes());
+        for subject in [
+            ServiceMembershipSubject::NormalResult,
+            ServiceMembershipSubject::Input(1),
+        ] {
+            let row = ServiceDomainMembership {
+                subject,
+                ..result.clone()
+            };
+            let mut encoder = Encoder::bounded(128);
+            encode_membership(&mut encoder, &row).unwrap();
+            let encoded = encoder.finish().unwrap();
+            let mut expected = match subject {
+                ServiceMembershipSubject::NormalResult => 1u64.to_le_bytes().to_vec(),
+                ServiceMembershipSubject::Input(ordinal) => {
+                    let mut prefix = 2u64.to_le_bytes().to_vec();
+                    prefix.push(4);
+                    prefix.extend(ordinal.to_le_bytes());
+                    prefix
+                }
+            };
+            expected.extend(&projected);
+            expected.extend(&domain_bytes);
+            assert_eq!(encoded, expected);
+            let mut reader = Reader::new(&encoded, PackagePolicyRecoveryLimits::default()).unwrap();
+            assert_eq!(membership(&mut reader).unwrap(), row);
+            reader.finish().unwrap();
+        }
+
+        let mut late_subject = 2u64.to_le_bytes().to_vec();
+        late_subject.extend(projected);
+        late_subject.push(4);
+        late_subject.extend(1u32.to_le_bytes());
+        late_subject.extend(domain_bytes);
+        let mut reader =
+            Reader::new(&late_subject, PackagePolicyRecoveryLimits::default()).unwrap();
+        assert!(matches!(membership(&mut reader), Err(Error::InvalidValue)));
+    }
 }
