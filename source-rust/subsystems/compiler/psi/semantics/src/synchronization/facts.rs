@@ -1,5 +1,8 @@
 //! Storage for facts about visited IR coordinates. Even a sparse external
 //! identity costs one row; the usual increasing insertion order appends.
+mod branches;
+pub(super) use branches::BranchFacts;
+
 #[derive(Clone)]
 pub(super) struct Facts<K, V>(Vec<(K, V)>);
 
@@ -10,6 +13,10 @@ impl<K, V> Default for Facts<K, V> {
 }
 
 impl<K: Ord, V> Facts<K, V> {
+    fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     pub fn get(&self, key: &K) -> Option<&V> {
         let position = self.0.binary_search_by(|row| row.0.cmp(key)).ok()?;
         Some(&self.0[position].1)
@@ -52,19 +59,6 @@ impl<K: Ord, V> Facts<K, V> {
     pub fn remove(&mut self, key: &K) -> Option<V> {
         let i = self.0.binary_search_by(|row| row.0.cmp(key)).ok()?;
         Some(self.0.remove(i).1)
-    }
-
-    pub fn retain_equal(&mut self, other: &Self)
-    where
-        V: PartialEq,
-    {
-        self.0.retain(|(key, value)| other.get(key) == Some(value));
-    }
-
-    pub fn extend(&mut self, incoming: Self) {
-        for (key, value) in incoming.0 {
-            self.insert(key, value);
-        }
     }
 }
 
