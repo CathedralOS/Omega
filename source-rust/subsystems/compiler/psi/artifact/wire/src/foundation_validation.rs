@@ -2828,8 +2828,6 @@ pub(crate) mod declaration_foundations {
             );
         }
         validate_provider_scalar_contract(boundary, machine, &module.types.structural_domains)?;
-        terminal_semantics::provider_candidates::conservation::verify(module, candidate)
-            .map_err(CodecError::MalformedStructuralFoundation)?;
         super::scalar_boundary_contracts::validate_provider(module, boundary, &machine.parameters)?;
         for parameter in &candidate.signature.parameters {
             if !has_structural_type(module, parameter.structural_type) {
@@ -12328,23 +12326,11 @@ pub(crate) fn validate_structural_foundation(
                 "no-normal validation has incomplete declared type contracts",
             )
         })?;
-    let has_boundary_content =
-        terminal_semantics::content_transformations::boundary_calls::has_declared_conservation(
-            module,
-        );
     for machine in &module.machines {
         machine_foundations::validate_machine(analyses, machine, &inhabitation)?;
-        terminal_semantics::content_transformations::forwarding::checked_returns_in(
-            analyses, machine,
-        )
-        .map_err(CodecError::MalformedStructuralFoundation)?;
-        if has_boundary_content || !machine.content_partition_compositions.is_empty() {
-            terminal_semantics::content_transformations::boundary_calls::verify_machine_in(
-                analyses, machine,
-            )
-            .map_err(CodecError::MalformedStructuralFoundation)?;
-        }
     }
+    terminal_semantics::content_transformations::verify_module(analyses)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
     empty_elimination_foundations::validate(analyses, &contracts, &inhabitation)?;
     terminal_semantics::activation_storage::validate_module(module)
         .map_err(CodecError::MalformedStructuralFoundation)?;

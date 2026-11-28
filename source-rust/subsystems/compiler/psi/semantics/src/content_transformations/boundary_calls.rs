@@ -78,7 +78,7 @@ pub fn compositions(
 
 /// The caller's rows name normal producer operations. Rebuilding them checks
 /// substitutions, consumed claims and the actual returned claim binding together.
-pub fn for_machine(
+fn for_machine(
     module: &TerminalModule,
     machine: &TerminalMachine,
 ) -> Result<Vec<ContentPartitionComposition>, &'static str> {
@@ -90,37 +90,19 @@ pub fn for_machine(
     Ok(rows)
 }
 
-pub fn verify_machine(
-    module: &TerminalModule,
+/// Check the caller's substitutions and authenticate its completion receipts.
+pub(super) fn verify_compositions_in(
+    analyses: &crate::ModuleAnalyses<'_>,
     machine: &TerminalMachine,
 ) -> Result<(), &'static str> {
-    verify_machine_with(module, None, machine)
-}
-
-/// `verify_machine` over the bundle's module. The ownership walk that
-/// authenticates the completion receipts reuses the bundle's descriptor
-/// rows instead of adapting the machine's closure again.
-pub fn verify_machine_in(
-    analyses: &crate::module_analyses::ModuleAnalyses<'_>,
-    machine: &TerminalMachine,
-) -> Result<(), &'static str> {
-    verify_machine_with(analyses.module(), Some(analyses), machine)
-}
-
-fn verify_machine_with(
-    module: &TerminalModule,
-    analyses: Option<&crate::module_analyses::ModuleAnalyses<'_>>,
-    machine: &TerminalMachine,
-) -> Result<(), &'static str> {
+    let module = analyses.module();
     let expected = for_machine(module, machine)?;
     let mut actual = Vec::new();
-    let mut used_boundaries = BTreeSet::new();
     for row in &machine.content_partition_compositions {
         let producer = machine
             .operation(row.producer_operation)
             .ok_or("content composition has no producer operation")?;
-        if let OperationKind::BoundaryCall { boundary, .. } = &producer.kind {
-            used_boundaries.insert(*boundary);
+        if matches!(producer.kind, OperationKind::BoundaryCall { .. }) {
             actual.push(row);
         } else if producer.kind.direct_callee().is_none() {
             return Err("content composition producer is not a normal declared call");
@@ -130,21 +112,13 @@ fn verify_machine_with(
         return Err("boundary content compositions differ from the exact normal call occurrences");
     }
     if !expected.is_empty() {
-        for candidate in &module.interfaces.provider_candidates {
-            if used_boundaries.contains(&candidate.boundary) {
-                crate::provider_candidates::conservation::verify(module, candidate)?;
-            }
-        }
         // The equation cannot authenticate the completion receipt it consumes.
-        match analyses {
-            Some(analyses) => analyses
-                .affine(machine.id)
-                .and_then(|walks| walks.verify_claims()),
-            None => crate::plain_affine::verify_claims_in(module, machine.id),
-        }
-        .map_err(
-            |_| "boundary content completion receipt disagrees with the live claim frontier",
-        )?;
+        analyses
+            .affine(machine.id)
+            .and_then(|walks| walks.verify_claims())
+            .map_err(
+                |_| "boundary content completion receipt disagrees with the live claim frontier",
+            )?;
     }
     Ok(())
 }
