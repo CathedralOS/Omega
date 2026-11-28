@@ -48,7 +48,7 @@ fn type_mutation<'types>(
     active.push(identity);
     let result = match &declaration.shape {
         // Hidden fields cannot prove absence of shared interior mutation.
-        StructuralTypeShape::Opaque | StructuralTypeShape::TypeParameter => {
+        StructuralTypeShape::Opaque | StructuralTypeShape::BorrowingOpaque { .. } | StructuralTypeShape::TypeParameter => {
             SharedMutation::Unbounded
         }
         StructuralTypeShape::PrimitiveScalar(_) => SharedMutation::None,

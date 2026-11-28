@@ -214,6 +214,12 @@ impl StructuralTypeShape {
         self.is_borrowed_byte_carrier() || matches!(self, Self::ElementView { .. })
     }
 
+    /// Contents of this value move with it but have no visible field through
+    /// which their addresses can be recovered.
+    pub const fn carries_hidden_contents(&self) -> bool {
+        matches!(self, Self::TypeParameter | Self::BorrowingOpaque { .. })
+    }
+
     /// Descriptors own a carrier whose retirement ends its retained permission.
     pub const fn is_borrowed_descriptor(&self) -> bool {
         matches!(self, Self::Reference { .. }) || self.is_view_descriptor()

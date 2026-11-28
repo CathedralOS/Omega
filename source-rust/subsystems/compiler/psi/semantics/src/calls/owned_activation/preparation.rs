@@ -51,6 +51,16 @@ pub(super) fn result_shape(module: &TerminalModule, boundary: &BoundaryMachineDe
         || !matches!(token.shape, StructuralTypeShape::BorrowingOpaque { lifetime_count } if lifetime_count.get() == 1) {
         return Err("ready must hold the core linear execution owner");
     }
+    let application = |id, family| {
+        application_identity::type_identity::named_application_arguments(
+            name(id).ok_or("prepare result is missing its application identity")?,
+            &super::toolchain_name(family),
+        ).map_err(|_| "prepare has a malformed result application")?
+            .ok_or("prepare has a foreign result application")
+    };
+    if application(result.identity, "ActivationPreparation")? != application(token.identity, "ReadyActivation")? {
+        return Err("prepare returned an owner with different worker or storage arguments");
+    }
     if rejected.fields.len() != 2 { return Err("rejection must return both inputs"); }
     let field = |identity| rejected.fields.iter().find(|f| name(f.declaration_identity) == Some(identity))
         .ok_or("rejection must return the original arguments and retained loan");

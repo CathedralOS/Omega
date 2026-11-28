@@ -9,6 +9,7 @@ use crate::descriptors::descriptor_results::*;
 use crate::exactly_one::exactly_one;
 
 mod input_contents;
+pub(crate) use input_contents::retained_input_debts;
 mod location_map;
 use location_map::LocationMap;
 

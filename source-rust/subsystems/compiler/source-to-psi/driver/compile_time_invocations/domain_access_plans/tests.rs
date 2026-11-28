@@ -214,6 +214,50 @@ fn preparing_a_child_names_its_worker_and_returns_the_rejected_backing() {
 }
 
 #[test]
+fn a_prepared_execution_owner_cannot_escape_its_backing() {
+    let source = r"
+        use {omega}/language/core/activation.omg;
+        use {omega}/language/core/task.omg;
+        machine worker(value: u8) -> u8 reaches none crashes none { value }
+        data MaybeOwner<'storage> {
+            case Kept(owner: |activation|::ReadyActivation<'storage, u8, u8, worker, |task|::ActivationStorage::Fixed>);
+            case Empty;
+        }
+        machine keep<'storage>(backing: @'storage mutable [u8]) -> MaybeOwner<'storage>
+        reaches none crashes none {
+            let mutable scratch: [u8; 1] = [0u8];
+            match |activation|::prepare::<u8, u8, worker, |task|::ActivationStorage::Fixed>(7u8, BACKING) {
+                |activation|::ActivationPreparation::Ready { owner } -> MaybeOwner::Kept { owner: owner },
+                |activation|::ActivationPreparation::Rejected { arguments, retained } -> MaybeOwner::Empty,
+            }
+        }
+    ";
+    // Only the successful arm returns the opaque owner. The rejected arm
+    // deliberately returns no reference that could independently catch the escape.
+    for (backing, may_return) in [("backing", true), ("@mutable scratch[..]", false)] {
+        let mut typed = typed_source(&source.replace("BACKING", backing));
+        let entries = [typed.realized_machine_named("keep").unwrap().symbol];
+        let request = production::TerminalSourceCompilation {
+            calling: None, providers: None, declaration_metadata: &[], entries: &entries,
+            subjects: &[], purpose: source_provenance::DependencyScope::Product,
+            selected: &[], bindings: &[], supplies: &[],
+        };
+        evaluate(&mut typed, request, &mut SourceCompletionAccounting::default()).unwrap();
+        let prepared = preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
+        let judgment = judge_lowered_source::judge_terminal_source(prepared, request,
+            terminal_codec::TerminalPublication::Portable);
+        if may_return {
+            judgment.expect("the caller's backing can accompany the returned owner");
+        } else {
+            let error = judgment.err().expect("a local array cannot accompany the returned owner");
+            let detail = format!("{error:?}").to_lowercase();
+            assert!(detail.contains("lifetime") || detail.contains("local storage") || detail.contains("outlive"),
+                "must reject the escaping backing, not preparation itself: {error:?}");
+        }
+    }
+}
+
+#[test]
 fn only_the_checked_issuer_can_make_a_pair_of_funded_reply_handles() {
     let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("pipeline/06_lowered-program-to-checked-program/tests/fixtures/owned_activation");

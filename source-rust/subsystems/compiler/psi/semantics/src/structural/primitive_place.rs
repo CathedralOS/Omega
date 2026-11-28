@@ -878,7 +878,7 @@ fn walk_primitive_projection_with_policy<'a>(
             if payload_fields.is_some()
                 || matches!(position, Position::Declared(root)
                     if matches!(declarations.unique(root)?.shape,
-                        StructuralTypeShape::Opaque | StructuralTypeShape::Reference { .. }))
+                        StructuralTypeShape::Opaque | StructuralTypeShape::BorrowingOpaque { .. } | StructuralTypeShape::Reference { .. }))
             {
                 return None;
             }
