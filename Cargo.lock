@@ -2150,6 +2150,7 @@ dependencies = [
  "host-provider-inputs",
  "installation-conditions",
  "language-core",
+ "native-artifact",
  "native-intrinsics",
  "numeric-literals",
  "numerics",
@@ -2182,6 +2183,7 @@ dependencies = [
  "terminal-psi",
  "terminal-runtime",
  "terminal-semantics",
+ "terminal-work",
  "worker-budget",
 ]
 
@@ -3569,6 +3571,7 @@ dependencies = [
  "application-identity",
  "build-model",
  "calling-conventions",
+ "component-description",
  "extent-contracts",
  "interpreter-numeric-imports",
  "language-core",
