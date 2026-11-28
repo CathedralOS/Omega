@@ -13,12 +13,12 @@ encodings to share immutable footprints while detaching only mutated slots via `
 Why sparse fixup and address payloads are boxed out of line:
 Every ordinary instruction row carries a `SelectedFormEncodingState`, a `SelectedFormMachineDisposition`,
 and an optional `ResolvedPhysicalAddress`. Boxing the rare fixup, rewrite, and address payloads
-keeps the common `SelectedFormEncodingRow` stride compact without changing value equality, cloning,
-or canonical SHA-256 identity hashing (`SelectedFormEncodingIdentity`).
+keeps the common `SelectedFormEncodingRow` stride compact without changing value equality or
+cloning. Later stages share the encoding through an `Arc` and compare it; it carries no content hash.
 */
 
-#[path = "encoding_identity.rs"]
-mod identity;
+#[path = "encoding_footprint_bucket.rs"]
+mod footprint_bucket;
 
 use crate::SelectedFormInternalMachineFixup;
 use post_allocation_machine::PostAllocationMachinePlan;
@@ -31,7 +31,6 @@ use std::sync::{Arc, Weak};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedFormEncoding {
     pub machine: Arc<PostAllocationMachinePlan>,
-    pub identity: SelectedFormEncodingIdentity,
     pub rows: Vec<SelectedFormEncodingRow>,
     pub encoded: Arc<SelectedFormEncodedRowStore>,
     pub frame: Option<Arc<crate::TargetFrameLayoutPlan>>,
@@ -41,10 +40,6 @@ pub struct SelectedFormEncoding {
 impl SelectedFormEncoding {
     pub fn machine(&self) -> &Arc<PostAllocationMachinePlan> {
         &self.machine
-    }
-
-    pub const fn identity(&self) -> SelectedFormEncodingIdentity {
-        self.identity
     }
 
     pub fn rows(&self) -> &[SelectedFormEncodingRow] {
@@ -58,19 +53,50 @@ impl SelectedFormEncoding {
     pub const fn counts(&self) -> SelectedFormEncodingCounts {
         self.counts
     }
+}
 
-    pub fn recomputed_identity(&self) -> SelectedFormEncodingIdentity {
-        identity::encoding_identity(
-            &self.rows,
-            &self.encoded,
-            self.frame.as_deref(),
-            self.counts,
-        )
+/// Names the encoding a later record was built from without keeping it
+/// alive: ordinary placement releases the encoded program before it builds an
+/// object, while layouts, exit contracts and relaxation records still say
+/// which encoding they came from. Two handles agree when they name the same
+/// encoding, or when both encodings are still alive and equal. A handle to a
+/// released encoding agrees only with itself, so a check against another
+/// encoding fails rather than passes.
+#[derive(Clone)]
+pub struct SelectedFormEncodingHandle(Weak<SelectedFormEncoding>);
+
+impl SelectedFormEncodingHandle {
+    pub fn of(encoding: &Arc<SelectedFormEncoding>) -> Self {
+        Self(Arc::downgrade(encoding))
+    }
+
+    /// Whether this handle names `encoding`: the same encoding, or an equal
+    /// one while the named encoding is still alive.
+    pub fn names(&self, encoding: &SelectedFormEncoding) -> bool {
+        std::ptr::eq(self.0.as_ptr(), encoding)
+            || self.0.upgrade().is_some_and(|named| *named == *encoding)
     }
 }
 
-register_homes::identity_newtype! {
-    pub struct SelectedFormEncodingIdentity([u8; 32]);
+impl PartialEq for SelectedFormEncodingHandle {
+    fn eq(&self, other: &Self) -> bool {
+        Weak::ptr_eq(&self.0, &other.0)
+            || match (self.0.upgrade(), other.0.upgrade()) {
+                (Some(left), Some(right)) => left == right,
+                _ => false,
+            }
+    }
+}
+
+impl Eq for SelectedFormEncodingHandle {}
+
+impl fmt::Debug for SelectedFormEncodingHandle {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_tuple("SelectedFormEncodingHandle")
+            .field(&self.0.as_ptr())
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -275,7 +301,7 @@ impl SharedFootprints {
     }
 
     pub(super) fn intern(&mut self, footprint: SelectedFormDecodedFootprint) -> usize {
-        let digest = identity::footprint_bucket(&footprint);
+        let digest = footprint_bucket::footprint_bucket(&footprint);
         self.intern_in_bucket(footprint, digest)
     }
 

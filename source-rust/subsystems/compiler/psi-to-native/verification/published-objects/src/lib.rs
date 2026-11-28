@@ -35,7 +35,6 @@ impl RetainedPhysicalInputs {
             && self.machine.machine().shared_plan() == program.context.plan
             && program.bindings == self.encoding.bindings
             && program.bindings == self.baseline_layout.bindings
-            && program.protocol_identity == self.encoding.protocol_identity
             && program.protocol == self.encoding.protocol
             && program.frame == self.encoding.frame
             && program.context == self.encoding.context
@@ -353,8 +352,14 @@ pub fn verify_retained_target_operations(
     let original = retained_target(replay, "target-operation")?;
     let current = original.target_for_correspondence();
     let optimized = current.optimized();
-    target_lowering::replay::require_lowering_context(optimized, current.lowering_facts(), current.target())
-        .map_err(|error| diagnostics::Diagnostic::error(format!("target-operation source audit failed: {error:?}")))?;
+    target_lowering::replay::require_lowering_context(
+        optimized,
+        current.lowering_facts(),
+        current.target(),
+    )
+    .map_err(|error| {
+        diagnostics::Diagnostic::error(format!("target-operation source audit failed: {error:?}"))
+    })?;
     // Every access reference native program planning established must land on backing
     // the selected program actually allocates. Ordinary emission builds
     // from the current program, so this check runs only on this audit.
@@ -373,7 +378,9 @@ pub fn verify_retained_target_operations(
         .lowering_facts()
         .replay_borrowed_storage_layouts(current.target())
         .map_err(|error| {
-            diagnostics::Diagnostic::error(format!("borrowed storage geometry audit failed: {error}"))
+            diagnostics::Diagnostic::error(format!(
+                "borrowed storage geometry audit failed: {error}"
+            ))
         })?;
     if expected != current.execution_plan().plan().borrowed_storage_layouts {
         return Err(diagnostics::Diagnostic::error(
@@ -606,7 +613,9 @@ pub mod physical {
             .map_err(|error| refused("relaxation trace", error))?;
         let requirements = validate_allocated_callee_saved_requirements(
             current,
-            program.context.preservation.plan().clone(),
+            register_homes::AllocatedCalleeSavedRequirementPlan::clone(
+                &program.context.preservation,
+            ),
         )
         .map_err(|error| refused("callee-saved requirements", error))?;
         if encoding_admission::fragment_origins::prepare_fragment_origins(instructions)

@@ -14,8 +14,7 @@ pub use budget::{InvalidOptimizationWorkBudget, OptimizationWorkBudget, Optimiza
 pub use identities::{
     AcceptedObligationFactIdentity, CanonicalIdentityEncoder, NativeOptimizationProjectionIdentity,
     OptimizationUnitIdentity, OptimizationValidatorIdentity, OptimizedBoundaryOccurrenceIdentity,
-    OptimizedOperatorOccurrenceIdentity, PostAllocationOptimizationManifestIdentity,
-    PreAllocationOptimizationCompletionIdentity, SelectedLoweringOptimizationCompletionIdentity,
+    OptimizedOperatorOccurrenceIdentity,
 };
 pub use optimization_selections::{
     Optimization, OptimizationCatalogDescriptor, OptimizationExecutionPhase,

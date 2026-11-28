@@ -22,7 +22,6 @@ selected-instructions = { path = "../selected-instructions" }
 provider-stack-contribution = { path = "../../verification/provider-admission/same-stack" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../psi" }
-sha2 = "0.10.9"
 
 [dev-dependencies]
 access-vocabulary = { path = "../../../psi/access/policies" }

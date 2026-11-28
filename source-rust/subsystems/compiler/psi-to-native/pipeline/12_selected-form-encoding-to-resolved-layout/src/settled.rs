@@ -61,8 +61,7 @@ pub struct FunctionExitLayout<'a> {
     pub physical: &'a register_model::ValidatedPhysicalRegisterModel,
     pub layout: &'a std::sync::Arc<machine_code::ResolvedMachineLayout>,
     pub frame: &'a std::sync::Arc<machine_code::TargetFrameLayoutPlan>,
-    pub protocol: &'a machine_code::TargetFrameProtocolEncodingPlan,
-    pub protocol_identity: machine_code::TargetFrameProtocolEncodingIdentity,
+    pub protocol: &'a std::sync::Arc<machine_code::TargetFrameProtocolEncodingPlan>,
     pub custody: machine_code::WholeFunctionExitLayoutCustody,
 }
 
@@ -89,7 +88,6 @@ impl SettledFunctionLayout {
             layout: &program.layout,
             frame: &program.frame,
             protocol: &program.protocol,
-            protocol_identity: program.protocol_identity,
             custody,
         }
     }

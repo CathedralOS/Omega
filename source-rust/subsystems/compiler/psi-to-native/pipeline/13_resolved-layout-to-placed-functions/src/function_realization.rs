@@ -112,8 +112,6 @@ fn validate_frame_geometry(
         || protocol.target != environment.target()
         || protocol.register_environment != environment.identity()
         || protocol.physical_register_model != environment.physical().identity()
-        || machine_code::target_frame_protocol_encoding_identity(protocol)
-            != program.protocol_identity
     {
         return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
     }
@@ -199,23 +197,22 @@ fn fixed_frame_manifest(
     if post_allocation_run.complete_selection() != selections.identity()
         || post_allocation_run.phase_selections() != post_allocation.identity()
         || post.selected != *selected
-        || machine.post_allocation_manifest != post.identity
+        || machine.plan.post_allocation_manifest != *post
         || encoding.machine != machine.plan
         || baseline_roots.machine != machine.plan
-        || baseline_roots.pre_layout != encoding.identity
+        || baseline_roots.pre_layout != encoding.pre_layout
         || *layout.machine() != machine.plan
-        || layout.pre_layout() != encoding.identity
+        || *layout.pre_layout() != encoding.pre_layout
         || frame.post_allocation_machine != machine.plan
         || protocol.frame_layout != *frame
-        || exit_contract.contract().post_allocation_manifest != post.identity
         || exit_contract.contract().post_allocation_machine != machine.plan
-        || exit_contract.contract().pre_layout != encoding.identity
+        || exit_contract.contract().pre_layout != encoding.pre_layout
         || exit_contract.contract().resolved_layout != program.layout
         || exit_contract.contract().layout_custody != layout_custody
         || exit_contract.contract().frame
             != (machine_code::WholeFunctionFrameDisposition::CanonicalFixedFrameV1 {
                 layout: Arc::clone(frame),
-                protocol: program.protocol_identity,
+                protocol: Arc::clone(&program.protocol),
             })
     {
         return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
@@ -250,7 +247,7 @@ fn validate_layout_optimization_manifest_roots(
         (Some(relaxation), Some(trace))
             if trace.identity() == relaxation
                 && *trace.machine() == baseline.machine
-                && trace.pre_layout() == baseline.pre_layout
+                && *trace.pre_layout() == baseline.pre_layout
                 && trace.layout == layout.program.layout =>
         {
             Ok(())
