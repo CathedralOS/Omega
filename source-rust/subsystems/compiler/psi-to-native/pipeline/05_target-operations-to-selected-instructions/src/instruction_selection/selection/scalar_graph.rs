@@ -6475,6 +6475,7 @@ pub(crate) mod structural_case {
                 if crate::instruction_selection::selection::aggregate_result_input::owned_parameter_uses_local_home(
                     source,
                     declaration,
+                    &builder.transport.parameter_homes,
                 )
                 .ok_or(invalid())? =>
             {

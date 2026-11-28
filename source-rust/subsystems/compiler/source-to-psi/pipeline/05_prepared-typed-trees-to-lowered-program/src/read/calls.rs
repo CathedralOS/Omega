@@ -697,6 +697,71 @@ impl<'t> Program<'t> {
         Err(refuse_at(id, Unserved::Call("without a bound target")))
     }
 
+    fn read_call_mode(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        call: StaticArgumentCall<'_>,
+        source: SourceOrigin,
+        expected: Option<ValueType>,
+    ) -> Checked<Option<Expression>> {
+        // Both typed call nodes carry these fields. Their argument spans belong
+        // to different tables and are opened only after validating the mode.
+        macro_rules! dispatch {
+            ($call:ident) => {
+                (
+                    $call.runtime_call,
+                    $call.target_symbol,
+                    &$call.machine_arguments,
+                    $call.evidence_arguments.is_empty(),
+                    $call.authored_machine_application.is_valid()
+                        || $call.installed_interrupt_operation.is_some()
+                        || $call.static_requirement_dispatch.is_some()
+                        || $call.static_machine_parameter.is_valid(),
+                )
+            };
+        }
+        let (runtime, target, machine_arguments, no_evidence, static_dispatch) = match call {
+            StaticArgumentCall::Statement(call) => dispatch!(call),
+            StaticArgumentCall::Expression(_, call) => dispatch!(call),
+        };
+        let typed = self.typed;
+        let arguments = || match call {
+            StaticArgumentCall::Statement(call) => {
+                typed.statement_table.expression_handles(call.arguments)
+            }
+            StaticArgumentCall::Expression(_, call) => {
+                typed.expression_table.expression_handles(call.arguments)
+            }
+        };
+        if let Some(runtime) = runtime {
+            if target.is_valid() || !machine_arguments.is_empty() || !no_evidence || static_dispatch
+            {
+                return Err(refuse_at(
+                    id,
+                    Unserved::Call("runtime call with static dispatch or evidence"),
+                ));
+            }
+            return self
+                .runtime_call(id, slots, runtime, arguments(), source, expected)
+                .map(Some);
+        }
+        self.bound_target(id, target)?;
+        if no_evidence
+            && !matches!(call, StaticArgumentCall::Expression(_, call) if call.receiver.is_valid())
+        {
+            return self.mathematical_application(
+                id,
+                slots,
+                target,
+                machine_arguments,
+                arguments(),
+                source,
+            );
+        }
+        Ok(None)
+    }
+
     pub(super) fn call_statement(
         &mut self,
         id: MachineId,
@@ -717,37 +782,10 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let unserved = |what| Err(refuse_at(id, Unserved::Call(what)));
-        if let Some(runtime) = call.runtime_call {
-            if call.target_symbol.is_valid()
-                || call.authored_machine_application.is_valid()
-                || !call.machine_arguments.is_empty()
-                || !call.evidence_arguments.is_empty()
-                || call.installed_interrupt_operation.is_some()
-                || call.static_requirement_dispatch.is_some()
-                || call.static_machine_parameter.is_valid()
-            {
-                return unserved("runtime call with static dispatch or evidence");
-            }
-            let arguments = self
-                .typed
-                .statement_table
-                .expression_handles(call.arguments);
-            return self.runtime_call(id, slots, runtime, arguments, source, None);
-        }
-        self.bound_target(id, call.target_symbol)?;
-        if call.evidence_arguments.is_empty()
-            && let Some(applied) = self.mathematical_application(
-                id,
-                slots,
-                call.target_symbol,
-                &call.machine_arguments,
-                self.typed
-                    .statement_table
-                    .expression_handles(call.arguments),
-                source,
-            )?
+        if let Some(read) =
+            self.read_call_mode(id, slots, StaticArgumentCall::Statement(call), source, None)?
         {
-            return Ok(applied);
+            return Ok(read);
         }
         if let Some(dispatch) = &call.static_requirement_dispatch {
             return self.requirement_call(
@@ -865,38 +903,14 @@ impl<'t> Program<'t> {
             );
         }
         let unserved = |what| Err(refuse_at(id, Unserved::Call(what)));
-        if let Some(runtime) = call.runtime_call {
-            if call.target_symbol.is_valid()
-                || call.authored_machine_application.is_valid()
-                || !call.machine_arguments.is_empty()
-                || !call.evidence_arguments.is_empty()
-                || call.installed_interrupt_operation.is_some()
-                || call.static_requirement_dispatch.is_some()
-                || call.static_machine_parameter.is_valid()
-            {
-                return unserved("runtime call with static dispatch or evidence");
-            }
-            let arguments = self
-                .typed
-                .expression_table
-                .expression_handles(call.arguments);
-            return self.runtime_call(id, slots, runtime, arguments, source, expected);
-        }
-        self.bound_target(id, call.target_symbol)?;
-        if !call.receiver.is_valid()
-            && call.evidence_arguments.is_empty()
-            && let Some(applied) = self.mathematical_application(
-                id,
-                slots,
-                call.target_symbol,
-                &call.machine_arguments,
-                self.typed
-                    .expression_table
-                    .expression_handles(call.arguments),
-                source,
-            )?
-        {
-            return Ok(applied);
+        if let Some(read) = self.read_call_mode(
+            id,
+            slots,
+            StaticArgumentCall::Expression(handle, call),
+            source,
+            expected,
+        )? {
+            return Ok(read);
         }
         // The integer carrier query is answered only through its fields in a
         // static condition (`carriers`); its own body is no answer to run.
@@ -3862,10 +3876,11 @@ impl<'t> Program<'t> {
             }
             .filter(|symbol| symbol.is_valid())
             .map(|symbol| self.typed.symbols.name(symbol).to_owned());
-            if let Some(names) = self.names.get_mut(id) {
+            let typed = self.typed;
+            if let Some(names) = self.machine_names_mut(id) {
                 let shown = arguments
                     .iter()
-                    .map(|argument| self.typed.expression_table.display_name(*argument))
+                    .map(|argument| typed.expression_table.display_name(*argument))
                     .collect();
                 names.calls.push((span, shown));
                 names.callees.extend(callee.map(|name| (span, name)));
@@ -3914,7 +3929,7 @@ impl<'t> Program<'t> {
         read.extend_from_slice(const_values);
         self.check_lent_actuals(id, slots, &read)?;
         if let Some(span) = source.span()
-            && let Some(names) = self.names.get_mut(id)
+            && let Some(names) = self.machine_names_mut(id)
         {
             for (position, lender) in lenders {
                 names.loans.push((span, position, lender));

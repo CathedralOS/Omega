@@ -46,8 +46,8 @@ pub use crate::interfaces::calling_policies::{
 };
 pub use crate::interfaces::installed_interrupt::TerminalInstalledInterruptRegistration;
 pub use crate::interfaces::service_schemas::{
-    TerminalProgramEntryContract, TerminalProviderSelection, TerminalSealedNativeIntrinsic,
-    TerminalServiceSchema,
+    ProviderExportMember, TerminalProgramEntryContract, TerminalProviderExport,
+    TerminalProviderSelection, TerminalSealedNativeIntrinsic, TerminalServiceSchema,
 };
 pub use crate::interfaces::*;
 pub use crate::layouts::native_layouts::{

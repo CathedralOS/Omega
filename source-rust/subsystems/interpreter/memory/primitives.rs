@@ -4688,10 +4688,7 @@ pub(crate) mod primitive_storage {
                 if let Some(home) = self.linear_homes.remove(&place) {
                     retired.push(StructuralRuntimePlace::from(&home));
                 }
-                crate::storage::scalar_array::PackedHomeRetirement::retire_packed_home(
-                    &mut self.scalar_array_values,
-                    &place,
-                );
+                self.scalar_array_values.remove(&place);
                 self.byte_sequence_values.remove(&place);
                 self.primitive_loan_values.remove(&place);
                 self.element_view_values.remove(&place);
@@ -4755,25 +4752,65 @@ pub(crate) mod runtime_indexes {
     use crate::engine::execution::TerminalExecution;
 
     impl TerminalExecution<'_> {
-        pub(crate) fn select_runtime_elements(
+        pub(crate) fn select_operation_projections<'op>(
             &self,
-            operation: &Operation,
-        ) -> Result<Operation, TerminalInterpretError> {
-            let mut selected = operation.clone();
+            operation: &'op Operation,
+        ) -> Result<std::borrow::Cow<'op, Operation>, TerminalInterpretError> {
+            use std::borrow::Cow;
             let projections = operation.kind.structural_projections();
-            let paths = selected.kind.structural_projection_paths_mut();
-            if paths.len() != projections.len() {
-                return Err(malformed());
-            }
-            for (projection, path) in projections.into_iter().zip(paths) {
-                if !path.iter().any(|segment| segment.runtime_index().is_some()) {
-                    continue;
+            let count = projections.len();
+            let mut selected = None;
+            // Only a runtime index needs writable paths. Borrow those paths from
+            // one copy and keep the declared paths for nested index type lookup.
+            let mut paths = std::cell::LazyCell::new(|| {
+                let paths = selected
+                    .insert(operation.clone())
+                    .kind
+                    .structural_projection_paths_mut();
+                (paths.len() == count).then_some(paths)
+            });
+            let mut cases = Ok(());
+            for (operand, projection) in projections.into_iter().enumerate() {
+                let mut indexed_root = None;
+                for (position, segment) in projection.path.iter().enumerate() {
+                    match segment {
+                        StructuralPathSegment::RuntimeIndex { index, .. } => {
+                            let root_type = match indexed_root {
+                                Some(ty) => ty,
+                                None => *indexed_root
+                                    .insert(self.live_structural_type(projection.root)?),
+                            };
+                            let path = &mut paths.as_mut().ok_or_else(malformed)?[operand];
+                            let element = self.select_runtime_index(
+                                projection.root,
+                                root_type,
+                                *index,
+                                &projection.path[..position],
+                                &path[..position],
+                            )?;
+                            path[position] = StructuralPathSegment::FixedIndex(element);
+                        }
+                        StructuralPathSegment::Case(case) => {
+                            // Preserve index-error precedence across all operands.
+                            cases = cases.and_then(|()| {
+                                let prefix = if indexed_root.is_some() {
+                                    &paths.as_ref().ok_or_else(malformed)?[operand][..position]
+                                } else {
+                                    &projection.path[..position]
+                                };
+                                self.validate_operation_case(projection.root, prefix, *case)
+                            });
+                        }
+                        _ => {}
+                    }
                 }
-                let root = projection.root;
-                let root_type = self.live_structural_type(root)?;
-                self.select_runtime_projection(root, root_type, projection.path, path)?;
             }
-            Ok(selected)
+            cases?;
+            drop(paths);
+            Ok(match selected {
+                Some(selected) => Cow::Owned(selected),
+                None => Cow::Borrowed(operation),
+            })
         }
 
         pub(crate) fn select_runtime_projection(
@@ -4787,54 +4824,196 @@ pub(crate) mod runtime_indexes {
                 let Some((index, _)) = path[position].runtime_index() else {
                     continue;
                 };
-                let TerminalScalarValue::Integer { value, .. } = self.scalar_value(index)? else {
-                    return Err(malformed());
-                };
-                let array = resolve_structural_path_type(
-                    &self.structural_types(),
+                let element = self.select_runtime_index(
+                    root,
                     root_type,
+                    index,
                     &declared_path[..position],
+                    &path[..position],
                 )?;
-                let length = match self.structural_declaration(array)?.shape {
-                    StructuralTypeShape::FixedArray {
-                        length: terminal_psi::ArrayExtent::Literal(length),
-                        ..
-                    } => length,
-                    StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. },
-                    ) => capacity,
-                    StructuralTypeShape::ElementView { .. } => {
-                        let source = StructuralArgument {
-                            place: root,
-                            path: path[..position].to_vec(),
-                            access: StructuralAccess::SharedBorrow,
-                        };
-                        let selected =
-                            self.resolve_live_projection(root, &source.path, source.access)?;
-                        u64::try_from(self.element_view_argument(&source, &selected)?.len())
-                            .map_err(|_| malformed())?
-                    }
-                    StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                        | terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-                    ) => {
-                        let source = StructuralArgument {
-                            place: root,
-                            path: path[..position].to_vec(),
-                            access: StructuralAccess::SharedBorrow,
-                        };
-                        let selected =
-                            self.resolve_live_projection(root, &source.path, source.access)?;
-                        let binding = self.byte_descriptor_binding(&source, &selected)?;
-                        self.byte_descriptor_length(&binding, &selected)?
-                    }
-                    _ => return Err(malformed()),
-                };
-                let element =
-                    terminal_semantics::runtime_index_selects(value, length).ok_or(malformed())?;
                 path[position] = StructuralPathSegment::FixedIndex(element);
             }
             Ok(())
+        }
+
+        fn select_runtime_index(
+            &self,
+            root: semantic_vocabulary::PlaceId,
+            root_type: semantic_vocabulary::StructuralTypeId,
+            index: semantic_vocabulary::ValueId,
+            declared_prefix: &[StructuralPathSegment],
+            selected_prefix: &[StructuralPathSegment],
+        ) -> Result<u64, TerminalInterpretError> {
+            let TerminalScalarValue::Integer { value, .. } = self.scalar_value(index)? else {
+                return Err(malformed());
+            };
+            let array =
+                resolve_structural_path_type(&self.structural_types(), root_type, declared_prefix)?;
+            let length = match self.structural_declaration(array)?.shape {
+                StructuralTypeShape::FixedArray {
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                    ..
+                } => length,
+                StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. },
+                ) => capacity,
+                StructuralTypeShape::ElementView { .. } => {
+                    let source = StructuralArgument {
+                        place: root,
+                        path: selected_prefix.to_vec(),
+                        access: StructuralAccess::SharedBorrow,
+                    };
+                    let selected =
+                        self.resolve_live_projection(root, &source.path, source.access)?;
+                    u64::try_from(self.element_view_argument(&source, &selected)?.len())
+                        .map_err(|_| malformed())?
+                }
+                StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                    | terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                ) => {
+                    let source = StructuralArgument {
+                        place: root,
+                        path: selected_prefix.to_vec(),
+                        access: StructuralAccess::SharedBorrow,
+                    };
+                    let selected =
+                        self.resolve_live_projection(root, &source.path, source.access)?;
+                    let binding = self.byte_descriptor_binding(&source, &selected)?;
+                    self.byte_descriptor_length(&binding, &selected)?
+                }
+                _ => return Err(malformed()),
+            };
+            terminal_semantics::runtime_index_selects(value, length).ok_or(malformed())
+        }
+    }
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::boundary::structural_inputs::case_membership::StructuralCaseContents;
+        use crate::boundary::values::{StructuralRuntimePlace, TerminalStructuralValue};
+        use semantic_vocabulary::{
+            IntegerSign, IntegerType, IntegerValue, ObligationId, OperationId, PlaceId,
+            StructuralCaseId, StructuralTypeId, ValueId,
+        };
+        use terminal_psi::{
+            ArrayExtent, OperationKind, OperationResult, StructuralCaseDeclaration,
+            StructuralMultiplicity, StructuralTypeDeclaration,
+        };
+
+        #[test]
+        fn indexed_case_guards_follow_the_selected_element() {
+            let array = StructuralTypeId::new(1).unwrap();
+            let element = StructuralTypeId::new(2).unwrap();
+            let case = |id| StructuralCaseId::new(id).unwrap();
+            let mut program = crate::engine::calls::frames::tests::empty_program();
+            let types = &mut std::sync::Arc::get_mut(&mut program)
+                .unwrap()
+                .fixture_module_mut()
+                .types
+                .structural_types;
+            for (id, shape) in [
+                (
+                    array,
+                    StructuralTypeShape::FixedArray {
+                        element,
+                        length: ArrayExtent::Literal(2),
+                    },
+                ),
+                (
+                    element,
+                    StructuralTypeShape::Sum {
+                        cases: [1, 2]
+                            .map(|id| StructuralCaseDeclaration {
+                                declaration_identity: Default::default(),
+                                identity: Default::default(),
+                                id: case(id),
+                                fields: vec![],
+                            })
+                            .to_vec(),
+                    },
+                ),
+            ] {
+                types.push(StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
+                    quotient_carrier: None,
+                    id,
+                    identity: Default::default(),
+                    owns_linear_claim: false,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    no_code_affine_cleanup: true,
+                    descriptor_cleanup: true,
+                    nominal_cleanup: None,
+                    shape,
+                    scalar_restriction: None,
+                    requires: vec![],
+                });
+            }
+            let mut execution =
+                TerminalExecution::start_with_program(program, &[], Default::default(), None, None)
+                    .unwrap();
+            let place = PlaceId::new(1).unwrap();
+            let root = TerminalStructuralValue::minted(42, array, vec![]);
+            for index in 0..2 {
+                execution
+                    .structural_cases
+                    .insert(
+                        StructuralRuntimePlace {
+                            opaque_identity: root.opaque_identity,
+                            path: vec![StructuralPathSegment::FixedIndex(index)],
+                        },
+                        StructuralCaseContents {
+                            structural_type: element,
+                            case: case(index + 1),
+                        },
+                    )
+                    .unwrap();
+            }
+            execution.structural_values.insert(place, root).unwrap();
+            let index = ValueId::new(1).unwrap();
+            let operation = |segment| {
+                Operation::unsuspended(
+                    OperationId::new(1).unwrap(),
+                    OperationResult::Unit,
+                    OperationKind::EstablishStructuralArray {
+                        elements: vec![
+                            StructuralArgument::whole(place, StructuralAccess::SharedBorrow),
+                            StructuralArgument {
+                                place,
+                                access: StructuralAccess::SharedBorrow,
+                                path: vec![segment, StructuralPathSegment::Case(case(2))],
+                            },
+                        ],
+                    },
+                )
+            };
+            let fixed = operation(StructuralPathSegment::FixedIndex(1));
+            assert!(matches!(
+                execution.select_operation_projections(&fixed).unwrap(),
+                std::borrow::Cow::Borrowed(_)
+            ));
+            let indexed = operation(StructuralPathSegment::RuntimeIndex {
+                index,
+                obligation: ObligationId::new(1).unwrap(),
+            });
+            for (value, accepted) in [(1, true), (0, false), (2, false)] {
+                execution
+                    .values
+                    .insert(
+                        index,
+                        TerminalScalarValue::Integer {
+                            scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                            value: IntegerValue::Unsigned(value),
+                        },
+                    )
+                    .unwrap();
+                let result = execution.select_operation_projections(&indexed);
+                if accepted {
+                    assert_eq!(result.unwrap().as_ref(), &fixed);
+                } else {
+                    assert!(result.is_err());
+                }
+            }
         }
     }
 }
@@ -4976,23 +5155,10 @@ pub(crate) mod runtime_rows {
             Ok(())
         }
 
-        pub(crate) fn try_clone(&self) -> Result<Self, TerminalInterpretError>
-        where
-            Key: Clone,
-            Value: Clone,
-        {
-            let cells = u64::try_from(self.rows.len()).map_err(|_| malformed())?;
-            let lease = self
-                .account
-                .as_ref()
-                .map(|account| account.reserve_storage(cells, 0))
-                .transpose()
-                .map_err(TerminalInterpretError::Storage)?;
-            Ok(Self {
-                rows: self.rows.clone(),
-                lease,
-                account: self.account.clone(),
-            })
+        pub(crate) fn pop_first(&mut self) -> Option<(Key, Value)> {
+            let entry = self.rows.pop_first();
+            self.retire_removed_rows();
+            entry
         }
 
         pub(crate) fn require(&self, key: &Key) -> Result<&Value, TerminalInterpretError> {
@@ -5131,7 +5297,10 @@ pub(crate) mod runtime_rows {
                     .begin_invocation(sponsor.measurement(), 100)
                     .unwrap();
                 let rows = RuntimeRows::from_rows(Some(&account), [(1u32, 7u32), (2, 8)]).unwrap();
-                let copy = rows.try_clone();
+                let copy = RuntimeRows::from_rows(
+                    Some(&account),
+                    rows.iter().map(|(key, value)| (*key, *value)),
+                );
                 if limit == 3 {
                     assert!(copy.is_err());
                     assert_eq!(sponsor.live_storage_cells(), 2);

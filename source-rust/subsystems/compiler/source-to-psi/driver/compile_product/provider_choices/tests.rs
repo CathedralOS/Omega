@@ -10,6 +10,7 @@ use crate::compile_product::provider_declarations::{
 };
 use crate::publication::AcceptedTerminalSource;
 use crate::test_support::TerminalSourceCompilation;
+use prepared_typed_trees_to_lowered_program::provider_selections::ProviderUse;
 use std::sync::Arc;
 
 const TARGET: &str = "linux_x86_64";
@@ -196,7 +197,7 @@ fn selected_provider(fixture: &Fixture, choices: &PreparedProviderChoices, name:
         choice.provider,
         source.implementation_value_head(declared.symbol)
     );
-    assert_eq!(choice.target, TARGET);
+    assert!(matches!(&choice.use_as, ProviderUse::Selection { target, .. } if target == TARGET));
 }
 
 #[test]
@@ -296,7 +297,9 @@ fn supply_is_ranked_by_authority_and_keyed_by_target() {
     let [windows] = choices.selections.as_slice() else {
         panic!("the source retains exactly the Windows choice");
     };
-    assert_eq!(windows.target, "windows_x86_64");
+    assert!(
+        matches!(&windows.use_as, ProviderUse::Selection { target, .. } if target == "windows_x86_64")
+    );
     let accepted = judge(&fixture, &choices);
     assert_unsupplied(&accepted, programs::FOREIGN_DEFAULT);
 }

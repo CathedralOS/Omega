@@ -55,9 +55,14 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
-Marker 305 adds the terminal alignment observation to scalar-read paths. Readers
+Marker 306 adds the terminal alignment observation to scalar-read paths. Readers
 check the marker before decoding the module. Rebuild earlier artifacts for this
 format.
+
+Marker 305 adds the supplier's counted provider exports after its provider
+selections. Each export names its schema declaration and application, its
+provider declaration and identity, and the checked boundary/machine pair for
+each operation. An internal provider selection does not add an export.
 
 Marker 304 appends an optional assembly exit constraint immediately after each
 block terminator. Tag 1 carries a successor block ID followed by a counted list
@@ -3371,7 +3376,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 305 | yes |
+| semantic module | `PSITERM\0` | 306 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | published artifact | `PSIART\0\0` | 4 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |

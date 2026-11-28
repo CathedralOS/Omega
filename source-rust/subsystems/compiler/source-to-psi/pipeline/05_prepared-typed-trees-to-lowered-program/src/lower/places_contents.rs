@@ -280,7 +280,7 @@ impl Lowering<'_> {
     ) -> Checked<()> {
         use terminal_semantics::structural_qualifications::DefaultRequirements;
 
-        let (inventory, clauses) = {
+        let (inventory, clause_indices, clauses) = {
             let requirements =
                 DefaultRequirements::new(types, &self.qualifications.structural, machine)
                     .map_err(|error| self.internal(error.detail))?;
@@ -307,14 +307,16 @@ impl Lowering<'_> {
                         .map(|set| set.range(..length).copied().collect())
                 })
                 .map_err(|error| self.internal(error.detail))?;
-            let mut inventory = Vec::with_capacity(declared.len());
+            // Keep the paths in their original allocation. Only the clause index
+            // is new for each occurrence.
+            let mut clause_indices = Vec::with_capacity(declared.len());
             let mut clauses = Vec::new();
             let mut by_clause = HashMap::new();
-            for required in declared {
+            for required in &declared {
                 // Equal predicates over the same carrier read the same fields.
                 // Each occurrence still names its own actual storage below.
                 let clause = requirements
-                    .clause(&required)
+                    .clause(required)
                     .map_err(|error| self.internal(error.detail))?;
                 let index = *by_clause
                     .entry((required.carrier, clause))
@@ -323,16 +325,17 @@ impl Lowering<'_> {
                         clauses.push(Observation::in_clause(clause));
                         index
                     });
-                inventory.push((required, index));
+                clause_indices.push(index);
             }
-            (inventory, clauses)
+            (declared, clause_indices, clauses)
         };
         let subject = terminal_check_tables::program::self_place()
             .ok_or_else(|| self.internal("default clause subject identity"))?;
-        for group in inventory.chunk_by(|(left, _), (right, _)| {
+        let mut clause_indices = clause_indices.into_iter();
+        for group in inventory.chunk_by(|left, right| {
             left.root == right.root && left.path == right.path && left.carrier == right.carrier
         }) {
-            let required = &group[0].0;
+            let required = &group[0];
             let (_, root_type) = self
                 .roots
                 .get(required.root)
@@ -350,7 +353,7 @@ impl Lowering<'_> {
             for segment in selected {
                 exact = self.project(exact, projection(segment))?;
             }
-            for &(_, index) in group {
+            for index in clause_indices.by_ref().take(group.len()) {
                 self.name_observations(&clauses[index], &[(subject, exact)], None, &[])?;
             }
         }
