@@ -9,7 +9,7 @@ use crate::source_resolved::types::{TypeReference, TypeReferenceArena};
 use crate::source_symbols::SymbolTable;
 use diagnostics::Diagnostic;
 use std::collections::HashMap;
-use symbols::SymbolKind;
+use symbols::{SymbolHandle, SymbolKind};
 
 /// A structural callable can contain an operand introduced by an opening at
 /// its use. Retain only symbols visible at that occurrence. Alias-owned names
