@@ -1119,6 +1119,17 @@ pub(crate) mod scalar_graph {
                 Target::BorrowAt {
                     psi_operation,
                     result_home,
+                    ..
+                } => (*psi_operation, result_home, &[]),
+                Target::UpgradeMutability {
+                    psi_operation,
+                    result_home,
+                    indices,
+                    ..
+                }
+                | Target::EstablishReference {
+                    psi_operation,
+                    result_home,
                     indices,
                     ..
                 }

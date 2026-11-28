@@ -1466,8 +1466,11 @@ fn adapt(
         }
     }
     graph.places.sort_unstable_by_key(|row| row.place);
-    let location = |root, path: &[StructuralPathSegment], field| {
-        descriptor_location(types, root, *graph.place_types.get(&root)?, path, field)
+    let location = |place_types: &BTreeMap<PlaceId, semantic_vocabulary::StructuralTypeId>,
+                    root,
+                    path: &[StructuralPathSegment],
+                    field| {
+        descriptor_location(types, root, *place_types.get(&root)?, path, field)
     };
     for block in &function.blocks {
         for (index, node) in block.nodes.iter().enumerate() {
@@ -1502,7 +1505,7 @@ fn adapt(
                 ..
             } = operation
                 && let Some(value) = scalar_expressions.expression(value.value)
-                && let Some(destination) = location(destination.place(), path, Some(*field))
+                && let Some(destination) = location(&graph.place_types, destination.place(), path, Some(*field))
             {
                 graph
                     .scalar_payload_writes
@@ -1532,7 +1535,7 @@ fn adapt(
                 result,
                 ..
             } = operation
-                && let Some(location) = location(*source, path, None)
+                && let Some(location) = location(&graph.place_types, *source, path, None)
             {
                 graph
                     .scalar_payload_reads
@@ -1740,10 +1743,10 @@ fn adapt(
                     {
                         return None;
                     }
-                    step.replace_value_inputs([location(subject.place, &subject.path, None)?]);
+                    step.replace_value_inputs([location(&graph.place_types, subject.place, &subject.path, None)?]);
                 }
                 O::ReleaseReference { source, path, .. } => {
-                    let source = location(*source, path, None)?;
+                    let source = location(&graph.place_types, *source, path, None)?;
                     step.inputs = vec![(Some(source.clone()), None)];
                     step.definitions.push(source);
                 }
@@ -1866,7 +1869,7 @@ fn adapt(
                         for alternative in alternatives {
                             step.derivations.push((alternative, destination.clone()));
                         }
-                    } else if let Some(source) = location(source.place, path, None) {
+                    } else if let Some(source) = location(&graph.place_types, source.place, path, None) {
                         step.derivations.push((source.clone(), destination.clone()));
                         if slot_kind.tracks_references()
                             && matches!(operation, O::EstablishReference { .. })
@@ -1935,7 +1938,7 @@ fn adapt(
                     };
                     let destination = DescriptorLocation::whole(result.place);
                     let location = match path {
-                        StructuralCopyPath::Ordinary(path) => location(*source, path, None),
+                        StructuralCopyPath::Ordinary(path) => location(&graph.place_types, *source, path, None),
                         StructuralCopyPath::Case(path) => canonical_descriptor_location(
                             types,
                             *source,
@@ -1981,7 +1984,7 @@ fn adapt(
                     }
                 }
                 abstract_operations::byte_len_or_field_read_pattern!(source, path, field, ..) => {
-                    if let Some(source) = location(*source, path, Some(*field)) {
+                    if let Some(source) = location(&graph.place_types, *source, path, Some(*field)) {
                         step.inputs = vec![(Some(source), None)];
                     } else {
                         step.may_escape = true;
@@ -2015,7 +2018,7 @@ fn adapt(
                             true,
                         )?,
                     );
-                    if let Some(source) = location(source.place(), path, *field) {
+                    if let Some(source) = location(&graph.place_types, source.place(), path, *field) {
                         let destination = DescriptorLocation::whole(result.place);
                         step.inputs = vec![(Some(source.clone()), None)];
                         step.definitions.push(source.clone());
@@ -2059,8 +2062,8 @@ fn adapt(
                         )?,
                     );
                     if let (Some(destination), Some(source)) = (
-                        location(destination.place(), path, *field),
-                        location(value.place, &value.path, None),
+                        location(&graph.place_types, destination.place(), path, *field),
+                        location(&graph.place_types, value.place, &value.path, None),
                     ) {
                         step.definitions.push(destination.clone());
                         step.derivations.push((source, destination.clone()));
@@ -2123,7 +2126,7 @@ fn adapt(
                             .scalar_payload_writes
                             .entry(position)
                             .or_default()
-                            .push((location(result.place, &[], None)?, value));
+                            .push((location(&graph.place_types, result.place, &[], None)?, value));
                     }
                 }
                 O::PrimitiveLocalStore {
@@ -2134,7 +2137,7 @@ fn adapt(
                             .scalar_payload_writes
                             .entry(position)
                             .or_default()
-                            .push((location(*destination, &[], None)?, value));
+                            .push((location(&graph.place_types, *destination, &[], None)?, value));
                     }
                 }
                 O::EstablishScalarArray {
@@ -2151,7 +2154,7 @@ fn adapt(
                                 .scalar_payload_writes
                                 .entry(position)
                                 .or_default()
-                                .push((location(result.place, &path, None)?, value));
+                                .push((location(&graph.place_types, result.place, &path, None)?, value));
                         }
                     }
                 }
@@ -2183,11 +2186,12 @@ fn adapt(
                 } => {
                     for (index, argument) in elements.iter().enumerate() {
                         let destination = location(
+                            &graph.place_types,
                             result.place,
                             &[StructuralPathSegment::FixedIndex(index as u64)],
                             None,
                         )?;
-                        if let Some(source) = location(argument.place, &argument.path, None) {
+                        if let Some(source) = location(&graph.place_types, argument.place, &argument.path, None) {
                             step.derivations.push((source, destination));
                         } else {
                             step.may_escape = true;
@@ -2235,9 +2239,9 @@ fn adapt(
                                     field_ordinal,
                                     field.field,
                                 )?;
-                                location(result.place, &path, None)?
+                                location(&graph.place_types, result.place, &path, None)?
                             }
-                            _ => location(result.place, &[], Some(field.field))?,
+                            _ => location(&graph.place_types, result.place, &[], Some(field.field))?,
                         };
                         if let terminal_psi::RecordFieldValue::Scalar { value, .. } = &field.value
                             && let Some(value) = scalar_expressions.expression(*value)
@@ -2249,7 +2253,7 @@ fn adapt(
                                 .push((destination.clone(), value));
                         }
                         if let terminal_psi::RecordFieldValue::Structural(source) = &field.value {
-                            if let Some(source) = location(source.place, &source.path, None) {
+                            if let Some(source) = location(&graph.place_types, source.place, &source.path, None) {
                                 step.derivations.push((source, destination));
                             } else {
                                 step.may_escape = true;
@@ -2581,7 +2585,7 @@ fn adapt(
                     for argument in structural_arguments {
                         step.inputs.push((
                             Some(
-                                location(argument.place, &argument.path, None)
+                                location(&graph.place_types, argument.place, &argument.path, None)
                                     .unwrap_or_else(|| DescriptorLocation::whole(argument.place)),
                             ),
                             None,
@@ -2643,7 +2647,7 @@ fn adapt(
                 ..
             } = operation
             {
-                let subject = match location(*source, path, None) {
+                let subject = match location(&graph.place_types, *source, path, None) {
                     Some(location) => DescriptorFlowSource::Location(location),
                     None => DescriptorFlowSource::Contents(kernel::descriptor_contents_query_with(
                         types,
@@ -2905,7 +2909,7 @@ fn adapt(
                             return None;
                         }
                         let source = if let Some(source) =
-                            location(binding.argument.place, &binding.argument.path, None)
+                            location(&graph.place_types, binding.argument.place, &binding.argument.path, None)
                         {
                             DescriptorFlowSource::Location(source)
                         } else {
@@ -2936,7 +2940,7 @@ fn adapt(
                         )?);
                     }
                     for action in &edge.cleanup_actions {
-                        definitions.push(location(action.place(), action.path(), None)?);
+                        definitions.push(location(&graph.place_types, action.place(), action.path(), None)?);
                     }
                     step.successors.push(DescriptorFlowEdge {
                         borrowed_header_ends: Box::default(),
