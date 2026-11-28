@@ -1,9 +1,21 @@
 //! A local assembly label receives the state left by the preceding instruction.
 //! The same fact is required at the label on each engine.
-#[path = "support/program.rs"]
-mod program;
-#[path = "support/project.rs"]
-mod project;
+#[path = "support/observations.rs"]
+mod observations;
+use observations::project;
+use platform_custody::temporary_directory::TemporaryDirectory;
+
+fn stage_source(source: &str) -> TemporaryDirectory {
+    project::stage("checked-assembly", &[("main.omg", source)])
+}
+
+fn check_x86_source(source: &str) -> (std::process::Output, String) {
+    observations::run(
+        &stage_source(source),
+        &["--check", "--target", "linux_x86_64"],
+        &["main.omg"],
+    )
+}
 
 const ANSWER: &str = r#"
 asm machine answer() -> u32 {
@@ -20,16 +32,21 @@ public machine main() crashes Trap {
 }
 "#;
 
-#[cfg(target_arch = "x86_64")]
 #[test]
 fn a_checked_assembly_return_reaches_its_caller_in_psi_and_native() {
-    program::assert_silent_return(ANSWER);
+    let result_register = if cfg!(target_arch = "aarch64") {
+        "w0"
+    } else {
+        "eax"
+    };
+    let source = ANSWER.replace("eax", result_register);
+    observations::assert_silent_return(|| stage_source(&source), &["main.omg"]);
 }
 
 #[test]
 fn the_incoming_register_value_must_prove_the_local_entry_requirement() {
     let wrong = ANSWER.replace("mov eax, 42", "mov eax, 41");
-    let (status, report) = program::invoke(&wrong, &["--check", "--target", "linux_x86_64"]);
+    let (status, report) = check_x86_source(&wrong);
     assert!(!status.status.success(), "{report}");
     assert!(
         report.contains("entry requirement of assembly block") && report.contains("finish"),
@@ -40,7 +57,7 @@ fn the_incoming_register_value_must_prove_the_local_entry_requirement() {
 #[test]
 fn a_working_register_has_no_default_incoming_value() {
     let unreadable = ANSWER.replace("mov eax, 42", "mov eax, ecx");
-    let (status, report) = program::invoke(&unreadable, &["--check", "--target", "linux_x86_64"]);
+    let (status, report) = check_x86_source(&unreadable);
     assert!(!status.status.success(), "{report}");
     assert!(report.contains("reads a register before"), "{report}");
 }
@@ -49,7 +66,7 @@ fn a_working_register_has_no_default_incoming_value() {
 fn the_artifact_retains_the_local_edge_and_its_discharged_precondition() {
     use terminal_psi::AssemblyExitConstraint::{Adjacent, ScalarReturn};
 
-    let scratch = project::stage("checked-assembly-block", &[("main.omg", ANSWER)]);
+    let scratch = stage_source(ANSWER);
     let output = project::omega(
         scratch.path(),
         &[
@@ -102,7 +119,7 @@ fn the_artifact_retains_the_local_edge_and_its_discharged_precondition() {
 
 #[test]
 fn an_adjacent_edge_emits_no_jump_or_register_setup() {
-    let scratch = project::stage("checked-assembly-layout", &[("main.omg", ANSWER)]);
+    let scratch = stage_source(ANSWER);
     assert_immediate_return_image(scratch.path(), &["main.omg"], &[42]);
 }
 
@@ -195,14 +212,11 @@ fn a_register_overwritten_after_a_local_edge_retains_both_versions() {
         "requires eax == 42u32 { ret; }",
         "requires eax == 1u32 { mov eax, 42; ret; }",
     );
-    let scratch = project::stage("checked-assembly-layout", &[("main.omg", &source)]);
+    let scratch = stage_source(&source);
     assert_immediate_return_image(scratch.path(), &["main.omg"], &[1, 42]);
-    program::assert_silent_return(&source);
+    observations::assert_silent_return(|| stage_source(&source), &["main.omg"]);
     let missing_intermediate = source.replace("mov eax, 1;", "mov eax, 2;");
-    let (output, report) = program::invoke(
-        &missing_intermediate,
-        &["--check", "--target", "linux_x86_64"],
-    );
+    let (output, report) = check_x86_source(&missing_intermediate);
     assert!(
         !output.status.success()
             && report.contains("entry requirement of assembly block")
