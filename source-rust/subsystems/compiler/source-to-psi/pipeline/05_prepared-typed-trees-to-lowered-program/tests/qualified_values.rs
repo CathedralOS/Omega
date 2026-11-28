@@ -701,3 +701,44 @@ fn a_fixed_alias_applies_a_domain_to_its_own_carrier() {
         assert!(refusal.message.contains(expected), "{refusal:?}");
     }
 }
+
+#[test]
+fn a_forwarded_domain_uses_the_callers_bound_indices_in_order() {
+    let source = "data Word { value: u64; }
+data Placement {}
+data Run { count: u64; }
+domain<P,T> Run::Live<P,T>;
+data Cells<P,T> = Run in Run::Live<P,T>;
+machine recertify<P,T>(r: Cells<P,T>) -> Cells<P,T> { r }
+machine forward<P,T>(r: Cells<P,T>) -> Cells<P,T> { recertify::<P,T>(r) }
+machine carry(r: Cells<Placement,Word>) -> Cells<Placement,Word> { forward::<Placement,Word>(r) }
+machine main() {}";
+    let program = Program::of(source);
+    let generic = program
+        .lowered
+        .forms
+        .iter()
+        .find(|form| form.name == "forward")
+        .unwrap();
+    assert!(
+        generic.forms.as_ref().is_ok_and(|forms| !forms.is_empty()),
+        "{:?}",
+        generic.forms.as_ref().err()
+    );
+
+    // The physical carrier remains Run in both calls. Only the domain tuple changes.
+    let crossed = source.replace("recertify::<P,T>(r)", "recertify::<T,P>(r)");
+    let refusal = Program::try_of(&[("product/main.omg", &crossed)])
+        .err()
+        .expect("swapping two distinct placement arguments must be refused");
+    assert!(
+        refusal.message.contains("`Run::Live` at (Placement, Word)"),
+        "{}",
+        refusal.message
+    );
+    assert!(
+        refusal.message.contains("`Run::Live` at (Word, Placement)"),
+        "{}",
+        refusal.message
+    );
+}
