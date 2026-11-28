@@ -1173,7 +1173,13 @@ fn expression_homes<'b>(
         | ExpressionKind::IsCase {
             subject: operand, ..
         } => expression_homes(operand, slots, homes),
-        ExpressionKind::PackedInteger { operands: elements, .. } | ExpressionKind::Array { elements } => {
+        ExpressionKind::RunPartition {
+            operands: elements, ..
+        }
+        | ExpressionKind::PackedInteger {
+            operands: elements, ..
+        }
+        | ExpressionKind::Array { elements } => {
             for element in elements {
                 expression_homes(element, slots, homes);
             }
@@ -3306,6 +3312,11 @@ impl<'a> Lowering<'a> {
                     fresh: true,
                 }))
             }
+            ExpressionKind::RunPartition {
+                operation,
+                signature,
+                operands,
+            } => self.partition_run(*operation, signature, operands, expression.source),
             ExpressionKind::NativeBorrow {
                 operation: form,
                 operand,

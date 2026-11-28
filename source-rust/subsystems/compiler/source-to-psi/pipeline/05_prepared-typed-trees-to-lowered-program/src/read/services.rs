@@ -1402,7 +1402,10 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<
             collect_expression(left, calls);
             collect_expression(right, calls);
         }
-        E::PackedInteger {
+        E::RunPartition {
+            operands: elements, ..
+        }
+        | E::PackedInteger {
             operands: elements, ..
         }
         | E::Array { elements } => {

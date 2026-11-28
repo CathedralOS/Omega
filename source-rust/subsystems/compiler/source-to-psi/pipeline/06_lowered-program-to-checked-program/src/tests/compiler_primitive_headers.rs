@@ -47,6 +47,177 @@ fn typed_at(
     crate::typing::lower_symbol_resolved_trees(&resolved).map_err(|error| vec![error])
 }
 
+fn run_partition_trees(product: &str) -> crate::source_state::TypedTrees {
+    use super::build_purpose::frontier_with_core;
+    macro_rules! core_file {
+        ($path:literal) => {
+            (
+                $path,
+                "",
+                include_str!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../../../../../../source/library/core/",
+                    $path
+                )),
+            )
+        };
+    }
+    frontier_with_core(
+        product,
+        "machine builder() {}",
+        source_provenance::DependencyScope::Product,
+        &[
+            core_file!("run.omg"),
+            core_file!("extent.omg"),
+            core_file!("layout.omg"),
+            core_file!("content.omg"),
+            core_file!("nat.omg"),
+            core_file!("algebra.omg"),
+            core_file!("access/access.omg"),
+            core_file!("device.omg"),
+            core_file!("option.omg"),
+            core_file!("reflect/reflect.omg"),
+        ],
+    )
+}
+
+#[test]
+fn run_partition_schemas_bind_live_memberships_to_their_original_inputs() {
+    use crate::source_state::domain::ProofFact;
+    use language_core::sealed_intrinsics::RunPartitionOperation;
+    let mut program = run_partition_trees("use {omega}/language/core/run.omg; machine main() {}");
+    for (operation, name, number_of_inputs) in [
+        (RunPartitionOperation::Split, "split", 1),
+        (RunPartitionOperation::Merge, "merge", 2),
+    ] {
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap()
+            .clone();
+        let (actual, schema) = program
+            .compiler_primitive_schema(machine.symbol)
+            .unwrap()
+            .unwrap();
+        assert_eq!(actual, CompilerPrimitive::RunPartition(operation));
+        let inputs = program
+            .machine_contracts(&machine)
+            .iter()
+            .flat_map(|contract| {
+                (0..contract.facts.len()).map(|i| contract.facts.handle_at(i as u32))
+            })
+            .filter(|&id| matches!(program.proof_facts.get(id), ProofFact::Membership(_)))
+            .collect::<Vec<_>>();
+        assert_eq!(inputs.len(), number_of_inputs);
+        let original = program.proof_facts.get(inputs[0]).clone();
+        // A different declared index cannot be laundered through the retained Live application.
+        let ProofFact::Membership(mut changed) = original.clone() else {
+            unreachable!()
+        };
+        let mut written = program
+            .type_reference_table
+            .type_reference_handles(changed.domain_arguments)
+            .to_vec();
+        written.swap(0, 1);
+        changed.domain_arguments = program
+            .type_reference_table
+            .insert_type_reference_handles(written);
+        *program.proof_facts.get_mut(inputs[0]) = ProofFact::Membership(changed);
+        assert!(program.compiler_primitive_schema(machine.symbol).is_err());
+        *program.proof_facts.get_mut(inputs[0]) = original;
+        if inputs.len() == 2 {
+            let second = program.proof_facts.get(inputs[1]).clone();
+            let first = program.proof_facts.get(inputs[0]).clone();
+            *program.proof_facts.get_mut(inputs[1]) = first;
+            let (_, changed) = program
+                .compiler_primitive_schema(machine.symbol)
+                .unwrap()
+                .unwrap();
+            assert_ne!(schema, changed);
+            *program.proof_facts.get_mut(inputs[1]) = second;
+        }
+    }
+}
+
+#[test]
+fn partition_calls_prepare_their_original_live_inputs_and_the_whole_result() {
+    let prepared = crate::prepare_fixture(run_partition_trees(
+        r#"
+use {omega}/language/core/run.omg as run;
+use {omega}/language/core/layout.omg as layout;
+use {omega}/language/core/access/access.omg as access;
+use {omega}/language/core/reflect/reflect.omg as reflect;
+data Word { value: u64; }
+domain Word::Placed access WordAccess;
+data Placed = Word in Word::Placed;
+WordAccess satisfies |layout|::AccessPolicy {
+    machine plan(schema: |reflect|::TypeSchema) -> |layout|::AccessPlan reaches none crashes none terminates {
+        |access|::new_plan(@schema, |layout|::Issuance::Unrestricted)
+    }
+}
+machine carry(r: |run|::Run<Placed, Word> in |run|::Run::Live<Placed, Word>, cut: u64)
+    -> |run|::Run<Placed, Word> in |run|::Run::Live<Placed, Word>
+requires cut <= r.count {
+    let parts: |run|::RunParts<Placed, Word> = |run|::split::<Placed, Word>(r, cut);
+    |run|::merge::<Placed, Word>(parts.left, parts.right)
+}
+machine main() {}
+"#,
+    ));
+    let typed = prepared.trees();
+    let machine = |name| super::build_purpose::symbol(typed, name);
+    let application = |declaration| {
+        typed
+            .expression_table
+            .static_machine_applications()
+            .find(|(_, row)| row.binding_declaration == declaration)
+            .expect("closed call to the real declaration")
+            .0
+    };
+    let split = machine("split");
+    let merge = machine("merge");
+    let split_call = application(split);
+    let merge_call = application(merge);
+    let signature = |call, declaration| {
+        typed
+            .bodyless_callable_signature(call, declaration)
+            .expect("registered declaration")
+            .expect("applied source signature")
+    };
+    let splitter = signature(split_call, split);
+    let merger = signature(merge_call, merge);
+    let run = typed.normalized_type_identity(merger.return_type);
+    let carry = typed.machine_by_symbol(machine("carry")).unwrap();
+    let entry = typed.machine_states(carry).first().unwrap();
+    assert_eq!(
+        run,
+        typed.normalized_type_identity(typed.state_parameters(entry)[0].type_reference)
+    );
+    for (header, live_inputs) in [(splitter, 1), (merger, 2)] {
+        assert!(header.type_parameters.is_empty());
+        assert!(!header.contracts.is_empty());
+        for formal in typed
+            .state_signature_parameters(header)
+            .iter()
+            .take(live_inputs)
+        {
+            assert_eq!(typed.normalized_type_identity(formal.type_reference), run);
+        }
+    }
+    assert_ne!(typed.normalized_type_identity(splitter.return_type), run);
+    assert!(
+        typed
+            .bodyless_callable_signature(split_call, merge)
+            .is_err()
+    );
+    assert!(
+        typed
+            .bodyless_callable_signature(merge_call, split)
+            .is_err()
+    );
+}
+
 #[test]
 fn actual_generic_catalog_source_produces_complete_typed_schemas() {
     let program = typed(INDEXING, source_admission::SourceOrigin::Toolchain).unwrap();

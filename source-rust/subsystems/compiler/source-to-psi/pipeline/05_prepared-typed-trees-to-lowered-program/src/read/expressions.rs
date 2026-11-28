@@ -2411,7 +2411,8 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::StorageLocation { .. }
             | ExpressionKind::CollectionMeasure { .. }
-                | ExpressionKind::PackedInteger { .. }
+                | ExpressionKind::RunPartition { .. }
+            | ExpressionKind::PackedInteger { .. }
             | ExpressionKind::ByteSequencePredicate { .. }
                 | ExpressionKind::ByteElement { .. }
             | ExpressionKind::CollectionView { .. }

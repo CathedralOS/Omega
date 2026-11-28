@@ -89,6 +89,7 @@ pub enum CompilerPrimitive {
     FloatSemantics,
     NaturalRanking,
     Collection(CollectionPrimitive),
+    RunPartition(RunPartitionOperation),
     NativeBorrow(NativeBorrow),
 }
 
@@ -246,6 +247,13 @@ pub enum CollectionPrimitive {
     Read,
     Range,
     ArrayView,
+}
+
+/// Repartition the cells already owned by a live run.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum RunPartitionOperation {
+    Split,
+    Merge,
 }
 
 /// The free placed scalar primitives in core `layout.omg`.
@@ -816,6 +824,22 @@ const ROWS: &[SealedIntrinsicRow] = &[
     ),
     row(
         "run.omg",
+        "split",
+        BundledFile::CoreRun,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::RunPartition(
+            RunPartitionOperation::Split,
+        )),
+    ),
+    row(
+        "run.omg",
+        "merge",
+        BundledFile::CoreRun,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::RunPartition(
+            RunPartitionOperation::Merge,
+        )),
+    ),
+    row(
+        "run.omg",
         "Run::initialize_from_profile",
         BundledFile::CoreRun,
         lifecycle(PlacementOperation::Initialize, PlacementContent::Run),
@@ -983,6 +1007,35 @@ impl SealedIntrinsicCatalog {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn run_partitions_belong_to_the_exact_free_declarations() {
+        for (name, operation) in [
+            ("split", RunPartitionOperation::Split),
+            ("merge", RunPartitionOperation::Merge),
+        ] {
+            let primitive =
+                SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::RunPartition(operation));
+            let declaration = SealedIntrinsicCatalog::exact_declaration(primitive).unwrap();
+            assert_eq!(declaration.source, BundledFile::CoreRun);
+            assert_eq!(declaration.declaration, name);
+            assert_eq!(
+                SealedIntrinsicCatalog::match_declaration(declaration.file, name, |_| false),
+                None
+            );
+            assert_eq!(
+                SealedIntrinsicCatalog::classify_bundled(
+                    BundledFile::CoreRun,
+                    &format!("Run::{name}")
+                ),
+                None
+            );
+            assert_eq!(
+                SealedIntrinsicCatalog::classify_bundled(BundledFile::CoreExtent, name),
+                None
+            );
+        }
+    }
 
     #[test]
     fn bundled_classification_matches_row_paths() {

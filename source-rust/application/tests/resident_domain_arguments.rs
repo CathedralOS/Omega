@@ -2,6 +2,10 @@
 #[path = "support/program.rs"]
 mod program;
 
+#[cfg(all(target_os = "linux", target_arch = "x86_64", target_env = "gnu"))]
+#[path = "support/project.rs"]
+mod project;
+
 const DOMAINS: &str = r#"use {omega}/language/core/extent.omg as extent;
 use {omega}/language/core/layout.omg as layout;
 use {omega}/language/core/access/access.omg as access;
@@ -182,6 +186,151 @@ fn an_empty_run_consumes_the_same_authorized_empty_partition() {
         report.contains("cannot prove requires contract") && report.contains("storage.length == 0"),
         "{report}"
     );
+}
+
+#[test]
+fn run_parts_must_return_both_owned_subsequences() {
+    let source = r#"machine carry(parts: |run|::RunParts<WordPlacement, Word>) -> |run|::RunParts<WordPlacement, Word> {
+    |run|::RunParts { left: parts.left, right: parts.right }
+}"#;
+    let (output, report) = inspect(source);
+    assert!(output.status.success(), "{report}");
+    let (output, report) = inspect(&source.replace("right: parts.right", "right: parts.left"));
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("a linear value is still held") || report.contains("already moved"),
+        "{report}"
+    );
+}
+
+#[test]
+fn partition_calls_require_live_custody_on_each_consumed_run() {
+    let run = "|run|::Run<WordPlacement, Word>";
+    let live = format!("{run} in |run|::Run::Live<WordPlacement, Word>");
+    let split = format!(
+        "machine carry(input: {run}) -> |run|::RunParts<WordPlacement, Word> {{ |run|::split::<WordPlacement, Word>(input, 0) }}"
+    );
+    let merge = |left: &str, right: &str| {
+        format!(
+            "machine carry(left: {left}, right: {right}) -> {live} {{ |run|::merge::<WordPlacement, Word>(left, right) }}"
+        )
+    };
+    for declaration in [split, merge(run, &live), merge(&live, run)] {
+        let (output, report) = inspect(&declaration);
+        assert!(!output.status.success(), "{report}");
+        assert!(
+            report.contains("the parameter it is passed for declares")
+                && report.contains("Run::Live"),
+            "{report}"
+        );
+    }
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64", target_env = "gnu"))]
+#[test]
+fn merge_evaluates_its_first_nonreturning_operand_in_psi_and_native_code() {
+    let source = format!(
+        r#"{DOMAINS}
+use {{omega}}/language/core/process_exit.omg as process;
+data Cells = |run|::Run<WordPlacement, Word> in |run|::Run::Live<WordPlacement, Word>;
+machine stop(status: i32) -> Cells reaches |process|::ProcessExit {{
+    |process|::ProcessExit::exit_process(status);
+}}
+machine main() reaches |process|::ProcessExit crashes Trap {{
+    let cells: Cells = |run|::merge::<WordPlacement, Word>(stop(37), stop(38));
+    crash Trap;
+}}"#
+    );
+    let build = r#"use main.omg as app;
+use {omega}/language/core/external_binding.omg as binding;
+use {omega}/language/core/process_exit.omg as process;
+machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Application { name: "partition_order" };
+    Build::bind(plan, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind_native::<|process|::ProcessExit::exit_process>(plan, linux_x86_64,
+        |binding|::ForeignBinding::DllImport { import: |binding|::DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "exit", version: "GLIBC_2.2.5"
+        } });
+}"#;
+    let directory = project::stage(
+        "run-partition-order",
+        &[("build.omg", build), ("main.omg", &source)],
+    );
+    let inputs = [
+        "--target",
+        "linux_x86_64",
+        "--build-input",
+        "build.omg",
+        "--build-input",
+        "main.omg",
+        "build.omg",
+    ];
+    let interpreted = project::omega(directory.path(), &[&["run"][..], &inputs].concat());
+    assert_eq!(interpreted.status.code(), Some(37), "{interpreted:?}");
+    let native = project::build_and_run(directory.path(), &inputs);
+    assert_eq!(native.status.code(), Some(37), "{native:?}");
+}
+
+#[test]
+fn merge_moves_the_left_owner_before_evaluating_the_right_operand() {
+    let source = r#"
+data Cells = |run|::Run<WordPlacement, Word> in |run|::Run::Live<WordPlacement, Word>;
+machine consume(value: Cells) -> Cells crashes Trap { crash Trap; }
+machine carry(parts: |run|::RunParts<WordPlacement, Word>) -> Cells crashes Trap {
+    |run|::merge::<WordPlacement, Word>(parts.left, consume(parts.right))
+}"#;
+    let (output, report) = inspect(source);
+    assert!(
+        output.status.success() && report.contains("psi selected_machine=carry"),
+        "{report}"
+    );
+    let (output, report) = inspect(&source.replace("consume(parts.right)", "consume(parts.left)"));
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("owned storage is used after its value was transferred or consumed"),
+        "{report}"
+    );
+}
+
+#[test]
+fn split_requires_an_owned_run_before_evaluating_the_cut() {
+    let source = r#"
+data Cells = |run|::Run<WordPlacement, Word> in |run|::Run::Live<WordPlacement, Word>;
+machine cut() -> u64 crashes Trap { crash Trap; }
+machine carry(input: Cells) -> |run|::RunParts<WordPlacement, Word> crashes Trap {
+    |run|::split::<WordPlacement, Word>(input, cut())
+}"#;
+    let (output, report) = inspect(source);
+    assert!(
+        output.status.success() && report.contains("psi selected_machine=carry"),
+        "{report}"
+    );
+    let (output, report) = inspect(&source.replace("input: Cells", "input: @Cells"));
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("owned extraction from borrowed storage"),
+        "{report}"
+    );
+}
+
+#[test]
+fn a_bodyless_lookalike_cannot_partition_a_run() {
+    let live = "|run|::Run<P,T> in |run|::Run::Live<P,T>";
+    for (name, parameters, result) in [
+        (
+            "split",
+            format!("r: {live}, cut: u64"),
+            "|run|::RunParts<P,T>",
+        ),
+        ("merge", format!("left: {live}, right: {live}"), live),
+    ] {
+        let source = format!(
+            "{DOMAINS}\nmachine {name}<P,T>({parameters}) -> {result};\nmachine main() {{}}"
+        );
+        let (output, report) = program::invoke(&source, &["--check"]);
+        assert!(!output.status.success(), "{report}");
+        assert!(report.contains(&format!("`{name}` has no body and is neither a boundary signature nor a compiler-catalog primitive")), "{report}");
+    }
 }
 
 #[test]

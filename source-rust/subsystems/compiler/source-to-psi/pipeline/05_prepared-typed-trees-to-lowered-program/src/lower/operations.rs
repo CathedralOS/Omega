@@ -533,6 +533,9 @@ impl Lowering<'_> {
                 }
             }
             ExpressionKind::Index { base, index } => self.read_index(base, index, expression),
+            ExpressionKind::RunPartition { .. } => {
+                Err(self.internal("a run partition requires structural result storage"))
+            }
             ExpressionKind::NativeBorrow { .. } => {
                 Err(self.internal("a native reference requires structural result storage"))
             }

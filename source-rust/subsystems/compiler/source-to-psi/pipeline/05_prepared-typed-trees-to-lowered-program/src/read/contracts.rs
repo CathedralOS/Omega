@@ -6,6 +6,8 @@ read into propositions over the formals, and the identity of the reserved
 with `self` and its fields as the names in scope (`ClauseScope::subject`).
 */
 
+mod case_matches;
+pub(super) use case_matches::ClauseMatchSubject;
 mod identity_type;
 
 use crate::body::Qualification;
@@ -635,6 +637,7 @@ impl Program<'_> {
             return self.byte_predicate_clause(id, scope, predicate, argument);
         }
         match typed.expression_table.expression(expression) {
+            ExpressionNode::Match(matched) => return self.contract_case_match(id, scope, matched),
             ExpressionNode::Boolean(value) => {
                 return Ok(if *value {
                     Proposition::Truth
@@ -2395,10 +2398,12 @@ impl Program<'_> {
                 }
                 return Ok(Some((root, path, value_type)));
             }
+            ExpressionNode::SavedSubject(saved) => {
+                return self.contract_match_projection(id, scope, saved);
+            }
             ExpressionNode::TypeExpression(_)
             | ExpressionNode::Match(_)
             | ExpressionNode::Block(_)
-            | ExpressionNode::SavedSubject(_)
             | ExpressionNode::ArrayLiteral(_)
             | ExpressionNode::Atomic(_)
             | ExpressionNode::Binary(_)

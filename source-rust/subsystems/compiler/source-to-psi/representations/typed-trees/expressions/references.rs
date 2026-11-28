@@ -4706,12 +4706,23 @@ fn visit_machine_with_sidecars(
         visit_symbol(retained, machine.attached_domain_symbol);
     }
     visit_type_reference(program, retained, machine.attached_data_application);
-    for contract in program
-        .tables
-        .signature_contracts
-        .span_or_empty(machine.contracts)
-    {
-        visit_contract(program, retained, contract);
+    // A free bodyless machine stores its authored clauses directly on the
+    // machine. Use the same signature-view decision as a trait requirement:
+    // a closed call reads operators in the substituted clauses of that exact
+    // invocation. Visitors of the whole declaration still read the source.
+    if !machine.contracts.is_empty() {
+        let header = program
+            .bodyless_machine_signature(machine.symbol)
+            .ok()
+            .flatten();
+        if header
+            .as_ref()
+            .is_none_or(|(_, signature)| retained.callable_signature_contents(signature))
+        {
+            for contract in program.signature_contracts.span_or_empty(machine.contracts) {
+                visit_contract(program, retained, contract);
+            }
+        }
     }
 
     for invocation in program.machine_invokes(machine) {

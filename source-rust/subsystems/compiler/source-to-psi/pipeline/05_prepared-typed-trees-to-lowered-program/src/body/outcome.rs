@@ -673,7 +673,13 @@ impl<'b> Walk<'b> {
             }
             // Operands in authored order; the establishment itself cannot
             // crash or fail to complete.
-            ExpressionKind::PackedInteger { operands: elements, .. } | ExpressionKind::Array { elements } => {
+            ExpressionKind::RunPartition {
+                operands: elements, ..
+            }
+            | ExpressionKind::PackedInteger {
+                operands: elements, ..
+            }
+            | ExpressionKind::Array { elements } => {
                 for element in elements {
                     if !self.expression(machine, element)? {
                         return Ok(false);

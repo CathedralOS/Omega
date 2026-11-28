@@ -1377,6 +1377,13 @@ pub enum ExpressionKind {
         base: Box<Expression>,
         measure: crate::source_state::expression::CollectionMeasure,
     },
+    /// The sealed application with its ordered inputs. Its live result exists
+    /// only on the continuation where both inputs completed and custody moved.
+    RunPartition {
+        operation: language_core::sealed_intrinsics::RunPartitionOperation,
+        signature: Box<Signature>,
+        operands: Vec<Expression>,
+    },
     PackedInteger {
         operation: PackedIntegerOperation,
         operands: Vec<Expression>,
