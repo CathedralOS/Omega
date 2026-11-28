@@ -73,6 +73,7 @@ fn complete_paths(
 
 fn diagnostic_path(
     module: &TerminalModule,
+    policy: &ExecutionReachPolicy,
     headers: &BTreeMap<Callable, &ProofCallableHeader>,
     paths: &Paths,
     roots: &Paths,
@@ -82,13 +83,13 @@ fn diagnostic_path(
     let mut cursor = current;
     let mut predecessors = paths;
     loop {
-        path.push(name(module, headers[&cursor])?);
+        path.push(headers[&cursor]);
         match predecessors[&cursor] {
             Via::Call(caller) => cursor = caller,
             Via::Import(Some(requester)) => {
                 cursor = requester;
                 if roots.is_empty() {
-                    path.push(name(module, headers[&requester])?);
+                    path.push(headers[&requester]);
                     break;
                 }
                 predecessors = roots;
@@ -97,7 +98,30 @@ fn diagnostic_path(
         }
     }
     path.reverse();
-    Ok(path.join(" -> "))
+    let mut packages = path
+        .iter()
+        .filter_map(|header| header.package)
+        .collect::<Vec<_>>();
+    packages.dedup();
+    let packages = packages
+        .iter()
+        .filter_map(|package| policy.package_names.get(package).map(String::as_str))
+        .collect::<Vec<_>>();
+    let calls = path
+        .into_iter()
+        .map(|header| {
+            name(module, header).map(application_identity::type_identity::callable_display_path)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let calls = calls.join(" -> ");
+    if packages.is_empty() {
+        Ok(format!("\n  call path: {calls}"))
+    } else {
+        Ok(format!(
+            "\n  dependency path: {}\n  call path: {calls}",
+            packages.join(" → ")
+        ))
+    }
 }
 
 /// Edges are on the actually invoked functions and their selected providers. A callback
@@ -387,7 +411,8 @@ pub fn check(
                 });
                 let withheld_by_edge = gate.filter(|edge| !edge.max_reach.admits(atom));
                 if withheld_by_product || withheld_by_edge.is_some() {
-                    let path = diagnostic_path(module, &headers, &paths, &root_paths, current)?;
+                    let path =
+                        diagnostic_path(module, policy, &headers, &paths, &root_paths, current)?;
                     if let Some(required) = required {
                         let subject = match (gate, withheld_by_edge) {
                             (_, Some(edge)) => {
@@ -405,13 +430,13 @@ pub fn check(
                             format!("\n  operation: |unsafe|::{name}")
                         });
                         return Err(error(format!(
-                            "{subject} Unsafe + {} on {path}{detail}\nOmega is designed to be used without Unsafe. Performance is not a valid justification. Use checked Omega or checked inline assembly for performance-sensitive code.\n\nUnsafe exists only for extreme applications. Treat any use of Unsafe in a library as malicious.",
+                            "{subject} Unsafe + {}{path}{detail}\nOmega is designed to be used without Unsafe. Performance is not a valid justification. Use checked Omega or checked inline assembly for performance-sensitive code.\n\nUnsafe exists only for extreme applications. Treat any use of Unsafe in a library as malicious.",
                             required.name()
                         )));
                     }
                     if let Some(edge) = withheld_by_edge {
                         return Err(error(format!(
-                            "dependency `{}` exceeds its reach ceiling with service `{atom}` on {path}",
+                            "dependency `{}` exceeds its reach ceiling with service `{atom}`{path}",
                             edge.alias
                         )));
                     }

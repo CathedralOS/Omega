@@ -107,6 +107,28 @@ impl crate::TerminalModule {
         }
     }
 
+    /// An unused source declaration has no retained service application. When
+    /// present, verify the full installed marker and its parent before classifying it.
+    pub fn retained_core_unsafe_service(
+        &self,
+        atom: language_core::core_vocabulary::UnsafeAtom,
+    ) -> Result<Option<&crate::ServiceDeclaration>, String> {
+        use language_core::core_vocabulary::{CoreVocabulary, CoreVocabularyCatalog};
+        let declaration = CoreVocabularyCatalog::declaration(CoreVocabulary::UnsafeAtom(atom))
+            .ok_or("missing Core unsafe declaration")?;
+        let expected = marker_application(declaration.declaration);
+        if self
+            .interfaces
+            .services
+            .iter()
+            .any(|row| self.identities.text(row.identity) == Some(expected.as_str()))
+        {
+            self.core_unsafe_service(atom).map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Resolve the installed atom and its authentic Unsafe parent, including
     /// their exact toolchain source revision in this artifact's namespace.
     pub fn core_unsafe_service(
