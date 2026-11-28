@@ -82,3 +82,26 @@ fn forwarding_a_fixed_array_preserves_its_extent_and_nominal_element() {
     ).expect_err("a fixed collection cannot change its extent");
     assert!(wrong_length.detail.contains("argument"), "{wrong_length:?}");
 }
+
+#[test]
+fn a_boundary_array_extent_does_not_index_its_plain_record_element() {
+    let program = crate::tests::boundary_calls::typed(
+        "data Plain [copy] { value: u64; }
+        boundary trait Elements {
+            machine last<const Count: u64>(items: @[Plain; Count]) -> Plain
+                reaches none requires Count > 0 crashes none;
+        }
+        Selected satisfies Elements {
+            machine last<const Count: u64>(items: @[Plain; Count]) -> Plain
+                requires Count > 0 { items[Count - 1] }
+        }
+        machine entry() {}",
+    );
+    let typed = crate::preparation::prepare_typed_trees(program, &[], &[]).unwrap();
+    let verdicts = crate::tests::boundary_calls::compilation_results_for_subjects(&typed, &[None]);
+    assert!(
+        verdicts.len() > 1,
+        "check the declaration and its implementation"
+    );
+    assert!(verdicts.iter().all(accepted), "{verdicts:?}");
+}

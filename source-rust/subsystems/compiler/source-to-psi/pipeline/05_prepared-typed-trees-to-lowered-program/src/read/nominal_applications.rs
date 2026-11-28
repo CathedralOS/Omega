@@ -266,9 +266,17 @@ impl Program<'_> {
         else {
             return Ok(None);
         };
+        let (Some(actual_constructor), Some(expected_constructor)) = (
+            self.nominal_constructor(actual_type),
+            self.nominal_constructor(expected_type),
+        ) else {
+            return Ok(None);
+        };
+        // Array lengths are checked as geometry at the call. Only inputs of the
+        // data constructor need a nominal correspondence, including phantom indices.
         let Some(expected_source) = self
             .record_sources
-            .get(expected_type)
+            .get(expected_constructor)
             .and_then(|source| source.application.as_ref())
         else {
             return Ok(None);
@@ -288,12 +296,6 @@ impl Program<'_> {
         let Some((actual_application, expected_application)) =
             self.nominal_argument_identity(actual, expected, const_sources)
         else {
-            return Ok(None);
-        };
-        let (Some(actual_constructor), Some(expected_constructor)) = (
-            self.nominal_constructor(actual_type),
-            self.nominal_constructor(expected_type),
-        ) else {
             return Ok(None);
         };
         let symbol = self
@@ -589,10 +591,10 @@ impl Program<'_> {
         for (owner, signature) in self.signatures.iter() {
             for formal in signature.parameters.iter().chain(signature.result.iter()) {
                 if let ValueType::Record(storage, ..) = formal
-                    && self.nominal_constructor(*storage).is_some()
+                    && let Some(constructor) = self.nominal_constructor(*storage)
                     && let Some(source) = self
                         .record_sources
-                        .get(*storage)
+                        .get(constructor)
                         .and_then(|source| source.application.as_ref())
                     && self
                         .nominal_const_inputs(source, owner)
