@@ -2779,7 +2779,10 @@ impl<'p> Converter<'p, '_> {
             formal_names: Vec::new(),
             machine_name: owner_name,
             text,
-            source: program.names.get(id).and_then(|names| names.declared),
+            source: program
+                .machine_context(id)
+                .map(|row| &row.names)
+                .and_then(|names| names.declared),
         });
         Ok(())
     }
@@ -5262,7 +5265,7 @@ impl<'p> Converter<'p, '_> {
             SignatureEntryKind::Statement { law },
             format!("{} fuel bound", defining.name),
         );
-        let names = self.program.names.get(id);
+        let names = self.program.machine_context(id).map(|row| &row.names);
         let mut formal_names: Vec<String> = (0..parameters)
             .map(|position| format!("parameter {position}"))
             .collect();
@@ -5432,7 +5435,7 @@ impl<'p> Converter<'p, '_> {
             SignatureEntryKind::Statement { law },
             format!("{} recursive equation", defining.name),
         );
-        let names = self.program.names.get(id);
+        let names = self.program.machine_context(id).map(|row| &row.names);
         let mut formal_names: Vec<String> = (0..parameters)
             .map(|position| format!("parameter {position}"))
             .collect();
@@ -6623,8 +6626,8 @@ impl<'p> Converter<'p, '_> {
                 continue;
             }
             let source = program
-                .names
-                .get(valuing.owner)
+                .machine_context(valuing.owner)
+                .map(|row| &row.names)
                 .and_then(|names| names.declared);
             self.owe_statement(
                 id,
@@ -6680,8 +6683,8 @@ impl<'p> Converter<'p, '_> {
                 continue;
             }
             let source = program
-                .names
-                .get(valuing.owner)
+                .machine_context(valuing.owner)
+                .map(|row| &row.names)
                 .and_then(|names| names.declared);
             self.owe_statement(
                 id,
@@ -6754,8 +6757,8 @@ impl<'p> Converter<'p, '_> {
             .unwrap_or_default();
         let source = call.source.span().or_else(|| {
             self.program
-                .names
-                .get(valuing.owner)
+                .machine_context(valuing.owner)
+                .map(|row| &row.names)
                 .and_then(|names| names.declared)
         });
         self.owe_statement(

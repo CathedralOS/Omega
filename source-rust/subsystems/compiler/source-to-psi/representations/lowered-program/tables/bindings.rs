@@ -159,20 +159,73 @@ pub fn intern_projection(
                 origin: PlaceOrigin::Projection { parent, segment },
                 children: Vec::new(),
             });
-            places
-                .get_mut(parent)
-                .ok_or_else(missing)?
-                .children
-                .insert(position, child);
+            let children = &mut places.get_mut(parent).ok_or_else(missing)?.children;
+            // A projected array element often has a single observed field.
+            // Allocate one ID on first insertion and grow branching parents normally.
+            if children.is_empty() {
+                children.reserve_exact(1);
+            }
+            children.insert(position, child);
             Ok(child)
         }
     }
+}
+
+/// Release the spare capacity of a freshly grown table before the checker retains it.
+/// Move the child lists in identity order so their buffers and all parent links survive.
+pub fn compact_projection_storage(places: &mut super::CheckingRows<ExactPlaceId, PlaceRow>) {
+    // A full array plus its root can just cross a doubling of the dense table.
+    // Avoid copying small tables or those with less than one eighth to recover.
+    let count = places.len();
+    if count < 4096 || count.next_power_of_two() - count < count / 8 {
+        return;
+    }
+    let rows = places.iter_mut().map(|(id, row)| {
+        (
+            id,
+            PlaceRow {
+                origin: row.origin,
+                children: std::mem::take(&mut row.children),
+            },
+        )
+    });
+    **places = IdTable::from_rows(rows).expect("existing place identities are dense");
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use semantic_vocabulary::StructuralFieldId;
+
+    #[test]
+    fn full_array_keeps_place_ids_and_order_after_compaction() {
+        use arena::NumericId;
+
+        let mut places = crate::CheckingRows::default();
+        let root = places.push(PlaceRow {
+            origin: PlaceOrigin::Root(PlaceId::new(1).unwrap()),
+            children: Vec::new(),
+        });
+        let machine = MachineId::new(1).unwrap();
+        let field = Segment::Field(StructuralFieldId::new(1).unwrap());
+        for index in 0..4096 {
+            let element =
+                intern_projection(machine, &mut places, root, Segment::FixedIndex(index)).unwrap();
+            let leaf = intern_projection(machine, &mut places, element, field).unwrap();
+            assert_eq!(leaf.get(), 3 + index * 2);
+        }
+        compact_projection_storage(&mut places);
+        for index in 0..4096 {
+            let element =
+                intern_projection(machine, &mut places, root, Segment::FixedIndex(index)).unwrap();
+            let leaf = intern_projection(machine, &mut places, element, field).unwrap();
+            assert_eq!((element.get(), leaf.get()), (2 + index * 2, 3 + index * 2));
+            assert_eq!(places.get(root).unwrap().children[index as usize], element);
+            assert_eq!(places.get(element).unwrap().children.capacity(), 1);
+        }
+        let additional = intern_projection(machine, &mut places, root, Segment::Extent).unwrap();
+        assert_eq!(additional.get(), 8194);
+    }
 
     #[test]
     fn children_are_interned_once_per_segment_by_binary_search() {
