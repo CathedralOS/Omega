@@ -236,6 +236,14 @@ fn terminal_home(
     let Some(operation) = machine.operation(producer) else {
         return StorageHome::Other;
     };
+    // The caller's returned-by-value aggregate has its own local home.
+    // Only an inline projection points into it; a stored reference can
+    // still point to a different owner.
+    if operation.kind.declared_invocation().is_some()
+        || operation.kind.callable_invocation().is_some()
+    {
+        return StorageHome::Local(ty);
+    }
     match &operation.kind {
         OperationKind::EstablishPrimitiveLocal { .. }
         | OperationKind::EstablishStructuralLocal { .. }

@@ -894,6 +894,10 @@ pub(crate) mod scalar_expressions {
                 | O::EstablishCase { result, .. }
                 | O::EstablishScalarArray { result, .. }
                 | O::EstablishStructuralArray { result, .. }
+                | O::CallStructural {
+                    result: abstract_operations::AbstractStructuralCallResult::Structural { result, .. },
+                    ..
+                }
                     if result.place == place =>
                 {
                     Some(StorageHome::Local(result.structural_type))

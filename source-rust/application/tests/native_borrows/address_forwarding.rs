@@ -170,11 +170,13 @@ machine main() crashes Trap {
 #[test]
 fn an_address_into_an_inline_array_keeps_its_owners_lifetime() {
     let source = r#"
+machine make_bytes() -> [u8; 2] { [4u8, 7u8] }
 machine find(input: @[u8; 2], i: u64) -> address requires i < 2u64 {
     address_of(@input[i])
 }
 machine locate(input: @[u8; 2], i: u64) -> address requires i < 2u64 {
     let owned: [u8; 2] = [4u8, 7u8];
+    let produced: [u8; 2] = make_bytes();
     LOCATION
 }
 machine main() crashes Trap {
@@ -185,6 +187,7 @@ machine main() crashes Trap {
 }"#;
     for location in [
         "address_of(@owned[1u64])",
+        "address_of(@produced[1u64])",
         "address_of(@owned[i])",
         "find(@owned, i)",
     ] {
