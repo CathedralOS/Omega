@@ -116,7 +116,11 @@ pub(super) fn check_field_accesses(
             Use::Projection(projection) if enters_package(module, machine, projection) => {
                 match event {
                     Some(TerminalPackageEvent::Project { .. }) => (),
-                    Some(TerminalPackageEvent::Store { .. }) if checked.stored_type(machine.id, operation.id).is_some() => (),
+                    Some(TerminalPackageEvent::Store { .. })
+                        if checked.stored_type(machine.id, operation.id).is_some() =>
+                    {
+                        ()
+                    }
                     Some(TerminalPackageEvent::Invoke { .. }) if tested_argument(projection) => (),
                     _ => {
                         return Err("operation enters a package field without its checked opening");

@@ -1,7 +1,7 @@
 //! Normalized Build choices, their accepted source and the observations of this execution.
 use build_model::behavior_exclusions::AuthoredBehaviorExclusion;
-use checked_program_to_psi::provider_choice_inputs::{NativeBuildSupply, ProviderSelection};
 use normalized_build_settings::EvaluatedBuildSettings;
+use provider_choice_inputs::{NativeBuildSupply, ProviderSelection};
 use source_declarations::source_selections::{
     RootBinding, ServiceAuditRegistration, TestGroupRegistration, WireCompatibilityDemand,
 };

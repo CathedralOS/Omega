@@ -1218,10 +1218,8 @@ fn finish_logical_witness<'source>(
     // declarations without deriving executable reach from the synthetic body.
     witness.program.reach.names = services.publish(entry, &mut witness.program.module)?;
     witness.source.records = program.source_record_correspondence(entry)?;
+    program.publish_machine_rows(&mut witness.program);
     witness.program.machines = program.symbols;
-    witness.program.names = program.names;
-    witness.program.value_parameters = program.value_parameters;
-    witness.program.value_arguments = program.value_arguments;
     witness.program.applications = program.applications;
     witness.program.selections = program.selections;
     witness.source.selection_questions = Some(
@@ -1648,8 +1646,8 @@ fn finish_reading_into<'source>(
         .map_err(|refusal| {
             let span = refusal.source_span.or_else(|| {
                 program
-                    .names
-                    .get(refusal.site.in_machine()?.0)
+                    .machine_context(refusal.site.in_machine()?.0)
+                    .map(|row| &row.names)
                     .and_then(|names| names.declared)
             });
             refusal.with_source_span(span)
@@ -1668,14 +1666,12 @@ fn finish_reading_into<'source>(
     // must exist before a crossing can name the borrower's live backing.
     lower::suspension::publish_crossings(&mut elaboration.module).map_err(declaration_error)?;
     source.review_requirements = program.review_requirements(diagnostic, &elaboration.module);
+    program.publish_machine_rows(&mut elaboration);
     elaboration.machines = program.symbols;
     elaboration.private_inputs = private_inputs;
-    elaboration.names = program.names;
     elaboration.selections = program.selections;
     elaboration.applications = program.applications;
-    elaboration.value_parameters = program.value_parameters;
     elaboration.generic_binders = program.generic_binders;
-    elaboration.value_arguments = program.value_arguments;
     elaboration.generic_templates = program.generic_templates;
     elaboration.conformance_witnesses = program.conformance_witnesses;
     let calling = match (policies, descriptions) {

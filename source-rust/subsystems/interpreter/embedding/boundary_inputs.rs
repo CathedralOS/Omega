@@ -1702,13 +1702,12 @@ pub(crate) mod case_membership {
     };
     use crate::engine::custody::{project_structural_value, resolve_structural_path_type};
     use crate::engine::execution::TerminalExecution;
-    use crate::storage::runtime_rows::RuntimeRows;
     use semantic_vocabulary::{
         CanonicalStructuralPathSegment, PlaceId, StructuralCaseId, StructuralTypeId,
     };
     use std::collections::BTreeMap;
     use terminal_psi::{
-        Operation, StructuralAccess, StructuralFieldDeclaration, StructuralPathSegment,
+        StructuralAccess, StructuralFieldDeclaration, StructuralPathSegment,
         StructuralTypeDeclaration, StructuralTypeShape, field_by_identity,
     };
 
@@ -2063,26 +2062,18 @@ pub(crate) mod case_membership {
             Ok(structural_type)
         }
 
-        pub(crate) fn validate_case_projections(
+        pub(crate) fn validate_operation_case(
             &self,
-            operation: &Operation,
+            root: PlaceId,
+            prefix: &[StructuralPathSegment],
+            case: StructuralCaseId,
         ) -> Result<(), TerminalInterpretError> {
-            for projection in operation.kind.structural_projections() {
-                for (position, segment) in projection.path.iter().enumerate() {
-                    let StructuralPathSegment::Case(case) = segment else {
-                        continue;
-                    };
-                    let carrier = self.resolve_case_guard_carrier(
-                        projection.root,
-                        &projection.path[..position],
-                    )?;
-                    self.active_field_declarations(
-                        carrier.structural_type,
-                        &StructuralRuntimePlace::from(&carrier),
-                        Some(*case),
-                    )?;
-                }
-            }
+            let carrier = self.resolve_case_guard_carrier(root, prefix)?;
+            self.active_field_declarations(
+                carrier.structural_type,
+                &StructuralRuntimePlace::from(&carrier),
+                Some(case),
+            )?;
             Ok(())
         }
 
@@ -2212,7 +2203,7 @@ pub(crate) mod case_membership {
 
     pub(crate) fn validate_case_projection(
         types: &crate::embedding::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
-        values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
+        values: &impl crate::engine::custody::StructuralHomes,
         cases: &impl CaseSelections,
         source: PlaceId,
         path: &[StructuralPathSegment],
@@ -2226,7 +2217,7 @@ pub(crate) mod case_membership {
 
     pub(crate) fn case_projection_is_active(
         types: &crate::embedding::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
-        values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
+        values: &impl crate::engine::custody::StructuralHomes,
         cases: &impl CaseSelections,
         source: PlaceId,
         path: &[StructuralPathSegment],
@@ -2237,7 +2228,7 @@ pub(crate) mod case_membership {
         {
             return Ok(true);
         }
-        let root = crate::engine::custody::verified_structural_place(values, source)?;
+        let root = values.require_home(source)?;
         case_projection_in_value_is_active(types, root, cases, path)
     }
 

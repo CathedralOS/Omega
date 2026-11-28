@@ -1297,10 +1297,18 @@ mod tests {
             DependencyScope::Product,
             crate::shared_reading(&typed),
         );
-        let ordinary = program.reserve_row(symbol).unwrap();
-        let policy = program.reserve_row(symbol).unwrap();
-        // Both rows are read: only the calling selection distinguishes them.
-        program.unread_rows.clear();
+        let complete = |program: &mut Program<'_>| {
+            program
+                .read_row(symbol, |_, _| {
+                    Ok(crate::read::machine::MachineRow {
+                        signature: crate::body::Signature::unread(),
+                        context: Default::default(),
+                    })
+                })
+                .unwrap()
+        };
+        let ordinary = complete(&mut program);
+        let policy = complete(&mut program);
 
         program.retain_calling_policy_body(policy);
 

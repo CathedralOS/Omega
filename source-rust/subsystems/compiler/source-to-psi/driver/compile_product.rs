@@ -278,6 +278,7 @@ pub(crate) fn prepare_lower_and_check(
         inputs,
         activation,
         explicit_providers: admitted.providers,
+        exported_providers: admitted.exports,
         representations: admitted.representations,
         declarations: admitted.declarations,
         native_supplies,
@@ -562,6 +563,7 @@ struct ProductSourcePass<'a, 'f> {
     inputs: ProductSourceInputs<'a>,
     activation: Option<symbols::SymbolHandle>,
     explicit_providers: Vec<provider_choice_inputs::ProviderSelection>,
+    exported_providers: Vec<provider_choice_inputs::ProviderSelection>,
     representations:
         Vec<crate::source_state::opaque_representations::OpaqueRepresentationSelection>,
     declarations: crate::compile_product::declarations::AdmittedProductDeclarations,
