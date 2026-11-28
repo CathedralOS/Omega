@@ -5,6 +5,8 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+selected-body = { path = "../../representations/selected-instructions/published" }
+selected-body-issuer = { path = "../../representations/selected-instructions/published/issuer" }
 operation-evidence = { path = "../../representations/operation-evidence" }
 physical-program = { path = "../../representations/post-allocation-machine/body-facts" }
 instruction-selection = { package = "target-operations-to-selected-instructions", path = "../05_target-operations-to-selected-instructions" }

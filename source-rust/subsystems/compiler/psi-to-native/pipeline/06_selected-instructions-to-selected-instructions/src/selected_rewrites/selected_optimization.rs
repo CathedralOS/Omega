@@ -1,17 +1,11 @@
 /*
-We admit selected-instruction optimization compositions, run any selected
-whole-program `SelectedLowering` rewrites (`structural_rewrites.rs`), stage
-liveness, live-range, and frameless-leaf allocation legality prerequisites,
-run the one selected catalog slice (`SelectedLowering` or `PreAllocation`),
-and hand register allocation one `SelectedAllocationInput`. It carries the
-current program, its validated analyses and the record of its rewrites. The
-same input type carries an identity run when no phase is selected.
-
-Ordinary compilation drops the completed run after producing the allocation
-input. The driver can keep it as `SelectedOptimizationReplay` with
-`retain_replay_for_validation`; its `validate` re-executes the producer to check
-determinism and checks the run is the one an allocated program's record names.
-It cannot establish rewrite correctness independently of that producer.
+Selected optimization runs the requested structural rewrites and catalog slice,
+then publishes the current instructions and completed analyses as `SelectedBody`.
+An identity run publishes liveness and live ranges; a catalog slice also publishes
+its allocation legality. The native driver keeps optional `SelectedOptimizationReplay`
+evidence separately. Its validator re-executes the producer to check determinism
+and checks that the allocation history names this run; it does not independently
+establish the correctness of every rewrite.
 */
 
 pub(crate) mod optimization_output {
@@ -27,53 +21,36 @@ pub(crate) mod optimization_output {
         validate_pre_allocation_optimization_custody,
         validate_selected_lowering_optimization_custody,
     };
-    use selected_instruction_analyses::{SelectedAllocationInput, SelectedOptimizationRecord};
+    use selected_instruction_analyses::SelectedOptimizationRecord;
 
-    /// The input to register allocation and the completed rewrite run when
-    /// an optimization phase ran.
+    /// The issued representation and optional producer evidence for the driver.
     #[derive(Debug)]
     pub struct SelectedInstructionOptimizationOutput {
-        body: std::sync::Arc<physical_program::NativeBodyFacts>,
-        allocation: SelectedAllocationInput,
-        run: Option<CompletedRun>,
-        structural: Option<StructuralRewriteRun>,
+        pub program: selected_body::SelectedBody,
+        pub replay: Option<SelectedOptimizationReplay>,
     }
 
     impl SelectedInstructionOptimizationOutput {
-        pub fn body_facts(&self) -> &std::sync::Arc<physical_program::NativeBodyFacts> {
-            &self.body
-        }
-
-        pub(crate) const fn new(
-            body: std::sync::Arc<physical_program::NativeBodyFacts>,
-            allocation: SelectedAllocationInput,
+        pub(crate) fn new(
+            parts: selected_body::SelectedBodyParts,
             run: Option<CompletedRun>,
             structural: Option<StructuralRewriteRun>,
         ) -> Self {
-            Self {
-                body,
-                allocation,
-                run,
-                structural,
-            }
-        }
-
-        /// The input for register allocation. The completed run is dropped:
-        /// a default compile does not replay it.
-        pub fn into_allocation_input(self) -> SelectedAllocationInput {
-            self.allocation
-        }
-
-        /// The input for register allocation, keeping the completed runs for an
-        /// explicitly requested validator. An identity run has no replay.
-        pub fn retain_replay_for_validation(
-            self,
-        ) -> (SelectedAllocationInput, Option<SelectedOptimizationReplay>) {
-            let replay = match (self.run, self.structural) {
-                (None, None) => None,
-                (run, structural) => Some(SelectedOptimizationReplay { run, structural }),
+            let replay = if parts.body.retains_stage_inputs() {
+                match (run, structural) {
+                    (None, None) => None,
+                    (run, structural) => Some(SelectedOptimizationReplay { run, structural }),
+                }
+            } else {
+                None
             };
-            (self.allocation, replay)
+            Self {
+                program: selected_body::SelectedBody::new(
+                    selected_body_issuer::SELECTED_BODY,
+                    parts,
+                ),
+                replay,
+            }
         }
     }
 
@@ -237,10 +214,11 @@ use crate::selected_rewrites::{
 use optimization_core::{OptimizationExecutionPhase, OptimizationSelections};
 use optimization_output::CompletedRun;
 use selected_instruction_analyses::{
-    AllocatorAvailabilityRequirement, SelectedAllocationInput, SelectedOptimizationRecord,
-    SelectedProgramRef, StagedOptimizedAllocationLegality, ValidatedAllocationLegality,
-    ValidatedLiveRanges, ValidatedLiveness, admit_optimized_allocation_legality,
-    admit_optimized_live_ranges, admit_optimized_liveness, stage_optimized_allocation_legality,
+    AllocatorAvailabilityRequirement, SelectedOptimizationRecord, SelectedProgramRef,
+    StagedOptimizedAllocationLegality, ValidatedAllocationLegality, ValidatedLiveRanges,
+    ValidatedLiveness, admit_optimized_allocation_legality, admit_optimized_live_ranges,
+    admit_optimized_liveness, publish_legality, publish_live_ranges,
+    stage_optimized_allocation_legality,
 };
 use selected_instructions::SelectedProgram;
 
@@ -285,8 +263,7 @@ pub fn optimize_selected_instructions(
     let selections = ranges.selections();
     if !has_executed_selections(selections) {
         return Ok(SelectedInstructionOptimizationOutput::new(
-            body,
-            SelectedAllocationInput::with_live_ranges(ranges),
+            publish_live_ranges(body, ranges),
             None,
             structural,
         ));
@@ -326,8 +303,7 @@ pub fn optimize_selected_instructions(
             .restage(run.source_legality_stage(), run.record())?,
     };
     Ok(SelectedInstructionOptimizationOutput::new(
-        body,
-        SelectedAllocationInput::with_legality(current),
+        publish_legality(body, current),
         Some(run),
         structural,
     ))

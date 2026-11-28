@@ -1527,28 +1527,22 @@ pub(crate) mod validate {
 
         use selected_instructions::FunctionLiveRanges;
 
-        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-        pub(crate) struct FunctionCounts {
-            pub(super) virtual_register_count: usize,
-            pub(super) virtual_fragment_count: usize,
-        }
+        pub use selected_body::LiveRangeFunctionCounts as FunctionCounts;
 
-        impl FunctionCounts {
-            pub fn new(function: &FunctionLiveRanges) -> Self {
-                Self {
-                    virtual_register_count: function.virtual_registers.len(),
-                    virtual_fragment_count: function
-                        .virtual_registers
-                        .iter()
-                        .map(|row| row.fragments.len())
-                        .sum(),
-                }
+        pub(crate) fn count_function(function: &FunctionLiveRanges) -> FunctionCounts {
+            FunctionCounts {
+                virtual_register_count: function.virtual_registers.len(),
+                virtual_fragment_count: function
+                    .virtual_registers
+                    .iter()
+                    .map(|row| row.fragments.len())
+                    .sum(),
             }
         }
     }
     mod receipt {
 
-        use super::FunctionCounts;
+        use super::{FunctionCounts, count_function};
 
         use crate::{LiveRangeValidationReceipt, ValidatedLiveRanges};
         use selected_instructions::LiveRangePlan;
@@ -1564,7 +1558,7 @@ pub(crate) mod validate {
                 .enumerate()
                 .map(|(index, function)| match previous_counts.get(index) {
                     Some(counts) if carried.get(index) == Some(&true) => *counts,
-                    _ => FunctionCounts::new(function),
+                    _ => count_function(function),
                 })
                 .collect();
             let receipt = build_receipt(&plan, &function_counts);
@@ -1593,7 +1587,7 @@ pub(crate) mod validate {
             }
         }
     }
-    pub(crate) use counts::FunctionCounts;
+    pub(crate) use counts::{FunctionCounts, count_function};
     pub use receipt::admit;
 
     use crate::{LiveRangeError, ValidatedLiveness};
@@ -1609,9 +1603,7 @@ pub(crate) mod validate {
 }
 
 use crate::LivenessError;
-use optimization_core::OptimizationUnitIdentity;
 use selected_instructions::LiveRangePlan;
-use semantic_vocabulary::WorkScheduleIdentity;
 
 pub fn analyze_live_ranges<S: SelectedProgramView>(
     selected: &S,
@@ -1694,6 +1686,22 @@ mod staging {
     }
 
     impl StagedOptimizedLiveRanges {
+        pub(crate) fn into_parts(self) -> (StagedOptimizedLiveness, ValidatedLiveRanges) {
+            (self.liveness, self.ranges)
+        }
+        pub(crate) fn from_published(
+            liveness: StagedOptimizedLiveness,
+            ranges: ValidatedLiveRanges,
+        ) -> Self {
+            let custody = StagedOptimizedLiveRangeCustodyReceipt {
+                core: liveness.custody().core(),
+            };
+            Self {
+                liveness,
+                ranges,
+                custody,
+            }
+        }
         staged_producer_accessors!(
             liveness; liveness, selected, record, register_environment, selections, budget_per_pass
         );
@@ -1734,15 +1742,7 @@ pub use staging::{
     admit_optimized_live_ranges, stage_optimized_live_ranges,
 };
 
-copy_receipt! {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct LiveRangeValidationReceipt {
-        pub(crate) optimization_unit: OptimizationUnitIdentity,
-        pub(crate) work_schedule: WorkScheduleIdentity,
-        pub(crate) virtual_register_count: usize,
-        pub(crate) virtual_fragment_count: usize,
-    }
-}
+pub use selected_body::LiveRangeValidationReceipt;
 
 shared_plan_carrier!(ValidatedLiveRanges: LiveRangePlan, LiveRangeValidationReceipt {
     pub(crate) function_counts: std::sync::Arc<[validate::FunctionCounts]>,

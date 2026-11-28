@@ -1032,53 +1032,44 @@ pub(crate) mod validate {
         use crate::AllocationLegalityError;
         use register_homes::FunctionAllocationLegality;
 
-        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-        pub(crate) struct FunctionCounts {
-            pub(super) virtual_register_count: usize,
-            pub(super) point_count: usize,
-            pub(super) candidate_count: usize,
-            pub(super) entry_transition_count: usize,
-        }
+        pub use selected_body::LegalityFunctionCounts as FunctionCounts;
 
-        impl FunctionCounts {
-            pub fn new(
-                function: &FunctionAllocationLegality,
-                function_index: usize,
-            ) -> Result<Self, AllocationLegalityError> {
-                let overflow = || AllocationLegalityError::PointOverflow {
-                    function: function_index,
-                };
-                let mut point_count = 0usize;
-                let mut candidate_count = 0usize;
-                for span in function
+        pub(crate) fn count_function(
+            function: &FunctionAllocationLegality,
+            function_index: usize,
+        ) -> Result<FunctionCounts, AllocationLegalityError> {
+            let overflow = || AllocationLegalityError::PointOverflow {
+                function: function_index,
+            };
+            let mut point_count = 0usize;
+            let mut candidate_count = 0usize;
+            for span in function
+                .virtual_registers
+                .iter()
+                .flat_map(|register| &register.spans)
+            {
+                let width = usize::try_from(span.end.0 - span.start.0).map_err(|_| overflow())?;
+                point_count = point_count.checked_add(width).ok_or_else(overflow)?;
+                let candidates = width
+                    .checked_mul(span.candidates.len())
+                    .ok_or_else(overflow)?;
+                candidate_count = candidate_count
+                    .checked_add(candidates)
+                    .ok_or_else(overflow)?;
+            }
+            Ok(FunctionCounts {
+                virtual_register_count: function.virtual_registers.len(),
+                point_count,
+                candidate_count,
+                entry_transition_count: function
                     .virtual_registers
                     .iter()
-                    .flat_map(|register| &register.spans)
-                {
-                    let width =
-                        usize::try_from(span.end.0 - span.start.0).map_err(|_| overflow())?;
-                    point_count = point_count.checked_add(width).ok_or_else(overflow)?;
-                    let candidates = width
-                        .checked_mul(span.candidates.len())
-                        .ok_or_else(overflow)?;
-                    candidate_count = candidate_count
-                        .checked_add(candidates)
-                        .ok_or_else(overflow)?;
-                }
-                Ok(Self {
-                    virtual_register_count: function.virtual_registers.len(),
-                    point_count,
-                    candidate_count,
-                    entry_transition_count: function
-                        .virtual_registers
-                        .iter()
-                        .map(|register| register.entry_transitions.len())
-                        .sum(),
-                })
-            }
+                    .map(|register| register.entry_transitions.len())
+                    .sum(),
+            })
         }
     }
-    pub(crate) use counts::FunctionCounts;
+    pub(crate) use counts::{FunctionCounts, count_function};
 
     use crate::{
         AllocationLegalityError, AllocationLegalityValidationReceipt, ValidatedAllocationLegality,
@@ -1098,7 +1089,7 @@ pub(crate) mod validate {
             };
             let counts = match previous_counts.get(function_index) {
                 Some(counts) if carried.get(function_index) == Some(&true) => *counts,
-                _ => FunctionCounts::new(function, function_index)?,
+                _ => count_function(function, function_index)?,
             };
             point_count = point_count
                 .checked_add(counts.point_count)
@@ -1130,7 +1121,7 @@ pub(crate) mod validate {
     }
 }
 
-use register_homes::{AllocationLegalityPlan, AllocatorAvailabilityIdentity};
+use register_homes::AllocationLegalityPlan;
 
 pub fn analyze_allocation_legality(
     ranges: &ValidatedLiveRanges,
@@ -1153,17 +1144,7 @@ pub fn analyze_allocation_legality(
     validate::admit(plan, &[], &[])
 }
 
-copy_receipt! {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct AllocationLegalityValidationReceipt {
-        pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
-        pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
-        pub(crate) virtual_register_count: usize,
-        pub(crate) point_count: usize,
-        pub(crate) candidate_count: usize,
-        pub(crate) entry_transition_count: usize,
-    }
-}
+pub use selected_body::AllocationLegalityValidationReceipt;
 
 shared_plan_carrier!(
     ValidatedAllocationLegality: AllocationLegalityPlan, AllocationLegalityValidationReceipt {

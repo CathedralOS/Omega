@@ -2730,6 +2730,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "selected-body"
+version = "0.1.0"
+dependencies = [
+ "optimization-core",
+ "physical-program",
+ "register-environment",
+ "register-homes",
+ "register-model",
+ "selected-body-issuer",
+ "selected-instructions",
+ "semantic-vocabulary",
+]
+
+[[package]]
+name = "selected-body-issuer"
+version = "0.1.0"
+
+[[package]]
 name = "selected-form-encoding-to-resolved-layout"
 version = "0.1.0"
 dependencies = [
@@ -2759,9 +2777,11 @@ dependencies = [
  "calling-conventions",
  "operation-evidence",
  "optimization-core",
+ "physical-program",
  "register-environment",
  "register-homes",
  "register-model",
+ "selected-body",
  "selected-instructions",
  "semantic-vocabulary",
  "target",
@@ -2804,9 +2824,9 @@ dependencies = [
  "register-environment",
  "register-homes",
  "register-model",
+ "selected-body",
  "selected-instruction-analyses",
  "selected-instructions",
- "selected-instructions-to-selected-instructions",
  "semantic-vocabulary",
  "target",
  "terminal-psi",
@@ -2824,6 +2844,8 @@ dependencies = [
  "register-environment",
  "register-homes",
  "register-model",
+ "selected-body",
+ "selected-body-issuer",
  "selected-instruction-analyses",
  "selected-instructions",
  "semantic-vocabulary",

@@ -75,12 +75,12 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Register allocation obtains its input from the preceding implementation crate
+### Selected optimization still obtains its input from the preceding implementation crate
 - Category: 2. Knowledge crossing a boundary
-- Where: [stage 07 allocation](source-rust/subsystems/compiler/psi-to-native/pipeline/07_selected-instructions-to-register-homes/src/allocation/register_allocation.rs#L39), [stage 06 output](source-rust/subsystems/compiler/psi-to-native/pipeline/06_selected-instructions-to-selected-instructions/src/selected_rewrites/selected_optimization.rs), and [allocation input](source-rust/subsystems/compiler/psi-to-native/pipeline/06_selected-instructions-to-selected-instructions/analyses/src/allocation_input.rs)
-- Saw: stage 07 imports stage 06's `SelectedInstructionOptimizationOutput` and extracts allocation input and optional replay evidence. `SelectedAllocationInput` belongs to stage 06's analysis crate and its `into_legality` method can run analysis; it is not just a representation of completed facts. These are production dependencies, not just test or validator dependencies.
-- Cost: allocation links producer machinery to receive its input, so the representation directory does not define the full handoff. Publish issued selected-program facts in the owning representation, separate optional replay evidence in the driver, and keep analysis execution in its owning transformation. Moving the analysis crate unchanged into `representations/` would preserve the hidden pipeline. Preserve admission and the allocator's ability to derive legality for its required register availability.
-- Reported: 2026-11-27, Codex, while auditing pipeline ownership on `0c2c612084c53`; narrowed after separating the stage 07-to-08 product. No performance measurement.
+- Where: [stage 06 entry](source-rust/subsystems/compiler/psi-to-native/pipeline/06_selected-instructions-to-selected-instructions/src/selected_rewrites/selected_optimization.rs#L232), [stage 05 result](source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions/src/selected.rs#L15), and [stage 06 dependency](source-rust/subsystems/compiler/psi-to-native/pipeline/06_selected-instructions-to-selected-instructions/Cargo.toml#L12)
+- Saw: `optimize_selected_instructions` receives stage 05's `StagedOptimizedSelectedInstructions`. Stage 06 links the instruction-selection implementation to extract the selected plan, body facts, environment, optimization settings and receipt. Those records are the handoff, but their admitted wrapper and unpacking API belong to the preceding transformation crate.
+- Cost: the representation directory still does not define this earlier boundary. Publish the admitted stage 05 result in the selected-instructions representation and keep its issuing authority with instruction selection. Stage 06 should consume that product and remain the owner of liveness and range preparation; do not make its completed `SelectedBody` accept missing analyses just to reuse the type at an earlier stage.
+- Reported: 2026-11-27, Codex, while following the same ownership defect upstream after separating the stage 06-to-07 and 07-to-08 products; inspected on `b2e3b070ad832`, no performance measurement.
 
 ### Typed-tree storage also orchestrates preparation of whole-program applications
 - Category: 2. Knowledge crossing a boundary

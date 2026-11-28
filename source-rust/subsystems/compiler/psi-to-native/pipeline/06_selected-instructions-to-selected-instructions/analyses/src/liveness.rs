@@ -2028,9 +2028,7 @@ pub(crate) mod validate {
     pub(crate) use receipt::admit_validated_liveness;
 }
 
-use optimization_core::OptimizationUnitIdentity;
 use selected_instructions::LivenessPlan;
-use semantic_vocabulary::WorkScheduleIdentity;
 
 pub fn analyze_liveness<S: SelectedProgramView>(
     selected: &S,
@@ -2108,6 +2106,22 @@ mod staging {
     }
 
     impl StagedOptimizedLiveness {
+        pub(crate) fn into_parts(self) -> (SelectedOptimizationInput, ValidatedLiveness) {
+            (self.selected, self.liveness)
+        }
+        pub(crate) fn from_published(
+            selected: SelectedOptimizationInput,
+            liveness: ValidatedLiveness,
+        ) -> Self {
+            let custody = StagedOptimizedLivenessCustodyReceipt {
+                core: selected.custody,
+            };
+            Self {
+                selected,
+                liveness,
+                custody,
+            }
+        }
         staged_producer_accessors!(selected; selected, record, register_environment, selections, budget_per_pass);
 
         pub const fn liveness(&self) -> &ValidatedLiveness {
@@ -2145,13 +2159,7 @@ pub use staging::{
     admit_optimized_liveness, stage_optimized_liveness,
 };
 
-copy_receipt! {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct LivenessValidationReceipt {
-        pub(crate) optimization_unit: OptimizationUnitIdentity,
-        pub(crate) work_schedule: WorkScheduleIdentity,
-    }
-}
+pub use selected_body::LivenessValidationReceipt;
 
 shared_plan_carrier!(ValidatedLiveness: LivenessPlan, LivenessValidationReceipt {});
 
