@@ -23,6 +23,23 @@ pub(crate) mod summary_interface;
 use crate::runtime_structural_path_tip;
 pub use analysis::{DescriptorAnalysis, DescriptorSourceObservation, DescriptorSourceObservations};
 use engine::Replay;
+
+/// A physical place, or the native storage reached by a scalar formal.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum StorageWriteTarget {
+    Storage(DescriptorLocation),
+    NativeAddress(semantic_vocabulary::ValueId),
+}
+
+impl StorageWriteTarget {
+    pub(crate) fn contains(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Storage(root), Self::Storage(location)) => root.contains(location),
+            _ => self == other,
+        }
+    }
+}
+
 pub use module_summaries::ModuleSummaries;
 use terminal_psi::find_structural_type;
 

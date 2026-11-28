@@ -114,7 +114,17 @@ fn machine_write_frame(
         return Ok(None);
     };
     let mut paths = Vec::with_capacity(written.len());
-    for region in written {
+    for target in written {
+        use crate::descriptors::replay::StorageWriteTarget;
+        let StorageWriteTarget::Storage(region) = target else {
+            let StorageWriteTarget::NativeAddress(formal) = target else { unreachable!() };
+            let scalar = machine.parameters.iter().position(|parameter| parameter.id == formal)
+                .ok_or("native write frame has no corresponding scalar formal")?;
+            let ordinal = machine.structural_parameters.len().checked_add(scalar)
+                .and_then(|index| u32::try_from(index).ok()).ok_or("native write formal exceeds ordinal range")?;
+            paths.push((ordinal, Vec::new()));
+            continue;
+        };
         let mut parameters = machine
             .structural_parameters
             .iter()

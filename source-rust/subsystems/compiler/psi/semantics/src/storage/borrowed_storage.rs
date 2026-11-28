@@ -147,9 +147,23 @@ pub fn call_write_regions(
         return Err("write-frame actuals do not match the structural telescope".to_owned());
     }
     let mut regions = Vec::with_capacity(frame.len());
-    for (parameter, fields) in frame {
-        let parameter = usize::try_from(*parameter)
-            .map_err(|_| "write-frame formal ordinal cannot be represented")?;
+    for (ordinal, fields) in frame {
+        let (kind, parameter) = callee.contract.write_formal(*ordinal)
+            .ok_or("write frame names a missing formal")?;
+        if kind == terminal_psi::BoundaryParameterKind::Scalar {
+            if !fields.is_empty() {
+                return Err("native address write frame cannot carry structural fields".to_owned());
+            }
+            let actual = call.arguments.get(parameter).ok_or("write frame has no scalar actual")?;
+            let address = crate::storage::native_borrows::address_origin(caller, *actual);
+            if address.sources.is_empty() || !address.parameters.is_empty() {
+                return Ok(None);
+            }
+            for source in address.sources {
+                regions.push(Region { root: Some(source.place), projection: Projection::new(&source.path) });
+            }
+            continue;
+        }
         let formal = callee
             .structural_parameters
             .get(parameter)

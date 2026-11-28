@@ -161,7 +161,7 @@ impl StorageResolution {
 /// Sharing the prepared vectors keeps ordinary Summary clones cheap.
 #[derive(Clone, Default)]
 pub(crate) struct StorageFrame {
-    pub(crate) writes: Option<Arc<Option<Vec<DescriptorLocation>>>>,
+    pub(crate) writes: Option<Arc<Option<Vec<StorageWriteTarget>>>>,
     pub(crate) accesses: Option<Arc<Option<Vec<(DescriptorPosition, usize)>>>>,
 }
 
@@ -583,6 +583,69 @@ impl<'a> Replay<'a> {
         identity: MachineId,
         position: DescriptorPosition,
     ) -> Result<Option<Vec<DescriptorLocation>>, &'static str> {
+        Ok(self.write_targets(identity, position)?.and_then(|targets| {
+            targets.into_iter().map(|target| match target {
+                StorageWriteTarget::Storage(location) => Some(location),
+                StorageWriteTarget::NativeAddress(_) => None,
+            }).collect()
+        }))
+    }
+
+    /// Recover the storage reached by the checked native descriptor. Its
+    /// enclosing places limit lifetime and are also the write footprint
+    /// when the native type or offset differs from the exposed storage.
+    fn native_write_targets(
+        &self,
+        machine: &DescriptorMachine,
+        state: &State,
+        location: &DescriptorLocation,
+    ) -> Option<Vec<StorageWriteTarget>> {
+        let crossing = location.path.iter().position(|step| *step == DescriptorPathSegment::Referent)?;
+        let mut carrier = location.clone();
+        carrier.path.truncate(crossing);
+        let origins = self.symbolic(machine, self.read(machine, state, &carrier)?)?;
+        let native = origins.iter().any(|origin| matches!(origin,
+            DescriptorSourceOrigin::Backing(DescriptorCallOrigin::NativeAddress { .. })
+            | DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument { projection: Projection { upgraded_mutability: true, .. }, .. })
+            | DescriptorSourceOrigin::IncomingContents { projection: Projection { upgraded_mutability: true, .. }, .. }
+        ));
+        if !native { return None; }
+        let mut targets = Vec::new();
+        for origin in origins {
+            match origin {
+                DescriptorSourceOrigin::Backing(DescriptorCallOrigin::NativeAddress { parameters, .. }) => {
+                    targets.extend(parameters.into_iter().map(StorageWriteTarget::NativeAddress));
+                }
+                DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument { source, projection }) => {
+                    let mut actual = self.type_index.descriptor_location(
+                        source, *machine.place_types.get(&source)?, &projection.path, None,
+                    )?;
+                    if !projection.is_native_enclosing_storage() {
+                        actual.path.extend_from_slice(&location.path[crossing + 1..]);
+                    }
+                    targets.push(StorageWriteTarget::Storage(actual));
+                }
+                DescriptorSourceOrigin::IncomingContents { query, projection } if projection.upgraded_mutability => {
+                    let mut actual = query.observation();
+                    let root = *machine.place_types.get(&actual.root)?;
+                    let endpoint = self.type_index.descriptor_location_type(root, &actual.path)?;
+                    if matches!(self.type_index.find(endpoint)?.shape, StructuralTypeShape::Reference { .. }) {
+                        actual.path.push(DescriptorPathSegment::Referent);
+                    }
+                    actual.path.extend_from_slice(&location.path[crossing + 1..]);
+                    targets.push(StorageWriteTarget::Storage(actual));
+                }
+                _ => return None,
+            }
+        }
+        (!targets.is_empty()).then_some(targets)
+    }
+
+    fn write_targets(
+        &mut self,
+        identity: MachineId,
+        position: DescriptorPosition,
+    ) -> Result<Option<Vec<StorageWriteTarget>>, &'static str> {
         let machine = self
             .machine(identity)
             .ok_or("storage write has no owning machine")?;
@@ -627,6 +690,7 @@ impl<'a> Replay<'a> {
             return Ok(Some(Vec::new()));
         };
         let mut writes = step.definitions.clone();
+        let mut located = Vec::new();
         // A known direct call uses its checked frame instead of the
         // conservative source-call ceiling. Cleanup remains additional to
         // the terminator's own writes and uses each action's real prestate.
@@ -671,6 +735,10 @@ impl<'a> Replay<'a> {
                     return Ok(None);
                 }
             }
+            if let Some(targets) = self.native_write_targets(machine, before, &prefix) {
+                located.extend(targets);
+                continue;
+            }
             let Some(targets) = self.contents_targets(
                 machine,
                 before,
@@ -692,12 +760,15 @@ impl<'a> Replay<'a> {
                 writes.push(location);
             }
         }
-        let mut located = Vec::with_capacity(writes.len());
         for write in writes {
+            if let Some(targets) = self.native_write_targets(machine, before, &write) {
+                located.extend(targets);
+                continue;
+            }
             let Some(write) = self.canonical_storage(machine, before, &write, None) else {
                 return Ok(None);
             };
-            located.push(write);
+            located.push(StorageWriteTarget::Storage(write));
         }
         for call in machine.calls_at(position) {
             let Some(before) = self.invocation_state(identity, position, call.owner) else {
@@ -720,17 +791,39 @@ impl<'a> Replay<'a> {
                 .machine(*callee)
                 .ok_or("write frame call has no callee")?;
             for written in frame {
+                let StorageWriteTarget::Storage(written) = written else {
+                    let StorageWriteTarget::NativeAddress(formal) = written else { unreachable!() };
+                    let Some(actual) = call.native_address_arguments.iter().find(|row| row.parameter == *formal) else {
+                        return Ok(None);
+                    };
+                    located.extend(actual.parameters.iter().copied().map(StorageWriteTarget::NativeAddress));
+                    for (source, _, _) in &actual.sources {
+                        if let Some(targets) = self.native_write_targets(machine, before, source) {
+                            located.extend(targets);
+                        } else if let Some(storage) = self.canonical_storage(machine, before, source, None) {
+                            located.push(StorageWriteTarget::Storage(storage));
+                        } else {
+                            return Ok(None);
+                        }
+                    }
+                    if actual.sources.is_empty() && actual.parameters.is_empty() {
+                        return Ok(None);
+                    }
+                    continue;
+                };
                 let Some((parameter, _, _)) = self.parameter(callee, written.root) else {
                     return Err("published write does not name a callee formal");
                 };
                 let Some(actual) = self.actual_slot(call, parameter, &written.path) else {
                     return Ok(None);
                 };
-                let Some(actual) = self.canonical_storage(machine, before, &actual, None)
-                else {
+                if let Some(targets) = self.native_write_targets(machine, before, &actual) {
+                    located.extend(targets);
+                } else if let Some(storage) = self.canonical_storage(machine, before, &actual, None) {
+                    located.push(StorageWriteTarget::Storage(storage));
+                } else {
                     return Ok(None);
-                };
-                located.push(actual);
+                }
             }
         }
         located.sort_unstable();
@@ -871,7 +964,7 @@ impl<'a> Replay<'a> {
     fn infer_write_frame(
         &mut self,
         identity: MachineId,
-    ) -> Result<Option<Vec<DescriptorLocation>>, &'static str> {
+    ) -> Result<Option<Vec<StorageWriteTarget>>, &'static str> {
         if self.prepare_states(identity).is_none() {
             return Ok(None);
         }
@@ -889,12 +982,16 @@ impl<'a> Replay<'a> {
             .collect();
         let mut frame = Vec::new();
         for position in positions {
-            let Some(writes) = self.storage_writes(identity, position)? else {
+            let Some(writes) = self.write_targets(identity, position)? else {
                 return Ok(None);
             };
             for write in writes {
+                let StorageWriteTarget::Storage(location) = &write else {
+                    frame.push(write);
+                    continue;
+                };
                 let Some(place) =
-                    exactly_one(machine.places.iter(), |row| row.place == write.root)
+                    exactly_one(machine.places.iter(), |row| row.place == location.root)
                 else {
                     return Err("write frame has no unique storage origin");
                 };
@@ -904,7 +1001,7 @@ impl<'a> Replay<'a> {
                         access: StructuralAccess::Owned,
                         ..
                     } if self
-                        .inline_steps(machine, &DescriptorContentsQuery::from_location(&write))
+                        .inline_steps(machine, &DescriptorContentsQuery::from_location(location))
                         .is_some_and(|steps| steps.into_iter().all(|inline| inline)) =>
                     {
                         // By-value arguments have private working storage.
@@ -922,7 +1019,7 @@ impl<'a> Replay<'a> {
             }
         }
         frame.sort_unstable();
-        let mut normalized: Vec<DescriptorLocation> = Vec::with_capacity(frame.len());
+        let mut normalized: Vec<StorageWriteTarget> = Vec::with_capacity(frame.len());
         for write in frame {
             if !normalized
                 .last()

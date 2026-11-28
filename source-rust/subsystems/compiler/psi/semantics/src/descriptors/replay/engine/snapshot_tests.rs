@@ -1685,7 +1685,7 @@ fn a_transferred_reference_keeps_its_write_crossing_until_caller_substitution() 
     let mut analysis = DescriptorAnalysis::with_borrowed_storage_slots(&types, &graph);
     assert_eq!(
         analysis.write_frame(caller_id).unwrap(),
-        Some(vec![location(1)])
+        Some(vec![StorageWriteTarget::Storage(location(1))])
     );
 }
 

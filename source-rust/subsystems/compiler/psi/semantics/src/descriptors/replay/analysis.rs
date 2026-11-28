@@ -624,7 +624,7 @@ impl<'a> DescriptorAnalysis<'a> {
     pub(crate) fn write_frame(
         &mut self,
         identity: MachineId,
-    ) -> Result<Option<Vec<DescriptorLocation>>, &'static str> {
+    ) -> Result<Option<Vec<StorageWriteTarget>>, &'static str> {
         self.replay.prepare_write_frame(identity)?;
         let Some(frame) = self
             .replay
@@ -641,7 +641,8 @@ impl<'a> DescriptorAnalysis<'a> {
         let mut published = frame
             .iter()
             .cloned()
-            .map(|mut write| {
+            .map(|mut target| {
+                let StorageWriteTarget::Storage(write) = &mut target else { return target; };
                 write.path.truncate(
                     write
                         .path
@@ -651,11 +652,11 @@ impl<'a> DescriptorAnalysis<'a> {
                         })
                         .count(),
                 );
-                write
+                target
             })
             .collect::<Vec<_>>();
         published.sort_unstable();
-        let mut normalized: Vec<DescriptorLocation> = Vec::with_capacity(published.len());
+        let mut normalized: Vec<StorageWriteTarget> = Vec::with_capacity(published.len());
         for write in published {
             if normalized
                 .last()
