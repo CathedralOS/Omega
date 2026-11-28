@@ -7,6 +7,35 @@ and receiver entry shims on x86-64 and AArch64, and `foreign_adapter` emits
 standalone native foreign-call adapter images.
 */
 
+impl crate::ObjectArtifact {
+    fn original_bss(
+        &self,
+    ) -> Result<
+        Option<(arena::Handle<object_file::SectionPlan>, usize, usize)>,
+        diagnostics::Diagnostic,
+    > {
+        let mut sections = self
+            .object
+            .layout
+            .sections
+            .iter()
+            .filter(|(_, section)| section.kind == object_file::SectionKind::Bss);
+        let existing = sections
+            .next()
+            .map(|(handle, section)| (handle, section.size, section.alignment));
+        if sections.next().is_some() {
+            return Err(diagnostics::Diagnostic::error(
+                "entry stack requires a unique BSS section",
+            ));
+        }
+        Ok(existing)
+    }
+
+    fn original_bss_bytes(&self) -> Result<u64, diagnostics::Diagnostic> {
+        Ok(self.original_bss()?.map_or(0, |(_, size, _)| size as u64))
+    }
+}
+
 pub(crate) mod callable_entry_transport {
     mod body_footprint {
         #[cfg(test)]
@@ -1927,14 +1956,14 @@ pub(crate) mod hosted_receiver {
         object: &object_file::ObjectPlan,
         text: &[u8],
         relocations: &object_file::RelocationPlan,
-        shim: crate::entries::hosted_unit_entry::EntryShim,
+        shim: &crate::entries::hosted_unit_entry::EntryShim,
         output: &image::EmittedImageOutput,
     ) -> Result<(), Diagnostic> {
         let invalid = || invalid(artifact.target);
         let binding = artifact.hosted_receiver_binding().ok_or_else(invalid)?;
         validate_binding(artifact, binding)?;
         let expected = crate::hosted_program::prepare(artifact)?.ok_or_else(invalid)?;
-        if shim != expected.shim {
+        if *shim != expected.shim {
             return Err(invalid());
         }
         if expected.object != *object
@@ -1969,18 +1998,7 @@ pub(crate) mod hosted_receiver {
         if !entry_selected {
             return Err(invalid());
         }
-        let mut original_bss = artifact
-            .object
-            .layout
-            .sections
-            .iter()
-            .filter(|(_, section)| section.kind == object_file::SectionKind::Bss);
-        let original_bss_bytes = original_bss
-            .next()
-            .map_or(0, |(_, section)| section.size as u64);
-        if original_bss.next().is_some() {
-            return Err(invalid());
-        }
+        let original_bss_bytes = artifact.original_bss_bytes()?;
         let context = artifact
             .hosted_entry
             .as_ref()
@@ -2087,12 +2105,11 @@ pub(crate) mod hosted_unit_entry {
 
         pub(super) fn validate(
             form: &UnitEntryForm,
-            target: target::NativeTarget,
             artifact: &crate::ObjectArtifact,
             object: &object_file::ObjectPlan,
             text: &[u8],
             relocations: &object_file::RelocationPlan,
-            shim: super::EntryShim,
+            shim: &super::EntryShim,
             output: &image::EmittedImageOutput,
         ) -> Result<(), Diagnostic> {
             require_hosted_entry(artifact)?;
@@ -2101,7 +2118,7 @@ pub(crate) mod hosted_unit_entry {
                 .get(start..)
                 .ok_or_else(|| invalid("entry span is outside its text"))?;
             if !crate::hosted_loader::matches_entry(
-                target,
+                artifact.target,
                 start,
                 artifact.entry_function().text_offset,
                 bytes,
@@ -2117,8 +2134,7 @@ pub(crate) mod hosted_unit_entry {
                 form.name,
                 &|| invalid("entry text section is missing"),
             )?;
-            if target != artifact.target
-                || shim != form.surface.shim(symbol, offset)
+            if *shim != form.surface.shim(symbol, offset)
                 || *object != expected_object
                 || text != expected_text
                 || *relocations != artifact.relocations
@@ -2136,7 +2152,7 @@ pub(crate) mod hosted_unit_entry {
         use super::{EntryShim, UnitEntryForm};
         use crate::entries::hosted_entry_storage::HostedEntryPartitions;
         use diagnostics::Diagnostic;
-        use object_file::{ObjectPlan, SectionKind};
+        use object_file::ObjectPlan;
 
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub(crate) struct HostedUnitStackPlan {
@@ -2162,18 +2178,16 @@ pub(crate) mod hosted_unit_entry {
 
         pub(super) fn validate(
             form: &UnitEntryForm,
-            target: target::NativeTarget,
             artifact: &crate::ObjectArtifact,
             object: &ObjectPlan,
             text: &[u8],
-            _relocations: &object_file::RelocationPlan,
-            shim: EntryShim,
+            shim: &EntryShim,
             output: &image::EmittedImageOutput,
         ) -> Result<(), Diagnostic> {
+            let target = artifact.target;
             let plan = shim.stack.as_ref().ok_or_else(invalid)?;
             let (symbol, offset) = shim.symbol_offset();
-            if target != artifact.target
-                || plan.demand.psi() != artifact.psi
+            if plan.demand.psi() != artifact.psi
                 || plan.demand.target() != artifact.target()
                 || plan.demand.entry() != artifact.entry()
                 || artifact.physical_entry_binding().is_some()
@@ -2195,20 +2209,7 @@ pub(crate) mod hosted_unit_entry {
                 return Err(Diagnostic::error(form.header_error));
             }
             let demand = &plan.demand;
-            let original_bss = artifact
-                .object
-                .layout
-                .sections
-                .iter()
-                .filter(|(_, section)| section.kind == SectionKind::Bss)
-                .try_fold(None, |previous, (_, section)| {
-                    if previous.is_some() {
-                        Err(invalid())
-                    } else {
-                        Ok(Some(section.size as u64))
-                    }
-                })?
-                .unwrap_or(0);
+            let original_bss = artifact.original_bss_bytes()?;
             let context = artifact
                 .hosted_entry
                 .as_ref()
@@ -2515,7 +2516,7 @@ pub(crate) mod hosted_unit_entry {
         pub object: &'a ObjectPlan,
         pub text_bytes: &'a [u8],
         pub relocations: &'a object_file::RelocationPlan,
-        pub entry_shim: Option<EntryShim>,
+        pub entry_shim: Option<&'a EntryShim>,
     }
 
     pub(crate) fn prepared_parts<'a>(
@@ -2533,7 +2534,7 @@ pub(crate) mod hosted_unit_entry {
                 object: &prepared.object,
                 text_bytes: prepared.text.as_slice(),
                 relocations: &prepared.relocations,
-                entry_shim: Some(prepared.shim.clone()),
+                entry_shim: Some(&prepared.shim),
             },
         )
     }
@@ -2678,75 +2679,21 @@ pub(crate) mod hosted_unit_entry {
             == 1
     }
 
-    fn validate_unit_entry(
-        form: &UnitEntryForm,
-        target: target::NativeTarget,
-        artifact: &crate::ObjectArtifact,
-        object: &ObjectPlan,
-        text: &[u8],
-        relocations: &object_file::RelocationPlan,
-        shim: EntryShim,
-        output: &image::EmittedImageOutput,
-    ) -> Result<(), Diagnostic> {
-        if shim.surface == EntrySurface::ProvisionedUnit {
-            owned_stack::validate(
-                form,
-                target,
-                artifact,
-                object,
-                text,
-                relocations,
-                shim,
-                output,
-            )
-        } else {
-            loader_stack::validate(
-                form,
-                target,
-                artifact,
-                object,
-                text,
-                relocations,
-                shim,
-                output,
-            )
-        }
-    }
-
     pub(crate) fn validate_unit_shim(
-        shim: EntryShim,
+        shim: &EntryShim,
         artifact: &crate::ObjectArtifact,
         object: &ObjectPlan,
         text: &[u8],
         relocations: &object_file::RelocationPlan,
         output: &image::EmittedImageOutput,
     ) -> Result<(), Diagnostic> {
-        let target = match shim.surface {
-            EntrySurface::ProvisionedUnit => artifact.target,
-            EntrySurface::DarwinUnit => target::NativeTarget::macos_arm64(),
-            EntrySurface::DarwinX86_64Unit => target::NativeTarget::macos_x64(),
-            EntrySurface::WindowsUnit => target::NativeTarget::windows_x64(),
-            EntrySurface::WindowsArm64Unit => target::NativeTarget::windows_arm64(),
-            EntrySurface::LinuxUnit => target::NativeTarget::linux_x64(),
-            EntrySurface::LinuxArm64Unit => target::NativeTarget::linux_arm64(),
-            _ => {
-                return Err(Diagnostic::error(
-                    "Unit entry validation requires a free-Unit adapter shim",
-                ));
-            }
-        };
-        let form = unit_entry_form(target)
+        let form = unit_entry_form(artifact.target)
             .ok_or_else(|| Diagnostic::error("Unit entry has no mechanics row"))?;
-        validate_unit_entry(
-            &form,
-            target,
-            artifact,
-            object,
-            text,
-            relocations,
-            shim,
-            output,
-        )
+        if shim.surface == EntrySurface::ProvisionedUnit {
+            owned_stack::validate(&form, artifact, object, text, shim, output)
+        } else {
+            loader_stack::validate(&form, artifact, object, text, relocations, shim, output)
+        }
     }
 
     pub(crate) fn pe_entry_points_to(
@@ -3307,7 +3254,7 @@ pub(crate) mod physical_entry {
     use crate::entries::hosted_unit_entry::{EntrySurface, PreparedEntry};
 
     mod requirements {
-        use super::{PhysicalEntryPartitions, StackSwitch, invalid, original_bss};
+        use super::{PhysicalEntryPartitions, StackSwitch, invalid};
         use crate::NativeEntryBridge;
         use crate::{ObjectArtifact, StackDemand};
         use calling_conventions::BoundaryEntryPlan;
@@ -3516,7 +3463,7 @@ pub(crate) mod physical_entry {
                 minimum_private_stack_bytes: arrival.guaranteed_available_bytes(),
             };
             let retained_storage = partitions(
-                original_bss(artifact)?.map_or(0, |(_, bytes, _)| bytes as u64),
+                artifact.original_bss_bytes()?,
                 contract.boundary_entry_plan(),
                 demand,
                 bridge,
@@ -3861,10 +3808,7 @@ pub(crate) mod physical_entry {
         }
         // Only storage placement remains: stack size, effects, calls and frame
         // geometry were fixed before encoding the executable program.
-        let requirements = requirements::place(
-            plan.requirements,
-            original_bss(artifact)?.map_or(0, |(_, size, _)| size as u64),
-        )?;
+        let requirements = requirements::place(plan.requirements, artifact.original_bss_bytes()?)?;
         artifact.physical_entry = Some(PhysicalEntryBinding {
             entry: selection.adapter,
             semantic_entry: selection.semantic_entry,
@@ -4035,8 +3979,7 @@ pub(crate) mod physical_entry {
         {
             return Err(invalid("physical stack residences or relocations changed"));
         }
-        let original_bss = original_bss(artifact)?.map_or(0, |(_, size, _)| size as u64);
-        let partitions = binding.partitions(original_bss)?;
+        let partitions = binding.partitions(artifact.original_bss_bytes()?)?;
         let bss = output.final_image_layout.bss_address;
         let alignment = u64::from(binding.plan.call.stack_alignment);
         if partitions.end_offset != output.bss_bytes as u64
@@ -4148,24 +4091,6 @@ pub(crate) mod physical_entry {
             .ok_or_else(|| invalid("private stack alignment overflows"))
     }
 
-    fn original_bss(
-        artifact: &ObjectArtifact,
-    ) -> Result<Option<(arena::Handle<SectionPlan>, usize, usize)>, Diagnostic> {
-        let mut sections = artifact
-            .object
-            .layout
-            .sections
-            .iter()
-            .filter(|(_, section)| section.kind == SectionKind::Bss);
-        let existing = sections
-            .next()
-            .map(|(handle, section)| (handle, section.size, section.alignment));
-        if sections.next().is_some() {
-            return Err(invalid("private stack requires a unique BSS section"));
-        }
-        Ok(existing)
-    }
-
     fn provision_stack(
         artifact: &ObjectArtifact,
         binding: &PhysicalEntryBinding,
@@ -4178,7 +4103,7 @@ pub(crate) mod physical_entry {
         ),
         Diagnostic,
     > {
-        let existing = original_bss(artifact)?;
+        let existing = artifact.original_bss()?;
         let partitions = binding.partitions(existing.map_or(0, |(_, size, _)| size as u64))?;
         let size = usize::try_from(partitions.end_offset)
             .map_err(|_| invalid("private stack exceeds host object coordinates"))?;

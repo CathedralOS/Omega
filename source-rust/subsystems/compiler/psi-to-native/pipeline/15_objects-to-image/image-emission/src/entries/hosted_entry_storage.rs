@@ -102,20 +102,11 @@ pub(crate) fn provision(
     use object_file::{SectionKind, SectionPlan, SymbolKind, SymbolPlan, SymbolSection};
     let invalid = || invalid(artifact.target);
     let mut object = artifact.object.clone();
-    let existing = object
-        .layout
-        .sections
-        .iter()
-        .filter(|(_, section)| section.kind == SectionKind::Bss)
-        .map(|(handle, section)| (handle, section.size, section.alignment))
-        .collect::<Vec<_>>();
-    if existing.len() > 1 {
-        return Err(invalid());
-    }
+    let existing = artifact.original_bss()?;
     let (partitions, placements) = place(
         artifact.target,
         layout,
-        existing.first().map_or(0, |(_, size, _)| *size as u64),
+        existing.map_or(0, |(_, size, _)| size as u64),
     )?;
     let end = usize::try_from(partitions.end_offset).map_err(|_| invalid())?;
     let alignment = usize::try_from(
@@ -126,10 +117,10 @@ pub(crate) fn provision(
             .fold(16, u64::max),
     )
     .map_err(|_| invalid())?;
-    if let Some((handle, _, previous_alignment)) = existing.first() {
-        let section = object.layout.sections.get_mut(*handle);
+    if let Some((handle, _, previous_alignment)) = existing {
+        let section = object.layout.sections.get_mut(handle);
         section.size = end;
-        section.alignment = alignment.max(*previous_alignment);
+        section.alignment = alignment.max(previous_alignment);
     } else {
         object.layout.sections.insert(SectionPlan {
             kind: SectionKind::Bss,
