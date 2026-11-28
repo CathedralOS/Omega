@@ -169,13 +169,23 @@ fn each_address_operation_is_refused_before_interpreted_entry() {
         let checked = program.check();
         assert!(checked.status.success(), "{}", report(&checked));
         let refused = program.interpreted();
-        let message = report(&refused);
-        assert!(!refused.status.success(), "{message}");
+        assert_eq!(refused.status.code(), Some(200), "{}", report(&refused));
+
+        let observed = program.0.path().join("observed");
+        let record = fs::read_to_string(observed.join("termination.tsv")).unwrap();
+        let reason = record
+            .trim_end()
+            .strip_prefix("psi\tunavailable\t")
+            .unwrap_or_else(|| panic!("{op} was not refused before guest effects: {record}"));
         assert!(
-            message.to_ascii_lowercase().contains("native") && message.contains(op),
-            "{message}"
+            reason.contains("NativeAddressBorrow") && reason.contains(op),
+            "{record}"
         );
-        assert!(!program.0.path().join("observed/termination.tsv").exists());
+        let observations = fs::read_dir(observed)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .collect::<Vec<_>>();
+        assert_eq!(observations.as_slice(), ["termination.tsv"]);
     }
 }
 
