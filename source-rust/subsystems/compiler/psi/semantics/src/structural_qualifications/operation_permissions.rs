@@ -1,12 +1,13 @@
 use super::*;
 use crate::borrowed_storage::Projection;
 use crate::descriptor_lifetimes::{
-    DescriptorContentsQuery, DescriptorContentsStep, DescriptorFlowSource, DescriptorPosition,
+    ActivationAccess, DescriptorContentsQuery, DescriptorContentsStep, DescriptorFlowSource,
+    DescriptorPosition,
 };
 use crate::descriptor_results::{
-    DescriptorAnalysis, DescriptorCallOrigin, DescriptorDefinition, DescriptorMachine,
-    DescriptorPayloadTarget, DescriptorSlotKind, DescriptorSourceOrigin, contents_membership_path,
-    require_unchanged_produced_payload_in, terminal_payload_contract,
+    DescriptorActualInputs, DescriptorAnalysis, DescriptorCallOrigin, DescriptorDefinition,
+    DescriptorMachine, DescriptorPayloadTarget, DescriptorSlotKind, DescriptorSourceOrigin,
+    contents_membership_path, require_unchanged_produced_payload_in, terminal_payload_contract,
 };
 use crate::module_analyses::DescriptorRowView;
 use access_vocabulary::AccessOperation;
@@ -18,6 +19,9 @@ struct Subject {
     machine: MachineId,
     position: DescriptorPosition,
     source: DescriptorSourceOrigin,
+    /// A preparation can identify the caller's storage after its activation
+    /// has returned. That caller is then no longer an executing principal.
+    active_principal: bool,
 }
 type Caller = (
     schema_reflection::CallableDescription,
@@ -30,6 +34,11 @@ struct RuleJudgment<'a> {
     original: &'a Subject,
     denial: &'static str,
     answers: std::collections::BTreeMap<(Subject, bool, bool), Option<Judged<bool>>>,
+}
+
+enum IncomingAccess<'a> {
+    Direct(Judged<terminal_psi::ModuleInvocationInputs<'a>>),
+    Prepared(DescriptorActualInputs<'a>),
 }
 
 struct Permissions<'a> {
@@ -49,7 +58,7 @@ struct Permissions<'a> {
         MachineId,
         DescriptorPosition,
         terminal_psi::InvocationOwner,
-        Judged<terminal_psi::ModuleInvocationInputs<'a>>,
+        IncomingAccess<'a>,
     )>,
 }
 fn failure(machine: MachineId, detail: &'static str) -> StructuralQualificationError {
@@ -308,16 +317,41 @@ impl<'a> Permissions<'a> {
         let mut result = Vec::new();
         for index in range {
             let (_, caller, position, owner, ref invocation) = self.incoming[index];
-            let invocation = invocation.as_ref().map_err(Clone::clone)?;
-            if invocation.required_contract.is_some() {
-                return Err(failure(
-                    caller,
-                    "the compiler cannot check this helper's public call contract yet",
-                ));
-            }
-            let actuals = self
-                .analysis
-                .substitute_call_source_at(caller, position, owner, &subject.source)
+            let (actuals, active_principal) = match invocation {
+                IncomingAccess::Direct(invocation) => {
+                    if invocation
+                        .as_ref()
+                        .map_err(Clone::clone)?
+                        .required_contract
+                        .is_some()
+                    {
+                        return Err(failure(
+                            caller,
+                            "the compiler cannot check this helper's public call contract yet",
+                        ));
+                    }
+                    (
+                        self.analysis.substitute_call_source_at(
+                            caller,
+                            position,
+                            owner,
+                            &subject.source,
+                        ),
+                        subject.active_principal,
+                    )
+                }
+                IncomingAccess::Prepared(inputs) => (
+                    self.analysis.substitute_input_source(
+                        caller,
+                        position,
+                        subject.machine,
+                        *inputs,
+                        &subject.source,
+                    ),
+                    false,
+                ),
+            };
+            let actuals = actuals
                 .filter(|actuals| !actuals.is_empty())
                 .ok_or_else(|| {
                     failure(
@@ -329,6 +363,7 @@ impl<'a> Permissions<'a> {
                 machine: caller,
                 position,
                 source,
+                active_principal,
             }));
         }
         Ok(result)
@@ -370,7 +405,7 @@ impl<'a> Permissions<'a> {
                 "the compiler cannot check the selected public caller's access yet",
             ));
         }
-        if !granted {
+        if !granted && subject.active_principal {
             let mut unavailable = None;
             for caller in rule.allowed {
                 match caller_matches_machine(self.module, subject.machine, caller) {
@@ -612,6 +647,7 @@ impl<'a> Permissions<'a> {
                     machine,
                     position,
                     source,
+                    active_principal: true,
                 },
                 operation,
                 requirements.clone(),
@@ -643,6 +679,32 @@ pub(super) fn validate(rows: &DescriptorRowSource<'_, '_>) -> Judged<()> {
     }
     if roots.is_empty() {
         return Ok(());
+    }
+    // An opaque ready owner can be prepared and stepped by disjoint callers.
+    // Include their sites even when only the preparation's actual backing
+    // carries a subject policy. Each row below authenticates the operation.
+    use language_core::sealed_intrinsics::ActivationOperation::{Prepare, StepFixed};
+    let activation_boundaries: std::collections::BTreeSet<_> = module
+        .interfaces
+        .boundary_machines
+        .iter()
+        .filter_map(|boundary| {
+            matches!(
+                boundary.declaration.as_ref()?.execution,
+                terminal_psi::CheckedBoundaryExecution::OwnedActivation(Prepare | StepFixed)
+            )
+            .then_some(boundary.id)
+        })
+        .collect();
+    if !activation_boundaries.is_empty() {
+        roots.extend(module.machines.iter().filter_map(|body| {
+            body.operations()
+                .any(|operation| {
+                    matches!(&operation.kind, OperationKind::BoundaryCall { boundary, .. }
+                        if activation_boundaries.contains(boundary))
+                })
+                .then_some(body.id)
+        }));
     }
     if matches!(module.entry, Some(TargetMachineCallable::Boundary(_))) {
         return malformed(
@@ -713,31 +775,70 @@ pub(super) fn validate(rows: &DescriptorRowSource<'_, '_>) -> Judged<()> {
                             ))
                         }
                     });
-                permissions
-                    .incoming
-                    .push((callee, caller.id, *position, call.owner, invocation));
+                permissions.incoming.push((
+                    callee,
+                    caller.id,
+                    *position,
+                    call.owner,
+                    IncomingAccess::Direct(invocation),
+                ));
+            } else if let Some(ActivationAccess::Prepare(worker)) =
+                caller.activation_access(*position, call.owner)
+            {
+                // prepare(A, backing) captures only A for the selected worker.
+                // Scalar A has no structural actual; the final view is always
+                // stack storage, never an argument passed to worker code.
+                let mut inputs = call.actual_inputs();
+                inputs.arguments = inputs
+                    .arguments
+                    .split_last()
+                    .ok_or_else(|| failure(caller.id, "preparation has no retained stack"))?
+                    .1;
+                inputs.argument_contents = inputs
+                    .argument_contents
+                    .split_last()
+                    .ok_or_else(|| {
+                        failure(caller.id, "preparation has no retained stack contents")
+                    })?
+                    .1;
+                permissions.incoming.push((
+                    worker,
+                    caller.id,
+                    *position,
+                    call.owner,
+                    IncomingAccess::Prepared(inputs),
+                ));
             }
         }
     }
     permissions
         .incoming
         .sort_by_key(|row| (row.0, row.1, row.2, row.3));
-    for identity in roots {
-        permissions
+    // A dependency used only to recover the worker's eventual result is not
+    // an executing helper. Charge the worker's own accesses only when stepped.
+    let mut checked = std::collections::BTreeSet::new();
+    while let Some(identity) = roots.pop() {
+        if !checked.insert(identity) {
+            continue;
+        }
+        let accesses = permissions
             .analysis
             .storage_access_frame(identity)
             .map_err(|detail| failure(identity, detail))?
-            .ok_or_else(|| failure(identity, "a helper's memory accesses are unresolved"))?;
-    }
-    for machine in &by_id {
-        let accesses = permissions
-            .analysis
-            .storage_access_frame(machine.id)
-            .map_err(|detail| failure(machine.id, detail))?
-            .ok_or_else(|| failure(machine.id, "a helper's memory accesses are unresolved"))?
+            .ok_or_else(|| failure(identity, "a helper's memory accesses are unresolved"))?
             .to_vec();
         for (position, input) in accesses {
-            permissions.operation(machine.id, position, input)?;
+            permissions.operation(identity, position, input)?;
+        }
+        let machine = permissions.descriptor(identity)?;
+        for (position, call) in machine.known_invocations() {
+            if let Some(ActivationAccess::Step(worker)) =
+                machine.activation_access(*position, call.owner)
+            {
+                roots.push(worker);
+            } else if let Some(callee) = call.callee() {
+                roots.push(callee);
+            }
         }
     }
     Ok(())

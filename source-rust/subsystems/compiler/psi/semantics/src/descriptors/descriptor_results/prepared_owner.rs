@@ -70,6 +70,7 @@ pub(super) fn invocation(
     control: ActivationOperation,
     kind: DescriptorSlotKind,
     failure_detail: &mut Option<&'static str>,
+    step: &mut crate::descriptor_lifetimes::DescriptorFlowStep,
 ) -> Option<DescriptorInvocation> {
     let transfer = Transfer::checked(module, boundary, control)
         .inspect_err(|detail| *failure_detail = Some(*detail))
@@ -193,6 +194,37 @@ pub(super) fn invocation(
         Transfer::Step(s) => s.selected,
         Transfer::Resume(s) => s.selected,
     };
+    use crate::descriptor_lifetimes::ActivationAccess;
+    let access = match &transfer {
+        Transfer::Prepare(_) => {
+            // Its exclusive byte view funds the private stack. The runtime can
+            // save and restore frames there for the lifetime of this owner.
+            let stack = arguments.last()?.as_ref()?.clone();
+            step.inputs.push((
+                Some(stack.clone()),
+                Some((
+                    access_vocabulary::AccessOperation::CompoundMutation,
+                    stack.into(),
+                )),
+            ));
+            ActivationAccess::Prepare(selected.entry_machine)
+        }
+        Transfer::Step(_) => ActivationAccess::Step(selected.entry_machine),
+        Transfer::Resume(shape) => {
+            // Compare the address in the permit with the parked request. Neither
+            // the referent nor the pointer in the publication is overwritten.
+            let mut anchor = arguments.get(1)?.as_ref()?.clone();
+            anchor
+                .path
+                .push(DescriptorPathSegment::Field(shape.permit.anchor));
+            step.inputs.push((
+                Some(anchor.clone()),
+                Some((access_vocabulary::AccessOperation::Read, anchor.into())),
+            ));
+            ActivationAccess::Resume
+        }
+    };
+    step.activation_access = Some((operation.id, access));
     let worker = module.machine(selected.entry_machine)?;
     let mut worker_result = BTreeMap::new();
     if let TerminalMachineResult::Structural(value) = &worker.result {

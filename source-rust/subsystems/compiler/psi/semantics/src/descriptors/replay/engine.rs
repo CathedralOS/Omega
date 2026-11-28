@@ -1022,8 +1022,14 @@ impl<'a> Replay<'a> {
                 }
                 // Public and provider calls need their retained interface
                 // effect owner. A possible private implementation is not it.
-                let Some(callee) = invocation.callee() else {
-                    return Ok(None);
+                use crate::descriptor_lifetimes::ActivationAccess;
+                let callee = match machine.activation_access(position, invocation.owner) {
+                    Some(ActivationAccess::Prepare(_) | ActivationAccess::Resume) => continue,
+                    Some(ActivationAccess::Step(worker)) => worker,
+                    None => match invocation.callee() {
+                        Some(callee) => callee,
+                        None => return Ok(None),
+                    },
                 };
                 self.prepare_access_frame(callee)?;
                 let complete = self

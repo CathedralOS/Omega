@@ -27,8 +27,17 @@ pub(crate) type DescriptorFlowInput = (
     Option<(access_vocabulary::AccessOperation, DescriptorFlowSource)>,
 );
 
+/// Qualified memory effects of one authenticated owned-activation operation.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ActivationAccess {
+    Prepare(semantic_vocabulary::MachineId),
+    Step(semantic_vocabulary::MachineId),
+    Resume,
+}
+
 #[derive(Clone, Default)]
 pub struct DescriptorFlowStep {
+    pub activation_access: Option<(semantic_vocabulary::OperationId, ActivationAccess)>,
     /// Raw borrow formation consumes addresses already evaluated at earlier cuts.
     pub native_borrow: Option<
         Box<(

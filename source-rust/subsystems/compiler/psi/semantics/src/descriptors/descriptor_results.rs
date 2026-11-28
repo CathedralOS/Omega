@@ -835,6 +835,17 @@ pub enum DescriptorInvocationTarget {
     },
 }
 
+impl DescriptorMachine {
+    pub(crate) fn activation_access(
+        &self,
+        position: DescriptorPosition,
+        owner: DescriptorInvocationOwner,
+    ) -> Option<crate::descriptor_lifetimes::ActivationAccess> {
+        let (operation, access) = self.flow.get(&position)?.activation_access?;
+        (owner == DescriptorInvocationOwner::Operation(operation)).then_some(access)
+    }
+}
+
 impl DescriptorInvocation {
     /// A mutable reference into a single integer cell of the identical
     /// type occupies that whole cell. Its public lifetime still names the region.

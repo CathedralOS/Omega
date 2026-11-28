@@ -1567,6 +1567,33 @@ fn storage_access_frames_keep_helper_identity_and_unknown_calls() {
             .unwrap()
             .is_none()
     );
+    // A sealed transfer owns no worker execution. Only the matching step
+    // must resolve the worker's actual accesses, including nested calls.
+    let call = graph[0].calls.get_mut(&entry).unwrap().as_mut().unwrap();
+    let DescriptorInvocationTarget::Public { effects_machine, .. } = &mut call[0].target else {
+        unreachable!()
+    };
+    *effects_machine = None;
+    graph[1].calls.insert(entry, None);
+    let checked = OperationId::new(1).unwrap();
+    let other = OperationId::new(2).unwrap();
+    use crate::descriptor_lifetimes::ActivationAccess::{Prepare, Resume, Step};
+    for (operation, access, complete) in [
+        (checked, Prepare(helper_id), true),
+        (checked, Resume, true),
+        (other, Resume, false),
+        (checked, Step(helper_id), false),
+    ] {
+        graph[0].flow.get_mut(&entry).unwrap().activation_access = Some((operation, access));
+        assert_eq!(
+            DescriptorAnalysis::with_borrowed_storage_slots(&types, &graph)
+                .storage_access_frame(caller_id).unwrap().is_some(),
+            complete
+        );
+    }
+    graph[1].calls.clear();
+    assert!(DescriptorAnalysis::with_borrowed_storage_slots(&types, &graph)
+        .storage_access_frame(caller_id).unwrap().is_some());
 }
 
 // An incomplete call leaves its callee summary unprepared. The
