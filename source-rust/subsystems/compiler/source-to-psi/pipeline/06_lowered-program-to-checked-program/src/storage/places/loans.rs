@@ -1494,12 +1494,15 @@ impl<'a> Storage<'a> {
     ) -> Checked<Option<LoanConflict>> {
         let access = match touch {
             Touch::Read | Touch::AtomicChange => ReferenceAccess::Shared,
-            Touch::Change => ReferenceAccess::Mutable,
+            Touch::Change | Touch::NativeWrite => ReferenceAccess::Mutable,
         };
         if competing_borrows(loan.access, &loan.lineage, access, backing).is_none() {
             return Ok(None);
         }
         let conflict = match touch {
+            // A scalar address argument carries no reference loan. Any proven
+            // overlapping live loan conflicts with this write through it.
+            Touch::NativeWrite => return Ok(Some(LoanConflict::ChangeWhileBorrowed)),
             Touch::Read => LoanConflict::ObserveWhileExclusive,
             Touch::Change | Touch::AtomicChange => LoanConflict::ChangeWhileBorrowed,
         };
@@ -3310,6 +3313,7 @@ impl<'a> Storage<'a> {
 /// How one effect touches storage a retained loan may cover.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Touch {
+    NativeWrite,
     Read,
     Change,
     /// An atomic access changes storage that a shared loan may also observe.
@@ -3770,6 +3774,9 @@ fn resolve_effect<'a>(
     concerns: Construct,
 ) -> Checked<(super::Lineage, LoanRegion, Touch)> {
     let (place, backing) = match effect {
+        super::StorageEffect::NativeWrite(place, backing) => {
+            return Ok((place, LoanRegion::Storage(backing), Touch::NativeWrite));
+        }
         super::StorageEffect::Payload(place) => {
             let backing = storage.borrow_backing(
                 references,

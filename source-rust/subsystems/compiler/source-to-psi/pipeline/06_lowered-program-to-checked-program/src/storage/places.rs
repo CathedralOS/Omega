@@ -150,6 +150,7 @@ impl StorageAddresses for Lineage {
 /// Descriptor storage and the payload it permits access to are different
 /// places. Initializing or replacing a descriptor does not write payload bytes.
 enum StorageEffect {
+    NativeWrite(Lineage, Backing),
     Storage(Lineage),
     Payload(Lineage),
 }
@@ -5535,6 +5536,9 @@ impl<'a> Storage<'a> {
             .iter()
             .filter(|row| row.operation == operation.id)
             .map(|row| {
+                if matches!(row.stored, Stored::MayChange { exposed_at: Some(_) }) {
+                    return StorageEffect::NativeWrite(row.destination.clone(), row.backing.clone());
+                }
                 if payloads.iter().any(|payload| {
                     row.destination.root == payload.root
                         && row.destination.segments.starts_with(&payload.segments)
