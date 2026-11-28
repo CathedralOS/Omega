@@ -54,7 +54,7 @@ impl<'a> ReviewContext<'a> {
     pub(super) fn new(
         target_profile: target::TargetProfile,
         input: &'a crate::AdmissionSource<'a>,
-        analyses: Option<&'a terminal_semantics::ModuleAnalyses<'_>>,
+        graph: AuthorityGraph<'a>,
         selected: &'a SelectedProviderPlanFacts,
         physical_policy: &'a TerminalAuthorityPolicy,
         permission_policy: Option<&'a TerminalAuthorityPermissionPolicy>,
@@ -65,8 +65,6 @@ impl<'a> ReviewContext<'a> {
         installed_interrupts: &'a crate::AdmittedInstalledInterruptCohort,
     ) -> Result<Self, String> {
         let plan = input.plan();
-        let graph = AuthorityGraph::new(input, analyses, target_profile)?
-            .with_installed_interrupts(installed_interrupts)?;
         let mut boundaries = BTreeMap::new();
         let mut boundary_identities = BTreeSet::new();
         for boundary in &plan.boundary_machines {

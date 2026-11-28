@@ -74,7 +74,6 @@ pub use terminal_authority_policy::{
 };
 pub(crate) use terminal_authority_policy::{
     conservative_syscall_terminal_mechanism, normalized_foreign_terminal_mechanism,
-    normalized_foreign_terminal_mechanism_with_callback_materializations,
 };
 
 pub mod terminal_authority_permissions {

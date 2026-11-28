@@ -18,14 +18,14 @@ a candidate machine ID alone.
 #[path = "provider_installation_replay.rs"]
 mod replay;
 
-use abstract_operations::{AbstractOperationPlan, CompletionClaimSource};
+use abstract_operations::AbstractOperationPlan;
 use operation_evidence::provider_calls::InstalledProviderCallEvidence;
 use replay::replay_installed_provider_calls;
 use semantic_vocabulary::{InvocationSite, MachineId, OperationId};
-use terminal_psi::{CompletionReceipt, ProviderCandidateConformance, StructuralArgument};
+use terminal_psi::ProviderCandidateConformance;
 
 #[derive(Debug)]
-pub enum ProviderInstallationError {    PlanReplayMismatch,
+pub enum ProviderInstallationError {
     InvalidLoweredCatalog,
     MissingSelectedProvider {
         boundary: semantic_vocabulary::BoundaryMachineId,
@@ -61,55 +61,15 @@ pub enum ProviderInstallationError {    PlanReplayMismatch,
 pub use target_bound_program::SelectedProviderAdapter;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AdmittedInstalledProviderCall {
-    pub(crate) caller: MachineId,
-    pub(crate) invocation_site: InvocationSite,
-    pub(crate) boundary: semantic_vocabulary::BoundaryMachineId,
-    pub(crate) provider: ProviderCandidateConformance, // Supplied requirement's real checked conformance, never relabelled.
-    pub(crate) result: terminal_psi::OperationResult,
-    pub(crate) scalar_arguments: Vec<semantic_vocabulary::ValueId>,
-    pub(crate) structural_arguments: Vec<StructuralArgument>,
-    pub(crate) completion_claim_sources: Vec<CompletionClaimSource>,
-    pub(crate) completion_receipts: Vec<CompletionReceipt>,
-}
-
-impl AdmittedInstalledProviderCall {
-    pub const fn caller(&self) -> MachineId {
-        self.caller
-    }
-
-    pub const fn invocation_site(&self) -> InvocationSite {
-        self.invocation_site
-    }
-
-    pub const fn boundary(&self) -> semantic_vocabulary::BoundaryMachineId {
-        self.boundary
-    }
-
-    pub const fn result(&self) -> &terminal_psi::OperationResult {
-        &self.result
-    }
-
-    pub fn scalar_arguments(&self) -> &[semantic_vocabulary::ValueId] {
-        &self.scalar_arguments
-    }
-
-    pub fn structural_arguments(&self) -> &[StructuralArgument] {
-        &self.structural_arguments
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdmittedProviderInstallation {
     pub(crate) terminal_selection: psi_provider_selections::AdmittedProviderSelections,
-    pub(crate) psi: terminal_psi::TerminalPsiIdentity,
     pub(crate) installed_candidates: Vec<ProviderCandidateConformance>,
-    pub(crate) installed_calls: Vec<AdmittedInstalledProviderCall>,
+    pub(crate) installed_calls: Vec<InstalledProviderCallEvidence>,
 }
 
 impl AdmittedProviderInstallation {
     pub const fn psi(&self) -> terminal_psi::TerminalPsiIdentity {
-        self.psi
+        self.terminal_selection.terminal_psi()
     }
 
     pub const fn terminal_selection(&self) -> &psi_provider_selections::AdmittedProviderSelections {
@@ -120,25 +80,8 @@ impl AdmittedProviderInstallation {
         &self.installed_candidates
     }
 
-    pub fn installed_calls(&self) -> &[AdmittedInstalledProviderCall] {
-        &self.installed_calls
-    }
-
     pub fn installed_provider_calls(&self) -> Vec<InstalledProviderCallEvidence> {
-        self.installed_calls
-            .iter()
-            .map(|call| InstalledProviderCallEvidence {
-                caller: call.caller,
-                invocation_site: call.invocation_site,
-                boundary: call.boundary,
-                provider: call.provider.clone(),
-                result: call.result.clone(),
-                scalar_arguments: call.scalar_arguments.clone(),
-                structural_arguments: call.structural_arguments.clone(),
-                completion_claim_sources: call.completion_claim_sources.clone(),
-                completion_receipts: call.completion_receipts.clone(),
-            })
-            .collect()
+        self.installed_calls.clone()
     }
 }
 
@@ -162,7 +105,6 @@ pub(crate) fn admit_provider_installation_with_projection(
         &installed_candidates,
     )?;
     Ok(AdmittedProviderInstallation {
-        psi: installation.terminal_psi(),
         terminal_selection: installation,
         installed_candidates,
         installed_calls,

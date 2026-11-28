@@ -25,7 +25,7 @@ use provider_stack_contribution::{
     admit_same_stack_contribution,
 };
 use std::borrow::Cow;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, Copy)]
 pub struct SourceEvaluatedImportSettlement<'evidence> {
@@ -77,9 +77,27 @@ pub fn prepare_source_evaluated_bindings<'input>(
     supplied: &[SourceEvaluatedImportSettlement<'input>],
     identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<PreparedSourceEvaluatedBindings<'input>, Vec<Diagnostic>> {
-    let exact_plans = exact_demanded_import_plans(plans, demanded)?;
+    let imports = demanded_imports(plans, demanded);
+    let mut exact_plans: Vec<_> = imports
+        .iter()
+        .map(|import| (import.requirement, import.plan))
+        .collect();
+    exact_plans.sort_unstable_by_key(|(name, _)| *name);
+    if let Some(repeated) = exact_plans
+        .chunk_by(|a, b| a.0 == b.0)
+        .find(|group| group.len() > 1)
+    {
+        return Err(diagnostics::error_in_context(
+            "Terminal native proposal",
+            format!(
+                "demanded source-evaluated import `{}` resolves to {} selected import plans",
+                repeated[0].0,
+                repeated.len()
+            ),
+        ));
+    }
     let evidence = if supplied.is_empty() {
-        SourceImportEvidence::Derived(mint_source_evaluated_imports(plans, demanded, identities)?)
+        SourceImportEvidence::Derived(mint_source_evaluated_imports(&imports, identities)?)
     } else {
         SourceImportEvidence::Supplied(rejoin_external_import_settlements(&exact_plans, supplied)?)
     };
@@ -174,94 +192,120 @@ struct MintedSourceEvaluatedImport<'plan> {
     same_stack: AdmittedSameStackContribution,
 }
 
-fn mint_source_evaluated_imports<'plan>(
+struct DemandedImport<'plan> {
+    plan: &'plan ProviderPlan,
+    requirement: &'plan str,
+    locator: Option<&'plan target::NormalizedForeignLocator>,
+    stack_bytes: u64,
+}
+
+fn demanded_imports<'plan>(
     plans: &'plan [ProviderPlan],
     demanded: &BTreeSet<String>,
-    identities: &terminal_psi::TerminalIdentityTable,
-) -> Result<Vec<MintedSourceEvaluatedImport<'plan>>, Vec<Diagnostic>> {
-    let mut minted = Vec::new();
-    let mut diagnostics = Vec::new();
+) -> Vec<DemandedImport<'plan>> {
+    let mut imports = Vec::new();
     for plan in plans {
         for row in &plan.rows {
-            let mechanism_digest = match &row.binding {
-                ProviderBinding::Import { evaluated } => {
-                    evaluated.locator().identity_digest().as_bytes()
-                }
-                ProviderBinding::VtableField { .. } | ProviderBinding::TableFunction { .. } => {
-                    *plan.identity_digest().as_bytes()
-                }
-                _ => continue,
-            };
             let requirement = plan.identities.text(row.requirement_identity);
             if !demanded.contains(requirement) {
                 continue;
             }
-            let plan_report_identity = plan.report_fingerprint();
-            let plan_commitment =
-                SameStackProviderPlanCommitment::from_digest(*plan.identity_digest().as_bytes());
-            let locator_digest = mechanism_digest;
-            let execution = SourceEvaluatedBindingExecution {
-                requirement_identity: requirement.to_owned(),
-                provider_plan_report_identity: plan_report_identity,
-                provider_execution_report_identity: nonzero(fnv1a(&[
-                    b"source-evaluated-import-execution",
-                    requirement.as_bytes(),
-                    &plan_report_identity.to_le_bytes(),
-                ])),
-                provider_execution_report_fingerprint: nonzero(fnv1a(&[
-                    b"source-evaluated-import-fingerprint",
-                    requirement.as_bytes(),
-                    &locator_digest,
-                ])),
-                boundary_contract_report_fingerprint: nonzero(fnv1a(&[
-                    b"source-evaluated-import-contract",
-                    &locator_digest,
-                ])),
+            let locator = match &row.binding {
+                ProviderBinding::Import { evaluated } => Some(evaluated.locator()),
+                ProviderBinding::VtableField { .. } | ProviderBinding::TableFunction { .. } => None,
+                _ => continue,
             };
-            let receipt = SameStackContributionAdmissionReceiptId::from_normalized_identity(
-                nonzero(fnv1a(&[
-                    b"source-evaluated-import-receipt",
-                    requirement.as_bytes(),
-                    &plan_report_identity.to_le_bytes(),
-                ])),
-            );
-            let receipt = match receipt {
-                Ok(receipt) => receipt,
-                Err(error) => {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "source-evaluated import `{requirement}` cannot mint its same-stack admission receipt: {error}"
-                    )));
-                    continue;
-                }
-            };
-            let Some(requirement_index) = identities.index_of(requirement) else {
+            imports.push(DemandedImport {
+                plan,
+                requirement,
+                locator,
+                stack_bytes: row.admitted_same_stack_bytes,
+            });
+        }
+    }
+    imports
+}
+
+fn mint_source_evaluated_imports<'plan>(
+    imports: &[DemandedImport<'plan>],
+    identities: &terminal_psi::TerminalIdentityTable,
+) -> Result<Vec<MintedSourceEvaluatedImport<'plan>>, Vec<Diagnostic>> {
+    let mut minted = Vec::with_capacity(imports.len());
+    let mut diagnostics = Vec::new();
+    for import in imports {
+        let DemandedImport {
+            plan,
+            requirement,
+            locator,
+            ..
+        } = *import;
+        let plan_report_identity = plan.report_fingerprint();
+        let plan_commitment =
+            SameStackProviderPlanCommitment::from_digest(*plan.identity_digest().as_bytes());
+        let locator_digest = locator.map_or_else(
+            || plan_commitment.as_bytes(),
+            |locator| locator.identity_digest().as_bytes(),
+        );
+        let execution = SourceEvaluatedBindingExecution {
+            requirement_identity: requirement.to_owned(),
+            provider_plan_report_identity: plan_report_identity,
+            provider_execution_report_identity: nonzero(fnv1a(&[
+                b"source-evaluated-import-execution",
+                requirement.as_bytes(),
+                &plan_report_identity.to_le_bytes(),
+            ])),
+            provider_execution_report_fingerprint: nonzero(fnv1a(&[
+                b"source-evaluated-import-fingerprint",
+                requirement.as_bytes(),
+                &locator_digest,
+            ])),
+            boundary_contract_report_fingerprint: nonzero(fnv1a(&[
+                b"source-evaluated-import-contract",
+                &locator_digest,
+            ])),
+        };
+        let receipt =
+            SameStackContributionAdmissionReceiptId::from_normalized_identity(nonzero(fnv1a(&[
+                b"source-evaluated-import-receipt",
+                requirement.as_bytes(),
+                &plan_report_identity.to_le_bytes(),
+            ])));
+        let receipt = match receipt {
+            Ok(receipt) => receipt,
+            Err(error) => {
                 diagnostics.push(Diagnostic::error(format!(
-                    "source-evaluated import `{requirement}` is absent from the selection identity table"
+                    "source-evaluated import `{requirement}` cannot mint its same-stack admission receipt: {error}"
                 )));
                 continue;
-            };
-            match admit_same_stack_contribution(
-                SameStackContributionAdmissionCandidate {
-                    provider_plan_report_identity: plan_report_identity,
-                    provider_plan_commitment: plan_commitment,
-                    requirement_identity: requirement_index,
-                    receipt,
-                    bytes: foreign_same_stack_bytes(row.admitted_same_stack_bytes),
-                    alignment: SAME_STACK_ALIGNMENT,
-                },
-                plan_report_identity,
-                plan_commitment,
-                requirement_index,
-            ) {
-                Ok(same_stack) => minted.push(MintedSourceEvaluatedImport {
-                    plan,
-                    execution,
-                    same_stack,
-                }),
-                Err(error) => diagnostics.push(Diagnostic::error(format!(
-                    "source-evaluated import `{requirement}` has no admitted same-stack contribution: {error}"
-                ))),
             }
+        };
+        let Some(requirement_index) = identities.index_of(requirement) else {
+            diagnostics.push(Diagnostic::error(format!(
+                "source-evaluated import `{requirement}` is absent from the selection identity table"
+            )));
+            continue;
+        };
+        match admit_same_stack_contribution(
+            SameStackContributionAdmissionCandidate {
+                provider_plan_report_identity: plan_report_identity,
+                provider_plan_commitment: plan_commitment,
+                requirement_identity: requirement_index,
+                receipt,
+                bytes: foreign_same_stack_bytes(import.stack_bytes),
+                alignment: SAME_STACK_ALIGNMENT,
+            },
+            plan_report_identity,
+            plan_commitment,
+            requirement_index,
+        ) {
+            Ok(same_stack) => minted.push(MintedSourceEvaluatedImport {
+                plan,
+                execution,
+                same_stack,
+            }),
+            Err(error) => diagnostics.push(Diagnostic::error(format!(
+                "source-evaluated import `{requirement}` has no admitted same-stack contribution: {error}"
+            ))),
         }
     }
     if diagnostics.is_empty() {
@@ -342,50 +386,8 @@ fn nonzero(value: u64) -> u64 {
     if value == 0 { 1 } else { value }
 }
 
-fn exact_demanded_import_plans<'proposal>(
-    plans: &'proposal [ProviderPlan],
-    demanded: &BTreeSet<String>,
-) -> Result<BTreeMap<String, &'proposal ProviderPlan>, Vec<Diagnostic>> {
-    let mut exact = BTreeMap::new();
-    for requirement in demanded {
-        let matches = plans
-            .iter()
-            .flat_map(|plan| {
-                plan.rows
-                    .iter()
-                    .filter(move |row| {
-                        plan.identities.text(row.requirement_identity) == requirement.as_str()
-                            && matches!(
-                                row.binding,
-                                ProviderBinding::Import { .. }
-                                    | ProviderBinding::VtableField { .. }
-                                    | ProviderBinding::TableFunction { .. }
-                            )
-                    })
-                    .map(move |_| plan)
-            })
-            .collect::<Vec<_>>();
-        match matches.as_slice() {
-            [] => {}
-            [plan] => {
-                exact.insert(requirement.clone(), *plan);
-            }
-            _ => {
-                return Err(diagnostics::error_in_context(
-                    "Terminal native proposal",
-                    format!(
-                        "demanded source-evaluated import `{requirement}` resolves to {} selected import plans",
-                        matches.len()
-                    ),
-                ));
-            }
-        }
-    }
-    Ok(exact)
-}
-
 fn rejoin_external_import_settlements<'proposal, 'evidence>(
-    exact_plans: &BTreeMap<String, &'proposal ProviderPlan>,
+    exact_plans: &[(&str, &'proposal ProviderPlan)],
     imports: &[SourceEvaluatedImportSettlement<'evidence>],
 ) -> Result<Vec<NativeProviderSettlement<'proposal>>, Vec<Diagnostic>>
 where
@@ -401,12 +403,15 @@ where
                 format!("requirement `{requirement}` was supplied more than once"),
             ));
         }
-        let provider_plan = exact_plans.get(requirement).copied().ok_or_else(|| {
-            diagnostics::error_in_context(
-                "source-evaluated import settlement",
-                format!("requirement `{requirement}` is not a demanded selected import"),
-            )
-        })?;
+        let provider_plan = exact_plans
+            .binary_search_by_key(&requirement, |(name, _)| *name)
+            .map(|index| exact_plans[index].1)
+            .map_err(|_| {
+                diagnostics::error_in_context(
+                    "source-evaluated import settlement",
+                    format!("requirement `{requirement}` is not a demanded selected import"),
+                )
+            })?;
         if provider_plan.report_fingerprint()
             != import.provider_execution.provider_plan_report_identity()
         {
@@ -424,8 +429,9 @@ where
         });
     }
     if let Some(missing) = exact_plans
-        .keys()
-        .find(|requirement| !seen.contains(requirement.as_str()))
+        .iter()
+        .map(|(name, _)| *name)
+        .find(|requirement| !seen.contains(requirement))
     {
         return Err(diagnostics::error_in_context(
             "source-evaluated import settlement",
@@ -437,7 +443,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{SAME_STACK_BYTES, foreign_same_stack_bytes, mint_source_evaluated_imports};
+    use super::{
+        SAME_STACK_BYTES, SourceEvaluatedImportSettlement, prepare_source_evaluated_bindings,
+    };
+    use crate::NativeBoundaryRealization;
     use build_providers::plans::{
         ProviderBinding, ProviderIdentityTable, ProviderPlan, ProviderPlanRow,
     };
@@ -481,24 +490,41 @@ mod tests {
                 storage: Err("this control observes only same-stack demand".into()),
             },
         ] {
-            let authored_plan = leaf_plan(binding.clone(), 4096);
-            let unmeasured_plan = leaf_plan(binding, 0);
-            let authored = mint_source_evaluated_imports(
-                std::slice::from_ref(&authored_plan),
-                &demanded,
-                &identities,
-            )
-            .expect("authored demand admits");
-            let unmeasured = mint_source_evaluated_imports(
-                std::slice::from_ref(&unmeasured_plan),
-                &demanded,
-                &identities,
-            )
-            .expect("unmeasured leaf keeps the reserve");
-            assert_eq!(authored[0].same_stack.bytes(), 4096);
-            assert_eq!(unmeasured[0].same_stack.bytes(), SAME_STACK_BYTES);
-            assert_eq!(foreign_same_stack_bytes(0), SAME_STACK_BYTES);
-            assert_eq!(foreign_same_stack_bytes(64), 64);
+            for (authored, expected) in [(4096, 4096), (64, 64), (0, SAME_STACK_BYTES)] {
+                let plans = [leaf_plan(binding.clone(), authored)];
+                let derived =
+                    prepare_source_evaluated_bindings(&plans, &demanded, &[], &identities).unwrap();
+                let settlements = derived.settlements();
+                let [row] = settlements.as_ref() else {
+                    panic!("expected one selected import")
+                };
+                let NativeBoundaryRealization::NormalizedForeignCall(stack) = row.realization
+                else {
+                    panic!("expected a same-stack contribution");
+                };
+                assert_eq!(stack.bytes(), expected);
+                let supplied = [SourceEvaluatedImportSettlement::new(
+                    row.provider_execution,
+                    stack,
+                )];
+                let replay =
+                    prepare_source_evaluated_bindings(&plans, &demanded, &supplied, &identities)
+                        .unwrap();
+                assert_eq!(replay.settlements().len(), 1);
+                let competing = [plans[0].clone(), plans[0].clone()];
+                let error = prepare_source_evaluated_bindings(
+                    &competing,
+                    &demanded,
+                    &supplied,
+                    &identities,
+                )
+                .unwrap_err();
+                assert!(
+                    error[0]
+                        .message
+                        .contains("resolves to 2 selected import plans")
+                );
+            }
         }
     }
 }
