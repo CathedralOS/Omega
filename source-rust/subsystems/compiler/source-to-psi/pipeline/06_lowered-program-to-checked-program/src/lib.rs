@@ -1460,7 +1460,14 @@ fn check_prepared_machine(
         if decided[index].is_none()
             && let ObligationKind::PublishedGuarantee { clause } = row.kind
         {
-            decided[index] = Some(published(tables, id, obligation, clause, &decided));
+            decided[index] = Some(published(
+                tables,
+                prepared.normal_guarantees,
+                id,
+                obligation,
+                clause,
+                &decided,
+            ));
         }
     }
     // A store or a zero establishment that was not shown to keep a clause
@@ -2071,6 +2078,7 @@ struct PreparedMachine<'scope, 'analysis> {
     graph: &'scope Graph,
     context: &'scope PropositionContext,
     ranking_bindings: &'scope rankings::Bindings,
+    normal_guarantees: &'scope minted::NormalGuarantees,
     storage: &'scope places::Storage<'analysis>,
     references: &'scope mut terminal_semantics::descriptor_results::DescriptorAnalysis<'analysis>,
 }
@@ -2206,7 +2214,8 @@ fn with_prepared_machine<'r, Outcome>(
     // owes, at its points, or deciding every row proves nothing (`minted`).
     // A consumer re-checking a saved proof decides rows too, so it checks
     // them the same way.
-    minted::follow_the_lowered_form(id, module, lowered, tables, &types, inhabitation, rows)?;
+    let normal_guarantees =
+        minted::follow_the_lowered_form(id, module, lowered, tables, &types, inhabitation, rows)?;
     let graph = Graph::new(id, lowered, tables)?;
     theorems::validate(module, lowered, tables, &graph)?;
     // A machine check of the module the replays were built from reads the
@@ -2330,6 +2339,7 @@ fn with_prepared_machine<'r, Outcome>(
                 graph: &graph,
                 context: &context,
                 ranking_bindings: &ranking_bindings,
+                normal_guarantees: &normal_guarantees,
                 storage: &storage,
                 references: &mut references,
             },
@@ -2356,6 +2366,7 @@ fn with_prepared_machine<'r, Outcome>(
 /// must establish the published guarantees."
 fn published(
     tables: &MachineTables,
+    guarantees: &minted::NormalGuarantees,
     id: MachineId,
     published: ObligationId,
     clause: u32,
@@ -2374,15 +2385,7 @@ fn published(
         if row.destination != Destination::Return {
             continue;
         }
-        let guarantee = tables.obligations.iter().find(|(_, candidate)| {
-            candidate.kind
-                == ObligationKind::NormalGuarantee {
-                    exit: edge,
-                    clause,
-                    published,
-                }
-        });
-        let Some((obligation, _)) = guarantee else {
+        let Some(obligation) = guarantees.get(edge, clause, published) else {
             return Err(unproved(
                 "a normal return owes no guarantee for this clause",
             ));

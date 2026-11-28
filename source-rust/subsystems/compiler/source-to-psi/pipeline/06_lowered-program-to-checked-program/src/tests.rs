@@ -1166,7 +1166,7 @@ fn a_published_clause_with_no_normal_return_holds_vacuously() {
             kind: ObligationKind::PublishedGuarantee { clause: 0 },
             created_at: ProgramPoint::BlockEntry(id(1)),
         });
-    let verdict = crate::published(&tables, id(1), clause, 0, &[None]);
+    let verdict = crate::published(&tables, &Default::default(), id(1), clause, 0, &[None]);
     assert_eq!(verdict, Ok(Discharged::EveryExit(Vec::new())));
 }
 
@@ -7182,6 +7182,88 @@ fn below(value: u128) -> terminal_psi::CrashRouteGuard {
             bound(u32_type(), IntegerValue::Unsigned(value)),
         ),
     ))
+}
+
+#[test]
+fn inferred_crashes_update_ordinary_self_and_no_normal_calls_atomically() {
+    use terminal_psi::{OperationKind, Terminator};
+
+    let caller = machine(
+        vec![u32_type(), u32_type()],
+        vec![returns(call(2, vec![slot(1, u32_type())]))],
+    );
+    let target = machine(vec![u32_type()], vec![returns(slot(0, u32_type()))]);
+    let mut elaboration = lower(vec![caller, target]).unwrap();
+    let ordinary = elaboration.module.machines[0].blocks[0]
+        .operations
+        .iter()
+        .find(|op| op.kind.direct_callee() == Some(id(2)))
+        .unwrap();
+    let mut self_call = ordinary.clone();
+    let OperationKind::Call { arguments, .. } = &mut self_call.kind else {
+        panic!("expected a scalar call");
+    };
+    arguments[0] = id(1);
+    let target_block = &mut elaboration.module.machines[1].blocks[0];
+    target_block.operations.push(self_call);
+    target_block.terminator = Terminator::InvokeNoNormal {
+        edge: target_block.terminator.edge(),
+        static_reach_binding: None,
+        required_contract: None,
+        callee: id(2),
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        structural_arguments: Vec::new(),
+        claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    };
+
+    let incoming = crate::crashes::IncomingCalls::index(&elaboration);
+    let calls = incoming.get(id(2)).unwrap();
+    let routes = trap_when(vec![below(10)]);
+    let before = elaboration.module.machines.clone();
+    crate::crashes::publish(
+        &mut elaboration,
+        id(2),
+        routes.clone(),
+        calls,
+        &mut Default::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        elaboration.module.machines, before,
+        "the last caller lacks an actual"
+    );
+
+    let Terminator::InvokeNoNormal { arguments, .. } =
+        &mut elaboration.module.machines[1].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    arguments.push(id(1));
+    crate::crashes::publish(
+        &mut elaboration,
+        id(2),
+        routes.clone(),
+        calls,
+        &mut Default::default(),
+    )
+    .unwrap();
+    assert_eq!(elaboration.module.machines[1].contract.crash_routes, routes);
+    let calls: Vec<_> = elaboration
+        .module
+        .machines
+        .iter()
+        .flat_map(|machine| machine.module_invocations())
+        .collect();
+    assert_eq!(calls.len(), 3);
+    for (call, actual) in calls.iter().zip([id(2), id(1), id(1)]) {
+        let expected =
+            terminal_codec::contract_forms::substituted_routes(&routes, &[actual], &[]).unwrap();
+        assert_eq!(call.inputs.crash_continuations, expected);
+    }
 }
 
 #[test]
