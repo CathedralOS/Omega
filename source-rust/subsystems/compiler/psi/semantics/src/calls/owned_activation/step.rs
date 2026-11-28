@@ -105,15 +105,21 @@ pub fn step_shape(
     let [owner] = source.parameter_types.as_slice() else {
         return Err("step needs the declared ready owner");
     };
-    if !super::declares_worker(module, prepared.selected, *owner, "ReadyActivation", None)?
-        || !super::declares_worker(
-            module,
-            prepared.selected,
-            source.result_type,
-            "ActivationStep",
-            None,
-        )?
-    {
+    if !super::declares_worker(
+        module,
+        prepared.selected,
+        *owner,
+        "ReadyActivation",
+        1,
+        None,
+    )? || !super::declares_worker(
+        module,
+        prepared.selected,
+        source.result_type,
+        "ActivationStep",
+        1,
+        None,
+    )? {
         return Err("step changed the declared worker or storage of its input or result");
     }
     let body = worker

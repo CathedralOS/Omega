@@ -149,6 +149,56 @@ fn typed_source(source: &str) -> crate::source_state::TypedTrees {
 }
 
 #[test]
+fn a_shared_specialization_keeps_each_callers_type_argument_regions() {
+    let typed = typed_source(
+        r"
+        data Packet<'s> { byte: @'s u8; }
+        machine pick_second<A, B>(left: A, right: B) -> B reaches none crashes none { move right }
+        machine first<'same>(left: Packet<'same>, right: Packet<'same>) -> Packet<'same>
+            reaches none crashes none {
+            pick_second::<Packet<'same>, Packet<'same>>(move left, move right)
+        }
+        machine second<'a, 'b>(left: Packet<'a>, right: Packet<'b>) -> Packet<'b>
+            reaches none crashes none {
+            pick_second::<Packet<'a>, Packet<'b>>(move left, move right)
+        }
+    ",
+    );
+    let prepared = preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
+    let typed = prepared.trees();
+    let generated = typed
+        .machines()
+        .iter()
+        .filter(|machine| {
+            typed
+                .machine_specialization(machine.symbol)
+                .is_some_and(|row| typed.symbols.name(row.template) == "pick_second")
+        })
+        .collect::<Vec<_>>();
+    let [machine] = generated.as_slice() else {
+        panic!("both callers must use the same executable")
+    };
+    let (inputs, result) = typed.machine_definition_types(machine).unwrap();
+    assert!(inputs[0].contains("region(owner(schema),ordinal(0))"));
+    assert!(inputs[1].contains("region(owner(schema),ordinal(1))"));
+    assert_eq!(inputs[1], result);
+    for (name, expected_slots) in [("first", [0, 0]), ("second", [0, 1])] {
+        let (caller, handle) = query_call(typed, name);
+        let call = typed.expression_table.call_node(handle).unwrap();
+        let bindings = typed
+            .specialization_type_argument_regions(machine.symbol, call.authored_machine_application)
+            .unwrap();
+        assert_eq!(bindings.len(), 2);
+        for (slot, (formal, supplied)) in bindings.into_iter().enumerate() {
+            assert_eq!(formal.declaration, machine.symbol);
+            assert_eq!(formal.ordinal, slot);
+            assert_eq!(supplied.declaration, caller);
+            assert_eq!(supplied.ordinal, expected_slots[slot]);
+        }
+    }
+}
+
+#[test]
 fn preparing_two_workers_keeps_the_selected_machine_in_each_return_type() {
     let typed = typed_source(
         r"
@@ -467,6 +517,33 @@ fn fixed_step_and_resume_preserve_the_closed_owner_and_returned_inputs() {
         Err("park request must retain its exact issuer and deny re-targeting the slot")
     );
     refused(&wrong_issuer);
+
+    let mut nominal_refund = reopened.clone();
+    let prepared =
+        terminal_semantics::calls::owned_activation::prepare_shape(&reopened, make).unwrap();
+    let raw_bytes = make.structural_parameters.last().unwrap().structural_type;
+    assert_ne!(raw_bytes, prepared.retained_carrier);
+    let foreign = reopened
+        .structural_type(step.ready_owner)
+        .unwrap()
+        .declaration_identity;
+    let refund = nominal_refund
+        .types
+        .structural_types
+        .iter_mut()
+        .find(|row| row.id == prepared.retained_carrier)
+        .unwrap();
+    assert!(refund.declaration_identity.is_absent());
+    // Replacing the common descriptor changes both the prepare refund and the
+    // completed step. Agreement between their layouts cannot mint a nominal value.
+    refund.declaration_identity = foreign;
+    assert_eq!(
+        terminal_semantics::calls::owned_activation::prepare_shape(&nominal_refund, make)
+            .unwrap_err(),
+        "retained backing must return the original exclusive byte slice"
+    );
+    assert!(step_shape(&nominal_refund, advance, make.id).is_err());
+    refused(&nominal_refund);
 
     let mut missing_demand = reopened.clone();
     missing_demand.execution.task_activation_demands.clear();
