@@ -2,6 +2,8 @@
 #![forbid(unsafe_code)]
 
 pub mod builtins;
+mod execution_preparation;
+pub use execution_preparation::PreparedWorker;
 mod entry_call;
 pub mod entry_settlement;
 mod native_execution_scope;

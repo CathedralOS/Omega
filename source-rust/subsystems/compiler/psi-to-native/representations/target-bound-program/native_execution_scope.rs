@@ -212,8 +212,20 @@ impl<'a> NativeScopeBinding<'a> {
         emitted: ExecutionReach,
         selected_candidate_positions: Vec<usize>,
         mut assembly_returns: Vec<AssemblyCallingPlan>,
+        mut prepared_workers: Vec<crate::PreparedWorker>,
     ) -> Result<NativeExecutionScope, String> {
         assembly_returns.sort_unstable_by_key(|plan| plan.machine);
+        prepared_workers.sort_unstable_by_key(|worker| worker.shape().selected.preparation);
+        if prepared_workers.iter().any(|worker| {
+            let selected = worker.shape().selected;
+            !worker.matches(self.artifact.identity())
+                || !emitted.contains_boundary(selected.preparation)
+                || !emitted.contains_machine(selected.entry_machine)
+        }) || prepared_workers.windows(2).any(|pair| {
+            pair[0].shape().selected.preparation == pair[1].shape().selected.preparation
+        }) {
+            return Err("native preparation does not belong to the reached program".into());
+        }
         let reach = TargetBoundReach::bind(
             self.artifact,
             self.targets,
@@ -225,6 +237,7 @@ impl<'a> NativeScopeBinding<'a> {
         )?;
         Ok(NativeExecutionScope {
             assembly_returns,
+            prepared_workers,
             reach,
             source: Arc::clone(self.source),
             program_entry: self.parent.is_none(),
@@ -239,6 +252,7 @@ impl<'a> NativeScopeBinding<'a> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeExecutionScope {
     assembly_returns: Vec<AssemblyCallingPlan>,
+    prepared_workers: Vec<crate::PreparedWorker>,
     reach: TargetBoundReach,
     source: Arc<NativeScopeSource>,
     program_entry: bool,
@@ -246,6 +260,16 @@ pub struct NativeExecutionScope {
 }
 
 impl NativeExecutionScope {
+    pub fn prepared_worker(
+        &self,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+    ) -> Option<&crate::PreparedWorker> {
+        self.prepared_workers
+            .binary_search_by_key(&boundary, |worker| worker.shape().selected.preparation)
+            .ok()
+            .map(|i| &self.prepared_workers[i])
+    }
+
     pub fn assembly_call_plan(&self, machine: MachineId) -> Option<&AssemblyCallingPlan> {
         self.assembly_returns
             .binary_search_by_key(&machine, |plan| plan.machine)
