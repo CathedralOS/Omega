@@ -14,7 +14,7 @@ Goal: make omega-prism's PNG `decode_into` competitive with zlib + FFmpeg
 
 - **PR #6644 (merged as 87f7bfe9d)**: lets
   `@mutable row[a..b] as @mutable [u8; N]` lend a mutable fixed-array
-  reference on Psi and native. Rebased on main d5252ba6f, fmt and
+  reference on Psi and native. Squash-merged into main
   merged after admission passed.
   - Still refused with errors: whole-view `row as @mutable [u8; N]`,
     `@mutable row[..] as ...`.
