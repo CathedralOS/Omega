@@ -2320,8 +2320,11 @@ mod reference_transport_tests {
     #[test]
     fn task_values_use_the_modules_storage_declaration() {
         use super::module_wire::encode_raw;
-        use terminal_psi::{TerminalTaskActivationDemand, TerminalTaskFrame, TerminalTaskFrameState,
-            TerminalTaskResidentValue, TerminalTaskSignatureValue, TerminalTaskStartOperation, TerminalTaskValueType};
+        use terminal_psi::{
+            TerminalTaskActivationDemand, TerminalTaskFrame, TerminalTaskFrameState,
+            TerminalTaskResidentValue, TerminalTaskSignatureValue, TerminalTaskStartOperation,
+            TerminalTaskValueType,
+        };
         let mut module = reference_module(false);
         let callable = TerminalIdentityIndex(3);
         let entry = TerminalIdentityIndex(4);
@@ -2348,16 +2351,34 @@ mod reference_transport_tests {
                 report_fingerprint: 1,
                 machine_callable_identity: callable,
                 entry,
-                states: vec![TerminalTaskFrameState {
-                    state: entry,
-                    resident: Vec::new(),
-                    crossing_arguments: Vec::new(),
+                entry_report_fingerprint: 2,
+                contract_report_fingerprint: 3,
+                specialization_commitment: [4; 32],
+                specialization_report_fingerprint: 4,
+                may_suspend: false,
+                may_block: false,
+                cancellation_required: false,
+                signature_arguments: Vec::new(),
+                signature_outcome: TerminalTaskSignatureValue {
+                    value_type: reference,
+                    normalized_identity: TerminalIdentityIndex(2),
+                    is_mutable: false,
+                },
+                root_frame: frame,
+                frames: vec![TerminalTaskFrame {
+                    identity: frame,
+                    machine_callable_identity: callable,
+                    entry,
+                    states: vec![TerminalTaskFrameState {
+                        state: entry,
+                        resident: Vec::new(),
+                        crossing_arguments: Vec::new(),
+                    }],
+                    calls: Vec::new(),
+                    unresolved_calls: Vec::new(),
                 }],
-                calls: Vec::new(),
-                unresolved_calls: Vec::new(),
-            }],
-            crossings: Vec::new(),
-        });
+                crossings: Vec::new(),
+            });
         let bytes = encode_module(&module).unwrap();
         assert_eq!(decode_module(&bytes).unwrap(), module);
 
@@ -2382,17 +2403,29 @@ mod reference_transport_tests {
         // ID 1 describes only what a reference points at. Its own storage
         // cannot be used as an activation result or a resident frame value.
         let referent = TerminalTaskValueType::Structural(StructuralTypeId::new(1).unwrap());
-        module.execution.task_activation_demands[0].signature_outcome.value_type = referent;
-        assert!(matches!(decode_module(&encode_raw(&module).unwrap()),
-            Err(CodecError::MalformedStructuralFoundation("task activation value has no storage declaration"))));
+        module.execution.task_activation_demands[0]
+            .signature_outcome
+            .value_type = referent;
+        assert!(matches!(
+            decode_module(&encode_raw(&module).unwrap()),
+            Err(CodecError::MalformedStructuralFoundation(
+                "task activation value has no storage declaration"
+            ))
+        ));
         let demand = &mut module.execution.task_activation_demands[0];
         demand.signature_outcome.value_type = reference;
-        demand.frames[0].states[0].resident.push(TerminalTaskResidentValue {
-            value_type: referent,
-            normalized_identity: TerminalIdentityIndex(1),
-        });
-        assert!(matches!(decode_module(&encode_raw(&module).unwrap()),
-            Err(CodecError::MalformedStructuralFoundation("task activation value has no storage declaration"))));
+        demand.frames[0].states[0]
+            .resident
+            .push(TerminalTaskResidentValue {
+                value_type: referent,
+                normalized_identity: TerminalIdentityIndex(1),
+            });
+        assert!(matches!(
+            decode_module(&encode_raw(&module).unwrap()),
+            Err(CodecError::MalformedStructuralFoundation(
+                "task activation value has no storage declaration"
+            ))
+        ));
     }
 
     #[test]
