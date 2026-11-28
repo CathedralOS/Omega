@@ -4879,6 +4879,7 @@ mod unit_identity_tests {
             structural_parameters: Vec::new(),
             result: BoundaryMachineResult::Unit,
             requires: Vec::new(),
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             normal_qualifications: Vec::new(),
             scalar_domain_requirements: Vec::new(),
