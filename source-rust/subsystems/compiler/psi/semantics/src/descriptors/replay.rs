@@ -103,7 +103,8 @@ impl<Dependency> ProducedContents<Dependency> {
 }
 
 #[derive(Clone)]
-pub enum DescriptorStoredOrigin {    Invocation {
+pub enum DescriptorStoredOrigin {
+    Invocation {
         carrier_type: StructuralTypeId,
         projection: Projection,
     },

@@ -6,7 +6,8 @@ use crate::exactly_one::exactly_one;
 use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum Origin {    Provider(DescriptorProviderOrigin<Origin>),
+pub(crate) enum Origin {
+    Provider(DescriptorProviderOrigin<Origin>),
     Backing(DescriptorCallOrigin),
     Incoming(DescriptorLocation),
     IncomingContents(DescriptorContentsQuery, Projection),
