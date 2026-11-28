@@ -2527,17 +2527,16 @@ fn adapt(
                     }
                     kernel::insert_invocation(&mut graph.calls, position, call)?;
                 }
-                O::CallStructural {
-                    callee,
-                    arguments: scalar_actuals,
-                    structural_arguments,
-                    claim_transfers,
-                    result: call_result,
-                    ..
-                } => {
+                O::CallStructural { .. } | O::Call { .. }
+                    if track_native_address_effects
+                        || matches!(operation, O::CallStructural { .. }) =>
+                {
+                    let invocation = operation.module_invocation()?;
+                    let scalar_actuals = invocation.arguments;
+                    let structural_arguments = invocation.structural_arguments;
                     let mut matching = functions
                         .iter()
-                        .filter(|function| Some(function.machine) == callee.machine());
+                        .filter(|function| function.machine == invocation.callee);
                     if let Some(callee) = matching.next().copied() {
                         if matching.next().is_some()
                             || callee.structural_parameters.len() != structural_arguments.len()
@@ -2585,11 +2584,8 @@ fn adapt(
                     } else {
                         let declarations = types.iter().map(|ty| (ty.id, ty)).collect();
                         let mut closed_storage = BTreeMap::new();
-                        let closed = matches!(
-                            call_result,
-                            abstract_operations::AbstractStructuralCallResult::Unit
-                                | abstract_operations::AbstractStructuralCallResult::Scalar(_)
-                        ) && claim_transfers.is_empty()
+                        let closed = result.is_none()
+                            && invocation.claim_transfers.is_empty()
                             && structural_arguments.iter().all(|actual| {
                                 actual.access == StructuralAccess::SharedBorrow
                                     || graph.place_types.get(&actual.place).is_some_and(|ty| {
