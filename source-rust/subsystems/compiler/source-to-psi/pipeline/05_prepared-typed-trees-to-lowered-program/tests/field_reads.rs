@@ -71,6 +71,36 @@ fn return_cleanup(machine: &TerminalMachine) -> &[TerminalAffineCleanupAction] {
     cleanup
 }
 
+#[test]
+fn a_closed_package_keeps_its_hidden_argument_in_a_nested_uniform_field() {
+    let program = Program::of(
+        "data Claim<T> [linear] { provider: u64; }
+         data Returned<some S> [linear] { custody: Claim<S>; }
+         machine handoff(value: Returned) -> Returned { move value }",
+    );
+    let lowered = program.lower();
+    let module = &lowered.elaboration.module;
+    let parameter = &lowered.machine("handoff").contract.structural_parameters[0];
+    let package = module.structural_type(parameter.structural_type).unwrap();
+    let custody = package.shape.fields().next().unwrap();
+    assert_eq!(module.identities.text(custody.identity), Some("custody"));
+    let carrier = module
+        .structural_type(custody.field_type.as_structural().unwrap())
+        .unwrap();
+    let provider = carrier.shape.fields().next().unwrap();
+    assert_eq!(module.identities.text(provider.identity), Some("provider"));
+    let u64_type =
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+            .unwrap();
+    assert_eq!(
+        provider
+            .field_type
+            .as_scalar()
+            .and_then(|field| field.as_integer()),
+        Some(u64_type)
+    );
+}
+
 /// `p.right.w` reads through `right` and then `w` from the formal `p`; the
 /// twin `p.left.w` changes only the first step.
 #[test]
