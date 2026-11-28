@@ -5,3 +5,13 @@ public boundary trait RawMemoryRead: Unsafe {}
 public boundary trait RawMemoryWrite: Unsafe {}
 public boundary trait BorrowMutabilityUpgrade: Unsafe {}
 public boundary trait ForeignCodeExecution: Unsafe {}
+
+// The caller vouches for the address throughout the lifetime chosen for the result.
+public machine borrow_at<T>(address: address) -> @T
+reaches RawMemoryRead crashes none;
+public machine borrow_mutable_at<T>(address: address) -> @mutable T
+reaches RawMemoryRead + RawMemoryWrite crashes none;
+
+// The exclusive reborrow ends no later than the shared borrow supplied by the caller.
+public machine upgrade_mutability<T>(value: @T) -> @mutable T
+reaches BorrowMutabilityUpgrade crashes none;

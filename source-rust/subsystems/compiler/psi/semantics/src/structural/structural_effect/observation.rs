@@ -14,6 +14,14 @@ pub enum StructuralEffectObservation {    NativeCodeLayoutEstablished {
         source: StructuralArgument,
         result: ValueId,
     },
+    NativeReferenceEstablished {
+        address: ValueId,
+        destination: PlaceId,
+    },
+    ReferenceMutabilityUpgraded {
+        source: StructuralArgument,
+        destination: PlaceId,
+    },
     ReferenceEstablished {
         source: terminal_psi::StructuralArgument,
         destination: PlaceId,
@@ -231,6 +239,28 @@ pub(crate) fn structural_effect_leaf_observation_in(
     let schema = row.schema;
     validate_structural_effect_result(operation, tag, schema)?;
     let observation = match (schema.action, &operation.kind) {
+        (StructuralEffectAction::BorrowAt, OperationKind::BorrowAt { address }) => {
+            let result = native_borrow_result(operation, tag, schema)?;
+            StructuralEffectObservation::NativeReferenceEstablished {
+                address: *address,
+                destination: result,
+            }
+        }
+        (
+            StructuralEffectAction::UpgradeMutability,
+            OperationKind::UpgradeMutability { source },
+        ) => {
+            let destination = native_borrow_result(operation, tag, schema)?;
+            if source.access != terminal_psi::StructuralAccess::SharedBorrow {
+                return Err(OperationSemanticError::StructuralEffectActionShapeMismatch(
+                    tag,
+                ));
+            }
+            StructuralEffectObservation::ReferenceMutabilityUpgraded {
+                source: source.clone(),
+                destination,
+            }
+        }
         (
             StructuralEffectAction::EstablishReference,
             OperationKind::EstablishReference { source, .. },
@@ -859,4 +889,26 @@ pub fn same_descriptor_coordinate(
                 ) => left == right,
                 _ => left == right,
             })
+}
+
+fn native_borrow_result(
+    operation: &Operation,
+    tag: OperationSemanticTag,
+    schema: StructuralEffectLeafSchema,
+) -> Result<PlaceId, OperationSemanticError> {
+    let result = operation.result.structural().ok_or(
+        OperationSemanticError::StructuralEffectResultShapeMismatch(tag),
+    )?;
+    if Some(result.multiplicity) != schema.required_result_multiplicity()
+        || !result.qualifications.is_empty()
+        || !result.projected_qualifications.is_empty()
+        || !result.additional_input_qualifications.is_empty()
+        || !result.qualification_establishments.is_empty()
+        || !result.claims.is_empty()
+    {
+        return Err(OperationSemanticError::StructuralEffectActionShapeMismatch(
+            tag,
+        ));
+    }
+    Ok(result.place)
 }

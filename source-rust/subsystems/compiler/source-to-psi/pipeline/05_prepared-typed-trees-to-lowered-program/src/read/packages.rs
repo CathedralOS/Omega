@@ -381,6 +381,18 @@ mod tests {
         for (witness, fields) in [(file, file_fields), (socket, socket_fields)] {
             check_construction(&typed, machine, &data, &literal(witness, fields)).unwrap();
         }
+        for (replacement, expected) in [
+            (callback, "repeated"),
+            (
+                SymbolHandle::from_parts(state.arena_index(), state.generation() + 1),
+                "field from another declaration",
+            ),
+        ] {
+            let mut changed = literal(file, file_fields);
+            changed.package.as_mut().unwrap().fields[1].symbol = replacement;
+            let error = check_construction(&typed, machine, &data, &changed).unwrap_err();
+            assert!(error.detail.contains(expected), "{error:?}");
+        }
         for fields in [
             [file_fields[0], socket_fields[1]],
             [socket_fields[0], file_fields[1]],

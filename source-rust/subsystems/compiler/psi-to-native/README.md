@@ -2,6 +2,8 @@
 
 The native entry accepts an authorized Psi program, its deployment target and the receiving host's providers and permissions. Source compilation passes its checked publication and target demand in memory. A saved-program request reopens a portable `.psi` file and authorizes it before entering the same driver. [Native entry](psi_to_native.rs) · [Source and saved inputs](driver/inputs/published_application.rs) · [Psi authorization](../psi/artifact/authorization/authorization.rs)
 
+The Rust compiler checks grants for raw-address borrows and mutability upgrades against the source Product and its dependency ceilings. Its saved Psi publication does not carry those grants. When the selected entry or a provider reaches one of these operations, build the original Product with `omega build path/to/build.omg`. A dormant helper permits native emission under the usual saved-program authorization rules.
+
 ## Follow a compilation
 
 | Work | Owner |

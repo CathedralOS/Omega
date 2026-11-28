@@ -186,6 +186,10 @@ pub(crate) mod capabilities {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum TerminalUnsupportedCapability {
+        NativeAddressBorrow {
+            machine: MachineId,
+            operation: &'static str,
+        },
         NativeCodeLayout {
             machine: semantic_vocabulary::MachineId,
         },
@@ -196,6 +200,33 @@ pub(crate) mod capabilities {
             boundary: BoundaryMachineId,
             kind: ExternalCompletionKind,
         },
+    }
+
+    pub(crate) fn native_address_borrow_error(
+        program: &AdmittedTerminalProgram<'_>,
+        machine: MachineId,
+        operation: &terminal_psi::Operation,
+    ) -> TerminalInterpretError {
+        let Some(result) = operation.result.structural() else {
+            return malformed();
+        };
+        let Ok(declaration) = program.structural_declaration(result.structural_type) else {
+            return malformed();
+        };
+        let terminal_psi::StructuralTypeShape::Reference { access, .. } = declaration.shape else {
+            return malformed();
+        };
+        let name = match access {
+            terminal_psi::StructuralAccess::SharedBorrow => "borrow_at",
+            terminal_psi::StructuralAccess::MutableBorrow => "borrow_mutable_at",
+            _ => return malformed(),
+        };
+        TerminalInterpretError::UnsupportedCapability(
+            TerminalUnsupportedCapability::NativeAddressBorrow {
+                machine,
+                operation: name,
+            },
+        )
     }
 
     /// One witness per reachable import, sharing caller prefixes from the
@@ -639,6 +670,11 @@ pub(crate) mod capabilities {
                         scalar_applications.insert(application);
                     }
                     let callee = match &operation.kind {
+                        OperationKind::BorrowAt { .. } => {
+                            return Err(native_address_borrow_error(
+                                program, machine_id, operation,
+                            ));
+                        }
                         OperationKind::EstablishNativeCodeLayout { machine } => {
                             if installation
                                 .and_then(|supplies| supplies.native_code_layouts.as_ref())
@@ -1844,6 +1880,108 @@ pub(crate) mod capabilities {
                     },
                 ))
             );
+        }
+
+        #[test]
+        fn native_address_formation_is_refused_only_when_reachable() {
+            let mut program = program();
+            let entry = MachineId::new(1).unwrap();
+            let helper = MachineId::new(2).unwrap();
+            let operand = semantic_vocabulary::ValueId::new(1).unwrap();
+            let reference = PlaceId::new(1).unwrap();
+            let reference_type = StructuralTypeId::new(1).unwrap();
+            let mut forming = machine(
+                0,
+                vec![
+                    OperationKind::IntegerConstant {
+                        value: semantic_vocabulary::IntegerValue::Unsigned(0),
+                    },
+                    OperationKind::BorrowAt { address: operand },
+                    OperationKind::ReleaseReference {
+                        source: reference,
+                        path: Vec::new(),
+                    },
+                ],
+            );
+            forming
+                .structural_places
+                .push(terminal_psi::StructuralPlaceDeclaration {
+                    id: reference,
+                    kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                        producer: OperationId::new(2).unwrap(),
+                        structural_type: reference_type,
+                    },
+                });
+            forming.blocks[0].operations[0].result =
+                OperationResult::Scalar(terminal_psi::ValueDeclaration {
+                    id: operand,
+                    scalar_type: semantic_vocabulary::ScalarType::Integer(
+                        semantic_vocabulary::IntegerType::address(64).unwrap(),
+                    ),
+                    qualifications: Default::default(),
+                });
+            forming.blocks[0].operations[1].result =
+                OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                    place: PlaceId::new(1).unwrap(),
+                    structural_type: StructuralTypeId::new(1).unwrap(),
+                    multiplicity: StructuralMultiplicity::Affine,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                    qualification_establishments: Vec::new(),
+                    claims: Vec::new(),
+                });
+            set_machine(&mut program, entry, machine(0, Vec::new()));
+            set_machine(&mut program, helper, forming.clone());
+            check(&program, None).expect("the reachable entry is empty");
+
+            let boundary = BoundaryMachineId::new(1).unwrap();
+            add_provider(&mut program, boundary);
+            let installation = TerminalRuntimeSupplies {
+                provider_selections: None,
+                x86_flags: None,
+                memory_ordering: None,
+                code_identity: program.identity.clone(),
+                entry: None,
+                supplies: BTreeMap::from([(
+                    boundary,
+                    AdmittedBoundarySupply::CheckedProvider(helper),
+                )]),
+                folded_constant_target: None,
+                target_machines: None,
+                target_layouts: None,
+                native_code_layouts: None,
+            };
+            for (entry_body, refused, supplies) in [
+                (machine(0, vec![unit_call(helper)]), helper, None),
+                (
+                    machine(0, vec![boundary_call(boundary)]),
+                    helper,
+                    Some(&installation),
+                ),
+                (forming, entry, None),
+            ] {
+                set_machine(&mut program, entry, entry_body);
+                for (access, operation) in [
+                    (StructuralAccess::SharedBorrow, "borrow_at"),
+                    (StructuralAccess::MutableBorrow, "borrow_mutable_at"),
+                ] {
+                    program.fixture_module_mut().types.structural_types[0].shape =
+                        terminal_psi::StructuralTypeShape::Reference {
+                            referent: StructuralTypeId::new(2).unwrap(),
+                            access,
+                        };
+                    assert_eq!(
+                        check(&program, supplies),
+                        Err(TerminalInterpretError::UnsupportedCapability(
+                            TerminalUnsupportedCapability::NativeAddressBorrow {
+                                machine: refused,
+                                operation
+                            }
+                        ))
+                    );
+                }
+            }
         }
 
         #[test]
@@ -4066,6 +4204,15 @@ pub(crate) mod execution {
                                         }
                                         OperationKind::StorageAddress { ref source } => {
                                             self.execute_storage_address(operation, source)?;
+                                            OperationFlow::Advance
+                                        }
+                                        OperationKind::BorrowAt { .. } => {
+                                            return Err(crate::engine::capabilities::native_address_borrow_error(
+                                                &self.program, self.current_machine, operation,
+                                            ));
+                                        }
+                                        OperationKind::UpgradeMutability { ref source } => {
+                                            self.upgrade_mutability(operation, source)?;
                                             OperationFlow::Advance
                                         }
                                         OperationKind::EstablishAccessReference { ref source, .. } => {

@@ -836,6 +836,39 @@ mod native {
             prepare_at(module, target::TargetProfile::MacosArm64)
         }
 
+        #[test]
+        fn abstract_call_keeps_the_suspension_site_supplied_by_psi() {
+            let entry = machine_id(1);
+            let crossing = semantic_vocabulary::SuspensionCrossingId::new(17).unwrap();
+            let mut module = TerminalModule::for_entry(entry);
+            module.machines = vec![
+                machine(1, call(2)),
+                machine(
+                    2,
+                    OperationKind::IntegerConstant {
+                        value: IntegerValue::Unsigned(7),
+                    },
+                ),
+            ];
+            for site in [None, Some(crossing)] {
+                module.machines[0].blocks[0].operations[0].suspension_crossing = site;
+                let plan = crate::operations::lower_selected_module(
+                    &module,
+                    entry,
+                    Vec::new(),
+                    None,
+                    None,
+                    None,
+                )
+                .unwrap();
+                assert!(matches!(
+                    plan.functions[0].blocks[0].operations[0],
+                    abstract_operations::AbstractOperation::Call { suspension_crossing, .. }
+                        if suspension_crossing == site
+                ));
+            }
+        }
+
         fn prepare_at(
             module: TerminalModule,
             profile: target::TargetProfile,

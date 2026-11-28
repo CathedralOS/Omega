@@ -23,6 +23,7 @@ use calling_conventions::encode_state_plan_identity;
 use target::ForeignLocatorCandidate;
 
 pub fn encode(bytes: &mut Vec<u8>, call: &LegalizedNormalizedForeignCall) {
+    super::calling::encode_suspension_site(bytes, call.suspension_crossing);
     crate::codec_bytes::push_encoded(bytes, call.boundary.get().to_le_bytes());
     encode_external_execution(bytes, call.provider_execution);
     encode_call_binding(bytes, &call.binding);

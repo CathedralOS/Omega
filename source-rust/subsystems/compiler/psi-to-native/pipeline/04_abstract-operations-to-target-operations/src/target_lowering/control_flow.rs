@@ -401,6 +401,7 @@ mod program_image {
         let (_, _, live, operations, provenance) = site.parts();
         let AbstractOperation::BoundaryCall {
             psi_operation,
+            suspension_crossing: None,
             result,
             boundary,
             arguments,
@@ -2893,6 +2894,8 @@ pub(crate) fn lower(
             | AbstractOperation::EstablishRecord { result, .. }
             | AbstractOperation::EstablishZeroedStructural { result, .. }
             | AbstractOperation::EstablishCase { result, .. }
+            | AbstractOperation::BorrowAt { result, .. }
+            | AbstractOperation::UpgradeMutability { result, .. }
             | AbstractOperation::EstablishReference { result, .. }
             | AbstractOperation::EstablishAccessReference { result, .. }
             | AbstractOperation::CallStructural {

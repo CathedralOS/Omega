@@ -1579,6 +1579,12 @@ pub enum ExpressionKind {
     /// Cross the existing reference descriptor into its original backing.
     /// This neither moves the referent nor drops the descriptor's loan.
     Referent(Box<Expression>),
+    /// A checked call to one of the native trust-boundary declarations in core.
+    NativeBorrow {
+        operation: language_core::sealed_intrinsics::NativeBorrow,
+        operand: Box<Expression>,
+        services: Vec<semantic_vocabulary::ServiceReachId>,
+    },
     /// Evaluate the selected callable first, then arguments in authored order.
     Call {
         callee: CallTarget,

@@ -277,6 +277,7 @@ pub(crate) mod places {
                 | Self::SplitActivationClaim { source, .. }
                 | Self::StorageAddress { source }
                 | Self::StorageAlignment { source }
+                | Self::UpgradeMutability { source }
                 | Self::GlobalDescriptorTable { source, .. }
                 | Self::MoveStructuralValue { source }
                 | Self::PackedIntegerUnary { source, .. }
@@ -400,6 +401,7 @@ pub(crate) mod places {
                 | Self::AtomicFence { .. }
                 | call_and_scalar_constant_operations!()
                 | Self::ReadScalarApplication { .. }
+                | Self::BorrowAt { .. }
                 | scalar_predicate_operations!() => {}
             }
         }
@@ -486,6 +488,7 @@ pub(crate) mod places {
                 }
                 Self::StorageAddress { source }
                 | Self::StorageAlignment { source }
+                | Self::UpgradeMutability { source }
                 | Self::EstablishAccessReference { source, .. }
                 | Self::EstablishReference { source, .. } => {
                     push(argument_projection(source).into(), None);
@@ -810,6 +813,7 @@ pub(crate) mod places {
                 | Self::AtomicFence { .. }
                 | call_and_scalar_constant_operations!()
                 | Self::ReadScalarApplication { .. }
+                | Self::BorrowAt { .. }
                 | scalar_predicate_operations!() => {}
             }
             uses
@@ -847,6 +851,7 @@ pub(crate) mod places {
                 | Self::SplitActivationClaim { source, .. }
                 | Self::StorageAddress { source }
                 | Self::StorageAlignment { source }
+                | Self::UpgradeMutability { source }
                 | Self::GlobalDescriptorTable { source, .. }
                 | Self::MoveStructuralValue { source }
                 | Self::PackedIntegerUnary { source, .. }
@@ -1513,30 +1518,34 @@ pub(crate) mod signatures {
             extent: semantic_vocabulary::ReferenceOriginExtent,
             access: crate::StructuralAccess,
         },
+        /// The input is shared. Exclusive result access requires a checked
+        /// upgrade on the path that returns this reference.
+        UpgradedParameter(super::ReferenceOriginSource),
     }
 
     impl StructuralReferenceOrigin {
         pub fn parameter(&self) -> Option<&super::ReferenceOriginSource> {
             match self {
-                Self::Parameter(source) => Some(source),
+                Self::Parameter(source) | Self::UpgradedParameter(source) => Some(source),
                 Self::Invocation { .. } => None,
             }
         }
         pub fn access(&self) -> crate::StructuralAccess {
             match self {
                 Self::Parameter(source) => source.access,
+                Self::UpgradedParameter(_) => crate::StructuralAccess::MutableBorrow,
                 Self::Invocation { access, .. } => *access,
             }
         }
         pub fn path(&self) -> &[super::ReferenceOriginProjection] {
             match self {
-                Self::Parameter(source) => &source.path,
+                Self::Parameter(source) | Self::UpgradedParameter(source) => &source.path,
                 Self::Invocation { path, .. } => path,
             }
         }
         pub fn extent(&self) -> semantic_vocabulary::ReferenceOriginExtent {
             match self {
-                Self::Parameter(source) => source.extent,
+                Self::Parameter(source) | Self::UpgradedParameter(source) => source.extent,
                 Self::Invocation { extent, .. } => *extent,
             }
         }

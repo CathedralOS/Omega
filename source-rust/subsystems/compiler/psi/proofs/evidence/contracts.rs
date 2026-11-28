@@ -20,7 +20,9 @@ pub enum RuntimeDomainMembership {
     },
 }
 
-/// A structural-formal ordinal followed by zero or more field identities.
+/// A write-formal ordinal followed by zero or more field identities. Structural
+/// parameters occupy their original ordinals; scalar address parameters follow
+/// them and describe the storage reached by that address (no structural fields).
 /// `None` retains the ownership ceiling; `Some([])` is a complete empty
 /// frame. The owning contract supplies every parameter's exact type.
 pub type PublishedWriteFrame = Option<Vec<(u32, Vec<StructuralFieldId>)>>;
@@ -82,6 +84,21 @@ pub struct MachineContract {
 }
 
 impl MachineContract {
+    /// Resolve a write frame entry against the machine's two runtime telescopes.
+    pub fn write_formal(&self, ordinal: u32) -> Option<(crate::BoundaryParameterKind, usize)> {
+        let index = usize::try_from(ordinal).ok()?;
+        if index < self.structural_parameters.len() {
+            return Some((crate::BoundaryParameterKind::Structural, index));
+        }
+        let scalar = index - self.structural_parameters.len();
+        let parameter = self.parameters.get(scalar)?;
+        matches!(
+            parameter.scalar_type,
+            semantic_vocabulary::ScalarType::Integer(_)
+        )
+        .then_some((crate::BoundaryParameterKind::Scalar, scalar))
+    }
+
     pub fn validate_parameter_order(&self) -> Result<(), &'static str> {
         let scalar_count = self
             .parameter_order
