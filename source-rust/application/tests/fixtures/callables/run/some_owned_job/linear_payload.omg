@@ -1,0 +1,41 @@
+data Owner<T> [linear] {
+    storage: u64;
+    provider: u64;
+}
+
+data Receipt<some S> [linear] { returned: Owner<S>; }
+data Finish<T> = machine(owner: Owner<T>) -> Receipt reaches none crashes none;
+data Transform<T> = machine(owner: Owner<T>) -> Owner<T> reaches none crashes none;
+data Job<some S> [linear] { owner: Owner<S>; transform: Transform<S>; finish: Finish<S>; }
+
+machine return_owner(owner: Owner<u8>) -> Owner<u8> reaches none crashes none {
+    move owner
+}
+
+machine finish_byte(owner: Owner<u8>) -> Receipt reaches none crashes none {
+    Receipt { returned: move owner }
+}
+
+machine settle(job: Job) -> Receipt reaches none crashes none {
+    let { owner, transform, finish } = move job;
+    (finish)((transform)(move owner))
+}
+
+machine complete(
+    storage: u64,
+    provider: u64
+) -> Receipt reaches none crashes none {
+    let owner: Owner<u8> = Owner { storage: move storage, provider: provider };
+    let job: Job = Job { owner: move owner, transform: return_owner, finish: finish_byte };
+    settle(move job)
+}
+
+machine main() crashes Trap {
+    let receipt: Receipt = complete(17, 173);
+    let { returned } = move receipt;
+    let { storage, provider } = move returned;
+    let answer: bool = storage == 17 && provider == 173;
+    transition answer { true -> good(), false -> bad() }
+    machine good() {}
+    machine bad() { crash Trap; }
+}
