@@ -1061,8 +1061,9 @@ fn a_stored_callback_publishes_the_selected_field_through_forwarding() {
 }
 
 #[test]
-fn a_written_empty_entry_ceiling_rejects_a_stored_callback() {
-    let messages = exceeded(&stored_callback_source("invokes none"));
+fn a_written_ceiling_for_another_entry_rejects_a_stored_callback() {
+    let source = stored_callback_source("invokes Other");
+    let messages = exceeded(&format!("boundary trait Other {{}}\n{source}"));
     assert!(
         messages
             .iter()
