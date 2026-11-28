@@ -286,16 +286,29 @@ machine main() reaches |signals|::Samples crashes Trap {{
         expected_bytes,
         publication: RefCell::new(Some(publication)),
     };
+    let planned_receiver_time = start.elapsed();
     assert!(
         supplied
             .publish(original.request.package, TargetProfile::WindowsX64)
             .is_err()
     );
+    fs::write(&artifact_path, b"different from the declared publication").unwrap();
+    let refusal = supplied
+        .publish(original.request.package, TARGET)
+        .err()
+        .expect("changed bytes must be refused");
+    assert_eq!(
+        refusal[0].message,
+        "different bytes from the declared producer"
+    );
+    assert!(supplied.publication.borrow().is_some());
+    fs::write(&artifact_path, &bytes).unwrap();
+    let native_start = Instant::now();
     build(&root, &second, &edited, &supplied);
     assert!(supplied.publication.borrow().is_none());
     eprintln!(
         "edited_build_and_run_us={} supplier_publications_reused=1",
-        start.elapsed().as_micros()
+        (planned_receiver_time + native_start.elapsed()).as_micros()
     );
     let control = dir.path().join("edited-cli-control");
     let start = Instant::now();
