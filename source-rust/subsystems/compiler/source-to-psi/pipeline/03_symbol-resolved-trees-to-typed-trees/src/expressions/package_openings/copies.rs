@@ -78,7 +78,7 @@ pub(super) fn value_copy(
     {
         return None;
     }
-    Assignment::from_value(program, state, value, destination)
+    Assignment::from_value(program, value, destination)
 }
 
 #[cfg(test)]

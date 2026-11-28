@@ -25,7 +25,7 @@ impl CopyHistory {
     }
 
     pub(crate) fn assign(&mut self, previous: CopyPoint, assignment: Assignment) -> CopyPoint {
-        if previous.is_none() && assignment.sources.is_empty() {
+        if previous.is_none() && assignment.value.is_none() {
             return None;
         }
         self.push(previous, ChangeKind::Assign(assignment))
