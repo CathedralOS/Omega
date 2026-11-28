@@ -390,6 +390,21 @@ impl<'a> DescriptorAnalysis<'a> {
             })
     }
 
+    /// Concrete local inputs of this checked invocation, paired with the
+    /// operand that denotes them at its evaluation point.
+    pub fn local_opened_inputs(
+        &mut self,
+        machine: MachineId,
+        position: DescriptorPosition,
+        operation: semantic_vocabulary::OperationId,
+    ) -> Vec<(DescriptorLocation, DescriptorLocation)> {
+        self.opened_call_homes(
+            machine,
+            position,
+            Some(DescriptorInvocationOwner::Operation(operation)),
+        )
+    }
+
     fn local_input_home(
         location: &DescriptorLocation,
         homes: &[(DescriptorLocation, DescriptorLocation)],

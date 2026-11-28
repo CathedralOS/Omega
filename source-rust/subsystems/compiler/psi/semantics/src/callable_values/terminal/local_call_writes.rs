@@ -1,7 +1,7 @@
 //! Keep a caller's other callback fields when every location a lent
 //! package may modify can be placed in the caller's live storage.
 use super::*;
-use crate::descriptor_lifetimes::descriptor_location;
+use crate::descriptor_lifetimes::{descriptor_location, descriptor_path};
 use crate::descriptor_results::DescriptorContentsQuery;
 use crate::{SharedMutation, packages::CheckedPackageSites, shared_mutation};
 use semantic_vocabulary::{CanonicalStructuralPathSegment as FieldPath, ScalarType};
@@ -37,7 +37,11 @@ pub(super) fn refine_package_writes(
                 .find(|b| b.id == at.0)
                 .and_then(|b| b.operations.get(at.1 as usize));
             if let Some(footprint) = operation.and_then(|op| {
-                local_package_arguments(module, packages, machine, op, at, &mut references)
+                if op.kind.callable_invocation().is_some() {
+                    local_shared_callback(module, packages, machine, op, at, &mut references)
+                } else {
+                    local_package_arguments(module, packages, machine, op, at, &mut references)
+                }
             }) {
                 changes.push((ordinal, at, footprint));
             }
@@ -66,6 +70,61 @@ fn numeric_storage(module: &TerminalModule, id: StructuralTypeId) -> bool {
         }),
         _ => false,
     }
+}
+
+fn closed_callback(envelope: &terminal_psi::TerminalCallableEnvelope) -> bool {
+    envelope.service_reach.is_empty()
+        && envelope.invocations.is_empty()
+        && !envelope.suspends
+        && !envelope.blocks
+}
+
+/// An opened callback with only shared local numeric inputs has no writable
+/// argument. Recover each input from its checked capture before applying the
+/// same read-only rule as an ordinary operand of its concrete type.
+fn local_shared_callback(
+    module: &TerminalModule,
+    packages: &CheckedPackageSites,
+    machine: &TerminalMachine,
+    operation: &Operation,
+    at: DescriptorPosition,
+    references: &mut DescriptorAnalysis<'_>,
+) -> Option<Vec<Option<DescriptorContentsQuery>>> {
+    let call = operation.kind.callable_invocation()?;
+    let contract = packages.invocation_contract(machine.id, operation.id)?;
+    if call.contract != contract
+        || !closed_callback(&module.execution.callables.contract(contract)?.envelope)
+        || !call.arguments.is_empty()
+        || !call.claim_transfers.is_empty()
+        || call.structural_arguments.is_empty()
+        || call
+            .structural_arguments
+            .iter()
+            .any(|actual| actual.access != StructuralAccess::SharedBorrow)
+    {
+        return None;
+    }
+    let homes = crate::packages::opened_call_homes(
+        module,
+        packages,
+        machine.id,
+        operation.id,
+        at,
+        references,
+    );
+    if homes.len() != call.structural_arguments.len() {
+        return None;
+    }
+    for (_, home) in homes {
+        let root = machine.structural_place_type(home.root)?;
+        let types = &module.types.structural_types;
+        let path = descriptor_path(types, root, &home.path)?;
+        let concrete = crate::runtime_structural_path_tip(types.iter(), root, &path)?;
+        if !numeric_storage(module, concrete.id) {
+            return None;
+        }
+    }
+    Some(Vec::new())
 }
 
 fn local_package_arguments(
@@ -122,11 +181,7 @@ fn local_package_arguments(
                     ScalarType::Integer(integer) if integer.is_address() => return None,
                     ScalarType::Callable(id) => {
                         let callback = &module.execution.callables.contract(id)?.envelope;
-                        if !callback.service_reach.is_empty()
-                            || !callback.invocations.is_empty()
-                            || callback.suspends
-                            || callback.blocks
-                        {
+                        if !closed_callback(callback) {
                             return None;
                         }
                     }
