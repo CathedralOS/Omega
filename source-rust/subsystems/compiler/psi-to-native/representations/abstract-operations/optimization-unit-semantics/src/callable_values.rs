@@ -102,14 +102,15 @@ fn project<'a>(
                     O::CallStructural {
                         psi_operation,
                         callee: AbstractCallTarget::Callable { contract, .. },
-                        opened_referents,
+                        opening: Some(opening),
                         ..
-                    } if !opened_referents.is_empty() => {
+                    } => {
                         body.package_sites.opened_call(
                             catalog,
                             *psi_operation,
                             *contract,
-                            opened_referents.iter().copied(),
+                            opening.admitted_contracts.clone(),
+                            opening.stored_referents.iter().copied(),
                         )?;
                     }
                     _ => {}

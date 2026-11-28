@@ -13,33 +13,6 @@ enum Transfer {
     Resume(ResumeShape),
 }
 
-impl Transfer {
-    fn checked(
-        module: &TerminalModule,
-        boundary: &BoundaryMachineDeclaration,
-        control: ActivationOperation,
-    ) -> Result<Self, &'static str> {
-        match control {
-            ActivationOperation::Prepare => {
-                owned_activation::prepare_shape(module, boundary).map(Self::Prepare)
-            }
-            ActivationOperation::StepFixed => owned_activation::step_shape(
-                module,
-                boundary,
-                owned_activation::preparation_for(module, boundary)?,
-            )
-            .map(Self::Step),
-            ActivationOperation::Resume => owned_activation::resume_shape(
-                module,
-                boundary,
-                owned_activation::preparation_for(module, boundary)?,
-            )
-            .map(Self::Resume),
-            ActivationOperation::Park => Err("park does not return an execution owner"),
-        }
-    }
-}
-
 fn field(case: StructuralCaseId, member: StructuralFieldId) -> Vec<DescriptorPathSegment> {
     vec![
         DescriptorPathSegment::Case(case),
@@ -69,11 +42,29 @@ pub(super) fn invocation(
     boundary: &BoundaryMachineDeclaration,
     control: ActivationOperation,
     kind: DescriptorSlotKind,
-    failure_detail: &mut Option<&'static str>,
 ) -> Option<DescriptorInvocation> {
-    let transfer = Transfer::checked(module, boundary, control)
-        .inspect_err(|detail| *failure_detail = Some(*detail))
-        .ok()?;
+    let transfer = match control {
+        ActivationOperation::Prepare => {
+            Transfer::Prepare(owned_activation::prepare_shape(module, boundary).ok()?)
+        }
+        ActivationOperation::StepFixed => Transfer::Step(
+            owned_activation::step_shape(
+                module,
+                boundary,
+                owned_activation::preparation_for(module, boundary).ok()?,
+            )
+            .ok()?,
+        ),
+        ActivationOperation::Resume => Transfer::Resume(
+            owned_activation::resume_shape(
+                module,
+                boundary,
+                owned_activation::preparation_for(module, boundary).ok()?,
+            )
+            .ok()?,
+        ),
+        ActivationOperation::Park => return None,
+    };
     let terminal_psi::OperationResult::Structural(out) = &operation.result else {
         return None;
     };
@@ -122,23 +113,7 @@ pub(super) fn invocation(
     let mut argument_contents = Vec::with_capacity(formals.len());
     let mut results = Vec::new();
     let mut contents = Vec::new();
-    let structural_positions =
-        boundary
-            .parameter_order
-            .iter()
-            .enumerate()
-            .filter_map(|(position, kind)| {
-                (*kind == terminal_psi::BoundaryParameterKind::Structural).then_some(position)
-            });
-    if structural_positions.clone().count() != formals.len() {
-        return None;
-    }
-    for (position, ((actual, formal), source_position)) in structural_arguments
-        .iter()
-        .zip(formals)
-        .zip(structural_positions)
-        .enumerate()
-    {
+    for (position, (actual, formal)) in structural_arguments.iter().zip(formals).enumerate() {
         let root = machine.structural_place_type(actual.place)?;
         let tip = crate::runtime_structural_path_tip(types.iter(), root, &actual.path)?;
         if formal.structural_type != tip.id || actual.access != formal.access {
@@ -158,7 +133,7 @@ pub(super) fn invocation(
             &actual.path,
             None,
         )?));
-        let path = match (&transfer, source_position) {
+        let path = match (&transfer, formal.position) {
             (Transfer::Prepare(s), 0) => field(s.rejected, s.arguments),
             (Transfer::Prepare(s), 1) => field(s.rejected, s.retained),
             (Transfer::Resume(s), 0) => field(s.mismatch, s.mismatch_owner),
@@ -241,7 +216,7 @@ pub(super) fn invocation(
     if kind.tracks_views() {
         stack_sources.push(match transfer {
             Transfer::Prepare(_) => DescriptorStoredOrigin::IncomingSlot {
-                position: formals.len().checked_sub(1)?,
+                position: formals.iter().position(|formal| formal.position == 1)?,
                 path: Vec::new(),
             },
             _ => backing_from_owner(preparation, None),

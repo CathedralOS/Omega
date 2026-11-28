@@ -1002,3 +1002,24 @@ fn a_bodyless_requirement_keeps_its_own_envelope_when_a_parameter_is_callable() 
     assert_eq!(error.reason, RefusalReason::ForeignIdentity);
     assert_eq!(error.detail, "abstract requirement lost its declared operational row");
 }
+
+#[test]
+fn selecting_another_machine_preserves_a_stored_callback() {
+    let source = r#"
+        data Read = machine() -> u32 reaches none crashes none;
+        data Reader { read: Read; }
+        machine first() -> u32 reaches none crashes none { 17u32 }
+        machine second() -> u32 reaches none crashes none { 42u32 }
+        machine run(reader: @Reader) -> u32 { (reader.read)() }
+        machine entry() -> bool reaches none crashes none {
+            let left: Reader = Reader { read: first };
+            let right: Reader = Reader { read: second };
+            run(@left) == 17u32 && run(@right) == 42u32
+        }
+    "#;
+    let accepted = judged(source);
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
+}

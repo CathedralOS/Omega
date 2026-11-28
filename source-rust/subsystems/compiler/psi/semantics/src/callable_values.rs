@@ -1285,12 +1285,11 @@ impl Solver<'_, '_> {
                         .descriptor(descriptor)
                         .ok_or("callable selection descriptor is absent or stale")?;
                     if descriptor.contract != contract
-                        && !self.program.body(caller)?.package_sites.admits_descriptor(
-                            self.program.catalog,
-                            self.program.structural_types,
-                            invocation,
-                            descriptor.contract,
-                        )
+                        && !self
+                            .program
+                            .body(caller)?
+                            .package_sites
+                            .admits_descriptor(invocation, descriptor.contract)
                     {
                         return Err("callable selection descriptor changes its contract");
                     }

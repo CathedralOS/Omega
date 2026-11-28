@@ -1,5 +1,8 @@
 //! Native address formation and checked upgrades both produce ordinary, typed borrows.
-#![cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#![cfg(all(
+    any(target_os = "linux", target_os = "macos", target_os = "windows"),
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+))]
 
 #[path = "native_borrows/address_forwarding.rs"]
 mod address_forwarding;
@@ -20,6 +23,10 @@ const READ: &str = "RawMemoryRead";
 const WRITE: &str = "RawMemoryWrite";
 const UPGRADE: &str = "BorrowMutabilityUpgrade";
 
+fn host_profile() -> &'static str {
+    target::TargetProfile::host().target_name()
+}
+
 struct Program(TemporaryDirectory);
 
 impl Program {
@@ -28,12 +35,13 @@ impl Program {
             .iter()
             .map(|atom| format!("    Build::enable_unsafe::<|native|::{atom}>(plan);\n"))
             .collect::<String>();
+        let target = host_profile();
         let build = format!(
             r#"{UNSAFE}
 use main.omg as app;
 machine build(plan: @mutable BuildPlan) {{
     plan.product = BuildProduct::Application {{ name: "native_borrows" }};
-{enabled}    Build::bind(plan, linux_x86_64::ProgramEntry, |app|::main);
+{enabled}    Build::bind(plan, {target}::ProgramEntry, |app|::main);
 }}"#
         );
         let source = format!("{UNSAFE}\n{body}");
@@ -57,7 +65,7 @@ machine build(plan: @mutable BuildPlan) {{
     }
 
     fn check(&self) -> Output {
-        self.command(&["--check", "--target", "linux_x86_64", "build.omg"])
+        self.command(&["--check", "--target", host_profile(), "build.omg"])
             .output()
             .unwrap()
     }
@@ -141,8 +149,75 @@ machine main() crashes Trap {
 "#;
 
 #[test]
+fn a_mutable_native_borrow_can_replace_its_whole_pointee() {
+    let body = r#"
+data Pair { tag: u8; value: u64 }
+machine reset(location: address) {
+    let destination: @mutable TYPE = |native|::borrow_mutable_at::<TYPE>(location);
+    $destination = NEW;
+}
+machine main() crashes Trap {
+    let mutable value: TYPE = OLD;
+    reset(address_of(@value));
+    transition MATCH { true -> {}, false -> wrong() }
+    machine wrong() { crash Trap; }
+}"#;
+    for (ty, original, replacement, verify) in [
+        (
+            "Pair",
+            "Pair { tag: 5u8, value: 7u64 }",
+            "Pair { tag: 17u8, value: 383u64 }",
+            "value.tag == 17u8 && value.value == 383u64",
+        ),
+        (
+            "[u8; 2]",
+            "[5u8, 7u8]",
+            "[17u8, 31u8]",
+            "value[0u64] == 17u8 && value[1u64] == 31u8",
+        ),
+    ] {
+        let source = body
+            .replace("TYPE", ty)
+            .replace("OLD", original)
+            .replace("NEW", replacement)
+            .replace("MATCH", verify);
+        Program::new(&source, &[READ, WRITE]).assert_native_returns();
+
+        let shared = source
+            .replace("@mutable ", "@")
+            .replace("borrow_mutable_at", "borrow_at");
+        let refused = Program::new(&shared, &[READ]).check();
+        let diagnostic = report(&refused);
+        assert!(
+            !refused.status.success() && diagnostic.contains("shared access only"),
+            "{diagnostic}"
+        );
+    }
+}
+
+#[test]
 fn native_references_read_and_write_an_owned_byte_at_its_exposed_address() {
     Program::new(ADDRESSED_BYTES, &[READ, WRITE]).assert_native_returns();
+}
+
+#[test]
+fn a_foreign_address_lends_the_c_runtimes_thread_local_error_slot() {
+    let build = include_str!("fixtures/borrows/run/foreign_error_slot/build.omg");
+    let source = include_str!("fixtures/borrows/run/foreign_error_slot/main.omg");
+    let program = Program(project::stage(
+        "foreign-error-slot",
+        &[("build.omg", build), ("main.omg", source)],
+    ));
+    program.assert_native_returns();
+
+    let denied = build.replace("Build::enable_unsafe::<|trust|::RawMemoryWrite>(plan);", "");
+    project::write(program.0.path(), &[("build.omg", &denied)]);
+    let checked = program.check();
+    let diagnostic = report(&checked);
+    assert!(!checked.status.success(), "{diagnostic}");
+    for expected in ["RawMemoryWrite", "borrow_mutable_at", "set_error"] {
+        assert!(diagnostic.contains(expected), "{diagnostic}");
+    }
 }
 
 #[test]
@@ -258,7 +333,13 @@ machine main() {
     .concat();
     for candidate in [source, &forwarded] {
         let refused = Program::new(candidate, &[READ]).check();
-        assert_loan_refusal(&refused);
+        let diagnostic = report(&refused);
+        assert!(!refused.status.success(), "{diagnostic}");
+        assert!(
+            diagnostic.contains("outlive its local backing storage"),
+            "{diagnostic}"
+        );
+        assert!(!diagnostic.contains("not supported yet"), "{diagnostic}");
     }
 }
 
@@ -490,9 +571,71 @@ _ = |dependency|::add(plan, request, @allowed[..]);
         }
     }
     if name == "editor" {
-        body.push_str("Build::bind(plan, linux_x86_64::ProgramEntry, |app|::main);\n");
+        body.push_str(&format!(
+            "Build::bind(plan, {}::ProgramEntry, |app|::main);\n",
+            host_profile()
+        ));
     }
     format!("{imports}machine build(plan: @mutable BuildPlan) {{\n{body}}}\n")
+}
+
+#[test]
+fn initialized_native_record_fields_and_array_elements_are_readable() {
+    let source = r#"
+data Table { tag: u8; pointer: address }
+machine field(location: address) -> address {
+    let table: @Table = |native|::borrow_at::<Table>(location);
+    table.pointer
+}
+machine element(location: address) -> u64 {
+    let array: @[u64; 2] = |native|::borrow_at::<[u64; 2]>(location);
+    array[1u64]
+}
+machine main() crashes Trap {
+    let values: [u64; 2] = [19u64, 31u64];
+    let raw: address = address_of(@values);
+    let table: Table = Table { tag: 3u8, pointer: raw };
+    transition element(field(address_of(@table))) == 31u64 { true -> {}, false -> wrong() }
+    machine wrong() { crash Trap; }
+}"#;
+    Program::new(source, &[READ]).assert_native_returns();
+}
+
+#[test]
+fn a_native_pointer_cell_can_be_read_and_retargeted() {
+    let source = r#"
+machine load(location: address) -> u8 {
+    let pointer: @address = |native|::borrow_at::<address>(location);
+    let value: @u8 = |native|::borrow_at::<u8>($pointer);
+    $value
+}
+machine retarget(location: address, destination: address) {
+    let pointer: @mutable address = |native|::borrow_mutable_at::<address>(location);
+    $pointer = destination;
+}
+machine main() crashes Trap {
+    let first: u8 = 19u8;
+    let second: u8 = 31u8;
+    let mutable pointer: address = address_of(@first);
+    let before: u8 = load(address_of(@pointer));
+    retarget(address_of(@pointer), address_of(@second));
+    let after: u8 = load(address_of(@pointer));
+    transition before == 19u8 && after == 31u8 && first == 19u8 && second == 31u8 {
+        true -> {}, false -> wrong()
+    }
+    machine wrong() { crash Trap; }
+}"#;
+    Program::new(source, &[READ, WRITE]).assert_native_returns();
+    let shared = source.replace(
+        "let pointer: @mutable address = |native|::borrow_mutable_at",
+        "let pointer: @address = |native|::borrow_at",
+    );
+    let output = Program::new(&shared, &[READ]).check();
+    let message = report(&output);
+    assert!(
+        !output.status.success() && message.contains("grants shared access only"),
+        "{message}"
+    );
 }
 
 #[test]
@@ -622,7 +765,7 @@ machine main() {}
                 "--emit-psi",
                 "program.psi",
                 "--target",
-                "linux_x86_64",
+                host_profile(),
                 "build.omg",
             ])
             .output()
@@ -640,7 +783,7 @@ machine main() {}
                 "--trusted-artifact",
                 &manifest,
                 "--target",
-                "linux_x86_64",
+                host_profile(),
                 "--build-dir",
                 "output",
                 "program.psi",
@@ -650,7 +793,10 @@ machine main() {}
             .output()
             .unwrap();
         let message = report(&built);
-        let image = consumer.path().join("output/omega-program");
+        let image = consumer
+            .path()
+            .join("output")
+            .join(format!("omega-program{}", std::env::consts::EXE_SUFFIX));
         if let Some(withheld) = withheld {
             assert!(!built.status.success(), "{message}");
             assert!(

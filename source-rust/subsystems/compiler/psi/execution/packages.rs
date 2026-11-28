@@ -27,8 +27,8 @@ pub struct TerminalPackageOpening {
     pub record: StructuralTypeId,
     /// The projected package itself, before selecting one of its fields.
     pub subject: crate::StructuralArgument,
-    /// Fresh abstract identities for this exact subject and storage version.
-    /// Replay must establish that the subject stayed live between uses.
+    /// Abstract types in binder order. Separate openings may share these
+    /// identities when replay proves their observed values have a common copy origin.
     pub witnesses: Vec<StructuralTypeId>,
 }
 
@@ -56,4 +56,21 @@ pub enum TerminalPackageEvent {
         opening: u32,
         field: StructuralFieldId,
     },
+}
+
+impl TerminalPackageCatalog {
+    /// The abstract binders whose references must store any admitted witness.
+    /// Concrete witness identities at construction do not change their own layouts.
+    pub fn abstract_witnesses(&self) -> Vec<StructuralTypeId> {
+        let mut types = self
+            .schemas
+            .iter()
+            .flat_map(|row| &row.witnesses)
+            .chain(self.openings.iter().flat_map(|row| &row.witnesses))
+            .copied()
+            .collect::<Vec<_>>();
+        types.sort_unstable();
+        types.dedup();
+        types
+    }
 }

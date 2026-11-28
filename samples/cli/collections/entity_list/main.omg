@@ -23,7 +23,7 @@ data Monster {
 
 data Main {
     monsters: [Monster; 4];
-    i: i32 in Wrapping;
+    i: u64;
     scratch: i32 in Wrapping;
     total: i32 in Wrapping;
     pause: [u8; 256];
@@ -35,7 +35,7 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process
     main.monsters[1].hp = 12i32 as +Wrapping;
     main.monsters[2].hp = 25i32 as +Wrapping;
     main.monsters[3].hp = 8i32 as +Wrapping;
-    main.i = 0i32 as +Wrapping;
+    main.i = 0;
     transition { _ -> block damage_loop(main) }
 
     machine damage_loop(main: @mutable Main) {
@@ -50,7 +50,7 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process
     }
 
     machine sum_start(main: @mutable Main) {
-        main.i = 0i32 as +Wrapping;
+        main.i = 0;
         main.total = 0i32 as +Wrapping;
         transition { _ -> block sum_loop(main) }
     }
@@ -68,7 +68,7 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process
         |console|::Console::write_line("result: total remaining HP is the exit code (35)");
         |console|::Console::write_line("[press Enter to close]");
         _ = block |console|::Console::read_line(@mutable main.pause[..]);
-        |process_exit|::ProcessExit::exit_process(main.total as i32);
+        |process_exit|::ProcessExit::exit_process(main.total as -Wrapping);
     }
 }
 

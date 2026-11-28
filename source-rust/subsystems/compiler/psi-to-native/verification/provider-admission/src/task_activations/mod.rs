@@ -35,7 +35,16 @@ pub fn validate_task_activations(
         .layouts()
         .geometry(artifact)
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
-    let storage = TaskStorage::new(geometry.declarations(), reach.value_storage(), profile)?;
+    let witnesses = module.execution.packages.abstract_witnesses();
+    let storage = TaskStorage::new(
+        geometry.declarations(),
+        calling_conventions::terminal_layout::StorageLayoutInputs {
+            owned_sequences: reach.owned_sequence_bounds(),
+            package_witnesses: &witnesses,
+            execution_owners: reach.execution_owners(),
+        },
+        profile,
+    )?;
     check_plans(demands, &module.identities, providers, profile, &storage)
 }
 

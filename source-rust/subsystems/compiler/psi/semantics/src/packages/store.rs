@@ -68,8 +68,7 @@ pub(super) fn checked_store(
         }
         _ => return Err("a package store writes another destination field"),
     };
-    if destination != opened.subject.place
-        || !crate::structural_paths_select_same_location(parent, &opened.subject.path)
+    if !super::subjects::same_storage_at(module, machine, operation, opened, destination, parent)
         || enters_package(
             module,
             machine,
@@ -88,12 +87,17 @@ pub(super) fn checked_store(
     let materialized = match source {
         Projected::Reference(place) => Some(place),
         Projected::Descriptor(_) => None,
+        Projected::Owner(_) => {
+            return Err("a moved owner is not a projected reference for this store");
+        }
     };
-    if origin != index
+    let source = opening(module, machine.id, origin)?;
+    if source.record != opened.record
+        || source.witnesses != opened.witnesses
         || !versions::same_storage_version(
             module,
             machine,
-            opened,
+            source,
             producer,
             operation.id,
             materialized,

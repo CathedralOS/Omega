@@ -1,9 +1,0 @@
-use {omega}/language/core/reply.omg;
-
-data AnswerPermit<'slot> = |reply|::Publication<'slot> in |reply|::Issued<|reply|::AnswerRole, u8>;
-data Received<'slot> { item: u32; permit: AnswerPermit<'slot>; }
-domain Received::Sealed access |reply|::ReplyIssuance;
-
-machine main<'slot>(item: Received<'slot> in Sealed) -> AnswerPermit<'slot> {
-    move item.permit
-}

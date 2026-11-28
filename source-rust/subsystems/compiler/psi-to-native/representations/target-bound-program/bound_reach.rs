@@ -108,10 +108,8 @@ impl TargetBoundReach {
         )?;
         let scalar_applications = ScalarDemand {
             emitted: Some(&emitted),
-            storage: runtime_abi::NativeValueStorage {
-                sequences: &owned_sequence_bounds,
-                execution_owners: &execution_owners,
-            },
+            owned_sequence_bounds: &owned_sequence_bounds,
+            execution_owners: &execution_owners,
         }
         .scalar_application_demand(module, &layouts)?;
         Ok(Self {
@@ -142,10 +140,8 @@ impl TargetBoundReach {
         let bounds = Self::full_module_owned_sequence_bounds(module).map_err(str::to_owned)?;
         ScalarDemand {
             emitted: None,
-            storage: runtime_abi::NativeValueStorage {
-                sequences: &bounds,
-                ..Default::default()
-            },
+            owned_sequence_bounds: &bounds,
+            execution_owners: &[],
         }
         .scalar_application_demand(module, layouts)
     }
@@ -154,11 +150,8 @@ impl TargetBoundReach {
         &self.owned_sequence_bounds
     }
 
-    pub fn value_storage(&self) -> runtime_abi::NativeValueStorage<'_> {
-        runtime_abi::NativeValueStorage {
-            sequences: &self.owned_sequence_bounds,
-            execution_owners: &self.execution_owners,
-        }
+    pub fn execution_owners(&self) -> &[runtime_abi::ExecutionOwnerHome] {
+        &self.execution_owners
     }
 
     pub fn step(

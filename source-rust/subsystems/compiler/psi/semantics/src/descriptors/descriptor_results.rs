@@ -53,6 +53,7 @@ pub(crate) use contents::{
 };
 pub use payload_history::PayloadMembershipHistory;
 pub(crate) use payload_history::current_selected_payload_contract;
+mod package_fields;
 mod transfer_sources;
 pub(crate) use payload_predicates::terminal_scalar_snapshots;
 pub use payload_predicates::{
@@ -65,8 +66,9 @@ pub use payload_versions::{
     unchanged_stored_scalar_sources,
 };
 pub(crate) use payload_versions::{
-    require_completed_scalar_capture, require_unchanged_produced_payload,
-    require_unchanged_produced_payload_in, unchanged_stored_projection_sources_in,
+    require_completed_scalar_capture, require_unchanged_between_inputs,
+    require_unchanged_produced_payload, require_unchanged_produced_payload_in,
+    unchanged_stored_projection_sources_in,
 };
 pub(crate) use scalar_captures::scalar_storage_writes;
 pub use scalar_captures::{
@@ -94,7 +96,8 @@ pub(crate) use invocation::{machine_invocation, public_result_slots};
 pub use replay::{
     DescriptorAnalysis, DescriptorResultContents, DescriptorSlotInventory, DescriptorSlotKind,
     DescriptorSourceObservation, DescriptorSourceObservations, DescriptorStoredEffect,
-    DescriptorStoredOrigin, ModuleSummaries, UnknownContentsKind, UnknownDescriptorContents,
+    DescriptorStoredOrigin, LocalReturnBacking, ModuleSummaries, UnknownContentsKind,
+    UnknownDescriptorContents,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]

@@ -192,6 +192,10 @@ pub(crate) struct ReferenceStorage {
     pub(crate) placed: Option<target_operations::TargetAccessInterpretation>,
 }
 
+#[path = "references/package_fields.rs"]
+mod package_fields;
+pub(crate) use package_fields::OpenedReferenceField;
+
 pub(crate) struct ReferentProjection {
     pub(crate) carrier_type: StructuralTypeId,
     pub(crate) referent: StructuralTypeId,
@@ -354,6 +358,7 @@ pub(crate) fn reference_call_argument(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     Ok(TargetStructuralArgument {
+        opened_referent: None,
         place: argument.place,
         access: argument.access,
         path: argument.path.clone(),
@@ -1019,6 +1024,7 @@ mod copies {
         result: &StructuralOperationResult,
         source: PlaceId,
         path: &abstract_operations::StructuralCopyPath,
+        package: Option<OpenedReferenceField>,
     ) -> Result<BTreeMap<(PlaceId, Vec<StructuralPathSegment>), ReferenceStorage>, LoweringError>
     {
         let mut copied = BTreeMap::new();
@@ -1040,7 +1046,8 @@ mod copies {
                 .ok_or(LoweringError::unsupported_control_flow(function.machine))?,
             ),
         };
-        if leaf_type(types, source_type, &path) != Some(result.structural_type)
+        let storage_type = package.map_or(result.structural_type, |field| field.storage_type);
+        if leaf_type(types, source_type, &path) != Some(storage_type)
             || live
                 .references
                 .keys()
@@ -1048,6 +1055,19 @@ mod copies {
             || live.structural_homes.contains_key(&result.place)
         {
             return Err(LoweringError::unsupported_control_flow(function.machine));
+        }
+        if is_native_window(function, types, live, source, &path) {
+            // The asserted address identifies the outer cell. The stored
+            // reference gets its backing from the checked read at this cut.
+            let invalid = || LoweringError::unsupported_control_flow(function.machine);
+            for relative in leaf_paths(types, result.structural_type, 4096).ok_or_else(invalid)? {
+                let mut selected = path.to_vec();
+                selected.extend_from_slice(&relative);
+                let resident = observations::observe(function, live, types, source, &selected)
+                    .ok_or_else(invalid)?;
+                copied.insert((result.place, relative), resident);
+            }
+            return Ok(copied);
         }
         let cursors = storage_regions(function, types, live, source, &path)?;
         let mut candidates: BTreeMap<Vec<StructuralPathSegment>, Vec<ReferenceStorage>> =
@@ -1061,7 +1081,7 @@ mod copies {
                 &prefix,
             )
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-            if leaf_type(types, root, &prefix) != Some(result.structural_type) {
+            if leaf_type(types, root, &prefix) != Some(storage_type) {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             for ((resident, path), original) in &live.references {
@@ -1074,6 +1094,12 @@ mod copies {
                 if relative.contains(&StructuralPathSegment::Referent) {
                     continue;
                 }
+                let mut original = original.clone();
+                if let Some(package) = package
+                    && (!relative.is_empty() || !package.open(&mut original))
+                {
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
+                }
                 let carrier_type = leaf_type(types, result.structural_type, relative)
                     .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
                 if carrier_type != original.carrier_type
@@ -1085,7 +1111,7 @@ mod copies {
                 candidates
                     .entry(relative.to_vec())
                     .or_default()
-                    .push(original.clone());
+                    .push(original);
             }
         }
         for (relative, alternatives) in candidates {
@@ -2747,6 +2773,30 @@ pub(crate) fn window_descriptors(
     Ok(descriptors)
 }
 
+/// An asserted native address has no local home to hold its pointee's
+/// descriptor metadata. The checked storage observations describe its contents.
+pub(crate) fn is_native_window(
+    function: &AbstractFunction,
+    types: &StructuralTypeLookup<'_>,
+    live: &LiveDefinitions,
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+) -> bool {
+    path.contains(&StructuralPathSegment::Referent)
+        && window_descriptors(function, types, live, place, path).is_ok_and(|descriptors| {
+            descriptors.iter().all(|leaf| {
+                let origins = leaf.root.origins();
+                !origins.is_empty()
+                    && origins.iter().all(|origin| {
+                        matches!(
+                            origin.base,
+                            target_operations::TargetReferenceOriginBase::NativeAddress { .. }
+                        )
+                    })
+            })
+        })
+}
+
 pub(crate) fn window_storage(
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
@@ -2804,13 +2854,16 @@ pub(crate) fn subtree_leaves(
 
 pub(crate) fn relocate_leaves(
     live: &mut LiveDefinitions,
-    result_place: PlaceId,
+    result_place: Option<PlaceId>,
     relocations: Vec<(ReferenceStorage, Vec<StructuralPathSegment>)>,
     moved: BTreeSet<(PlaceId, Vec<StructuralPathSegment>)>,
 ) {
     for source in moved {
         live.references.remove(&source);
     }
+    let Some(result_place) = result_place else {
+        return;
+    };
     for (descriptor, destination) in relocations {
         live.references
             .insert((result_place, destination), descriptor);

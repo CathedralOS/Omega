@@ -25,7 +25,7 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<Formation> {
         if let OperationKind::BorrowAt { address } = operation.kind {
-            return self.raw_address_formation(references, tables, result, address, concerns);
+            return self.raw_address_formation(references, tables, result, address, at.0, concerns);
         }
         let upgrades_shared = matches!(operation.kind, OperationKind::UpgradeMutability { .. });
         let upgraded;
@@ -220,6 +220,7 @@ impl<'a> Storage<'a> {
         tables: &MachineTables,
         result: &terminal_psi::StructuralOperationResult,
         address: semantic_vocabulary::ValueId,
+        block: semantic_vocabulary::BlockId,
         concerns: Construct,
     ) -> Checked<Formation> {
         let StructuralTypeShape::Reference {
@@ -257,8 +258,14 @@ impl<'a> Storage<'a> {
                     "native address formation has no captured result row",
                 )
             })?;
-        let raw =
-            self.native_address_loan_region(references, address, &descriptor, referent, concerns)?;
+        let raw = self.native_address_loan_region(
+            references,
+            address,
+            block,
+            &descriptor,
+            referent,
+            concerns,
+        )?;
         Ok(Formation {
             captured,
             access,
@@ -273,6 +280,7 @@ impl<'a> Storage<'a> {
         &self,
         references: &mut DescriptorAnalysis<'a>,
         address: semantic_vocabulary::ValueId,
+        block: semantic_vocabulary::BlockId,
         descriptor: &Lineage,
         referent: semantic_vocabulary::StructuralTypeId,
         concerns: Construct,
@@ -282,6 +290,33 @@ impl<'a> Storage<'a> {
             self.lowered,
             address,
         );
+        if origin.expired {
+            if origin.only_expired_storage() {
+                return Err(crate::refusal(
+                    RefusalReason::Violation,
+                    self.machine,
+                    concerns,
+                    "a native borrow cannot use storage owned by a machine that already returned",
+                ));
+            }
+            return Err(self.unsupported(
+                concerns,
+                "a native address may refer to storage owned by a machine that already returned",
+            ));
+        }
+        if terminal_semantics::storage::native_borrows::receives_expired_address(
+            self.module,
+            self.lowered,
+            block,
+            &origin,
+        ) {
+            return Err(crate::refusal(
+                RefusalReason::Violation,
+                self.machine,
+                concerns,
+                "a caller supplies this native borrow with storage owned by a machine that already returned",
+            ));
+        }
         let mut sources = Vec::new();
         let mut exact = origin.exact && origin.sources.len() == 1;
         for (at, source) in origin.observed_sources() {
@@ -295,6 +330,12 @@ impl<'a> Storage<'a> {
             match self.storage_loan_region(references, &place, at, concerns)? {
                 LoanRegion::Storage(backing) => sources.push(backing),
                 LoanRegion::Provider(_) => sources.push(Backing::direct(place)),
+                LoanRegion::ImmutableImageBytes(_) => {
+                    return Err(self.foreign(
+                        concerns,
+                        "native address source is an immutable byte payload",
+                    ));
+                }
             }
         }
         let backing = Backing::native_address(address, descriptor, sources, exact);

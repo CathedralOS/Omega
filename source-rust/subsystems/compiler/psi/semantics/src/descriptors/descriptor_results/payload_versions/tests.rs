@@ -248,6 +248,8 @@ fn entry_version_includes_the_first_operation_write() {
     };
     assert!(observe(VersionStart::Entry, false));
     assert!(!observe(VersionStart::Entry, true));
+    assert!(observe(VersionStart::Before(machine.entry), false));
+    assert!(!observe(VersionStart::Before(machine.entry), true));
     assert!(observe(VersionStart::Completed(machine.entry), true));
 }
 

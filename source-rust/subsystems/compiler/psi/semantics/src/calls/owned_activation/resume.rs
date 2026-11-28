@@ -232,14 +232,12 @@ pub fn resume_shape(
         prepared.selected,
         *declared_owner,
         "SuspendedActivation",
-        2,
         None,
     )? || !super::declares_worker(
         module,
         prepared.selected,
         source.result_type,
         "ResumeAttempt",
-        2,
         Some(reply),
     )? {
         return Err("resume changed the declared owner, reply, worker or storage in its outcome");

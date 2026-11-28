@@ -15,7 +15,7 @@ pub(super) fn owner_homes(
     prepared: &[PreparedWorker],
     parent: Option<&crate::TargetBoundReach>,
 ) -> Result<(Vec<runtime_abi::ExecutionOwnerHome>, StepEntries), &'static str> {
-    let mut homes = parent.map_or_else(Vec::new, |p| p.value_storage().execution_owners.to_vec());
+    let mut homes = parent.map_or_else(Vec::new, |p| p.execution_owners().to_vec());
     let home = |ty| {
         runtime_abi::ExecutionOwnerHome::for_target(ty, target)
             .ok_or("the activation owner has no native address geometry")

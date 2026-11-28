@@ -41,7 +41,8 @@ pub struct PackageOpening {
     pub state: SymbolHandle,
     pub subject: PackageSubject,
     pub storage_version: u32,
-    /// In declaration order. A witness is an abstract nominal type in this scope.
+    /// In declaration order. Copies may share these abstract types while each
+    /// opening retains its own subject and storage version.
     pub witnesses: Vec<(SymbolHandle, TypeReferenceHandle)>,
 }
 

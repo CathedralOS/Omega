@@ -1,7 +1,7 @@
 # Fixed-limb unsigned bignum
 
 Fixed-limb unsigned bignum arithmetic over 8 little-endian `u32` limbs
-(`limbs: [u32; 8] in Wrapping`) with compare, ripple-carry add, ripple-borrow
+(`limbs: [u32 in Wrapping; 8]`) with compare, ripple-carry add, ripple-borrow
 subtract, 4x4-into-8-limb schoolbook multiply, divide/modulo by a nonzero
 `u32` limb, and decimal rendering via repeated divmod by 10.
 

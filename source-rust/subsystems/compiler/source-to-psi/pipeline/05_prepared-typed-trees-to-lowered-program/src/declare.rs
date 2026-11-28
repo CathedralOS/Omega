@@ -2056,26 +2056,17 @@ fn top_level_boundary(
     let owner = NominalDeclarationIdentity::new(
         nominal(typed, &sources, symbol, identities).map_err(Diagnostic::error)?,
     );
-    // An activation transports loans between its inputs and result. Publish
-    // their region ordinals and the exact callable selected inside an owner.
-    let (parameter_types, result_type) = if matches!(
-        execution,
-        terminal_psi::CheckedBoundaryExecution::OwnedActivation(_)
-    ) {
-        (header.parameter_types.clone(), header.result_type.clone())
-    } else {
-        let type_text = |reference| {
-            typed
-                .type_identity_text(typed.package_qualified_type_identity(reference))
-                .filter(|text| !text.is_empty())
-                .ok_or_else(|| Diagnostic::error("primitive signature type has no identity"))
-        };
-        let parameters = formals
-            .iter()
-            .map(|formal| type_text(formal.type_reference))
-            .collect::<Result<Vec<_>, _>>()?;
-        (parameters, type_text(return_type)?)
+    let type_text = |reference| {
+        typed
+            .type_identity_text(typed.package_qualified_type_identity(reference))
+            .filter(|text| !text.is_empty())
+            .ok_or_else(|| Diagnostic::error("primitive signature type has no identity"))
     };
+    let parameter_types = formals
+        .iter()
+        .map(|formal| type_text(formal.type_reference))
+        .collect::<Result<Vec<_>, _>>()?;
+    let result_type = type_text(return_type)?;
     let contract = declaration_contract_commitment(
         typed,
         &sources,

@@ -55,13 +55,17 @@ pub fn run(plan_path: &Path, role: &str, backend: &str, directory: &Path) -> Res
     }
     if !matches!(
         backend,
-        "wpr" | "perf-stat" | "perf-record" | "selected-bodies"
+        "wpr" | "perf-stat" | "perf-record" | "selected-bodies" | "stages"
     ) {
         return Err(
-            "profile backend must be wpr, perf-stat, perf-record or selected-bodies".into(),
+            "profile backend must be wpr, perf-stat, perf-record, selected-bodies or stages".into(),
         );
     }
     let (mut plan, path, plan_sha256) = experiment::prepare_plan(plan_path)?;
+    if backend == "stages" && !matches!(plan.measurement, crate::plan::Measurement::Compiler { .. })
+    {
+        return Err("stage profiling requires a compiler measurement".into());
+    }
     let directory_parent = directory
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
@@ -110,6 +114,11 @@ pub fn run(plan_path: &Path, role: &str, backend: &str, directory: &Path) -> Res
         Ok(output.status.success())
     };
     let mut wpr_instance = None;
+    if backend == "stages"
+        && let crate::plan::Measurement::Compiler { stage_timings, .. } = &mut plan.measurement
+    {
+        *stage_timings = true;
+    }
     let mut wpr_cleanup = None;
     let mut capability_failure = None;
     match backend {
@@ -252,6 +261,11 @@ pub fn run(plan_path: &Path, role: &str, backend: &str, directory: &Path) -> Res
     }
     let extracted = (|| -> Result<(), String> {
         match backend {
+            "stages" => {
+                let diagnostics = std::fs::read_to_string(directory.join("subject.stderr"))
+                    .map_err(|error| error.to_string())?;
+                result["timeline"] = compiler_timeline(&diagnostics)?;
+            }
             "selected-bodies" => {
                 let path = directory.join("typed/profile.log");
                 result["clone_log_sha256"] = json!(process::file_digest(&path)?);
@@ -306,6 +320,80 @@ pub fn run(plan_path: &Path, role: &str, backend: &str, directory: &Path) -> Res
     }
     save(&directory, &result)?;
     Ok(result["status"] == "complete")
+}
+
+/// Union the command spans. Their sum can count nested or concurrent work twice.
+fn compiler_timeline(text: &str) -> Result<Value, String> {
+    let milliseconds = |s: &str| {
+        s.trim()
+            .parse::<f64>()
+            .ok()
+            .filter(|n| n.is_finite() && *n >= 0.0)
+            .ok_or_else(|| format!("invalid compiler timeline time {s:?}"))
+    };
+    let mut spans = Vec::new();
+    let mut total = None;
+    for line in text.lines().map(str::trim) {
+        if let Some(value) = line.strip_suffix(" ms  total elapsed") {
+            if total.replace(milliseconds(value)?).is_some() {
+                return Err("expected one compiler timeline".into());
+            }
+        } else if let Some((times, name)) = line.split_once(" ms)  timeline / ") {
+            let (range, duration) = times
+                .split_once(" ms (")
+                .ok_or("missing timeline duration")?;
+            let (start, end) = range.split_once("..").ok_or("missing timeline range")?;
+            let (start, end) = (milliseconds(start)?, milliseconds(end)?);
+            if end < start || (end - start - milliseconds(duration)?).abs() > 0.002 {
+                return Err(format!("inconsistent timeline range for {name}"));
+            }
+            spans.push((start, end, name));
+        }
+    }
+    let total = total.ok_or("missing total elapsed time")?;
+    if spans.is_empty() {
+        return Err("no compiler timeline spans".into());
+    }
+    spans.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let mut covered = 0.0;
+    let mut previous_end = 0.0_f64;
+    let mut gaps = Vec::new();
+    let mut rows = Vec::new();
+    for (start, end, name) in spans {
+        if end > total {
+            return Err(format!("timeline span exceeds total: {name}"));
+        }
+        if start > previous_end {
+            gaps.push(json!({"start_ms":previous_end,"end_ms":start}));
+        }
+        covered += (end - previous_end.max(start)).max(0.0);
+        previous_end = previous_end.max(end);
+        rows.push(json!({"phase":name,"start_ms":start,"end_ms":end}));
+    }
+    if previous_end < total {
+        gaps.push(json!({"start_ms":previous_end,"end_ms":total}));
+    }
+    Ok(
+        json!({"compiler_elapsed_ms":total,"covered_ms":covered,"unattributed_ms":(total-covered).max(0.0),"gaps":gaps,"spans":rows}),
+    )
+}
+
+#[cfg(test)]
+mod timeline_tests {
+    #[test]
+    fn nested_spans_count_once_and_preserve_gaps() {
+        let output = "5.000..8.000 ms (3.000 ms)  timeline / inner\n2.000..10.000 ms (8.000 ms)  timeline / outer\n11.000 ms  total elapsed";
+        let result = super::compiler_timeline(output).unwrap();
+        assert_eq!(result["covered_ms"], 8.0);
+        assert_eq!(result["unattributed_ms"], 3.0);
+        assert_eq!(result["gaps"].as_array().unwrap().len(), 2);
+        assert!(
+            super::compiler_timeline(
+                &output.replace("8.000 ms)  timeline / outer", "4.000 ms)  timeline / outer")
+            )
+            .is_err()
+        );
+    }
 }
 
 fn save(directory: &Path, result: &Value) -> Result<(), String> {

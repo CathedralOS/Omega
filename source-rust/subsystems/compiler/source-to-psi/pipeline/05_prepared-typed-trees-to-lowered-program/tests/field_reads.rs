@@ -71,6 +71,395 @@ fn return_cleanup(machine: &TerminalMachine) -> &[TerminalAffineCleanupAction] {
     cleanup
 }
 
+#[test]
+fn a_closed_package_keeps_its_hidden_argument_in_a_nested_uniform_field() {
+    let program = Program::of(
+        "data Claim<T> [linear] { provider: u64; }
+         data Returned<some S> [linear] { custody: Claim<S>; }
+         machine handoff(value: Returned) -> Returned { move value }",
+    );
+    let lowered = program.lower();
+    let module = &lowered.elaboration.module;
+    let parameter = &lowered.machine("handoff").contract.structural_parameters[0];
+    let package = module.structural_type(parameter.structural_type).unwrap();
+    let custody = package.shape.fields().next().unwrap();
+    assert_eq!(module.identities.text(custody.identity), Some("custody"));
+    let carrier = module
+        .structural_type(custody.field_type.as_structural().unwrap())
+        .unwrap();
+    let provider = carrier.shape.fields().next().unwrap();
+    assert_eq!(module.identities.text(provider.identity), Some("provider"));
+    let u64_type =
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+            .unwrap();
+    assert_eq!(
+        provider
+            .field_type
+            .as_scalar()
+            .and_then(|field| field.as_integer()),
+        Some(u64_type)
+    );
+}
+
+#[test]
+fn a_package_stores_two_references_to_each_chosen_witness() {
+    let source = r"
+data File { byte: u8; }
+data Socket { port: u64; byte: u8; }
+data Pair<'a, some S> { slots: [@'a S; 2]; }
+machine main() {
+    let file: File = File { byte: 17u8 };
+    let socket: Socket = Socket { port: 80u64, byte: 42u8 };
+    let file_slots: [@File; 2] = [@file, @file];
+    let socket_slots: [@Socket; 2] = [@socket, @socket];
+    let first: Pair = Pair { slots: file_slots };
+    let second: Pair = Pair { slots: socket_slots };
+}";
+    let program = Program::of(source);
+    let module = &program.elaboration().module;
+    let mut choices = Vec::new();
+    for site in &module.execution.packages.sites {
+        if let terminal_psi::TerminalPackageEvent::Construct { witnesses } = &site.event {
+            let [witness] = witnesses.as_slice() else {
+                panic!("each constructor chooses one type")
+            };
+            choices.push(*witness);
+        }
+    }
+    assert_eq!(choices.len(), 2);
+    assert_ne!(choices[0], choices[1]);
+}
+
+#[test]
+fn returning_a_complete_package_retains_the_input_behind_each_hidden_reference() {
+    let source = r"
+data File { byte: u8; }
+data Pair<'a, some S> { slots: [@'a S; 2]; }
+machine pair<'a>(first: @'a File, second: @'a File) -> Pair<'a> {
+    let slots: [@'a File; 2] = [first, second];
+    Pair { slots: slots }
+}
+machine main() {
+    let left: File = File { byte: 17u8 };
+    let right: File = File { byte: 42u8 };
+    let result: Pair = pair(@left, @right);
+}";
+    let program = Program::of(source);
+    let machine = program.machine("pair");
+    let result = machine.result.structural().unwrap();
+    assert_eq!(result.reference_sources.len(), 2);
+    for (index, reference) in result.reference_sources.iter().enumerate() {
+        assert_eq!(
+            reference.path.last(),
+            Some(&StructuralPathSegment::FixedIndex(index as u64))
+        );
+        let [source] = reference.sources.as_slice() else {
+            panic!("each slot has one lender")
+        };
+        assert_eq!(
+            source.parameter().unwrap().place,
+            machine.structural_parameters[index].place
+        );
+    }
+    program.judged(|_| {}).accepted();
+    let crossed = program.judged_in("pair", |machine| {
+        let other = machine.structural_parameters[1].place;
+        let terminal_psi::TerminalMachineResult::Structural(result) = &mut machine.contract.result
+        else {
+            unreachable!()
+        };
+        let terminal_psi::StructuralReferenceOrigin::Parameter(source) =
+            &mut result.reference_sources[0].sources[0]
+        else {
+            unreachable!()
+        };
+        source.place = other;
+    });
+    match crossed {
+        program::Verdict::Refused(refusal) | program::Verdict::Unserved(refusal) => assert!(
+            refusal.detail.contains("actual returned backing")
+                || refusal
+                    .detail
+                    .contains("returned reference header differs from its actual body origins"),
+            "{refusal:?}",
+        ),
+        other => panic!("the changed header must identify the actual lender: {other:?}"),
+    }
+
+    let local = source
+        .replace(
+            "let slots:",
+            "let local: File = File { byte: 99u8 }; let slots:",
+        )
+        .replace("[first, second]", "[@local, second]");
+    let refusal = Program::try_of(&[("product/main.omg", &local)])
+        .err()
+        .expect("a helper cannot return its own local");
+    assert!(refusal.message.contains("local") || refusal.message.contains("temporary"));
+}
+
+#[test]
+fn forwarding_a_complete_package_substitutes_each_callee_lender_at_the_call() {
+    let program = Program::of(
+        r"
+data File { byte: u8; }
+data Pair<'a, some S> { slots: [@'a S; 2]; }
+machine pair<'a>(first: @'a File, second: @'a File) -> Pair<'a> {
+    let slots: [@'a File; 2] = [first, second];
+    Pair { slots: slots }
+}
+machine relay<'a>(right: @'a File, left: @'a File) -> Pair<'a> { pair(left, right) }
+machine main() {
+    let left: File = File { byte: 17u8 };
+    let right: File = File { byte: 42u8 };
+    let result: Pair = relay(@right, @left);
+}",
+    );
+    let relay = program.machine("relay");
+    let fields = &relay.result.structural().unwrap().reference_sources;
+    assert_eq!(fields.len(), 2);
+    for (field, parameter) in fields.iter().zip(relay.structural_parameters.iter().rev()) {
+        let [source] = field.sources.as_slice() else {
+            panic!("one forwarded lender per slot")
+        };
+        assert_eq!(source.parameter().unwrap().place, parameter.place);
+    }
+    program.judged(|_| {}).accepted();
+}
+
+#[test]
+fn forwarding_a_call_result_keeps_every_alternative_lender() {
+    let program = Program::of(
+        r"
+data File { byte: u8; }
+data Socket { port: u64; }
+data Pair<'a, some S> { state: @'a S; }
+machine choose<'a>(flag: bool, file: @'a File, socket: @'a Socket) -> Pair<'a> {
+    match flag { true -> Pair { state: file }, false -> Pair { state: socket }, }
+}
+machine relay<'a>(socket: @'a Socket, file: @'a File, flag: bool) -> Pair<'a> {
+    choose(flag, file, socket)
+}
+machine main() {
+    let file: File = File { byte: 17u8 };
+    let socket: Socket = Socket { port: 42u64 };
+    let p: Pair = relay(@socket, @file, false);
+}",
+    );
+    program.judged(|_| {}).accepted();
+    let relay = program.machine("relay");
+    let sources = &relay.result.structural().unwrap().reference_sources[0].sources;
+    assert_eq!(sources.len(), 2);
+    for parameter in &relay.structural_parameters {
+        assert!(
+            sources
+                .iter()
+                .any(|source| source.parameter().unwrap().place == parameter.place)
+        );
+    }
+
+    let incomplete = program.judged_in("relay", |machine| {
+        let terminal_psi::TerminalMachineResult::Structural(result) = &mut machine.contract.result
+        else {
+            unreachable!()
+        };
+        result.reference_sources[0].sources.pop().unwrap();
+    });
+    match incomplete {
+        program::Verdict::Refused(refusal) | program::Verdict::Unserved(refusal) => {
+            assert!(refusal.detail.contains("returned reference"), "{refusal:?}");
+        }
+        other => panic!("a forwarded result must retain both possible inputs: {other:?}"),
+    }
+}
+
+#[test]
+fn packing_a_borrowed_record_preserves_the_outer_lifetime() {
+    let source = r"
+data File { byte: u8; }
+data Socket<'a> { file: @'a File; }
+data Reader<'a, some S> { state: @'a S; tag: u8; }
+machine pack<'a, T>(value: @'a T, tag: u8) -> Reader<'a> {
+    Reader { state: value, tag: tag }
+}
+machine inspect<'outer, 'inside>(socket: @'outer Socket<'inside>) -> u8 {
+    let packed: Reader<'outer> = pack::<Socket<'inside>>(socket, 42u8);
+    packed.tag
+}
+machine main() crashes Trap {
+    let file: File = File { byte: 17u8 };
+    let socket: Socket = Socket { file: @file };
+    transition inspect(@socket) == 42u8 { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}";
+    Program::of(source).judged(|_| {}).accepted();
+    let wrong = source.replace("let packed: Reader<'outer>", "let packed: Reader<'inside>");
+    let refusal = Program::try_of(&[("product/main.omg", &wrong)])
+        .err()
+        .expect("packing cannot lengthen a borrowed input's outer lifetime");
+    assert!(
+        refusal.message.contains("lifetime") || refusal.message.contains("region"),
+        "{refusal:?}"
+    );
+}
+
+#[test]
+fn arrays_of_borrowed_witnesses_keep_each_dimension_and_the_outer_lifetime() {
+    let source = r"
+data File { byte: u8; }
+data Socket<'a> { file: @'a File; }
+data Reader<'a, some S> { state: [[@'a S; 2]; 2]; tag: u8; }
+machine inspect<'outer, 'inside>(socket: @'outer Socket<'inside>) -> u8 {
+    let held: [@'outer Socket<'inside>; 2] = [socket, socket];
+    let packed: Reader<'outer> = Reader { state: [held, held], tag: 42u8 };
+    packed.tag
+}
+machine main() crashes Trap {
+    let file: File = File { byte: 17u8 };
+    let socket: Socket = Socket { file: @file };
+    transition inspect(@socket) == 42u8 { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}";
+    Program::of(source).judged(|_| {}).accepted();
+    for (from, to, reason) in [
+        ("[[@'a S; 2]; 2]", "[[@'a S; 3]; 2]", "array"),
+        (
+            "let packed: Reader<'outer>",
+            "let packed: Reader<'inside>",
+            "lifetime",
+        ),
+    ] {
+        let changed = source.replace(from, to);
+        let refusal = Program::try_of(&[("product/main.omg", &changed)])
+            .err()
+            .expect("a different array extent or unrelated lifetime must be refused");
+        assert!(refusal.message.contains(reason), "{refusal:?}");
+    }
+}
+
+/// A borrowed callback argument reads the member of the stored Link, even
+/// though the source expression has the fresh type of this Reader's opening.
+#[test]
+fn an_opened_nominal_record_lends_the_field_at_its_stored_coordinate() {
+    let source = r"
+data File { byte: u8; }
+data Link<'a, T> { target: @'a T; }
+data Read<T> = machine(input: @T) -> u8 reaches none crashes none;
+data Reader<'a, some S> { link: Link<'a, S>; read: Read<S>; }
+machine get(f: @File) -> u8 { f.byte }
+machine apply(reader: @Reader) -> u8 { (reader.read)(reader.link.target) }
+machine inspect<'a>(file: @'a File) -> u8 {
+    let link: Link<'a, File> = Link { target: file };
+    let reader: Reader<'a> = Reader { link: link, read: get };
+    apply(@reader)
+}";
+    let program = Program::of(source);
+    let module = &program.elaboration().module;
+    let call = program
+        .machine("apply")
+        .operations()
+        .find_map(|operation| match &operation.kind {
+            OperationKind::CallMachine {
+                structural_arguments,
+                ..
+            } => Some(structural_arguments),
+            _ => None,
+        })
+        .expect("apply invokes the stored callback");
+    let [input] = call.as_slice() else {
+        panic!("a single borrowed input: {call:?}")
+    };
+    let [
+        StructuralPathSegment::Field(link),
+        StructuralPathSegment::Field(target),
+        StructuralPathSegment::Referent,
+    ] = input.path.as_slice()
+    else {
+        panic!("callback takes the stored target: {input:?}")
+    };
+    assert_eq!(module.identities.text(*link), Some("link"));
+    assert_eq!(module.identities.text(*target), Some("target"));
+    program.judged(|_| {}).accepted();
+
+    let crossed = source
+        .replace(
+            "apply(reader: @Reader)",
+            "apply(reader: @Reader, other: @Reader)",
+        )
+        .replace("(reader.link.target)", "(other.link.target)")
+        .replace("apply(@reader)", "apply(@reader, @reader)");
+    let refusal = Program::try_of(&[("product/main.omg", &crossed)])
+        .err()
+        .expect("separately opened witness");
+    assert!(refusal.message.contains("argument types"), "{refusal:?}");
+}
+
+#[test]
+fn a_branch_reads_plain_array_metadata_without_opening_the_witness() {
+    let program = Program::of(
+        r"
+data File { byte: u8; }
+data Pair<'a, some S> { state: @'a S; tag: [u8; 2]; }
+machine main() crashes Trap {
+    let file: File = File { byte: 17u8 };
+    let p: Pair = Pair { state: @file, tag: [11u8, 42u8] };
+    transition p.tag[1] == 42u8 { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}",
+    );
+    assert!(
+        program
+            .elaboration()
+            .module
+            .execution
+            .packages
+            .openings
+            .is_empty()
+    );
+    program.judged(|_| {}).accepted();
+}
+
+#[test]
+fn two_hidden_types_can_be_repacked_only_with_their_own_corresponding_fields() {
+    let source = r"
+data File { marker: u8; }
+data Socket { port: u64; marker: u8; }
+data Pair<'a, some A, some B> {
+    left: @'a A; spare_left: @'a A;
+    right: @'a B; spare_right: @'a B; tag: u8;
+}
+machine keep<'a>(p: @Pair<'a>, other: @Pair<'a>) -> Pair<'a> {
+    Pair { left: p.left, spare_left: p.spare_left,
+           right: p.right, spare_right: p.spare_right, tag: p.tag }
+}
+machine main() crashes Trap {
+    let file: File = File { marker: 17u8 };
+    let socket: Socket = Socket { port: 80u64, marker: 42u8 };
+    let left: Pair = Pair { left: @file, spare_left: @file, right: @socket, spare_right: @socket, tag: 17u8 };
+    let right: Pair = Pair { left: @socket, spare_left: @socket, right: @file, spare_right: @file, tag: 42u8 };
+    let a: Pair = keep(@left, @right);
+    let b: Pair = keep(@right, @left);
+    transition a.tag == 17u8 && b.tag == 42u8 { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}";
+    Program::of(source).judged(|_| {}).accepted();
+
+    let crossed = source.replace(
+        "spare_right: p.spare_right",
+        "spare_right: other.spare_right",
+    );
+    let refusal = Program::try_of(&[("product/main.omg", &crossed)])
+        .err()
+        .expect("the second witness comes from another subject");
+    assert_eq!(refusal.stage, "typing");
+    assert!(refusal.message.contains("conflicting generic arguments"));
+    assert_eq!(refusal.at, "spare_right");
+}
+
 /// `p.right.w` reads through `right` and then `w` from the formal `p`; the
 /// twin `p.left.w` changes only the first step.
 #[test]

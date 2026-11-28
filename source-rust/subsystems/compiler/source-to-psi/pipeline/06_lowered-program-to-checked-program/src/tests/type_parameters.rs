@@ -1873,7 +1873,7 @@ fn a_generic_empty_case_has_no_live_payload_contents() {
             &form.module.types.structural_types,
             &graph,
         );
-    let contents = analysis.result_contents(machine.id).unwrap();
+    let contents = analysis.result_contents(&form.module, machine.id).unwrap();
     assert!(
         terminal_semantics::reference_result_contents(
             &form.module.types.structural_types,

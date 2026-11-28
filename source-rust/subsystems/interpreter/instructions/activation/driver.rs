@@ -194,10 +194,9 @@ impl TerminalExecution<'_> {
         let shape = owned_activation::prepare_shape(&program.catalogs, boundary)
             .map_err(|_| malformed())?;
         let (retained, inputs) = structural_arguments.split_last().ok_or(malformed())?;
-        let formal = boundary.structural_parameters.last().ok_or(malformed())?;
-        let backing = RetainedBacking::capture(self, retained, formal, shape.retained_carrier)?;
+        let backing = RetainedBacking::capture(self, retained)?;
         if !super::funding::supports(self, shape.selected, &backing)? {
-            self.return_preparation_inputs(operation, &shape, &backing)?;
+            self.return_preparation_inputs(operation, &shape)?;
             return Ok(OperationFlow::Advance);
         }
         let worker = shape.selected.entry_machine;

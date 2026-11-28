@@ -1,5 +1,6 @@
 // Expected exit: 0.
 // An atomic value operand is checked once against the cell's `u32` carrier: a `u32` operand exchanges the resident, and an operand of another carrier reports one implicit conversion.
+use {omega}/language/core/layout.omg;
 data Cell { value: AtomicU32; }
 boundary trait HostedExchange {
     machine perform(cell: @Cell, expected: u32, select: bool) -> u32 reaches none crashes none;
@@ -7,8 +8,11 @@ boundary trait HostedExchange {
 HostedExchangeBody satisfies HostedExchange {
     machine perform(cell: @Cell, expected: u32, select: bool) -> u32 {
         let proposed: u32 = match select { true -> 7, false -> 9 };
-        let prior: u32 = cell.value.compare_exchange(expected, proposed, NoOrdering, NoOrdering);
-        prior
+        let outcome: |layout|::AtomicCompareExchangeOutcome<u32> = cell.value.compare_exchange(expected, proposed, NoOrdering, NoOrdering);
+        match outcome {
+            |layout|::AtomicCompareExchangeOutcome::Exchanged -> expected,
+            |layout|::AtomicCompareExchangeOutcome::Mismatched { observed } -> observed
+        }
     }
 }
 machine main() crashes Trap {

@@ -3740,16 +3740,32 @@ pub(crate) mod record_input {
             let operand_type = instantiated
                 .get(field.field)
                 .unwrap_or(&expected.field_type);
-            let field_shape = field_shape(source, result, field, expected, operand_type)?;
-            if operand_type != &expected.field_type
-                && declarations
+            let operand_shape = field_shape(source, result, field, expected, operand_type)?;
+            let storage_shape = if operand_type == &expected.field_type {
+                operand_shape
+            } else {
+                let slot = declarations
                     .field_storage_shape(expected, result.structural_type)
-                    .ok()?
-                    != field_shape
-            {
-                return None;
-            }
-            let alignment = u32::from(field_shape.alignment);
+                    .ok()?;
+                match declarations.package_reference_field(&expected.field_type, operand_type) {
+                    Some(true) => {
+                        let layout = runtime_abi::ScalarReferenceLayout::NATIVE;
+                        let direct =
+                            ValueShape::integer(layout.address_byte_size, layout.alignment);
+                        let descriptor = ValueShape::integer(layout.byte_size, layout.alignment);
+                        if slot != descriptor
+                            || !(operand_shape == direct || operand_shape == descriptor)
+                        {
+                            return None;
+                        }
+                    }
+                    Some(false) => return None,
+                    None if slot != operand_shape => return None,
+                    None => {}
+                }
+                slot
+            };
+            let alignment = u32::from(storage_shape.alignment);
             offset = match expected.storage.as_ref() {
                 Some(semantic_vocabulary::AuthoredFieldStorage::Fragmented(fragments)) => {
                     u32::try_from(fragments.byte_envelope()?.0).ok()?
@@ -3757,11 +3773,11 @@ pub(crate) mod record_input {
                 Some(storage) => u32::try_from(storage.byte_offset()?).ok()?,
                 None => offset.checked_add(alignment.checked_sub(1)?)? / alignment * alignment,
             };
-            if offset.checked_add(field_shape.byte_size)? > shape.byte_size {
+            if offset.checked_add(storage_shape.byte_size)? > shape.byte_size {
                 return None;
             }
-            placed.push((offset, field_shape, operand_type.scalar_type()));
-            offset = offset.checked_add(field_shape.byte_size)?;
+            placed.push((offset, operand_shape, operand_type.scalar_type()));
+            offset = offset.checked_add(storage_shape.byte_size)?;
         }
         (offset <= shape.byte_size).then_some(placed)
     }
@@ -4691,6 +4707,22 @@ pub(crate) mod reference_input {
         )?;
         let selected = projection.selected;
         let offset = projection.referent_offset;
+        let witnesses = declarations.storage_inputs();
+        let opened_package = match target.opened_referent {
+            Some(opened) => {
+                if !witnesses.is_package_witness(selected)
+                    || !witnesses.is_package_witness(opened)
+                    || selected == opened
+                    || argument.path.last() != Some(&StructuralPathSegment::Referent)
+                    || offset != 0
+                {
+                    return None;
+                }
+                true
+            }
+            None if witnesses.is_package_witness(selected) => return None,
+            None => false,
+        };
         let opaque = calling_conventions::terminal_layout::opaque_borrow_transport(
             &terminal_psi::find_structural_type(declarations, selected)?.shape,
             argument.access,
@@ -4732,10 +4764,12 @@ pub(crate) mod reference_input {
             indices: indices.to_vec(),
             referent_offset: offset,
             scalar_descriptor: projection.scalar_descriptor,
+            opened_package,
         })
     }
 
     pub(crate) struct BorrowedReferenceAddress {
+        pub(crate) opened_package: bool,
         pub(crate) pointer_slots: Vec<PointerSlot>,
         pub(crate) indices: Vec<legalized_operations::LegalizedRuntimeIndexOperand>,
         pub(crate) referent_offset: u32,
@@ -5319,6 +5353,110 @@ pub(crate) mod reference_input {
                     super::establishment(&prepared, &function.blocks[0].instructions[0]).is_none()
                 );
             }
+        }
+
+        #[test]
+        fn opened_call_addresses_the_two_words_of_its_exact_array_member() {
+            use crate::instruction_selection::native_geometry::{NativeFunction, NativeGeometry};
+            use calling_conventions::{
+                CallSignature, CallingPolicy, ValueShape, evaluate_call_plan,
+            };
+            use structural_storage::structural_type_catalog::StorageLayoutInputs;
+            use target_vocabulary::{TargetStructuralArgument, TargetStructuralArgumentSource};
+
+            let mut types = catalog();
+            types[0].shape = StructuralTypeShape::Opaque;
+            types.push(declaration(5, StructuralTypeShape::Opaque));
+            let target = target::NativeTarget::linux_x64();
+            let witnesses = [type_id(1), type_id(5)];
+            let geometry = NativeGeometry::with_storage_inputs(
+                &types,
+                StorageLayoutInputs {
+                    package_witnesses: &witnesses,
+                    ..Default::default()
+                },
+                target,
+            )
+            .unwrap();
+            let semantic = StructuralArgument {
+                place: PlaceId::new(1).unwrap(),
+                access: StructuralAccess::MutableBorrow,
+                path: vec![
+                    StructuralPathSegment::FixedIndex(1),
+                    StructuralPathSegment::Field(TerminalIdentityIndex(21)),
+                    StructuralPathSegment::Referent,
+                ],
+            };
+            let destination = evaluate_call_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature {
+                    parameters: vec![ValueShape::integer(8, 8)],
+                    result: None,
+                },
+            )
+            .unwrap()
+            .parameters
+            .remove(0);
+            let mut function = storage_view_function(32, false);
+            let signature = function.structural.as_mut().unwrap();
+            signature.structural_types = types.clone().into();
+            let mut argument = TargetStructuralArgument {
+                opened_referent: Some(type_id(5)),
+                place: semantic.place,
+                access: semantic.access,
+                path: semantic.path.clone(),
+                root_structural_type: type_id(4),
+                structural_type: type_id(1),
+                shape: destination.shape,
+                source_byte_offset: 0,
+                fixed_array_length: None,
+                element_stride: None,
+                indices: Vec::new(),
+                source: TargetStructuralArgumentSource::Placement(
+                    signature.parameters[0].target.placement.clone(),
+                ),
+                destination,
+            };
+            let checked = NativeFunction::new(&function, &geometry);
+            let address = super::borrowed_argument(&checked, &semantic, &argument, &[]).unwrap();
+            assert!(address.opened_package);
+            assert_eq!(address.pointer_slots.len(), 1);
+            // The record contains an eight-byte prefix and a sixteen-byte reference.
+            assert_eq!(address.pointer_slots[0].byte_offset, 24 + 8);
+            assert_eq!(address.referent_offset, 0);
+            assert!(
+                super::reference_projection(
+                    type_id(4),
+                    &semantic.path,
+                    semantic.access,
+                    Some(type_id(5)),
+                    &geometry,
+                )
+                .is_none()
+            );
+            let mut hidden_field = semantic.path.clone();
+            hidden_field.push(StructuralPathSegment::Field(TerminalIdentityIndex(10)));
+            assert!(
+                super::reference_projection(
+                    type_id(4),
+                    &hidden_field,
+                    semantic.access,
+                    Some(type_id(1)),
+                    &geometry,
+                )
+                .is_none()
+            );
+            argument.opened_referent = Some(type_id(1));
+            assert!(super::borrowed_argument(&checked, &semantic, &argument, &[]).is_none());
+            argument.opened_referent = None;
+            assert!(super::borrowed_argument(&checked, &semantic, &argument, &[]).is_none());
+            let ordinary = NativeGeometry::new(&types, target).unwrap();
+            let ordinary = NativeFunction::new(&function, &ordinary);
+            let address = super::borrowed_argument(&ordinary, &semantic, &argument, &[]).unwrap();
+            assert!(!address.opened_package);
+            assert_eq!(address.pointer_slots[0].byte_offset, 16 + 8);
+            argument.opened_referent = Some(type_id(5));
+            assert!(super::borrowed_argument(&ordinary, &semantic, &argument, &[]).is_none());
         }
 
         #[test]

@@ -1,8 +1,4 @@
-// Standalone benchmark subject: binds the hosted program-entry slots with no
-// package dependency. The canonical ProcessExit provider lives in the standard
-// library, so this artifact cannot terminate cleanly; it is a compile-scope
-// subject measured with --no-run.
-
+// Measure a hosted entry with no package dependencies.
 use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "standalone" };

@@ -15,10 +15,10 @@ pub(super) struct TaskStorage<'a> {
 impl<'a> TaskStorage<'a> {
     pub(super) fn new(
         declarations: impl Iterator<Item = &'a StructuralTypeDeclaration>,
-        storage: runtime_abi::NativeValueStorage<'a>,
+        inputs: calling_conventions::terminal_layout::StorageLayoutInputs<'a>,
         profile: target::TargetProfile,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let layouts = StructuralLayoutResolver::with_value_storage(declarations, storage).map_err(
+        let layouts = StructuralLayoutResolver::with_storage_inputs(declarations, inputs).map_err(
             |error| {
                 vec![Diagnostic::error(format!(
                     "task storage declarations: {error:?}"
