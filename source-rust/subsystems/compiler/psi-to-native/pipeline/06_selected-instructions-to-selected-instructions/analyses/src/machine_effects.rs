@@ -1170,6 +1170,7 @@ pub(crate) mod indirect_call_tests {
                         OperationId::new(1).unwrap(),
                     ),
                     call: target_vocabulary::LegalizedScalarCall {
+                        suspension_crossing: None,
                         descriptor_origins: Vec::new(),
                         access_bindings: Vec::new(),
                         source: target_vocabulary::NativeCallOrigin::Authored,

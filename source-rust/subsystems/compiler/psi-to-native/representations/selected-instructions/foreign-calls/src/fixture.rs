@@ -192,6 +192,7 @@ pub fn record(
         instruction: SelectedInstructionId(4),
         invocation_site: operation.into(),
         call: target_vocabulary::LegalizedNormalizedForeignCall {
+            suspension_crossing: None,
             boundary: BoundaryMachineId::new(3).unwrap(),
             provider_execution: ProviderExecutionBinding::from_execution_record(
                 ProviderPlanReportIdentity::new(0xA1).unwrap(),

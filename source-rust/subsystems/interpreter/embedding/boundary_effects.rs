@@ -2042,6 +2042,25 @@ pub(crate) mod byte_buffers {
             parameter: &StructuralParameterDeclaration,
             owner: &TerminalStructuralValue,
         ) -> Result<ByteSequenceBinding, TerminalInterpretError> {
+            if !self
+                .structural_declaration(owner.structural_type)?
+                .shape
+                .is_bounded_owned_byte_sequence()
+                || owner.qualifications != parameter.qualifications
+            {
+                return Err(malformed());
+            }
+            if let Some(binding) = self.captured_byte_owner_binding(owner) {
+                binding.validate_mutable_referent(self, owner)?;
+                return Ok(binding.clone());
+            }
+            self.lend_original_byte_owner(owner)
+        }
+
+        pub(crate) fn lend_original_byte_owner(
+            &self,
+            owner: &TerminalStructuralValue,
+        ) -> Result<ByteSequenceBinding, TerminalInterpretError> {
             let coordinate = StructuralRuntimePlace::from(owner);
             let Some(ByteSequenceCarrier::BoundedOwned { capacity }) = self
                 .structural_types()
@@ -2053,13 +2072,6 @@ pub(crate) mod byte_buffers {
             else {
                 return Err(malformed());
             };
-            if owner.qualifications != parameter.qualifications {
-                return Err(malformed());
-            }
-            if let Some(binding) = self.captured_byte_owner_binding(owner) {
-                binding.validate_mutable_referent(self, owner)?;
-                return Ok(binding.clone());
-            }
             let home = if self.structural_byte_storage.contains_key(&coordinate) {
                 crate::storage::byte_sequences::binding::ByteOwnerHome::Storage(coordinate)
             } else {

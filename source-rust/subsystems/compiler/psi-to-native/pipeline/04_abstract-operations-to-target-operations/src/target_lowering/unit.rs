@@ -852,6 +852,7 @@ pub(crate) mod boundary_call {
         match operation {
             AbstractOperation::BoundaryCall {
                 psi_operation,
+                suspension_crossing,
                 result,
                 boundary,
                 arguments,
@@ -955,6 +956,7 @@ pub(crate) mod boundary_call {
                         })?;
                     operations.push(TargetUnitOperation::NormalizedForeignCall {
                         psi_operation: *psi_operation,
+                        suspension_crossing: *suspension_crossing,
                         boundary: *boundary,
                         provider_execution,
                         binding: foreign.clone(),

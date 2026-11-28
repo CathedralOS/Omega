@@ -43,9 +43,10 @@ pub(crate) fn project(
         Operation::ByteSequenceSubslice { .. } | Operation::ElementViewSubslice { .. } => {
             storage::project_subslice(machine, facts, row)?
         }
-        Operation::EstablishReference { .. } | Operation::EstablishAccessReference { .. } => {
-            project_reference(machine, facts, row)?
-        }
+        Operation::EstablishReference { .. }
+        | Operation::EstablishAccessReference { .. }
+        | Operation::BorrowAt { .. }
+        | Operation::UpgradeMutability { .. } => project_reference(machine, facts, row)?,
         Operation::ElementViewFixedArray { .. } => project_fixed_array(machine, facts, row)?,
         Operation::PrimitiveScalarRead { .. } => {
             storage::project_primitive_scalar_read(machine, facts, row)?
@@ -107,6 +108,7 @@ pub(crate) fn project(
                 let mut semantic = arguments[if position == 0 { 0 } else { 5 }].clone();
                 semantic.access = terminal_psi::StructuralAccess::SharedBorrow;
                 Ok::<_, Error>(legalized_operations::LegalizedScalarCall {
+                    suspension_crossing: None,
                     source: target_operations::NativeCallOrigin::Authored,
                     target: target_operations::NativeCallTarget::Machine(call.callee),
                     call_plan: call.call_plan.clone(),

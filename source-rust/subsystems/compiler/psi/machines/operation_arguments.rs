@@ -49,12 +49,14 @@ impl OperationKind {
                 committed_at: committed,
                 ..
             } => *committed = map(*committed),
+            Self::BorrowAt { address } => *address = map(*address),
             Self::EstablishReference { storage, .. } => {
                 if let Some(storage) = storage {
                     storage.byte_offset = map(storage.byte_offset);
                 }
             }
-            Self::EstablishAccessReference { .. }
+            Self::UpgradeMutability { .. }
+            | Self::EstablishAccessReference { .. }
             | Self::StorageAddress { .. }
             | Self::StorageAlignment { .. }
             | Self::GlobalDescriptorTable { .. } => {}

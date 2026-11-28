@@ -82,6 +82,11 @@ fn produce(
     // A contained program runs only on the interpreter, which takes no
     // components, and component emission compiles native code.
     let contained = retained.authorization().is_contained();
+    if stop == NativeProductionStop::Image && !contained {
+        request
+            .policy_source
+            .admit_native_emission(artifact, execution.scope().reach().machines())?;
+    }
     if contained && (!exports.is_empty() || !request.suppliers.is_empty()) {
         return Err(vec![Diagnostic::error(
             "a program admitted for contained interpretation cannot call components",

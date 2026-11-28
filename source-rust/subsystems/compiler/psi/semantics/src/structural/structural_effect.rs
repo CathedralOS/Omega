@@ -53,6 +53,7 @@ pub enum StructuralEffectResultShape {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralEffectCustody {
+    NativeAddress,
     ExactReferenceSource,
     ExactReferenceCarrier,
     ExactPrimitiveLocal,
@@ -86,6 +87,8 @@ pub enum StructuralEffectCustody {
 pub enum StructuralEffectAction {    EstablishNativeCodeLayout,
     EstablishAccessReference,
     EstablishReference,
+    BorrowAt,
+    UpgradeMutability,
     ReleaseReference,
     EstablishPrimitiveLocal,
     ReadPrimitive,
@@ -152,6 +155,7 @@ pub enum StructuralEffectGoalShape {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralEffectFrontierPolicy {
+    AssertsNativeBackingAndAddsReferenceCarrier,
     CapturesLoanAndAddsReferenceCarrier,
     ReleasesReferenceCarrier,
     TransfersOwnedChildrenAndAddsOwnedPlace,
@@ -212,7 +216,8 @@ impl StructuralEffectLeafSchema {
         self,
     ) -> Option<terminal_psi::StructuralMultiplicity> {
         match self.frontier {
-            StructuralEffectFrontierPolicy::CapturesLoanAndAddsReferenceCarrier => {
+            StructuralEffectFrontierPolicy::AssertsNativeBackingAndAddsReferenceCarrier
+            | StructuralEffectFrontierPolicy::CapturesLoanAndAddsReferenceCarrier => {
                 Some(terminal_psi::StructuralMultiplicity::Affine)
             }
             _ => None,
@@ -338,6 +343,8 @@ structural_effect_rows! {
     StorageAddress => (Scalar, ExactAddressableReferent, ExposeStorageAddress, None, RequiresAndKeepsStructuralPlace),
     StorageAlignment => (Scalar, ExactAddressableReferent, ObserveStorageAlignment, None, RequiresAndKeepsStructuralPlace),
     EstablishAccessReference => (Structural, ExactReferenceSource, EstablishAccessReference, None, CapturesLoanAndAddsReferenceCarrier),
+    BorrowAt => (Structural, NativeAddress, BorrowAt, None, AssertsNativeBackingAndAddsReferenceCarrier),
+    UpgradeMutability => (Structural, ExactReferenceSource, UpgradeMutability, None, CapturesLoanAndAddsReferenceCarrier),
     EstablishReference => (Structural, ExactReferenceSource, EstablishReference, None, CapturesLoanAndAddsReferenceCarrier),
     ReleaseReference => (Unit, ExactReferenceCarrier, ReleaseReference, None, ReleasesReferenceCarrier),
     PackedIntegerUnary => (Structural, ExactScalarArray, PackedIntegerUnary, None, AddsUnrestrictedPlace),
@@ -411,6 +418,8 @@ fn validate_structural_effect_schema(
         StructuralEffectAction::EstablishAccessReference => {
             OperationSemanticTag::EstablishAccessReference
         }
+        StructuralEffectAction::BorrowAt => OperationSemanticTag::BorrowAt,
+        StructuralEffectAction::UpgradeMutability => OperationSemanticTag::UpgradeMutability,
         StructuralEffectAction::EstablishReference => OperationSemanticTag::EstablishReference,
         StructuralEffectAction::ReleaseReference => OperationSemanticTag::ReleaseReference,
         StructuralEffectAction::EstablishPrimitiveLocal => {
@@ -536,6 +545,7 @@ fn validate_structural_effect_schema(
                     && schema.frontier == StructuralEffectFrontierPolicy::AddsOwnedPlace
             }
             StructuralEffectAction::EstablishAccessReference
+            | StructuralEffectAction::UpgradeMutability
             | StructuralEffectAction::EstablishReference => {
                 schema.result == StructuralEffectResultShape::Structural
                     && schema.custody == StructuralEffectCustody::ExactReferenceSource
@@ -543,6 +553,12 @@ fn validate_structural_effect_schema(
                     && schema.frontier
                         == StructuralEffectFrontierPolicy::CapturesLoanAndAddsReferenceCarrier
             }
+            StructuralEffectAction::BorrowAt => schema.result
+                == StructuralEffectResultShape::Structural
+                && schema.custody == StructuralEffectCustody::NativeAddress
+                && schema.external_effect == StructuralEffectExternalEffect::None
+                && schema.frontier
+                    == StructuralEffectFrontierPolicy::AssertsNativeBackingAndAddsReferenceCarrier,
             StructuralEffectAction::ReleaseReference => {
                 schema.result == StructuralEffectResultShape::Unit
                     && schema.custody == StructuralEffectCustody::ExactReferenceCarrier

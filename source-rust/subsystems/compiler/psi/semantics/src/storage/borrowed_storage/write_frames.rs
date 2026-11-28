@@ -90,8 +90,10 @@ fn write_frame_rows(
 ) -> Vec<Result<DescriptorMachine, DescriptorGraphError>> {
     let roster: Vec<_> = module.machines.iter().collect();
     let zeroed = crate::module_analyses::ZeroedCases::new(&module.types.structural_types);
+    let tracks_native_addresses = crate::storage::native_borrows::tracks_native_addresses(module);
     let adapt = |body, selectors: Option<&[DescriptorMachine]>| {
         terminal_flow::adapt(
+            tracks_native_addresses,
             module,
             &roster,
             body,
@@ -190,7 +192,26 @@ fn machine_write_frame(
         return Ok(None);
     };
     let mut paths = Vec::with_capacity(written.len());
-    for region in written {
+    for target in written {
+        use crate::descriptors::replay::StorageWriteTarget;
+        let StorageWriteTarget::Storage(region) = target else {
+            let StorageWriteTarget::NativeAddress(formal) = target else {
+                return Ok(None);
+            };
+            let scalar = machine
+                .parameters
+                .iter()
+                .position(|parameter| parameter.id == formal)
+                .ok_or("native write frame has no corresponding scalar formal")?;
+            let ordinal = machine
+                .structural_parameters
+                .len()
+                .checked_add(scalar)
+                .and_then(|index| u32::try_from(index).ok())
+                .ok_or("native write formal exceeds ordinal range")?;
+            paths.push((ordinal, Vec::new()));
+            continue;
+        };
         let mut parameters = machine
             .structural_parameters
             .iter()

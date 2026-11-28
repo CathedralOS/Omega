@@ -663,6 +663,7 @@ mod incoming_calls {
                     *position,
                     row.callee,
                     DescriptorActualInputs {
+                        native_address_arguments: &[],
                         scalar_arguments: &[],
                         arguments,
                         argument_contents: contents,

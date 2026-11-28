@@ -267,6 +267,12 @@ impl PackageCompilationInputs {
     ) -> semantic_vocabulary::dependency_reach::ExecutionReachPolicy {
         semantic_vocabulary::dependency_reach::ExecutionReachPolicy {
             root: Some(self.root()),
+            package_names: self
+                .source
+                .packages
+                .iter()
+                .map(|(&package, record)| (package, record.canonical_name.clone()))
+                .collect(),
             edges: self.execution_service_edges(purpose),
             enabled_unsafe: self
                 .dependency_build_handoff_instances()

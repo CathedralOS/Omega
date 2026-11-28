@@ -1491,6 +1491,7 @@ dependencies = [
  "target-operations-to-selected-instructions",
  "terminal-codec",
  "terminal-psi",
+ "terminal-semantics",
  "verified-optimization-input",
  "wire",
 ]
@@ -2150,6 +2151,7 @@ dependencies = [
  "host-provider-inputs",
  "installation-conditions",
  "language-core",
+ "native-artifact",
  "native-intrinsics",
  "numeric-literals",
  "numerics",
@@ -2182,6 +2184,7 @@ dependencies = [
  "terminal-psi",
  "terminal-runtime",
  "terminal-semantics",
+ "terminal-work",
  "worker-budget",
 ]
 
@@ -2371,6 +2374,7 @@ dependencies = [
 name = "psi-provider-selections"
 version = "0.1.0"
 dependencies = [
+ "application-identity",
  "diagnostics",
  "record-storage",
  "schema-reflection",
@@ -3569,6 +3573,7 @@ dependencies = [
  "application-identity",
  "build-model",
  "calling-conventions",
+ "component-description",
  "extent-contracts",
  "interpreter-numeric-imports",
  "language-core",
