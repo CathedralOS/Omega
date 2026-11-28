@@ -7,8 +7,8 @@ use {omega}/language/core/reply.omg;
 use {omega}/language/core/task.omg;
 
 // The producer and its receiver share only atomic state. The ready flag publishes the preceding item store.
-data Mailbox { item: AtomicU32; full: AtomicU32; }
-MailboxOps satisfies |generator|::Transport<Mailbox, u32> {
+public data Mailbox { item: AtomicU32; full: AtomicU32; }
+public MailboxOps satisfies |generator|::Transport<Mailbox, u32> {
     machine publish(box: @Mailbox, item: u32) reaches none crashes none {
         box.item.store(item, Publish);
         box.full.store(1u32, Publish);

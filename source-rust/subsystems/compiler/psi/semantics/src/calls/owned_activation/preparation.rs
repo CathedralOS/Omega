@@ -16,6 +16,7 @@ pub struct PreparationShape {
     pub rejected: StructuralCaseId,
     pub arguments: StructuralFieldId,
     pub retained: StructuralFieldId,
+    pub retained_carrier: StructuralTypeId,
 }
 
 /// This checks the source members and their physical carriers, not the size
@@ -109,29 +110,11 @@ pub(super) fn result_shape(
     let backing_type = module
         .structural_type(backing.structural_type)
         .ok_or("retained loan type is absent")?;
-    let byte_slice = match backing_type.shape {
-        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView { .. }) => true,
-        StructuralTypeShape::ElementView { element, .. } => module.structural_type(element)
-            .is_some_and(|t| matches!(t.shape, StructuralTypeShape::PrimitiveScalar(
-                semantic_vocabulary::ScalarType::Integer(i)) if !i.is_address() && i.bits() == Some(8)
-                    && i.sign() == semantic_vocabulary::IntegerSign::Unsigned)),
-        _ => false,
-    };
-    if !byte_slice
-        || backing.position != 1
-        || matches!(
-            backing.access,
-            terminal_psi::StructuralAccess::SharedBorrow
-                | terminal_psi::StructuralAccess::WriteOnlyBorrow
-        )
-        || crate::descriptors::descriptor_results::descriptor_value_access(
-            std::iter::once(backing_type),
-            backing_type.id,
-            backing.multiplicity,
-        ) != Some(terminal_psi::StructuralAccess::MutableBorrow)
-    {
-        return Err("retained backing must be an exclusive byte slice");
+    if usize::try_from(backing.position).ok() != Some(rest.len()) {
+        return Err("prepare lost its structural backing parameter");
     }
+    let retained_carrier = retained_backing_carrier(module, backing, backing_type, retained)
+        .ok_or("retained backing must return the original exclusive byte slice")?;
     let arguments_match = match (argument_kind, boundary.scalar_parameters.as_slice(), rest) {
         (BoundaryParameterKind::Scalar, [ty], []) => {
             arguments.field_type.canonical_leaf_shape()
@@ -142,8 +125,7 @@ pub(super) fn result_shape(
         }
         _ => false,
     };
-    if !arguments_match || !super::field_matches_carrier(module, retained, backing.structural_type)
-    {
+    if !arguments_match {
         return Err("rejection changed an argument or the retained loan's carrier");
     }
     if !super::forwarded_qualifications(
@@ -165,5 +147,61 @@ pub(super) fn result_shape(
         rejected: rejected.id,
         arguments: arguments.id,
         retained: retained.id,
+        retained_carrier,
     })
+}
+
+/// Passing a mutable slice directly borrows its element storage. The result
+/// holds that same borrow as a first-class mutable view of the same elements.
+fn retained_backing_carrier(
+    module: &TerminalModule,
+    backing: &terminal_psi::StructuralParameterDeclaration,
+    input: &terminal_psi::StructuralTypeDeclaration,
+    field: &terminal_psi::StructuralFieldDeclaration,
+) -> Option<StructuralTypeId> {
+    use terminal_psi::{ByteSequenceCarrier, StructuralAccess};
+    let output = if field.inline_carrier.is_some() {
+        crate::inline_carrier_declaration(module.types.structural_types.iter(), field)?
+    } else if let StructuralFieldType::Structural(id) = field.field_type {
+        module.structural_type(id)?
+    } else {
+        super::field_matches_carrier(module, field, input.id).then_some(input)?
+    };
+    let access = |ty: &terminal_psi::StructuralTypeDeclaration| {
+        crate::descriptors::descriptor_results::descriptor_value_access(
+            std::iter::once(ty),
+            ty.id,
+            ty.multiplicity,
+        )
+    };
+    if field.relevance.is_erased() || access(output) != Some(StructuralAccess::MutableBorrow) {
+        return None;
+    }
+    let declared_access = match (&input.shape, &output.shape) {
+        (
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access }),
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. }),
+        ) => *access,
+        (
+            StructuralTypeShape::ElementView { element, access },
+            StructuralTypeShape::ElementView { element: returned, .. },
+        ) if element == returned && module.structural_type(*element).is_some_and(|ty| matches!(
+            ty.shape, StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Integer(i))
+                if !i.is_address() && i.bits() == Some(8) && i.sign() == semantic_vocabulary::IntegerSign::Unsigned
+        )) => *access,
+        _ => return None,
+    };
+    match backing.access {
+        StructuralAccess::Owned
+            if input.id == output.id && access(input) == Some(StructuralAccess::MutableBorrow) =>
+        {
+            Some(output.id)
+        }
+        StructuralAccess::MutableBorrow
+            if declared_access.is_none_or(|a| a == StructuralAccess::MutableBorrow) =>
+        {
+            Some(output.id)
+        }
+        _ => None,
+    }
 }
