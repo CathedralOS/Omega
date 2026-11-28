@@ -666,29 +666,70 @@ fn a_dependent_field_update_survives_publication_and_independent_replay() {
     use terminal_psi::TerminalPackageEvent;
     const SAVED_INPUT: &str = "OMEGA_TEST_SAVED_DEPENDENT_FIELD_UPDATE";
     if let Some(path) = std::env::var_os(SAVED_INPUT) {
+        use build_model::accounting::BuildEvaluationSponsor;
+        use build_model::contracts::{
+            BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
+            TerminalStorageScheduleIdentity,
+        };
+        use terminal_interpreter::{
+            TerminalExecutionResult, TerminalExecutionStatus, TerminalInstantiation,
+            TerminalProgram,
+        };
+
         let bytes = std::fs::read(path).unwrap();
-        let decoded = terminal_codec::decode_module(&bytes).unwrap();
-        terminal_codec::sealing::prepare_received_execution(&decoded).unwrap();
+        let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+        let contained =
+            psi_authorization::admit_contained_interpretation(std::sync::Arc::new(artifact))
+                .unwrap();
+        let program = TerminalProgram::admit_contained(&contained);
         assert!(
-            decoded
+            program
+                .module()
                 .execution
                 .packages
                 .sites
                 .iter()
                 .any(|s| matches!(s.event, TerminalPackageEvent::Store { .. }))
         );
+        let sponsor = BuildEvaluationSponsor::new_with_measurement(
+            BuildEvaluationSponsorLimits::new(
+                1_000_000, 1, 1, 1, 100_000, 1_000_000, 100_000, 1_000_000,
+            )
+            .unwrap(),
+            EvaluationMeasurementIdentity::TerminalPsi {
+                work_schedule: terminal_work::WorkSchedule::CURRENT.identity(),
+                storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
+            },
+        )
+        .unwrap();
+        let account = sponsor
+            .begin_invocation(sponsor.measurement(), 1_000_000)
+            .unwrap();
+        let mut instance = program
+            .instantiate(TerminalInstantiation {
+                account: Some(&account),
+                ..Default::default()
+            })
+            .unwrap();
+        let status = instance
+            .invoke(&mut terminal_work::WorkMeter::with_budget(1_000_000))
+            .unwrap();
+        assert!(matches!(
+            status,
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+        ));
         return;
     }
     let source = "
 data File { value: u8; }
 data Pair<'a, some S> { first: @'a S; second: @'a S; }
-machine update(p: @mutable Pair) { p.first = p.second; }
 machine main() {
     let a: File = File { value: 11u8 };
     let b: File = File { value: 42u8 };
     let mutable pair: Pair = Pair { first: @a, second: @b };
     update(@mutable pair);
-}";
+}
+machine update(p: @mutable Pair) { p.first = p.second; }";
     let program = Program::of(source);
     let lowered = &program.elaboration().module;
     let (index, site) = lowered
@@ -714,8 +755,9 @@ machine main() {
             program.judged(|_| ())
         );
     };
-    let module = accepted.prepare_publication().unwrap().module().clone();
-    let bytes = terminal_codec::encode_module(&module).unwrap();
+    let artifact = accepted.publish().unwrap().artifact;
+    let module = artifact.view().module().clone();
+    let bytes = artifact.to_bytes();
     let nonce = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
