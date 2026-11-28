@@ -103,7 +103,7 @@ pub(super) fn checked_exits(
         || protocol.frame_layout != *frame
         || exit_contract.post_allocation_machine != machine.plan
         || exit_contract.pre_layout != encoding.pre_layout
-        || exit_contract.resolved_layout != program.layout
+        || !Arc::ptr_eq(&exit_contract.resolved_layout, &program.layout)
         || exit_contract.layout_custody != layout_custody
         || exit_contract.frame
             != (machine_code::WholeFunctionFrameDisposition::CanonicalFixedFrameV1 {
@@ -133,8 +133,7 @@ pub(super) fn verify_frame_requirements(
 }
 
 /// Without relaxation the current layout is the baseline and keeps its roots.
-/// With relaxation, the retained trace must be the one named, start from the
-/// baseline roots and have produced the current layout.
+/// Relaxation must issue the exact layout that placement consumes.
 fn validate_layout_optimization_roots(
     layout: &OptimizedMachineLayout,
     selections: &OptimizationSelections,
@@ -144,13 +143,17 @@ fn validate_layout_optimization_roots(
         return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
     }
     let baseline = &layout.baseline;
-    match (layout.relaxation, layout.trace.as_deref()) {
-        (None, None) if layout.layout().roots() == *baseline => Ok(()),
-        (Some(relaxation), Some(trace))
-            if trace.identity() == relaxation
-                && *trace.machine() == baseline.machine
-                && *trace.pre_layout() == baseline.pre_layout
-                && trace.layout == layout.program.layout =>
+    let enabled = machine_code::layout::relaxation_policy::x86_rel8_selected(
+        &phase,
+        layout.program.context.target.architecture,
+    )
+    .map_err(|_| FunctionRelativeOptimizationRealizationError::RootMismatch)?;
+    match (enabled, layout.relaxation.as_deref()) {
+        (false, None) if layout.layout().roots() == *baseline => Ok(()),
+        (true, Some(issued))
+            if *issued.machine() == baseline.machine
+                && *issued.pre_layout() == baseline.pre_layout
+                && Arc::ptr_eq(&issued.layout, &layout.program.layout) =>
         {
             Ok(())
         }
