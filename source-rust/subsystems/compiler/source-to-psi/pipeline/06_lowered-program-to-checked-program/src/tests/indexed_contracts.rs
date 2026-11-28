@@ -540,9 +540,15 @@ fn reborrow_of_an_input_element_field_needs_the_real_index_bound() {
             inspect(item.state)
         }
     "#;
-    for input in [SOURCE.to_owned(), SOURCE.replace("items: @mutable [", "items: @[")] {
+    for input in [
+        SOURCE.to_owned(),
+        SOURCE.replace("items: @mutable [", "items: @["),
+    ] {
         let accepted = judge(invocation(&input, "main")).unwrap();
-        assert!(matches!(accepted, RouteVerdict::Accepted(_)), "{accepted:?}");
+        assert!(
+            matches!(accepted, RouteVerdict::Accepted(_)),
+            "{accepted:?}"
+        );
     }
     let missing = SOURCE.replace("requires i < items.length", "");
     let rejected = judge(invocation(&missing, "main")).unwrap();

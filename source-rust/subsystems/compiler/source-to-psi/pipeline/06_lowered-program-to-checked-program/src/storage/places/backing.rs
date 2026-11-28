@@ -977,12 +977,30 @@ impl<'a> Storage<'a> {
             )
         })?;
         let at = (block, before);
-        let addresses =
-            match references.observed_storage_family(self.lowered, at, &location) {
-                Ok(Some(addresses))
-                    if addresses.iter().any(|source| {
-                        matches!(source, DescriptorCallOrigin::NativeAddress { .. })
-                    }) =>
+        let addresses = match references.observed_storage_family(self.lowered, at, &location) {
+            Ok(Some(addresses))
+                if addresses
+                    .iter()
+                    .any(|source| matches!(source, DescriptorCallOrigin::NativeAddress { .. })) =>
+            {
+                return self
+                    .native_referent_backing(references, place, at, concerns)?
+                    .map(Some)
+                    .ok_or_else(|| {
+                        self.unsupported(concerns, "native reference has no current typed referent")
+                    });
+            }
+            Ok(Some(addresses)) => addresses,
+            Ok(None) => return Ok(None),
+            Err(detail) => {
+                if call_write
+                    && let Some(addresses) = terminal_semantics::packages::local_call_write_origins(
+                        self.module,
+                        self.lowered,
+                        at,
+                        references,
+                        &location,
+                    )
                 {
                     return self
                         .native_referent_backing(references, place, at, concerns)?
