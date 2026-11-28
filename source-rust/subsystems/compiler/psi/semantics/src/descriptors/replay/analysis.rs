@@ -392,6 +392,51 @@ impl<'a> DescriptorAnalysis<'a> {
             .cloned()
     }
 
+    /// The local homes actually held by a reference value before an operation.
+    /// Only direct, complete addresses can justify handing back erased storage.
+    /// Incoming values, opaque accounts and indirect projections require the
+    /// ordinary typed reference replay.
+    pub(crate) fn local_reference_homes(
+        &mut self,
+        identity: MachineId,
+        at: DescriptorPosition,
+        slot: &DescriptorLocation,
+    ) -> Option<Vec<(PlaceId, Vec<terminal_psi::StructuralPathSegment>)>> {
+        self.replay.prepare_states(identity)?;
+        let machine = self.replay.machine(identity)?;
+        let state = self
+            .replay
+            .snapshots
+            .get(&identity)?
+            .ready()?
+            .before
+            .get(&at)?;
+        let values = self.replay.read(machine, state, slot)?;
+        if values.is_empty() {
+            return None;
+        }
+        values
+            .into_iter()
+            .map(|origin| {
+                let (source, path) = match origin {
+                    Origin::Storage(location) if &location != slot => {
+                        let ty = *machine.place_types.get(&location.root)?;
+                        (
+                            location.root,
+                            descriptor_path(self.replay.types, ty, &location.path)?,
+                        )
+                    }
+                    Origin::Backing(DescriptorCallOrigin::Argument { source, projection }) => {
+                        (source, projection.captured_storage_path()?)
+                    }
+                    _ => return None,
+                };
+                (!path.contains(&terminal_psi::StructuralPathSegment::Referent))
+                    .then_some((source, path))
+            })
+            .collect()
+    }
+
     /// One complete captured storage address, including indexed backing.
     /// Unknown or competing addresses cannot establish a singular projection.
     pub fn storage_projection(

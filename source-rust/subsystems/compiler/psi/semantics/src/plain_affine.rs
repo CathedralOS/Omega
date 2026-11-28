@@ -2863,7 +2863,7 @@ impl<'a> Analysis<'a> {
         }
         let mut referent = path.to_vec();
         referent.push(StructuralPathSegment::Referent);
-        let backings = self.backings(state, source, &referent, site)?;
+        let backings = self.backings(state, source, &referent, site, Some(path))?;
         for (root, captured) in backings.targets() {
             if self.root(*root)?.is_none() {
                 continue;
@@ -3910,7 +3910,7 @@ impl<'a> Analysis<'a> {
                         None
                     };
                 let backings = if self.references.is_some() {
-                    self.backings(state, *destination, path, site)?
+                    self.backings(state, *destination, path, site, None)?
                 } else {
                     WindowBacking::Exact((*destination, path.clone()))
                 };
@@ -4713,6 +4713,7 @@ impl<'a> Analysis<'a> {
         root: PlaceId,
         path: &[StructuralPathSegment],
         site: Site,
+        restoring_reference: Option<&[StructuralPathSegment]>,
     ) -> Result<WindowBacking, Error> {
         if !path.contains(&StructuralPathSegment::Referent) {
             return Ok(WindowBacking::Exact((root, path.to_vec())));
@@ -4756,12 +4757,26 @@ impl<'a> Analysis<'a> {
         }
         let unresolved =
             || Error::unsupported("a borrowed window has no exact live backing correspondence");
-        let Some(family) = references
-            .captured_storage_family_if_active(machine, position, &location)
-            .map_err(|_| unresolved())?
-        else {
-            return Ok(WindowBacking::Alternatives(Vec::new()));
-        };
+        let family =
+            match references.captured_storage_family_if_active(machine, position, &location) {
+                Ok(Some(family)) => family,
+                Ok(None) => return Ok(WindowBacking::Alternatives(Vec::new())),
+                Err(_) => {
+                    // Only a handback may inspect the closed initializer's actual
+                    // lenders. This cannot authorize a move or receiving store.
+                    let path = restoring_reference.ok_or_else(unresolved)?;
+                    let homes = crate::packages::local_mutable_field_homes(
+                        self.module.ok_or_else(unresolved)?,
+                        body,
+                        position,
+                        references,
+                        root,
+                        path,
+                    )
+                    .ok_or_else(unresolved)?;
+                    return Ok(WindowBacking::Alternatives(homes));
+                }
+            };
         family
             .into_iter()
             .filter_map(|origin| {
@@ -4809,7 +4824,7 @@ impl<'a> Analysis<'a> {
         path: &[StructuralPathSegment],
         site: Site,
     ) -> Result<(PlaceId, Vec<StructuralPathSegment>), Error> {
-        match self.backings(state, root, path, site)? {
+        match self.backings(state, root, path, site, None)? {
             WindowBacking::Exact(target) => Ok(target),
             WindowBacking::Alternatives(_) => Err(Error::unsupported(
                 "a borrowed window has no exact live backing correspondence",

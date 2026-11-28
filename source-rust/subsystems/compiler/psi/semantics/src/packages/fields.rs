@@ -55,6 +55,51 @@ fn field_needs_opening(
     }
 }
 
+/// The reference descriptor owned directly by an inline package field.
+pub(super) fn hidden_reference_field<'a>(
+    module: &'a TerminalModule,
+    machine: &TerminalMachine,
+    source: semantic_vocabulary::PlaceId,
+    path: &[StructuralPathSegment],
+) -> Option<(
+    StructuralTypeId,
+    &'a StructuralFieldDeclaration,
+    StructuralAccess,
+)> {
+    let (StructuralPathSegment::Field(identity), parent) = path.split_last()? else {
+        return None;
+    };
+    if parent.contains(&StructuralPathSegment::Referent)
+        || enters_package(
+            module,
+            machine,
+            terminal_psi::OperationProjection {
+                root: source,
+                path: parent,
+                field: None,
+            },
+        )
+    {
+        return None;
+    }
+    let root = machine.structural_place_type(source)?;
+    let record =
+        crate::runtime_structural_path_tip(module.types.structural_types.iter(), root, parent)?.id;
+    let schema = schema(module, record).ok()?;
+    let field = fields(module, record)
+        .ok()?
+        .iter()
+        .find(|f| f.identity == *identity)?;
+    let reference = module.structural_type(field.field_type.as_structural()?)?;
+    let StructuralTypeShape::Reference { referent, access } = reference.shape else {
+        return None;
+    };
+    schema
+        .witnesses
+        .contains(&referent)
+        .then_some((record, field, access))
+}
+
 pub(super) fn enters_package(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -94,6 +139,13 @@ pub(super) fn check_field_accesses(
     checked: &CheckedPackageSites,
 ) -> Result<(), &'static str> {
     use terminal_psi::StructuralStorageUse as Use;
+    // Last use ends the stored permission itself. Ordinary affine checking
+    // still requires an owned, live carrier and restores each actual lender.
+    if let OperationKind::ReleaseReference { source, path } = &operation.kind
+        && hidden_reference_field(module, machine, *source, path).is_some()
+    {
+        return Ok(());
+    }
     let tested_argument = |projection: terminal_psi::OperationProjection<'_>| {
         let OperationKind::CallMachine {
             structural_arguments,

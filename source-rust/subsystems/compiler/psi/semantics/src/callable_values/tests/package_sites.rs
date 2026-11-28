@@ -179,6 +179,45 @@ fn package_sites_retain_descriptors_and_require_the_same_state() {
 }
 
 #[test]
+fn package_places_release_the_stored_carrier_and_read_its_declared_descriptor() {
+    let mut program = readers();
+    let machine = &program.machines[0];
+    let read = &machine.blocks[0].operations[0];
+    assert!(crate::packages::projects_stored_callable(
+        &program,
+        machine,
+        read,
+        ScalarType::Callable(callable(1))
+    ));
+    assert!(!crate::packages::projects_stored_callable(
+        &program,
+        machine,
+        read,
+        ScalarType::Callable(callable(3))
+    ));
+    let release = Operation::unsuspended(
+        operation_id(3),
+        OperationResult::Unit,
+        O::ReleaseReference {
+            source: place(1),
+            path: vec![StructuralPathSegment::Field(TerminalIdentityIndex(1))],
+        },
+    );
+    let ops = &mut program.machines[0].blocks[0].operations;
+    ops.push(release);
+    check_package_sites(&program).expect("the stored reference may be ended");
+    let O::ReleaseReference { path, .. } = &mut program.machines[0].blocks[0].operations[2].kind
+    else {
+        unreachable!()
+    };
+    path.push(StructuralPathSegment::Referent);
+    assert!(
+        check_package_sites(&program).is_err(),
+        "closing a reference grants no access to its pointee"
+    );
+}
+
+#[test]
 fn package_sites_refuse_missing_or_crossed_evidence() {
     for i in 0..2 {
         let mut program = readers();
