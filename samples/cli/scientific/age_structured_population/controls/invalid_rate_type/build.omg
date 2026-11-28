@@ -2,4 +2,5 @@ use invalid.omg;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "invalid_rate_type" };
     Build::bind(builder, linux_x86_64::ProgramEntry, |invalid|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |invalid|::main);
 }

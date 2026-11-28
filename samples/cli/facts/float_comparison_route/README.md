@@ -15,7 +15,7 @@ comparison result changes. No place imports
 line, so the declared route is exercised without a float library in the
 program's package closure.
 
-| Place | Positive | Reject twin | Transport |
+| Place | Positive | Runtime trap twin | Transport |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) | — | the entry machine holds both operands and the result as locals |
 | local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | both operands and the comparison result stay entry-machine locals |
@@ -25,7 +25,7 @@ program's package closure.
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both match arms compare and one successor observes |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | named constants are the compared operands |
 | a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a successor machine receives both operands and compares |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `Comparator::equal` receives both operands through borrowed caller storage |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `equal` receives the two operands as machine arguments and borrows the caller’s `Comparator` |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | one comparison body per hosted target |
 
 Every positive place (and root `main.omg`) declares `Expected exit: 0` and binds
@@ -46,7 +46,7 @@ silently widening.
 ```sh
 mbx xtask sample-gate --filter samples/cli/facts/float_comparison_route
 omega run samples/cli/facts/float_comparison_route/<place>/main.omg
-omega --check samples/cli/facts/float_comparison_route/<place>/invalid/main.omg
+omega run samples/cli/facts/float_comparison_route/invalid_<place>/build.omg
 ```
 
 Measured on this Intel macOS x86_64 host with an opt-level 1 producer built from

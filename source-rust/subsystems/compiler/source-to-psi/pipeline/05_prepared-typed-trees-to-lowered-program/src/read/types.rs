@@ -1011,17 +1011,20 @@ impl Program<'_> {
         if let Some(witness) = self.package_witness_type(id, handle)? {
             return Ok(witness);
         }
-        // A declared structural premise may define an otherwise rigid
-        // parameter. Read its constructor under the preceding source frame;
-        // a sibling actual cannot rewrite that constructor's arguments.
+        // A machine premise or an applied data invariant can supply a type
+        // parameter. The data binder need not appear in the machine's value
+        // scope. Read its argument in the frame where that argument was written.
         if let Some(TypeReferenceNode::Named { symbol, .. }) = self
             .typed
             .contains_type_reference(handle)
             .then(|| self.typed.type_reference_table.type_reference(handle))
+            && self.typed.symbols.symbols().nodes().is_valid(*symbol)
+            && self.typed.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter
             && self
                 .scope
                 .iter()
-                .any(|(binder, bound)| binder == symbol && matches!(bound, ValueType::Rigid(_)))
+                .find(|(binder, _)| binder == symbol)
+                .is_none_or(|(_, bound)| matches!(bound, ValueType::Rigid(_)))
         {
             let supplied = self
                 .source_scope

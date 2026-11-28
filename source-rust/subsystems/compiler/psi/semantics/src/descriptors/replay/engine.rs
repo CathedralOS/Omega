@@ -1088,14 +1088,16 @@ impl<'a> Replay<'a> {
                     DescriptorDefinition::Parameter {
                         access: StructuralAccess::Owned,
                         ..
+                    }
+                    | DescriptorDefinition::Arrival {
+                        access: StructuralAccess::Owned,
                     } if self
                         .inline_steps(machine, &DescriptorContentsQuery::from_location(location))
                         .is_some_and(|steps| steps.into_iter().all(|inline| inline)) =>
                     {
-                        // By-value arguments have private working storage.
-                        // Keep its writes in the local flow, but publish
-                        // only effects that can reach the caller's storage.
-                        // A reference or view crossing is not inline.
+                        // A value passed by ownership to a machine or a block
+                        // has private inline storage. Its reference and view
+                        // fields can still name storage outside the machine.
                         continue;
                     }
                     DescriptorDefinition::Parameter { .. } => {}

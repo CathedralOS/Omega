@@ -297,6 +297,17 @@ impl Program<'_> {
         expression: ExpressionHandle,
         value: &Expression,
     ) -> Checked<()> {
+        // A materialized constant can be read in a package with no machines.
+        // Only a source selection needs operand types and an owning machine.
+        if self
+            .typed
+            .expression_table
+            .authored_selection_occurrences(expression)
+            .next()
+            .is_none()
+        {
+            return Ok(());
+        }
         // Inequality is formed as the negation of its checked equality.
         // The source question still belongs to that binary operation, whose
         // actual operand types are on the equality rather than the outer Not.

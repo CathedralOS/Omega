@@ -1025,6 +1025,8 @@ pub struct Body {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
+    /// Reserve this region's private register slot. Its first write supplies its value.
+    AssemblyRegister { slot: usize },
     /// Transfer to the next assembly block. Its predicates refer to the
     /// incoming slots in order; lowering binds them to the actual edge.
     AssemblyAdjacent {

@@ -1,10 +1,13 @@
 # Closed numeral order establishes an executing bound
 
-Owner: **PROOF-KERNEL-CORE**. Checked numeral order establishes `value <= 5`
-for exact `5u64 - value`. A mutable assignment of `3` into the route-free
-`Small` domain is the source certificate producer; the consumer must return `2`.
-The domain is exactly `0 <= value <= 5`. Each twin changes only that assignment's
-input to `6` (the named constant in `const_name`) and rejects at the assignment.
+Each program assigns 3 to a value in `Small`, whose bounds are 0 through 5.
+The assignment explicitly adds the domain with `as +Small`. The subtraction
+removes it with `as -Small` and uses the established bound to prove that
+`5u64 - value` fits. The program checks that the result is 2.
+
+Each invalid program changes the assignment input to 6, directly or through
+the named constant in `const_name`. The checker rejects the cast because 6 is
+outside `Small`. These examples exercise **PROOF-KERNEL-CORE**.
 
 The missing implementation was inside bounded denotation: a primitive closed
 order was installed as an assumption of its conclusion, even though the existing

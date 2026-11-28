@@ -1,6 +1,6 @@
 # Intended-invalid integer rate initializer
 
-This is a complete source project with an explicit Linux entry binding.
+This is a complete source project with Linux x86-64 and ARM64 Mac entry bindings.
 The initializer `TransitionRate { thousandths: true }` contradicts its
 `i64` field type. There is no implicit boolean-to-integer assignment conversion.
 See [numeric values](../../../../../../wiki/spec/language/numeric_values.md),

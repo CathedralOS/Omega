@@ -1,5 +1,4 @@
 //! Run the same caller-owned activations from source and their saved Psi.
-#![cfg(all(target_os = "linux", target_arch = "x86_64"))]
 
 #[path = "support/project.rs"]
 mod project;
@@ -52,6 +51,8 @@ fn assert_psi_exit(directory: &Path, program: &Path, outputs: &Path, expected: i
         directory,
         &[
             "run",
+            "--target",
+            "linux_x86_64",
             "--outputs",
             outputs.to_str().unwrap(),
             program.to_str().unwrap(),

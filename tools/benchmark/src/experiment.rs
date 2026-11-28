@@ -661,7 +661,7 @@ fn resolve(directory: &Path, path: &Path) -> Result<PathBuf, String> {
         .map_err(|error| format!("resolve {}: {error}", directory.join(path).display()))
 }
 
-fn write_new(path: &Path, bytes: &[u8]) -> Result<(), String> {
+pub(crate) fn write_new(path: &Path, bytes: &[u8]) -> Result<(), String> {
     let mut file = OpenOptions::new()
         .create_new(true)
         .write(true)

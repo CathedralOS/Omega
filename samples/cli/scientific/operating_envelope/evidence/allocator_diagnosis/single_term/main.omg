@@ -16,11 +16,11 @@ invokes |console|::Console
 {
     transition value < 0 {
         true -> negative(value as i32 +Wrapping),
-        _ -> digits(value as i32 +Wrapping, 1000000000, false)
+        _ -> digits(value as i32 +Wrapping, 1000000000i32 as +Wrapping, false)
     }
     machine negative(value: i32 in Wrapping) {
         |console|::Console::write_byte(45);
-        transition { _ -> digits(0 - value, 1000000000, false) }
+        transition { _ -> digits(0 - value, 1000000000i32 as +Wrapping, false) }
     }
     machine digits(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) {
         transition divisor > 0 {
@@ -36,7 +36,7 @@ invokes |console|::Console
         }
     }
     machine emit(value: i32 in Wrapping, divisor: i32 in Wrapping, digit: i32 in Wrapping) {
-        |console|::Console::write_byte((digit + 48) as i32);
+        |console|::Console::write_byte((digit + 48) as -Wrapping);
         transition divisor > 1 {
             true -> digits(value % divisor, divisor / 10, true),
             _ -> done()
@@ -45,7 +45,7 @@ invokes |console|::Console
     machine done() { }
 }
 machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
-    let total: u64 in Trapping = doubled_sum(1);
+    let total: u64 in Trapping = doubled_sum(1u64 as +Trapping);
     transition total == 4 {
         true -> good(main),
         _ -> bad(main)

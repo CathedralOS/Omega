@@ -15,6 +15,68 @@ fn extent_carrier(integer: IntegerType) -> bool {
 }
 
 impl Program<'_> {
+    /// Form a symbolic length using only the declaration's static value inputs.
+    /// Each closed use evaluates the expression at its actual arguments.
+    pub(in crate::read) fn template_array_extent(
+        &mut self,
+        machine: MachineId,
+        declaration: SymbolHandle,
+        parameters: arena::RootRows<'_, crate::source_state::data::TypeParameter>,
+        argument: TypeReferenceHandle,
+    ) -> Checked<()> {
+        use crate::read::clause_terms::ClauseUse;
+        use crate::read::contracts::{ClauseScope, ResultTerm};
+        use crate::source_state::data::TypeParameterKind;
+        use crate::source_state::types::TypeReferenceNode;
+        use semantic_vocabulary::{ScalarTerm, ValueId};
+
+        let unavailable = |reason| refuse_at(machine, Unserved::Type(reason));
+        let TypeReferenceNode::ConstExpression(expression) =
+            self.typed.type_reference_table.type_reference(argument)
+        else {
+            return Err(unavailable("array length without a constant expression"));
+        };
+        let referenced =
+            crate::source_state::references::collect_expression_references(self.typed, *expression);
+        let mut bound = Vec::new();
+        for parameter in parameters {
+            if let TypeParameterKind::Const { type_reference } = parameter.kind
+                && referenced.symbols.contains(&parameter.symbol)
+            {
+                let scalar_type = self.scalar_type(machine, type_reference)?;
+                let value = ValueId::new(bound.len() as u64 + 1)
+                    .ok_or_else(|| unavailable("too many array length parameters"))?;
+                bound.push((parameter.symbol, ScalarTerm::value(value, scalar_type)));
+            }
+        }
+        let scope = ClauseScope {
+            slots: &[],
+            values: &[],
+            bound: &bound,
+            owner: declaration,
+            result: ResultTerm::Absent("an array length has no result binding"),
+            subject: None,
+            formal_fields: false,
+            logical: None,
+        };
+        let (length, _) = self
+            .clause_term(machine, &scope, *expression, ClauseUse::Scalar(None))?
+            .scalar(machine)?;
+        let Some(integer) = length.scalar_type().as_integer() else {
+            return Err(crate::reject(
+                machine,
+                crate::SourceOrigin::of(self.typed.expression_table.source_span(*expression)),
+                "a fixed array length must be an integer",
+            ));
+        };
+        if !extent_carrier(integer) {
+            return Err(unavailable(
+                "array length needs an unsigned integer of at most 64 bits",
+            ));
+        }
+        Ok(())
+    }
+
     pub(super) fn array_extent(
         &mut self,
         machine: MachineId,

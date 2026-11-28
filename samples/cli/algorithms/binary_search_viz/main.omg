@@ -1,3 +1,4 @@
+use {omega}/language/core/byte_observation/byte_observation.omg as bytes;
 use {omega}/language/core/math.omg;
 use {omega}/language/core/process_authority.omg;
 use {omega}/language/core/process_exit.omg;
@@ -13,20 +14,17 @@ use {system}/console.omg;
 // Expected exit: 0.
 // Expected output contains: #
 
-domain [u8]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 31]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 4]::Utf8
-requires
-    valid_utf8(self);
+// The renderer replaces one byte at a time. Each stored glyph is ASCII,
+// so even a partially drawn row remains valid UTF-8.
+domain [u8; 31]::Ascii requires |bytes|::ascii_only(@self[..]);
+domain [u8; 31]::Utf8 requires |bytes|::valid_utf8(@self[..]);
+domain [u8; 4]::Utf8 requires |bytes|::valid_utf8(@self[..]);
+
 data Main
 requires self.x >= 0 && self.x <= 31
 {
     arr: [i32; 31];
-    line: [u8; 31] in Utf8;   // render buffer
+    line: [u8; 31] in Ascii;   // render buffer
     chars: [u8; 4] in Utf8;   // " -*#"  excluded / range / target / mid
     target: i32;              // only compared, never fed to arithmetic
     lo: i32;                  // in [0, 31]; each write is clamp-proven Exact
@@ -40,8 +38,8 @@ requires self.x >= 0 && self.x <= 31
 }
 
 machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |clock|::Clock + |process_authority|::StandardInput + |process_authority|::StandardOutput {
-    main.line = "                               ";
-    main.chars = " -*#";
+    main.line = "                               " as +Ascii;
+    main.chars = " -*#" as +Utf8;
     main.x = 0;
     transition { _ -> block init_loop(main) }
 
@@ -97,16 +95,18 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |clock|:
         transition main.kind >= 0 && main.kind < 4 { true -> block glyph_lookup(main), _ -> bad(main) }
     }
     machine glyph_lookup(main: @mutable Main) {
-        main.glyph = main.chars[main.kind];
-        transition main.x >= 0 && main.x < 31 { true -> block emit_cell(main), _ -> bad(main) }
+        main.glyph = (@main.chars as -Utf8)[main.kind];
+        transition main.x >= 0 && main.x < 31 && main.glyph <= 127 { true -> block emit_cell(main), _ -> bad(main) }
     }
     machine emit_cell(main: @mutable Main) {
-        main.line[main.x] = main.glyph;
+        (@mutable main.line as -Ascii)[main.x] = main.glyph;
         main.x = main.x + 1;
         transition { _ -> block render_loop(main) }
     }
     machine emit(main: @mutable Main) {
-        |console|::Console::write_line(main.line);
+        let text: [u8; 31] in Ascii & Utf8 = main.line as =Ascii +Utf8;
+        let line: @[u8] = (@text as -Ascii -Utf8)[..];
+        |console|::Console::write_line(line);
         block |clock|::Clock::sleep(250);
         transition { _ -> block probe(main) }
     }
@@ -134,7 +134,7 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |clock|:
     }
 
     machine finish(main: @mutable Main) {
-        |console|::Console::write_line("[press Enter to close]");
+        |console|::Console::write_line(@"[press Enter to close]"[..]);
         _ = block |console|::Console::read_line(@mutable main.pause[..]);
         |process_exit|::ProcessExit::exit_process(0);
     }

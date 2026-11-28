@@ -100,13 +100,13 @@ mod arrivals;
 mod backing;
 use backing::Backing;
 
-mod byte_payloads;
 mod byte_views;
 mod cleanup;
 mod contents;
 mod goal_observations;
 mod leaves;
 mod loans;
+mod view_writes;
 mod log;
 
 #[cfg(test)]
@@ -154,7 +154,11 @@ impl StorageAddresses for Lineage {
 /// places. Initializing or replacing a descriptor does not write payload bytes.
 enum StorageEffect {
     /// Retain the lender resolved while recording this call's possible write.
-    CallWrite(Lineage, Backing),
+    CallWrite {
+        place: Lineage,
+        backing: Backing,
+        may_upgrade: bool,
+    },
     NativeWrite(Lineage, Backing),
     Storage(Lineage),
     Payload(Lineage),
@@ -1472,7 +1476,7 @@ impl<'a> Storage<'a> {
                 Some(row)
             })
             .collect();
-        storage.byte_payload_writes(references, tables)?;
+        storage.record_view_writes(references, tables)?;
         storage.index_reaching_writes();
         for block in &lowered.blocks {
             for (before, operation) in block.operations.iter().enumerate() {
@@ -4180,11 +4184,12 @@ impl<'a> Storage<'a> {
         Ok(true)
     }
 
-    fn native_scalar_contents(
+    fn initialized_native_contents(
         &self,
         mut owner: StructuralTypeId,
         tail: &[Segment],
         concerns: Construct,
+        stored_reference: impl FnOnce() -> bool,
     ) -> Checked<bool> {
         for (position, step) in tail.iter().enumerate() {
             let declaration = self.declaration(owner, concerns)?;
@@ -4214,7 +4219,13 @@ impl<'a> Storage<'a> {
         }
         let declaration = self.declaration(owner, concerns)?;
         Ok(declaration.quotient_carrier.is_none()
-            && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_)))
+            && match declaration.shape {
+                StructuralTypeShape::PrimitiveScalar(_) => true,
+                StructuralTypeShape::Reference {
+                    access: StructuralAccess::SharedBorrow, ..
+                } => stored_reference(),
+                _ => false,
+            })
     }
 
     fn reaching_supply(
@@ -4228,9 +4239,8 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<Supply> {
         let original = asked.place();
-        // Formation asserts an initialized native T. Only scalar storage inside
-        // that T is established here. Bounds, stored values and the backing of
-        // an embedded reference have their own observations.
+        // Formation supplies the initialized scalar leaves of T. A stored
+        // reference also requires its own current backing at this read.
         if matches!(asked, Asked::Contents(_))
             && let Some(crossing) = original
                 .segments
@@ -4248,7 +4258,12 @@ impl<'a> Storage<'a> {
             let tail = &original.segments[crossing + 1..];
             let established = match source {
                 loans::ExternalReferent::Native => {
-                    self.native_scalar_contents(referent, tail, concerns)?
+                    self.initialized_native_contents(referent, tail, concerns, || {
+                        original
+                            .descriptor_location()
+                            .and_then(|cell| references.symbolic_source_origins(self.machine, at, &cell))
+                            .is_some_and(|origins| !origins.is_empty())
+                    })?
                 }
                 loans::ExternalReferent::Provider if tail.is_empty() => {
                     let declaration = self.declaration(referent, concerns)?;
@@ -5662,7 +5677,9 @@ impl<'a> Storage<'a> {
     /// storage; a live shared loan forbids that move just as it forbids a write.
     fn operation_changes(&self, operation: &Operation) -> Checked<Vec<StorageEffect>> {
         let concerns = Construct::Operation(operation.id);
-        let payloads = self.call_payload_arguments(operation, true)?;
+        let payloads = self.call_payload_arguments(operation)?;
+        let may_upgrade = payloads.iter().any(|(access, _)| *access == StructuralAccess::SharedBorrow)
+            && self.native_write_ceiling(operation, concerns)?.0;
         let is_call = operation.kind.declared_invocation().is_some()
             || operation.kind.callable_invocation().is_some();
         let mut changes: Vec<_> = self
@@ -5681,13 +5698,20 @@ impl<'a> Storage<'a> {
                         row.backing.clone(),
                     );
                 }
-                if payloads.iter().any(|payload| {
-                    row.destination.root == payload.root
+                if payloads.iter().any(|(access, payload)| {
+                    *access != StructuralAccess::SharedBorrow
+                        && row.destination.root == payload.root
                         && row.destination.segments.starts_with(&payload.segments)
                 }) {
                     StorageEffect::Payload(row.destination.clone())
                 } else if is_call && matches!(row.stored, Stored::Established) {
-                    StorageEffect::CallWrite(row.destination.clone(), row.backing.clone())
+                    StorageEffect::CallWrite {
+                        place: row.destination.clone(),
+                        backing: row.backing.clone(),
+                        may_upgrade: may_upgrade && payloads.iter().any(|(access, place)| {
+                            *access == StructuralAccess::SharedBorrow && place == &row.destination
+                        }),
+                    }
                 } else {
                     StorageEffect::Storage(row.destination.clone())
                 }
@@ -5802,46 +5826,50 @@ impl<'a> Storage<'a> {
         Ok((reads, changes))
     }
 
-    fn call_payload_arguments(&self, operation: &Operation, writes: bool) -> Checked<Vec<Lineage>> {
+    fn call_payload_arguments(
+        &self,
+        operation: &Operation,
+    ) -> Checked<Vec<(StructuralAccess, Lineage)>> {
         let concerns = Construct::Operation(operation.id);
-        let Some(call) = operation.declared_invocation() else {
+        let formals = if let Some(call) = operation.declared_invocation() {
+            self.module
+                .invocation_structural_parameters(call.callee, call.required_contract)
+        } else if let Some(call) = operation.kind.callable_invocation() {
+            self.module
+                .execution
+                .callables
+                .contract(call.contract)
+                .map(|contract| contract.structural_parameters.as_slice())
+        } else {
             return Ok(Vec::new());
-        };
-        let formals = self
-            .module
-            .invocation_structural_parameters(call.callee, call.required_contract)
-            .ok_or_else(|| self.foreign(concerns, "call effects have no exact retained formals"))?;
-        if formals.len() != call.structural_arguments.len() {
+        }
+        .ok_or_else(|| self.foreign(concerns, "call effects have no exact retained formals"))?;
+        let arguments = operation.kind.structural_arguments();
+        if formals.len() != arguments.len() {
             return Err(self.foreign(concerns, "call effects differ from their retained formals"));
         }
         let mut payloads = Vec::new();
-        for (argument, formal) in call.structural_arguments.iter().zip(formals) {
+        for (argument, formal) in arguments.iter().zip(formals) {
             if argument.access != formal.access {
                 return Err(self.foreign(
                     concerns,
                     "call effect access differs from its retained formal",
                 ));
             }
-            let touches = match argument.access {
-                terminal_psi::StructuralAccess::SharedBorrow => !writes,
-                terminal_psi::StructuralAccess::MutableBorrow
-                | terminal_psi::StructuralAccess::WriteOnlyBorrow => true,
-                terminal_psi::StructuralAccess::Owned => false,
-            };
-            if touches
+            if argument.access != StructuralAccess::Owned
                 && matches!(
                     self.borrowed_resource(formal),
                     loans::BorrowedResource::ViewPayload
                 )
             {
-                payloads.push(self.argument(argument, concerns)?);
+                payloads.push((argument.access, self.argument(argument, concerns)?));
             }
         }
         Ok(payloads)
     }
 
     fn operation_read_effects(&self, operation: &Operation) -> Checked<Vec<StorageEffect>> {
-        let payloads = self.call_payload_arguments(operation, false)?;
+        let payloads = self.call_payload_arguments(operation)?;
         let indexed = matches!(
             operation.kind,
             OperationKind::ByteSequenceRead { .. }
@@ -5853,7 +5881,7 @@ impl<'a> Storage<'a> {
             .operation_uses(operation)?
             .into_iter()
             .map(|place| {
-                if indexed || payloads.contains(&place) {
+                if indexed || payloads.iter().any(|(_, payload)| payload == &place) {
                     StorageEffect::Payload(place)
                 } else {
                     StorageEffect::Storage(place)

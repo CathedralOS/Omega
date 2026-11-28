@@ -19,6 +19,7 @@ mod cold_client;
 mod dominance_summary;
 mod experiment;
 mod history;
+mod pair_chart;
 mod plan;
 mod process;
 mod profiling;
@@ -31,6 +32,12 @@ mod statistics;
 mod suite;
 
 use std::path::Path;
+
+fn html_text(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
 
 fn main() {
     let mut arguments: Vec<_> = std::env::args_os().skip(1).collect();
@@ -57,6 +64,7 @@ fn main() {
             "Any command may start with --address-space-gib N (Linux address-space cap, default 64).
 omega-bench compare <plan.json> <new-result-directory>\nomega-bench suite <suite.json> <new-result-directory>\nomega-bench validate <run-directory>\nomega-bench show <run-directory>\nomega-bench check <run-directory> <maximum-regression-percent>\nomega-bench history <old-run-directory> <new-run-directory>\nomega-bench profile <plan.json> <baseline|candidate> <wpr|perf-stat|perf-record|selected-bodies|stages> <new-result-directory>
 omega-bench progress [--omega <release-omega>] [--results <dir>] [--runs N] [--aa-runs N] [--only <workload>]
+omega-bench chart <run-directory> <new-file.html>
 omega-bench scaling --omega <release-omega> [--shape machines|citations] [--sizes 0,1000,2000] [--runs N] [--max-ratio R]
 omega-bench dominance-summary <graph-run-directory>
 omega-bench proof-plan source <baseline> <candidate> <main.omg> <new-plan.json> --target <hosted-target> [--pairs N]
@@ -197,6 +205,18 @@ omega-bench selected-body-source-plan <baseline-omega> <copied-main.omg> <target
                 std::process::exit(1);
             }
         }
+    }
+    if arguments.len() == 3 && command == Some("chart") {
+        let output = Path::new(&arguments[2]);
+        let result = records::validate(Path::new(&arguments[1]))
+            .and_then(|run| pair_chart::render(&run))
+            .and_then(|chart| experiment::write_new(output, chart.as_bytes()));
+        if let Err(error) = result {
+            eprintln!("omega-bench: {error}");
+            std::process::exit(1);
+        }
+        println!("Chart written to {}", output.display());
+        return;
     }
     if arguments.len() == 2 && matches!(command, Some("validate" | "show")) {
         match records::validate(Path::new(&arguments[1])) {

@@ -113,8 +113,9 @@ pub fn project_at(directory: &Path, repo: &Path) -> Result<SampleProject, String
     };
     let entry = entry_name.map(|n| directory.join(n));
 
-    let build_raw = optional_text(&directory.join("build.omg"))?.unwrap_or_default();
-    let build = strip_comments(&build_raw);
+    let build_file = directory.join("build.omg");
+    let build_raw = optional_text(&build_file)?;
+    let build = strip_comments(build_raw.as_deref().unwrap_or_default());
     let dir_name = directory.file_name().and_then(|s| s.to_str()).unwrap_or("");
     let diag_file = REJECTION_FILES
         .iter()
@@ -191,6 +192,12 @@ pub fn project_at(directory: &Path, repo: &Path) -> Result<SampleProject, String
         .transpose()
         .map_err(|e| format!("{}: package_workflow: {e}", meta_path.display()))?
         .unwrap_or_default();
+    // A checked package may expose multiple modules without a main file.
+    // The update checks the complete source inventory before we check its Build.
+    let entry = entry.or_else(|| {
+        (role == "check-only" && package_workflow == PackageWorkflow::Locked && build_raw.is_some())
+            .then_some(build_file)
+    });
     let source_inputs = match meta.get("source_inputs") {
         None => project_source_inputs(directory)?,
         Some(value) => {
@@ -756,7 +763,7 @@ pub fn verify_sample(
     let has_input = input
         .try_exists()
         .map_err(|error| format!("{}: {error}", input.display()))?;
-    let oracle = application::Oracle::load(project, entry, target, has_input, evidence)?;
+    let oracle = application::Oracle::load(project, entry, target, evidence)?;
     if !has_input && oracle.is_empty() {
         if project.rel_path.split('/').any(|p| p == "probes") {
             return Ok("no-oracle".to_owned());
@@ -1169,6 +1176,32 @@ mod tests {
         assert_eq!(project_at(&owner, &root).unwrap().role, "check-only");
         fs::write(owner.join("expected.txt"), "cannot prove\n").unwrap();
         assert_eq!(project_at(&owner, &root).unwrap().role, "intended-invalid");
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn a_package_with_nested_modules_is_checked_through_its_build() {
+        let root = execution::reserve_directory(&std::env::temp_dir()).unwrap();
+        fs::create_dir(root.join("choices")).unwrap();
+        fs::write(root.join("choices/types.omg"), "public data Choice {}").unwrap();
+        fs::write(
+            root.join("build.omg"),
+            r#"machine build(builder: @mutable BuildPlan) {
+                builder.product = BuildProduct::Package { name: "choices" };
+            }"#,
+        )
+        .unwrap();
+        let samples = discover_samples(&root, &root, &[]).unwrap();
+        assert_eq!(samples.len(), 1);
+        assert_eq!(samples[0].entry, Some(root.join("build.omg")));
+        assert_eq!(samples[0].role, "check-only");
+        assert!(
+            samples[0]
+                .source_inputs
+                .contains(&"choices/types.omg".to_owned())
+        );
+        fs::write(root.join("sample.json"), r#"{"role":"program"}"#).unwrap();
+        assert!(project_at(&root, &root).unwrap().entry.is_none());
         fs::remove_dir_all(root).unwrap();
     }
 
