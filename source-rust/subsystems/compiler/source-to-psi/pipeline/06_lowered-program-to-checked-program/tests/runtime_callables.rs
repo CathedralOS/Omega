@@ -21,6 +21,68 @@ const CHOOSER: &str = "data Step = machine(x: u8) -> u8 reaches none crashes non
     machine run(f: Step, x: u8) -> u8 { f(x) } \
     machine main() -> u8 { run(action, 3u8) +% run(second, 3u8) }";
 
+/// The first callback may write the File and the entire output buffer. Its
+/// write permissions leave the second package's stored Socket callback intact.
+#[test]
+fn two_readers_lend_the_same_output_array_to_their_callbacks() {
+    let source = r#"data ReadInto<S> = machine(state: @mutable S, output: @mutable [u8]) -> u64
+    ensures result <= output.length
+    reaches none
+    crashes none;
+
+data Reader<'a, some S> {
+    state: @'a mutable S;
+    read: ReadInto<S>;
+}
+
+machine read_one(reader: @mutable Reader, output: @mutable [u8]) -> u64
+ensures result <= output.length
+{
+    (reader.read)(reader.state, output)
+}
+data File { byte: u8; }
+data Socket { port: u64; status: u8; }
+
+machine write_byte(output: @mutable [u8], value: u8) -> u64
+    ensures result <= output.length reaches none crashes none {
+    transition output.length > 0u64 {
+        true -> put(output, value), false -> 0u64
+    }
+    machine put(bytes: @mutable [u8], byte: u8) -> u64
+        requires bytes.length > 0u64 ensures result <= bytes.length {
+        bytes[0] = byte;
+        1u64
+    }
+}
+machine read_file(state: @mutable File, output: @mutable [u8]) -> u64
+    ensures result <= output.length reaches none crashes none {
+    write_byte(output, state.byte)
+}
+machine read_socket(state: @mutable Socket, output: @mutable [u8]) -> u64
+    ensures result <= output.length reaches none crashes none {
+    write_byte(output, state.status)
+}
+machine main() crashes Trap {
+    let mutable file: File = File { byte: 17u8 };
+    let mutable socket: Socket = Socket { port: 80u64, status: 41u8 };
+    let mutable readers: [Reader; 2] = [
+        Reader { state: @mutable file, read: read_file },
+        Reader { state: @mutable socket, read: read_socket }
+    ];
+    let mutable bytes: [u8; 2] = [0u8, 0u8];
+    let first: u64 = read_one(@mutable readers[0], @mutable bytes[..]);
+    let first_byte: u8 = bytes[0];
+    let second: u64 = read_one(@mutable readers[1], @mutable bytes[..]);
+    transition first == 1u64 && first_byte == 17u8 && second == 1u64 && bytes[0] == 41u8 && bytes[1] == 0u8 {
+        true -> done(), false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}
+"#;
+    Program::of(source).judged(|_| ()).accepted();
+}
+
 /// `run(action, 3u8)` passes a descriptor that names `action`, and
 /// `run(second, 3u8)` in the same body one that names `second`, although
 /// both machines have the same type.
