@@ -95,6 +95,13 @@ memberships, external-completion providers and dynamic view results) run in
 `sealing::prepare_received_execution` instead, once, when the receiving host
 authorizes a received module for execution.
 
+Foundation validation still refuses a move or leaf copy whose result keeps a
+domain its source no longer holds at that point. A call or store before the
+transfer can take a grant away; `structural_qualifications::validate` compares
+only each place's declared domains and does not see it.
+`terminal_semantics::descriptor_results::validate_transfer_source_memberships`
+replays the machine up to the transfer to check it.
+
 Run the codec's tests with:
 
 ```sh
