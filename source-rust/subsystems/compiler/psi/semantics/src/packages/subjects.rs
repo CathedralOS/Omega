@@ -3,6 +3,7 @@ use super::*;
 use crate::descriptor_results::{
     DescriptorAnalysis, DescriptorMachine, DescriptorPayloadTarget, ResidentValueCapture,
     ResidentValueCaptures, projected_stored_sources_in, require_unchanged_between_inputs,
+    require_unchanged_entry_storage, require_unchanged_observed_storage,
     terminal_borrowed_storage_graph_from, terminal_resident_value_transfers,
 };
 use crate::descriptors::descriptor_lifetimes::{
@@ -202,7 +203,46 @@ impl StorageHistory<'_> {
             )
             .is_ok()
         };
-        a.at == b.at || unchanged(a.at, b.at) || unchanged(b.at, a.at)
+        if a.at == b.at || unchanged(a.at, b.at) || unchanged(b.at, a.at) {
+            return true;
+        }
+        // Neither branch-local read need dominate the other. Both must still
+        // see the value supplied by the same parameter or producing instruction.
+        let Some(place) = self.machine.structural_place(a.home.root) else {
+            return false;
+        };
+        match place.kind {
+            semantic_vocabulary::StructuralPlaceKind::Parameter { .. } => {
+                [a.at, b.at].into_iter().all(|at| {
+                    require_unchanged_entry_storage(
+                        self.types,
+                        self.graph,
+                        &mut self.replay,
+                        self.machine.id,
+                        at,
+                        &target,
+                    )
+                    .is_ok()
+                })
+            }
+            semantic_vocabulary::StructuralPlaceKind::OperationResult { producer, .. } => {
+                let Some(definition) = position(self.machine, producer) else {
+                    return false;
+                };
+                [a.at, b.at].into_iter().all(|at| {
+                    require_unchanged_observed_storage(
+                        self.types,
+                        self.graph,
+                        self.machine.id,
+                        definition,
+                        at,
+                        &target,
+                    )
+                    .is_ok()
+                })
+            }
+            _ => false,
+        }
     }
 
     fn ancestry(

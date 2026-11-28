@@ -282,3 +282,62 @@ fn copying_the_enclosing_record_preserves_the_contained_package_witness() {
     select_copy_source(&mut program.machines[0].blocks[0].operations[0], 2);
     assert!(check_package_sites(&program).is_err());
 }
+
+#[test]
+fn exclusive_branches_can_observe_an_unchanged_input_and_its_copy() {
+    use semantic_vocabulary::{BlockId, EdgeId, ValueId};
+    use terminal_psi::SuccessorEdge;
+
+    let mut program = original_and_copy();
+    let machine = &mut program.machines[0];
+    let [copy, first, second, _] = std::mem::take(&mut machine.blocks[0].operations)
+        .try_into()
+        .expect("copy, two projections, reconstruction");
+    // Each branch returns independently. The two projections are never in
+    // execution order, but both originate at the same input on entry.
+    machine.structural_places.retain(|p| p.id != place(5));
+    program.execution.packages.sites.truncate(2);
+    let mut flag = value(1);
+    flag.scalar_type = ScalarType::Boolean;
+    machine.parameters.push(flag);
+    machine.parameter_order.push(BoundaryParameterKind::Scalar);
+    let arm = |id| SuccessorEdge {
+        edge: EdgeId::new(id).unwrap(),
+        target: BlockId::new(id).unwrap(),
+        arguments: vec![],
+        erased_arguments: vec![],
+        erased_proof_arguments: vec![],
+        structural_arguments: vec![],
+        cleanup_actions: vec![],
+    };
+    machine.blocks[0].terminator = Terminator::Conditional {
+        condition: ValueId::new(1).unwrap(),
+        when_true: arm(2),
+        when_false: arm(3),
+    };
+    for (id, ops) in [(2, vec![first]), (3, vec![copy, second])] {
+        let mut block = Block::plain(
+            BlockId::new(id).unwrap(),
+            vec![],
+            Terminator::ReturnUnit {
+                edge: EdgeId::new(id + 2).unwrap(),
+                cleanup_actions: vec![],
+            },
+        );
+        block.operations = ops;
+        machine.blocks.push(block);
+    }
+    check_package_sites(&program)
+        .expect("both branch-local observations retain the same entry value");
+    let mut changed = program.clone();
+    replace_pair(&mut changed.machines[0], 0, 5, 1);
+    // Only one arm replaces the original input before making its copy.
+    let replacement = changed.machines[0].blocks[0].operations.remove(0);
+    changed.machines[0].blocks[2]
+        .operations
+        .insert(0, replacement);
+    assert!(check_package_sites(&changed).is_err());
+
+    select_copy_source(&mut program.machines[0].blocks[2].operations[0], 2);
+    assert!(check_package_sites(&program).is_err());
+}
