@@ -765,7 +765,9 @@ fn only_the_checked_issuer_can_make_a_pair_of_funded_reply_handles() {
                 panic!("{fixture} must refuse: {reason}");
             };
             assert!(
-                diagnostics.iter().any(|diagnostic| diagnostic.message.contains(reason)),
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains(reason)),
                 "{diagnostics:?}"
             );
         } else {
