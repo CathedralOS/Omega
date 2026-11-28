@@ -40,6 +40,71 @@ ensures |proof|::Identity::<|nat|::Nat>(
     |rat|::rat_within_reflexive(q, |nat|::add(m, n), |nat|::mul(m, n));
 }
 
+// In a proof this total unary callable denotes a function from Nat to Rat.
+// Its term is the state of the sequence; the named sampler applies it.
+public data RationalFunction = machine(n: |nat|::Nat) -> |rat|::Rat
+    reaches none crashes none terminates;
+
+public machine apply(f: RationalFunction, n: |nat|::Nat) -> |rat|::Rat {
+    f(n)
+}
+
+public machine from_function(f: RationalFunction) -> Sequence<RationalFunction, apply> {
+    Sequence { state: f }
+}
+
+public machine function_sample(f: RationalFunction, n: |nat|::Nat)
+ensures |proof|::Identity::<|rat|::Rat>(apply(from_function(f).state, n), apply(f, n))
+{
+}
+
+// The division-free metric assumes positive denominators. A zero result here
+// establishes both denominators and the metric bound, even for raw Rat values.
+public machine sample_within(
+    left: |rat|::Rat, right: |rat|::Rat, bound: |nat|::Nat, precision: |nat|::Nat
+) -> |nat|::Nat {
+    let one: |nat|::Nat = |nat|::Nat::Succ { prev: |nat|::Nat::Zero };
+    let left_invalid: |nat|::Nat = |nat|::saturating_sub(one, left.den);
+    let right_invalid: |nat|::Nat = |nat|::saturating_sub(one, right.den);
+    let excess: |nat|::Nat = |rat|::rat_within(left, right, bound, precision);
+    |nat|::add(left_invalid, |nat|::add(right_invalid, excess))
+}
+
+public machine sample_within_reflexive(q: |rat|::Rat, bound: |nat|::Nat, n: |nat|::Nat)
+requires |proof|::Identity::<|nat|::Nat>(
+    |nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, q.den),
+    |nat|::Nat::Zero
+)
+ensures |proof|::Identity::<|nat|::Nat>(sample_within(q, q, bound, n), |nat|::Nat::Zero)
+{
+    |rat|::rat_within_reflexive(q, bound, n);
+}
+
+machine sample_within_equal(left: |rat|::Rat, right: |rat|::Rat, bound: |nat|::Nat, n: |nat|::Nat)
+requires |proof|::Identity::<|rat|::Rat>(right, left)
+ensures |proof|::Identity::<|nat|::Nat>(
+    sample_within(left, right, bound, n), sample_within(left, left, bound, n)
+)
+{}
+
+public machine constant_function_related_at(q: |rat|::Rat, f: RationalFunction, n: |nat|::Nat)
+requires
+    |proof|::Identity::<|nat|::Nat>(
+        |nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, q.den),
+        |nat|::Nat::Zero
+    ),
+    |proof|::Identity::<|rat|::Rat>(apply(f, n), q)
+ensures |proof|::Identity::<|nat|::Nat>(
+    sample_within(repeat(constant(q).state, n), apply(from_function(f).state, n), |nat|::four(), n),
+    |nat|::Nat::Zero
+)
+{
+    constant_sample(q, n);
+    function_sample(f, n);
+    sample_within_equal(q, apply(f, n), |nat|::four(), n);
+    sample_within_reflexive(q, |nat|::four(), n);
+}
+
 // Constructive Cauchy obligations over core Rat's division-free metric.
 //
 // Quantification uses Omega's ordinary theorem-machine rule: `precision`,

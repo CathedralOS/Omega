@@ -275,12 +275,13 @@ fn every_law_of_rat_is_judged() {
     );
 }
 
-#[test]
-fn every_law_of_cauchy_is_judged() {
-    // `core/cauchy.omg` states what it is for a sequence of rationals to be
-    // Cauchy, for any sequence and any modulus: its machines are generic
-    // over machines. It is judged with the four files it stands on.
-    let verdicts = judged_library(&[
+const CAUCHY: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../../../source/library/core/cauchy.omg"
+));
+
+fn judged_cauchy(cauchy: &str) -> Vec<RouteVerdict> {
+    judged_library(&[
         (
             "nat_metric.omg",
             include_str!(concat!(
@@ -302,14 +303,34 @@ fn every_law_of_cauchy_is_judged() {
                 "/../../../../../../source/library/core/rat.omg"
             )),
         ),
-        (
-            "cauchy.omg",
-            include_str!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../../../../../../source/library/core/cauchy.omg"
-            )),
-        ),
-    ]);
+        ("cauchy.omg", cauchy),
+    ])
+}
+
+// The two sequence types have different states and different static samplers.
+const GENERATORS: &str = "machine raw(n: |nat|::Nat, d: |nat|::Nat) -> |rat|::Rat {
+    |rat|::Rat { num: |int|::IntPair { neg: |nat|::Nat::Zero, pos: n }, den: d }
+}
+machine ones(n: |nat|::Nat) -> |rat|::Rat reaches none crashes none terminates {
+    raw(|nat|::one(), |nat|::one())
+}
+machine generated() -> Sequence<RationalFunction, apply> { from_function(ones) }
+machine same_samples(n: |nat|::Nat)
+ensures |proof|::Identity::<|rat|::Rat>(
+    repeat(constant(raw(|nat|::one(), |nat|::one())).state, n), apply(generated().state, n))
+{}
+machine same_bound()
+ensures |proof|::Identity::<|nat|::Nat>(
+    sample_within(repeat(constant(raw(|nat|::one(), |nat|::one())).state, |nat|::five()),
+                  apply(generated().state, |nat|::five()), |nat|::four(), |nat|::five()), |nat|::Nat::Zero)
+{}";
+
+#[test]
+fn every_law_of_cauchy_is_judged() {
+    // `core/cauchy.omg` states what it is for a sequence of rationals to be
+    // Cauchy, for any sequence and any modulus: its machines are generic
+    // over machines. It is judged with the four files it stands on.
+    let verdicts = judged_cauchy(&format!("use int.omg;\n{CAUCHY}\n{GENERATORS}"));
     let judgment = signature(&verdicts);
     for law in &judgment.laws {
         assert!(
@@ -325,6 +346,10 @@ fn every_law_of_cauchy_is_judged() {
             .unwrap_or_else(|| panic!("the law `{machine}`"))
     };
     for machine in [
+        "same_samples",
+        "same_bound",
+        "function_sample",
+        "constant_function_related_at",
         "constant_sample",
         "constant_regular_at",
         "cauchy_at_reflexive",
@@ -354,6 +379,9 @@ fn every_law_of_cauchy_is_judged() {
         assert!(proof.certificate.context.is_empty());
         proof
     };
+    for name in ["function_sample", "same_samples", "same_bound"] {
+        checked(name);
+    }
     let assumptions = |proof: &terminal_codec::DecodedMathematicalCertificate| {
         proof_admission::certificate_assumption_closure(&proof.arena, &proof.certificate)
             .into_iter()
@@ -375,6 +403,39 @@ fn every_law_of_cauchy_is_judged() {
         "constant regularity introduced an assumption beyond rational reflexivity"
     );
     eprintln!("{} laws", judgment.laws.len());
+}
+
+#[test]
+fn the_sample_bound_requires_convergence_and_positive_denominators() {
+    let source = format!(
+        "use int.omg;\n{CAUCHY}\n{GENERATORS}\n{}",
+        "machine separated()
+ensures |proof|::Identity::<|nat|::Nat>(
+    sample_within(repeat(constant(raw(|nat|::Nat::Zero, |nat|::one())).state, |nat|::five()),
+                  apply(generated().state, |nat|::five()),
+                  |nat|::four(), |nat|::five()), |nat|::Nat::Zero)
+{}
+
+machine bad_denominator()
+ensures |proof|::Identity::<|nat|::Nat>(
+    sample_within(repeat(constant(raw(|nat|::Nat::Zero, |nat|::Nat::Zero)).state, |nat|::five()),
+                  apply(generated().state, |nat|::five()),
+                  |nat|::four(), |nat|::five()), |nat|::Nat::Zero)
+{}"
+    );
+    let verdicts = judged_cauchy(&source);
+    let mut unproved = Vec::new();
+    for verdict in &verdicts {
+        match verdict {
+            RouteVerdict::Accepted(_) => {}
+            RouteVerdict::UnprovedLaws(laws) => {
+                unproved.extend(laws.iter().map(|law| law.machine.as_str()));
+            }
+            verdict => panic!("expected unproved laws: {verdict:?}"),
+        }
+    }
+    unproved.sort_unstable();
+    assert_eq!(unproved, ["bad_denominator", "separated"]);
 }
 
 /// Natural order over local data, decided as `core/nat.omg` decides it: by

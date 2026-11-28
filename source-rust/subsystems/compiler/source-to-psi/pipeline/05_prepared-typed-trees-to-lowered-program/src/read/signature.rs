@@ -184,6 +184,7 @@ impl Program<'_> {
             signature: MathematicalSignature::default(),
             data: Vec::new(),
             boolean: None,
+            function_types: Default::default(),
             machines,
             functions,
             fueled: Vec::new(),
@@ -732,6 +733,8 @@ struct Converter<'p, 't> {
     data: Vec<(StructuralTypeId, u32)>,
     /// The entry of `bool`, once a machine has a Boolean formal or result.
     boolean: Option<u32>,
+    /// The mathematical function fields actually declared in this signature.
+    function_types: Vec<(semantic_vocabulary::CallableContractId, u32)>,
     /// Each machine as a law, or as a machine that only cites.
     machines: IdTable<MachineId, Read>,
     /// Each machine with a result as a definition. A machine that returns a
@@ -3742,13 +3745,19 @@ impl<'p> Converter<'p, '_> {
         }
         let mut fields = Vec::with_capacity(declared.fields().len());
         for field in declared.fields() {
-            let ValueType::Record(inner, ..) = field.value_type else {
-                return Err(unserved(
-                    id,
-                    "record of mathematical data with a field of another type",
-                ));
+            let entry = match field.value_type {
+                ValueType::Record(inner, ..) => self.data(id, inner)?,
+                ValueType::Scalar(ScalarType::Callable(contract), _) => {
+                    self.function_type(id, contract)?
+                }
+                _ => {
+                    return Err(unserved(
+                        id,
+                        "record of mathematical data with a field of another type",
+                    ));
+                }
             };
-            fields.push(self.data(id, inner)?);
+            fields.push(entry);
         }
         let components: Vec<_> = fields.iter().map(|&field| self.constant(field)).collect();
         let ty = self
@@ -3825,6 +3834,75 @@ impl<'p> Converter<'p, '_> {
             "bool".to_owned(),
         );
         self.boolean = Some(entry);
+        Ok(entry)
+    }
+
+    /// A field or theorem operand needs the function type's own entry. The
+    /// codomain's entry does not give projections and identities a Pi type.
+    fn function_type(
+        &mut self,
+        id: MachineId,
+        contract: semantic_vocabulary::CallableContractId,
+    ) -> Checked<u32> {
+        if let Some(&(_, entry)) = self.function_types.iter().find(|(key, _)| *key == contract) {
+            return Ok(entry);
+        }
+        let row = self
+            .program
+            .callables
+            .contracts
+            .get(contract)
+            .ok_or_else(|| unserved(id, "mathematical argument lost its callable contract"))?;
+        if !row.signature.requires.is_empty()
+            || row.signature.crashes != crate::body::CrashCeiling::DeclaredNone
+            || !row.envelope.service_reach.is_empty()
+            || !row.envelope.invocations.is_empty()
+            || row.envelope.blocks
+            || row.envelope.suspends
+            || !matches!(&row.envelope.termination,
+                terminal_psi::TerminalCallableTermination::Terminates { premises } if premises.is_empty())
+        {
+            return Err(unserved(
+                id,
+                "callable argument without an unconditional mathematical denotation",
+            ));
+        }
+        // A theorem can quantify over every such function. An executable
+        // descriptor, a qualified domain or borrowed authority does not
+        // supply a mathematical function on all values of the plain carrier.
+        for &value in row.signature.parameters.iter().chain(&row.signature.result) {
+            let ValueType::Record(record, ..) = value else {
+                return Err(unserved(id, "callable argument over a runtime carrier"));
+            };
+            let source = self.program.record_source(id, record)?;
+            if value != ValueType::record(record)
+                || !self
+                    .program
+                    .typed
+                    .unique_data_definition_by_symbol(source.declaration)
+                    .is_some_and(|data| {
+                        data.requires_facts.is_empty() && self.program.is_mathematical_data(data)
+                    })
+            {
+                return Err(unserved(
+                    id,
+                    "callable argument outside the plain mathematical carrier",
+                ));
+            }
+        }
+        let name = row.identity.clone();
+        let (ty, _) = self.value_ty(id, ValueType::plain(ScalarType::Callable(contract)))?;
+        let universe = self
+            .signature
+            .arena
+            .insert(Term::Sort(Sort::Type(Level::Constant(0))));
+        index(id, self.signature.declarations.len() + 1)?;
+        let entry = self.push(
+            Declaration::definition(0, universe, ty),
+            SignatureEntryKind::FunctionType,
+            name,
+        );
+        self.function_types.push((contract, entry));
         Ok(entry)
     }
 
@@ -7843,6 +7921,9 @@ impl<'p> Converter<'p, '_> {
             carriers.push(match value.carrier {
                 ClauseCarrier::Structural(record) => self.data(id, record)?,
                 ClauseCarrier::Scalar(ScalarType::Boolean) => self.boolean(id)?,
+                ClauseCarrier::Scalar(ScalarType::Callable(contract)) => {
+                    self.function_type(id, contract)?
+                }
                 // A fixed-width value is the integer it holds.
                 ClauseCarrier::Scalar(ScalarType::Integer(_)) => self.declare_integers(id)?,
                 _ => {
@@ -7992,6 +8073,16 @@ impl<'p> Converter<'p, '_> {
                             self.signature.arena.apply_arguments(head, &operands)
                         }
                     }
+                }
+                ClauseOperand::Formal(position)
+                    if matches!(
+                        value.carrier,
+                        ClauseCarrier::Scalar(ScalarType::Callable(_))
+                    ) =>
+                {
+                    *formals
+                        .get(*position as usize)
+                        .ok_or_else(|| unserved(id, "callable argument outside its formals"))?
                 }
                 // A fixed-width formal is the integer it holds.
                 ClauseOperand::Scalar(ScalarTerm::Value { id: named, .. })
