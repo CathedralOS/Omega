@@ -417,7 +417,7 @@ impl Projection {
         }
     }
 
-    pub(crate) fn as_native_enclosing_storage(mut self) -> Self {
+    pub(crate) fn into_native_enclosing_storage(mut self) -> Self {
         self.native_enclosing_storage = true;
         self
     }

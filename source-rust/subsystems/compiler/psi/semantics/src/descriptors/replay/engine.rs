@@ -3711,11 +3711,13 @@ impl<'a> Replay<'a> {
                     let (destination, sources) = formation;
                     let mut values = BTreeSet::new();
                     if let Some(issued) = machine.originations.get(&position) {
-                        values.extend(issued.iter().filter_map(|(location, origin)| {
-                            (location == destination
-                                && matches!(origin, DescriptorCallOrigin::NativeAddress { .. }))
-                            .then(|| Origin::Backing(origin.clone()))
-                        }));
+                        for (location, origin) in issued {
+                            if location == destination
+                                && matches!(origin, DescriptorCallOrigin::NativeAddress { .. })
+                            {
+                                values.insert(Origin::Backing(origin.clone()));
+                            }
+                        }
                     }
                     for source in sources {
                         values.extend(self.observed_native_source(machine, source, &reads)?);
@@ -3971,7 +3973,7 @@ impl<'a> Replay<'a> {
                 ..
             } => {
                 let effects = self.summaries.get(machine)?.as_ref()?;
-                Some(Arc::new(selected_target_summary(target, &effects)?))
+                Some(Arc::new(selected_target_summary(target, effects)?))
             }
             DescriptorInvocationTarget::Public { realizations, .. }
                 if !realizations.is_empty() =>
@@ -4156,7 +4158,7 @@ impl<'a> Replay<'a> {
                         needs_formation |= enclosing;
                         let value = self.observed_native_source(machine, source, reads);
                         if enclosing {
-                            let bound = Projection::new(&[]).as_native_enclosing_storage();
+                            let bound = Projection::new(&[]).into_native_enclosing_storage();
                             origins.extend(self.project(machine, value, Some(&bound))?);
                         } else {
                             origins.extend(self.project(machine, value, Some(projection))?);

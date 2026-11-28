@@ -2682,7 +2682,7 @@ impl DescriptorMachine {
                     observed
                         .projection
                         .unwrap_or_else(|| Projection::new(&[]))
-                        .as_native_enclosing_storage(),
+                        .into_native_enclosing_storage(),
                 );
             }
             reads.push(observed);

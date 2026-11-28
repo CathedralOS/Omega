@@ -1005,7 +1005,7 @@ fn native_writes_name_only_the_formals_or_storage_backing_the_written_reference(
             }),
             Origin::Backing(DescriptorCallOrigin::Argument {
                 source: source.root,
-                projection: Projection::new(&[]).as_native_enclosing_storage(),
+                projection: Projection::new(&[]).into_native_enclosing_storage(),
             }),
         ])),
     );
