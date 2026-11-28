@@ -150,9 +150,7 @@ impl Program<'_> {
             })?;
         if !self
             .typed
-            .declaration_type_parameters(*self.symbols.get(id).ok_or_else(|| {
-                crate::read::unavailable(id, "const record caller has no source declaration")
-            })?)
+            .declaration_type_parameters(self.machine_symbol(id)?)
             .iter()
             .any(|parameter| parameter.symbol == receiver)
         {
@@ -274,9 +272,7 @@ impl Program<'_> {
             terminal_check_tables::program::SelectedStaticRecordOperand,
         )>,
     > {
-        let owner = *self.symbols.get(id).ok_or_else(|| {
-            crate::read::unavailable(id, "selected record has no actual source caller")
-        })?;
+        let owner = self.machine_symbol(id)?;
         self.typed
             .source_call_record_operand(
                 owner,
