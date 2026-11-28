@@ -347,6 +347,55 @@ pub(crate) fn connective(mut parts: Vec<Proposition>, conjunction: bool) -> Prop
     }
 }
 
+/// State what every arrival proves before the alternatives. The prover can
+/// then use a common fact without splitting on how control reached the block.
+fn joined_predicate(arrivals: Vec<Proposition>) -> Proposition {
+    let arms = match connective(arrivals, false) {
+        Proposition::Disjunction(arms) if arms.len() >= 2 => arms,
+        predicate => return predicate,
+    };
+    fn conjuncts<'a>(predicate: &'a Proposition, leaves: &mut Vec<&'a Proposition>) {
+        match predicate {
+            Proposition::Conjunction(parts) => {
+                for part in parts {
+                    conjuncts(part, leaves);
+                }
+            }
+            leaf => leaves.push(leaf),
+        }
+    }
+
+    fn residual(predicate: Proposition, common: &[Proposition]) -> Proposition {
+        match predicate {
+            Proposition::Conjunction(parts) => connective(
+                parts.into_iter().map(|p| residual(p, common)).collect(),
+                true,
+            ),
+            leaf if common.binary_search(&leaf).is_ok() => Proposition::Truth,
+            leaf => leaf,
+        }
+    }
+
+    let mut shared = Vec::new();
+    conjuncts(&arms[0], &mut shared);
+    shared.sort_unstable();
+    shared.dedup();
+    let mut leaves = Vec::new();
+    for arm in &arms[1..] {
+        leaves.clear();
+        conjuncts(arm, &mut leaves);
+        leaves.sort_unstable();
+        shared.retain(|leaf| leaves.binary_search(leaf).is_ok());
+        if shared.is_empty() {
+            return Proposition::Disjunction(arms);
+        }
+    }
+    let mut common: Vec<_> = shared.into_iter().cloned().collect();
+    let alternatives = arms.into_iter().map(|arm| residual(arm, &common)).collect();
+    common.push(connective(alternatives, false));
+    connective(common, true)
+}
+
 /// Forget atoms whose values cannot cross this boundary. Both connectives
 /// are monotone: replacing an unavailable atom with `Truth` weakens the
 /// predicate, including inside a disjunction. Dropping a disjunct instead
@@ -528,7 +577,7 @@ pub(crate) fn infer<'a>(
         // on the edges that introduce them. The same arrival obligation
         // substitutes these templates onto each actual and proves them there.
         let predicate = connective(
-            std::iter::once(connective(disjuncts, false))
+            std::iter::once(joined_predicate(disjuncts))
                 .chain(byte_predicates)
                 .collect(),
             true,
@@ -1170,6 +1219,33 @@ pub(crate) fn check<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn join_factors_nested_conjuncts_and_keeps_alternatives_intact() {
+        use Proposition::{Conjunction as And, Disjunction as Or, Implication};
+        let atom = |n| Proposition::Atom(semantic_vocabulary::PropositionId::new(n).unwrap());
+        let either = Or(vec![atom(1), atom(2)]);
+        let implies = Implication {
+            premise: Box::new(atom(3)),
+            conclusion: Box::new(atom(4)),
+        };
+        let common = vec![either.clone(), implies.clone()];
+        let prefix = connective(common.clone(), true);
+        let left = And(vec![either.clone(), And(vec![implies.clone(), atom(5)])]);
+        let right = And(vec![implies, either, atom(6)]);
+        let mut expected = common;
+        expected.push(Or(vec![atom(5), atom(6)]));
+        assert_eq!(
+            joined_predicate(vec![left.clone(), right.clone()]),
+            connective(expected, true)
+        );
+        assert_eq!(joined_predicate(vec![left, right, prefix.clone()]), prefix);
+        let disjoint = vec![Or(vec![atom(1), atom(2)]), And(vec![atom(1), atom(3)])];
+        assert_eq!(
+            joined_predicate(disjoint.clone()),
+            connective(disjoint, false)
+        );
+    }
 
     #[test]
     fn retained_connectives_store_their_distinct_operands() {
