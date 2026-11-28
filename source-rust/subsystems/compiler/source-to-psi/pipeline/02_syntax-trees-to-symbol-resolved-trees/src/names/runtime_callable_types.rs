@@ -127,11 +127,7 @@ pub(super) fn lexical_parameters(
                 evidence_type_parameters(&machine.conformance_bounds).collect::<Vec<_>>();
             let local = declaration_type_scope(&local, &evidence);
             parameters = declaration_type_scope(&parameters, &local);
-            if let Some(data) = program
-                .data_definitions
-                .iter()
-                .find(|data| data.symbol == machine.attached_data_symbol)
-            {
+            if let Some(data) = program.data_definition_by_symbol(machine.attached_data_symbol) {
                 parameters = declaration_type_scope(
                     &parameters,
                     program.data_type_parameters(data.type_parameters),

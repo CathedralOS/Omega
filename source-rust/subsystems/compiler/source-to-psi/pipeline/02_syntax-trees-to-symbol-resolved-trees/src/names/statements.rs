@@ -777,9 +777,10 @@ fn assign_machine_references(
         }
         let machine_symbol = machine.symbol;
         let machine_type_parameters = machine.type_parameters;
-        let data_definition = data_definitions
-            .iter()
-            .find(|data_definition| data_definition.symbol == machine.attached_data_symbol);
+        let data_definition = program
+            .resolution_indexes
+            .data_definition_position(data_definitions, machine.attached_data_symbol)
+            .map(|position| &data_definitions[position as usize]);
         let inherited_data_members = data_definition
             .map(|data_definition| data_members.span_or_empty(data_definition.members));
         let invocation_scope = super::scopes::declaration_type_scope(
