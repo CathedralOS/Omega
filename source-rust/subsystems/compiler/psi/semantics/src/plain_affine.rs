@@ -494,6 +494,17 @@ struct Root {
     exclusive: bool,
 }
 
+impl Root {
+    /// A partially moved sum can still hold disposable fields in its selected
+    /// case. A claim on the wrapper itself needs its own disposition.
+    fn disposes_selected_fields(&self, declaration: &StructuralTypeDeclaration) -> bool {
+        self.multiplicity != terminal_psi::StructuralMultiplicity::Linear
+            && !declaration.owns_linear_claim
+            && declaration.nominal_cleanup.is_none()
+            && declaration.shape.sum_cases().is_some()
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct State {
     regions: Vec<Option<Region>>,
@@ -4248,7 +4259,10 @@ impl<'a> Analysis<'a> {
         {
             return Ok(true);
         }
-        if region.contains_partition(&[]) || region.whole {
+        if region.contains_partition(&[])
+            || region.whole
+            || info.disposes_selected_fields(declaration)
+        {
             return self.components_need_disposition(
                 place,
                 info.structural_type,
@@ -4471,6 +4485,7 @@ impl<'a> Analysis<'a> {
         }
         if !region.contains_partition(&[])
             && !region.whole
+            && !info.disposes_selected_fields(declaration)
             && (info.multiplicity == terminal_psi::StructuralMultiplicity::Linear
                 || !self.can_dispose(info.structural_type)?)
         {

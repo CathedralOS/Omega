@@ -183,22 +183,39 @@ impl<'read> Transfer<'read> {
 
 pub(crate) struct Storage {
     roots: BTreeSet<PlaceId>,
+    owned_homes: BTreeSet<PlaceId>,
     case_types: BTreeSet<StructuralTypeId>,
     pub(crate) limit: usize,
 }
 
 impl Storage {
     pub(crate) fn new(replay: &Replay<'_>, machine: &DescriptorMachine) -> Self {
+        let produced: BTreeSet<_> = machine.payload_producers.values().copied().collect();
         let mut roots = BTreeSet::new();
+        let mut owned_homes = BTreeSet::new();
         let mut ordinary_types = BTreeMap::new();
         let mut case_types = BTreeMap::new();
         for row in &machine.places {
             let Some(structural_type) = machine.place_types.get(&row.place) else {
                 continue;
             };
-            if !*ordinary_types.entry(*structural_type).or_insert_with(|| {
-                ordinary_type(replay, *structural_type, &mut BTreeSet::new())
-            }) {
+            let owned = match row.definition {
+                DescriptorDefinition::Parameter { access, .. }
+                | DescriptorDefinition::Arrival { access } => {
+                    access == StructuralAccess::Owned
+                }
+                DescriptorDefinition::Local => {
+                    produced.contains(&row.place) || owned_arrival(machine, row.place)
+                }
+                DescriptorDefinition::Literal => true,
+            };
+            if owned {
+                owned_homes.insert(row.place);
+            }
+            if !*ordinary_types
+                .entry(*structural_type)
+                .or_insert_with(|| ordinary_type(replay, *structural_type, &mut BTreeSet::new()))
+            {
                 continue;
             }
             contains_case(
@@ -207,32 +224,32 @@ impl Storage {
                 &mut case_types,
                 &mut BTreeSet::new(),
             );
-            let owned = match row.definition {
-                DescriptorDefinition::Parameter { access, .. }
-                | DescriptorDefinition::Arrival { access } => {
-                    access == StructuralAccess::Owned
-                }
-                DescriptorDefinition::Local => {
-                    machine
-                        .payload_producers
-                        .values()
-                        .any(|root| *root == row.place)
-                        || owned_arrival(machine, row.place)
-                }
-                DescriptorDefinition::Literal => true,
-            };
             if owned {
                 roots.insert(row.place);
             }
         }
         Self {
             roots,
+            owned_homes,
             case_types: case_types
                 .into_iter()
                 .filter_map(|(identity, tagged)| tagged.then_some(identity))
                 .collect(),
             limit: machine.flow.len().saturating_mul(4096).max(4096),
         }
+    }
+
+    /// Owned fields occupy their own home even when they hold references.
+    /// An index into a view or a dereference can instead name other storage.
+    pub(crate) fn owns_location(&self, location: &DescriptorLocation) -> bool {
+        self.contains(location)
+            || self.owned_homes.contains(&location.root)
+                && location.path.iter().all(|segment| {
+                    matches!(
+                        segment,
+                        DescriptorPathSegment::Field(_) | DescriptorPathSegment::Case(_)
+                    )
+                })
     }
 
     pub(crate) fn contains(&self, location: &DescriptorLocation) -> bool {
@@ -400,4 +417,22 @@ pub(crate) fn overlaps(left: &DescriptorLocation, right: &DescriptorLocation) ->
         return false;
     }
     crate::storage::place_paths::may_overlap(&left.path, &right.path)
+}
+
+/// A store to a payload field can change its contents while preserving
+/// the case that owns it. A store to the entire sum can replace its tag.
+pub(crate) fn overwrites_tag(write: &DescriptorLocation, subject: &DescriptorLocation) -> bool {
+    if write.root == subject.root
+        && let Some(
+            [DescriptorPathSegment::Field(_), ..]
+            | [
+                DescriptorPathSegment::Case(_),
+                DescriptorPathSegment::Field(_),
+                ..,
+            ],
+        ) = write.path.strip_prefix(subject.path.as_slice())
+    {
+        return false;
+    }
+    overlaps(write, subject)
 }
