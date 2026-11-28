@@ -1,7 +1,7 @@
 //! A saved program must not turn its own bodyless declaration into a park
 //! operation, or use one publication to request a different reply.
 mod preparation;
-pub use preparation::PreparationShape;
+mod step;
 use application_identity::{
     conformance_identity::MachineApplicationCommitment,
     type_identity::{
@@ -10,6 +10,8 @@ use application_identity::{
     },
 };
 use language_core::sealed_intrinsics::ActivationOperation;
+pub use preparation::PreparationShape;
+pub use step::{StepShape, step_shape};
 use terminal_psi::{
     BoundaryMachineDeclaration, BoundaryParameterKind, StructuralAccess, StructuralMultiplicity,
     StructuralTypeShape, TerminalModule,
