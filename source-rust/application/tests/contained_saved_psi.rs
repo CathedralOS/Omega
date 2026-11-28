@@ -178,6 +178,7 @@ struct Saved {
     consumer: PathBuf,
     lock: PathBuf,
     approval: String,
+    manifest: String,
 }
 
 impl Saved {
@@ -192,6 +193,12 @@ impl Saved {
             &[&["--emit-psi", "app.psi"][..], &TARGET, &["build.omg"]].concat(),
         );
         assert!(emitted.status.success(), "{}", report(&emitted));
+        let manifest = String::from_utf8(emitted.stdout)
+            .unwrap()
+            .lines()
+            .find_map(|line| line.strip_prefix("Psi manifest "))
+            .expect("the source publisher reports its manifest")
+            .to_owned();
         let review = omega(
             &source,
             &[
@@ -212,24 +219,30 @@ impl Saved {
         let consumer = project.path().join("consumer");
         std::fs::create_dir(&consumer).unwrap();
         std::fs::rename(source.join("app.psi"), consumer.join("app.psi")).unwrap();
+        std::fs::remove_dir_all(source).unwrap();
         Self {
             _project: project,
             consumer,
             lock,
             approval,
+            manifest,
         }
     }
 
-    fn omega(&self, arguments: &[&str]) -> Output {
-        std::process::Command::new(env!("CARGO_BIN_EXE_omega"))
+    fn command(&self, arguments: &[&str]) -> std::process::Command {
+        let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_omega"));
+        command
             .env("OMEGA_LIBRARY_ROOT", self.consumer.join("absent-sdk"))
             .env("OMEGA_HOST_PACKAGE_LOCK", &self.lock)
             .env("OMEGA_HOST_PACKAGE_LOCK_SHA256", &self.approval)
             .args(arguments)
             .current_dir(&self.consumer)
-            .stdin(std::process::Stdio::null())
-            .output()
-            .unwrap()
+            .stdin(std::process::Stdio::null());
+        command
+    }
+
+    fn omega(&self, arguments: &[&str]) -> Output {
+        self.command(arguments).output().unwrap()
     }
 
     fn run(&self, options: &[&str]) -> Output {
@@ -273,6 +286,86 @@ fn saved_psi_without_producer_trust_runs_contained() {
         report(&compiled)
     );
     assert!(!saved.path("image").exists());
+}
+
+#[test]
+fn saved_readers_keep_their_callbacks_and_hidden_state() {
+    const MAIN: &str = include_str!("fixtures/callables/run/some_reader/main.omg");
+    const BUILD: &str = r#"use main.omg as app;
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "saved_readers" };
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+}"#;
+    let saved = Saved::publish("saved-package-readers", MAIN, BUILD);
+    let interpreted = saved.run(&[]);
+    assert!(interpreted.status.success(), "{}", report(&interpreted));
+    assert!(interpreted.stdout.is_empty(), "{}", report(&interpreted));
+    assert!(
+        String::from_utf8_lossy(&interpreted.stderr)
+            .lines()
+            .any(|line| line == "Psi exit 0"),
+        "{}",
+        report(&interpreted)
+    );
+
+    // The saved product binds the Linux x86-64 entry.
+    if !cfg!(target_arch = "x86_64") {
+        return;
+    }
+    let mut command = saved.command(&[
+        "build",
+        "--trusted-artifact",
+        &saved.manifest,
+        "--target",
+        "linux_x86_64",
+        "app.psi",
+    ]);
+    let compiled = project::build_and_run_command(&mut command);
+    assert!(
+        compiled.compiler.status.success(),
+        "{}",
+        report(&compiled.compiler)
+    );
+    let ran = compiled
+        .execution
+        .expect("the native producer published an executable");
+    assert!(ran.status.success(), "{}", report(&ran));
+    assert!(
+        ran.stdout.is_empty() && ran.stderr.is_empty(),
+        "{}",
+        report(&ran)
+    );
+}
+
+#[test]
+fn a_saved_reader_calls_its_own_state_with_the_output_slice() {
+    const MAIN: &str = include_str!("fixtures/callables/run/some_reader_output/main.omg");
+    const BUILD: &str = include_str!("fixtures/callables/run/some_reader_output/build.omg");
+
+    let initialized = "File { byte: 17u8 }";
+    assert_eq!(MAIN.matches(initialized).count(), 1);
+    let changed = MAIN.replace(initialized, "File { byte: 16u8 }");
+    for (name, source, returns, observation) in [
+        ("saved-reader-length", MAIN, true, "Psi exit 0"),
+        (
+            "saved-reader-empty",
+            changed.as_str(),
+            false,
+            "Psi crash: Trap",
+        ),
+    ] {
+        let saved = Saved::publish(name, source, BUILD);
+        let run = saved.run(&[]);
+        assert_eq!(run.status.success(), returns, "{}", report(&run));
+        assert!(run.stdout.is_empty(), "{}", report(&run));
+        assert!(
+            String::from_utf8_lossy(&run.stderr)
+                .lines()
+                .any(|line| line == observation),
+            "{}",
+            report(&run)
+        );
+    }
 }
 
 #[test]
