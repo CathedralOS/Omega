@@ -110,7 +110,7 @@ pub(super) fn admit_entries(
 pub(super) struct PreparedEntries<'a> {
     input: &'a AdmissionSource<'a>,
     request: &'a ProviderAdmissionRequest<'a, 'a>,
-    bodies: IdTable<MachineId, Option<&'a TerminalMachine>>,
+    pub(super) bodies: IdTable<MachineId, Option<&'a TerminalMachine>>,
     occurrences: Vec<(usize, &'a TerminalCallbackOccurrenceProposal)>,
     calling: BTreeMap<
         (&'a semantic_vocabulary::CallingAbiIdentity, Option<&'a str>),
@@ -123,46 +123,44 @@ impl<'a> PreparedEntries<'a> {
         input: &'a AdmissionSource<'a>,
         request: &'a ProviderAdmissionRequest<'a, 'a>,
     ) -> Result<Self, String> {
+        let bodies = if request.callback_occurrences.is_empty()
+            && input
+                .module()
+                .interfaces
+                .installed_interrupt_registrations
+                .is_empty()
+        {
+            IdTable::default()
+        } else {
+            let mut machines: Vec<_> = input
+                .module()
+                .machines
+                .iter()
+                .map(|machine| (machine.id, Some(machine)))
+                .collect();
+            machines.sort_unstable_by_key(|(id, _)| *id);
+            IdTable::from_rows_with_gaps(machines, usize::MAX).map_err(|error| match error {
+                arena::IdTableBuildError::RepeatedOrUnordered { .. } => {
+                    "canonical callback body identity is duplicated"
+                }
+                arena::IdTableBuildError::AllocationFailed => {
+                    "callback body identity span cannot be allocated"
+                }
+                arena::IdTableBuildError::SpanOverflow
+                | arena::IdTableBuildError::SpanLimit { .. } => {
+                    "callback body identity span overflows"
+                }
+            })?
+        };
         if request.callback_occurrences.is_empty() {
             return Ok(Self {
                 input,
                 request,
-                bodies: IdTable::default(),
+                bodies,
                 occurrences: Vec::new(),
                 calling: BTreeMap::new(),
             });
         }
-        let mut bodies = Vec::new();
-        let mut machines: Vec<_> = input.module().machines.iter().collect();
-        machines.sort_unstable_by_key(|body| body.id);
-        let first = machines.first().map(|body| body.id.get());
-        if let Some(first) = first {
-            let last = machines.last().expect("nonempty machine roster").id.get();
-            let length = last
-                .checked_sub(first)
-                .and_then(|n| n.checked_add(1))
-                .and_then(|n| usize::try_from(n).ok())
-                .ok_or("callback body identity span overflows")?;
-            bodies
-                .try_reserve_exact(length)
-                .map_err(|_| "callback body identity span cannot be allocated")?;
-            bodies.resize(length, None);
-            for body in machines {
-                let index = usize::try_from(body.id.get() - first)
-                    .map_err(|_| "callback body identity exceeds index")?;
-                if bodies[index].replace(body).is_some() {
-                    return Err("canonical callback body identity is duplicated".into());
-                }
-            }
-        }
-        let bodies = IdTable::from_rows(bodies.into_iter().enumerate().map(|(index, body)| {
-            (
-                MachineId::new(first.expect("nonempty indexed roster") + index as u64)
-                    .expect("validated nonzero machine identity"),
-                body,
-            )
-        }))
-        .map_err(|_| "callback body identity span is inconsistent")?;
         let mut occurrences: Vec<_> = request
             .callback_occurrences
             .iter()
