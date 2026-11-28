@@ -37,6 +37,46 @@ fn applied(name: &str, reply: &str) -> String {
     )
 }
 
+/// A preparation borrows storage; it does not call the worker. Verify the
+/// worker selection here, not by searching for a matching machine at runtime.
+/// The prepare signature and its custody rules are separate obligations.
+pub(super) fn validate_prepared_entry(
+    module: &TerminalModule,
+    boundary: &BoundaryMachineDeclaration,
+) -> Result<(), &'static str> {
+    use application_identity::conformance_identity::{MachineOperandSelectionIdentity as Operand, requirement_application_commitment};
+    use terminal_psi::{ClosedReachArgument as Arg, TerminalActivationOrigin};
+    let checked = boundary.declaration.as_ref().ok_or("prepare has no checked declaration")?;
+    let source = &checked.source;
+    let closed = source.specialization.as_ref().ok_or("prepare is not specialized")?;
+    let text = |id| module.identities.text(id).filter(|s| !s.is_empty()).ok_or("prepare has an unresolved identity");
+    if text(closed.template.identity())? != source_owner("prepare")
+        || text(closed.template_entry.identity())? != source_owner("prepare::entry")
+        || closed.capture.is_some() || source.machine != boundary.owner
+        || source.callable != boundary.identity || checked.service_declaration != source.contract
+        || source.published_may_suspend || source.published_may_block {
+        return Err("prepare differs from its sealed core declaration");
+    }
+    let [Arg::Type(args), Arg::Type(out), Arg::Machine { identity, .. }, Arg::Const(plan)] =
+        checked.method_arguments.as_slice() else { return Err("prepare needs its exact argument, result, worker and storage binders"); };
+    let operands = [
+        Operand::Type(text(*args)?.into()), Operand::Type(text(*out)?.into()),
+        Operand::Machine(text(*identity)?.into()), Operand::Const(text(*plan)?.into()),
+    ];
+    if requirement_application_commitment(text(closed.template_callable)?, &operands)? != closed.commitment {
+        return Err("prepare selection differs from its closed application");
+    }
+    let mut plans = module.execution.task_activation_demands.iter().filter_map(|d| {
+        if let TerminalActivationOrigin::Caller(p) = &d.origin
+            && p.preparation == boundary.id { Some(p) } else { None }
+    });
+    let selected = plans.next().ok_or("prepare has no matching activation plan")?;
+    if plans.next().is_some() || selected.selected_body(module).is_none() {
+        return Err("prepare must select one checked worker in this program");
+    }
+    Ok(())
+}
+
 fn checked_reply<'m>(
     module: &'m TerminalModule,
     boundary: &BoundaryMachineDeclaration,
@@ -48,6 +88,7 @@ fn checked_reply<'m>(
     let (name, suspends) = match operation {
         ActivationOperation::Park => ("park", true),
         ActivationOperation::NewReplyPair => ("new_reply_pair", false),
+        ActivationOperation::Prepare => return Err("prepare does not take a reply"),
     };
     let checked = boundary
         .declaration

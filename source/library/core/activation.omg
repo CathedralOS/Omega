@@ -5,6 +5,8 @@
 // to the calling activation; the static Bound charges that activation's closed
 // demand even when the runtime request rejects. The opaque linear carrier
 // cannot be reconstructed from addresses, lengths, or ordinary record fields.
+use {omega}/language/core/task.omg;
+
 public data Activation {}
 
 public boundary data ActivationClaim [linear];
@@ -50,3 +52,26 @@ public data ActivationClaimMerge {
 }
 
 public boundary machine ActivationClaim::merge(lower: ActivationClaim, upper: ActivationClaim) -> ActivationClaimMerge;
+
+// Moving a ready producer moves its execution claim, not its retained stack.
+// Its type keeps the selected code, storage policy and argument type: an
+// unfinished producer must not outlive a loan held in its arguments.
+public boundary data ReadyActivation<'storage, Arguments, R,
+    const Entry: |task|::TaskWorker<Arguments, R>,
+    const Plan: |task|::ActivationStorage> [linear];
+
+public data ActivationPreparation<'storage, Arguments, R,
+    const Entry: |task|::TaskWorker<Arguments, R>,
+    const Plan: |task|::ActivationStorage> {
+    case Ready(owner: ReadyActivation<'storage, Arguments, R, Entry, Plan>);
+    case Rejected(arguments: Arguments, retained: @'storage mutable [u8]);
+}
+
+// Preparation does not execute Entry. Rejection returns the same arguments
+// and exclusive backing; success retains them until the producer settles.
+public boundary machine prepare<'storage, Arguments, R,
+    const Entry: |task|::TaskWorker<Arguments, R>,
+    const Plan: |task|::ActivationStorage>(
+    arguments: Arguments, retained: @'storage mutable [u8]
+) -> ActivationPreparation<'storage, Arguments, R, Entry, Plan>
+reaches none crashes none terminates;

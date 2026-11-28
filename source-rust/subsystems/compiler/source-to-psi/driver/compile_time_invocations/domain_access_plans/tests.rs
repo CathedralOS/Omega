@@ -148,6 +148,41 @@ fn typed_source(source: &str) -> crate::source_state::TypedTrees {
     .expect("type actual candidate core and allocation with matching compiler catalog")
 }
 
+#[test]
+fn preparing_a_child_names_its_worker_and_returns_the_rejected_backing() {
+    let mut typed = typed_source(r"
+        use {omega}/language/core/activation.omg;
+        use {omega}/language/core/task.omg;
+        machine worker(input: u8) -> u8 reaches none crashes none { input }
+        machine make<'storage>(input: u8, backing: @'storage mutable [u8])
+            -> |activation|::ActivationPreparation<'storage, u8, u8, worker, |task|::ActivationStorage::Fixed>
+            reaches none crashes none {
+            |activation|::prepare::<u8, u8, worker, |task|::ActivationStorage::Fixed>(input, backing)
+        }
+    ");
+    let entries = [typed.realized_machine_named("make").unwrap().symbol];
+    let request = production::TerminalSourceCompilation {
+        calling: None, providers: None, declaration_metadata: &[], entries: &entries,
+        subjects: &[], purpose: source_provenance::DependencyScope::Product,
+        selected: &[], bindings: &[], supplies: &[],
+    };
+    evaluate(&mut typed, request, &mut SourceCompletionAccounting::default()).unwrap();
+    let prepared = preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
+    let accepted = judge_lowered_source::judge_terminal_source(prepared, request,
+        terminal_codec::TerminalPublication::Portable)
+        .expect("a caller may prepare this selected worker with an exclusive loan of retained backing");
+    let bytes = terminal_codec::encode_module(accepted.module()).unwrap();
+    let reopened = terminal_codec::decode_module(&bytes).unwrap();
+    let [demand] = reopened.execution.task_activation_demands.as_slice() else {
+        panic!("the preparation must publish its worker's storage demand");
+    };
+    let terminal_psi::TerminalActivationOrigin::Caller(entry) = &demand.origin else {
+        panic!("preparing a child must not select a scheduler");
+    };
+    assert_eq!(entry.storage, terminal_psi::TerminalActivationStorage::Fixed);
+    assert!(entry.selected_body(&reopened).is_some());
+}
+
 fn reflected_schema(
     typed: &crate::source_state::TypedTrees,
     prepared: &PreparedBuildMachineProgram,
