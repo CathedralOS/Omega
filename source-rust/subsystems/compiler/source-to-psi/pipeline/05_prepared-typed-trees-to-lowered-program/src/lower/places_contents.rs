@@ -486,7 +486,10 @@ impl Lowering<'_> {
             .blocks
             .iter()
             .flat_map(|block| &block.operations)
-            .filter(|operation| operation.kind.declared_invocation().is_some())
+            .filter(|operation| {
+                operation.kind.declared_invocation().is_some()
+                    || operation.kind.callable_invocation().is_some()
+            })
             .map(|operation| operation.id)
             .collect();
         call_operations.sort_unstable();
