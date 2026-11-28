@@ -558,6 +558,13 @@ machine main() {{
 
 #[test]
 fn trusted_saved_psi_still_needs_source_policy_for_reachable_native_borrows() {
+    let writer = r#"
+machine main() {
+    let mutable owned: u8 = 17u8;
+    let byte: @mutable u8 = |native|::borrow_mutable_at::<u8>(address_of(@owned));
+    $byte = 31u8;
+}
+"#;
     let dormant = r#"
 public machine dormant(location: address) -> u8 {
     let byte: @u8 = |native|::borrow_at::<u8>(location);
@@ -565,10 +572,18 @@ public machine dormant(location: address) -> u8 {
 }
 machine main() {}
 "#;
-    for (source, grants, reachable) in [
-        (ADDRESSED_BYTES, &[READ, WRITE][..], true),
-        (UPGRADED_BYTE, &[UPGRADE][..], true),
-        (dormant, &[][..], false),
+    for (source, grants, withheld) in [
+        (
+            writer,
+            &[READ, WRITE][..],
+            Some("borrow_mutable_at (Unsafe + RawMemoryRead + RawMemoryWrite)"),
+        ),
+        (
+            UPGRADED_BYTE,
+            &[UPGRADE][..],
+            Some("upgrade_mutability (Unsafe + BorrowMutabilityUpgrade)"),
+        ),
+        (dormant, &[][..], None),
     ] {
         let producer = Program::new(source, grants);
         let published = producer
@@ -605,11 +620,12 @@ machine main() {}
             .unwrap();
         let message = report(&built);
         let image = consumer.path().join("output/omega-program");
-        if reachable {
+        if let Some(withheld) = withheld {
             assert!(!built.status.success(), "{message}");
             assert!(
-                message.contains("saved Psi has no source Build policy for")
-                    && message.contains("build the original source Product"),
+                message.contains(&format!(
+                    "saved Psi has no source Build policy for {withheld} in "
+                )) && message.contains("build the original source Product"),
                 "{message}"
             );
             assert!(!image.exists());
