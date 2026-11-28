@@ -136,7 +136,10 @@ pub(crate) mod canonical_order {
         );
         let packages = &module.execution.packages;
         check_order!(packages.schemas.iter().map(|s| s.record), "package schemas");
-        check_order!(packages.sites.iter().map(|s| (s.machine, s.operation)), "package operation sites");
+        check_order!(
+            packages.sites.iter().map(|s| (s.machine, s.operation)),
+            "package operation sites"
+        );
         let demands = &module.execution.task_activation_demands;
         check_order!(
             demands.iter().map(|d| (
@@ -4188,7 +4191,9 @@ pub fn decode_closed_parts_within(
     // already refused a repeated machine identity, the bundle's only refusal.
     let analyses = terminal_semantics::ModuleAnalyses::new(&module)
         .map_err(|_| CodecError::NonCanonicalOrder("machines by MachineId"))?;
-    analyses.package_sites().map_err(CodecError::MalformedStructuralFoundation)?;
+    analyses
+        .package_sites()
+        .map_err(CodecError::MalformedStructuralFoundation)?;
     validate_structural_foundation(&analyses)?;
     // Canonical shape only; source-bound `verify_identity_formations` replays
     // the kernel. Decoding does not re-decide a carried judgment.
