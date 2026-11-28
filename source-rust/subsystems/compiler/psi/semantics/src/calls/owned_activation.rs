@@ -52,17 +52,24 @@ fn toolchain_name(name: &str) -> String {
 /// A preparation borrows storage; it does not call the worker. Verify the
 /// worker selection here, not by searching for a matching machine at runtime.
 /// The prepare signature and its custody rules are separate obligations.
-pub(super) fn validate_prepared_entry(
+pub fn prepare_shape(
     module: &TerminalModule,
     boundary: &BoundaryMachineDeclaration,
-) -> Result<(), &'static str> {
+) -> Result<PreparationShape, &'static str> {
     use application_identity::conformance_identity::{MachineOperandSelectionIdentity as Operand, requirement_application_commitment};
     use terminal_psi::{ClosedReachArgument as Arg, TerminalActivationOrigin};
     let checked = boundary.declaration.as_ref().ok_or("prepare has no checked declaration")?;
     let source = &checked.source;
     let closed = source.specialization.as_ref().ok_or("prepare is not specialized")?;
     let text = |id| module.identities.text(id).filter(|s| !s.is_empty()).ok_or("prepare has an unresolved identity");
-    if text(closed.template.identity())? != source_owner("prepare")
+    if checked.execution != terminal_psi::CheckedBoundaryExecution::OwnedActivation(ActivationOperation::Prepare)
+        || boundary.kind != terminal_psi::BoundaryRequirementKind::Machine
+        || boundary.completion != terminal_psi::BoundaryCompletion::NormalReturn
+        || !boundary.crash_routes.is_empty() || !boundary.fixed_service_reach.is_empty()
+        || !boundary.published_service_ceiling.is_empty() || !boundary.published_synchronous_entries.is_empty()
+        || boundary.owning_service.is_some() || boundary.service_reach_is_installation_bound
+        || boundary.attachment.is_some() || boundary.numeric_intrinsic.is_some()
+        || text(closed.template.identity())? != source_owner("prepare")
         || text(closed.template_entry.identity())? != source_owner("prepare::entry")
         || closed.capture.is_some() || source.machine != boundary.owner
         || source.callable != boundary.identity || checked.service_declaration != source.contract
@@ -86,8 +93,7 @@ pub(super) fn validate_prepared_entry(
     if plans.next().is_some() || selected.selected_body(module).is_none() {
         return Err("prepare must select one checked worker in this program");
     }
-    preparation::result_shape(module, boundary)?;
-    Ok(())
+    preparation::result_shape(module, boundary, *selected)
 }
 
 fn named(name: &str) -> String {
@@ -191,15 +197,12 @@ fn reply_result_matches(
 fn checked_reply<'m>(
     module: &'m TerminalModule,
     boundary: &BoundaryMachineDeclaration,
-    operation: ActivationOperation,
 ) -> Result<&'m str, &'static str> {
     use terminal_psi::{
         BoundaryCompletion, BoundaryRequirementKind, CheckedBoundaryExecution, ClosedReachArgument,
     };
-    let (name, suspends) = match operation {
-        ActivationOperation::Park => ("park", true),
-        ActivationOperation::Prepare => return Err("prepare does not take a reply"),
-    };
+    let operation = ActivationOperation::Park;
+    let name = "park";
     let checked = boundary
         .declaration
         .as_ref()
@@ -220,7 +223,7 @@ fn checked_reply<'m>(
         || checked.service_declaration != source.contract
         || boundary.kind != BoundaryRequirementKind::Machine
         || boundary.completion != BoundaryCompletion::NormalReturn
-        || source.published_may_suspend != suspends
+        || !source.published_may_suspend
         || source.published_may_block
         || boundary.unconditional_termination
         || !boundary.crash_routes.is_empty()
@@ -273,7 +276,7 @@ pub fn park_shape(
     module: &TerminalModule,
     boundary: &BoundaryMachineDeclaration,
 ) -> Result<ParkShape, &'static str> {
-    let reply = checked_reply(module, boundary, ActivationOperation::Park)?;
+    let reply = checked_reply(module, boundary)?;
     let source = &boundary
         .declaration
         .as_ref()

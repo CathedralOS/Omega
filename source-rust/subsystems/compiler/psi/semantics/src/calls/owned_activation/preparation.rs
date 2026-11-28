@@ -8,6 +8,7 @@ use terminal_psi::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PreparationShape {
+    pub selected: terminal_psi::TerminalPreparedActivationEntry,
     pub result: StructuralTypeId,
     pub ready: StructuralCaseId,
     pub owner: StructuralFieldId,
@@ -19,7 +20,8 @@ pub struct PreparationShape {
 
 /// This checks the source members and their physical carriers, not the size
 /// offered by a caller or whether a target can run on that backing.
-pub(super) fn result_shape(module: &TerminalModule, boundary: &BoundaryMachineDeclaration)
+pub(super) fn result_shape(module: &TerminalModule, boundary: &BoundaryMachineDeclaration,
+    selected: terminal_psi::TerminalPreparedActivationEntry)
     -> Result<PreparationShape, &'static str>
 {
     let BoundaryMachineResult::Structural(output) = &boundary.result else {
@@ -56,8 +58,24 @@ pub(super) fn result_shape(module: &TerminalModule, boundary: &BoundaryMachineDe
     let retained = field("toolchain::ActivationPreparation::Rejected::retained")?;
     let [argument_kind, BoundaryParameterKind::Structural] = boundary.parameter_order.as_slice()
         else { return Err("prepare needs arguments and one retained loan"); };
-    let (rest, backing) = boundary.structural_parameters.split_last()
-        .map(|(last, rest)| (rest, last)).ok_or("retained loan is absent")?;
+    let (backing, rest) = boundary.structural_parameters.split_last().ok_or("retained loan is absent")?;
+    let backing_type = module.structural_type(backing.structural_type).ok_or("retained loan type is absent")?;
+    let byte_slice = match backing_type.shape {
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView { .. }) => true,
+        StructuralTypeShape::ElementView { element, .. } => module.structural_type(element)
+            .is_some_and(|t| matches!(t.shape, StructuralTypeShape::PrimitiveScalar(
+                semantic_vocabulary::ScalarType::Integer(i)) if !i.is_address() && i.bits() == Some(8)
+                    && i.sign() == semantic_vocabulary::IntegerSign::Unsigned)),
+        _ => false,
+    };
+    if !byte_slice || backing.position != 1
+        || matches!(backing.access, terminal_psi::StructuralAccess::SharedBorrow |
+            terminal_psi::StructuralAccess::WriteOnlyBorrow)
+        || crate::descriptors::descriptor_results::descriptor_value_access(
+            std::iter::once(backing_type), backing_type.id, backing.multiplicity
+        ) != Some(terminal_psi::StructuralAccess::MutableBorrow) {
+        return Err("retained backing must be an exclusive byte slice");
+    }
     let matches_type = |field: &StructuralFieldType, ty: StructuralTypeId| {
         if let StructuralFieldType::Structural(id) = field { return *id == ty; }
         module.structural_type(ty).is_some_and(|decl| field.canonical_leaf_shape().as_ref() == Some(&decl.shape))
@@ -71,6 +89,6 @@ pub(super) fn result_shape(module: &TerminalModule, boundary: &BoundaryMachineDe
     if !arguments_match || !matches_type(&retained.field_type, backing.structural_type) {
         return Err("rejection changed an argument or the retained loan's carrier");
     }
-    Ok(PreparationShape { result: result.id, ready: ready.id, owner: owner.id, owner_type,
+    Ok(PreparationShape { selected, result: result.id, ready: ready.id, owner: owner.id, owner_type,
         rejected: rejected.id, arguments: arguments.id, retained: retained.id })
 }

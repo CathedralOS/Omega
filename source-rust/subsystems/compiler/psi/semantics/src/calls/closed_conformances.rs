@@ -269,9 +269,13 @@ pub fn validate_boundary_callable(
         match operation {
             language_core::sealed_intrinsics::ActivationOperation::Park => super::owned_activation::validate_park(module, boundary)?,
             language_core::sealed_intrinsics::ActivationOperation::Prepare => {
-                super::owned_activation::validate_prepared_entry(module, boundary)?;
+                super::owned_activation::prepare_shape(module, boundary)?;
                 return Err("prepare needs its checked backing and custody contract");
             }
+            language_core::sealed_intrinsics::ActivationOperation::StepFixed =>
+                return Err("stepping needs the closed worker's effects and fixed backing"),
+            language_core::sealed_intrinsics::ActivationOperation::Resume =>
+                return Err("resuming needs the parked publication's permit and value"),
         }
     }
     if checked.execution == terminal_psi::CheckedBoundaryExecution::LayoutTargetFacts {

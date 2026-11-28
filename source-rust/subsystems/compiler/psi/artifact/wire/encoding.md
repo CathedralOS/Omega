@@ -62,6 +62,9 @@ module-local prepare boundary ID, selected machine ID and storage plan
 (1 Fixed, 2 Split). The report fingerprint and common frame, signature and
 suspension information follow. A machine ID must identify the body selected
 by the closed prepare application; it is not a new source of call authority.
+The owned-activation classification carries Park (0), Prepare (2), StepFixed
+(3), or Resume (4). Tag 1 is not assigned: a saved program cannot issue a
+reply permit without the checked source issuer and caller-funded slot.
 
 Marker 306 adds typed native address borrows (operation 145), mutability
 upgrades (146), and upgraded parameter origins (reference source tag 3).

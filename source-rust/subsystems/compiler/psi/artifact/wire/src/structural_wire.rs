@@ -789,7 +789,7 @@ pub(crate) mod structural_signature_wire {
 
     use language_core::sealed_intrinsics::ActivationOperation;
     wire_enum! {
-        ActivationOp: ActivationOperation, "activation control operation" { 0 => Park, 2 => Prepare }
+        ActivationOp: ActivationOperation, "activation control operation" { 0 => Park, 2 => Prepare, 3 => StepFixed, 4 => Resume }
         Execution: CheckedBoundaryExecution, "checked boundary execution" {
             0 => Provider,
             1 => AccessInitialize,
