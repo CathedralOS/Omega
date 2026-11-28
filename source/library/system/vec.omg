@@ -7,7 +7,8 @@ public domain<T> T::VectorPlacement;
 public data Vacant = |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant;
 
 public data Vec<T> [linear]
-requires embed(self.live.storage.length) + embed(self.spare.length) <= 18446744073709551615,
+requires embed(self.live.storage.length) == embed(self.live.count) * embed(size_of::<[T; 1]>()),
+    embed(self.live.storage.length) + embed(self.spare.length) <= 18446744073709551615,
     self.spare.length == 0 || embed(self.spare.base) == embed(self.live.storage.base) + embed(self.live.storage.length)
 {
     live: |run|::Run<T in VectorPlacement, T> in |run|::Run::Live<T in VectorPlacement, T>;
