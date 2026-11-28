@@ -48,6 +48,95 @@ fn typed_at(
 }
 
 #[test]
+fn run_partition_schemas_bind_live_memberships_to_their_original_inputs() {
+    use super::build_purpose::frontier_with_core;
+    use crate::source_state::domain::ProofFact;
+    use language_core::sealed_intrinsics::RunPartitionOperation;
+    macro_rules! core_file {
+        ($path:literal) => {
+            (
+                $path,
+                "",
+                include_str!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../../../../../../source/library/core/",
+                    $path
+                )),
+            )
+        };
+    }
+    let mut program = frontier_with_core(
+        "use {omega}/language/core/run.omg; machine main() {}",
+        "machine builder() {}",
+        source_provenance::DependencyScope::Product,
+        &[
+            core_file!("run.omg"),
+            core_file!("extent.omg"),
+            core_file!("layout.omg"),
+            core_file!("content.omg"),
+            core_file!("nat.omg"),
+            core_file!("algebra.omg"),
+            core_file!("access/access.omg"),
+            core_file!("device.omg"),
+            core_file!("option.omg"),
+            core_file!("reflect/reflect.omg"),
+        ],
+    );
+    for (operation, name, number_of_inputs) in [
+        (RunPartitionOperation::Split, "split", 1),
+        (RunPartitionOperation::Merge, "merge", 2),
+    ] {
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap()
+            .clone();
+        let (actual, schema) = program
+            .compiler_primitive_schema(machine.symbol)
+            .unwrap()
+            .unwrap();
+        assert_eq!(actual, CompilerPrimitive::RunPartition(operation));
+        let inputs = program
+            .machine_contracts(&machine)
+            .iter()
+            .flat_map(|contract| {
+                (0..contract.facts.len()).map(|i| contract.facts.handle_at(i as u32))
+            })
+            .filter(|&id| matches!(program.proof_facts.get(id), ProofFact::Membership(_)))
+            .collect::<Vec<_>>();
+        assert_eq!(inputs.len(), number_of_inputs);
+        let original = program.proof_facts.get(inputs[0]).clone();
+        // A different declared index cannot be laundered through the retained Live application.
+        let ProofFact::Membership(mut changed) = original.clone() else {
+            unreachable!()
+        };
+        let mut written = program
+            .type_reference_table
+            .type_reference_handles(changed.domain_arguments)
+            .to_vec();
+        written.swap(0, 1);
+        changed.domain_arguments = program
+            .type_reference_table
+            .insert_type_reference_handles(written);
+        *program.proof_facts.get_mut(inputs[0]) = ProofFact::Membership(changed);
+        assert!(program.compiler_primitive_schema(machine.symbol).is_err());
+        *program.proof_facts.get_mut(inputs[0]) = original;
+        if inputs.len() == 2 {
+            let second = program.proof_facts.get(inputs[1]).clone();
+            let first = program.proof_facts.get(inputs[0]).clone();
+            *program.proof_facts.get_mut(inputs[1]) = first;
+            let (_, changed) = program
+                .compiler_primitive_schema(machine.symbol)
+                .unwrap()
+                .unwrap();
+            assert_ne!(schema, changed);
+            *program.proof_facts.get_mut(inputs[1]) = second;
+        }
+    }
+}
+
+#[test]
 fn actual_generic_catalog_source_produces_complete_typed_schemas() {
     let program = typed(INDEXING, source_admission::SourceOrigin::Toolchain).unwrap();
     assert_eq!(program.machines().len(), 3);

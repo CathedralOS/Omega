@@ -444,6 +444,7 @@ enum Tag {
     Result,
     Contracts,
     Contract,
+    Membership,
     Requires,
     Ensures,
     Crash,
@@ -472,6 +473,7 @@ impl Spelled for Tag {
             Self::Result => "result",
             Self::Contracts => "contracts",
             Self::Contract => "contract",
+            Self::Membership => "membership",
             Self::Requires => "requires",
             Self::Ensures => "ensures",
             Self::Crash => "crash",
@@ -686,6 +688,7 @@ fn normalized_schema(
         .collect::<Option<Vec<_>>>()?;
     let contracts = contracts(
         program,
+        entry,
         schema_span(
             |span| program.signature_contracts.span(span),
             machine.contracts,
@@ -725,6 +728,7 @@ fn normalized_schema(
 
 fn contracts<'a>(
     program: &TypedTrees,
+    entry: &crate::source_state::state::State,
     contracts: impl Iterator<Item = &'a SignatureContract>,
     context: &TypeIdentityContext<'_>,
 ) -> Option<Vec<String>> {
@@ -741,18 +745,69 @@ fn contracts<'a>(
             };
             let facts = schema_span(|span| program.proof_facts.span(span), contract.facts)?
                 .iter()
-                .map(|fact| {
-                    let ProofFact::Expression(expression) = fact else {
-                        return None;
-                    };
-                    expression
-                        .is_valid()
-                        .then(|| normalize_index_expression(program, *expression, context))
+                .map(|fact| match fact {
+                    ProofFact::Expression(expression) => program
+                        .expression_table
+                        .expression_is_valid(*expression)
+                        .then(|| normalize_index_expression(program, *expression, context)),
+                    ProofFact::Membership(membership)
+                        if contract.kind == SignatureContractKind::Requires
+                            && contract.keyword_source_span.is_none()
+                            && membership.authored_domain_selection.is_none()
+                            && program.fact_restates_formal_domain(
+                                program.state_parameters(entry),
+                                fact,
+                            ) =>
+                    {
+                        formal_membership_identity(program, membership, context)
+                    }
+                    ProofFact::Membership(_) => None,
+                    ProofFact::Proposition(_) => None,
                 })
                 .collect::<Option<Vec<_>>>()?;
             Some(compound(Tag::Contract, std::iter::once(kind).chain(facts)))
         })
         .collect()
+}
+
+fn formal_membership_identity(
+    program: &TypedTrees,
+    membership: &crate::source_state::domain::ProofMembershipFact,
+    context: &TypeIdentityContext<'_>,
+) -> Option<String> {
+    let family = program.domain_definition(membership.domain_symbol)?;
+    let parameters = program.domain_type_parameters(family);
+    let retained = program
+        .domain_arguments_for_instance(membership.domain_symbol, membership.semantic_domain)?;
+    if parameters.len() != retained.len() {
+        return None;
+    }
+    let written = program
+        .type_reference_table
+        .type_reference_handles(membership.domain_arguments);
+    let offset = usize::from(crate::source_state::domain::has_generic_carrier(
+        program, family,
+    ));
+    if retained.len().checked_sub(offset)? != written.len() {
+        return None;
+    }
+    let index = |parameter, argument| {
+        crate::source_state::type_identity::normalized_domain_index(
+            program, parameter, argument, context,
+        )
+    };
+    let mut parts = vec![
+        normalize_index_expression(program, membership.value, context),
+        context.name(program, family.symbol, family.name.as_str()),
+    ];
+    for (position, (parameter, &expected)) in parameters.iter().zip(retained).enumerate() {
+        let actual = index(parameter, expected);
+        if position >= offset && index(parameter, written[position - offset]) != actual {
+            return None;
+        }
+        parts.push(actual);
+    }
+    Some(compound(Tag::Membership, parts))
 }
 
 // This is an interface description, never termination evidence. The caller
