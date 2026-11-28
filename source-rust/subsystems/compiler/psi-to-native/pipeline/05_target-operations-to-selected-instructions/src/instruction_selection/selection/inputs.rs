@@ -5418,17 +5418,16 @@ pub(crate) mod reference_input {
                 destination,
             };
             let checked = NativeFunction::new(&function, &geometry);
-            let admitted = |argument| super::borrowed_argument(&checked, &semantic, argument, &[]);
-            let address = admitted(&argument).unwrap();
+            let address = super::borrowed_argument(&checked, &semantic, &argument, &[]).unwrap();
             assert!(address.opened_package);
             assert_eq!(address.pointer_slots.len(), 1);
             // The record contains an eight-byte prefix and a sixteen-byte reference.
             assert_eq!(address.pointer_slots[0].byte_offset, 24 + 8);
             assert_eq!(address.referent_offset, 0);
             argument.opened_referent = Some(type_id(1));
-            assert!(admitted(&argument).is_none());
+            assert!(super::borrowed_argument(&checked, &semantic, &argument, &[]).is_none());
             argument.opened_referent = None;
-            assert!(admitted(&argument).is_none());
+            assert!(super::borrowed_argument(&checked, &semantic, &argument, &[]).is_none());
             let ordinary = NativeGeometry::new(&types, target).unwrap();
             let ordinary = NativeFunction::new(&function, &ordinary);
             let address = super::borrowed_argument(&ordinary, &semantic, &argument, &[]).unwrap();
