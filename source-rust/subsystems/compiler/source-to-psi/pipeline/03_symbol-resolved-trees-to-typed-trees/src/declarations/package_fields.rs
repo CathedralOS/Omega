@@ -2,7 +2,6 @@
 //! fields and the calling conventions of its operations must stay uniform.
 
 use crate::source_state::TypedTrees;
-use crate::source_state::data::{DataDefinition, DataField};
 use crate::source_state::expression::ExpressionHandle;
 use crate::source_state::types::{
     FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
@@ -44,7 +43,7 @@ pub(crate) fn validate_in_cohort(program: &TypedTrees, first: usize) -> Result<(
             .map(|p| (p.symbol, Storage::Inline))
             .collect();
         let mut visiting = Traversal::default();
-        for field in fields(program, data) {
+        for field in program.stored_data_fields(data) {
             let reason = match storage(program, field.type_reference, &bound, &mut visiting) {
                 Storage::Inline => "has a witness-dependent inline layout",
                 Storage::Unsized => "has a witness-dependent unsized element type",
@@ -65,23 +64,6 @@ pub(crate) fn validate_in_cohort(program: &TypedTrees, first: usize) -> Result<(
         }
     }
     Ok(())
-}
-
-fn fields<'a>(
-    program: &'a TypedTrees,
-    data: &DataDefinition,
-) -> impl Iterator<Item = &'a DataField> {
-    program
-        .data_members(data)
-        .iter()
-        .flat_map(|member| {
-            let payload = member
-                .as_variant()
-                .into_iter()
-                .flat_map(|case| program.data_payload_fields(case));
-            member.as_field().into_iter().chain(payload)
-        })
-        .filter(|field| !field.relevance.is_erased())
 }
 
 fn binding(symbol: SymbolHandle, bound: &Bindings) -> Storage {
@@ -225,7 +207,8 @@ fn application_storage(
         .collect();
     let recursive_edges = visiting.recursive_edges;
     visiting.active.push(base_symbol);
-    let usage = fields(program, data)
+    let usage = program
+        .stored_data_fields(data)
         .map(|field| storage(program, field.type_reference, &actuals, visiting))
         .max()
         .unwrap_or(Independent)
