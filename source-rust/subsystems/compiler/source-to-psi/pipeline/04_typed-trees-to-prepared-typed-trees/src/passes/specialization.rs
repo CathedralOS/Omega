@@ -1538,7 +1538,7 @@ fn copied_parts(
     let attachment_is_known = if owner.is_valid() {
         program.unique_data_definition_by_symbol(owner).is_some_and(|data| {
             if attached.is_valid() {
-                matches!(program.type_reference_node(attached), TypeReferenceNode::Generic { base_symbol, .. } if *base_symbol == owner)
+                matches!(program.type_reference_table.type_reference(attached), TypeReferenceNode::Generic { base_symbol, .. } if *base_symbol == owner)
             } else {
                 program.data_type_parameters(data).is_empty()
             }
