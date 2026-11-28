@@ -90,7 +90,11 @@ pub(super) fn checked_park_anchor(
     };
     if *selected != boundary.id
         || actual.access != StructuralAccess::Owned
-        || !completion_receipts.is_empty()
+        // Elaboration records consumption of the request's one root claim.
+        // The ownership checker verifies its identity. It is not a write to
+        // either the held reference or the slot to which it points.
+        || !(completion_receipts.is_empty() || matches!(completion_receipts.as_slice(),
+            [receipt] if receipt.argument_index == 0 && receipt.path.is_empty()))
         || !matches!(
             boundary.declaration.as_ref()?.execution,
             terminal_psi::CheckedBoundaryExecution::OwnedActivation(

@@ -35,6 +35,7 @@ fn source_owner(path: &str) -> String {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ParkShape {
     pub anchor: semantic_vocabulary::StructuralFieldId,
+    pub anchor_identity: terminal_psi::TerminalIdentityIndex,
     pub reply: terminal_psi::TerminalIdentityIndex,
 }
 
@@ -328,6 +329,7 @@ pub fn park_shape(
     }
     Ok(ParkShape {
         anchor: field.id,
+        anchor_identity: field.identity,
         reply: source.result_type,
     })
 }
