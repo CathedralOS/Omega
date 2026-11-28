@@ -37,7 +37,7 @@ crashes Trap
     }
     machine delimiter(application: @mutable Application, value: i32) {
         let wrapped: i32 in Wrapping = value as +Wrapping;
-        application.selection = (wrapped - 48) as i32;
+        application.selection = (wrapped - 48) as -Wrapping;
         let tail: |console|::ByteRead = block |console|::Console::read_byte();
         transition tail {
             |console|::ByteRead::Eof -> start(application),
