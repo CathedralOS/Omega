@@ -25,7 +25,8 @@ mod versions;
 use construction::construction;
 use fields::{check_field_accesses, enters_package};
 use opening::{invocation, projection};
-pub(crate) use restoration::local_restoration_homes;
+pub use restoration::local_call_write_origins;
+pub(crate) use restoration::local_mutable_field_homes;
 use substitution::Substitution;
 
 type Site = (MachineId, OperationId);
