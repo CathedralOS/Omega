@@ -13,6 +13,14 @@ fn a_stored_operation_consumes_an_owner_and_repackages_its_custody() {
 }
 
 #[test]
+fn a_stored_callback_returns_its_owner_to_another_callback_of_the_same_package() {
+    let source = include_str!("fixtures/callables/run/some_owned_job/returned_owner.omg");
+    let (output, report) = program::invoke(source, &["psi", "inspect", "--machine", "complete"]);
+    assert!(output.status.success(), "{report}");
+    assert!(report.contains("psi selected_machine=complete"), "{report}");
+}
+
+#[test]
 fn the_copying_operation_refuses_an_owning_package() {
     let command = ["psi", "inspect", "--machine", "collect"];
     let (output, report) = program::invoke(SOURCE, &command);

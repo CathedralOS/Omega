@@ -154,6 +154,26 @@ pub(super) fn subject_reference(
     }
 }
 
+/// A returned owner gets the descriptor's opening when the call's complete
+/// public result, including the custody at every field path, matches it.
+pub(super) fn returned_owner(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+    index: u32,
+) -> Option<Projected> {
+    let call = operation.kind.callable_invocation()?;
+    let result = operation.result.structural()?;
+    let opened = opening(module, machine.id, index).ok()?;
+    let contract = module.execution.callables.contract(call.contract)?;
+    (contract.result.matches_operation_result(&operation.result)
+        && opened
+            .witnesses
+            .iter()
+            .any(|&witness| fields::nominal_uses(module, result.structural_type, witness)))
+    .then_some(Projected::Owner(result.place))
+}
+
 pub(super) fn invocation(
     module: &TerminalModule,
     machine: &TerminalMachine,

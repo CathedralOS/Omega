@@ -80,9 +80,13 @@ impl Substitution<'_> {
                     || !package_applications::substituted(name, application, &witnesses)
                     || storage != representation
                     || fields.len() != supplied.len()
+                    || !crate::packages::requirements::same(
+                        &public.requires, &actual.requires, fields, supplied,
+                    )
                 {
                     return false;
                 }
+                expected.requires.clone_from(&actual.requires);
                 for (field, supplied) in fields.iter().zip(supplied) {
                     if field.declaration_identity.is_absent()
                         || !Self::field(&field.field_type, &supplied.field_type, nested)
