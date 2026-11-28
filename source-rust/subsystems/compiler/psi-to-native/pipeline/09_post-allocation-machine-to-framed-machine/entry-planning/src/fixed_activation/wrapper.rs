@@ -12,7 +12,7 @@ type Home = (u32, u32);
 const TRANSPORT: &str = "fixed activation value has no complete System V transport";
 
 pub fn plan_call(body:&crate::PhysicalFrameProgram, installations:installation_admission::EntryInstallationResources<'_>, binding:&NormalizedForeignCallBinding)
-    -> Result<FixedCallPlan<crate::PhysicalRecipeOrigin>> {
+    -> Result<bound_framed_machine::entries::BoundFixedActivationCall<crate::PhysicalRecipeOrigin>> {
     if body.instructions.target != target::NativeTarget::linux_x64() { return Err("unsupported fixed activation target"); }
     let fixed=binding.fixed_activation().ok_or("expected a compiler-issued fixed activation")?;
     let frame=Frame::for_binding(binding).ok_or("invalid fixed activation ABI frame")?;
@@ -125,9 +125,10 @@ pub fn plan_call(body:&crate::PhysicalFrameProgram, installations:installation_a
     }
     finish.frame(frame.frame_bytes,granule,touches,false);
     finish.push(Op::Return);
-    Ok(FixedCallPlan::from_planner(crate::PhysicalRecipeOrigin(()),FixedCall {
+    let plan=FixedCallPlan::from_planner(crate::PhysicalRecipeOrigin(()),FixedCall {
         binding:binding.clone(),before,zero,nonzero,finish,transfer,entry_bridge,caller_stack_bytes:frame.caller_stack_bytes(),
-    }))
+    });
+    Ok(bound_framed_machine::entries::BoundEntry::from_binding(installation_binding_issuer::BINDER, plan))
 }
 
 struct Wrapper<'a> {frame:&'a Frame,encoding:Encoding}

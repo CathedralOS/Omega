@@ -366,10 +366,10 @@ pub struct FixedActivationEncoderOrigin(());
 
 /// Emit the call issued by physical planning. Each public entry calls only its
 /// own action and optional, statically selected worker in this text section.
-pub fn encode_call(plan:&physical_recipes::fixed_activation::FixedCallPlan<entry_planning::PhysicalRecipeOrigin>)
+pub fn encode_call<Origin>(plan:&bound_framed_machine::entries::BoundFixedActivationCall<Origin>)
     -> Result<machine_code::fixed_activation::EncodedFixedActivationCall<FixedActivationEncoderOrigin>,AdapterEncodingError> {
     use physical_recipes::fixed_activation::FixedActivationAction as Action;
-    let call=plan.call();
+    let call=plan.parts().call();
     let fixed=call.binding.fixed_activation().ok_or(AdapterEncodingError)?;
     let mut code=Vec::new();
     let emit=|code:&mut Vec<u8>,seq:&post_allocation_machine::adapters::AdapterInstructions| {

@@ -17,6 +17,8 @@ impl<Parts> BoundEntry<Parts> {
         Self(parts)
     }
 
+    pub fn parts(&self) -> &Parts { &self.0 }
+
     pub fn into_parts(self) -> Parts {
         self.0
     }
@@ -30,3 +32,5 @@ pub type BoundCallableEntry<Origin> =
     BoundEntry<(CallableContext, Option<NativeEntryBridgePlan<Origin>>)>;
 pub type BoundPrivateEntry<Origin> =
     BoundEntry<(MachineFunctionIdentity, BoundCallableEntry<Origin>)>;
+
+pub type BoundFixedActivationCall<Origin> = BoundEntry<physical_recipes::fixed_activation::FixedCallPlan<Origin>>;

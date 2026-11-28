@@ -8,7 +8,6 @@ version.workspace = true
 name = "native_encoding"
 
 [dependencies]
-entry-planning = { path = "../09_post-allocation-machine-to-framed-machine/entry-planning" }
 bound-framed-machine = { path = "../../representations/bound-framed-machine" }
 function-identity = { path = "../../representations/function-identity" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
@@ -28,4 +27,5 @@ selected-instructions = { path = "../../representations/selected-instructions" }
 target = { path = "../../targets/target" }
 
 [dev-dependencies]
+entry-planning = { path = "../09_post-allocation-machine-to-framed-machine/entry-planning" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
