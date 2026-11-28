@@ -5,6 +5,10 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
+[features]
+# Restore the complete typed policy from canonical binary or text evidence.
+full-policy-recovery = []
+
 [dependencies]
 build-providers = { path = "../../../compiler/build/providers" }
 build-consent = { path = "../../../compiler/build/evaluation/authority/consent" }

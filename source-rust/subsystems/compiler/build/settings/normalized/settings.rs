@@ -1,7 +1,6 @@
 //! The normalized target and runtime choices produced by a returned Build value.
 #![forbid(unsafe_code)]
 
-use build_model::values::BuildTimeValue;
 use optimization_selections::OptimizationSelections;
 use target::{ApplicationIdentifier, HostedApplicationIntent};
 
@@ -43,27 +42,16 @@ impl ElfInterpreterSelections {
             .or_else(|| target::declared_elf_interpreter_default(target))
     }
 
-    /// Read explicit loader paths from the per-target fields of the returned Build value.
-    pub fn from_build_rows(rows: &[(String, BuildTimeValue)]) -> Result<Self, String> {
-        let mut explicit = Vec::new();
-        for target in target::ELF_INTERPRETER_TARGET_PROFILES {
-            let name = target.target_name();
-            let Some((_, value)) = rows.iter().find(|(row, _)| row == name) else {
-                continue;
-            };
-            let BuildTimeValue::Text(bytes) = value else {
-                return Err(format!(
-                    "Build.elf_interpreter.{name} is not bytes: {value:?}"
-                ));
-            };
-            if bytes.is_empty() {
-                continue;
-            }
-            let plan = target::normalize_elf_interpreter_plan(bytes.clone(), target)
-                .map_err(|error| format!("Build.elf_interpreter.{name} is invalid: {error}"))?;
-            explicit.push(plan);
+    pub fn set_explicit(&mut self, plan: target::NormalizedElfInterpreterPlan) {
+        if let Some(previous) = self
+            .explicit
+            .iter_mut()
+            .find(|entry| entry.target() == plan.target())
+        {
+            *previous = plan;
+        } else {
+            self.explicit.push(plan);
         }
-        Ok(Self { explicit })
     }
 }
 
@@ -128,23 +116,15 @@ mod tests {
         let defaults = EvaluatedBuildSettings::default();
         let arm_loader = defaults.elf_interpreters.effective(LinuxArm64).unwrap();
         let custom = b"/runtime/ld-omega.so";
-        let choices = ElfInterpreterSelections::from_build_rows(&[(
-            LinuxX64.target_name().into(),
-            BuildTimeValue::Text(custom.to_vec()),
-        )])
-        .unwrap();
+        let mut choices = ElfInterpreterSelections::default();
+        choices.set_explicit(
+            target::normalize_elf_interpreter_plan(custom.to_vec(), LinuxX64).unwrap(),
+        );
         assert_eq!(
             choices.explicit(LinuxX64).unwrap().interpreter_path(),
             custom
         );
         assert_eq!(choices.explicit(LinuxArm64), None);
         assert_eq!(choices.effective(LinuxArm64).unwrap(), arm_loader);
-        assert!(
-            ElfInterpreterSelections::from_build_rows(&[(
-                LinuxX64.target_name().into(),
-                BuildTimeValue::Text(b"relative/ld.so".to_vec()),
-            )])
-            .is_err()
-        );
     }
 }

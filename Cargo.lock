@@ -27,6 +27,8 @@ dependencies = [
  "function-identity",
  "language-core",
  "legalized-operations",
+ "native-body-plan",
+ "native-body-plan-issuer",
  "operation-evidence",
  "optimization-core",
  "optimization-unit",
@@ -136,19 +138,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "arc-swap"
-version = "1.9.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c049c0be4daef0b145cb3555416b3b8ef5b7888a38aea1a3a155801fe7b0810b"
-dependencies = [
- "rustversion",
-]
-
-[[package]]
 name = "arena"
 version = "0.1.0"
 dependencies = [
- "arc-swap",
  "record-storage",
 ]
 
@@ -251,12 +243,13 @@ dependencies = [
  "build-declarations",
  "build-model",
  "build-output",
- "checked-program-to-psi",
  "diagnostics",
  "language-core",
  "normalized-build-settings",
  "optimization-requests",
  "package-compilation",
+ "prepared-source",
+ "provider-choice-inputs",
  "source-admission",
  "source-completion-accounting",
  "source-declarations",
@@ -413,6 +406,7 @@ name = "calling-conventions"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "language-core",
  "layout-planning",
  "layout-plans",
  "runtime-abi",
@@ -512,19 +506,21 @@ dependencies = [
  "language-core",
  "lowered-program-to-checked-program",
  "lowered-source-publication",
- "numeric-literals",
  "numerics",
  "optimization",
  "prepared-source",
  "prepared-typed-trees-to-lowered-program",
+ "provider-choice-inputs",
  "psi-authorization",
  "psi-provider-selections",
  "psi-publication-records",
+ "published-source-invocation",
  "record-storage",
  "semantic-vocabulary",
  "service-surface",
  "source-admission",
  "source-declarations",
+ "source-invocation-issuer",
  "source-lexer",
  "source-parser",
  "source-provenance",
@@ -1412,6 +1408,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "native-body-plan"
+version = "0.1.0"
+dependencies = [
+ "function-identity",
+ "legalized-operations",
+ "native-body-plan-issuer",
+ "optimization-core",
+ "verified-optimization-input",
+]
+
+[[package]]
+name = "native-body-plan-issuer"
+version = "0.1.0"
+
+[[package]]
 name = "native-compiler"
 version = "0.1.0"
 dependencies = [
@@ -1525,9 +1536,12 @@ dependencies = [
  "diagnostics",
  "function-identity",
  "native-execution-reach",
+ "operation-operands",
  "provider-correspondence",
  "psi-target-layouts",
+ "register-environment",
  "semantic-vocabulary",
+ "target",
  "target-bound-program",
  "terminal-codec",
  "terminal-psi",
@@ -1623,7 +1637,6 @@ dependencies = [
 name = "normalized-build-settings"
 version = "0.1.0"
 dependencies = [
- "build-model",
  "optimization-selections",
  "target",
 ]
@@ -2026,8 +2039,12 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "diagnostics",
+ "numeric-literals",
  "prepared-source-issuer",
  "semantic-vocabulary",
+ "source-admission",
+ "source-provenance",
+ "source-symbol-table",
  "symbols",
  "typed-trees",
 ]
@@ -2228,6 +2245,19 @@ dependencies = [
  "terminal-psi",
  "terminal-semantics",
  "wire",
+]
+
+[[package]]
+name = "provider-choice-inputs"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "build-model",
+ "semantic-vocabulary",
+ "source-declarations",
+ "source-text",
+ "symbols",
+ "typed-trees",
 ]
 
 [[package]]
@@ -2448,6 +2478,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "published-source-invocation"
+version = "0.1.0"
+dependencies = [
+ "semantic-vocabulary",
+ "source-invocation-issuer",
+ "symbols",
+ "terminal-codec",
+ "typed-trees",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.47"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2644,12 +2685,6 @@ dependencies = [
  "once_cell",
  "rustix",
 ]
-
-[[package]]
-name = "rustversion"
-version = "1.0.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
 
 [[package]]
 name = "schema-reflection"
@@ -2977,8 +3012,8 @@ version = "0.1.0"
 dependencies = [
  "build-model",
  "build-time-evaluation",
- "checked-program-to-psi",
  "diagnostics",
+ "published-source-invocation",
  "semantic-vocabulary",
  "symbols",
  "terminal-work",
@@ -3010,6 +3045,10 @@ dependencies = [
  "source-provenance",
  "source-text",
 ]
+
+[[package]]
+name = "source-invocation-issuer"
+version = "0.1.0"
 
 [[package]]
 name = "source-lexer"
@@ -3275,6 +3314,7 @@ dependencies = [
  "direct-boundary-bindings",
  "native-execution-reach",
  "native-intrinsics",
+ "operation-operands",
  "program-entry-contracts",
  "provider-correspondence",
  "psi-authorization",
@@ -3351,6 +3391,7 @@ dependencies = [
  "language-core",
  "layout-plans",
  "legalized-operations",
+ "native-body-plan",
  "operation-evidence",
  "operation-operands",
  "optimization-core",

@@ -22,6 +22,15 @@ use diagnostics::Diagnostic;
 pub(super) fn check_bindings(
     program: &SymbolResolvedTrees,
 ) -> Result<Vec<GenericBindingOverlap>, Vec<Diagnostic>> {
+    inspect_bindings(program, &mut |_, _| {})
+}
+
+/// Each visited annotation sees the formal openings of its state and the
+/// local openings that were introduced before it in the same lexical block.
+pub(super) fn inspect_bindings(
+    program: &SymbolResolvedTrees,
+    annotation: &mut dyn FnMut(&crate::source_resolved::types::TypeReference, &[symbols::SymbolHandle]),
+) -> Result<Vec<GenericBindingOverlap>, Vec<Diagnostic>> {
     let symbols = &program.symbols;
     let declarations = &program.tables.declarations;
     let expressions = &program.tables.bodies.expressions;
@@ -96,12 +105,19 @@ pub(super) fn check_bindings(
                 }
                 declared.push(name.to_owned());
             }
+            for parameter in declarations.state_parameters.span_or_empty(state.parameters) {
+                annotation(&parameter.type_reference, &opened_scope);
+            }
+            if let Some(result) = &state.return_type {
+                annotation(result, &opened_scope);
+            }
             let parameter_count = declared.len();
             let mut arms = ArmBindings {
                 expressions,
                 statements: &declarations.state_statements,
                 symbols,
                 record_overlap: &mut record_overlap,
+                annotation,
                 child_types,
                 opened_scope,
                 declared,
@@ -165,6 +181,7 @@ struct ArmBindings<'walk> {
     opened_scope: Vec<symbols::SymbolHandle>,
     symbols: &'walk crate::source_symbols::SymbolTable,
     record_overlap: &'walk mut dyn FnMut(&DiagnosticName),
+    annotation: &'walk mut dyn FnMut(&crate::source_resolved::types::TypeReference, &[symbols::SymbolHandle]),
     declared: Vec<String>,
     parameter_count: usize,
     machine: &'walk str,
@@ -229,7 +246,10 @@ impl ArmBindings<'_> {
             Statement::Expression(expression) | Statement::Evaluate { expression, .. } => {
                 self.expression(*expression)
             }
-            Statement::LocalData(local) => self.expression(local.initial_value),
+            Statement::LocalData(local) => {
+                (self.annotation)(&local.type_reference, &self.opened_scope);
+                self.expression(local.initial_value);
+            }
             Statement::Transition(transition) => {
                 let scope = self.declared.len();
                 let mut names = Vec::new();
@@ -315,9 +335,10 @@ impl ArmBindings<'_> {
             | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::Integer(_)
             | ExpressionNode::Name(_)
-            | ExpressionNode::String(_)
-            | ExpressionNode::TypeExpression(_)
-            | ExpressionNode::ZeroValue(_) => {}
+            | ExpressionNode::String(_) => {}
+            ExpressionNode::TypeExpression(reference) | ExpressionNode::ZeroValue(reference) => {
+                self.type_use(*reference);
+            }
             ExpressionNode::ArrayLiteral(values) => self.expressions_in(*values),
             ExpressionNode::Atomic(atomic) => {
                 self.expression(atomic.value);
@@ -327,7 +348,10 @@ impl ArmBindings<'_> {
                 self.expression(binary.left);
                 self.expression(binary.right);
             }
-            ExpressionNode::Cast(cast) => self.expression(cast.value),
+            ExpressionNode::Cast(cast) => {
+                self.type_use(cast.target_type);
+                self.expression(cast.value);
+            }
             ExpressionNode::Call(call) => {
                 self.expression(call.callee);
                 self.expression(call.receiver);
@@ -345,11 +369,18 @@ impl ArmBindings<'_> {
                 self.expression(range.end);
             }
             ExpressionNode::StructLiteral(literal) => {
+                self.type_use(literal.application_type);
                 for field in expressions.struct_fields(literal.fields) {
                     self.expression(field.value);
                 }
             }
             ExpressionNode::Unary(unary) => self.expression(unary.operand),
+        }
+    }
+
+    fn type_use(&mut self, handle: arena::Handle<crate::source_resolved::types::TypeReference>) {
+        if handle.is_valid() {
+            (self.annotation)(self.child_types.get(handle), &self.opened_scope);
         }
     }
 

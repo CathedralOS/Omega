@@ -1347,6 +1347,8 @@ pub(crate) mod statement {
                         .map_err(|_| Diagnostic::error("assembly block exceeds u32"))?,
                     exit: match block.exit {
                         resolved::statement::AssemblyExit::Fallthrough => AssemblyExit::Fallthrough,
+                        resolved::statement::AssemblyExit::Adjacent => AssemblyExit::Adjacent,
+                        resolved::statement::AssemblyExit::Return => AssemblyExit::Return,
                         resolved::statement::AssemblyExit::Jump(_) => {
                             AssemblyExit::Jump(Handle::invalid())
                         }

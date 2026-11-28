@@ -13,7 +13,8 @@ language-core = { path = "../../../foundation/language-core" }
 build-consent = { path = "../authority/consent" }
 build-declarations = { path = "../../inputs/declarations" }
 build-output = { path = "../../inputs/trees" }
-checked-program-to-psi = { path = "../../../source-to-psi/pipeline/07_checked-program-to-psi" }
+prepared-source = { path = "../../../source-to-psi/representations/prepared-source" }
+provider-choice-inputs = { path = "../../../source-to-psi/representations/provider-choice-inputs" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 normalized-build-settings = { path = "../../settings/normalized" }
 optimization-requests = { path = "../../settings/optimizations" }

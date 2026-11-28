@@ -11,6 +11,13 @@ use crate::record::PackageReviewTypeIdentity;
 use crate::record::accessors::field_projection_accessors;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(
+    not(any(test, feature = "full-policy-recovery")),
+    expect(
+        dead_code,
+        reason = "only full policy recovery constructs these wire variants"
+    )
+)]
 pub(crate) enum PackageReviewPropositionBinderKind {
     Type,
     Const(PackageReviewTypeIdentity),
@@ -24,6 +31,13 @@ pub struct PackageReviewPropositionBinder {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(
+    not(any(test, feature = "full-policy-recovery")),
+    expect(
+        dead_code,
+        reason = "only full policy recovery constructs these wire variants"
+    )
+)]
 pub(crate) enum PackageReviewPropositionBinderValue {
     Type(PackageReviewTypeIdentity),
     Machine(PackageReviewNominalIdentity),
@@ -74,6 +88,13 @@ pub struct PackageReviewEvidenceInterface {
 impl PackageReviewEvidenceInterface {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(
+    not(any(test, feature = "full-policy-recovery")),
+    expect(
+        dead_code,
+        reason = "only full policy recovery constructs these wire variants"
+    )
+)]
 pub(crate) enum PackageReviewPropositionEvidence {
     FactOnly,
     Witness(PackageReviewEvidenceInterface),
