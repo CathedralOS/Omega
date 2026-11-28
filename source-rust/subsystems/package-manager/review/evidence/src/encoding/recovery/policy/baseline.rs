@@ -52,6 +52,7 @@ impl PackagePolicyBaseline {
                 | crate::encoding::BASELINE_WITH_CARRIED_TYPES
                 | crate::encoding::BASELINE_WITH_APPLIED_SERVICES
                 | crate::encoding::BASELINE_WITH_UNUSED_GENERIC_IMPORTS
+                | crate::encoding::BASELINE_WITH_NETWORK_REQUESTS
                 | PACKAGE_POLICY_BASELINE_VERSION
         ) {
             return Err(Error::UnsupportedVersion);
@@ -73,7 +74,7 @@ impl PackagePolicyBaseline {
             semantic_dependencies: reader
                 .sequence(1, |reader| semantic_dependency(reader, schema_version))?,
             boundary_applications: applications(&mut reader)?,
-            restricted_build_requests: requests(&mut reader)?,
+            restricted_build_requests: requests(&mut reader, schema_version)?,
             service_audits: reader.sequence(1, service)?,
             component_assumptions: reader.sequence(1, component_assumption)?,
         };
@@ -285,12 +286,18 @@ pub(in crate::encoding::recovery::policy::baseline) const REQUIRED_OUTPUT_MINIMU
 
 pub(in crate::encoding::recovery) fn request(
     reader: &mut Reader<'_>,
+    schema: u16,
 ) -> Result<PackagePolicyRestrictedBuildRequest, Error> {
     let operation = super::tag!(reader => {
         3 => {
             let address = reader.string()?.parse().map_err(|_| Error::InvalidValue)?;
             let maximum = u16::try_from(reader.u32()?).map_err(|_| Error::InvalidValue)?;
             let peer = build_consent::BuildNetworkPeer::new(address, maximum).map_err(|_| Error::InvalidValue)?;
+            if schema >= crate::encoding::BASELINE_WITH_NETWORK_AUTHORITY
+                && terminal_permissions::disposition(reader)?.classes() != peer.physical_authority()
+            {
+                return Err(Error::InvalidValue);
+            }
             PackagePolicyRestrictedBuildOperation::SendDatagram { peer }
         },
         0 => PackagePolicyRestrictedBuildOperation::ScopedFilesystemExecution,
@@ -361,6 +368,7 @@ pub(in crate::encoding::recovery) fn bounds(
 
 pub(in crate::encoding::recovery) fn requests(
     reader: &mut Reader<'_>,
+    schema: u16,
 ) -> Result<Vec<PackagePolicyRestrictedBuildRequest>, Error> {
-    reader.sequence(REQUEST_MINIMUM_BYTES, request)
+    reader.sequence(REQUEST_MINIMUM_BYTES, |reader| request(reader, schema))
 }
