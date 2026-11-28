@@ -106,7 +106,9 @@ otherwise release is explicit.
 
 Use `capacity_for::<T>(bytes)` from `{system}/vec.omg` to plan backing for
 ordinary native elements. It counts whole array elements, including native
-padding. Zero-byte elements have a logical limit of 2⁶⁴ − 1.
+padding. Zero-byte elements have a logical limit of 2⁶⁴ − 1. Given a borrowed
+`Vec<T>`, `length` reads its live element count and `capacity` counts whole cells
+across its live and spare backing.
 
 Import `{allocation}/bump/bump.omg` to call `|bump|::open(backing)`.
 Import `{allocation}/vec/vec.omg` to call `|vec|::open(backing, capacity)`

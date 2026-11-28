@@ -1,4 +1,4 @@
-//! Customers of the bundled system vector plan storage using the selected target's array stride.
+//! External users of the bundled system vector.
 #[path = "support/project.rs"]
 mod project;
 mod support;
@@ -33,6 +33,17 @@ machine main() crashes Trap {
 }
 "#;
 
+fn command(directory: &std::path::Path) -> Command {
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_omega"));
+    cmd.current_dir(directory)
+        .env(
+            "OMEGA_LIBRARY_ROOT",
+            support::repository_root().join("source/library"),
+        )
+        .stdin(Stdio::null());
+    cmd
+}
+
 #[test]
 fn storage_for_a_message_queue_accounts_for_padding_and_zero_byte_tickets() {
     for (source, returns) in [
@@ -47,28 +58,72 @@ fn storage_for_a_message_queue_accounts_for_padding_and_zero_byte_tickets() {
             "system-vec-capacity",
             &[("main.omg", &source), ("build.omg", BUILD)],
         );
-        let command = |action| {
-            let mut cmd = Command::new(env!("CARGO_BIN_EXE_omega"));
-            cmd.args([action, "build.omg"])
-                .current_dir(dir.path())
-                .env(
-                    "OMEGA_LIBRARY_ROOT",
-                    support::repository_root().join("source/library"),
-                )
-                .stdin(Stdio::null());
-            cmd
-        };
-        let interpreted = command("run").output().unwrap();
+        let interpreted = command(dir.path())
+            .args(["run", "build.omg"])
+            .output()
+            .unwrap();
         let report = String::from_utf8_lossy(&interpreted.stderr);
         if returns {
             assert!(interpreted.status.success(), "{report}");
         } else {
             assert!(report.contains("Psi crash: Trap"), "{report}");
         }
-        let native = project::build_and_run_command(&mut command("build"));
+        let native =
+            project::build_and_run_command(command(dir.path()).args(["build", "build.omg"]));
         assert!(native.compiler.status.success(), "{:?}", native.compiler);
         let guest = native.execution.unwrap();
         assert_eq!(guest.status.success(), returns, "{guest:?}");
         assert!(guest.stdout.is_empty());
+    }
+}
+
+#[test]
+fn borrowing_a_vector_exposes_its_live_count_and_whole_cell_capacity() {
+    let source = r#"use {system}/vec.omg as vec;
+data Parcel [linear] { tag: u8; ticket: u64; }
+machine count(items: @|vec|::Vec<Parcel>) -> u64
+ensures result == items.live.count { |vec|::length::<Parcel>(items) }
+machine slots(items: @|vec|::Vec<Parcel>) -> u64 { |vec|::capacity::<Parcel>(items) }
+machine occupied(items: @|vec|::Vec<Parcel>) -> u64
+ensures embed(result) == embed(items.live.count) * embed(size_of::<[Parcel; 1]>())
+{ items.live.storage.length }
+machine main() {}
+"#;
+    for (machine, program, expected_error) in [
+        ("count", source.to_owned(), None),
+        ("slots", source.to_owned(), None),
+        ("occupied", source.to_owned(), None),
+        (
+            "occupied",
+            source.replace("[Parcel; 1]", "[u8; 1]"),
+            Some("cannot prove ensures contract for exit from occupied"),
+        ),
+        (
+            "count",
+            source.replace("result ==", "result !="),
+            Some("result != items.live.count"),
+        ),
+    ] {
+        let dir = project::stage(
+            "system-vec-borrow",
+            &[("main.omg", &program), ("build.omg", BUILD)],
+        );
+        let output = command(dir.path())
+            .args(["psi", "inspect", "--machine", machine, "build.omg"])
+            .output()
+            .unwrap();
+        let errors = String::from_utf8_lossy(&output.stderr);
+        if let Some(expected) = expected_error {
+            assert!(
+                !output.status.success() && errors.contains(expected),
+                "{errors}"
+            );
+        } else {
+            assert!(output.status.success(), "{errors}");
+            assert!(
+                String::from_utf8_lossy(&output.stdout)
+                    .contains(&format!("selected_machine={machine}"))
+            );
+        }
     }
 }

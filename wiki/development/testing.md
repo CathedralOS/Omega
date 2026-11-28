@@ -397,13 +397,14 @@ evidence folder; the default is one), and `--out <file.json>` writes one row per
 sample with the gate's verdict (`pass`, `checked`, `rejected`, `no-oracle`,
 `not-host-runnable` or `fail`) and, for a failure, its reason.
 
-The sample gate executes a project carrying `input.txt` beside its entry with
-that file as stdin (absent means an empty stream) and then scores the authored
-`expected_native_exit[.<target>].txt`, `expected_stdout.txt` and
-`expected_stderr.txt` files exactly where present, falling back to the
-header oracle for channels without a file. Samples without `input.txt` run
-with empty stdin under the header oracle alone. Every non-execution child in
-both gates still gets an empty stdin. Close stdin
+The sample gate feeds each program its `input.txt`, or an empty stream when
+that file is absent. For every program it checks `expected_stdout.txt` and
+`expected_stderr.txt` byte for byte when present. For termination it reads
+`expected_native_exit.<target>.txt` first, then `expected_native_exit.txt`.
+A signed integer specifies the expected exit status. The value `trap` requires
+the native executable to terminate with its published trap presentation and Psi
+to report a `Trap` crash. The source header supplies expectations for channels
+without a file. Non-execution commands receive empty stdin. Close stdin
 (`< /dev/null`, or `$null |` in PowerShell) on a direct `omega` command run in
 the background: `omega run` forwards stdin and otherwise waits at zero CPU.
 

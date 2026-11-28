@@ -1,13 +1,13 @@
 // Fact: `left == right` on `f64` selects the declared operator without importing `{omega}/language/core/float_operations.omg`. A copy of an `f64` is not this fact. The values are 212.0 and 2.0, so the comparison is false.
-// Place: other_machine. Comparator::equal receives both operands through borrowed caller storage and compares them.
+// Place: other_machine. The caller passes both operands to equal and lends it a mutable Comparator.
 // Expected exit: 0
 data Comparator { }
-machine Comparator::equal(comparator: @mutable Comparator, left: f64, right: f64) -> bool {
+machine equal(comparator: @mutable Comparator, left: f64, right: f64) -> bool {
     left == right
 }
 machine main() crashes Trap {
-    let mutable comparator: Comparator;
-    let equal: bool = Comparator::equal(@mutable comparator, 212.0, 2.0);
+    let mutable comparator: Comparator = Comparator {};
+    let equal: bool = equal(@mutable comparator, 212.0, 2.0);
     transition equal { true -> bad(), _ -> done() }
     machine done() {}
     machine bad() { crash Trap; }

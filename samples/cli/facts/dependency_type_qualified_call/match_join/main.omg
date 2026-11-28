@@ -1,4 +1,4 @@
-// A call spelled through a dependency's package alias selects the data type's machine,
+// A call spelled through a dependency's package alias selects the exported machine,
 // proves its `left.value > 0` premise on the exact operand, and records its `ensures` sum
 // for the caller.
 // Place: match_join.
@@ -15,7 +15,7 @@ machine main() crashes Trap {
     let flag: bool = true;
     let left: |ops|::Wrapped = match flag { true -> |ops|::Wrapped { value: 250u16 }, false -> |ops|::Wrapped { value: 250u16 } };
     let right: |ops|::Wrapped = match flag { true -> |ops|::Wrapped { value: 10u16 }, false -> |ops|::Wrapped { value: 10u16 } };
-    let total: u64 = |ops|::Wrapped::describe(@left, @right);
+    let total: u64 = |ops|::describe(@left, @right);
     transition hold(total) && total == 260 {
         true -> done(),
         _ -> bad()

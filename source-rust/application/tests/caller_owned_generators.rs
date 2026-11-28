@@ -1,5 +1,4 @@
 //! Run the same caller-owned activations from source, saved Psi and the native executable.
-#![cfg(all(target_os = "linux", target_arch = "x86_64"))]
 
 #[path = "support/declared_exit.rs"]
 mod declared_exit;
@@ -13,6 +12,7 @@ fn fixture() -> PathBuf {
         .join("../../tests/fixtures/calls/run/caller_owned_generators")
 }
 
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 #[test]
 fn the_physical_linux_process_matches_the_interpreted_producers() {
     declared_exit::assert_declared_exit(&fixture(), "build.omg");
@@ -85,6 +85,8 @@ fn assert_psi_exit(directory: &Path, program: &Path, outputs: &Path, expected: i
         directory,
         &[
             "run",
+            "--target",
+            "linux_x86_64",
             "--outputs",
             outputs.to_str().unwrap(),
             program.to_str().unwrap(),

@@ -105,6 +105,21 @@ fn retains_warmups_abba_pairs_and_refuses_overwrite() {
         String::from_utf8_lossy(&validated.stderr)
     );
     let journal_before = std::fs::read(directory.path().join("result/journal.jsonl")).unwrap();
+    let chart_path = directory.path().join("comparison.html");
+    let chart = || {
+        Command::new(env!("CARGO_BIN_EXE_omega-bench"))
+            .arg("chart")
+            .arg(directory.path().join("result"))
+            .arg(&chart_path)
+            .output()
+            .unwrap()
+    };
+    assert!(chart().status.success());
+    let rendered = std::fs::read_to_string(&chart_path).unwrap();
+    assert_eq!(rendered.matches("<tr><th scope=row>").count(), 4);
+    assert!(rendered.contains("Process elapsed time"));
+    assert!(rendered.contains("Process CPU time"));
+    assert!(!chart().status.success());
     assert!(!execute(directory.path(), &plan).status.success());
     assert_eq!(
         journal_before,
@@ -168,6 +183,7 @@ fn reported_work_checks_the_computation_and_uses_its_explicit_metric() {
     let directory = TestDirectory::new();
     let mut plan = plan(directory.path());
     let work_units = 10000_u64;
+    plan["name"] = json!("reported <work> & cycles");
     let checksum = (0..work_units).fold(17_u64, |accumulator, value| {
         accumulator.wrapping_add(value.wrapping_mul(value))
     });
@@ -186,6 +202,18 @@ fn reported_work_checks_the_computation_and_uses_its_explicit_metric() {
     )
     .unwrap();
     assert_eq!(report["metric"], "reported_work_ns_per_unit");
+    let chart = directory.path().join("reported.html");
+    let status = Command::new(env!("CARGO_BIN_EXE_omega-bench"))
+        .arg("chart")
+        .arg(directory.path().join("result"))
+        .arg(&chart)
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let html = std::fs::read_to_string(chart).unwrap();
+    assert!(html.contains("reported &lt;work&gt; &amp; cycles"));
+    assert!(html.contains("Candidate (ns/unit)"));
+    assert_eq!(html.matches("<tr><th scope=row>").count(), 6);
     assert_eq!(report["comparison"]["pairs"], 2);
     let other = TestDirectory::new();
     plan["measurement"]["checksum"] = json!("wrong");

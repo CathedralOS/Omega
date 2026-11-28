@@ -1,3 +1,4 @@
+// Expected exit: 0
 // Signed inputs must fit their u64 slice coordinates. The program
 // observes an exclusive window and then an inclusive prefix of that view.
 use {omega}/language/core/numeric_conversion.omg;

@@ -2,6 +2,7 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "cannot prove assignment value `6` satisfies bounded target `value`"
+    "cannot prove the value of this cast is in the domain it adds",
+    "domain `u64::Small` requires `self >= 0 && self <= 5`"
   ]
 }

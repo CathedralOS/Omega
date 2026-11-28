@@ -1691,6 +1691,32 @@ impl<'a> Prover<'a> {
         .ok()
     }
 
+    /// A comparison can publish the value of a Boolean through an implication
+    /// instead of a literal equation. If the kernel decides its premise, the
+    /// implication establishes the result even when the requested bit differs.
+    pub(crate) fn establishes_opposite_boolean(&mut self, goal: &Proposition) -> bool {
+        let Some((value, wanted)) = boolean_value_literal(goal) else {
+            return false;
+        };
+        let opposite = Proposition::Equal(
+            ScalarTerm::value(value, ScalarType::Boolean),
+            ScalarTerm::Boolean(!wanted),
+        );
+        self.exact_fact(&opposite).is_some()
+            || self.implications.candidates(&opposite).any(|position| {
+                let index = self.implications.positions[position].1;
+                let Proposition::Implication {
+                    premise,
+                    conclusion,
+                } = self.facts[index].proposition()
+                else {
+                    return false;
+                };
+                conclusion.same_commutative_predicate(&opposite)
+                    && self.closed(premise.as_ref().clone()).is_some()
+            })
+    }
+
     /// Whether the rules cover `goal`'s form (`covered`) at this prover's
     /// program point: a value one of its equations fixes to a literal is that
     /// literal.

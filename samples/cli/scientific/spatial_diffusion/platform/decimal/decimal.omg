@@ -8,11 +8,11 @@ invokes |console|::Console
 {
     transition value < 0 {
         true -> negative(value),
-        false -> digits(value, 1000000000000000000, false)
+        false -> digits(value, 1000000000000000000i64 as +Wrapping, false)
     }
     machine negative(value: i64 in Wrapping) {
         |console|::Console::write("-");
-        transition { _ -> digits(-value, 1000000000000000000, false) }
+        transition { _ -> digits(-value, 1000000000000000000i64 as +Wrapping, false) }
     }
     machine digits(value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool)
     requires divisor >= 1

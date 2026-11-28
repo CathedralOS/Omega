@@ -49,37 +49,21 @@ Gaussian elimination. It cross-checks the analytic quadratic offset and linear
 field before freezing its 20-case data; it never reads Omega output or source.
 `data/freeze.sha256` pins that oracle. Do not regenerate it from observations.
 
-Run from the repository root with a current compiler:
+The Build binds the same program on `linux_x86_64` and `macos_arm64`. It grants
+the bundled system library standard input, standard output and process exit.
+On an ARM64 Mac, run from the repository root with the sample's default input:
 
 ```sh
-omega packages update --project samples/cli/scientific/spatial_diffusion --target linux_x86_64
-# Inspect the exact pending package proposal and source-only risks before accepting.
-# Resume the reviewed exact proposal through the normal package workflow.
-printf 0 | omega run samples/cli/scientific/spatial_diffusion/main.omg
+cd samples/cli/scientific/spatial_diffusion
+omega packages update --project . --target macos_arm64
+# Review the pending proposal and resume it after accepting its decisions.
+omega packages update --project . --resume
+omega run --target macos_arm64 build.omg < input.txt
+omega --target macos_arm64 --build-dir build/native build.omg
+./build/native/omega-program < input.txt
 ```
 
-The build only declares an application, system path dependency, and Linux entry.
-It requests no host filesystem or subprocess service and grants no additional
-terminal permissions. Package risk classification is not authority acceptance.
-Never bypass a custody or permission refusal in order to run this sample.
-
-Terminal numerical validation is separate from CLI exit-code comparison:
-
-```sh
-CARGO_PROFILE_RELEASE_OPT_LEVEL=1 mbx run --release --locked -p sci04-terminal-validation -- --evidence /absolute/path/to/spatial_diffusion
-```
-
-The Rust harness is a root workspace member sharing the CLI dependency resolution.
-It uses the normal native report's retained Terminal artifact and admitted
-provisions, gives each case an isolated domain with finite stdin, and captures
-actual stdout, stderr and completion. Every capture is compared against the frozen
-oracle's exit for that case and must leave stderr empty before the numbers are
-checked.
-
-The Python validator checks every
-cell against the frozen dense oracle, checks reports, reconstructs residuals
-with a bound for picounit truncation, and checks the refinement ratios. It does
-not treat exit-code agreement as numerical evidence.
-
-See `evidence/status.md` for producer identity, measured results and
-qualification status.
+The [scientific capture checker](../README.md) checks recorded exit codes and
+stderr for the 20 cases. For numerical validation, compare every cell with
+`data/oracle.json`, reconstruct the residual from the printed field and check
+the refinement ratios for the three quadratic grids.
