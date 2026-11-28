@@ -2249,6 +2249,9 @@ pub(crate) fn close_typed_cohort(
         cohort,
         &owners,
     )?;
+    crate::expressions::package_escapes::check_cohort(
+        lowerer.source_trees, &lowerer.typed_trees, cohort,
+    )?;
     crate::types::undeclared_type_names::defer_undeclared_type_names_in_cohort(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
