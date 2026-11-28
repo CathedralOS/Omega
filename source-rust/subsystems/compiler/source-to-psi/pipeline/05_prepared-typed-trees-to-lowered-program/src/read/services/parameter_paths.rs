@@ -160,7 +160,10 @@ pub(super) fn projection<'a>(
             let E::Integer(value) = &index.kind else {
                 return None;
             };
-            let index = value.to_u64()?;
+            let index = match value {
+                semantic_vocabulary::IntegerValue::Signed(value) => u64::try_from(*value).ok()?,
+                semantic_vocabulary::IntegerValue::Unsigned(value) => u64::try_from(*value).ok()?,
+            };
             let StorageShape::FixedArray { length, .. } = record(records, base.result)?.shape
             else {
                 return None;
