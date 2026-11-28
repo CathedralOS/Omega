@@ -2,12 +2,12 @@
 // Expected exit: 0
 domain u64::Small requires self >= 0 && self <= 5;
 machine establish() -> u64 in Small {
-    let mutable value: u64 in Small = 0;
-    value = 6;
+    let mutable value: u64 in Small = 0u64 as +Small;
+    value = 6u64 as +Small;
     value
 }
 machine relay() -> u64 in Small { establish() }
-machine probe() -> u64 { let value: u64 in Small = relay(); 5u64 - value }
+machine probe() -> u64 { let value: u64 in Small = relay(); 5u64 - (value as -Small) }
 machine main() crashes Trap {
     transition probe() == 2 { true -> done(), _ -> bad() }
     machine done() {}
