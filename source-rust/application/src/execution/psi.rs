@@ -37,7 +37,7 @@ pub(super) fn execute(
     // Linux host, with no native provider. Native code and another target's
     // filesystem cannot be confined to that view, so those runs keep the host
     // namespace unless the caller maps directories explicitly
-    // (OWNER_QUESTIONS.md#unconfinable-standalone-filesystem).
+    // (implementation gap tracked in TASKS.md#psi-untrusted-interpretation).
     let confinable = Some(report.target) == target::TargetProfile::host_if_supported()
         && matches!(
             report.target,
