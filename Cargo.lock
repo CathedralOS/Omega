@@ -270,6 +270,7 @@ dependencies = [
 name = "build-execution"
 version = "0.1.0"
 dependencies = [
+ "application-identity",
  "artifacts",
  "bounded-process",
  "build-declarations",

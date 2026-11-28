@@ -8,7 +8,7 @@
 use super::{BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope};
 use super::{BuildMachineExecutionMode, BuildMachineFilesystemAccess};
 pub use build_consent::{
-    ProgramDeclarationOwner, RestrictedBuildBounds, RestrictedBuildGrant, RestrictedBuildGrantRoot,
+    BuildNetworkPeer, ProgramDeclarationOwner, RestrictedBuildBounds, RestrictedBuildGrant, RestrictedBuildGrantRoot,
     RestrictedBuildOperation, RestrictedBuildRequest, RestrictedBuildSite, RestrictedBuildSubject,
     RestrictedProgramLaunch,
 };

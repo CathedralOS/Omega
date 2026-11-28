@@ -15,11 +15,14 @@ pub struct BuildDependencySelection {
 }
 
 /// Live backing explicitly installed on one executed dependency registration.
-/// Source reuse and program delegation are independent parts of the same edge.
+/// Source reuse and delegated execution grants belong to this exact edge.
 #[derive(Clone, Default)]
 pub struct DependencyBacking {
     pub frozen: Option<crate::host::requests::FrozenBuildBinding>,
     pub programs: Vec<package_compilation::DelegatedProgram>,
+    /// The live grant belongs to this issued request. Clones name the same
+    /// in-flight registration when a suspended activation resumes at the final join.
+    pub network: Option<std::sync::Arc<package_compilation::BuildNetworkInvocation>>,
 }
 
 impl ReturnedBuild {
@@ -80,10 +83,8 @@ impl ReturnedBuild {
         Ok(())
     }
 
-    /// Only the source coordinator combines these two sets of inputs. The guest's
-    /// request log remains the record of just the operations it performed.
-    /// The frozen sources of issued forwarding requests and of the incoming Build
-    /// edges appended by source_requests, in that same purpose-local order.
+    /// Match each registration's delegated resources to its purpose-local ordinal.
+    /// Incoming libraries follow the issued requests and retain their frozen sources.
     pub fn dependency_backings(
         &self,
     ) -> std::collections::BTreeMap<(DependencyPurpose, usize), DependencyBacking> {
@@ -92,14 +93,9 @@ impl ReturnedBuild {
         for issued in &self.requests {
             if let BuildRequest::Dependency { purpose, .. } = issued.request() {
                 let ordinal = &mut next[usize::from(purpose.canonical_tag())];
-                if issued.forwarded().is_some() || !issued.delegated_programs().is_empty() {
-                    backings.insert(
-                        (*purpose, *ordinal),
-                        DependencyBacking {
-                            frozen: issued.forwarded().cloned(),
-                            programs: issued.delegated_programs().to_vec(),
-                        },
-                    );
+                let backing = issued.dependency_backing();
+                if backing.frozen.is_some() || !backing.programs.is_empty() || backing.network.is_some() {
+                    backings.insert((*purpose, *ordinal), backing.clone());
                 }
                 *ordinal += 1;
             }
@@ -114,7 +110,7 @@ impl ReturnedBuild {
                             std::sync::Arc::clone(&sources.libraries),
                             index,
                         )),
-                        programs: Vec::new(),
+                        ..Default::default()
                     },
                 );
             }

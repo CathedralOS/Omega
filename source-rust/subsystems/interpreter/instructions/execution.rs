@@ -198,6 +198,33 @@ pub(crate) mod capabilities {
         },
     }
 
+    /// One witness per reachable import, sharing caller prefixes from the
+    /// capability walk. Only hosts that request diagnostics allocate this map.
+    #[derive(Default)]
+    pub struct TerminalImportPaths {
+        parents: std::collections::BTreeMap<
+            semantic_vocabulary::MachineId,
+            semantic_vocabulary::MachineId,
+        >,
+        callers: std::collections::BTreeMap<BoundaryMachineId, semantic_vocabulary::MachineId>,
+    }
+
+    impl TerminalImportPaths {
+        pub fn call_path(
+            &self,
+            boundary: BoundaryMachineId,
+        ) -> Option<Vec<semantic_vocabulary::MachineId>> {
+            let mut machine = *self.callers.get(&boundary)?;
+            let mut path = vec![machine];
+            while let Some(parent) = self.parents.get(&machine) {
+                path.push(*parent);
+                machine = *parent;
+            }
+            path.reverse();
+            Some(path)
+        }
+    }
+
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct TerminalExecutionRequirements {
         pub imports: Vec<BoundaryMachineId>,
@@ -352,6 +379,24 @@ pub(crate) mod capabilities {
         scalar_scope: Option<&psi_scalar_applications::ScalarScopeInputs>,
         analysis: Option<&TerminalCallableAnalysis<'_, '_>>,
     ) -> Result<TerminalExecutionRequirements, TerminalInterpretError> {
+        check_with_import_paths(
+            program,
+            installation,
+            private_entry_ram,
+            scalar_scope,
+            analysis,
+            None,
+        )
+    }
+
+    pub(crate) fn check_with_import_paths(
+        program: &AdmittedTerminalProgram,
+        installation: Option<&TerminalRuntimeSupplies>,
+        private_entry_ram: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
+        scalar_scope: Option<&psi_scalar_applications::ScalarScopeInputs>,
+        analysis: Option<&TerminalCallableAnalysis<'_, '_>>,
+        mut paths: Option<&mut TerminalImportPaths>,
+    ) -> Result<TerminalExecutionRequirements, TerminalInterpretError> {
         let entry = program.resolve_entry(installation)?;
         if private_entry_ram.iter().any(|recipe| {
             installation
@@ -381,6 +426,7 @@ pub(crate) mod capabilities {
                 entry,
                 &module_analyses(module),
                 None,
+                paths,
             ),
             Some(analysis) => {
                 if !std::ptr::eq(analysis.module, module) {
@@ -395,6 +441,7 @@ pub(crate) mod capabilities {
                         entry,
                         analyses,
                         Some(&analysis.implementations),
+                        paths.as_deref_mut(),
                     )
                 })
             }
@@ -414,6 +461,7 @@ pub(crate) mod capabilities {
         prepared: Option<
             &Option<Vec<terminal_semantics::callable_values::CallableBoundaryImplementation>>,
         >,
+        mut paths: Option<&mut TerminalImportPaths>,
     ) -> Result<TerminalExecutionRequirements, TerminalInterpretError> {
         let mut imports = BTreeSet::new();
         let mut missing_providers = BTreeSet::new();
@@ -447,6 +495,7 @@ pub(crate) mod capabilities {
             if !visited.insert(machine_id) {
                 continue;
             }
+            let frontier = pending.len();
             let machine = program.verified_machine(machine_id)?;
             if machine.declaration.is_some()
                 && scalar_scope
@@ -716,6 +765,9 @@ pub(crate) mod capabilities {
                                     | AdmittedBoundarySupply::ComponentProvider { .. },
                                 ) => {
                                     imports.insert(*boundary);
+                                    if let Some(paths) = paths.as_deref_mut() {
+                                        paths.callers.entry(*boundary).or_insert(machine_id);
+                                    }
                                     None
                                 }
                                 None if declaration.service_reach_is_installation_bound
@@ -726,6 +778,9 @@ pub(crate) mod capabilities {
                                 }
                                 None => {
                                     imports.insert(*boundary);
+                                    if let Some(paths) = paths.as_deref_mut() {
+                                        paths.callers.entry(*boundary).or_insert(machine_id);
+                                    }
                                     None
                                 }
                             }
@@ -787,6 +842,13 @@ pub(crate) mod capabilities {
                         .flat_map(|(_, actions)| actions)
                         .filter_map(|action| action.invoked_machine()),
                 );
+            }
+            if let Some(paths) = paths.as_deref_mut() {
+                for &callee in &pending[frontier..] {
+                    if !visited.contains(&callee) {
+                        paths.parents.entry(callee).or_insert(machine_id);
+                    }
+                }
             }
         }
         if !access_candidates.is_empty() {
@@ -2219,9 +2281,48 @@ pub(crate) mod capabilities {
         }
 
         #[test]
+        fn import_witnesses_from_recursive_helpers_remain_rooted_and_deterministic() {
+            let mut program = program();
+            let [entry, left, right, shared] = [1, 2, 3, 4].map(|id| MachineId::new(id).unwrap());
+            let boundary = BoundaryMachineId::new(1).unwrap();
+            for (caller, operations) in [
+                (entry, vec![unit_call(left), unit_call(right)]),
+                (left, vec![unit_call(shared)]),
+                (right, vec![unit_call(shared)]),
+                (
+                    shared,
+                    vec![unit_call(entry), unit_call(right), boundary_call(boundary)],
+                ),
+            ] {
+                set_machine(&mut program, caller, machine(0, operations));
+            }
+
+            let witness = || {
+                let mut paths = TerminalImportPaths::default();
+                let requirements =
+                    check_with_import_paths(&program, None, &[], None, None, Some(&mut paths))
+                        .unwrap();
+                assert_eq!(requirements.imports, vec![boundary]);
+                assert!(!paths.parents.contains_key(&entry));
+                assert_eq!(paths.parents.get(&left), Some(&entry));
+                assert_eq!(paths.parents.get(&right), Some(&entry));
+                assert!(
+                    matches!(paths.parents.get(&shared), Some(parent) if *parent == left || *parent == right)
+                );
+                paths.call_path(boundary).unwrap()
+            };
+            let path = witness();
+            assert_eq!(path.len(), 3);
+            assert_eq!(path.first(), Some(&entry));
+            assert_eq!(path.last(), Some(&shared));
+            assert_eq!(path, witness());
+        }
+
+        #[test]
         fn capability_graph_demands_successor_cleanup_import() {
             let (mut program, action) = import_cleanup_program();
             let entry = program.fixture_module_mut().machines.first_mut().unwrap();
+            let entry_id = entry.id;
             let successor = BlockId::new(2).unwrap();
             let mut destination = entry.blocks[0].clone();
             destination.id = successor;
@@ -2240,9 +2341,14 @@ pub(crate) mod capabilities {
                 structural_arguments: Vec::new(),
                 cleanup_actions: vec![action],
             };
+            let mut paths = TerminalImportPaths::default();
+            let requirements =
+                check_with_import_paths(&program, None, &[], None, None, Some(&mut paths)).unwrap();
+            let imported = BoundaryMachineId::new(1).unwrap();
+            assert_eq!(requirements.imports, vec![imported]);
             assert_eq!(
-                check(&program, None).unwrap().imports,
-                vec![BoundaryMachineId::new(1).unwrap()]
+                paths.call_path(imported),
+                Some(vec![entry_id, MachineId::new(2).unwrap()])
             );
         }
 

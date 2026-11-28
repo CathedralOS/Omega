@@ -10,6 +10,7 @@ activation ticket before recording or executing an effect.
 
 pub mod bindings;
 pub(crate) mod filesystem;
+pub(crate) mod network;
 pub(crate) mod programs;
 pub mod requests;
 

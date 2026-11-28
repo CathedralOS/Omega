@@ -1170,6 +1170,7 @@ pub(crate) mod component_arguments {
     use crate::boundary::errors::{TerminalInterpretError, malformed};
     use crate::boundary::values::{StructuralRuntimePlace, TerminalStructuralValue};
     use crate::embedding::program::TerminalProgram;
+    use crate::storage::byte_sequences::{binding::ByteSequenceBinding, ByteSequenceView};
     use crate::engine::execution::TerminalExecution;
 
     pub(crate) struct PreparedComponentArguments {
@@ -1184,6 +1185,7 @@ pub(crate) mod component_arguments {
         pub(crate) source: Option<crate::boundary::effects::byte_buffers::BoundaryArguments>,
         pub(crate) values: Vec<TerminalStructuralValue>,
         pub(crate) contents: Vec<crate::TerminalStructuralContents>,
+        byte_arguments: BTreeMap<usize, ByteSequenceView>,
         opaque_arguments: Vec<usize>,
         scalar_arguments: Vec<LentScalarArgument>,
         empty_arguments: Vec<SharedEmptyArgument>,
@@ -1195,12 +1197,20 @@ pub(crate) mod component_arguments {
             &self,
             child: &mut TerminalExecution<'_>,
         ) -> Result<(), TerminalInterpretError> {
-            if self.source.is_none() {
+            if self.source.is_none() && self.byte_arguments.is_empty() {
                 return Ok(());
             }
             let entry = child.program.verified_machine(child.current_machine)?;
             if entry.structural_parameters.len() != self.values.len() {
                 return Err(malformed());
+            }
+            for (&index, view) in &self.byte_arguments {
+                let parameter = entry.structural_parameters.get(index).ok_or(malformed())?;
+                let home = child.structural_value(parameter.place)?.clone();
+                let binding = ByteSequenceBinding::Immutable(view.clone().with_descriptor_home(home));
+                if child.byte_sequence_values.insert(parameter.place, binding)?.is_some() {
+                    return Err(malformed());
+                }
             }
             for &index in &self.opaque_arguments {
                 let parameter = entry.structural_parameters.get(index).ok_or(malformed())?;
@@ -1294,7 +1304,7 @@ pub(crate) mod component_arguments {
             {
                 return Err(malformed());
             }
-            let prepared =
+            let mut prepared =
                 self.prepare_boundary_arguments(&receiver.structural_parameters, arguments)?;
             crate::engine::custody::bind_active_structural_arguments(
                 &receiver.structural_parameters,
@@ -1304,8 +1314,8 @@ pub(crate) mod component_arguments {
                 self.account.as_ref(),
             )?;
             validate_boundary_requirements(receiver, |index| prepared.values.get(index))?;
-            prepared.opaque_values(self.local_structural_identities.cursor())?;
-            let mut prepared = prepared;
+            let byte_arguments =
+                prepared.take_component_byte_views(self.local_structural_identities.cursor())?;
             let lending = arguments
                 .iter()
                 .any(|argument| argument.access != StructuralAccess::Owned);
@@ -1476,7 +1486,17 @@ pub(crate) mod component_arguments {
                         "component input requires a loan or resource storage transfer carrier",
                     ));
                 }
-                if lent && self.component_borrows_scalar_cells(value)? {
+                if byte_arguments.contains_key(&argument_index) {
+                    let shared_view = |shape: &terminal_psi::StructuralTypeShape| {
+                        matches!(shape, terminal_psi::StructuralTypeShape::ByteSequence(carrier)
+                            if carrier.is_shared_readable_view())
+                    };
+                    if !shared_view(&receiver_type.shape) || !shared_view(&provider_type.shape)
+                        || !matches!(required.access, StructuralAccess::Owned | StructuralAccess::SharedBorrow)
+                    {
+                        return Err(reject("component byte input requires a shared byte view"));
+                    }
+                } else if lent && self.component_borrows_scalar_cells(value)? {
                     scalar_arguments.push(self.prepare_component_scalar_argument(
                         value,
                         argument_index,
@@ -1556,6 +1576,7 @@ pub(crate) mod component_arguments {
                     source: lending.then_some(prepared),
                     values,
                     contents,
+                    byte_arguments,
                     opaque_arguments,
                     scalar_arguments,
                     empty_arguments,

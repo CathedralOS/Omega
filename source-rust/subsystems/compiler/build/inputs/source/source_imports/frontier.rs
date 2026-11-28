@@ -787,9 +787,11 @@ impl SourceStorage {
 }
 
 fn core_source_origin(root: &Path, path: &Path) -> SourceOrigin {
-    // Build and Product may import this contract. Unlike the core prelude,
-    // its names belong only to the file that imported them.
-    if path.strip_prefix(root) == Ok(Path::new("sandbox/streams.omg")) {
+    // Build and Product explicitly import installed sandbox protocols.
+    let companion = path.strip_prefix(root).ok().and_then(|relative| {
+        language_core::bundled_files::BuildCompanionFile::from_package_path("core".as_ref(), relative)
+    });
+    if companion.is_some() {
         SourceOrigin::ToolchainLibrary
     } else {
         SourceOrigin::Toolchain

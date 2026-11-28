@@ -462,6 +462,7 @@ fn named_file_capture_needs_only_the_entry_and_inspection_needs_the_package_buil
     drop(pending);
     let inspection = PackageInspectionTransaction::open(PackageInspectionOptions {
         programs: Default::default(),
+        network: Default::default(),
         project_root: temporary.path().to_path_buf(),
         targets: vec![TargetProfile::host_if_supported().unwrap()],
         details: false,

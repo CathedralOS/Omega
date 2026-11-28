@@ -437,3 +437,52 @@ fn saved_effects_keep_applications_distinct_and_reject_another_declarations_rece
             .is_ok()
     );
 }
+
+#[test]
+fn a_network_review_binds_one_endpoint_and_one_payload_limit() {
+    use crate::encoding::restricted_build_request_acceptance_text;
+    use build_consent::{BuildNetworkPeer, RestrictedBuildBounds, RestrictedBuildRequest};
+
+    let mut policy = policy(Some(vec![1, 3]));
+    policy.schema_version = crate::encoding::BASELINE_WITH_UNUSED_GENERIC_IMPORTS;
+    assert_eq!(recover(&policy), Ok(policy.clone()));
+
+    let request = |peer: &str, maximum| {
+        RestrictedBuildRequest::for_datagram(
+            BuildNetworkPeer::new(peer.parse().unwrap(), maximum).unwrap(),
+            "entry -> helper -> send".to_owned(),
+            RestrictedBuildBounds::from_retained(None, None, vec![], false),
+            Some(policy.target),
+        )
+        .for_target(Some(policy.target))
+    };
+    let endpoint = "[fe80::1%3]:8080";
+    let original = request(endpoint, 512);
+    let review = |request: &RestrictedBuildRequest| {
+        restricted_build_request_acceptance_text(policy.package, policy.target, request).unwrap()
+    };
+    let accepted = review(&original);
+    assert_ne!(accepted, review(&request("[fe80::1%4]:8080", 512)));
+    assert_ne!(accepted, review(&request("[fe80::1%3]:8081", 512)));
+    assert_ne!(accepted, review(&request(endpoint, 513)));
+    policy.restricted_build_requests.push((&original).into());
+    assert_eq!(
+        recover(&policy),
+        Err(PackagePolicyRecoveryError::InvalidValue)
+    );
+    policy.schema_version = PACKAGE_POLICY_BASELINE_VERSION;
+    assert_eq!(recover(&policy), Ok(policy.clone()));
+    let text = policy.canonical_text().unwrap();
+    let (recovered, _) =
+        PackagePolicyBaseline::recover_text_with_usage(&text, Default::default()).unwrap();
+    assert_eq!(recovered, policy);
+    let rows = policy
+        .acceptance_rows_with_limits(Default::default())
+        .unwrap()
+        .0;
+    let row = rows
+        .iter()
+        .find(|row| row.kind() == PackagePolicyRowKind::RestrictedBuildRequest)
+        .unwrap();
+    assert_eq!(row.canonical_text(), accepted);
+}

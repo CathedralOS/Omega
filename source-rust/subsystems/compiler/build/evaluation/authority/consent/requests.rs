@@ -25,8 +25,50 @@ pub struct RestrictedBuildSite {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RestrictedBuildOperation {
     ProgramLaunch(Box<RestrictedProgramLaunch>),
+    SendDatagram {
+        peer: BuildNetworkPeer,
+        call_path: String,
+    },
     ScopedFilesystemExecution, // Execute against scoped real filesystem read/write roots.
     UnscopedFilesystemExecution, // Execute against the real filesystem without path grants.
+}
+
+/// The complete scope of a fixed-peer UDP installation. The reviewed endpoint
+/// cannot be redirected by the caller of the send operation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuildNetworkPeer {
+    address: std::net::SocketAddr,
+    max_datagram_bytes: u16,
+}
+
+impl BuildNetworkPeer {
+    pub const MAX_DATAGRAM_BYTES: u16 = 65_507;
+
+    pub fn new(address: std::net::SocketAddr, max_datagram_bytes: u16) -> Result<Self, String> {
+        if address.port() == 0 || address.ip().to_canonical().is_unspecified() {
+            return Err(
+                "a fixed UDP peer requires a destination address and a nonzero port".into(),
+            );
+        }
+        if matches!(address, std::net::SocketAddr::V6(peer) if peer.flowinfo() != 0) {
+            return Err("a fixed UDP peer cannot specify IPv6 flow information".into());
+        }
+        if max_datagram_bytes > Self::MAX_DATAGRAM_BYTES {
+            return Err("the maximum UDP datagram payload is 65507 bytes".into());
+        }
+        Ok(Self {
+            address,
+            max_datagram_bytes,
+        })
+    }
+
+    pub const fn address(self) -> std::net::SocketAddr {
+        self.address
+    }
+
+    pub const fn max_datagram_bytes(self) -> u16 {
+        self.max_datagram_bytes
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -160,6 +202,22 @@ impl RestrictedBuildRequest {
         }
     }
 
+    pub fn for_datagram(
+        peer: BuildNetworkPeer,
+        call_path: String,
+        bounds: RestrictedBuildBounds,
+        profile: Option<target::TargetProfile>,
+    ) -> Self {
+        Self::from_retained(
+            RestrictedBuildOperation::SendDatagram { peer, call_path },
+            Vec::new(),
+            Vec::new(),
+            bounds,
+            profile,
+            None,
+        )
+    }
+
     pub const fn operation(&self) -> &RestrictedBuildOperation {
         &self.operation
     }
@@ -214,6 +272,20 @@ impl RestrictedBuildRequest {
 mod tests {
     use super::*;
     use target::TargetProfile::{LinuxArm64, LinuxX64};
+
+    #[test]
+    fn network_scope_requires_a_recoverable_destination_and_a_portable_udp_limit() {
+        let peer = |address: &str, limit| BuildNetworkPeer::new(address.parse().unwrap(), limit);
+        assert!(peer("127.0.0.1:8080", 0).is_ok());
+        assert!(peer("[::1]:8080", 65_507).is_ok());
+        assert!(peer("127.0.0.1:8080", 65_508).is_err());
+        assert!(peer("127.0.0.1:0", 8).is_err());
+        assert!(peer("0.0.0.0:8080", 8).is_err());
+        assert!(peer("[::]:8080", 8).is_err());
+        assert!(peer("[::ffff:0.0.0.0]:8080", 8).is_err());
+        let routed = std::net::SocketAddrV6::new(std::net::Ipv6Addr::LOCALHOST, 8080, 1, 0);
+        assert!(BuildNetworkPeer::new(routed.into(), 8).is_err());
+    }
 
     #[test]
     fn assigning_a_product_target_preserves_the_required_grants_and_execution_profile() {

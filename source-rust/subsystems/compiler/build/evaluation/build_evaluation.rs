@@ -241,6 +241,7 @@ pub fn prepare_build_evaluation(
     let BuildExecutionInputs {
         diagnostic_output_bytes,
         programs,
+        network,
         interpreter_providers,
         prepared_unsafe_atoms,
         profile: execution_profile,
@@ -367,6 +368,8 @@ pub fn prepare_build_evaluation(
             build_source,
             package_inputs,
             &programs,
+            network,
+            root_path,
         )?;
         let restricted_build_requests = admitted.restricted_build_requests();
         if !restricted_build_requests.is_empty() {

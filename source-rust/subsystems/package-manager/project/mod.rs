@@ -1,4 +1,5 @@
 //! Prepare a project by resolving its package dependencies and asking Build to execute each declaration.
+mod dependency_executions;
 mod services;
 mod stages;
 mod successor_inputs;
@@ -16,6 +17,7 @@ use crate::resolution::source::{
 use crate::{PackageBuildSession, PackageCommandError};
 use artifacts::compile_timings::{CompileTimings, StageMeta};
 use build_declarations::DependencyPurpose;
+use dependency_executions::{SettledRegistration, SettledSource, require_programs};
 use diagnostics::Diagnostic;
 use package_compilation::{BuildSnapshotRequest, PackageCompilationInputs};
 use project_build::ReturnedPlanningStage;
@@ -82,7 +84,9 @@ pub fn resolve_build_sources(
         .ok_or_else(|| "package Build execution requires a supported host".to_owned())?;
     let acquired = acquisitions.retain_root(acquired)?;
     let mut host = SourceHost {
+        staged: false,
         root_programs: inputs.programs,
+        root_network: inputs.network,
         session,
         acquisitions,
         profile,
@@ -123,14 +127,6 @@ pub fn resolve_build_sources(
         sources: project.sources,
         builds: PackageReviewBuilds(builds),
     })
-}
-
-struct SettledSource {
-    required_programs: Vec<package_compilation::DelegatedProgram>,
-    source: AcquiredBuildSource,
-    declaration: DeclaredBuildSource,
-    build: project_build::SettledDependency,
-    graph: ResolvedBuildSources,
 }
 
 struct PreparedRequest {
@@ -229,7 +225,9 @@ impl ExecutedBuild {
 }
 
 struct SourceHost<'session, 'policy> {
+    staged: bool,
     root_programs: package_compilation::build_execution::BuildProgramInvocation,
+    root_network: package_compilation::build_execution::BuildNetworkInvocation,
     session: &'session mut PackageBuildSession,
     acquisitions: &'session mut BuildSourceAcquisitions<'policy>,
     profile: TargetProfile,
@@ -242,26 +240,13 @@ struct SourceHost<'session, 'policy> {
     settled: Vec<SettledSource>,
 }
 
-fn require_programs(
-    used: &[package_compilation::DelegatedProgram],
-    granted: &[package_compilation::DelegatedProgram],
-) -> Result<(), String> {
-    if let Some(missing) = used.iter().find(|used| !used.is_supplied_by(granted)) {
-        return Err(format!(
-            "this dependency registration lacks the reviewed ProgramLaunch binding for `{}`",
-            missing.meaning.declaration
-        ));
-    }
-    Ok(())
-}
-
 impl SourceHost<'_, '_> {
     fn execute(
         &mut self,
         entry: &Path,
         acquired: &AcquiredBuildSource,
         snapshot: Option<BuildSnapshotRequest>,
-        dependency: Option<(DependencyPurpose, &[package_compilation::DelegatedProgram])>,
+        dependency: Option<(DependencyPurpose, &build_execution::DependencyBacking)>,
         libraries: &[BuildLibraryRequest],
     ) -> Result<ExecutedBuild, PackageCommandError> {
         self.acquisitions
@@ -284,6 +269,19 @@ impl SourceHost<'_, '_> {
     }
 
     fn join(
+        &mut self,
+        acquired: AcquiredBuildSource,
+        root: ReturnedPlanningStage,
+    ) -> Result<ResolvedProject, PackageCommandError> {
+        self.acquisitions
+            .admit_build_descent(&self.active, &acquired)?;
+        self.active.push(acquired.clone());
+        let result = self.join_sources(acquired, root);
+        self.active.pop();
+        result
+    }
+
+    fn join_sources(
         &mut self,
         acquired: AcquiredBuildSource,
         mut root: ReturnedPlanningStage,
@@ -310,13 +308,16 @@ impl SourceHost<'_, '_> {
                         self.session.record_source_completion(
                             settled.evaluated().source_completion_accounting.clone(),
                         );
-                        self.settled.push(SettledSource {
+                        self.remember_settled(SettledSource {
                             source: acquired,
-                            required_programs,
+                            registrations: vec![SettledRegistration {
+                                network: None,
+                                required_programs,
+                            }],
                             declaration,
                             build: settled,
                             graph: graph.clone(),
-                        });
+                        })?;
                     }
                     for i in reused {
                         let settled = &self.settled[i];
@@ -358,22 +359,15 @@ impl SourceHost<'_, '_> {
             next = loop {
                 match acquisition {
                     BuildSourceAcquisition::Reused(source, next) => {
-                        let required = self
-                            .settled
-                            .iter()
-                            .find(|settled| settled.source.same_source(&source))
-                            .map(|settled| settled.required_programs.as_slice())
-                            .or_else(|| {
-                                returns
-                                    .iter()
-                                    .find(|(acquired, _, _, _)| acquired.same_source(&source))
-                                    .map(|(_, _, _, used)| used.as_slice())
-                            })
-                            .ok_or_else(|| {
-                                "source resolution lost the checked backing of a reused dependency"
-                                    .to_owned()
-                            })?;
-                        require_programs(required, &backing.programs)?;
+                        if backing.network.is_none()
+                            && let Some((_, _, _, used)) = returns
+                                .iter()
+                                .find(|(acquired, _, _, _)| acquired.same_source(&source))
+                        {
+                            require_programs(used, &backing.programs)?;
+                        } else {
+                            self.settle_dependency(&source, purpose, &backing)?;
+                        }
                         break next;
                     }
                     BuildSourceAcquisition::Workspace { pending, workspace } => {
@@ -382,23 +376,20 @@ impl SourceHost<'_, '_> {
                     }
                     BuildSourceAcquisition::Execute(dependency) => {
                         let acquired = dependency.acquired_source();
-                        if let Some(i) = self
-                            .settled
-                            .iter()
-                            .position(|settled| settled.source.same_source(acquired))
+                        if backing.network.is_some()
+                            || self
+                                .settled
+                                .iter()
+                                .any(|settled| settled.source.same_source(acquired))
                         {
-                            let settled = &self.settled[i];
-                            acquired.verify_reused_capture(&settled.source)?;
-                            let (_, next) = dependency.complete_declared(&settled.declaration)?;
-                            require_programs(
-                                &self.settled[i].required_programs,
-                                &backing.programs,
-                            )?;
+                            let i = self.settle_dependency(acquired, purpose, &backing)?;
+                            let (_, next) =
+                                dependency.complete_declared(&self.settled[i].declaration)?;
                             reused.push(i);
                             break next;
                         }
                         let acquired = acquired.clone();
-                        let executed = self.member_or_execute(&acquired, purpose, &backing.programs)?;
+                        let executed = self.member_or_execute(&acquired, purpose, &backing)?;
                         let acquired = executed.receiving;
                         let stage = executed.stage;
                         let required_programs = stage.used_programs();
@@ -416,9 +407,10 @@ impl SourceHost<'_, '_> {
         &mut self,
         acquired: &AcquiredBuildSource,
         purpose: DependencyPurpose,
-        programs: &[package_compilation::DelegatedProgram],
+        backing: &build_execution::DependencyBacking,
     ) -> Result<ExecutedBuild, PackageCommandError> {
-        if programs.is_empty()
+        if backing.programs.is_empty()
+            && backing.network.is_none()
             && let Some(i) = self
                 .observed
                 .iter()
@@ -432,7 +424,7 @@ impl SourceHost<'_, '_> {
                 &acquired.entry_path(),
                 acquired,
                 None,
-                Some((purpose, programs)),
+                Some((purpose, backing)),
                 &[],
             )
         }
@@ -446,7 +438,7 @@ impl SourceHost<'_, '_> {
             &workspace.entry_path(),
             workspace.acquired_source(),
             None,
-            Some((DependencyPurpose::Build, &[])),
+            Some((DependencyPurpose::Build, &Default::default())),
             &[],
         )?;
         let inputs = root.catalog_inputs(&self.settled)?;
@@ -456,7 +448,8 @@ impl SourceHost<'_, '_> {
             .workspace_members(workspace, declaration, inputs)?;
         let mut observations = Vec::new();
         for source in members.sources() {
-            let mut member = self.member_or_execute(source, DependencyPurpose::Build, &[])?;
+            let mut member =
+                self.member_or_execute(source, DependencyPurpose::Build, &Default::default())?;
             observations.push(member.observe(&self.settled)?);
             self.observed.push((source.clone(), member));
         }
@@ -596,8 +589,11 @@ pub struct BuildLibraryRequest {
 }
 
 pub enum ProjectInput<'a> {
-    /// The caller's explicit source entry.
+    /// An entry on the version 4 compilation route.
     File(&'a Path),
+    /// An invocation of the source-based Build, independent of any neighboring lock.
+    Staged(&'a Path),
+    /// A source-based Build with explicitly supplied initial packages.
     WithBuildLibraries {
         file: &'a Path,
         libraries: &'a [BuildLibraryRequest],
@@ -607,7 +603,7 @@ pub enum ProjectInput<'a> {
 impl ProjectInput<'_> {
     fn path(&self) -> &Path {
         match self {
-            Self::File(path) | Self::WithBuildLibraries { file: path, .. } => path,
+            Self::File(path) | Self::Staged(path) | Self::WithBuildLibraries { file: path, .. } => path,
         }
     }
 }
@@ -638,12 +634,13 @@ pub fn open_product(
     .1
 }
 
-/// The caller's activation-specific resources. Only the root Build receives
-/// these program selectors; registering a dependency does not grant it one.
+/// The caller supplies the root Build's snapshot, program selectors and network grant.
+/// Each dependency registration specifies which resources its child can use.
 #[derive(Default)]
 pub struct RootBuildInputs {
     pub snapshot: Option<BuildSnapshotRequest>,
     pub programs: package_compilation::build_execution::BuildProgramInvocation,
+    pub network: package_compilation::build_execution::BuildNetworkInvocation,
 }
 
 /// Resolve and execute the authored Build once for the entire deployment set.
@@ -733,6 +730,7 @@ fn open_products_with(
         )]
     })?;
     let root = input.path();
+    let staged = !matches!(input, ProjectInput::File(_));
     let preparation = open_timings
         .record_result(OPEN_PREPARE, || match purpose {
             OpenPurpose::Member(source, _) => {
@@ -740,6 +738,7 @@ fn open_products_with(
                     source, profiles, offline,
                 )
             }
+            _ if staged => crate::operations::LocalProjectPreparation::for_staged_entry(root, profiles, offline),
             _ => begin_local_project_preparation(root, profiles, offline),
         })
         .map_err(|e| error(e.into()))?;
@@ -775,7 +774,9 @@ fn open_products_with(
             open_timings.add_completed(OPEN_ACQUIRE_ROOT, started.elapsed().as_micros());
         }
         let mut host = SourceHost {
+            staged,
             root_programs: root_inputs.programs,
+            root_network: root_inputs.network,
             session: &mut session,
             acquisitions: &mut acquisitions,
             profile,

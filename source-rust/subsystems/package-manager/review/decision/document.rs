@@ -350,10 +350,20 @@ fn build_request(output: &mut Output, request: &RestrictedBuildRequest) -> fmt::
     };
     let operation = match request.operation() {
         RestrictedBuildOperation::ProgramLaunch(_) => "program-launch",
+        RestrictedBuildOperation::SendDatagram { .. } => "send-datagram",
         RestrictedBuildOperation::ScopedFilesystemExecution => "scoped-filesystem-execution",
         RestrictedBuildOperation::UnscopedFilesystemExecution => "unscoped-filesystem-execution",
     };
     writeln!(output, "build-request {operation}")?;
+    if let RestrictedBuildOperation::SendDatagram { peer, call_path } = request.operation() {
+        writeln!(output, "call-path {}", call_path.escape_debug())?;
+        writeln!(
+            output,
+            "network-peer {} max-datagram-bytes {}",
+            peer.address(),
+            peer.max_datagram_bytes()
+        )?;
+    }
     if let RestrictedBuildOperation::ProgramLaunch(program) = request.operation() {
         writeln!(
             output,

@@ -340,6 +340,7 @@ pub(super) fn realization(
 
 pub(super) fn operation(operation: &PackagePolicyRestrictedBuildOperation) -> (&'static str, u8) {
     match operation {
+        PackagePolicyRestrictedBuildOperation::SendDatagram { .. } => ("send_datagram", 3),
         PackagePolicyRestrictedBuildOperation::ProgramLaunch(_) => ("program_launch", 2),
         PackagePolicyRestrictedBuildOperation::ScopedFilesystemExecution => {
             ("scoped_filesystem_execution", 0)
@@ -385,6 +386,13 @@ pub(super) fn request(
             encoder.bytes(path)
         })?;
         encoder.u64_field("timeout_ms", program.timeout_ms)?;
+    }
+    if let PackagePolicyRestrictedBuildOperation::SendDatagram { peer, call_path } =
+        &request.operation
+    {
+        encoder.string_field("peer", &peer.address().to_string())?;
+        encoder.u32_field("max_datagram_bytes", u32::from(peer.max_datagram_bytes()))?;
+        encoder.string_field("call_path", call_path)?;
     }
     encoder.sequence_field("read_grants", &request.read_grants, grant)?;
     encoder.sequence_field("write_grants", &request.write_grants, grant)?;

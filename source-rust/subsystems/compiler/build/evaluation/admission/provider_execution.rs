@@ -3,6 +3,7 @@
 //! cannot grant that graph a host operation.
 
 use diagnostics::Diagnostic;
+use package_compilation::build_execution::{BuildNetworkInvocation, BuildNetworkPeer};
 
 #[derive(Clone, PartialEq, Eq, Default)]
 pub(crate) struct BuildProviderScope {
@@ -12,9 +13,65 @@ pub(crate) struct BuildProviderScope {
     reach_policy: semantic_vocabulary::dependency_reach::ExecutionReachPolicy,
 }
 
+pub(crate) struct AdmittedNetworkSend {
+    pub(crate) peer: BuildNetworkPeer,
+    pub(crate) call_path: String,
+}
+
+impl AdmittedNetworkSend {
+    fn admit(
+        network: &BuildNetworkInvocation,
+        root_path: &std::path::Path,
+        module: &terminal_psi::TerminalModule,
+        machines: Vec<semantic_vocabulary::MachineId>,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let mut path = Vec::with_capacity(machines.len() + 1);
+        for machine in machines {
+            let name = module
+                .machine(machine)
+                .and_then(|body| body.declaration.as_ref())
+                .and_then(|decl| module.identities.text(decl.callable))
+                .map(|name| {
+                    application_identity::type_identity::callable_display_path(name).into_owned()
+                })
+                .unwrap_or_else(|| format!("{machine:?}"));
+            path.push(name);
+        }
+        let boundary = module
+            .boundary_machine(boundary)
+            .and_then(|decl| module.identities.text(decl.identity))
+            .ok_or_else(|| failure("live network import lost its declaration"))?;
+        path.push(
+            application_identity::type_identity::callable_display_path(boundary).into_owned(),
+        );
+        let path = path.join(" -> ");
+        let peer = match network {
+            BuildNetworkInvocation::Granted { peer: Some(peer) } => *peer,
+            BuildNetworkInvocation::Granted { peer: None } => {
+                return Err(failure(format!(
+                    "Build `{}` requires Network before entry; no fixed UDP peer was supplied; call path: {path}",
+                    root_path.display()
+                )));
+            }
+            BuildNetworkInvocation::Offline => {
+                return Err(failure(format!(
+                    "Build `{}` requires Network before entry; this Build occurrence has no Network grant; call path: {path}",
+                    root_path.display()
+                )));
+            }
+        };
+        Ok(Self {
+            peer,
+            call_path: path,
+        })
+    }
+}
+
 pub(crate) struct BuildProviderInstallation {
     pub(crate) imports: Vec<semantic_vocabulary::BoundaryMachineId>,
     pub(crate) diagnostic_output_bytes: Option<u64>,
+    pub(crate) network: Option<AdmittedNetworkSend>,
     pub(crate) supplies: terminal_interpreter::TerminalRuntimeSupplies,
     pub(crate) awaited: Vec<semantic_vocabulary::BoundaryMachineId>,
 }
@@ -81,6 +138,8 @@ impl BuildProviderScope {
         prepared: &source_compiler::publication::AcceptedTerminalSource,
         diagnostic_output_bytes: Option<u64>,
         filesystem_scope: &package_compilation::BuildMachineFilesystemScope,
+        network: &BuildNetworkInvocation,
+        root_path: &std::path::Path,
     ) -> Result<BuildProviderInstallation, Vec<Diagnostic>> {
         let artifact = program.view();
         let module = artifact.module();
@@ -154,19 +213,25 @@ impl BuildProviderScope {
         awaited.sort_unstable();
         awaited.dedup();
 
+        use source_compiler::publication::TerminalBuildRequestOperation as Action;
+        let uses_selected_provider = |boundary| {
+            implementations
+                .iter()
+                .any(|provider| provider.boundary == boundary)
+                || awaited.binary_search(&boundary).is_ok()
+        };
         let mut host_imports = requests
             .iter()
+            .filter(|call| {
+                call.action != Action::SendDatagram || !uses_selected_provider(call.site.boundary)
+            })
             .map(|call| call.site.boundary)
             .chain(bindings.iter().map(|call| call.site.boundary))
             .chain(queries.iter().map(|call| call.site.boundary))
             .chain(filesystem.iter().filter_map(|call| {
                 let boundary = call.site.boundary;
                 let optional = crate::host::filesystem::installed_operation(call.action);
-                let selected = implementations
-                    .iter()
-                    .any(|provider| provider.boundary == boundary)
-                    || awaited.binary_search(&boundary).is_ok();
-                (!optional || !selected).then_some(boundary)
+                (!optional || !uses_selected_provider(boundary)).then_some(boundary)
             }))
             .collect::<Vec<_>>();
         host_imports.sort_unstable();
@@ -192,14 +257,32 @@ impl BuildProviderScope {
                 .defer_component(supplies, boundary)
                 .map_err(|error| failure(format!("Build awaited provider: {error:?}")))?;
         }
-        let demand = program
-            .execution_requirements(Some(&supplies))
+        let (demand, import_paths) = program
+            .execution_requirements_with_import_paths(Some(&supplies))
             .map_err(|reason| {
                 failure(format!(
                     "Build selected provider execution closure: {reason:?}"
                 ))
             })?;
-        use source_compiler::publication::TerminalBuildRequestOperation as Action;
+        let live_call = requests.iter().find(|call| {
+            call.action == Action::SendDatagram
+                && !uses_selected_provider(call.site.boundary)
+                && demand.imports.contains(&call.site.boundary)
+        });
+        let live_send = if let Some(call) = live_call {
+            let machines = import_paths
+                .call_path(call.site.boundary)
+                .ok_or_else(|| failure("live network import lost its call path"))?;
+            Some(AdmittedNetworkSend::admit(
+                network,
+                root_path,
+                module,
+                machines,
+                call.site.boundary,
+            )?)
+        } else {
+            None
+        };
         if diagnostic_output_bytes.is_none()
             && let Some(call) = requests.iter().find(|row| {
                 row.action == Action::SandboxWrite && demand.imports.contains(&row.site.boundary)
@@ -256,6 +339,7 @@ impl BuildProviderScope {
         }
         Ok(BuildProviderInstallation {
             imports: demand.imports,
+            network: live_send,
             supplies,
             awaited,
             diagnostic_output_bytes,

@@ -15,12 +15,13 @@ pub(super) fn execute_package_command(
     session: &mut PackageBuildSession,
 ) -> Result<PackageCommandOutcome, PackageCommandError> {
     let programs = options.programs.clone();
+    let network = options.network.clone();
     let mut transaction = PackageCommandTransaction::open(options)?;
     let preparation = match transaction.prepare(command, None)? {
         PackageCommandAdmission::Published(outcome) => return Ok(outcome),
         PackageCommandAdmission::Review(preparation) => *preparation,
     };
-    let prepared = match preparation.resolve_sources(session, programs)? {
+    let prepared = match preparation.resolve_sources(session, programs, network)? {
         package_manager::transaction::CommandSourceReview::Pending(outcome) => return Ok(outcome),
         package_manager::transaction::CommandSourceReview::Resolved(prepared) => *prepared,
     };
@@ -36,6 +37,7 @@ pub(super) fn inspect_packages(
     options: PackageInspectionOptions,
 ) -> Result<PackageInspectionOutcome, PackageInspectionError> {
     let programs = options.programs.clone();
+    let network = options.network.clone();
     let transaction = PackageInspectionTransaction::open(options)?;
     let mut session =
         PackageBuildSession::create(&transaction.project_root().join("build/package-manager"))?;
@@ -50,6 +52,7 @@ pub(super) fn inspect_packages(
                 RootBuildInputs {
                     snapshot: inspection.build_snapshot().cloned(),
                     programs,
+                    network,
                 },
             )?;
             inspection.complete_source_resolution(sources)
