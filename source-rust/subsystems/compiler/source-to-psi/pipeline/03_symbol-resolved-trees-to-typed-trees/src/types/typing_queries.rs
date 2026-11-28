@@ -518,6 +518,9 @@ fn declared_projection_type(
     target: ExpressionHandle,
     mut root_type: impl FnMut(&TableNamePath) -> Result<TypeReferenceHandle, Diagnostic>,
 ) -> Result<TypeReferenceHandle, Diagnostic> {
+    if let Some(projection) = program.package_projection(target) {
+        return Ok(projection.result_type);
+    }
     let table = &program.expression_table;
     let mut spine = Vec::new();
     let mut cursor = target;
@@ -796,6 +799,9 @@ pub(crate) fn scoped_expression_type_reference(
             return Err(crate::unavailable_judgment(
                 "stale or cyclic value type query",
             ));
+        }
+        if let Some(projection) = program.package_projection(expression) {
+            return Ok(Some(projection.result_type));
         }
         if let Some(reference) = program
             .declared_callable_expression_type_reference(expression)
@@ -1667,6 +1673,9 @@ impl DeclaredExpressionTypes {
         owner: SymbolHandle,
         expression: ExpressionHandle,
     ) -> Option<TypeReferenceHandle> {
+        if let Some(projection) = program.package_projection(expression) {
+            return Some(projection.result_type);
+        }
         let key = (owner, expression);
         if let Some(result) = self.rows.get(&key) {
             return *result;

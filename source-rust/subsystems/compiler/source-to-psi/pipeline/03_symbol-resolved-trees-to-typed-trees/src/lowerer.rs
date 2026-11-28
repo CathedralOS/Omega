@@ -2073,6 +2073,7 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_type_references,
     )?;
+    crate::expressions::package_openings::open_cohort(&mut lowerer.typed_trees, cohort)?;
     // Result and effect queries must see the signature of the evaluated callee,
     // including calls in declaration contracts and initializers.
     let mut callable_admission = crate::expressions::runtime_callables::bind_calls_in_cohort(
@@ -2602,6 +2603,8 @@ impl Lowerer<'_> {
 
 fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) -> TypedTrees {
     let TypedTrees {
+        package_openings,
+        package_projections,
         identity: _,
         build_invocation_entry: _,
         excluded_authored_selection_occurrences,
@@ -2644,6 +2647,8 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
     } = typed;
     let mut trees = TypedTrees::with_roots(roots, tables, symbols);
     trees.type_identities = type_identities;
+    trees.package_openings = package_openings;
+    trees.package_projections = package_projections;
     // A request recorded on a declaration stays recorded while the program
     // is extended: its declaration is still unserved, and recording again
     // adds nothing.
