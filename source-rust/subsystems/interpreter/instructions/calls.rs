@@ -2025,6 +2025,10 @@ pub(crate) mod component_contents {
                         self.map_identity(source.identity)?,
                     )
                     .ok_or(malformed())?;
+                    self.check_owner(
+                        source.declaration_identity,
+                        destination.declaration_identity,
+                    )?;
                     TerminalStorageContents::Case(destination.id)
                 }
             };
@@ -2044,6 +2048,10 @@ pub(crate) mod component_contents {
             for (position, segment) in source_path.iter().enumerate() {
                 let source = self.source_types.declaration(&source_type)?;
                 let destination = self.destination_types.declaration(&destination_type)?;
+                self.check_owner(
+                    source.declaration_identity,
+                    destination.declaration_identity,
+                )?;
                 if self.map_identity(source.identity)? != destination.identity {
                     return Err(malformed());
                 }
@@ -2063,6 +2071,10 @@ pub(crate) mod component_contents {
                             identity,
                         )
                         .ok_or(malformed())?;
+                        self.check_owner(
+                            source.declaration_identity,
+                            destination.declaration_identity,
+                        )?;
                         path.push(Path::Case(destination.id));
                         source_case_fields = Some(source.fields.as_slice());
                         destination_case_fields = Some(destination.fields.as_slice());
@@ -2085,6 +2097,10 @@ pub(crate) mod component_contents {
                             self.map_identity(source.identity)?,
                         )
                         .ok_or(malformed())?;
+                        self.check_owner(
+                            source.declaration_identity,
+                            destination.declaration_identity,
+                        )?;
                         if source.relevance.is_erased() {
                             return Err(malformed());
                         }
@@ -2139,29 +2155,50 @@ pub(crate) mod component_contents {
             if source_case_fields.is_some() {
                 return Err(malformed());
             }
-            if self.map_identity(self.source_types.declaration(&source_type)?.identity)?
-                != self
-                    .destination_types
-                    .declaration(&destination_type)?
-                    .identity
-            {
+            let source = self.source_types.declaration(&source_type)?;
+            let destination = self.destination_types.declaration(&destination_type)?;
+            self.check_owner(
+                source.declaration_identity,
+                destination.declaration_identity,
+            )?;
+            if self.map_identity(source.identity)? != destination.identity {
                 return Err(malformed());
             }
             Ok((path, source_type, destination_type))
+        }
+
+        fn check_owner(
+            &self,
+            source: terminal_psi::TerminalIdentityIndex,
+            destination: terminal_psi::TerminalIdentityIndex,
+        ) -> Result<(), TerminalInterpretError> {
+            if source.is_absent() && destination.is_absent() {
+                return Ok(());
+            }
+            terminal_psi::NominalDeclarationIdentity::new(source)
+                .same_identity_as(
+                    self.source_identities,
+                    &terminal_psi::NominalDeclarationIdentity::new(destination),
+                    self.destination_identities,
+                )
+                .then_some(())
+                .ok_or(malformed())
         }
 
         fn map_identity(
             &self,
             identity: terminal_psi::TerminalIdentityIndex,
         ) -> Result<terminal_psi::TerminalIdentityIndex, TerminalInterpretError> {
-            let identity = self
-                .source_identities
-                .text(identity)
-                .filter(|identity| !identity.is_empty())
+            let name = self.source_identities.text(identity).ok_or(malformed())?;
+            let destination = self
+                .destination_identities
+                .index_of(name)
                 .ok_or(malformed())?;
-            self.destination_identities
-                .index_of(identity)
-                .ok_or(malformed())
+            if identity.is_absent() {
+                return Err(malformed());
+            }
+            self.check_owner(identity, destination)?;
+            Ok(destination)
         }
     }
 
@@ -2340,6 +2377,29 @@ pub(crate) mod component_contents {
         }
 
         #[test]
+        fn component_contents_reject_same_field_label_from_a_different_declaration() {
+            let source = Fixture::new(0);
+            let mut destination = Fixture::new(100);
+            let mut names = destination.identities.clone().into_builder();
+            let unrelated = names.intern("other::Packet::bits");
+            destination.identities = names.build();
+            let StructuralTypeShape::Mixed { cases, .. } = &mut destination.declarations[0].shape
+            else {
+                panic!("fixture is mixed")
+            };
+            cases[0].fields[0].declaration_identity = unrelated;
+            assert!(
+                mapping(&source, &destination)
+                    .rehome(
+                        source.root(),
+                        destination.root(),
+                        scalar(source.payload_path(1))
+                    )
+                    .is_err()
+            );
+        }
+
+        #[test]
         fn component_contents_refuse_reference_crossings_bad_indexes_and_nominal_substitutions() {
             let source = Fixture::new(0);
             let mut destination = Fixture::new(100);
@@ -2488,7 +2548,7 @@ pub(crate) mod component_scalar_arguments {
     use crate::embedding::program::TerminalProgram;
     use crate::engine::execution::TerminalExecution;
     use crate::storage::primitive_storage::PrimitiveStorageEndpoint;
-    use crate::storage::scalar_storage::{ScalarCell, ScalarLoanScope};
+    use crate::storage::scalar_storage::{ScalarCell, ScalarLoanAccess, ScalarLoanScope};
     use crate::storage::storage_addresses::{ScalarStorageAddress, ScalarStorageAddressKey};
     use crate::storage::structural_storage::contents::{self, StorageLeafKind};
     use semantic_vocabulary::{CanonicalStructuralPathSegment, ScalarType, StructuralTypeId};
@@ -2510,6 +2570,18 @@ pub(crate) mod component_scalar_arguments {
         restriction: Option<StructuralFieldType>,
         address: ScalarStorageAddress,
         parent_addresses: Vec<ScalarStorageAddress>,
+    }
+
+    impl PreparedScalarCell {
+        fn loan_access(&self, borrow: StructuralAccess) -> ScalarLoanAccess {
+            ScalarLoanAccess {
+                borrow,
+                atomic: self
+                    .restriction
+                    .as_ref()
+                    .and_then(StructuralFieldType::atomic_cell_type),
+            }
+        }
     }
 
     pub(crate) struct LentScalarArgument {
@@ -2578,11 +2650,8 @@ pub(crate) mod component_scalar_arguments {
             provider: &TerminalProgram<'_>,
             destination_type: StructuralTypeId,
         ) -> Result<PreparedScalarArgument, TerminalInterpretError> {
-            let description = contents::describe(self, value, access, None)?;
-            if description.requires_erased_establishment
-                || description.requires_atomic_storage
-                || description.leaves.is_empty()
-            {
+            let description = contents::describe_loan(self, value, access)?;
+            if description.requires_erased_establishment || description.leaves.is_empty() {
                 return Err(reject());
             }
             let root = StructuralRuntimePlace::from(value);
@@ -2644,21 +2713,24 @@ pub(crate) mod component_scalar_arguments {
 
     impl PreparedScalarArgument {
         pub(crate) fn mutated_home(&self) -> Option<&StructuralRuntimePlace> {
-            (self.access == StructuralAccess::MutableBorrow).then_some(&self.root)
+            let may_write = self
+                .cells
+                .iter()
+                .any(|cell| cell.loan_access(self.access).writable());
+            may_write.then_some(&self.root)
         }
 
         pub(crate) fn lend(
             self,
             source: &mut TerminalExecution<'_>,
             lifetime: &ScalarLoanScope,
-            views: &mut BTreeMap<ScalarStorageAddressKey, (StructuralAccess, ScalarCell)>,
+            views: &mut BTreeMap<ScalarStorageAddressKey, (ScalarLoanAccess, ScalarCell)>,
         ) -> Result<LentScalarArgument, TerminalInterpretError> {
             let mut cells = Vec::with_capacity(self.cells.len());
             for prepared in self.cells {
-                let borrowed = if let Some((access, previous)) = views.get(&prepared.source) {
-                    if *access != StructuralAccess::SharedBorrow
-                        || self.access != StructuralAccess::SharedBorrow
-                    {
+                let access = prepared.loan_access(self.access);
+                let borrowed = if let Some((prior, previous)) = views.get(&prepared.source) {
+                    if !access.may_alias(*prior) {
                         return Err(TerminalInterpretError::UnsupportedSemanticVariant(
                             "component inputs overlap an exclusive scalar home",
                         ));
@@ -2666,8 +2738,8 @@ pub(crate) mod component_scalar_arguments {
                     previous.clone()
                 } else {
                     let original = cell_mut(source, &prepared.source)?.ok_or(malformed())?;
-                    let borrowed = lifetime.lend(original, self.access)?;
-                    views.insert(prepared.source.clone(), (self.access, borrowed.clone()));
+                    let borrowed = lifetime.lend(original, access)?;
+                    views.insert(prepared.source.clone(), (access, borrowed.clone()));
                     borrowed
                 };
                 cells.push((prepared, borrowed));
@@ -2695,9 +2767,8 @@ pub(crate) mod component_scalar_arguments {
             }
             let value = child.structural_value(parameter.place)?.clone();
             let root = StructuralRuntimePlace::from(&value);
-            let description = contents::describe(child, &value, self.access, None)?;
+            let description = contents::describe_loan(child, &value, self.access)?;
             if description.requires_erased_establishment
-                || description.requires_atomic_storage
                 || description.leaves.len() != self.cells.len()
             {
                 return Err(reject());
