@@ -238,6 +238,9 @@ pub(crate) struct Program<'t> {
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
     pub signatures: IdTable<MachineId, Signature>,
+    /// Symbols and signatures are consumed as dense columns by publication and
+    /// call analysis. The remaining reader state lives together at the same ID.
+    machine_rows: IdTable<MachineId, machine::ReservedMachineRow>,
     pub(crate) theorem_parameters: Vec<terminal_psi::TheoremParameter>,
     pub(crate) theorem_parameter_sources: Vec<theorems::PreparedTheoremParameter>,
     /// Requirement headers keep their exact source parameter origins until
@@ -352,9 +355,6 @@ pub(crate) struct Program<'t> {
     /// The services a Build selection awaits a provider for, in first-read
     /// order (`designate`, `publish_readiness`).
     readiness: Vec<semantic_vocabulary::ServiceId>,
-    /// What diagnostics call each machine's constructs, pushed with its
-    /// signature and completed as its body is read.
-    pub names: IdTable<MachineId, crate::MachineNames>,
     /// Whether this is a generic check form: the entry's implementation
     /// parameters stay rigid, and a call through one names the requirement.
     rigid: bool,
@@ -385,7 +385,6 @@ pub(crate) struct Program<'t> {
     /// while a closed machine is read.
     scope: Vec<(SymbolHandle, ValueType)>,
     source_scope: std::sync::Arc<crate::source_state::SourceTypeScope>,
-    source_scopes: IdTable<MachineId, std::sync::Arc<crate::source_state::SourceTypeScope>>,
     /// A generic declaration checks its contract without claiming executable
     /// storage for a compound symbolic type. These types belong only to that
     /// schema form; demanded applications use ordinary formals and loans.
@@ -397,14 +396,10 @@ pub(crate) struct Program<'t> {
     /// The implementation whose rows a requirement's clauses name while its
     /// witness reads that requirement at the implementation's arguments.
     witness_conformance: Option<SymbolHandle>,
-    /// `scope` of each machine, pushed with its signature and restored
-    /// when its body is read.
-    scopes: IdTable<MachineId, Vec<(SymbolHandle, ValueType)>>,
     /// Static width binders retain the actual machine-local input identity.
     /// Sorted by source symbol within this declaration's selected telescope.
     nominal_calls: Vec<nominal_applications::NominalCallSource>,
     const_scope: Vec<ConstBinding>,
-    const_scopes: IdTable<MachineId, Vec<ConstBinding>>,
     /// While a generic data declaration's template is read
     /// (`subjects::generic_data`), the next input identity for a type
     /// equation its rigid binders leave open. `None` everywhere else.
@@ -434,12 +429,8 @@ pub(crate) struct Program<'t> {
     /// Whether the signature being read is a generic check form's entry,
     /// whose requirements are premises rather than obligations.
     premise_reading: bool,
-    /// `Elaboration::value_parameters` and `Elaboration::value_arguments`,
-    /// pushed with each machine's signature.
-    pub value_parameters: IdTable<MachineId, usize>,
     pub generic_binders: Vec<SymbolHandle>,
     pub static_reach_parameters: Vec<terminal_psi::static_reach::StaticReachParameter>,
-    pub value_arguments: IdTable<MachineId, Vec<semantic_vocabulary::ScalarTerm>>,
     /// Every record type a formal, local, result, field or literal named, in
     /// discovery order; a nested record is discovered before its owner.
     pub records: IdTable<StructuralTypeId, RecordType>,
@@ -529,11 +520,6 @@ pub(crate) struct Program<'t> {
     /// later call of one is refused at once as depending on it, instead of
     /// reading and refusing the same signature again for every caller.
     refused_signatures: Vec<SymbolHandle>,
-    /// Machine rows reserved before their signature is read and not yet
-    /// filled (`machine::reserve_row`): the signature being read, or one that
-    /// was refused after machines its signature read took later rows. A
-    /// lookup by symbol and `read_bodies` skip them.
-    pub(crate) unread_rows: Vec<MachineId>,
     /// The locals of block values in the body statement being read, after
     /// the body's own slots, with their names. A block reads its statements
     /// while the enclosing statement is still being read, so its slots are
@@ -653,6 +639,7 @@ impl<'t> Program<'t> {
             shared,
             symbols: IdTable::default(),
             signatures: IdTable::default(),
+            machine_rows: IdTable::default(),
             theorem_parameters: Vec::new(),
             theorem_parameter_sources: Vec::new(),
             declared_envelope_policies: IdTable::default(),
@@ -688,7 +675,6 @@ impl<'t> Program<'t> {
             clause_arguments: Vec::new(),
             enclosing_requires: Vec::new(),
             readiness: Vec::new(),
-            names: IdTable::default(),
             rigid,
             requirements: Vec::new(),
             requirement_headers: Vec::new(),
@@ -698,15 +684,12 @@ impl<'t> Program<'t> {
             selections: Vec::new(),
             scope: Vec::new(),
             source_scope: Default::default(),
-            source_scopes: IdTable::default(),
             reading_schema: false,
             rigid_storage: Vec::new(),
             clause_supplier: None,
             witness_conformance: None,
-            scopes: IdTable::default(),
             nominal_calls: Vec::new(),
             const_scope: Vec::new(),
-            const_scopes: IdTable::default(),
             open_equation_inputs: None,
             applications: Vec::new(),
             applied: Vec::new(),
@@ -714,10 +697,8 @@ impl<'t> Program<'t> {
             static_truths: Vec::new(),
             rigid_carriers: Vec::new(),
             premise_reading: false,
-            value_parameters: IdTable::default(),
             generic_binders: Vec::new(),
             static_reach_parameters: Vec::new(),
-            value_arguments: IdTable::default(),
             records: IdTable::default(),
             byte_domains: Vec::new(),
             pending_cleanup: Vec::new(),
@@ -744,7 +725,6 @@ impl<'t> Program<'t> {
             supplied: Vec::new(),
             collected: None,
             refused_signatures: Vec::new(),
-            unread_rows: Vec::new(),
             block_slots: Vec::new(),
             block_slot_base: 0,
             block_floor: None,
@@ -950,6 +930,42 @@ mod tests {
             terminal_check_tables::RefusalReason::Unsupported
         );
         refusal.detail
+    }
+
+    #[test]
+    fn nested_signature_failure_preserves_later_ids_and_reuses_only_the_tail() {
+        let (typed, [outer, inner]) = unit_machines();
+        let mut program = Program::new(&typed, false);
+        let completed = || machine::MachineRow {
+            signature: Signature::unread(),
+            context: Default::default(),
+        };
+        let first = program.next_identity().unwrap();
+        let failed = program.read_row(outer, |program, id| {
+            let nested = program.read_row(inner, |_, _| Ok(completed()))?;
+            assert_eq!(nested.get(), id.get() + 1);
+            assert_eq!(program.machine_symbol(id)?, outer);
+            Err(refuse_at(id, Unserved::Machine("outer signature refused")))
+        });
+        assert!(failed.is_err());
+        assert!(!program.row_is_read(first));
+        let second = MachineId::new(first.get() + 1).unwrap();
+        assert!(program.row_is_read(second));
+        assert_eq!(program.machine_symbol(second).unwrap(), inner);
+        assert!(program.complete_row(second, completed()).is_err());
+        let tail = program.next_identity().unwrap();
+        assert!(
+            program
+                .read_row(outer, |_, id| Err(refuse_at(
+                    id,
+                    Unserved::Machine("tail refused")
+                )))
+                .is_err()
+        );
+        assert_eq!(
+            program.read_row(outer, |_, _| Ok(completed())).unwrap(),
+            tail
+        );
     }
 
     #[test]
@@ -1459,6 +1475,39 @@ mod tests {
             refusal.detail,
             "declaration authored occurrence without its source machine"
         );
+    }
+
+    #[test]
+    fn both_runtime_call_forms_refuse_a_static_target_before_reading_the_callee() {
+        let (typed, [caller, target]) = unit_machines();
+        let mut program = Program::new(&typed, false);
+        let id = program.reserve_row(caller).unwrap();
+        let source = crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
+        let expression = crate::source_state::expression::TableCallExpression {
+            target_symbol: target,
+            runtime_call: Some(Default::default()),
+            ..Default::default()
+        };
+        let statement = crate::source_state::statement::TableCall {
+            target_symbol: target,
+            runtime_call: Some(Default::default()),
+            ..Default::default()
+        };
+        let handle = ExpressionHandle::invalid();
+        for read in [
+            program.call_statement(id, &[], &statement, source),
+            program.call_expression(id, &[], &expression, handle, source),
+        ] {
+            let refusal = read.unwrap_err();
+            assert_eq!(
+                refusal.reason,
+                terminal_check_tables::RefusalReason::Unsupported
+            );
+            assert_eq!(
+                refusal.detail,
+                "call runtime call with static dispatch or evidence"
+            );
+        }
     }
 
     #[test]

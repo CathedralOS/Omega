@@ -224,16 +224,16 @@ pub(crate) fn machine_with_read_only_qualifications(
     if requirement {
         lowering.blocks = IdTable::default();
         lowering.sources.blocks = IdTable::default();
-        return lowering.finish(entry, formals, result, contract, structural_types);
-    }
-    if component.is_empty() {
+    } else if component.is_empty() {
         // Even an acyclic body must prove formation of its authored measure.
         lowering.begin_ranking(id)?;
         lowering.body(id, body)?;
     } else {
         lowering.component(id, bodies, component, &formals, separate_entry)?;
     }
-    lowering.finish(entry, formals, result, contract, structural_types)
+    let mut lowered = lowering.finish(entry, formals, result, contract, structural_types)?;
+    terminal_check_tables::bindings::compact_projection_storage(&mut lowered.tables.places);
+    Ok(lowered)
 }
 
 /// A signature's declarations, shared by named bodies and stored callable
