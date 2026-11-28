@@ -1529,16 +1529,26 @@ fn elaborate_places(machines: Vec<Shaped>) -> crate::lowering::Elaboration {
 #[test]
 fn checked_program_refuses_a_package_site_without_a_producing_operation() {
     let mut elaboration = elaborate_places(vec![bounded()]);
-    elaboration.module.execution.packages.sites.push(terminal_psi::TerminalPackageSite {
-        machine: id(1),
-        operation: OperationId::new(9999).unwrap(),
-        event: terminal_psi::TerminalPackageEvent::Construct { witnesses: Vec::new() },
-    });
+    elaboration
+        .module
+        .execution
+        .packages
+        .sites
+        .push(terminal_psi::TerminalPackageSite {
+            machine: id(1),
+            operation: OperationId::new(9999).unwrap(),
+            event: terminal_psi::TerminalPackageEvent::Construct {
+                witnesses: Vec::new(),
+            },
+        });
     let refusal = match crate::judge(Ok(elaboration)) {
         Err(refusal) => refusal,
         Ok(_) => panic!("unreplayed package evidence reached a Stage06 verdict"),
     };
-    assert_eq!(refusal.reason, terminal_check_tables::RefusalReason::ForeignIdentity);
+    assert_eq!(
+        refusal.reason,
+        terminal_check_tables::RefusalReason::ForeignIdentity
+    );
     assert_eq!(refusal.detail, "package site names an absent operation");
 }
 

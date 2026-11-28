@@ -513,7 +513,14 @@ fn a_dependent_field_update_survives_publication_and_independent_replay() {
         let bytes = std::fs::read(path).unwrap();
         let decoded = terminal_codec::decode_module(&bytes).unwrap();
         terminal_codec::sealing::prepare_received_execution(&decoded).unwrap();
-        assert!(decoded.execution.packages.sites.iter().any(|s| matches!(s.event, TerminalPackageEvent::Store { .. })));
+        assert!(
+            decoded
+                .execution
+                .packages
+                .sites
+                .iter()
+                .any(|s| matches!(s.event, TerminalPackageEvent::Store { .. }))
+        );
         return;
     }
     let source = "
@@ -528,40 +535,84 @@ machine main() {
 }";
     let program = Program::of(source);
     let lowered = &program.elaboration().module;
-    let (index, site) = lowered.execution.packages.sites.iter().enumerate()
+    let (index, site) = lowered
+        .execution
+        .packages
+        .sites
+        .iter()
+        .enumerate()
         .find(|(_, s)| matches!(s.event, TerminalPackageEvent::Store { .. }))
         .expect("the dependent assignment emits an opening at its ordinary store");
     assert!(matches!(
-        lowered.machine(site.machine).unwrap().operation(site.operation).unwrap().kind,
+        lowered
+            .machine(site.machine)
+            .unwrap()
+            .operation(site.operation)
+            .unwrap()
+            .kind,
         OperationKind::StoreStructuralField { .. }
     ));
     let RouteVerdict::Accepted(accepted) = judge(Ok(program.elaboration().clone())).unwrap() else {
-        panic!("same-opening source update must reach publication: {:?}", program.judged(|_| ()));
+        panic!(
+            "same-opening source update must reach publication: {:?}",
+            program.judged(|_| ())
+        );
     };
     let module = accepted.prepare_publication().unwrap().module().clone();
     let bytes = terminal_codec::encode_module(&module).unwrap();
-    let nonce = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
-    let path = std::env::temp_dir().join(format!("omega-package-update-{}-{nonce}.psi", std::process::id()));
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let path = std::env::temp_dir().join(format!(
+        "omega-package-update-{}-{nonce}.psi",
+        std::process::id()
+    ));
     {
         use std::io::Write;
-        std::fs::File::create_new(&path).unwrap().write_all(&bytes).unwrap();
+        std::fs::File::create_new(&path)
+            .unwrap()
+            .write_all(&bytes)
+            .unwrap();
     }
     let receiver = std::process::Command::new(std::env::current_exe().unwrap())
-        .args(["--exact", "a_dependent_field_update_survives_publication_and_independent_replay"])
-        .env(SAVED_INPUT, &path).output();
+        .args([
+            "--exact",
+            "a_dependent_field_update_survives_publication_and_independent_replay",
+        ])
+        .env(SAVED_INPUT, &path)
+        .output();
     std::fs::remove_file(&path).unwrap();
     let receiver = receiver.unwrap();
-    assert!(receiver.status.success(), "{}", String::from_utf8_lossy(&receiver.stdout));
-    let source_field = lowered.execution.packages.sites.iter().find_map(|site| match site.event {
-        TerminalPackageEvent::Project { field, .. } => Some(field),
-        _ => None,
-    }).unwrap();
+    assert!(
+        receiver.status.success(),
+        "{}",
+        String::from_utf8_lossy(&receiver.stdout)
+    );
+    let source_field = lowered
+        .execution
+        .packages
+        .sites
+        .iter()
+        .find_map(|site| match site.event {
+            TerminalPackageEvent::Project { field, .. } => Some(field),
+            _ => None,
+        })
+        .unwrap();
     let mut crossed = module.clone();
-    let TerminalPackageEvent::Store { field, .. } = &mut crossed.execution.packages.sites[index].event else { unreachable!() };
+    let TerminalPackageEvent::Store { field, .. } =
+        &mut crossed.execution.packages.sites[index].event
+    else {
+        unreachable!()
+    };
     assert_ne!(*field, source_field);
     *field = source_field;
-    assert!(terminal_codec::decode_module(&terminal_codec::encode_module(&crossed).unwrap()).is_err());
+    assert!(
+        terminal_codec::decode_module(&terminal_codec::encode_module(&crossed).unwrap()).is_err()
+    );
     let mut missing = module;
     missing.execution.packages.sites.remove(index);
-    assert!(terminal_codec::decode_module(&terminal_codec::encode_module(&missing).unwrap()).is_err());
+    assert!(
+        terminal_codec::decode_module(&terminal_codec::encode_module(&missing).unwrap()).is_err()
+    );
 }
