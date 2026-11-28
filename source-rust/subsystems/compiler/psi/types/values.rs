@@ -1512,15 +1512,15 @@ pub(crate) mod signatures {
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum StructuralReferenceOrigin {
         Parameter(super::ReferenceOriginSource),
-        /// The input is shared. Exclusive result access requires a checked
-        /// upgrade on the path that returns this reference.
-        UpgradedParameter(super::ReferenceOriginSource),
         Invocation {
             carrier_type: semantic_vocabulary::StructuralTypeId,
             path: Vec<super::ReferenceOriginProjection>,
             extent: semantic_vocabulary::ReferenceOriginExtent,
             access: crate::StructuralAccess,
         },
+        /// The input is shared. Exclusive result access requires a checked
+        /// upgrade on the path that returns this reference.
+        UpgradedParameter(super::ReferenceOriginSource),
     }
 
     impl StructuralReferenceOrigin {
