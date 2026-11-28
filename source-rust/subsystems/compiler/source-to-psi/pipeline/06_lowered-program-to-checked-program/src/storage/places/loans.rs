@@ -56,6 +56,8 @@ certificate, as the initialization judgment has none. Two refusals, each
   mutable child.
 */
 
+mod formation;
+
 use super::overlap;
 use language_core::ReferenceAccess;
 use semantic_vocabulary::StructuralPlaceKind;
@@ -1013,6 +1015,7 @@ impl<'a> Storage<'a> {
                         self.foreign(concerns, "a retained call region lies outside its argument")
                     );
                 }
+                let source_access = access;
                 let access = if narrower.upgraded_mutability {
                     ReferenceAccess::Mutable
                 } else {
@@ -1028,7 +1031,7 @@ impl<'a> Storage<'a> {
                     self.foreign(concerns, "a retained call region has no captured place row")
                 })?;
                 let (expected_lender, parent, from, permitted) =
-                    self.source_lender(&raw, &region.path, access, resource, concerns)?;
+                    self.source_lender(&raw, &region.path, source_access, resource, concerns)?;
                 let (obligation, row) = tables
                     .obligations
                     .iter()
@@ -1072,7 +1075,7 @@ impl<'a> Storage<'a> {
                     lender,
                     selected_parents: Box::default(),
                     from,
-                    permitted: permitted || narrower.upgraded_mutability,
+                    permitted,
                     at: self.loan_position(before, concerns)?,
                     formed_in: cut.0,
                     lifetime: Some(narrower.lifetime),
@@ -1108,27 +1111,6 @@ impl<'a> Storage<'a> {
         Ok((block, position))
     }
 
-    fn native_address_loan_region(
-        &self,
-        references: &mut super::DescriptorAnalysis<'a>,
-        address: semantic_vocabulary::ValueId,
-        descriptor: &super::Lineage,
-        at: DescriptorPosition,
-        concerns: Construct,
-    ) -> Checked<LoanRegion> {
-        let origin = terminal_semantics::storage::native_borrows::address_origin(self.lowered, address);
-        let mut sources = Vec::new();
-        for source in origin.sources {
-            let place = self.argument(source, concerns)?;
-            match self.storage_loan_region(references, &place, at, concerns)? {
-                LoanRegion::Storage(backing) => sources.push(backing),
-                LoanRegion::Provider(_) => sources.push(Backing::direct(place)),
-            }
-        }
-        let backing = Backing::native_address(descriptor, sources, origin.exact);
-        Ok(LoanRegion::Storage(backing))
-    }
-
     #[allow(clippy::too_many_arguments)]
     fn reference_loan(
         &self,
@@ -1147,7 +1129,7 @@ impl<'a> Storage<'a> {
         claimed: &mut [bool],
         formed: &mut Vec<Formed>,
     ) -> Checked<()> {
-        use terminal_psi::{OperationKind, StructuralTypeShape};
+        use terminal_psi::OperationKind;
         use terminal_semantics::descriptor_lifetimes::{
             DescriptorLocation, descriptor_location_lifetime, descriptor_location_lifetime_indexed,
         };
@@ -1162,187 +1144,8 @@ impl<'a> Storage<'a> {
         let result = result.ok_or_else(|| self.foreign(concerns, "loan formation has no descriptor result"))?;
         let at = self.loan_position(before, concerns)?;
         let upgrades_shared = matches!(operation.kind, OperationKind::UpgradeMutability { .. });
-        let (captured, access, lineage, expected_lender, parent, from, permitted) =
-        if let OperationKind::BorrowAt { address } = operation.kind {
-            let StructuralTypeShape::Reference { access: declared, .. } =
-                self.declaration(result.structural_type, concerns)?.shape else {
-                return Err(self.foreign(concerns, "native address formation must produce a reference"));
-            };
-            let access = match declared {
-                StructuralAccess::SharedBorrow => ReferenceAccess::Shared,
-                StructuralAccess::MutableBorrow => ReferenceAccess::Mutable,
-                _ => return Err(self.foreign(concerns, "native address formation requires shared or mutable access")),
-            };
-            if !tables.values.get(address).is_some_and(|row| matches!(row.scalar_type,
-                semantic_vocabulary::ScalarType::Integer(i) if i.is_address())) {
-                return Err(self.foreign(concerns, "native borrow requires an address operand"));
-            }
-            let descriptor = self.stored_at(result.place, &[], concerns)?;
-            let captured = self.interned(tables, &descriptor, concerns)?.ok_or_else(||
-                self.foreign(concerns, "native address formation has no captured result row"))?;
-            let raw = self.native_address_loan_region(references, address, &descriptor, at, concerns)?;
-            (captured, access, raw, Some(Lender::NativeAddress), None, None, true)
-        } else {
-        let upgraded;
-        let (source, declared, reference_referent) = match &operation.kind {
-            OperationKind::EstablishReference { source, storage } => {
-                let StructuralTypeShape::Reference { referent, access } =
-                    self.declaration(result.structural_type, concerns)?.shape
-                else {
-                    return Err(
-                        self.foreign(concerns, "reference formation produces another constructor")
-                    );
-                };
-                (source, access, Some((referent, storage.as_ref())))
-            }
-            OperationKind::UpgradeMutability { source } => {
-                let descriptor = self.argument(source, concerns)?;
-                let super::Shape::Typed(ty) = self.shape(&descriptor, concerns)? else {
-                    return Err(self.foreign(concerns, "mutability upgrade requires a shared reference descriptor"));
-                };
-                let StructuralTypeShape::Reference { referent, access: StructuralAccess::SharedBorrow } =
-                    self.declaration(ty, concerns)?.shape else {
-                    return Err(self.foreign(concerns, "mutability upgrade requires a shared reference"));
-                };
-                if source.access != StructuralAccess::SharedBorrow ||
-                    self.declaration(result.structural_type, concerns)?.shape != (StructuralTypeShape::Reference {
-                        referent, access: StructuralAccess::MutableBorrow
-                    }) {
-                    return Err(self.foreign(concerns, "mutability upgrade must preserve the referent type"));
-                }
-                let mut actual = source.clone();
-                actual.path.push(terminal_psi::StructuralPathSegment::Referent);
-                actual.access = StructuralAccess::MutableBorrow;
-                upgraded = actual;
-                (&upgraded, StructuralAccess::MutableBorrow, Some((referent, None)))
-            }
-            OperationKind::EstablishElementView { source, .. }
-            | OperationKind::EstablishMutableElementView { source, .. } => {
-                self.array_view_formation(operation)?;
-                (source, source.access, None)
-            }
-            _ => return Ok(()),
-        };
-        if source.access != declared {
-            return Err(self.foreign(concerns, "reference formation changes its source access"));
-        }
-        let access = reference_access(source.access)
-            .ok_or_else(|| self.foreign(concerns, "reference formation has no borrowed access"))?;
-        if access == ReferenceAccess::WriteOnly {
-            return Err(self.unsupported(concerns, "a write-only persistent loan"));
-        }
-        let raw = self.argument(source, concerns)?;
-        let resource = if reference_referent.is_none()
-            && match self.shape(&raw, concerns)? {
-                super::Shape::View => true,
-                super::Shape::Typed(ty) => {
-                    terminal_semantics::descriptor_results::is_descriptor(self.types.iter(), ty)
-                }
-                _ => false,
-            } {
-            BorrowedResource::ViewPayload
-        } else {
-            BorrowedResource::Storage
-        };
-        if let Some((referent, storage)) = reference_referent {
-            let expected = self.declaration(referent, concerns)?;
-            let compatible = if let Some(storage) = storage {
-                if access != ReferenceAccess::Shared {
-                    return Err(self.unsupported(
-                        concerns,
-                        "exclusive representation view without establishment and handback evidence",
-                    ));
-                }
-                terminal_semantics::validate_reference_view_source(
-                    self.module,
-                    self.lowered,
-                    source.place,
-                )
-                .map_err(|reason| self.unsupported(concerns, reason))?;
-                let offset = tables.values.get(storage.byte_offset).ok_or_else(|| {
-                    self.foreign(concerns, "reference view lost its offset value")
-                })?;
-                let terminal_check_tables::values::ValueOrigin::Operation(producer) = offset.origin
-                else {
-                    return Err(self.unsupported(
-                        concerns,
-                        "reference view offset without captured geometry evidence",
-                    ));
-                };
-                let (block, after) = self.graph.locate(ProgramPoint::AfterOperation(producer))?;
-                let producer = after
-                    .checked_sub(1)
-                    .and_then(|position| {
-                        self.lowered
-                            .blocks
-                            .get(index(block.get()))?
-                            .operations
-                            .get(position)
-                    })
-                    .ok_or_else(|| {
-                        self.foreign(concerns, "reference view offset has no producer")
-                    })?;
-                if offset.scalar_type
-                    != producer
-                        .result
-                        .as_scalar()
-                        .map(|row| row.scalar_type)
-                        .ok_or_else(|| {
-                            self.foreign(concerns, "reference view offset has no scalar producer")
-                        })?
-                    || !terminal_semantics::reference_view_offset_is_zero(
-                        producer,
-                        storage.byte_offset,
-                    )
-                {
-                    return Err(self.unsupported(
-                        concerns,
-                        "reference view offset without captured geometry evidence",
-                    ));
-                }
-                terminal_semantics::reference_view_compatible(
-                    self.module,
-                    self.root_type(source.place, concerns)?,
-                    &source.path,
-                    result.structural_type,
-                    storage.stored_scalar,
-                )
-                .map_err(|reason| self.unsupported(concerns, reason))?
-            } else {
-                match self.shape(&raw, concerns)? {
-                    super::Shape::Scalar(scalar) => {
-                        expected.shape == StructuralTypeShape::PrimitiveScalar(scalar)
-                    }
-                    super::Shape::Atomic(cell) => {
-                        expected.shape == StructuralTypeShape::AtomicCell(cell)
-                    }
-                    super::Shape::Typed(actual) => {
-                        actual == referent
-                            || terminal_semantics::shared_direct_byte_descriptor_source(
-                                self.module,
-                                self.lowered,
-                                source,
-                                result.structural_type,
-                            ) == Some(true)
-                    }
-                    super::Shape::View | super::Shape::Payload(_) => false,
-                }
-            };
-            if !compatible {
-                return Err(self.foreign(
-                    concerns,
-                    "reference formation changes its captured referent type",
-                ));
-            }
-        }
-        let captured = self.interned(tables, &raw, concerns)?.ok_or_else(|| {
-            self.foreign(concerns, "reference formation has no captured place row")
-        })?;
-        let (expected_lender, parent, from, permitted) =
-            self.source_lender(&raw, &source.path, if upgrades_shared { ReferenceAccess::Shared } else { access }, resource, concerns)?;
-        let lineage = self.borrow_backing(references, &raw, &source.path, resource, at, concerns)?;
-        (captured, access, lineage, expected_lender, parent, from, permitted)
-        };
+        let formation::Formation { captured, access, lineage, expected_lender, parent, from, permitted } =
+            self.loan_formation(references, tables, operation, result, at, concerns)?;
         let (obligation, row) = tables
             .obligations
             .iter()
