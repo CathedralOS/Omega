@@ -122,7 +122,9 @@ machine main() crashes Trap {
     }
     machine wrong() { crash Trap; }
 }"#;
-    Program::new(source, &[READ]).assert_native_returns();
+    let program = Program::new(source, &[READ]);
+    program.assert_native_returns();
+    assert_addressed_cell_survives_call(&program);
     let denied = source.replace("    $stored\n", "    $stored = 7u8;\n    $stored\n");
     let result = Program::new(&denied, &[READ]).check();
     let diagnostic = super::report(&result);
@@ -130,6 +132,61 @@ machine main() crashes Trap {
         !result.status.success() && diagnostic.contains("grants shared access only"),
         "{diagnostic}"
     );
+}
+
+/// A native stack slot may still contain its old pointer after its loan ends.
+/// Check the saved program as well as the bytes the executable returns.
+fn assert_addressed_cell_survives_call(program: &Program) {
+    use terminal_psi::OperationKind;
+    let published = program
+        .command(&[
+            "--emit-psi",
+            "cell.psi",
+            "--target",
+            super::host_profile(),
+            "build.omg",
+        ])
+        .output()
+        .unwrap();
+    assert!(published.status.success(), "{}", super::report(&published));
+    let bytes = std::fs::read(program.0.path().join("cell.psi")).unwrap();
+    let saved = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+    let module = saved.semantic_module();
+    let caller = module
+        .machines
+        .iter()
+        .find(|body| {
+            body.declaration
+                .as_ref()
+                .and_then(|decl| module.identities.text(decl.callable))
+                .is_some_and(|name| name.contains("inspect"))
+        })
+        .expect("saved calling machine");
+    let mut operations = caller.operations();
+    let (address, cell) = operations
+        .find_map(|op| {
+            let OperationKind::StorageAddress { source } = &op.kind else {
+                return None;
+            };
+            let (temporary, _) = caller.producing_operation(source.place)?;
+            let OperationKind::EstablishReference { source: cell, .. } = &temporary.kind else {
+                return None;
+            };
+            Some((op.result.as_scalar()?.id, cell.place))
+        })
+        .expect("the caller exposes its reference cell");
+    for op in operations {
+        match &op.kind {
+            OperationKind::Call { arguments, .. } if arguments.contains(&address) => return,
+            OperationKind::ReleaseReference { source, path }
+                if *source == cell && path.is_empty() =>
+            {
+                panic!("the caller released its reference cell before passing the address to load")
+            }
+            _ => {}
+        }
+    }
+    panic!("the caller never passed the cell address to load");
 }
 
 #[test]
