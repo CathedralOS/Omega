@@ -294,7 +294,7 @@ impl Program<'_> {
             regions: expected.regions(),
             home,
         };
-        let (value, _) = self.lent_from(machine, slots, argument, None, &formal, referent)?;
+        let (value, _) = self.lent(machine, slots, argument, &formal, referent)?;
         if !matches!(value.kind, crate::ExpressionKind::Borrow { .. }) {
             unreachable!()
         };

@@ -54,6 +54,12 @@ pub(super) struct StaticInvocation<'a> {
     receiver: Option<SymbolHandle>,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum LendingSite {
+    CallArgument,
+    PackedArrayPlace,
+}
+
 enum CallBinding<'a> {
     Generic(Expression),
     Closed {
@@ -3309,7 +3315,14 @@ impl<'t> Program<'t> {
             let declared = signature.parameters[position];
             let borrowed = &signature.borrowed[position];
             let contextual = self.argument_context(declared, &free, &bound);
-            let (mut lent, _) = self.lent(id, slots, *argument, borrowed, contextual)?;
+            let (mut lent, _) = self.lent_from(
+                id,
+                slots,
+                *argument,
+                LendingSite::PackedArrayPlace,
+                borrowed,
+                contextual,
+            )?;
             lent.result = self.borrowed_argument_type(id, slots, &lent, contextual, borrowed)?;
             let ExpressionKind::Borrow { place, .. } = &lent.kind else {
                 return Err(refuse_at(
@@ -4209,18 +4222,22 @@ impl<'t> Program<'t> {
         formal: &crate::body::Borrowed,
         expected: ValueType,
     ) -> Checked<(Expression, String)> {
-        self.lent_from(id, slots, argument, None, formal, expected)
+        self.lent_from(
+            id,
+            slots,
+            argument,
+            LendingSite::CallArgument,
+            formal,
+            expected,
+        )
     }
 
-    /// `lent`, where an explicit borrow `argument` lends `beneath` in place
-    /// of its own target: `@(text as +D)` lends `text`, and the caller
-    /// qualifies the reference it forms (`borrow_value`).
-    pub(super) fn lent_from(
+    fn lent_from(
         &mut self,
         id: MachineId,
         slots: &[Slot],
         argument: ExpressionHandle,
-        beneath: Option<ExpressionHandle>,
+        site: LendingSite,
         formal: &crate::body::Borrowed,
         expected: ValueType,
     ) -> Checked<(Expression, String)> {
@@ -4259,9 +4276,10 @@ impl<'t> Program<'t> {
         // binding, a field or another helper call. An ordinary owned value
         // still needs an explicit borrow of its place.
         let (operand, access, explicit) = match node {
-            ExpressionNode::Borrow(borrow) => {
-                (beneath.unwrap_or(borrow.target), borrow.access, true)
+            ExpressionNode::Borrow(_) if site == LendingSite::PackedArrayPlace => {
+                return unserved("packed instruction requires an array place");
             }
+            ExpressionNode::Borrow(borrow) => (borrow.target, borrow.access, true),
             _ => (argument, formal.access, false),
         };
         if explicit {
@@ -4455,7 +4473,9 @@ impl<'t> Program<'t> {
         if !crossed {
             if let Some(slot) = slot {
                 let lender = &slots[slot];
-                if !explicit && lender.borrowed.is_none() {
+                // The instruction borrows its array operand. A call needs a
+                // written borrow when the caller owns the storage.
+                if site == LendingSite::CallArgument && !explicit && lender.borrowed.is_none() {
                     return unserved("argument for a borrowed formal that is not a borrow");
                 }
                 if access == ReferenceAccess::Mutable
