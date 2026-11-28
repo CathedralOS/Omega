@@ -469,7 +469,7 @@ impl<'t> Program<'t> {
         let unserved = |what| Err(refuse_at(id, Unserved::Expression(what)));
         let expected_scalar = expected.and_then(ValueType::scalar);
         let type_truth = if matches!(node, ExpressionNode::Binary(_) | ExpressionNode::Member(_)) {
-            let owner = self.symbols.get(id).copied().unwrap_or_default();
+            let owner = self.machine_symbol(id)?;
             self.read_static_truth(id, owner, handle, super::types::Reading::Value)?
         } else {
             None
@@ -659,7 +659,7 @@ impl<'t> Program<'t> {
                 };
                 let (value, operators) = self.anonymous_float(id, handle, format)?;
                 if !operators.is_empty() {
-                    let owner = self.symbols.get(id).copied().unwrap_or_default();
+                    let owner = self.machine_symbol(id)?;
                     self.complete_anonymous_operators(id, owner, &operators)?;
                 }
                 (ExpressionKind::Float(value), ScalarType::IeeeFloat(format))
@@ -690,7 +690,7 @@ impl<'t> Program<'t> {
                     expected_scalar,
                     super::types::AnonymousLanding::Implicit,
                 )?;
-                let owner = self.symbols.get(id).copied().unwrap_or_default();
+                let owner = self.machine_symbol(id)?;
                 self.complete_anonymous_operators(id, owner, &evaluated.operators)?;
                 (
                     ExpressionKind::Integer(evaluated.value),

@@ -42,21 +42,6 @@ macro_rules! charge_axis {
     };
 }
 
-/// Completed optimizer custody. Only the sweep below issues this value;
-/// exposing its immutable record does not let another caller issue a run.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StagedOptimizedX86BranchRelaxation {
-    record: X86BranchRelaxationRecord,
-}
-impl StagedOptimizedX86BranchRelaxation {
-    pub fn record(&self) -> &X86BranchRelaxationRecord {
-        &self.record
-    }
-    pub fn shared_layout(&self) -> Arc<ResolvedMachineLayout> {
-        self.record.shared_layout()
-    }
-}
-
 struct RelaxationTrace {
     usage: OptimizationWorkUsage, // Cumulative work charged across sweeps.
     attempts: Vec<X86BranchRelaxationAttempt>, // Recorded branch inspection outcomes.
@@ -76,7 +61,7 @@ pub(crate) fn stage_optimized_x86_branch_relaxation(
     source: &ResolvedMachineLayout,
     controls: &[EncodedControlIndex],
     budget: OptimizationWorkBudget,
-) -> Result<StagedOptimizedX86BranchRelaxation, OptimizedX86BranchRelaxationError> {
+) -> Result<X86BranchRelaxationRecord, OptimizedX86BranchRelaxationError> {
     validate_roots(source, physical)?;
     let trace = compute_trace(revision_roots(source), source.functions(), controls, budget)?;
     finish_artifact(source, budget, trace)
@@ -99,7 +84,6 @@ fn malformed(instruction: SelectedInstructionId) -> OptimizedX86BranchRelaxation
 
 fn revision_roots(source: &ResolvedMachineLayout) -> RevisionRoots {
     RevisionRoots {
-        pre_layout: source.pre_layout(),
         target: source.target(),
     }
 }
@@ -108,12 +92,16 @@ fn finish_artifact(
     source: &ResolvedMachineLayout,
     budget: OptimizationWorkBudget,
     trace: RelaxationTrace,
-) -> Result<StagedOptimizedX86BranchRelaxation, OptimizedX86BranchRelaxationError> {
+) -> Result<X86BranchRelaxationRecord, OptimizedX86BranchRelaxationError> {
     let roots = revision_roots(source);
     let output_revision = revision_identity(roots, &trace.functions);
-    let mut program = source.clone();
-    program.functions = trace.functions;
-    let layout = Arc::new(program);
+    let layout = Arc::new(ResolvedMachineLayout {
+        machine: Arc::clone(&source.machine),
+        pre_layout: source.pre_layout.clone(),
+        target: source.target,
+        policy: source.policy,
+        functions: trace.functions,
+    });
     let policy = X86BranchRelaxationPolicy::X86RelaxConditionalBranchesToRel8V1;
     let identity = artifact_identity(
         roots,
@@ -125,20 +113,18 @@ fn finish_artifact(
         &trace.actions,
         layout.functions(),
     );
-    Ok(StagedOptimizedX86BranchRelaxation {
-        record: X86BranchRelaxationRecord {
-            machine: Arc::clone(source.machine()),
-            pre_layout: source.pre_layout(),
-            target: source.target(),
-            policy,
-            budget,
-            usage: trace.usage,
-            output_revision,
-            identity,
-            attempts: trace.attempts,
-            actions: trace.actions,
-            layout,
-        },
+    Ok(X86BranchRelaxationRecord {
+        machine: Arc::clone(source.machine()),
+        pre_layout: source.pre_layout().clone(),
+        target: source.target(),
+        policy,
+        budget,
+        usage: trace.usage,
+        output_revision,
+        identity,
+        attempts: trace.attempts,
+        actions: trace.actions,
+        layout,
     })
 }
 
@@ -1235,7 +1221,6 @@ mod tests {
     impl IdentityFixture {
         fn new() -> Self {
             let roots = RevisionRoots {
-                pre_layout: machine_code::SelectedFormEncodingIdentity::from_bytes([4; 32]),
                 target: NativeTarget::linux_x64(),
             };
             let functions = vec![function(1)];
@@ -1472,7 +1457,6 @@ mod tests {
 
     fn sweep_roots() -> RevisionRoots {
         RevisionRoots {
-            pre_layout: machine_code::SelectedFormEncodingIdentity::from_bytes([14; 32]),
             target: NativeTarget::linux_x64(),
         }
     }
@@ -1511,11 +1495,11 @@ mod tests {
 
     #[test]
     fn retained_relaxation_record_rejects_changed_roots_trace_and_layout() {
-        use crate::relaxation::validate_optimized_x86_branch_relaxation;
+        use encoding_admission::layout::relaxation::validate_optimized_x86_branch_relaxation;
         let roots = sweep_roots();
         let baseline = machine_code::ResolvedMachineLayout {
             machine: post_allocation_machine::test_support::placeholder_plan(),
-            pre_layout: roots.pre_layout,
+            pre_layout: machine_code::test_support::placeholder_encoding(),
             target: roots.target,
             policy: machine_code::SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1,
             functions: vec![function(1)],
@@ -1528,13 +1512,12 @@ mod tests {
             sweep_budget(),
         )
         .unwrap();
-        let issued = super::finish_artifact(&baseline, sweep_budget(), trace).unwrap();
-        let record = issued.record().clone();
+        let record = super::finish_artifact(&baseline, sweep_budget(), trace).unwrap();
         let forms =
             machine_code::EncodedControlIndex::new(&control_rows(baseline.functions(), physical))
                 .unwrap();
         let check_output = |output: &machine_code::ResolvedMachineLayout| {
-            crate::relaxation::validate_layout_transition(
+            encoding_admission::layout::relaxation::validate_layout_transition(
                 &baseline,
                 output,
                 std::slice::from_ref(&forms),

@@ -369,19 +369,19 @@ fn independent_wait_uses_the_selected_export_and_the_callers_private_cell() {
             ],
         ));
         assert_eq!(built, !stuck, "{provider}, {value}: {diagnostic}");
+        let (ran, psi_diagnostic) = project::status(&project::omega(
+            &application,
+            &[
+                "run",
+                "--target",
+                "linux_x86_64",
+                "--psi-work-budget",
+                "10000",
+                "build.omg",
+            ],
+        ));
+        assert_eq!(ran, !stuck, "{provider}, {value}: {psi_diagnostic}");
         if stuck {
-            let (ran, psi_diagnostic) = project::status(&project::omega(
-                &application,
-                &[
-                    "run",
-                    "--target",
-                    "linux_x86_64",
-                    "--psi-work-budget",
-                    "10000",
-                    "build.omg",
-                ],
-            ));
-            assert!(!ran, "{psi_diagnostic}");
             for report in [&diagnostic, &psi_diagnostic] {
                 assert!(
                     report.contains("synchronization deadlock")
@@ -594,4 +594,26 @@ fn a_fused_wait_uses_the_body_selected_by_the_actual_target() {
             }
         }
     }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn a_separately_compiled_publisher_lends_the_same_atomic_cell_to_both_arguments() {
+    let source = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/synchronization/run/independent_atomic_update");
+    let scratch = TemporaryDirectory::create("independent-atomic-publisher", false).unwrap();
+    for package in ["application", "supplier"] {
+        let target = scratch.path().join(package);
+        fs::create_dir(&target).unwrap();
+        for file in ["main.omg", "build.omg"] {
+            fs::copy(source.join(package).join(file), target.join(file)).unwrap();
+        }
+    }
+    let application = scratch.path().join("application");
+    require_native_suppliers(&application, &scratch.path().join("out"), 1);
+    let (ran, diagnostic) = project::status(&project::omega(
+        &application,
+        &["run", "--target", "linux_x86_64", "build.omg"],
+    ));
+    assert!(ran, "{diagnostic}");
 }

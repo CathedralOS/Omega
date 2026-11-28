@@ -55,6 +55,66 @@ pub(super) fn semantic_reference(
     }
 }
 
+/// Why a static machine argument selects no machine of its parameter.
+enum SelectedMachine {
+    Unserved(&'static str),
+    Rejected(&'static str),
+}
+
+/// The machine a static machine argument of a record application selects,
+/// when it has exactly the formals and result `required` declares once the
+/// application's arguments `bindings` stand for the declaration's binders.
+fn selected_sampler(
+    typed: &crate::source_state::TypedTrees,
+    required: &crate::source_state::signature::StateSignature,
+    argument: TypeReferenceHandle,
+    bindings: &[(SymbolHandle, TypeReferenceHandle)],
+) -> Result<SymbolHandle, SelectedMachine> {
+    use SelectedMachine::{Rejected, Unserved};
+    let TypeReferenceNode::Named { symbol, .. } = typed.type_reference_table.type_reference(argument)
+    else {
+        return Err(Unserved("record machine argument that names no machine"));
+    };
+    let machine = (symbol.is_valid() && typed.symbols.get(*symbol).kind == symbols::SymbolKind::Machine)
+        .then(|| typed.machine_by_symbol(*symbol))
+        .flatten()
+        .ok_or(Unserved("record machine argument that names no machine"))?;
+    if !typed.machine_type_parameters(machine).is_empty() {
+        return Err(Unserved("record machine argument that is generic"));
+    }
+    let entry = typed
+        .machine_states(machine)
+        .first()
+        .ok_or(Unserved("record machine argument without its entry"))?;
+    let same = |selected: TypeReferenceHandle, declared: TypeReferenceHandle| {
+        let expected = typed.type_identity_with_simultaneous_substitutions(
+            crate::source_state::type_identity::TypeIdentityRequest {
+                substitutions: bindings,
+                ..crate::source_state::type_identity::TypeIdentityRequest::ordinary(declared)
+            },
+        );
+        selected.is_valid()
+            && declared.is_valid()
+            && typed.normalized_type_identity(selected) == expected
+    };
+    let formals = typed.state_parameters.span(entry.parameters).unwrap_or_default();
+    let declared = typed.state_parameters.span(required.parameters).unwrap_or_default();
+    if formals.len() != declared.len()
+        || formals
+            .iter()
+            .zip(declared.iter())
+            .any(|(formal, declared)| !same(formal.type_reference, declared.type_reference))
+        || !same(entry.return_type, required.return_type)
+    {
+        // generics.md: "The selected argument must satisfy the full
+        // callable contract."
+        return Err(Rejected(
+            "a static machine argument must have its parameter's formals and result",
+        ));
+    }
+    Ok(machine.symbol)
+}
+
 pub(super) fn source_application(
     typed: &crate::source_state::TypedTrees,
     data: &DataDefinition,
@@ -178,7 +238,11 @@ pub(super) fn source_application_in_scope(
         for (parameter, argument) in parameters.iter().zip(arguments) {
             if !parameter.symbol.is_valid()
                 || typed.symbols.get(parameter.symbol).parent != template.symbol
-                || typed.symbols.get(parameter.symbol).kind != symbols::SymbolKind::TypeParameter
+                || typed.symbols.get(parameter.symbol).kind
+                    != match parameter.kind {
+                        TypeParameterKind::Machine { .. } => symbols::SymbolKind::MachineParameter,
+                        _ => symbols::SymbolKind::TypeParameter,
+                    }
                 || !typed
                     .type_reference_table
                     .contains_type_reference(*argument)
@@ -214,10 +278,41 @@ pub(super) fn source_application_in_scope(
                     },
                 )?;
             }
-            match parameter.kind {
+            match &parameter.kind {
                 TypeParameterKind::Type => {}
-                TypeParameterKind::Const { type_reference }
-                | TypeParameterKind::Value { type_reference } => {
+                // A static machine argument selects one declared machine with
+                // exactly the parameter's formals and result at the
+                // application's other arguments. Its symbol is the whole
+                // argument: it names no regions and no further binder.
+                TypeParameterKind::Machine {
+                    contract: crate::source_state::data::MachineParameterContract::Structural(required),
+                } => {
+                    let bindings = parameters
+                        .iter()
+                        .zip(arguments)
+                        .map(|(parameter, argument)| (parameter.symbol, *argument))
+                        .collect::<Vec<_>>();
+                    selected_sampler(typed, required, *argument, &bindings).map_err(
+                        |stop| match stop {
+                            SelectedMachine::Unserved(what) => unavailable(what),
+                            SelectedMachine::Rejected(rule) => crate::reject(
+                                machine,
+                                crate::SourceOrigin::of(
+                                    typed
+                                        .symbols
+                                        .symbol_source_span(parameter.symbol)
+                                        .unwrap_or_default(),
+                                ),
+                                rule,
+                            ),
+                        },
+                    )?;
+                    binders.push(parameter.symbol);
+                    substitutions.push((parameter.symbol, *argument));
+                    continue;
+                }
+                &TypeParameterKind::Const { type_reference }
+                | &TypeParameterKind::Value { type_reference } => {
                     let carrier = match typed.type_reference_table.type_reference(type_reference) {
                         TypeReferenceNode::Named { symbol, .. } => {
                             match typed.symbols.builtin_type_atom(*symbol) {
@@ -473,6 +568,20 @@ fn same_substitutions(
                             let left = left.scope.index_identity(typed, *left_argument);
                             let right = right.scope.index_identity(typed, *right_argument);
                             left.is_some() && left == right
+                        }
+                        // A static machine argument is the machine it names.
+                        TypeParameterKind::Machine { .. } => {
+                            let named = |argument: &TypeReferenceHandle| match typed
+                                .type_reference_table
+                                .type_reference(*argument)
+                            {
+                                TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => {
+                                    Some(*symbol)
+                                }
+                                _ => None,
+                            };
+                            let left = named(left_argument);
+                            left.is_some() && left == named(right_argument)
                         }
                         _ => false,
                     }

@@ -1,24 +1,17 @@
-// CLI MVP build sketch.
-//
-// Hello world needs only two host capabilities:
-//
-// - stdout.write_line: writes initialized UTF-8 bytes to process stdout.
-// - process.exit: terminates the process with a target-specific exit code.
-//
-// Cross-platform providers map those contracts to OS calls:
-//
-// - Linux/macOS: write(1, bytes, len), then exit(code).
-// - Windows: WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), bytes, len), then
-//   ExitProcess(code).
-
 use main.omg as app;
 use {omega}/build/dependency.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
 
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "cli_mvp" };
-    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Bundled {
-        name: "system"
-    }));
+    let system: DependencyDescription = |dependency|::from_source(Source::Bundled { name: "system" });
+    let system_reach: [BoundaryServiceReference; 3] = [
+        Build::service::<|process_authority|::StandardInput>(builder),
+        Build::service::<|process_authority|::StandardOutput>(builder),
+        Build::service::<|process_exit|::ProcessExit>(builder)
+    ];
+    _ = |dependency|::add(builder, system, @system_reach[..]);
     Build::bind(builder, windows_x86_64::ProgramEntry, |app|::entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, |app|::entry_start);

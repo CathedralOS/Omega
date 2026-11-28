@@ -48,7 +48,6 @@ pub(super) fn scoped_readers() -> Vec<Allowance> {
         stages[6],
         stages[7],
         stages[8],
-        stages[10],
         IMAGE_EMISSION,
     ] {
         readers.push((OBJECT_REPLAY, dependency));

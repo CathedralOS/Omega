@@ -17,4 +17,3 @@ semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 target-x86_64 = { path = "../../../targets/target-x86_64" }
 target-aarch64 = { path = "../../../targets/target-aarch64" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
-wire = { path = "../../../../../../foundation/wire" }

@@ -146,6 +146,10 @@ pub(super) fn settle_compiler_builtins<'request>(
                     unclassified.mechanism(),
                 ))]
             })?;
+        mechanisms.push(AdmittedTerminalMechanism {
+            boundary: boundary.id,
+            mechanism: mechanism.into(),
+        });
         if execution == CompilerBuiltinExecution::HostedExitProcessI32
             && let Some(import) = target_operations::CompilerImport::process_exit(request.profile)
         {
@@ -160,9 +164,12 @@ pub(super) fn settle_compiler_builtins<'request>(
                     "Windows process exit requires the exact checked core primitive",
                 )]);
             }
-            let physical =
-                crate::normalized_foreign_terminal_mechanism(import.locator(), import.entry_plan())
-                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            let physical = crate::normalized_foreign_terminal_mechanism(
+                import.locator(),
+                import.entry_plan(),
+                None,
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
             if super::terminal_authority_policy::reviewed_host_operation(physical)
                 .as_ref()
                 .map(|row| row.disposition())
@@ -179,10 +186,6 @@ pub(super) fn settle_compiler_builtins<'request>(
                     requirement.to_owned(),
                     *provider.plan().identity_digest().as_bytes(),
                 )),
-            });
-            mechanisms.push(AdmittedTerminalMechanism {
-                boundary: boundary.id,
-                mechanism: mechanism.into(),
             });
             continue;
         }
@@ -215,10 +218,6 @@ pub(super) fn settle_compiler_builtins<'request>(
                         "semantic-entry continuation left its executable closure",
                     )]);
                 }
-                mechanisms.push(AdmittedTerminalMechanism {
-                    boundary: boundary.id,
-                    mechanism: mechanism.into(),
-                });
                 continue;
             }
             CompilerBuiltinExecution::ProgramImageRetainedSuffixStart => {
@@ -338,10 +337,6 @@ pub(super) fn settle_compiler_builtins<'request>(
             boundary: boundary.id,
             execution: AdmittedBoundaryExecution::CompilerBuiltin(settled),
             realization: BoundarySettlementRealization::Builtin(realization),
-        });
-        mechanisms.push(AdmittedTerminalMechanism {
-            boundary: boundary.id,
-            mechanism: mechanism.into(),
         });
     }
     Ok((admitted, mechanisms))

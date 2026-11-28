@@ -89,9 +89,10 @@ pub(super) fn assign_contract_reference_symbols(
     };
 
     for machine in roots.machines.iter() {
-        let data_definition = data_definitions
-            .iter()
-            .find(|definition| definition.symbol == machine.attached_data_symbol);
+        let data_definition = program
+            .resolution_indexes
+            .data_definition_position(data_definitions, machine.attached_data_symbol)
+            .map(|position| &data_definitions[position as usize]);
         let invocation_scope = super::scopes::declaration_type_scope(
             data_type_parameters.span_or_empty(machine.type_parameters),
             conformance_scopes.parameters(machine.symbol),

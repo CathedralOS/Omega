@@ -14,13 +14,11 @@ pub mod published_application;
 mod provider_rows;
 pub mod target_supply;
 
-pub use provider_rows::{
-    DirectBoundaryInput, DirectBoundaryMechanism, direct_compiler_primitive_leaves,
-};
 pub use native_intrinsics::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     CompilerPrimitiveIntegerComparisonOperation,
 };
+pub use provider_rows::direct_compiler_primitive_leaves;
 pub use semantic_vocabulary::source_selections::CompositionMode;
 
 pub use terminal_semantics::logical_providers::satisfies_plan_name;

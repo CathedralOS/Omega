@@ -2,51 +2,13 @@
 
 use std::borrow::Cow;
 
-use abstract_operations::{AbstractCallTarget, AbstractOperation as O, AbstractOperationPlan};
+use abstract_operations::{AbstractCallTarget, AbstractOperation as O};
 use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
 use terminal_semantics::callable_values::{
     CallableDefinition, CallableInvocationSite, CallableInvocationTarget, CallableValueBody,
     CallableValueProgram, CallableValueResult, project_callable_invocation,
     project_owned_cleanup_invocation, stored_callable_definition,
 };
-
-pub fn optimized_callable_invocations(
-    unit: &PsiOptimizationUnit,
-) -> CallableValueResult<Option<terminal_semantics::callable_values::ReachableCallableInvocations>>
-{
-    if !unit.block_nodes().any(|node| {
-        matches!(
-            node.operation,
-            O::CallStructural {
-                callee: AbstractCallTarget::Callable { .. },
-                ..
-            }
-        )
-    }) {
-        return Ok(None);
-    }
-    let program = optimized_callable_values(unit)?;
-    terminal_semantics::callable_values::reachable_callable_invocations(&program, [unit.entry])
-        .map(Some)
-}
-
-pub fn abstract_callable_values(
-    plan: &AbstractOperationPlan,
-) -> CallableValueResult<CallableValueProgram<'_>> {
-    let functions = plan
-        .functions
-        .iter()
-        .map(optimization_unit::reconstruct_psi_optimization_function_seed)
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|_| "callable provenance cannot reconstruct current Abstract function graphs")?;
-    project(
-        &plan.callables,
-        plan.structural_types.as_slice(),
-        &plan.boundary_machines,
-        &plan.dynamic_dispatch,
-        &functions,
-    )
-}
 
 pub fn optimized_callable_values(
     unit: &PsiOptimizationUnit,

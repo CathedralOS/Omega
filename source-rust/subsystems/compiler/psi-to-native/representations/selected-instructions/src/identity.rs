@@ -1,7 +1,7 @@
 /*
   Dense integer identifiers (`VirtualRegisterId`, `SelectedBlockId`,
-  `SelectedInstructionId`) and SHA-256 content-identity newtypes for
-  pre-allocation rewrite receipts.
+  `SelectedInstructionId`) and the SHA-256 content-identity newtype macro the
+  machine-effect catalog identity uses.
 */
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -35,17 +35,3 @@ macro_rules! sha256_identity {
 }
 
 pub(crate) use sha256_identity;
-
-sha256_identity!(FixedViewCopyIdentity);
-sha256_identity!(PressureRematerializationIdentity);
-sha256_identity!(CopyRemovalIdentity);
-sha256_identity!(CopiedCallOperandIdentity);
-sha256_identity!(RedundantExtensionIdentity);
-sha256_identity!(AddressFoldIdentity);
-sha256_identity!(ConstantBooleanIdentity);
-sha256_identity!(ConstantBranchIdentity);
-sha256_identity!(DeadCompareIdentity);
-sha256_identity!(RedundantCompareIdentity);
-sha256_identity!(EquivalentCompareIdentity);
-sha256_identity!(LiteralFoldIdentity);
-sha256_identity!(StoredLoadForwardingIdentity);

@@ -184,9 +184,7 @@ impl Program<'_> {
             .ok_or_else(|| unserved("quotient operation lost its machine's parameters"))?;
         let representative_id = self.machine(representative)?;
         let parameter_types = self
-            .signatures
-            .get(representative_id)
-            .ok_or_else(|| unserved("quotient representative machine lost its signature"))?
+            .machine_signature(representative_id)?
             .parameters
             .clone();
         // A computed argument is lowered over the machine's formals, each a
@@ -430,7 +428,7 @@ impl Program<'_> {
                 )
             })
             .collect();
-        let record = self.records.push(RecordType {
+        let record_type = RecordType {
             multiplicity: crate::body::source_multiplicity(data.properties.multiplicity),
             cleanup: None,
             identity: identity.clone(),
@@ -438,8 +436,8 @@ impl Program<'_> {
             requires: Vec::new(),
             authored_layout: false,
             erased: Vec::new(),
-        });
-        self.record_sources.push(RecordSource {
+        };
+        let source = RecordSource {
             constant_input_owner: None,
             declaration: symbol,
             cleanup: None,
@@ -448,7 +446,8 @@ impl Program<'_> {
             fields: Vec::new(),
             cases: Vec::new(),
             erased: Vec::new(),
-        });
+        };
+        let record = self.push_record_row(record_type, source);
         if let Err(position) = self.value_records.binary_search(&record) {
             self.value_records.insert(position, record);
         }
@@ -755,7 +754,7 @@ impl Program<'_> {
         self.fields_minted += 1;
         let field_id = StructuralFieldId::new(self.fields_minted)
             .ok_or_else(|| unserved("field identity overflow"))?;
-        let record = self.records.push(RecordType {
+        let record_type = RecordType {
             multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             cleanup: None,
             identity: identity.clone(),
@@ -768,11 +767,11 @@ impl Program<'_> {
             requires: Vec::new(),
             authored_layout: false,
             erased: Vec::new(),
-        });
+        };
         // Use the quotient's own declaration symbol so record/source rosters
         // and reflection identities match while no authored field symbol can
         // ever match it for direct member projection or struct literals.
-        self.record_sources.push(RecordSource {
+        let source = RecordSource {
             constant_input_owner: None,
             declaration: symbol,
             cleanup: None,
@@ -781,7 +780,8 @@ impl Program<'_> {
             fields: vec![symbol],
             cases: Vec::new(),
             erased: Vec::new(),
-        });
+        };
+        let record = self.push_record_row(record_type, source);
         if let Err(position) = self.value_records.binary_search(&record) {
             self.value_records.insert(position, record);
         }
@@ -861,11 +861,7 @@ impl Program<'_> {
                 && sig.operational.suspension != Some(true)
                 && sig.operational.blocking != Some(true)
         };
-        let rep_sig = self
-            .signatures
-            .get(rep_id)
-            .ok_or_else(|| unserved("quotient representative machine lost its signature"))?
-            .clone();
+        let rep_sig = self.machine_signature(rep_id)?.clone();
         if !is_pure_terminating(&rep_sig)
             || !rep_sig.erased.is_empty()
             || !rep_sig.borrowed.is_empty()
@@ -874,21 +870,14 @@ impl Program<'_> {
                 "quotient representative operation must be pure, terminating, and value-taking",
             ));
         }
-        let cong_sig = self
-            .signatures
-            .get(cong_id)
-            .ok_or_else(|| unserved("quotient congruence theorem lost its signature"))?
-            .clone();
+        let cong_sig = self.machine_signature(cong_id)?.clone();
         if cong_sig.result.is_some() || !is_pure_terminating(&cong_sig) {
             return Err(unserved(
                 "quotient congruence theorem must be resultless, pure, and terminating",
             ));
         }
         if let Some((_, transport_id)) = transport {
-            let transport_sig = self
-                .signatures
-                .get(transport_id)
-                .ok_or_else(|| unserved("quotient transport theorem lost its signature"))?;
+            let transport_sig = self.machine_signature(transport_id)?;
             if transport_sig.result.is_some() || !is_pure_terminating(transport_sig) {
                 return Err(unserved(
                     "quotient transport theorem must be resultless, pure, and terminating",

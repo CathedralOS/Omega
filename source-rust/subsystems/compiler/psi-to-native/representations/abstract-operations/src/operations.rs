@@ -18,8 +18,7 @@ certificates.
 use crate::{
     AbstractAtomicEvent, AbstractBoundaryResult, AbstractCallTarget, AbstractResult,
     AbstractStructuralBinding, AbstractStructuralCallResult, AbstractStructuralCaseSuccessor,
-    AbstractSuccessor, AtomicResidencyEdge, CompletionClaimSource, IntegerArithmetic,
-    IntegerArithmeticOperator, ValueBinding,
+    AbstractSuccessor, AtomicResidencyEdge, CompletionClaimSource, IntegerArithmetic, ValueBinding,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType,
@@ -66,8 +65,32 @@ pub struct ModuleInvocation<'a> {
     pub crash_continuations: &'a [CrashRouteBucket],
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AbstractOperation {    EstablishActivationClaim {
+// Operation identities distinguish the variant and visit its operands in declaration
+// order. Generate the traversal beside the enum so a new operand always participates.
+macro_rules! define_abstract_operations {
+    ($($(#[$variant_attr:meta])* $variant:ident { $($(#[$field_attr:meta])* $field:ident: $ty:ty),* $(,)? }),+ $(,)?) => {
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub enum AbstractOperation {
+            $($(#[$variant_attr])* $variant { $($(#[$field_attr])* $field: $ty),* }),+
+        }
+
+        /// Pass the variant tag and every borrowed field to the caller's macro.
+        #[macro_export]
+        macro_rules! visit_abstract_operation_fields {
+            ($operation:expr, $visit:ident) => {{
+                #[repr(u8)]
+                enum OperationTag { $($variant),+ }
+                match $operation {
+                    $($crate::AbstractOperation::$variant { $($field),* } =>
+                        $visit!(OperationTag::$variant as u8 $(, $field)*)),+
+                }
+            }};
+        }
+    };
+}
+
+define_abstract_operations! {
+    EstablishActivationClaim {
         psi_operation: OperationId,
         result: OperationResult,
         bound: u64,
@@ -1043,10 +1066,6 @@ impl AbstractOperation {
         )
     }
 
-    pub fn successor_target(&self, edge: EdgeId) -> Option<BlockId> {
-        self.owned_transfer(edge).map(|(target, _)| target)
-    }
-
     pub fn owned_transfer(&self, edge: EdgeId) -> Option<(BlockId, &[AbstractStructuralBinding])> {
         match self {
             Self::Jump {
@@ -1324,14 +1343,6 @@ impl AbstractOperation {
         })
     }
 
-    pub fn integer_arithmetic_operands(
-        &self,
-        operator: IntegerArithmeticOperator,
-    ) -> Option<IntegerArithmeticOperands> {
-        let operands = self.integer_arithmetic()?;
-        (operands.arithmetic.operator() == operator).then_some(operands)
-    }
-
     pub fn integer_shift(&self) -> Option<IntegerShiftOperands> {
         let Self::IntegerShift {
             psi_operation,
@@ -1356,21 +1367,6 @@ impl AbstractOperation {
             value: *value,
             count: *count,
         })
-    }
-
-    pub fn operates_on_byte_sequence_storage(&self) -> bool {
-        matches!(
-            self,
-            Self::ByteSequenceRead { .. }
-                | Self::ByteSequencePredicate { .. }
-                | Self::ByteSequenceEqual { .. }
-                | Self::StructuralByteSequenceFieldRead { .. }
-                | Self::ByteSequenceWrite { .. }
-                | Self::ByteSequenceSubslice { .. }
-                | Self::ByteSequenceStore { .. }
-                | Self::StructuralByteSequenceFieldStore { .. }
-                | Self::StructuralByteSequenceFieldByteStore { .. }
-        )
     }
 }
 

@@ -92,6 +92,11 @@ impl LinuxFilesystemWrite {
         })
     }
 
+    /// Whether every call through this namespace stays within what it grants.
+    pub(in super::super) fn confined(&self) -> bool {
+        self.context.confined()
+    }
+
     pub(in super::super) fn write(
         &self,
         descriptor: i32,
@@ -400,7 +405,10 @@ impl LinuxFilesystemImport {
     }
 }
 
-import_signature_via_clone!(LinuxFilesystemImport);
+// Directory mappings resolve every path beneath a retained handle without
+// following symbolic links and admit only an allowlist of operations; standard
+// streams and the private namespace reach no host path.
+import_signature_via_clone!(LinuxFilesystemImport, contained: |adapter| adapter.context.confined());
 
 /// One operand's interpreter-side storage while the kernel call runs.
 enum Staged<'layout> {

@@ -222,9 +222,7 @@ impl Program<'_> {
         if let Some(language_core::sealed_intrinsics::SealedIntrinsic::HostedPrimitive(operation)) =
             typed.symbols.sealed_intrinsic(target)
         {
-            let machine = typed.machine_by_symbol(target).ok_or_else(|| {
-                crate::read::unavailable(context, "hosted primitive lost its machine")
-            })?;
+            let machine = self.required_machine(context, target, "hosted primitive")?;
             let (_, declared) = typed
                 .bodyless_declaration(target)
                 .map_err(|reason| crate::read::unavailable(context, reason))?

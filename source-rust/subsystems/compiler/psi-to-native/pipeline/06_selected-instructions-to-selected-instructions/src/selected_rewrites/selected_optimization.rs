@@ -114,7 +114,9 @@ pub(crate) mod optimization_output {
                         self.structural
                             .as_ref()
                             .map(|structural| SelectedOptimizationRecord {
-                                selected_lowering_completion: Some(structural.completion()),
+                                selected_lowering_output: Some(std::sync::Arc::clone(
+                                    structural.output(),
+                                )),
                                 ..SelectedOptimizationRecord::default()
                             });
                     if named.as_ref() != Some(record) {
@@ -123,14 +125,9 @@ pub(crate) mod optimization_output {
                 }
                 Some(CompletedRun::SelectedLowering(run)) => {
                     self.validate_structural_source(run.source_legality_stage())?;
-                    if record.selected_lowering_completion != Some(run.custody().identity())
-                        || record.pre_allocation_completion
-                            != run
-                                .source_legality_stage()
-                                .record()
-                                .pre_allocation_completion
-                        || *record != run.record()
-                    {
+                    // `run.record()` names the program this run ended with and
+                    // carries its source's other phase output unchanged.
+                    if *record != run.record() {
                         return Err(SelectedOptimizationReplayError::OtherProgram);
                     }
                     validate_selected_lowering_optimization_custody(run)
@@ -138,14 +135,7 @@ pub(crate) mod optimization_output {
                 }
                 Some(CompletedRun::PreAllocation(run)) => {
                     self.validate_structural_source(run.source_legality_stage())?;
-                    if record.pre_allocation_completion != Some(run.custody().identity())
-                        || record.selected_lowering_completion
-                            != run
-                                .source_legality_stage()
-                                .record()
-                                .selected_lowering_completion
-                        || *record != run.record()
-                    {
+                    if *record != run.record() {
                         return Err(SelectedOptimizationReplayError::OtherProgram);
                     }
                     validate_pre_allocation_optimization_custody(run)
@@ -163,7 +153,7 @@ pub(crate) mod optimization_output {
             &self,
             source: &StagedOptimizedAllocationLegality,
         ) -> Result<(), SelectedOptimizationReplayError> {
-            let named = source.record().selected_lowering_completion;
+            let named = source.record().selected_lowering_output.as_ref();
             match &self.structural {
                 None if named.is_none()
                     && selected_structural_rewrites(source.selections()).is_empty() =>
@@ -175,7 +165,7 @@ pub(crate) mod optimization_output {
                 )),
                 Some(structural) => {
                     let start = source.selected().shared_selected_plan();
-                    if named != Some(structural.completion())
+                    if named != Some(structural.output())
                         || structural.selections() != source.selections()
                         || !std::sync::Arc::ptr_eq(structural.output(), &start)
                             && **structural.output() != *start
@@ -274,7 +264,7 @@ pub fn optimize_selected_instructions(
         Some(run) => (
             run.output_program(&program),
             SelectedOptimizationRecord {
-                selected_lowering_completion: Some(run.completion()),
+                selected_lowering_output: Some(std::sync::Arc::clone(run.output())),
                 ..SelectedOptimizationRecord::default()
             },
         ),

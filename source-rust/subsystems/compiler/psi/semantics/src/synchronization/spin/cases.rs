@@ -156,7 +156,7 @@ impl Trace {
             self.observe(
                 operation.id,
                 self.subject(module, machine, *place, path)?,
-                super::RepeatedUpdate::Stable(CellUpdate::CompareExchange {
+                super::AtomicWordUpdate::Stable(CellUpdate::CompareExchange {
                     expected,
                     replacement,
                 }),

@@ -6,6 +6,7 @@ continuation routing, and call-graph reachability.
 pub(crate) mod call_composition;
 pub mod closed_conformances;
 pub mod closed_reach;
+pub mod operational_dependencies;
 pub mod evidence_calls;
 pub(crate) mod invocation_inputs;
 pub mod layout_target;

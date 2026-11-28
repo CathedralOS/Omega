@@ -10,92 +10,31 @@ use optimization_core::OptimizationExecutionPhase;
 #[cfg(test)]
 use target::Architecture;
 
-use crate::{StagedOptimizedX86BranchRelaxation, relaxation, x86_branch_relaxation};
+use crate::x86_branch_relaxation;
+use encoding_admission::layout::relaxation;
+use machine_code::layout::X86BranchRelaxationRecord;
 
 /// The final layout and the trace issued by the pass that produced it.
 #[derive(Debug)]
 pub struct ResolvedFunctionLayout<Contracts> {
     contracts: machine_code::layout::EncodedBodyContracts<Contracts>,
-    layout: SettledFunctionLayout,
+    layout: machine_code::OptimizedMachineLayout,
 }
 
 impl<Contracts> ResolvedFunctionLayout<Contracts> {
     /// Independent replay compares this stage's output with the captured encoding.
     pub fn layout_for_audit(&self) -> &machine_code::OptimizedMachineLayout {
-        self.layout.current()
+        &self.layout
     }
 
     pub fn into_placement(
         self,
     ) -> Option<(
-        SettledFunctionLayout,
+        machine_code::OptimizedMachineLayout,
         machine_code::layout::FramePlacementContracts<Contracts>,
     )> {
-        let contracts = self
-            .contracts
-            .into_placement(&self.layout.current.program)?;
+        let contracts = self.contracts.into_placement(&self.layout.program)?;
         Some((self.layout, contracts))
-    }
-}
-
-/// Settled instruction offsets, frame geometry and relaxation evidence.
-#[derive(Debug)]
-pub struct SettledFunctionLayout {
-    current: machine_code::OptimizedMachineLayout,
-    relaxation: Option<StagedOptimizedX86BranchRelaxation>,
-}
-
-/// The final function offsets and the encoder's exit obligations. This view
-/// contains all inputs to the ABI exit check, including the selected frame.
-///
-/// ```compile_fail,E0609
-/// fn archived_program(input: selected_form_encoding_to_resolved_layout::FunctionExitLayout<'_>) {
-///     let _ = input.encoding.rows();
-/// }
-/// ```
-#[non_exhaustive]
-pub struct FunctionExitLayout<'a> {
-    pub exit_requirements: &'a machine_code::exit_requirements::EncodedExitRequirements,
-    pub fragment_origins: &'a machine_code::fragment_origins::FragmentOrigins,
-    pub frame_demands: &'a machine_code::frame_demands::MachineFrameDemands,
-    pub physical: &'a register_model::ValidatedPhysicalRegisterModel,
-    pub layout: &'a std::sync::Arc<machine_code::ResolvedMachineLayout>,
-    pub frame: &'a std::sync::Arc<machine_code::TargetFrameLayoutPlan>,
-    pub protocol: &'a machine_code::TargetFrameProtocolEncodingPlan,
-    pub protocol_identity: machine_code::TargetFrameProtocolEncodingIdentity,
-    pub custody: machine_code::WholeFunctionExitLayoutCustody,
-}
-
-impl SettledFunctionLayout {
-    pub fn current(&self) -> &machine_code::OptimizedMachineLayout {
-        &self.current
-    }
-
-    pub fn function_exits(&self) -> FunctionExitLayout<'_> {
-        let program = &self.current.program;
-        let custody = match self.current.relaxation {
-            Some(relaxation) => {
-                machine_code::WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
-                    relaxation,
-                }
-            }
-            None => machine_code::WholeFunctionExitLayoutCustody::BaselineNearLayoutV1,
-        };
-        FunctionExitLayout {
-            exit_requirements: &program.exit_requirements,
-            fragment_origins: &program.fragment_origins,
-            frame_demands: &program.frame_demands,
-            physical: program.context.physical(),
-            layout: &program.layout,
-            frame: &program.frame,
-            protocol: &program.protocol,
-            protocol_identity: program.protocol_identity,
-            custody,
-        }
-    }
-
-    pub fn trace(&self) -> Option<&machine_code::layout::X86BranchRelaxationRecord> {
-        self.relaxation.as_ref().map(|issued| issued.record())
     }
 }
 
@@ -128,7 +67,7 @@ pub(super) fn settle<Contracts>(
     if let Some(issued) = relaxation.as_ref().filter(|_| contracts.audit_requested()) {
         relaxation::validate_layout_transition(
             &program.layout,
-            issued.record().layout(),
+            issued.layout(),
             &program.control_alternatives,
         )
         .map_err(ResolvedLayoutOptimizationError::Relaxation)?;
@@ -136,18 +75,16 @@ pub(super) fn settle<Contracts>(
     if let Some(issued) = &relaxation {
         program.layout = issued.shared_layout();
     }
-    let layout = SettledFunctionLayout {
-        current: machine_code::OptimizedMachineLayout {
-            baseline,
-            program,
-            selections,
-            budget,
-            relaxation: relaxation.as_ref().map(|issued| issued.record().identity()),
-        },
-        relaxation,
+    let layout = machine_code::OptimizedMachineLayout {
+        baseline,
+        program,
+        selections,
+        budget,
+        relaxation: relaxation.as_ref().map(X86BranchRelaxationRecord::identity),
+        trace: relaxation.map(std::sync::Arc::new),
     };
     if contracts.audit_requested() {
-        relaxation::validate_current_layout_optimization(layout.current(), layout.trace())?;
+        relaxation::validate_current_layout_optimization(&layout)?;
     }
     Ok(ResolvedFunctionLayout { contracts, layout })
 }

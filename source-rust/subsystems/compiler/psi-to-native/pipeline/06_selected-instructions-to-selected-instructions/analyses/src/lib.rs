@@ -252,13 +252,11 @@ macro_rules! shared_plan_carrier {
 #[macro_export]
 macro_rules! seal_plan {
     (
-        $seal:ident($plan:ty) -> $carrier:ident : $receipt:ident
-            = $identity:path, $error:ty
+        $seal:ident($plan:ty) -> $carrier:ident : $receipt:ident, $error:ty
         { $($field:ident),* $(,)? }
     ) => {
         pub(crate) fn $seal(candidate: $plan) -> Result<$carrier, $error> {
             let receipt = $receipt {
-                identity: $identity(&candidate),
                 $($field: candidate.$field,)*
             };
             Ok($carrier {
@@ -371,36 +369,6 @@ macro_rules! rewrite_receipt {
         }
 
         receipt_selected_identities!($receipt);
-    };
-}
-
-#[macro_export]
-macro_rules! rewrite_receipt_identity {
-    (
-        $function:ident, $identity:ident, $receipt:ident,
-        $separator:literal, $phrase:literal, $($coordinate:ident),+ $(,)?
-    ) => {
-        pub(crate) fn $function(receipt: &$receipt) -> $identity {
-            $identity::from_canonical_bytes(&$crate::rewriting::rewrite_bytes(
-                $separator,
-                &receipt.optimization_unit.bytes(),
-                |bytes| {
-                    $crate::codec_bytes::push_encoded(bytes, receipt.work_schedule.marker().to_le_bytes());
-                    bytes.extend_from_slice(
-                        &u64::try_from(receipt.function_index)
-                            .expect(concat!($phrase, " function index fits u64"))
-                            .to_le_bytes(),
-                    );
-                    $($crate::codec_bytes::push_encoded(bytes, receipt.$coordinate.0.to_le_bytes());)+
-                },
-            ))
-        }
-
-        impl $receipt {
-            pub fn identity(&self) -> $identity {
-                $function(self)
-            }
-        }
     };
 }
 
@@ -528,27 +496,29 @@ pub mod codec_bytes {
 }
 mod selected_optimization_record {
 
-    use optimization_core::{
-        PreAllocationOptimizationCompletionIdentity, SelectedLoweringOptimizationCompletionIdentity,
-    };
+    use std::sync::Arc;
+
     use register_homes::PostAllocationSelectedTransformation;
+    use selected_instructions::SelectedInstructionPlan;
 
     /// What earlier selected-instruction rewrites did to the program a stage
-    /// receives: the completed Omega 04 phase, if any, and the transformations
-    /// it applied in order. Allocation copies it into its manifest as
-    /// evidence; it never chooses how a later stage runs. Instruction
-    /// selection's output carries the empty record.
+    /// receives: the program each completed Omega 04 phase ended with, and the
+    /// transformations they applied in order. Allocation copies it into its
+    /// manifest as evidence; it never chooses how a later stage runs.
+    /// Instruction selection's output carries the empty record. A validator
+    /// that kept a phase's run compares that run's output with the program
+    /// named here.
     #[derive(Debug, Clone, Default, PartialEq, Eq)]
     pub struct SelectedOptimizationRecord {
-        pub selected_lowering_completion: Option<SelectedLoweringOptimizationCompletionIdentity>,
-        pub pre_allocation_completion: Option<PreAllocationOptimizationCompletionIdentity>,
+        pub selected_lowering_output: Option<Arc<SelectedInstructionPlan>>,
+        pub pre_allocation_output: Option<Arc<SelectedInstructionPlan>>,
         pub transformations: Vec<PostAllocationSelectedTransformation>,
     }
 
     impl SelectedOptimizationRecord {
         /// Whether an Omega 04 rewrite phase produced the program.
         pub const fn is_rewritten(&self) -> bool {
-            self.selected_lowering_completion.is_some() || self.pre_allocation_completion.is_some()
+            self.selected_lowering_output.is_some() || self.pre_allocation_output.is_some()
         }
 
         /// This record followed by transformations a later stage applied.

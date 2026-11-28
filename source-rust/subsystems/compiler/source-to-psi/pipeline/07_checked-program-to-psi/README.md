@@ -40,6 +40,10 @@ independent of these private implementation groups:
 | [Source](src/source/mod.rs) | Retain source selections, publish one shared source artifact, issue entry metadata, and record the source's numeric review requirements. |
 | [Provider supply](src/provider_supply/mod.rs) | Close and publish the checked demand for a deployment target using the existing [provider choice inputs](src/provider_choice_inputs.rs). |
 
+Selection checking and publication use the same source occurrences from the accepted judgment.
+The factory groups folded calls by emitted machine while preserving their order within each machine.
+It also orders machine selections by operation so publication can look up the exact source expression.
+
 For native compilation, stage 07 publishes the checked provider demand and completed Build bindings for the exact Psi manifest and deployment target. Native stage 00 verifies both before consuming the record. [Published target providers](../../representations/published-target-providers/publication.rs)
 
 Source publication binds no application roots and issues no entry receipt.

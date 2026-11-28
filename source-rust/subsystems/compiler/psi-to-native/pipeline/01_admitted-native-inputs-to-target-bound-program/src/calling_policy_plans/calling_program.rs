@@ -47,7 +47,7 @@ impl CallingProgram {
         &self,
     ) -> Result<terminal_interpreter::TerminalProgram<'_>, psi_authorization::ArtifactTrustError>
     {
-        terminal_interpreter::TerminalProgram::borrow(self.artifact.view())
+        terminal_interpreter::TerminalProgram::borrow_admitted(self.artifact.view())
     }
 
     pub fn evaluate(

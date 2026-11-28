@@ -27,18 +27,19 @@ machine main() {}
 "#;
 
 fn build(product: &str, configuration: &str) -> (bool, String) {
-    let package = project::stage(
-        "group-settings",
-        &[
+    // An unregistered directory under the root is ordinary product source,
+    // so the `kit` package is staged only for a Build that registers it.
+    let mut files = vec![("main.omg", product), ("build.omg", configuration)];
+    if configuration.contains(r#"location: "kit""#) {
+        files.extend([
             (
                 "kit/build.omg",
                 r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "kit" }; }"#,
             ),
             ("kit/main.omg", "public machine version() -> u32 { 1u32 }"),
-            ("main.omg", product),
-            ("build.omg", configuration),
-        ],
-    );
+        ]);
+    }
+    let package = project::stage("group-settings", &files);
     let result = project::omega(
         package.path(),
         &["build", "--target", "linux_x86_64", "build.omg"],

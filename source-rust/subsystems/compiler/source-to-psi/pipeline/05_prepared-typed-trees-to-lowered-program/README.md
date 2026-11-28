@@ -409,7 +409,13 @@ own `ensures` beyond its requirement's is kept before its caller-facing
 contract becomes the requirement's (`realized_ensures`), and lowering hands
 it to the other members of the same implementation as
 `MachineTables::realized_guarantees`, so a law's body can use what its
-comparison ensures of itself. What an
+comparison ensures of itself. In the copy of a machine generic over
+`E satisfies EqualImpliesIdentity<T>`, a clause's `E::equals` keeps the row
+specialization selected (`StaticRequirementDispatch`) and is read as that
+implementation's row (`dispatched_row`); `Identity::<T>` there is the type
+the copy's specialization binds `T` to; and a law cited as
+`E::identity_of_equal` has the requirement's header at the implementation's
+own arguments. What an
 operation ensures does not stop a clause naming it; a precondition does.
 `tools/ratchets/clause_term_readers.txt` counts the functions in `read/` that
 return a clause term, so the number can only fall.
@@ -1376,6 +1382,17 @@ retains its target observation.
   identity. An erased scalar formal is a value after the result pseudo-value
   and travels in neither lane.
 - **Callees** are `MachineId`s reached from a `SymbolKind::Machine` symbol.
+  `read/machine.rs` `reserve_row` gives each one a row in every machine table
+  at once, and only the row's owner answers for it: `machine_symbol`,
+  `machine_signature` and `machine_names` refuse an identity that holds no
+  row, such as a diagnostic identity from `next_identity` or a row
+  `abandon_row` removed. Readers call those accessors rather than refusing a
+  missing row with a message of their own. When a selection requires a typed
+  machine declaration, `required_machine` looks up its exact symbol.
+  In `read/places.rs`, `push_record_row` gives each storage type and its
+  source the same record ID. The reader retrieves them with `record_type`
+  and `record_source`. The signature reader retrieves bodies through
+  `read/signature.rs` `Converter::body`.
 - No table here is keyed by text; text appears only in `Refusal::detail`.
 
 ## Evaluation order and control

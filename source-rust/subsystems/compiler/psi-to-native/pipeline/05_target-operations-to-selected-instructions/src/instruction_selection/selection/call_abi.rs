@@ -130,8 +130,11 @@ pub(crate) mod borrowed_argument {
         let storage_loan = storage_root
             .filter(|root| {
                 owned_storage_shape(*root, source.geometry()).is_some()
-                    || terminal_psi::find_structural_type(source.geometry(), *root).is_some_and(
-                        |declaration| {
+                    || source
+                        .geometry()
+                        .declaration(*root)
+                        .ok()
+                        .is_some_and(|declaration| {
                             matches!(
                                 declaration.shape,
                                 terminal_psi::StructuralTypeShape::Reference { .. }
@@ -382,7 +385,7 @@ pub(crate) mod borrowed_argument {
             && established_view_loan.is_none()
             && projected_loan.is_none();
         if source.attachment.is_some_and(|attachment| {
-            !terminal_psi::find_structural_type(source.geometry(), attachment).is_some()
+            source.geometry().declaration(attachment).is_err()
         }) || (!parameters.is_empty()
             && !crate::instruction_selection::structural_inputs::structural_unit_input::accepts_graph(
                 &source.call_plan,
@@ -550,8 +553,7 @@ pub(crate) mod borrowed_argument {
                 && *placement == incoming.target.placement)
                 .then_some(shape);
         }
-        let declaration =
-            terminal_psi::find_structural_type(source.geometry(), root.structural_type)?;
+        let declaration = source.geometry().declaration(root.structural_type).ok()?;
         if calling_conventions::terminal_layout::opaque_borrow_transport(
             &declaration.shape,
             semantic.access,
@@ -710,7 +712,7 @@ pub(crate) mod input_site {
             return None;
         };
         let (block, position) = use_cut(source, site)?;
-        let block = source.blocks.iter().find(|actual| actual.id == block)?;
+        let block = source.block(block)?;
         if position != block.instructions.len() {
             return None;
         }
@@ -756,10 +758,7 @@ pub(crate) mod input_site {
             return None;
         };
         let (block, position) = use_cut(source, site)?;
-        let block = source
-            .blocks
-            .iter()
-            .find(|candidate| candidate.id == block)?;
+        let block = source.block(block)?;
         if position != block.instructions.len() {
             return None;
         }

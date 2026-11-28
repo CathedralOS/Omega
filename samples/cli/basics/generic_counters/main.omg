@@ -13,9 +13,8 @@ data Counter<T> {
     value: T;
     times: i32 in Wrapping;
 }
-machine record_counter<T>(counter: @mutable Counter<T>, value: T) {
-    counter.value = value;
-    counter.times = counter.times + 1;
+machine record_counter<T>(counter: @Counter<T>, value: T) -> Counter<T> {
+    Counter { value: value, times: counter.times + 1 }
 }
 machine current_counter<T [copy]>(counter: @Counter<T>) -> T {
     transition { _ -> (counter.value) }
@@ -24,11 +23,11 @@ machine counter_count<T>(counter: @Counter<T>) -> i32 in Wrapping {
     transition { _ -> (counter.times) }
 }
 machine entry_start() reaches |process_exit|::ProcessExit {
-    let mutable score: Counter<i32>;
-    let mutable flag: Counter<bool>;
-    record_counter(@mutable score, 30);
-    record_counter(@mutable score, 12);
-    record_counter(@mutable flag, true);
+    let mutable score: Counter<i32> = Counter { value: 0, times: 0 as +Wrapping };
+    let mutable flag: Counter<bool> = Counter { value: false, times: 0 as +Wrapping };
+    score = record_counter(@score, 30);
+    score = record_counter(@score, 12);
+    flag = record_counter(@flag, true);
     let total: i32 = current_counter(@score);
     let times_score: i32 in Wrapping = counter_count(@score);
     let times_flag: i32 in Wrapping = counter_count(@flag);

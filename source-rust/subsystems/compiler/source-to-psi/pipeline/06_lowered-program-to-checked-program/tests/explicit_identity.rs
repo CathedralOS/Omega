@@ -557,3 +557,166 @@ machine same(a: Coin, b: Coin) -> bool {{ a == b }}
         other => panic!("expected the operator to find two comparisons, got {other:?}"),
     }
 }
+
+/// `same`, generic over its comparison evidence, cites the law through its
+/// implementation parameter. Its copy for `CoinByBoth` reads `E::equals` and
+/// `E::identity_of_equal` as that implementation's rows.
+const THROUGH_E: &str = "machine same<T, E satisfies EqualImpliesIdentity<T>>(a: T, b: T)
+requires E::equals(@a, @b)
+ensures |proof|::Identity::<T>(a, b) {
+    E::identity_of_equal(a, b);
+}
+";
+
+#[test]
+fn a_law_cited_through_an_implementation_parameter_proves_identity() {
+    let caller = "machine use_it(a: Coin, b: Coin)
+requires CoinByBoth::equals(@a, @b)
+ensures |proof|::Identity::<Coin>(a, b) {
+    same::<Coin, CoinByBoth>(a, b);
+}
+";
+    assert_eq!(
+        unproved(&format!("{BOTH}{THROUGH_E}{caller}")),
+        unproved(BOTH)
+    );
+}
+
+#[test]
+fn a_law_cited_through_an_implementation_parameter_owes_its_comparison() {
+    premise_owed(&format!(
+        "{THROUGH_E}machine use_it(a: Coin, b: Coin)
+ensures |proof|::Identity::<Coin>(a, b) {{
+    same::<Coin, CoinByBoth>(a, b);
+}}
+"
+    ));
+}
+
+/// The premise is the selected implementation's own comparison: another
+/// implementation's comparison of the same values does not discharge it.
+#[test]
+fn a_law_cited_through_an_implementation_parameter_owes_that_implementation_s_comparison() {
+    premise_owed(&format!(
+        "{THROUGH_E}CoinByValue satisfies Equatable<Coin> {{
+    machine equals(left: @Coin, right: @Coin) -> bool reaches none crashes none terminates {{
+        left.value == right.value
+    }}
+}}
+machine use_it(a: Coin, b: Coin)
+requires CoinByValue::equals(@a, @b)
+ensures |proof|::Identity::<Coin>(a, b) {{
+    same::<Coin, CoinByBoth>(a, b);
+}}
+"
+    ));
+}
+
+/// An implementation parameter bounded at `T` is given an implementation of
+/// that trait at the type supplied for `T`, and no other.
+#[test]
+fn an_implementation_parameter_takes_its_trait_at_the_supplied_type() {
+    let caller = "data Other { value: i32; }
+machine use_it(a: Other, b: Other) {
+    same::<Other, CoinByBoth>(a, b);
+}
+";
+    let verdict = checked(&format!("{BOTH}{THROUGH_E}{caller}"));
+    match verdict {
+        Err(refusal) => assert!(
+            refusal.message.contains("match its binder's exact trait"),
+            "{refusal:?}"
+        ),
+        other => panic!("expected the call to be refused, got {other:?}"),
+    }
+}
+
+/// `data` and a comparison over its fields that ensures `result ==
+/// (compared)`, with the law of `kind`. The law's body calls the comparison,
+/// so the comparison's own guarantee is known of that call.
+fn field_law(data: &str, compared: &str, kind: &str) -> String {
+    let law = if kind == "IdentityImpliesEqual" {
+        "machine equal_of_identity(left: Coin, right: Coin)
+    requires |proof|::Identity::<Coin>(left, right)
+    ensures equals(@left, @right) {
+        let same: bool = equals(@left, @right);
+    }"
+    } else {
+        "machine identity_of_equal(left: Coin, right: Coin)
+    requires equals(@left, @right)
+    ensures |proof|::Identity::<Coin>(left, right) {
+        let same: bool = equals(@left, @right);
+    }"
+    };
+    format!(
+        "use {{omega}}/language/core/foundation.omg as proof;
+data Coin {{ {data} }}
+CoinByValue satisfies {kind}<Coin> {{
+    machine equals(left: @Coin, right: @Coin) -> bool reaches none crashes none terminates
+    ensures result == ({compared}) {{
+        {compared}
+    }}
+    {law}
+}}
+"
+    )
+}
+
+/// contracts.md, "Equality bridges and comparison facts": "a proof that
+/// builtin `x == y` is true establishes `|proof|::Identity::<T>(x, y)`."
+#[test]
+fn a_true_field_comparison_proves_the_record_s_identity() {
+    accepted(&field_law(
+        "value: i32;",
+        "left.value == right.value",
+        "EqualImpliesIdentity",
+    ));
+    accepted(&field_law(
+        "value: u8;",
+        "left.value == right.value",
+        "EqualImpliesIdentity",
+    ));
+}
+
+/// "Conversely, that identity establishes that the same comparison is true."
+#[test]
+fn the_record_s_identity_proves_its_field_comparison_true() {
+    accepted(&field_law(
+        "value: i32;",
+        "left.value == right.value",
+        "IdentityImpliesEqual",
+    ));
+}
+
+#[test]
+fn a_comparison_of_some_fields_proves_no_identity() {
+    let owed = unproved(&field_law(
+        "value: i32; year: i32;",
+        "left.value == right.value",
+        "EqualImpliesIdentity",
+    ));
+    assert!(!owed.is_empty(), "{owed:?}");
+}
+
+#[test]
+fn another_integer_relation_proves_no_identity() {
+    for compared in [
+        "left.value != right.value",
+        "left.value <= right.value",
+        "left.value == left.value",
+    ] {
+        let owed = unproved(&field_law("value: i32;", compared, "EqualImpliesIdentity"));
+        assert!(!owed.is_empty(), "{compared}: {owed:?}");
+    }
+}
+
+/// IEEE `==` is not raw identity: `0.0 == -0.0` and `NaN != NaN`.
+#[test]
+fn an_ieee_field_comparison_proves_no_identity() {
+    let verdict = checked(&field_law(
+        "value: f64;",
+        "left.value == right.value",
+        "EqualImpliesIdentity",
+    ));
+    assert!(!matches!(verdict, Ok(Verdict::Accepted)), "{verdict:?}");
+}

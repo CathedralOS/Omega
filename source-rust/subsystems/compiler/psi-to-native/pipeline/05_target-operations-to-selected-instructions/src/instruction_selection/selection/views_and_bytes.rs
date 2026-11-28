@@ -2004,9 +2004,8 @@ pub(crate) mod element_establishment {
                 let stride = constant(builder, row, 8, u64::from(geometry.stride))?;
                 let length = transport_register(builder, *destination, 8)?;
                 let mut operands = vec![bytes, stride, length];
-                if builder.environment.target().architecture == target::Architecture::X86_64 {
-                    operands.push(crate::instruction_selection::selection::construction::scalar_graph::integer_arithmetic::division_scratch(builder)?);
-                }
+                crate::instruction_selection::selection_scalar_graph::integer_arithmetic::BinaryScratch::ZeroHighHalf
+                    .on_x86(builder).append(builder, &mut operands)?;
                 builder.emit(
                     SelectedInstructionKind::ExactDivideU64 {
                         obligation: *obligation,

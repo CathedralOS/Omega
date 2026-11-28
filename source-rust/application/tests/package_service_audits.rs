@@ -79,11 +79,11 @@ fn fresh_audit_reports_each_build_and_a_version_four_lock_refuses_the_chain() {
     for (file, source) in [
         (
             "build.omg",
-            r#"machine build(b: @mutable BuildPlan) { Build::build_entry(b, "prepare.omg"); }"#,
+            r#"machine build(b: @mutable BuildPlan) { b.product = BuildProduct::InterpretedBuild { entry: "prepare.omg" }; }"#,
         ),
         (
             "prepare.omg",
-            r#"machine build(b: @mutable BuildPlan) { Build::build_entry(b, "configure.omg"); }"#,
+            r#"machine build(b: @mutable BuildPlan) { b.product = BuildProduct::InterpretedBuild { entry: "configure.omg" }; }"#,
         ),
         (
             "configure.omg",

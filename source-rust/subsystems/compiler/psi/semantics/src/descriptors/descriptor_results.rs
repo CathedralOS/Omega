@@ -52,6 +52,7 @@ pub(crate) use contents::{
 };
 pub use payload_history::PayloadMembershipHistory;
 pub(crate) use payload_history::current_selected_payload_contract;
+mod transfer_sources;
 pub(crate) use payload_predicates::terminal_scalar_snapshots;
 pub use payload_predicates::{
     PayloadEntryScalarIdentity, PayloadScalarObservation, TerminalScalarExpressions,
@@ -72,6 +73,7 @@ pub use scalar_captures::{
     TerminalScalarCaptures, terminal_resident_value_transfers,
 };
 pub use scalar_contracts::{case_payload_scalar_types, instantiate_payload_scalar_guarantees};
+pub use transfer_sources::validate_transfer_source_memberships;
 pub(crate) mod owned_shape;
 pub(crate) use owned_shape::{owned_shared_byte_descriptor_shape, plain_owned_shape};
 pub(crate) mod invocation;

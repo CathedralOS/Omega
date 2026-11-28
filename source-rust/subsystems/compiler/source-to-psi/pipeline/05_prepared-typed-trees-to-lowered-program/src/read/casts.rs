@@ -55,7 +55,22 @@ impl Program<'_> {
             return self.domain_entry(id, slots, handle, cast, entry, source);
         }
         if let Some(access) = cast.form.recast_access() {
-            if access != ReferenceAccess::Shared {
+            // A view of exactly `N` elements casts to `@mutable [T; N]` over
+            // the same elements, so its writes land in the view's backing
+            // with no establishment to defer. Every other exclusive recast
+            // still needs establishment and handback evidence.
+            let fixed_window = access == ReferenceAccess::Mutable
+                && self
+                    .typed
+                    .type_reference_table
+                    .contains_type_reference(cast.target_type)
+                && matches!(
+                    self.typed
+                        .type_reference_table
+                        .type_reference(cast.target_type),
+                    TypeReferenceNode::FixedArray { .. }
+                );
+            if access != ReferenceAccess::Shared && !fixed_window {
                 return unserved(
                     "exclusive storage view without establishment and handback evidence",
                 );
@@ -87,6 +102,11 @@ impl Program<'_> {
             let expected = self.value_type(id, reference)?;
             if let Some(fixed) = self.view_fixed_array(id, slots, cast, expected, source)? {
                 return Ok(fixed);
+            }
+            if fixed_window {
+                return unserved(
+                    "exclusive storage view without establishment and handback evidence",
+                );
             }
             return self.borrow_value(id, slots, handle, expected, source);
         }
@@ -154,7 +174,7 @@ impl Program<'_> {
                     Some(integer),
                     super::types::AnonymousLanding::ExplicitAs,
                 )?;
-                let owner = self.symbols.get(id).copied().unwrap_or_default();
+                let owner = self.machine_symbol(id)?;
                 self.complete_anonymous_operators(id, owner, &evaluated.operators)?;
                 Expression {
                     call_context: None,

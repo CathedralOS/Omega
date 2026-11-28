@@ -3,7 +3,7 @@
 
 use super::super::facts::BranchFacts;
 use super::super::progress::ScalarFact;
-use super::super::spin::{CellUpdate, constant};
+use super::super::spin::{AtomicWordUpdate, constant};
 use super::storage::{Location, Storage, Stored};
 use crate::entry_values::TerminalScalarValue as Scalar;
 use crate::synchronization::progress::condition::Assumption;
@@ -209,9 +209,6 @@ impl<'m> Frame<'m> {
             bindings.predicates.insert(result.id, test);
         }
         match &op.kind {
-            // Selecting code alone cannot touch any of this activation's cells.
-            // The callable flow supplies the selected body at its invocation.
-            OperationKind::SelectMachine { .. } => {}
             OperationKind::EstablishZeroedStructural {}
             | OperationKind::EstablishStructuralLocal {} => {
                 let value = if matches!(op.kind, OperationKind::EstablishZeroedStructural {}) {
@@ -381,64 +378,23 @@ impl<'m> Frame<'m> {
                     bindings.places.insert(result.place, home);
                     return Some(());
                 }
-                let observed = if event.observes_resident() {
-                    let result = op.result.scalar()?;
-                    let prior = memory.get(&location).scalar(result.scalar_type);
-                    if let Some(value) = prior {
-                        bindings.values.insert(result.id, value);
-                    }
-                    prior
-                } else {
-                    None
-                };
-                let next = match event {
-                    AtomicAccessEvent::Load { .. } => return Some(()),
-                    AtomicAccessEvent::Store { value, .. }
-                    | AtomicAccessEvent::Swap { value, .. } => {
-                        bindings.values.get(value).copied().into()
-                    }
-                    AtomicAccessEvent::ReadModifyWrite {
-                        operation, operand, ..
-                    } => {
-                        let ty = op.result.scalar()?.scalar_type;
-                        let operand = bindings.values.get(operand).copied();
-                        memory.get(&location).map_scalars(ty, |prior| {
-                            let (ScalarFact::Literal(prior), Some(ScalarFact::Literal(operand))) =
-                                (prior, operand)
-                            else {
-                                return None;
-                            };
-                            crate::atomic_read_modify_write(*operation, prior, operand)
-                                .map(ScalarFact::Literal)
-                        })
-                    }
-                    AtomicAccessEvent::CompareExchange {
-                        expected,
-                        replacement,
-                        ..
-                    } => {
-                        let expect = bindings.values.get(expected).copied();
-                        let proposal = bindings.values.get(replacement).copied();
-                        match (expect, proposal) {
-                            (Some(expected), _) if observed == Some(expected) => proposal.into(),
-                            (Some(expected), _) if proposal == Some(expected) => return Some(()),
-                            (Some(expected), Some(replacement)) => memory
-                                .get(&location)
-                                .after_update(CellUpdate::CompareExchange {
-                                    expected,
-                                    replacement,
-                                }),
-                            (Some(ScalarFact::Literal(_)), _)
-                                if matches!(observed, Some(ScalarFact::Literal(_))) =>
-                            {
-                                return Some(());
-                            }
-                            _ => Stored::Unknown,
-                        }
-                    }
-                    _ => return None,
-                };
-                memory.set(&location, next);
+                if let AtomicAccessEvent::Store { value, .. } = event {
+                    memory.set(&location, bindings.values.get(value).copied().into());
+                    return Some(());
+                }
+                let result = op.result.scalar()?;
+                let prior = memory.get(&location);
+                if !location.includes_shared()
+                    && let Some(value) = prior.scalar(result.scalar_type)
+                {
+                    bindings.values.insert(result.id, value);
+                }
+                let update = AtomicWordUpdate::from_observation(event, Some)?;
+                if let Some(next) = prior.after_observation(result.scalar_type, update, |id| {
+                    bindings.values.get(&id).copied()
+                }) {
+                    memory.set(&location, next);
+                }
             }
             _ => {
                 let result = op.result.scalar()?;

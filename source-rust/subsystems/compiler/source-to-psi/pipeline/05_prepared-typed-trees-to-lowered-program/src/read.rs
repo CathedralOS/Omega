@@ -935,13 +935,15 @@ mod tests {
         MachineId::new(1).unwrap()
     }
 
-    fn refused(typed: &TypedTrees, node: ExpressionNode) -> String {
+    fn refused(typed: &TypedTrees, caller: Option<SymbolHandle>, node: ExpressionNode) -> String {
         let mut typed = typed.clone();
         let handle = typed.expression_table.insert(node);
         let mut program = Program::new(&typed, false);
-        let refusal = program
-            .expression(machine(), &[], handle, None)
-            .unwrap_err();
+        let id = match caller {
+            Some(symbol) => program.reserve_row(symbol).unwrap(),
+            None => program.next_identity().unwrap(),
+        };
+        let refusal = program.expression(id, &[], handle, None).unwrap_err();
         assert_eq!(
             refusal.reason,
             terminal_check_tables::RefusalReason::Unsupported
@@ -951,7 +953,7 @@ mod tests {
 
     #[test]
     fn each_expression_kind_outside_the_subset_is_refused_by_name() {
-        let typed = TypedTrees::default();
+        let (typed, [caller, _]) = unit_machines();
         let invalid = ExpressionHandle::invalid();
         let cases = [
             (
@@ -992,7 +994,7 @@ mod tests {
         ];
         let wrong: Vec<_> = cases
             .into_iter()
-            .map(|(node, expected)| (refused(&typed, node), expected))
+            .map(|(node, expected)| (refused(&typed, Some(caller), node), expected))
             .filter(|(found, expected)| found != expected)
             .collect();
         assert!(wrong.is_empty(), "{wrong:?}");
@@ -1019,17 +1021,7 @@ mod tests {
         let typed = TypedTrees::default();
         let mut program = Program::new(&typed, false);
         let source = crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
-        let empty = program.records.push(plain_record());
-        program.record_sources.push(places::RecordSource {
-            constant_input_owner: None,
-            declaration: SymbolHandle::invalid(),
-            cleanup: None,
-            application: None,
-            region_owner: SymbolHandle::invalid(),
-            fields: Vec::new(),
-            cases: Vec::new(),
-            erased: Vec::new(),
-        });
+        let empty = program.push_record_row(plain_record(), Default::default());
         assert!(matches!(
             program
                 .zero_value(machine(), ValueType::record(empty), None, source)
@@ -1058,10 +1050,13 @@ mod tests {
                 "opaque initialization requires boundary-supplied contents",
             ),
         ] {
-            let record = program.records.push(RecordType {
-                shape,
-                ..plain_record()
-            });
+            let record = program.push_record_row(
+                RecordType {
+                    shape,
+                    ..plain_record()
+                },
+                Default::default(),
+            );
             let refusal = program
                 .zero_value(machine(), ValueType::record(record), None, source)
                 .unwrap_err();
@@ -1403,18 +1398,18 @@ mod tests {
             })
         };
         assert_eq!(
-            refused(&typed, call(SymbolHandle::invalid())),
+            refused(&typed, None, call(SymbolHandle::invalid())),
             "call without a bound target"
         );
         // A handle of no symbol in this table is as unbound as an absent one.
         assert_eq!(
-            refused(&typed, call(SymbolHandle::from_parts(9_999, 1))),
+            refused(&typed, None, call(SymbolHandle::from_parts(9_999, 1))),
             "call without a bound target"
         );
         // The twin passes target validation and reaches authored-source
         // validation. This low-level reader has not admitted a caller.
         assert_eq!(
-            refused(&typed, call(served)),
+            refused(&typed, None, call(served)),
             "declaration authored occurrence without its source machine"
         );
         for target_symbol in [SymbolHandle::invalid(), SymbolHandle::from_parts(9_999, 1)] {
@@ -1439,6 +1434,7 @@ mod tests {
         assert_eq!(
             refused(
                 &typed,
+                None,
                 ExpressionNode::Call(TableCallExpression {
                     runtime_call,
                     ..Default::default()
@@ -1585,7 +1581,7 @@ mod tests {
 
     #[test]
     fn case_membership_is_refused_after_its_operands_read() {
-        let mut typed = TypedTrees::default();
+        let (mut typed, [caller, _]) = unit_machines();
         let left = typed.expression_table.insert(ExpressionNode::Boolean(true));
         let right = typed
             .expression_table
@@ -1597,7 +1593,10 @@ mod tests {
             operator: BinaryOperator::CaseMembership,
             right,
         });
-        assert_eq!(refused(&typed, node), "expression case membership");
+        assert_eq!(
+            refused(&typed, Some(caller), node),
+            "expression case membership"
+        );
     }
 
     /// Wholly anonymous arithmetic is exact (numeric_values.md: anonymous
@@ -1611,7 +1610,7 @@ mod tests {
     #[test]
     fn wholly_anonymous_arithmetic_lands_exactly_or_is_refused() {
         let i32_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
-        let mut typed = TypedTrees::default();
+        let (mut typed, [caller, _]) = unit_machines();
         let literal = |typed: &mut TypedTrees, value| {
             typed
                 .expression_table
@@ -1657,6 +1656,13 @@ mod tests {
                 )),
             )
         };
+        let missing_owner = read(&mut program, exact).unwrap_err();
+        assert_eq!(
+            missing_owner.reason,
+            terminal_check_tables::RefusalReason::Unsupported
+        );
+        assert!(missing_owner.detail.contains("no reserved row"));
+        program.reserve_row(caller).unwrap();
         let landed = read(&mut program, exact).unwrap();
         assert!(matches!(
             landed.kind,
@@ -2597,7 +2603,7 @@ mod tests {
         use crate::source_state::expression::{
             TableMatchExpression, TableMemberExpression, TableStructLiteral,
         };
-        let typed = TypedTrees::default();
+        let (typed, [caller, _]) = unit_machines();
         let member = |case_variant| {
             ExpressionNode::Member(TableMemberExpression {
                 receiver: ExpressionHandle::invalid(),
@@ -2633,7 +2639,7 @@ mod tests {
         ];
         let wrong: Vec<_> = cases
             .into_iter()
-            .map(|(node, expected)| (refused(&typed, node), expected))
+            .map(|(node, expected)| (refused(&typed, Some(caller), node), expected))
             .filter(|(found, expected)| found != expected)
             .collect();
         assert!(wrong.is_empty(), "{wrong:?}");
@@ -2665,7 +2671,7 @@ mod tests {
     fn each_dispatch_form_outside_the_slice_is_refused_by_name_or_rejected() {
         use crate::source_state::expression::{TableDestructurePattern, TableMatchExpression};
         use semantic_vocabulary::StructuralTypeId;
-        let mut typed = TypedTrees::default();
+        let (mut typed, [caller, _]) = unit_machines();
         let truth = typed.expression_table.insert(ExpressionNode::Boolean(true));
         let capture = typed.expression_table.insert_match_subject(truth);
         let scalar_match =
@@ -2677,11 +2683,10 @@ mod tests {
                     ..Default::default()
                 }));
         let mut program = Program::new(&typed, false);
+        let id = program.reserve_row(caller).unwrap();
         // A scalar match is read; one whose arms do not cover its subject
         // is the program's error, not a form the reader cannot judge.
-        let uncovered = program
-            .expression(machine(), &[], scalar_match, None)
-            .unwrap_err();
+        let uncovered = program.expression(id, &[], scalar_match, None).unwrap_err();
         assert!(matches!(
             uncovered.reason,
             terminal_check_tables::RefusalReason::Violation
@@ -2696,7 +2701,7 @@ mod tests {
         let detail = |pattern: TableDestructurePattern| {
             let refusal = program
                 .case_pattern(
-                    machine(),
+                    id,
                     record,
                     &pattern,
                     crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
@@ -2729,9 +2734,9 @@ mod tests {
         use crate::source_state::statement::{TableAssignment, TableLocalData};
         use semantic_vocabulary::StructuralTypeId;
         let mut builder = SymbolTableBuilder::new();
-        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let caller = builder.insert_root(SymbolKind::Machine, SymbolNameRef::Static("caller"));
         let children = builder.insert_children(
-            root,
+            caller,
             [
                 (SymbolKind::Local, SymbolNameRef::Static("p")),
                 (SymbolKind::Const, SymbolNameRef::Static("LIMIT")),
@@ -2781,10 +2786,11 @@ mod tests {
             borrowed_regions: crate::body::Regions::NONE,
         }];
         let mut program = Program::new(&typed, false);
-        program.records.push(plain_record());
+        let id = program.reserve_row(caller).unwrap();
+        program.push_record_row(plain_record(), Default::default());
         let mut assigned = |target| {
             program
-                .assignment(machine(), &slots, &TableAssignment { target, value })
+                .assignment(id, &slots, &TableAssignment { target, value })
                 .unwrap_err()
                 .detail
         };
@@ -2806,7 +2812,7 @@ mod tests {
         }];
         let refused = program
             .assignment(
-                machine(),
+                id,
                 &frozen,
                 &TableAssignment {
                     target: whole,
@@ -2826,7 +2832,7 @@ mod tests {
         let mut declared = |role, initial_value| {
             program
                 .local(
-                    machine(),
+                    id,
                     &slots,
                     &TableLocalData {
                         role,
@@ -2863,7 +2869,7 @@ mod tests {
         );
         assert_eq!(
             program
-                .expression(machine(), &slots, named_constant, None)
+                .expression(id, &slots, named_constant, None)
                 .unwrap_err()
                 .detail,
             "expression const"
@@ -2888,8 +2894,8 @@ mod tests {
         };
         let mut term = |handle| {
             program
-                .clause_term(machine(), &scope, handle, ClauseUse::Scalar(None))
-                .and_then(|term| term.scalar(machine()))
+                .clause_term(id, &scope, handle, ClauseUse::Scalar(None))
+                .and_then(|term| term.scalar(id))
                 .unwrap_err()
                 .detail
         };
@@ -2915,9 +2921,9 @@ mod tests {
         use crate::source_state::statement::TableLocalData;
         use semantic_vocabulary::StructuralTypeId;
         let mut builder = SymbolTableBuilder::new();
-        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let caller = builder.insert_root(SymbolKind::Machine, SymbolNameRef::Static("caller"));
         let children = builder.insert_children(
-            root,
+            caller,
             [
                 (SymbolKind::Local, SymbolNameRef::Static("p")),
                 (SymbolKind::Data, SymbolNameRef::Static("Point")),
@@ -2989,20 +2995,18 @@ mod tests {
             borrowed_regions: crate::body::Regions::NONE,
         }];
         let mut program = Program::new(&typed, false);
-        program.records.push(plain_record());
-        program.record_sources.push(places::RecordSource {
-            constant_input_owner: None,
-            declaration: point,
-            cleanup: None,
-            application: None,
-            region_owner: SymbolHandle::invalid(),
-            fields: vec![a, b],
-            cases: Vec::new(),
-            erased: Vec::new(),
-        });
+        let id = program.reserve_row(caller).unwrap();
+        program.push_record_row(
+            plain_record(),
+            places::RecordSource {
+                declaration: point,
+                fields: vec![a, b],
+                ..Default::default()
+            },
+        );
         let mut read = |pattern_subject, pattern_fields, initial_value| {
             program.record_pattern(
-                machine(),
+                id,
                 &slots,
                 &TableLocalData {
                     role: language_core::LocalBindingRole::RecordPattern,
@@ -3073,14 +3077,14 @@ mod tests {
             builtin_type_symbols().into_iter().chain([
                 (SymbolKind::Local, SymbolNameRef::Static("capture")),
                 (SymbolKind::Parameter, SymbolNameRef::Static("input")),
+                (SymbolKind::Machine, SymbolNameRef::Static("caller")),
             ]),
         );
         let u32_symbol = children.handle_at(7);
-        let local_symbol = children.handles().nth(symbols::BUILTIN_TYPE_COUNT).unwrap();
-        let input_symbol = children
-            .handles()
-            .nth(symbols::BUILTIN_TYPE_COUNT + 1)
-            .unwrap();
+        let mut bindings = children.handles().skip(symbols::BUILTIN_TYPE_COUNT);
+        let local_symbol = bindings.next().unwrap();
+        let input_symbol = bindings.next().unwrap();
+        let caller = bindings.next().unwrap();
         let mut typed = TypedTrees {
             symbols: builder.finish(),
             ..Default::default()
@@ -3148,7 +3152,8 @@ mod tests {
             ..Default::default()
         };
         let mut program = Program::new(&typed, false);
-        let (slot, statement) = program.local(machine(), &[], &local).unwrap();
+        let id = program.reserve_row(caller).unwrap();
+        let (slot, statement) = program.local(id, &[], &local).unwrap();
         assert_eq!(
             slot.value_type,
             ValueType::plain(ScalarType::Integer(
@@ -3159,7 +3164,7 @@ mod tests {
         assert!(matches!(statement, crate::Statement::Bind { slot: 0, .. }));
         let (computed_slot, statement) = program
             .local(
-                machine(),
+                id,
                 &[Slot {
                     borrowed: None,
                     ..borrowed[0]
@@ -3185,7 +3190,7 @@ mod tests {
         ));
         let (captured, statement) = program
             .local(
-                machine(),
+                id,
                 &borrowed,
                 &TableLocalData {
                     type_reference: reference,
@@ -3205,7 +3210,7 @@ mod tests {
         ));
         let mut refusal = |local: &TableLocalData| {
             program
-                .local(machine(), &borrowed, local)
+                .local(id, &borrowed, local)
                 .map(drop)
                 .unwrap_err()
                 .detail

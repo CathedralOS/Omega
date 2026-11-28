@@ -40,6 +40,14 @@ use crate::{SourceOrigin, Unserved};
 
 /// Different checking machines own different const-input storage rows.
 /// Their labels must be unique; type equality still uses source applications.
+/// The refusal of a structural type identity that holds no record row.
+fn missing_record(machine: MachineId) -> terminal_check_tables::Refusal {
+    refuse_at(
+        machine,
+        Unserved::Type("structural type identity has no record row"),
+    )
+}
+
 pub(super) fn storage_identity_for_inputs(identity: String, owner: Option<MachineId>) -> String {
     match owner {
         Some(owner) => format!("{identity} (checking machine {})", owner.get()),
@@ -51,6 +59,7 @@ pub(super) fn storage_identity_for_inputs(identity: String, owner: Option<Machin
 /// and each case with its payload fields, in declaration order, beside the
 /// `RecordType` row of the same identity. Only the reader holds symbols; the
 /// body holds positions.
+#[cfg_attr(test, derive(Default))]
 pub(super) struct RecordSource {
     /// Symbolic array lengths name inputs of this checking machine. Closed
     /// storage has no such owner and may be shared across machine readings.
@@ -107,6 +116,39 @@ pub(super) enum Member {
 }
 
 impl Program<'_> {
+    /// A structural type and its source share the identity used for field and case lookups.
+    pub(super) fn push_record_row(
+        &mut self,
+        record: RecordType,
+        source: RecordSource,
+    ) -> StructuralTypeId {
+        let id = self.records.push(record);
+        self.record_sources.push(source);
+        id
+    }
+
+    /// The storage row at `record`, with `machine` anchoring a missing-row refusal.
+    pub(super) fn record_type(
+        &self,
+        machine: MachineId,
+        record: StructuralTypeId,
+    ) -> Checked<&crate::body::RecordType> {
+        self.records
+            .get(record)
+            .ok_or_else(|| missing_record(machine))
+    }
+
+    /// The source declaration and application pushed beside `record`.
+    pub(super) fn record_source(
+        &self,
+        machine: MachineId,
+        record: StructuralTypeId,
+    ) -> Checked<&RecordSource> {
+        self.record_sources
+            .get(record)
+            .ok_or_else(|| missing_record(machine))
+    }
+
     /// The data declaration a `Named` type's symbol resolves to, when it is
     /// one. A symbol of kind `Data` with no declaration in the typed trees is
     /// not a record this route can read and stays with the scalar route's
@@ -454,7 +496,7 @@ impl Program<'_> {
                     "applied, constrained or boundary data that contains itself",
                 ));
             }
-            let record = self.records.push(RecordType {
+            let record_type = RecordType {
                 multiplicity: crate::body::source_multiplicity(data.properties.multiplicity),
                 cleanup: None,
                 identity: identity.clone(),
@@ -462,8 +504,8 @@ impl Program<'_> {
                 requires: Vec::new(),
                 authored_layout: false,
                 erased: Vec::new(),
-            });
-            self.record_sources.push(RecordSource {
+            };
+            let source = RecordSource {
                 constant_input_owner: None,
                 declaration: symbol,
                 cleanup: None,
@@ -472,7 +514,8 @@ impl Program<'_> {
                 fields: Vec::new(),
                 cases: Vec::new(),
                 erased: Vec::new(),
-            });
+            };
+            let record = self.push_record_row(record_type, source);
             if let Err(position) = self.self_containing.binary_search(&record) {
                 self.self_containing.insert(position, record);
             }
@@ -641,7 +684,7 @@ impl Program<'_> {
             (left, right) => left.or(right),
         };
         let identity = storage_identity_for_inputs(identity, constant_input_owner);
-        let record: StructuralTypeId = self.records.push(RecordType {
+        let record_type = RecordType {
             multiplicity: crate::body::source_multiplicity(data.properties.multiplicity),
             cleanup: None,
             identity,
@@ -653,8 +696,8 @@ impl Program<'_> {
                     .is_some()
             }),
             erased: erased_fields,
-        });
-        self.record_sources.push(RecordSource {
+        };
+        let source = RecordSource {
             constant_input_owner,
             declaration: symbol,
             cleanup: data.cleanup_selection,
@@ -663,7 +706,8 @@ impl Program<'_> {
             fields: field_symbols,
             cases: case_symbols,
             erased: erased_symbols,
-        });
+        };
+        let record = self.push_record_row(record_type, source);
         if application.is_none() && data.predicate_subject_type.is_valid() {
             self.record_application(id, record, data.predicate_subject_type)?;
         }
@@ -818,12 +862,7 @@ impl Program<'_> {
     pub(crate) fn finish_cleanup_selections(&mut self) -> Checked<()> {
         while let Some((record, executable)) = self.pending_cleanup.pop() {
             let diagnostic = self.next_identity()?;
-            let definition = self.typed.machine_by_symbol(executable).ok_or_else(|| {
-                refuse_at(
-                    diagnostic,
-                    Unserved::Declaration("selected cleanup has no machine body"),
-                )
-            })?;
+            let definition = self.required_machine(diagnostic, executable, "selected cleanup")?;
             if crate::is_generic_template(self.typed, definition) {
                 return Err(refuse_at(
                     diagnostic,

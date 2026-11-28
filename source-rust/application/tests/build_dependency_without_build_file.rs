@@ -10,7 +10,7 @@ first source the compilation ever loaded; the parser's primary coordinate was
 left at that first source and the dependency's Build stopped with an internal
 message, "consumer cohort lost its parser's primary source coordinate".
 
-We stage a program that registers such a directory as a dependency. The
+We stage a package that registers such a directory as a dependency. The
 dependency must be refused for what is wrong with it: its default Build names
 no package, so it has no named owner to be a dependency under. The twin gives
 the same directory a `build.omg` that names the package, and compiles.
@@ -27,7 +27,7 @@ fn check(name: &str, dependency_build: Option<&str>) -> (bool, String) {
             "build.omg",
             "use {omega}/build/dependency.omg;
 machine build(builder: @mutable BuildPlan) {
-    builder.product = BuildProduct::Application { name: \"consumer\" };
+    builder.product = BuildProduct::Package { name: \"consumer\" };
     let mutable description: DependencyDescription = |dependency|::from_source(Source::Path { location: \"dep\" });
     |dependency|::with_alias(@mutable description, \"dep\");
     let registered: DependencyRegistration = Build::dependency(builder, description);
