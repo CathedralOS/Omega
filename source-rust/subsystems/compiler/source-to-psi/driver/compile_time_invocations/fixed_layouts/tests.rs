@@ -242,12 +242,12 @@ fn authored_policy_observes_only_its_invocations_issued_target() {
         .replace(
             "use {omega}/language/core/layout.omg;",
             r#"use {omega}/language/core/layout.omg;
-machine packet_size<'target>(target: @'target |layout|::LayoutTarget) -> u64 reaches none terminates {
+machine packet_size<'target>(target: @'target |layout|::LayoutTarget, outer_align: u64, nested_align: u64) -> u64 reaches none terminates {
     let facts: |layout|::LayoutTargetFacts<'target> = |layout|::layout_target_facts(target);
-    transition facts.profile.length == 12 { true -> 16u64, _ -> 24u64 }
+    transition facts.profile.length == 12 && outer_align == 1u64 && nested_align == 1u64 { true -> 16u64, _ -> 24u64 }
 }"#,
         )
-        .replace("size_fixed: 16", "size_fixed: packet_size(@target)");
+        .replace("size_fixed: 16", "size_fixed: packet_size(@target, schema.fields[31].align, schema.cases[31].payload_fields[31].align)");
     let mut source = with_reflection(&program).unwrap();
     let root = query_machine(&source, "main");
     let scopes = ["linux_x86_64", "windows_x86_64"].map(|name| FixedLayoutTargetScope {

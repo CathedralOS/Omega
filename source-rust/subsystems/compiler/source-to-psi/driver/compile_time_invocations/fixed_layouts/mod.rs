@@ -75,6 +75,7 @@ impl super::PreparedBuildMachineEntry {
 
 /// One storage application whose policy plans its layout for one target.
 struct Demand {
+    argument: Option<schema::Materialized>,
     /// The deployment, as its position in the request's scopes.
     scope: usize,
     /// The first demanded declaration that writes the application. The
@@ -235,6 +236,7 @@ impl<'scope> Layouts<'scope> {
         demanded.demands = requests
             .into_iter()
             .map(|(scope, identity, requester, storage)| Demand {
+                argument: None,
                 scope,
                 requester,
                 storage,
@@ -311,15 +313,17 @@ impl DemandedValues for Layouts<'_> {
             let Some(facts) = scope.facts.as_ref() else {
                 continue;
             };
-            ready.call = layout_call(
+            if let Ok(call) = layout_call(
                 typed,
                 self.call_program(round),
                 demand.requester,
                 demand.storage,
                 facts,
-            )
-            .ok()
-            .map(|call| call.plan);
+                None,
+            ) {
+                ready.call = Some(call.plan);
+                self.demands[ready.value].argument = Some(call.argument);
+            }
         }
     }
 
@@ -331,6 +335,7 @@ impl DemandedValues for Layouts<'_> {
         typed: &mut TypedTrees,
         accounting: &mut SourceCompletionAccounting,
     ) -> Result<(), Vec<Diagnostic>> {
+        let argument = self.demands[value].argument.take();
         let demand = &self.demands[value];
         let scope = &self.scopes[demand.scope];
         if let Some(plan) = typed.plan_laid_layout_for_type(demand.storage.application)
@@ -352,6 +357,7 @@ impl DemandedValues for Layouts<'_> {
             demand.requester,
             demand.storage,
             scope,
+            argument,
             accounting,
         )
         .map_err(|reason| {
@@ -373,8 +379,7 @@ struct LayoutCall<'typed> {
     plan: PlannedCall,
     policy: crate::source_state::expression::StaticMachineArgument,
     data: &'typed crate::source_state::data::DataDefinition,
-    fields: Vec<crate::source_state::PlanLaidSchemaField>,
-    retired: Vec<u64>,
+    argument: schema::Materialized,
 }
 
 /// Names the call of `storage`'s policy for `scope`'s target. The call
@@ -386,6 +391,7 @@ fn layout_call<'typed>(
     requester: SymbolHandle,
     storage: crate::source_state::layout_storage::LayoutStorageArguments,
     facts: &layout_plans::LayoutTargetFacts,
+    previous: Option<schema::Materialized>,
 ) -> Result<LayoutCall<'typed>, String> {
     let policy = typed.static_operand_from_type_reference(storage.policy)?;
     let requirement_symbol = storage
@@ -400,7 +406,7 @@ fn layout_call<'typed>(
     if retired.windows(2).any(|pair| pair[0] == pair[1]) {
         return Err("layout schema repeats a retired identity".into());
     }
-    let argument = schema::record_argument(&fields, &retired)?;
+    let argument = schema::Materialized::for_record(fields, retired, facts, previous)?;
     // The public call entrance checks the selected plan and its body using
     // this exact policy application.
     let plan = program
@@ -409,15 +415,14 @@ fn layout_call<'typed>(
             requester,
             &policy,
             requirement_symbol,
-            &[argument, BuildTimeValue::LayoutTarget(facts.clone())],
+            argument.arguments.clone(),
         )?
         .for_target(facts);
     Ok(LayoutCall {
         plan,
         policy,
         data,
-        fields,
-        retired,
+        argument,
     })
 }
 
@@ -428,6 +433,7 @@ fn evaluate_application(
     requester: SymbolHandle,
     storage: crate::source_state::layout_storage::LayoutStorageArguments,
     scope: &FixedLayoutTargetScope,
+    previous: Option<schema::Materialized>,
     accounting: &mut SourceCompletionAccounting,
 ) -> Result<(), String> {
     let facts = scope
@@ -438,9 +444,10 @@ fn evaluate_application(
         plan,
         policy,
         data,
-        fields,
-        retired,
-    } = layout_call(typed, program, requester, storage, facts)?;
+        argument: schema::Materialized {
+            fields, retired, ..
+        },
+    } = layout_call(typed, program, requester, storage, facts, previous)?;
     let entry = program
         .demand_entry(&plan, judged)
         .map_err(|errors| diagnostics::join_messages(&errors))?;
