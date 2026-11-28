@@ -1,8 +1,8 @@
 //! Snapshot demands for a fixed array of copyable scalar-payload cases.
 //! The checker validates case selection, restoration, and ownership separately.
 
-use std::cell::OnceCell;
 use arena::IdSet;
+use std::cell::OnceCell;
 
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, PlaceId, Proposition, ScalarTerm, StructuralTypeId,
@@ -17,7 +17,7 @@ impl Lowering<'_> {
         root: PlaceId,
         types: &[StructuralTypeDeclaration],
         machine: &TerminalMachine,
-        exposed: &OnceCell<IdSet<StructuralTypeId>>,
+        exposed: &OnceCell<Option<IdSet<StructuralTypeId>>>,
     ) -> bool {
         let Some((_, carrier)) = self.roots.get(root) else {
             return false;
@@ -37,9 +37,10 @@ impl Lowering<'_> {
                 .shape
                 .fields()
                 .all(|field| field.field_type.scalar_type().is_some())
-            && !exposed
+            && exposed
                 .get_or_init(|| self.exposed_array_types(machine))
-                .contains(*carrier)
+                .as_ref()
+                .is_some_and(|exposed| !exposed.contains(*carrier))
     }
 
     /// A view or whole-value use can expose an index absent from this
@@ -49,7 +50,7 @@ impl Lowering<'_> {
     fn exposed_array_types(
         &self,
         machine: &terminal_psi::TerminalMachine,
-    ) -> IdSet<StructuralTypeId> {
+    ) -> Option<IdSet<StructuralTypeId>> {
         use terminal_psi::{StructuralPathSegment as Path, StructuralStorageUse as Use};
 
         // A proof-level storage expression can name elements without any
@@ -68,13 +69,10 @@ impl Lowering<'_> {
             || self.signature.has_structural_guarantees()
             || machine.ranked_scc.is_some()
         {
-            let mut all = IdSet::new();
-            for (_, ty) in self.roots.values() {
-                all.insert(*ty);
-            }
-            return all;
+            return None;
         }
         let mut exposed = IdSet::new();
+        let mut implicit = IdSet::new();
         let mut expose = |root| {
             if let Some((_, ty)) = self.roots.get(root) {
                 exposed.insert(*ty);
@@ -124,13 +122,41 @@ impl Lowering<'_> {
                         expose(root)
                     }
                     Use::Place(root) => expose(root),
+                    Use::Type(ty) => {
+                        implicit.insert(ty);
+                    }
                     Use::Element { descriptor, .. } => expose(descriptor.root),
                     _ => {}
                 }
             }
         }
         for block in &machine.blocks {
-            let internal = !block.terminator.successor_edges().is_empty();
+            let edges = block.terminator.successor_edges();
+            let internal = !edges.is_empty();
+            for ((_, destination), args) in edges
+                .into_iter()
+                .zip(block.terminator.successor_block_arguments())
+            {
+                let target = machine
+                    .blocks
+                    .get((destination.get() - 1) as usize)
+                    .filter(|target| target.id == destination)?;
+                if !args.is_empty() && args.len() != target.structural_parameters.len() {
+                    return None;
+                }
+                for (arg, formal) in args.iter().zip(&target.structural_parameters) {
+                    if !arg.path.is_empty()
+                        || arg.access != formal.access
+                        || self
+                            .roots
+                            .get(arg.place)
+                            .is_none_or(|(_, ty)| *ty != formal.structural_type)
+                    {
+                        expose(arg.place);
+                        expose(formal.place);
+                    }
+                }
+            }
             for operand in block
                 .terminator
                 .storage_uses_with_arguments(|arg| !internal || !arg.path.is_empty())
@@ -140,7 +166,8 @@ impl Lowering<'_> {
                 }
             }
         }
-        exposed
+        exposed.union_with(&implicit);
+        Some(exposed)
     }
 }
 
