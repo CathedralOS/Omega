@@ -44,14 +44,6 @@ pub(crate) mod borrowed_argument {
         else {
             return None;
         };
-        if target.opened_referent.is_some()
-            && (!matches!(
-                call.target,
-                target_vocabulary::NativeCallTarget::Callable { .. }
-            ) || semantic.path.last() != Some(&terminal_psi::StructuralPathSegment::Referent))
-        {
-            return None;
-        }
         let structural_argument_index = call.arguments[..argument_index]
             .iter()
             .filter(|argument| matches!(argument, LegalizedScalarArgument::Structural { .. }))
@@ -1197,6 +1189,9 @@ pub(crate) mod normalized_foreign {
             .zip(&call.structural_arguments)
             .zip(&call.structural_indices)
         {
+            if argument.opened_referent.is_some() {
+                return Err(invalid!());
+            }
             let signature = source.structural.as_ref().ok_or_else(|| invalid!())?;
             let parameter = signature
                 .parameters
@@ -2034,6 +2029,18 @@ pub(crate) fn validate(
             owned_argument::validate_owned_arguments(source, call, operation).ok_or_else(invalid)?;
         }
         for (argument_index, argument) in call.arguments.iter().enumerate() {
+            if let LegalizedScalarArgument::Structural { semantic, target, .. } = argument
+                && target.opened_referent.is_some()
+                && (!matches!(owner, target_vocabulary::CallSiteOwner::Operation(_))
+                    || !matches!(call.source, target_vocabulary::NativeCallOrigin::Authored)
+                    || !matches!(call.target, target_vocabulary::NativeCallTarget::Callable { .. })
+                    || semantic.access == StructuralAccess::Owned
+                    || semantic.path.last() != Some(&terminal_psi::StructuralPathSegment::Referent))
+            {
+                return Err(SelectedInstructionError::custody_because(
+                    "an opened reference belongs to an authored indirect call argument",
+                ));
+            }
             if matches!(argument, LegalizedScalarArgument::Structural { semantic, .. } if semantic.access != StructuralAccess::Owned)
             {
                 validate_borrowed_argument(source, call, operation, argument_index)
