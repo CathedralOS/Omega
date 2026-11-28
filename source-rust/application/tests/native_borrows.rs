@@ -1,5 +1,8 @@
 //! Native address formation and checked upgrades both produce ordinary, typed borrows.
-#![cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#![cfg(all(
+    any(target_os = "linux", target_os = "macos", target_os = "windows"),
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+))]
 
 #[path = "native_borrows/address_forwarding.rs"]
 mod address_forwarding;
@@ -20,6 +23,10 @@ const READ: &str = "RawMemoryRead";
 const WRITE: &str = "RawMemoryWrite";
 const UPGRADE: &str = "BorrowMutabilityUpgrade";
 
+fn host_profile() -> &'static str {
+    target::TargetProfile::host().target_name()
+}
+
 struct Program(TemporaryDirectory);
 
 impl Program {
@@ -28,12 +35,13 @@ impl Program {
             .iter()
             .map(|atom| format!("    Build::enable_unsafe::<|native|::{atom}>(plan);\n"))
             .collect::<String>();
+        let target = host_profile();
         let build = format!(
             r#"{UNSAFE}
 use main.omg as app;
 machine build(plan: @mutable BuildPlan) {{
     plan.product = BuildProduct::Application {{ name: "native_borrows" }};
-{enabled}    Build::bind(plan, linux_x86_64::ProgramEntry, |app|::main);
+{enabled}    Build::bind(plan, {target}::ProgramEntry, |app|::main);
 }}"#
         );
         let source = format!("{UNSAFE}\n{body}");
@@ -57,7 +65,7 @@ machine build(plan: @mutable BuildPlan) {{
     }
 
     fn check(&self) -> Output {
-        self.command(&["--check", "--target", "linux_x86_64", "build.omg"])
+        self.command(&["--check", "--target", host_profile(), "build.omg"])
             .output()
             .unwrap()
     }
@@ -490,7 +498,10 @@ _ = |dependency|::add(plan, request, @allowed[..]);
         }
     }
     if name == "editor" {
-        body.push_str("Build::bind(plan, linux_x86_64::ProgramEntry, |app|::main);\n");
+        body.push_str(&format!(
+            "Build::bind(plan, {}::ProgramEntry, |app|::main);\n",
+            host_profile()
+        ));
     }
     format!("{imports}machine build(plan: @mutable BuildPlan) {{\n{body}}}\n")
 }
@@ -622,7 +633,7 @@ machine main() {}
                 "--emit-psi",
                 "program.psi",
                 "--target",
-                "linux_x86_64",
+                host_profile(),
                 "build.omg",
             ])
             .output()
@@ -640,7 +651,7 @@ machine main() {}
                 "--trusted-artifact",
                 &manifest,
                 "--target",
-                "linux_x86_64",
+                host_profile(),
                 "--build-dir",
                 "output",
                 "program.psi",
@@ -650,7 +661,10 @@ machine main() {}
             .output()
             .unwrap();
         let message = report(&built);
-        let image = consumer.path().join("output/omega-program");
+        let image = consumer
+            .path()
+            .join("output")
+            .join(format!("omega-program{}", std::env::consts::EXE_SUFFIX));
         if let Some(withheld) = withheld {
             assert!(!built.status.success(), "{message}");
             assert!(
