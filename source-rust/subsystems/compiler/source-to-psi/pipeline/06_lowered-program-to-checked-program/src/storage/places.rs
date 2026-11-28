@@ -1395,7 +1395,7 @@ impl<'a> Storage<'a> {
                 let backing = if let Stored::MayChange { exposed_at: Some((block, cut)) } = row.stored {
                     // A scalar write frame identifies the allocation, without
                     // promising a byte offset or a particular access width.
-                    storage.backing(references, &row.destination, block, index(u64::from(cut)), concerns)?.enclosing_allocation()
+                    storage.backing(references, &row.destination, block, cut as usize, concerns)?.enclosing_allocation()
                 } else if call_write {
                     let Some(backing) = storage.optional_backing(
                         references,
