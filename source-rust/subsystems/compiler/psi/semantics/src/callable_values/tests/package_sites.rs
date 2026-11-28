@@ -252,6 +252,26 @@ fn package_sites_retain_descriptors_and_require_the_same_state() {
 }
 
 #[test]
+fn opened_descriptors_preserve_the_named_requirement() {
+    let mut program = readers();
+    let mut identities = program.identities.into_builder();
+    let read = identities.intern("Preview::read");
+    let other_read = identities.intern("Other::read");
+    program.identities = identities.build();
+    for contract in &mut program.execution.callables.contracts {
+        contract.requirement = Some(read);
+    }
+    let sites = check_package_sites(&program).unwrap();
+    for (requirement, admitted) in [(Some(read), true), (Some(other_read), false), (None, false)] {
+        program.execution.callables.contracts[4].requirement = requirement;
+        assert_eq!(
+            sites.admits_descriptor(&program, machine_id(1), operation_id(2), callable(5)),
+            admitted
+        );
+    }
+}
+
+#[test]
 fn package_places_release_the_stored_carrier_and_read_its_declared_descriptor() {
     let mut program = readers();
     let machine = &program.machines[0];
