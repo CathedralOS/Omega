@@ -104,18 +104,17 @@ impl DescriptorMachine {
     pub(crate) fn direct_invocation(
         &self,
         module: &TerminalModule,
-        machines: &[&TerminalMachine],
+        callee: &TerminalMachine,
         slot_kind: DescriptorSlotKind,
-        invocation: terminal_psi::ModuleInvocation<'_>,
+        site: semantic_vocabulary::InvocationSite,
+        inputs: terminal_psi::ModuleInvocationInputs<'_>,
         result: Option<&terminal_psi::StructuralOperationResult>,
         selector: impl Fn(ValueId) -> Option<ScalarTerm>,
     ) -> Option<DescriptorInvocation> {
-        let inputs = invocation.inputs;
-        let callee = terminal_graph_machine(machines, inputs.callee)?;
-        if callee.parameters.len() != inputs.arguments.len() {
+        if callee.id != inputs.callee || callee.parameters.len() != inputs.arguments.len() {
             return None;
         }
-        let owner = match invocation.site {
+        let owner = match site {
             semantic_vocabulary::InvocationSite::Operation(operation) => {
                 DescriptorInvocationOwner::Operation(operation)
             }
@@ -124,18 +123,37 @@ impl DescriptorMachine {
             }
             _ => return None,
         };
-        let mut call = machine_invocation(
-            owner,
-            &module.types.structural_types,
-            slot_kind,
-            callee,
-            inputs.structural_arguments,
-            result,
-            inputs
-                .structural_arguments
-                .iter()
-                .map(|actual| self.place_types.get(&actual.place).copied()),
-        )?;
+        // A witness can retain only the checked header of a non-returning
+        // callee. Its arguments are still observed at the terminal edge,
+        // but there is no callee body from which to infer writes.
+        let mut call = if matches!(owner, DescriptorInvocationOwner::InvokeNoNormal(_))
+            && callee.blocks.is_empty()
+        {
+            let header = crate::requirement_reference_result(module, callee.id).ok()??;
+            public_invocation_at(
+                owner,
+                &module.types.structural_types,
+                slot_kind,
+                &header,
+                Vec::new(),
+                inputs.structural_arguments,
+                result,
+                |place| self.place_types.get(&place).copied(),
+            )?
+        } else {
+            machine_invocation(
+                owner,
+                &module.types.structural_types,
+                slot_kind,
+                callee,
+                inputs.structural_arguments,
+                result,
+                inputs
+                    .structural_arguments
+                    .iter()
+                    .map(|actual| self.place_types.get(&actual.place).copied()),
+            )?
+        };
         call.scalar_arguments = descriptor_scalar_arguments(
             callee
                 .parameters
@@ -158,6 +176,28 @@ pub fn public_invocation(
     result: Option<&terminal_psi::StructuralOperationResult>,
     place_types: &BTreeMap<PlaceId, StructuralTypeId>,
 ) -> Option<DescriptorInvocation> {
+    public_invocation_at(
+        DescriptorInvocationOwner::Operation(operation),
+        types,
+        slot_kind,
+        slot,
+        realizations,
+        actuals,
+        result,
+        |place| place_types.get(&place).copied(),
+    )
+}
+
+fn public_invocation_at(
+    owner: DescriptorInvocationOwner,
+    types: &[StructuralTypeDeclaration],
+    slot_kind: DescriptorSlotKind,
+    slot: &impl terminal_psi::ReferenceResultShape,
+    realizations: Vec<MachineId>,
+    actuals: &[StructuralArgument],
+    result: Option<&terminal_psi::StructuralOperationResult>,
+    place_type: impl Fn(PlaceId) -> Option<StructuralTypeId>,
+) -> Option<DescriptorInvocation> {
     if actuals.len() != slot.structural_parameter_count() {
         return None;
     }
@@ -169,7 +209,7 @@ pub fn public_invocation(
         if actual.access != access {
             return None;
         }
-        let root = *place_types.get(&actual.place)?;
+        let root = place_type(actual.place)?;
         arguments.push(descriptor_location(
             types,
             actual.place,
@@ -200,12 +240,14 @@ pub fn public_invocation(
             return None;
         }
         results = public_result_slots(types, slot_kind, slot, result.place)?;
-    } else if matches!(slot.result().as_ref(), BoundaryMachineResult::Structural(_)) {
+    } else if matches!(owner, DescriptorInvocationOwner::Operation(_))
+        && matches!(slot.result().as_ref(), BoundaryMachineResult::Structural(_))
+    {
         return None;
     }
     Some(DescriptorInvocation {
         scalar_arguments: Vec::new(),
-        owner: DescriptorInvocationOwner::Operation(operation),
+        owner,
         target: DescriptorInvocationTarget::Public {
             effects_machine: None,
             realizations,
