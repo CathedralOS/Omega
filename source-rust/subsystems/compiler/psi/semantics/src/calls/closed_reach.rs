@@ -279,6 +279,9 @@ pub fn validate_closed_reach_applications(module: &TerminalModule) -> Result<(),
                 "closed callback substitution differs from its published operational contract",
             );
         }
+        if invocations.values().any(|call| call.static_reach_binding.is_some()) {
+            super::operational_dependencies::validate_body(module, machine, application)?;
+        }
         if let Some(capture) = &application.capture {
             validate_operational_contract(
                 capture.template_base_commitment,

@@ -7,7 +7,11 @@ and the matching `TaskRuntime::try_start` are boundary
 requirements invoked by path like any other; there is no receiver value, and
 the provider behind them is a build selection. The machine argument is a
 compile-time machine symbol, not capture inference or a runtime function
-value. The final static argument is the compile-time
+value. The core callable type `TaskWorker<Arguments, T>` accepts the job and
+returns the result. Its contract permits suspension and blocking. A wrapper
+calling its static worker publishes the
+[operational dependencies](../language/effects.md#static-callback-operational-dependencies)
+of that call. The final static argument is the compile-time
 [storage plan](#storage-plans) selected for the new activation. A direct `Worker::run(job)` remains an ordinary call. There is no bare spawn, implicit detach, future
 transformation, or privileged supervisor. [Call acknowledgements](../language/effects.md#call-site-acknowledgements)
 describe only what the start/control operation may do to its caller.
