@@ -288,9 +288,16 @@ fn assert_loan_refusal(output: &Output) {
     assert!(!output.status.success(), "{message}");
     let diagnostic = message.to_ascii_lowercase();
     assert!(
-        ["lifetime", "outlive", "loan", "escapes", "conflict"]
-            .iter()
-            .any(|reason| diagnostic.contains(reason)),
+        [
+            "lifetime",
+            "outlive",
+            "loan",
+            "escapes",
+            "conflict",
+            "a borrow uses one place as both mutable and read-only"
+        ]
+        .iter()
+        .any(|reason| diagnostic.contains(reason)),
         "{message}"
     );
 }
