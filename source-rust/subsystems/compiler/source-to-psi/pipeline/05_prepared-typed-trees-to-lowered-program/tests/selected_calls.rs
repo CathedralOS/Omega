@@ -587,6 +587,11 @@ machine main() -> bool {
             "let first: u8",
             "overwrite(@mutable file);\n    let first: u8",
         );
+    let disjoint = overlapping.replace(
+        "overwrite(@mutable file);",
+        "let mutable unrelated: File = File { byte: 9u8 }; overwrite(@mutable unrelated);",
+    );
+    Program::of(&disjoint).judged(|_| ()).accepted();
     match Program::of(&overlapping).judged(|_| ()) {
         program::Verdict::Refused(refusal) => assert_eq!(
             refusal.reason,
