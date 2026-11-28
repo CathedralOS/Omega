@@ -1,18 +1,30 @@
-//! Keep known storage behind an exposed address available to the ordinary
-//! loan and return checks. A numeric address from the caller has no such place.
+//! Trace exposed storage and scalar formals through the value that supplies a native address.
 use semantic_vocabulary::ValueId;
 use terminal_psi::{OperationKind, StructuralArgument, TerminalMachine};
 
-pub struct NativeAddressOrigin<'a> {
+pub struct NativeAddressOrigin<S> {
     /// Storage whose observed address contributed to this scalar, including at joins.
-    pub sources: Vec<&'a StructuralArgument>,
+    pub sources: Vec<S>,
     /// Scalar formals whose actual addresses must be resolved at a direct call.
     pub parameters: Vec<ValueId>,
-    /// Every route supplies the start of one and the same place.
+    /// Every route supplies the start of one and the same known place.
     pub exact: bool,
 }
 
-pub fn address_origin(machine: &TerminalMachine, value: ValueId) -> NativeAddressOrigin<'_> {
+/// The scalar definition visible at this stage of the compiler.
+pub enum AddressDefinition<S> {
+    Storage(S),
+    Parameter,
+    Forward(ValueId),
+    Adjust(ValueId, ValueId),
+    Incoming(Vec<Option<ValueId>>),
+    Opaque,
+}
+
+pub fn trace_address<S: PartialEq>(
+    value: ValueId,
+    mut definition: impl FnMut(ValueId) -> AddressDefinition<S>,
+) -> NativeAddressOrigin<S> {
     let mut work = vec![value];
     let mut visited = std::collections::HashSet::new();
     let mut parameters = Vec::new();
@@ -22,50 +34,83 @@ pub fn address_origin(machine: &TerminalMachine, value: ValueId) -> NativeAddres
         if !visited.insert(value) {
             continue;
         }
-        if let Some(operation) = machine.operations().find(|operation| {
-            operation.result.as_scalar().is_some_and(|result| result.id == value)
-        }) {
-            match &operation.kind {
-                OperationKind::StorageAddress { source } => {
-                    if !sources.contains(&source) {
-                        sources.push(source);
-                    }
+        match definition(value) {
+            AddressDefinition::Storage(source) => {
+                if !sources.contains(&source) {
+                    sources.push(source);
                 }
+            }
+            AddressDefinition::Parameter => parameters.push(value),
+            AddressDefinition::Forward(operand) => work.push(operand),
+            AddressDefinition::Adjust(left, right) => {
+                exact = false;
+                work.extend([left, right]);
+            }
+            AddressDefinition::Incoming(incoming) => {
+                exact &= !incoming.is_empty() && incoming.iter().all(Option::is_some);
+                work.extend(incoming.into_iter().flatten());
+            }
+            AddressDefinition::Opaque => exact = false,
+        }
+    }
+    parameters.sort_unstable();
+    NativeAddressOrigin {
+        exact: exact && parameters.is_empty() && sources.len() == 1,
+        sources,
+        parameters,
+    }
+}
+
+pub fn address_origin(
+    machine: &TerminalMachine,
+    value: ValueId,
+) -> NativeAddressOrigin<&StructuralArgument> {
+    trace_address(value, |value| {
+        if let Some(operation) = machine.operations().find(|operation| {
+            operation
+                .result
+                .as_scalar()
+                .is_some_and(|result| result.id == value)
+        }) {
+            return match &operation.kind {
+                OperationKind::StorageAddress { source } => AddressDefinition::Storage(source),
                 OperationKind::ScalarRepresentationView { operand, .. }
                 | OperationKind::IntegerWiden { operand }
-                | OperationKind::IntegerExactCast { operand, .. } => work.push(*operand),
+                | OperationKind::IntegerExactCast { operand, .. } => {
+                    AddressDefinition::Forward(*operand)
+                }
                 OperationKind::ExactIntegerAdd { left, right, .. }
                 | OperationKind::WrappingIntegerAdd { left, right }
                 | OperationKind::SaturatingIntegerAdd { left, right }
                 | OperationKind::ExactIntegerSubtract { left, right, .. }
                 | OperationKind::WrappingIntegerSubtract { left, right }
                 | OperationKind::SaturatingIntegerSubtract { left, right } => {
-                    exact = false;
-                    work.extend([*left, *right]);
+                    AddressDefinition::Adjust(*left, *right)
                 }
-                _ => exact = false,
-            }
-        } else if machine.parameters.iter().any(|formal| formal.id == value) {
-            parameters.push(value);
-        } else if let Some((block, position)) = machine.blocks.iter().find_map(|block| {
-            block.parameters.iter().position(|parameter| parameter.id == value)
-                .map(|position| (block.id, position))
-        }) {
-            for predecessor in &machine.blocks {
-                for arguments in predecessor.terminator.scalar_arguments_to(block) {
-                    if let Some(actual) = arguments.get(position) {
-                        work.push(*actual);
-                    } else {
-                        exact = false;
-                    }
-                }
-            }
-        } else {
-            exact = false;
+                _ => AddressDefinition::Opaque,
+            };
         }
-    }
-    parameters.sort_unstable();
-    NativeAddressOrigin { exact: exact && parameters.is_empty() && sources.len() == 1, sources, parameters }
+        if machine.parameters.iter().any(|formal| formal.id == value) {
+            return AddressDefinition::Parameter;
+        }
+        let Some((block, position)) = machine.blocks.iter().find_map(|block| {
+            block
+                .parameters
+                .iter()
+                .position(|parameter| parameter.id == value)
+                .map(|position| (block.id, position))
+        }) else {
+            return AddressDefinition::Opaque;
+        };
+        AddressDefinition::Incoming(
+            machine
+                .blocks
+                .iter()
+                .flat_map(|predecessor| predecessor.terminator.scalar_arguments_to(block))
+                .map(|arguments| arguments.get(position).copied())
+                .collect(),
+        )
+    })
 }
 
 
