@@ -12,7 +12,7 @@ use super::activation::Bindings;
 use super::storage::{Storage, Stored};
 use crate::entry_values::TerminalScalarValue as Scalar;
 use crate::synchronization::progress::{ProgressFailure, ProgressScope, ScalarFact};
-use crate::synchronization::spin::{CellUpdate, Operand, SpinCondition, Subject};
+use crate::synchronization::spin::{AtomicWordUpdate, CellUpdate, Operand, SpinCondition, Subject};
 pub(in crate::synchronization) use calls::normal_effects;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -31,6 +31,11 @@ struct AtomicWrite {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Effect {
+    Observe {
+        subject: Subject,
+        scalar_type: semantic_vocabulary::ScalarType,
+        update: AtomicWordUpdate<Operand>,
+    },
     Acquire(Acquisition),
     Write(AtomicWrite),
 }
@@ -47,7 +52,17 @@ pub struct NormalEffects {
 struct NormalReturn {
     when: Vec<Decision>,
     events: Vec<Effect>,
-    scalar_result: Option<Operand>,
+    scalar_result: Option<ReturnedScalar>,
+}
+
+/// A read ordinal counts observations in this one returned event sequence.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ReturnedScalar {
+    Operand(Operand),
+    Observation {
+        ordinal: usize,
+        scalar_type: semantic_vocabulary::ScalarType,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -88,7 +103,7 @@ impl NormalReturn {
                 .subject
                 .fixed_path()
                 .is_none_or(|path| later.insert((write.subject.parameter, path))),
-            Effect::Acquire(_) => {
+            Effect::Acquire(_) | Effect::Observe { .. } => {
                 later.clear();
                 true
             }
@@ -122,7 +137,7 @@ impl NormalEffects {
     fn returned_scalar(
         &mut self,
         decide: &mut impl FnMut(Selector) -> Option<bool>,
-    ) -> Option<Operand> {
+    ) -> Option<ReturnedScalar> {
         let first = self.paths.first()?.scalar_result?;
         if self
             .paths
@@ -154,6 +169,17 @@ impl NormalEffects {
             .iter()
             .all(|path| path.scalar_result == Some(result))
             .then_some(result)
+    }
+
+    fn observation_count(&self) -> Option<usize> {
+        let mut counts = self.paths.iter().map(|path| {
+            path.events
+                .iter()
+                .filter(|event| matches!(event, Effect::Observe { .. }))
+                .count()
+        });
+        let first = counts.next()?;
+        counts.all(|count| count == first).then_some(first)
     }
 
     fn none() -> Self {
@@ -220,7 +246,7 @@ impl NormalEffects {
         mut apply: impl FnMut(Operand) -> Option<Operand>,
     ) -> Option<()> {
         for path in &mut self.paths {
-            if let Some(value) = &mut path.scalar_result {
+            if let Some(ReturnedScalar::Operand(value)) = &mut path.scalar_result {
                 *value = apply(*value)?;
             }
             for condition in &mut path.when {
@@ -228,8 +254,10 @@ impl NormalEffects {
                 *condition = Decision::new(condition.selector, condition.answer);
             }
             for event in &mut path.events {
-                if let Effect::Write(write) = event {
-                    write.value = apply(write.value)?;
+                match event {
+                    Effect::Write(write) => write.value = apply(write.value)?,
+                    Effect::Observe { update, .. } => *update = update.try_map(&mut apply)?,
+                    Effect::Acquire(_) => {}
                 }
             }
         }
@@ -243,6 +271,7 @@ impl NormalEffects {
         for path in &mut self.paths {
             for event in &mut path.events {
                 apply(match event {
+                    Effect::Observe { subject, .. } => subject,
                     Effect::Acquire(acquisition) => &mut acquisition.subject,
                     Effect::Write(write) => &mut write.subject,
                 })?;
