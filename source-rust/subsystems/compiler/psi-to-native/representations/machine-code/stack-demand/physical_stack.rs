@@ -88,6 +88,8 @@ pub struct PhysicalStackFunction {
 pub struct PhysicalStackProgram {
     pub psi: TerminalPsiIdentity,
     pub target: NativeTarget,
+    /// The invocation analysis resolved indirect calls for this entry.
+    pub entry: MachineId,
     pub functions: Vec<PhysicalStackFunction>,
 }
 

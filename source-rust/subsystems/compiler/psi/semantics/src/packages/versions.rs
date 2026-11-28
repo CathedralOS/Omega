@@ -61,7 +61,10 @@ pub(super) fn same_storage_version(
                         })
                         == Some(opened);
                     same_opening
-                        && !structural_arguments.is_empty()
+                        && contract
+                            .structural_parameters
+                            .iter()
+                            .any(|formal| opened.witnesses.contains(&formal.structural_type))
                         && contract.envelope.service_reach.is_empty()
                         && contract.envelope.invocations.is_empty()
                         && !contract.envelope.suspends
@@ -73,16 +76,26 @@ pub(super) fn same_storage_version(
                             .all(|(arg, formal)| {
                                 arg.access != StructuralAccess::Owned
                                     && formal.access == arg.access
-                                    && opened.witnesses.contains(&formal.structural_type)
-                                    && opening::subject_field(
-                                        module,
-                                        machine,
-                                        operation,
-                                        opened,
-                                        arg,
-                                        opening::FieldMatch::StoredReference,
-                                    )
-                                    .is_some()
+                                    && if opened.witnesses.contains(&formal.structural_type) {
+                                        opening::subject_field(
+                                            module,
+                                            machine,
+                                            operation,
+                                            opened,
+                                            arg,
+                                            opening::FieldMatch::StoredReference,
+                                        )
+                                        .is_some()
+                                    } else {
+                                        separate_primitive_input(
+                                            module,
+                                            machine,
+                                            opened,
+                                            materialized,
+                                            arg,
+                                            formal.structural_type,
+                                        )
+                                    }
                             })
                 }),
             _ => false,
@@ -114,4 +127,55 @@ pub(super) fn same_storage_version(
     };
     unchanged(opened.subject.place, &opened.subject.path)
         && materialized.is_none_or(|place| unchanged(place, &[]))
+}
+
+/// A separate scalar or scalar collection can lend its elements without
+/// lending storage for this package, its references or its callbacks. A dynamic selector may depend
+/// on mutable backing, so its version still needs ordinary storage replay.
+fn separate_primitive_input(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    opened: &TerminalPackageOpening,
+    materialized: Option<semantic_vocabulary::PlaceId>,
+    argument: &StructuralArgument,
+    formal: StructuralTypeId,
+) -> bool {
+    argument.path.is_empty()
+        && argument.place != opened.subject.place
+        && Some(argument.place) != materialized
+        && !opened
+            .subject
+            .path
+            .iter()
+            .any(|step| matches!(step, StructuralPathSegment::RuntimeIndex { .. }))
+        && machine.structural_parameters.iter().any(|parameter| {
+            parameter.place == argument.place
+                && parameter.structural_type == formal
+                && terminal_psi::structural_access_covers(parameter.access, argument.access)
+        })
+        && primitive_output_storage(module, formal)
+}
+
+fn primitive_output_storage(module: &TerminalModule, formal: StructuralTypeId) -> bool {
+    let Some(declared) = module.structural_type(formal) else {
+        return false;
+    };
+    let element = match declared.shape {
+        StructuralTypeShape::ByteSequence(_) => return true,
+        StructuralTypeShape::ElementView { element, .. } => element,
+        _ => formal,
+    };
+    let scalar = match module.structural_type(element).map(|ty| &ty.shape) {
+        Some(StructuralTypeShape::PrimitiveScalar(scalar)) => Some(*scalar),
+        Some(StructuralTypeShape::FixedArray { .. }) => {
+            crate::scalar_array_leaf_shape(module.types.structural_types.iter(), element)
+                .map(|(scalar, _)| scalar)
+        }
+        _ => None,
+    };
+    match scalar {
+        Some(ScalarType::Boolean | ScalarType::IeeeFloat(_)) => true,
+        Some(ScalarType::Integer(integer)) => !integer.is_address(),
+        Some(ScalarType::Callable(_)) | None => false,
+    }
 }

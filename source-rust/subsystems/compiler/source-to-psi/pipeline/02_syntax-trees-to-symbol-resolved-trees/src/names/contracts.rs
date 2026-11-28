@@ -631,6 +631,21 @@ fn assign_contract_call_symbols(
             );
         }
         ExpressionNode::Name(path) => {
+            if path.static_application.is_valid()
+                && let Some(written) = super::propositions::foundation_arguments(
+                    symbols,
+                    machine.symbol,
+                    machine.type_parameters,
+                    child_type_references,
+                    expression_table,
+                    expression,
+                )
+            {
+                for argument in written {
+                    assign_calls!(argument);
+                }
+                return;
+            }
             if matches!(expression_table.name_path_members(path.members), [name]
             if language_core::is_reserved_result(name.as_str()))
                 && language_core::signature_reserves_result(

@@ -409,7 +409,13 @@ impl TerminalBuildHost {
             produced.build_requests(),
             programs,
             network,
-            providers.network.as_ref().map(|send| send.peer),
+            crate::host::network::Datagrams::install(
+                artifact.module(),
+                providers
+                    .network
+                    .iter()
+                    .map(|call| (call.access, call.peer, call.boundary)),
+            )?,
             Arc::clone(&filesystem),
             original.clone(),
             providers.diagnostic_output_bytes,

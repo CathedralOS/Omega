@@ -676,3 +676,257 @@ fn dependent_store_requires_a_projected_reference_from_its_destination_opening()
     };
     assert!(check_package_sites(&wrong).is_err());
 }
+
+#[test]
+fn an_opened_callback_retains_each_guarantee_under_its_own_obligation_id() {
+    let mut program = readers();
+    for (index, contract) in program.execution.callables.contracts.iter_mut().enumerate() {
+        for (offset, proposition) in [
+            semantic_vocabulary::Proposition::Truth,
+            semantic_vocabulary::Proposition::Falsehood,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            contract.proof.ensures.push(terminal_psi::ContractClause {
+                obligation: semantic_vocabulary::ObligationId::new(
+                    100 + index as u64 * 2 + offset as u64,
+                )
+                .unwrap(),
+                proposition,
+            });
+        }
+    }
+    let admit = |module: &TerminalModule| {
+        crate::calls::callable_refinement::validate_callable_evidence_contracts_in(
+            &module.execution.callables,
+            &module.proofs.proposition_declarations,
+            &module.proofs.proposition_applications,
+            &module.proofs.evidence_terms,
+            &module.proofs.evidence_contract_lanes,
+        )?;
+        check_package_sites(module).map(|_| ())
+    };
+    assert!(admit(&program).is_ok());
+    let public = program.execution.callables.contracts[0]
+        .proof
+        .ensures
+        .clone();
+    let opened = &program.execution.callables.contracts[1].proof.ensures;
+    let (first, second) = (opened[0].obligation, opened[1].obligation);
+    for (left, right) in [(first, first), (second, first)] {
+        let mut malformed = program.clone();
+        let clauses = &mut malformed.execution.callables.contracts[1].proof.ensures;
+        clauses[0].obligation = left;
+        clauses[1].obligation = right;
+        assert_eq!(
+            admit(&malformed),
+            Err("runtime callable guarantees are not in strict obligation order")
+        );
+    }
+    // Independent headers may reuse labels. Reusing the public label never
+    // establishes a different proposition or a missing guarantee.
+    program.execution.callables.contracts[1].proof.ensures = public;
+    assert!(admit(&program).is_ok());
+    let mut changed = program.clone();
+    changed.execution.callables.contracts[1].proof.ensures[0].proposition =
+        semantic_vocabulary::Proposition::Falsehood;
+    assert!(admit(&changed).is_err());
+    program.execution.callables.contracts[1].proof.ensures.pop();
+    assert!(admit(&program).is_err());
+}
+
+fn repeated_reader_with_output() -> TerminalModule {
+    let mut program = readers();
+    let output = ty(8);
+    program
+        .types
+        .structural_types
+        .push(byte_view_descriptor(8, None));
+    for contract in &mut program.execution.callables.contracts {
+        let output_formal = param(2, output);
+        contract.structural_parameters.push(output_formal.clone());
+        contract.proof.structural_parameters.push(output_formal);
+    }
+    let machine = &mut program.machines[0];
+    machine.structural_parameters.push(param(3, output));
+    for i in [1, 2, 3] {
+        machine
+            .parameter_order
+            .push(BoundaryParameterKind::Structural);
+        machine.structural_places.push(StructuralPlaceDeclaration {
+            id: place(i),
+            kind: StructuralPlaceKind::Parameter {
+                position: (i - 1) as u32,
+            },
+        });
+    }
+    let call = &mut machine.blocks[0].operations[1];
+    let O::CallMachine {
+        structural_arguments,
+        ..
+    } = &mut call.kind
+    else {
+        unreachable!()
+    };
+    structural_arguments.push(StructuralArgument::whole(
+        place(3),
+        StructuralAccess::MutableBorrow,
+    ));
+    let mut again = call.clone();
+    again.id = operation_id(3);
+    machine.blocks[0].operations.push(again);
+    program.execution.packages.sites.push(TerminalPackageSite {
+        machine: machine.id,
+        operation: operation_id(3),
+        event: TerminalPackageEvent::Invoke { opening: 0 },
+    });
+    program
+}
+
+// The first call must accept the evaluated field and all its arguments before
+// the second call can show that the observation expired.
+fn assert_callback_expires(program: TerminalModule) {
+    let mut once = program.clone();
+    once.machines[0].blocks[0].operations.pop();
+    once.execution.packages.sites.pop();
+    check_package_sites(&once).expect("the first call uses the freshly checked field");
+    assert!(
+        check_package_sites(&program).is_err(),
+        "the saved callback should expire"
+    );
+}
+
+#[test]
+fn package_sites_reuse_a_saved_callback_with_a_separate_primitive_output() {
+    let program = repeated_reader_with_output();
+    check_package_sites(&program).expect("the caller lends separate mutable bytes at both calls");
+    let unsigned = ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 32)
+            .unwrap(),
+    );
+    for shape in [
+        StructuralTypeShape::PrimitiveScalar(unsigned),
+        StructuralTypeShape::FixedArray {
+            element: ty(9),
+            length: terminal_psi::ArrayExtent::Literal(3),
+        },
+        StructuralTypeShape::ElementView {
+            element: ty(9),
+            access: None,
+        },
+    ] {
+        let mut scalars = program.clone();
+        scalars.types.structural_types[7].shape = shape;
+        let mut element = byte_view_descriptor(9, None);
+        element.shape = StructuralTypeShape::PrimitiveScalar(unsigned);
+        scalars.types.structural_types.push(element);
+        check_package_sites(&scalars)
+            .expect("a separate primitive output cannot rewrite package storage");
+    }
+    for shape in [
+        StructuralTypeShape::Opaque,
+        StructuralTypeShape::PrimitiveScalar(ScalarType::Callable(callable(1))),
+        StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+            semantic_vocabulary::IntegerType::address(64).unwrap(),
+        )),
+        StructuralTypeShape::Reference {
+            referent: ty(7),
+            access: StructuralAccess::MutableBorrow,
+        },
+    ] {
+        let mut authority = program.clone();
+        authority.types.structural_types[7].shape = shape;
+        assert_callback_expires(authority);
+    }
+}
+
+#[test]
+fn package_sites_expire_the_saved_callback_if_a_call_lends_the_record_or_foreign_authority() {
+    let program = repeated_reader_with_output();
+    let mut whole = program.clone();
+    for contract in &mut whole.execution.callables.contracts {
+        contract.structural_parameters[1].structural_type = ty(7);
+        contract.proof.structural_parameters[1].structural_type = ty(7);
+    }
+    for call in &mut whole.machines[0].blocks[0].operations[1..] {
+        let O::CallMachine {
+            structural_arguments,
+            ..
+        } = &mut call.kind
+        else {
+            unreachable!()
+        };
+        structural_arguments[1].place = place(1);
+    }
+    assert_callback_expires(whole);
+
+    let mut slot = program.clone();
+    let O::CallMachine {
+        structural_arguments,
+        ..
+    } = &mut slot.machines[0].blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path.pop();
+    assert!(
+        check_package_sites(&slot).is_err(),
+        "the reference slot cannot substitute for its pointee"
+    );
+
+    let mut foreign = program.clone();
+    for contract in &mut foreign.execution.callables.contracts {
+        contract
+            .envelope
+            .service_reach
+            .push(semantic_vocabulary::ServiceId::new(1).unwrap());
+    }
+    assert_callback_expires(foreign);
+}
+
+#[test]
+fn package_sites_keep_a_fixed_reader_index_across_a_scalar_output_write() {
+    let mut program = repeated_reader_with_output();
+    let mut index = value(9);
+    index.scalar_type = ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 32)
+            .unwrap(),
+    );
+    program.machines[0].parameters.push(index);
+    program.machines[0]
+        .parameter_order
+        .push(BoundaryParameterKind::Scalar);
+    let mut readers = byte_view_descriptor(9, None);
+    readers.shape = StructuralTypeShape::FixedArray {
+        element: ty(7),
+        length: terminal_psi::ArrayExtent::Literal(2),
+    };
+    program.types.structural_types.push(readers);
+    program.machines[0].structural_parameters[0].structural_type = ty(9);
+    let indexed = |selector: StructuralPathSegment| {
+        let mut indexed = program.clone();
+        indexed.execution.packages.openings[0]
+            .subject
+            .path
+            .push(selector.clone());
+        for operation in &mut indexed.machines[0].blocks[0].operations {
+            let path = match &mut operation.kind {
+                O::PrimitiveScalarRead { path, .. } => path,
+                O::CallMachine {
+                    structural_arguments,
+                    ..
+                } => &mut structural_arguments[0].path,
+                _ => unreachable!(),
+            };
+            path.insert(0, selector.clone());
+        }
+        indexed
+    };
+    check_package_sites(&indexed(StructuralPathSegment::FixedIndex(0)))
+        .expect("a literal index is unaffected by an output write");
+    assert_callback_expires(indexed(StructuralPathSegment::RuntimeIndex {
+        index: ValueId::new(9).unwrap(),
+        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+    }));
+}

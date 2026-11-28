@@ -55,6 +55,10 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
+Marker 310 adds an optional requirement identity after the callable contract's
+identity. Structural contracts omit it. A descriptor for a nominal contract
+must retain its binding to that exact requirement.
+
 Marker 309 appends section 55 for per-value package evidence. Earlier saved
 programs must be rebuilt.
 
@@ -3418,7 +3422,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 309 | yes |
+| semantic module | `PSITERM\0` | 310 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | published artifact | `PSIART\0\0` | 4 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |

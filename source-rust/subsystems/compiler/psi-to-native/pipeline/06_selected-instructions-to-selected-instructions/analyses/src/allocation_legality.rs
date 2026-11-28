@@ -1215,3 +1215,9 @@ failed_display!(
     AllocationLegalityError,
     "Terminal allocation-legality derivation failed"
 );
+
+impl ValidatedAllocationLegality {
+    pub fn shared_plan(&self) -> std::sync::Arc<AllocationLegalityPlan> {
+        std::sync::Arc::clone(&self.plan)
+    }
+}

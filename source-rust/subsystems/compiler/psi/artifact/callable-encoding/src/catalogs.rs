@@ -31,6 +31,7 @@ wire_record! {
     Contract: TerminalCallableContract {
         id: Id,
         identity: Index,
+        requirement: Optional<Index>,
         scalar_parameters: List<Declaration, 17>,
         parameter_order: List<ParameterKind>,
         structural_parameters: List<StructuralParameter, 34>,

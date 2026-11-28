@@ -1149,6 +1149,11 @@ pub(crate) mod original_residence {
         ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
             use crate::boundary::structural_inputs::byte_arrays::storage::ArrayStorageHome;
             match array.home {
+                ArrayStorageHome::Component => {
+                    Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "a component byte loan does not transfer its enclosing allocation to a host",
+                    ))
+                }
                 ArrayStorageHome::Frame {
                     depth,
                     place,
